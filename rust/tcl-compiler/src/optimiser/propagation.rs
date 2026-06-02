@@ -607,7 +607,7 @@ fn visit_call_cmd_subst_folds(
         // needed). Checked before the O103 interproc bail so it fires
         // even when no interprocedural summary is available.
         if let Some(reg) = ctx.registry {
-            if let Some(folded) = try_o129_fold(reg, inner) {
+            if let Some(folded) = try_o129_fold(reg, &ctx.command_mutations, inner) {
                 ctx.report(Optimisation::new(
                     "O129",
                     "Fold constant builtin command substitution",
@@ -691,9 +691,20 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
 /// The result is rendered through [`render_propagation_word`] so a
 /// multi-word fold result (`string toupper {a b}` → `A B`) is emitted
 /// as a single brace-quoted word.
-fn try_o129_fold(registry: &tcl_registry::CommandRegistry, inner: &str) -> Option<String> {
+///
+/// SYNC-JUN02b-4: gated by `mutations.trusts(head)` — if the command was
+/// renamed / redefined anywhere in the module, it is no longer its
+/// original builtin and must not be folded with the builtin's semantics.
+fn try_o129_fold(
+    registry: &tcl_registry::CommandRegistry,
+    mutations: &crate::command_binding::ModuleCommandMutations,
+    inner: &str,
+) -> Option<String> {
     let words = literal_words(inner)?;
     let (head, rest) = words.split_first()?;
+    if !mutations.trusts(head) {
+        return None;
+    }
     let spec = registry.get(head)?;
     let folded = if spec.subcommands.is_empty() {
         let fold = spec.const_fold?;
@@ -1425,6 +1436,36 @@ mod tests {
         assert!(fold("puts [string toupper foo 0 0]").is_empty());
         // A non-builtin head (a user proc) is not an O129 candidate.
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
+    }
+
+    #[test]
+    fn o129_trust_gate_suppresses_fold_for_rebound_builtin() {
+        // SYNC-JUN02b-4 (#519): the builtin-fold trust gate. When the
+        // module renames/redefines `string` anywhere, the whole-module
+        // mutation scan distrusts it and O129 must not fold a `[string
+        // …]` cmd-sub with the original builtin semantics.
+        let fold = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O129")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        // Baseline: untouched `string` folds.
+        assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
+        // Rebound in a proc body → distrusted everywhere → no fold (the
+        // scan over-approximates: any builtin a body may rebind is
+        // untrusted, regardless of whether the proc is ever called).
+        assert!(
+            fold("proc clobber {} { rename string {} }\nputs [string toupper foo]").is_empty(),
+            "rebound-in-proc-body builtin must not fold",
+        );
+        // Top-level rename before the call → also distrusted (the scan is
+        // whole-module / flow-insensitive).
+        assert!(
+            fold("rename string {}\nputs [string toupper foo]").is_empty(),
+            "renamed-away builtin must not fold",
+        );
     }
 
     #[test]

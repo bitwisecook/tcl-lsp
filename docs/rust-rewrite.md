@@ -2967,11 +2967,26 @@ lattice LANDED; W128 + trust-gating pending.**
   `Opaque`), so W128 conservatively goes quiet.  `rename string {};
   string toupper x` → W128 on the `string` call.  3-case discriminating
   test `analyse_w128_fires_on_call_to_renamed_command`.
-- **`command_trust` + fold gating** — pending: `ModuleCommandMutations`
-  + `scan_module_command_mutations` (flow-insensitive whole-module union
-  over proc bodies) feeding a `builtin_is_trusted` gate on the SCCP /
-  registry / O129 folds (the Rust folds currently have **no trust
-  gate**).  The WASM/bytecode dispatch-gating half stays out of scope.
+- **`command_trust` + fold gating — LANDED** (initial gate: O129).
+  `ModuleCommandMutations { names, dynamic }` + `trusts()` +
+  `scan_module_command_mutations` (a CFG-free recursive IR walk over the
+  top-level + every proc / method body, applying the shared `stmt_gen`
+  and collecting *tampered-with core builtins* — a freshly-defined user
+  proc, default `Opaque` → `Proc`, is excluded) ported into
+  `command_binding.rs`.  `PassContext` gained a `command_mutations`
+  field (Default = trust everything, so the bare `PassContext::new` test
+  path is unaffected); `optimise_raw` fills it via
+  `scan_module_command_mutations`.  The **O129** fold now gates on
+  `mutations.trusts(head)` — a command renamed / redefined anywhere in
+  the module (top-level *or* a proc body, flow-insensitively) is no
+  longer folded with its builtin semantics (`rename string {}; puts
+  [string toupper foo]` no longer folds).  3-case discriminating test
+  `o129_trust_gate_suppresses_fold_for_rebound_builtin` +
+  `module_mutations_distrust_rebound_builtins_only`.  **Follow-up:**
+  extend the gate to the SCCP hand-rolled cmd-sub folds
+  (`sccp::try_fold_cmd_subst`, which would need the mutations threaded
+  into SCCP) and the incr-idiom; the WASM/bytecode dispatch-gating half
+  stays out of scope.
 
 ### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
 

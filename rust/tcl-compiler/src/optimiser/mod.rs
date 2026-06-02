@@ -211,6 +211,14 @@ pub struct PassContext<'a> {
     /// bridge (O109 array-element precision).  `None` in the bare
     /// [`PassContext::new`] test path → place suppression is simply skipped.
     pub registry: Option<&'a CommandRegistry>,
+    /// Whole-module command-rebinding summary (SYNC-JUN02b-4): the
+    /// builtin-fold trust gate.  Set by the `optimise*` entry points; the
+    /// bare [`PassContext::new`] test path leaves it at its `Default`
+    /// (trust everything), so existing tests are unaffected.  The O129
+    /// builtin const-fold consults [`ModuleCommandMutations::trusts`] so a
+    /// command rebound anywhere in the module is never folded with its
+    /// original semantics.
+    pub command_mutations: crate::command_binding::ModuleCommandMutations,
 }
 
 impl<'a> PassContext<'a> {

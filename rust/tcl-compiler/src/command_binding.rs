@@ -418,6 +418,167 @@ pub fn analyse_command_binding<'a>(
     }
 }
 
+/// Conservative, flow-insensitive summary of command rebindings across a
+/// whole module — the input to the optimiser's builtin-fold trust gate.
+///
+/// A `rename` / proc redef / `interp alias` buried in a proc body only
+/// takes effect when that proc is *called*, and the cross-proc call order
+/// is not statically known.  Rather than a full interprocedural
+/// call-effect fixpoint, this takes the sound over-approximation: any
+/// core builtin some body may rebind is treated as untrusted
+/// *everywhere*.  Top-level rebindings stay precise via the
+/// flow-sensitive [`CommandBinding`] lattice; this whole-module union is
+/// the conservative fold gate.  Port of Python's
+/// `command_binding.ModuleCommandMutations` + `command_trust`.
+///
+/// `Default` trusts everything (no names, not dynamic) — the
+/// "no mutations observed" baseline.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModuleCommandMutations {
+    /// Canonical names of core builtins some body may rebind.
+    names: std::collections::HashSet<String>,
+    /// A body performs a dynamic `rename`/alias/proc (target not
+    /// statically known) → resolution of *any* name is opaque.
+    dynamic: bool,
+}
+
+impl ModuleCommandMutations {
+    /// True when `command_name` is not clobbered by any body mutation —
+    /// i.e. the optimiser may still fold it with its original builtin
+    /// semantics.
+    #[must_use]
+    pub fn trusts(&self, command_name: &str) -> bool {
+        if self.dynamic {
+            return false;
+        }
+        !self.names.contains(&nqn(command_name))
+    }
+}
+
+/// Collect tampered-with *core builtins* (default `Builtin` but observed
+/// otherwise) plus the wildcard flag from `state` into the accumulators.
+/// A freshly-defined user proc (default `Opaque` → `Proc`) is deliberately
+/// excluded: it doesn't untrust any builtin.
+fn collect_tampered_builtins(
+    state: &State,
+    registry: &CommandRegistry,
+    names: &mut std::collections::HashSet<String>,
+    dynamic: &mut bool,
+) {
+    if state.wildcard {
+        *dynamic = true;
+    }
+    for (name, binding) in &state.map {
+        let default = default_binding(name, registry);
+        if *binding != default && default.kind == BindingKind::Builtin {
+            names.insert(name.clone());
+        }
+    }
+}
+
+/// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
+/// nested structured bodies, in source order) to `state`, collecting
+/// after *each* mutation — so a builtin renamed away and later restored
+/// (`rename string ms; …; rename ms string`) is still recorded as
+/// tampered within that window.  Mirrors Python's `_iter_calls` +
+/// per-statement `_collect`.
+fn walk_body_calls(
+    script: &crate::ir::Script,
+    state: &mut State,
+    registry: &CommandRegistry,
+    names: &mut std::collections::HashSet<String>,
+    dynamic: &mut bool,
+) {
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Call { .. } | Statement::Barrier { .. } => {
+                stmt_gen(stmt, state, registry);
+                collect_tampered_builtins(state, registry, names, dynamic);
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    walk_body_calls(&c.body, state, registry, names, dynamic);
+                }
+                if let Some(b) = else_body {
+                    walk_body_calls(b, state, registry, names, dynamic);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                walk_body_calls(init, state, registry, names, dynamic);
+                walk_body_calls(next, state, registry, names, dynamic);
+                walk_body_calls(body, state, registry, names, dynamic);
+            }
+            Statement::While { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Foreach { body, .. } => {
+                walk_body_calls(body, state, registry, names, dynamic);
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                walk_body_calls(body, state, registry, names, dynamic);
+                for h in handlers {
+                    walk_body_calls(&h.body, state, registry, names, dynamic);
+                }
+                if let Some(fb) = finally_body {
+                    walk_body_calls(fb, state, registry, names, dynamic);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        walk_body_calls(b, state, registry, names, dynamic);
+                    }
+                }
+                if let Some(b) = default_body {
+                    walk_body_calls(b, state, registry, names, dynamic);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Summarise command-table mutations across the whole module — a
+/// CFG-free recursive IR walk over the top-level script *and* every proc
+/// / method body, so it can run before per-function CFGs are built.
+///
+/// Only *tampered-with core builtins* are reported (see
+/// [`collect_tampered_builtins`]).  The result feeds the optimiser's
+/// builtin-fold trust gate via [`ModuleCommandMutations::trusts`].
+#[must_use]
+pub fn scan_module_command_mutations(
+    ir_module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> ModuleCommandMutations {
+    let mut names = std::collections::HashSet::new();
+    let mut dynamic = false;
+
+    let mut visit = |script: &crate::ir::Script| {
+        let mut state = State::default();
+        walk_body_calls(script, &mut state, registry, &mut names, &mut dynamic);
+    };
+
+    visit(&ir_module.top_level);
+    for proc in ir_module.procedures.values() {
+        visit(&proc.body);
+    }
+    for method in ir_module.methods.values() {
+        visit(&method.body);
+    }
+
+    ModuleCommandMutations { names, dynamic }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,5 +670,26 @@ mod tests {
             cb.binding_at(&fu.cfg.entry, 0, "myproc").kind,
             BindingKind::Proc
         );
+    }
+
+    #[test]
+    fn module_mutations_distrust_rebound_builtins_only() {
+        let reg = CommandRegistry::build_default();
+        // A builtin renamed inside a proc body is distrusted everywhere
+        // (over-approximation); a fresh user proc untrusts nothing.
+        let cu = CompilationUnit::build_for(
+            "proc clobber {} { rename string {} }\nproc myproc {} { return 1 }",
+            &reg,
+            false,
+        );
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.trusts("string"), "string is rebound in a proc body");
+        assert!(m.trusts("lappend"), "an untouched builtin stays trusted");
+        assert!(m.trusts("myproc"), "a fresh user proc untrusts nothing");
+
+        // A dynamic mutation distrusts every name.
+        let cu2 = CompilationUnit::build_for("set x foo\nrename $x bar", &reg, false);
+        let m2 = scan_module_command_mutations(&cu2.ir_module, &reg);
+        assert!(!m2.trusts("string") && !m2.trusts("lappend"));
     }
 }
