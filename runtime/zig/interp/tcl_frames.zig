@@ -322,6 +322,12 @@ pub const FrameInfo = struct {
     /// meaningful for type=proc).  Retained; released on
     /// ``frame_pop``.
     proc_name: i32 = 0,
+    /// TclObj handle of the proc / lambda parameter-spec list (e.g.
+    /// ``{x {y 2} args}``).  Set at proc / apply entry; lets ``info
+    /// locals`` / ``info vars`` enumerate the formal parameters in
+    /// *declaration* order (matching C's compiled-local order) ahead of
+    /// the body's other locals.  Retained; released on ``frame_pop``.
+    params: i32 = 0,
     /// Phase 8 follow-up: 1 = the codegen owns the ``line`` field
     /// for this frame (i.e. the compiled-proc prologue is going to
     /// stamp ``frame_set_line`` per-statement).  ``eval_script``
@@ -712,6 +718,7 @@ pub export fn frame_pop() void {
         if (fi.script_obj != 0) obj.tcl_obj_release(fi.script_obj);
         if (fi.cmd_text != 0) obj.tcl_obj_release(fi.cmd_text);
         if (fi.proc_name != 0) obj.tcl_obj_release(fi.proc_name);
+        if (fi.params != 0) obj.tcl_obj_release(fi.params);
         fi.* = .{};
         // Reset the per-frame namespace slot so the next
         // ``frame_push`` for this index sees a fresh (zero) value
@@ -868,6 +875,18 @@ pub export fn frame_set_proc_name(proc_name: i32) void {
     if (proc_name != 0 and proc_name != old) obj.tcl_obj_retain(proc_name);
     fi.proc_name = proc_name;
     if (old != 0 and old != proc_name) obj.tcl_obj_release(old);
+}
+
+/// Record the proc / lambda parameter-spec list for the current frame so
+/// ``info locals`` / ``info vars`` can enumerate formals in declaration
+/// order.  Retained; released on ``frame_pop``.
+pub export fn frame_set_params(params: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.params;
+    if (params != 0 and params != old) obj.tcl_obj_retain(params);
+    fi.params = params;
+    if (old != 0 and old != params) obj.tcl_obj_release(old);
 }
 
 /// Read the FrameInfo for an absolute frame depth.  Returns null
@@ -3123,7 +3142,40 @@ pub const FrameLocalVisitor = fn (ctx: u32, name_ptr: u32, name_len: u32, value:
 /// caller can decide whether to count ``unset``-cleared slots.
 pub fn frame_locals_visit_current(ctx: u32, visit: *const FrameLocalVisitor) void {
     const base = current_frame() orelse return;
+    const idx = frame_depth - 1;
     const cap = capacity_for_base(base);
+    const params = frame_info[idx].params;
+
+    // Phase 1: emit the formal parameters in *declaration* order (the
+    // order they appear in the proc / lambda arg-spec), matching C's
+    // compiled-local ordering — ``info locals`` for ``proc p {a b}`` and
+    // ``apply {{x args} …}`` must list ``a b`` / ``x args`` in source
+    // order, not hash-bucket order (apply-8.*).  Only live locals are
+    // emitted; a missing name (unset) is skipped.
+    if (params != 0) {
+        const ps = obj.obj_ensure_string(params);
+        if (ps.len > 0) {
+            const n = obj.list_count_elements(ps.ptr, ps.len);
+            var pi: i64 = 0;
+            while (pi < n) : (pi += 1) {
+                const pe = obj.list_element_at(ps.ptr, ps.len, pi);
+                // The formal name is the first element of the ``{name
+                // ?default?}`` spec (or the bare word).
+                const spec_ptr = ps.ptr + pe.start;
+                const ne = obj.list_element_at(spec_ptr, pe.len, 0);
+                const nptr = spec_ptr + ne.start;
+                const nlen = ne.len;
+                if (nlen == 0) continue;
+                const hash = fnv1a(nptr, nlen);
+                if (frame_find(base, nptr, nlen, hash)) |bucket| {
+                    visit(ctx, nptr, nlen, read_i32(bucket + OFF_VALUE));
+                }
+            }
+        }
+    }
+
+    // Phase 2: emit every other live bucket (body locals, upvar / global
+    // aliases) in bucket order, skipping the formals already emitted.
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
         const bucket = base + i * FRAME_BUCKET_SIZE;
@@ -3131,9 +3183,38 @@ pub fn frame_locals_visit_current(ctx: u32, visit: *const FrameLocalVisitor) voi
         if (name_ptr == 0 or name_ptr == ht.TOMBSTONE) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + BUCKET_NAME_LEN));
         if (name_len == 0) continue;
+        if (params != 0 and params_has_name(params, name_ptr, name_len)) continue;
         const value = read_i32(bucket + OFF_VALUE);
         visit(ctx, name_ptr, name_len, value);
     }
+}
+
+/// True if *name* is one of the formal-parameter names in *params* (a
+/// proc / lambda arg-spec list).  Used to skip formals already emitted
+/// in declaration order by the phase-1 sweep above.
+fn params_has_name(params: i32, name_ptr: u32, name_len: u32) bool {
+    const ps = obj.obj_ensure_string(params);
+    if (ps.len == 0) return false;
+    const n = obj.list_count_elements(ps.ptr, ps.len);
+    const want: [*]const u8 = @ptrFromInt(name_ptr);
+    var pi: i64 = 0;
+    while (pi < n) : (pi += 1) {
+        const pe = obj.list_element_at(ps.ptr, ps.len, pi);
+        const spec_ptr = ps.ptr + pe.start;
+        const ne = obj.list_element_at(spec_ptr, pe.len, 0);
+        if (ne.len != name_len) continue;
+        const have: [*]const u8 = @ptrFromInt(spec_ptr + ne.start);
+        var same = true;
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) {
+            if (have[k] != want[k]) {
+                same = false;
+                break;
+            }
+        }
+        if (same) return true;
+    }
+    return false;
 }
 
 /// Probe whether an alias bucket's ALIAS_GLOBAL / ALIAS_EXT target

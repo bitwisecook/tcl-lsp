@@ -55,6 +55,7 @@ class _WasmEmitterBase:
         def _emit_block(self, *a: Any, **kw: Any) -> Any: ...
         def _run_optimisations(self, *a: Any, **kw: Any) -> Any: ...
         def _body_references_info_level(self, *a: Any, **kw: Any) -> Any: ...
+        def _body_references_info_locals(self, *a: Any, **kw: Any) -> Any: ...
         def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
         def _local_slot_index(self, *a: Any, **kw: Any) -> Any: ...
 
@@ -68,6 +69,8 @@ class _WasmEmitterBase:
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
         proc_index: dict[str, tuple[int, int]] | None = None,
+        full_proc_index: dict[str, tuple[int, int]] | None = None,
+        distrust_proc_guard: bool = False,
         proc_defaults: dict[str, tuple[str | None, ...]] | None = None,
         proc_args_tail: set[str] | None = None,
         shared_strings: list[tuple[str, int]] | None = None,
@@ -114,8 +117,24 @@ class _WasmEmitterBase:
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
-        # proc_index maps qualified name → (func_idx, n_params)
+        # proc_index maps qualified name → (func_idx, n_params).  This is
+        # the *callable* map: entries for procs whose runtime dispatch may
+        # have changed (rename / interp mutation) are removed so direct
+        # calls downgrade to the eval fallback.
         self._proc_index: dict[str, tuple[int, int]] = proc_index or {}
+        # The *full* proc-index — never invalidated.  Used by the distrust
+        # rename-guard (``_emit_distrust_proc_subst``) to recover a proc's
+        # compile-time func_idx even when the callable map dropped it; the
+        # guard's runtime func_idx + trace-quiescent checks supply the
+        # soundness that invalidation would otherwise provide.  Falls back
+        # to the callable map when not supplied.
+        self._full_proc_index: dict[str, tuple[int, int]] = (
+            full_proc_index if full_proc_index is not None else self._proc_index
+        )
+        # Whether the distrust rename-guard (``_emit_distrust_proc_subst``)
+        # may fire in this unit.  False for units using command / execution
+        # traces or a child interp — see ``wasm_codegen_module``.
+        self._distrust_proc_guard: bool = distrust_proc_guard
         # Per-proc default-value strings, indexed by slot.  Consulted
         # by ``_emit_cmd_proc_call`` to pad missing call-site args
         # with the declared default rather than a boxed zero.
@@ -583,6 +602,14 @@ class _WasmEmitterBase:
             return True
         if self._body_references_info_level():
             return True
+        # ``info locals`` / ``info vars`` enumerate the current frame's
+        # variables, so the proc needs its own frame — without one the
+        # query reads the caller's frame (or, when elided entirely,
+        # comes back empty).  The escape summary covers the common
+        # shapes, but a deeply-nested ``[… [info locals] …]`` subst can
+        # slip past it; this substring-based backstop catches those.
+        if self._body_references_info_locals():
+            return True
         return False
 
     # -- S2.2: refcount-disciplined owned-slot write --------------------
@@ -946,7 +973,13 @@ class _WasmEmitterBase:
                 ) in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
-                    self._emit_i32_const(1)  # func_idx marker (any non-zero)
+                    # Store the proc's REAL WASM function index (not a bare
+                    # ``1`` marker).  The runtime only tests it for ``!= 0``
+                    # ("is AOT-compiled"), but a unique per-proc value lets
+                    # the distrust rename-guard verify a name still maps to
+                    # this exact compiled proc before a cheap direct call.
+                    _real_func_idx = self._full_proc_index.get(qname, (0, 0))[0] or 1
+                    self._emit_i32_const(_real_func_idx)
                     self._emit_i32_const(1 if has_args_tail else 0)
                     self._emit_i32_const(n_required)
                     self._emit_call(reg_idx)
@@ -1334,6 +1367,29 @@ class _WasmEmitterBase:
                 self._emit_i32_const(len(body_bytes))
                 self._emit_call(obj_str_idx)
                 self._emit_call(set_script_idx)
+            # Record the formal-parameter spec on the frame so ``info
+            # locals`` / ``info vars`` enumerate this proc's formals in
+            # *declaration* order (matching C's compiled-local order)
+            # ahead of the body's other locals — without it the hash
+            # store hands them back in bucket order.  Gated on the body
+            # actually referencing ``info locals`` / ``info vars`` (the
+            # only readers of the ordering) so non-introspecting procs
+            # skip the per-call allocation; those bodies also force the
+            # pessimistic frame + hash-table local storage that the
+            # runtime's ``frame_find`` walk relies on.
+            if (
+                "tcl_frame_set_params" in self._shared_imports
+                and self._body_references_info_locals()
+            ):
+                params_source = self._build_params_source(qname, self._params)
+                if params_source:
+                    set_params_idx = self._shared_imports["tcl_frame_set_params"]
+                    params_offset = self._intern_string(params_source)
+                    params_bytes = params_source.encode("utf-8", errors="surrogatepass")
+                    self._emit_i32_const(params_offset + 4)
+                    self._emit_i32_const(len(params_bytes))
+                    self._emit_call(obj_str_idx)
+                    self._emit_call(set_params_idx)
             # Phase 8 follow-up: claim line-stamp ownership so a
             # nested ``eval_script`` (e.g. resolving a ``[…]`` inside
             # the body) doesn't clobber the per-statement stamps

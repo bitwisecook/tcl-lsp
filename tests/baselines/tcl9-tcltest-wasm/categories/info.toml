@@ -1,14 +1,30 @@
-# info.test — auto-generated WASM baseline.
+# info.test — WASM baseline (manually triaged).
 # bucket = 'W-mixed-fail'
 # reason = '58 of 287 failed'
 trap_allowed = false
 good_to_have = []
-just_to_match_ctcl = []
+
+# W9-internal — incompatible by design, do NOT fix.
+#
+# Every entry below is `info frame` (or `info cmdcount`, info-3.1).  C
+# Tcl's `info frame` reports each command's *absolute source-file* line
+# (`line 955 file info.test cmd {info frame 0} ...`), driven by the
+# bytecode line-table (`ExtCmdLoc` / `TclGetSrcInfoForPc`).  Our WASM
+# pipeline compiles the whole bundle (tcltest + preamble + info.test) as
+# ONE unit, so line numbers are bundle-relative — never the upstream
+# file's absolute lines.  We also emit per-command line info only inside
+# procs and only body-relative, and never track `file`.  Reproducing the
+# upstream dict would require threading original-source maps through
+# bundler -> lowering -> codegen -> runtime and emitting absolute
+# file/line per command everywhere — a different architecture.
+# `info cmdcount` (info-3.1) likewise depends on the bytecode VM's
+# instruction counter via the `testinfocmdcount` C hook.
+just_to_match_ctcl = ["info-3.1", "info-22.0", "info-22.6", "info-22.7", "info-23.4", "info-24.7", "info-24.8", "info-24.9", "info-25.0", "info-25.1", "info-30.2", "info-30.3", "info-30.14", "info-30.15", "info-30.16", "info-30.17", "info-30.18", "info-30.19", "info-30.20", "info-30.21", "info-30.22", "info-30.23", "info-30.24", "info-30.25", "info-30.26", "info-30.27", "info-30.28", "info-30.29", "info-30.30", "info-30.31", "info-30.32", "info-30.33", "info-30.34", "info-30.35", "info-30.36", "info-30.37", "info-30.38", "info-30.39", "info-30.44", "info-30.45", "info-30.46", "info-30.47", "info-33.2", "info-33.2a", "info-33.3", "info-33.3a", "info-34.0", "info-34.1", "info-35.0", "info-35.1"]
 skip = []
 
 [baseline]
 good_to_have_failing = 0
-just_to_match_ctcl_failing = 0
+just_to_match_ctcl_failing = 50
 skip_failing = 0
 observed_total = 287
 observed_passed = 228
@@ -16,5 +32,15 @@ observed_failed = 58
 observed_skipped = 1
 
 [failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["info-3.1", "info-7.6", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-19.3", "info-20.2", "info-22.0", "info-22.6", "info-22.7", "info-23.4", "info-24.7", "info-24.8", "info-24.9", "info-25.0", "info-25.1", "info-33.2", "info-33.2a", "info-33.3", "info-33.3a", "info-34.0", "info-34.1", "info-35.0", "info-35.1", "info-30.2", "info-30.3", "info-30.14", "info-30.15", "info-30.16", "info-30.17", "info-30.18", "info-30.19", "info-30.20", "info-30.21", "info-30.22", "info-30.23", "info-30.24", "info-30.25", "info-30.26", "info-30.27", "info-30.28", "info-30.29", "info-30.30", "info-30.31", "info-30.32", "info-30.33", "info-30.34", "info-30.35", "info-30.36", "info-30.37", "info-30.38", "info-30.39", "info-30.44", "info-30.45", "info-30.46", "info-30.47"]
+# Test IDs failing today that are NOT incompatible-by-design — kept here
+# for visibility, not gating:
+#   info-16.2/16.3/16.4/16.5/16.8  `info script` — needs the source
+#       filename threaded to the runtime; 16.3/16.4/16.5 also need
+#       runtime `source` (we inline `source` at compile time).
+#   info-19.3                       `info vars` == `info globals` at the
+#       top level — bundle-global-set discrepancy.
+#   info-20.2                       `info functions` list is now correct;
+#       blocked by an orthogonal catch+expr fold bug that makes
+#       `catch {expr {T1()}}` return rc=0 instead of raising.
+#   info-7.6                        `info exists` of an unset local.
+ids = ["info-7.6", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-19.3", "info-20.2"]

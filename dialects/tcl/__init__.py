@@ -125,6 +125,7 @@ from . import (
     tell,  # noqa: F401
     throw,  # noqa: F401
     time,  # noqa: F401
+    timerate,  # noqa: F401
     trace,  # noqa: F401
     try_,  # noqa: F401
     unknown,  # noqa: F401

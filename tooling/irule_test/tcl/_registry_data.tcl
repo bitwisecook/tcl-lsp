@@ -140,6 +140,7 @@ namespace eval ::tmm {
         tcl_findLibrary
         tell
         time
+        timerate
         unknown
         unload
         update

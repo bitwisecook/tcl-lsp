@@ -523,6 +523,9 @@ fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) 
     const bp: [*]const u8 = @ptrFromInt(b_ptr);
     var i: u32 = 0;
     var j: u32 = 0;
+    // Case difference only breaks ties: recorded at the first differing
+    // position, applied at the end if the case-folded strings are equal.
+    var secondary: i32 = 0;
     while (i < a_len and j < b_len) {
         if (ap[i] >= '0' and ap[i] <= '9' and bp[j] >= '0' and bp[j] <= '9') {
             // Skip leading zeros to find significant digit start.
@@ -547,28 +550,49 @@ fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) 
                     return if (ap[a_sig_start + k] < bp[b_sig_start + k]) -1 else 1;
                 }
             }
-            // Equal numerically — tie-break by zero-count (fewer
-            // leading zeros sorts first).
+            // Equal numerically — the leading-zero count is a SECONDARY
+            // tiebreak (more leading zeros sorts later), recorded only at
+            // the first difference so an earlier case tiebreak still wins
+            // (cmdIL-4.3).  Matches C ``DictionaryCompare``'s
+            // ``secondaryDiff = zeros``.
             const a_zeros = a_sig_start - a_zero_start;
             const b_zeros = b_sig_start - b_zero_start;
-            if (a_zeros != b_zeros) {
-                return if (a_zeros < b_zeros) -1 else 1;
+            if (secondary == 0 and a_zeros != b_zeros) {
+                secondary = if (a_zeros < b_zeros) -1 else 1;
             }
         } else {
-            var ac: u8 = ap[i];
-            var bc: u8 = bp[j];
-            if (nocase) {
-                if (ac >= 'A' and ac <= 'Z') ac += 32;
-                if (bc >= 'A' and bc <= 'Z') bc += 32;
-            }
+            // Non-digit run.  Dictionary order is primarily
+            // case-INSENSITIVE — compare the lower-cased characters,
+            // matching C ``DictionaryCompare``.  Folding to lower (not
+            // upper) makes punctuation between ``Z`` and ``a`` sort
+            // before ``A`` (cmdIL-4.28..4.33).  A case difference only
+            // breaks an otherwise-equal tie, and then upper-case sorts
+            // before lower-case (cmdIL-4.17 / 4.20).
+            const ac_raw = ap[i];
+            const bc_raw = bp[j];
+            var ac = ac_raw;
+            var bc = bc_raw;
+            if (ac >= 'A' and ac <= 'Z') ac += 32;
+            if (bc >= 'A' and bc <= 'Z') bc += 32;
             if (ac != bc) return if (ac < bc) -1 else 1;
+            if (secondary == 0 and !nocase) {
+                const a_up = ac_raw >= 'A' and ac_raw <= 'Z';
+                const a_lo = ac_raw >= 'a' and ac_raw <= 'z';
+                const b_up = bc_raw >= 'A' and bc_raw <= 'Z';
+                const b_lo = bc_raw >= 'a' and bc_raw <= 'z';
+                if (a_up and b_lo) {
+                    secondary = -1;
+                } else if (b_up and a_lo) {
+                    secondary = 1;
+                }
+            }
             i += 1;
             j += 1;
         }
     }
     if (i < a_len) return 1;
     if (j < b_len) return -1;
-    return 0;
+    return secondary;
 }
 
 // Bytewise compare with optional case-folding.
@@ -632,7 +656,7 @@ fn lsort_make_key(elem_obj: i32, opts: *const LsortOpts) LsortKey {
     var key: LsortKey = .{ .obj = key_obj, .str_ptr = s.ptr, .str_len = s.len };
     switch (opts.mode) {
         .integer => {
-            if (obj_mod.try_parse_int(s.ptr, s.len)) |v| {
+            if (lsort_parse_int(s.ptr, s.len)) |v| {
                 key.int_val = v;
             }
         },
@@ -646,6 +670,62 @@ fn lsort_make_key(elem_obj: i32, opts: *const LsortOpts) LsortKey {
         else => {},
     }
     return key;
+}
+
+/// Parse a Tcl integer for ``lsort -integer``, accepting the base
+/// prefixes ``Tcl_GetWideIntFromObj`` does — ``0x`` (hex), ``0o``
+/// (octal), ``0b`` (binary), ``0d`` (decimal) — on top of the plain
+/// decimal path.  Returns null when the string isn't a valid integer
+/// (the caller leaves the key at 0, mirroring the prior lenient
+/// behaviour).  Fixes cmdIL-3.11.
+fn lsort_parse_int(ptr: u32, len: u32) ?i64 {
+    if (obj_mod.try_parse_int(ptr, len)) |v| return v;
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+    var neg = false;
+    if (i < len and (src[i] == '-' or src[i] == '+')) {
+        neg = src[i] == '-';
+        i += 1;
+    }
+    if (i + 1 >= len or src[i] != '0') return null;
+    const base: u64 = switch (src[i + 1]) {
+        'x', 'X' => 16,
+        'o', 'O' => 8,
+        'b', 'B' => 2,
+        'd', 'D' => 10,
+        else => return null,
+    };
+    i += 2;
+    var mag: u64 = 0;
+    var any = false;
+    while (i < len) : (i += 1) {
+        const c = src[i];
+        const d: u64 = if (c >= '0' and c <= '9')
+            c - '0'
+        else if (c >= 'a' and c <= 'f')
+            @as(u64, c - 'a') + 10
+        else if (c >= 'A' and c <= 'F')
+            @as(u64, c - 'A') + 10
+        else
+            break;
+        if (d >= base) return null;
+        const m = @mulWithOverflow(mag, base);
+        if (m[1] != 0) return null;
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return null;
+        mag = a[0];
+        any = true;
+    }
+    while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+    if (i != len or !any) return null;
+    if (neg) {
+        if (mag > 0x8000_0000_0000_0000) return null;
+        return @bitCast(0 -% mag);
+    }
+    if (mag > 0x7FFF_FFFF_FFFF_FFFF) return null;
+    return @bitCast(mag);
 }
 
 fn lsort_compare(a: *const LsortKey, b: *const LsortKey, opts: *const LsortOpts) i32 {
@@ -2301,14 +2381,19 @@ fn lseq_emit_dbl(start: f64, step: f64, n_in: i64, precision: u32) result_mod.In
 fn eval_lseq(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
 
-    // ``lseq N`` -> integer 0 .. N-1 (``lseq 3.0`` is {0 1 2}).
+    // ``lseq N`` -> integer 0 .. N-1 (``lseq 3.0`` is {0 1 2}).  The
+    // count operand is itself an expression — ``lseq {1+1}`` is {0 1}
+    // and ``lseq {[incr i]}`` evaluates the command exactly once
+    // (lseq-2.19 / 2.20).
     if (words.len == 2) {
-        const count = rt.obj_get_int(words[1]);
+        const cw = rt.tcl_expr_canonicalise(words[1]);
+        defer obj_mod.tcl_obj_release(cw);
+        const count = rt.obj_get_int(cw);
         if (count <= 0) return result_mod.from_globals(obj_new_string(0, 0));
         return lseq_emit_int(0, count - 1, 1);
     }
 
-    const start_word = words[1];
+    var start_word = words[1];
     var idx: u32 = 2;
     var is_count = false;
     var legacy_by = false; // ``lseq START by STEP``
@@ -2348,6 +2433,21 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
         step_word = words[idx];
         have_step = true;
     }
+
+    // Evaluate each operand as an expression so forms like ``double(0)``,
+    // ``{3.0+0}`` and ``1e50+0`` resolve to a typed numeric value
+    // (lseq-1.25 / 1.26 / 1.27).  The keyword tokens (``to`` / ``..`` /
+    // ``count`` / ``by``) were already consumed above, so only operands
+    // reach here.  ``tcl_expr_canonicalise`` returns a fresh +1 handle
+    // (a verbatim retain for non-numeric input), released on every exit.
+    start_word = rt.tcl_expr_canonicalise(start_word);
+    defer obj_mod.tcl_obj_release(start_word);
+    if (end_word != 0) end_word = rt.tcl_expr_canonicalise(end_word);
+    defer if (end_word != 0) obj_mod.tcl_obj_release(end_word);
+    if (is_count) count_word = rt.tcl_expr_canonicalise(count_word);
+    defer if (is_count) obj_mod.tcl_obj_release(count_word);
+    if (have_step) step_word = rt.tcl_expr_canonicalise(step_word);
+    defer if (have_step) obj_mod.tcl_obj_release(step_word);
 
     if (legacy_by) {
         // ``lseq START by STEP``: integer-only count form (start=0).
