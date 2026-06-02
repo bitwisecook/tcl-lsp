@@ -2979,6 +2979,61 @@ fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
   ${a(1)}; return $x` produces *no* O100 / O102 / O103 fold on `x` (it is
   treated as a var-read → overdefined), so there is nothing to patch.
 
+## SYNC-JUN02c family — main audit (2026-06-02)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`31d3aac8`.  `main` landed **3** commits; advances the
+anchor to `origin/main`@`e64aff29`.  Histories still diverge fully (no
+merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#523** (`80bc2b0e`) — *test(vscode): de-flake variable-context
+  completion probes and deep-diagnostics waits.*  Touches only
+  `editors/vscode/src/test/*` + `.test-slow.stamp`.  Pure VS Code
+  extension test hardening (poll-until instead of fixed sleeps).
+  **Out of scope** (editors / tests).
+- **#520** (`b2ef4480`) — *Support encrypted (OpenPGP) UCS archives
+  with passphrase decryption.*  F5 tooling: `tooling/f5/f5_remote/*`
+  (new `_aes.py` / `_openpgp.py` symmetric-decrypt + `ucs.py` rework)
+  and `tooling/f5/verbs/*`.  **Out of scope** (F5 / BigIP tooling — the
+  `BIG*` / `F*` Python-retirement chunks, not analyser / compiler /
+  registry / optimiser).
+- **#522** (`e64aff29`) — *Tcl 9 compatibility: scan / format / string
+  / regex / proc / flow fixes.*  The bulk is **out of scope**: WASM
+  codegen (`compiler/codegen/wasm/{_imports,_scan,api,proc_scan}.py`),
+  the **Zig VM / WASM runtime** (`runtime/zig/cmds/{flow,list,proc,scan,
+  tcl_cmd_interp,tcl_mathfunc}.zig`, `runtime/zig/interp/*`,
+  `runtime/zig/parse/tcl_parse.zig`, `runtime/zig/valtypes/{tcl_format,
+  tcl_regex,tcl_string}.zig`), the WASM execution test suite
+  (`tests/test_wasm_*.py`), the parity baseline
+  (`tests/baselines/wasm_command_parity.json`), generated editor
+  catalogues, and the `tooling/irule_test` registry-data regen.
+
+In-scope rows:
+
+### SYNC-JUN02c-1 — `timerate` command spec (#522)
+
+`main` #522 added `dialects/tcl/timerate.py` — a command spec for the
+`timerate` debugging command (measure the rate of execution of a
+script; `timerate ?-direct? ?-calibrate? ?-overhead double? command
+?time ?max-count??`).  It is a sibling of `time`: `arg_roles={0: BODY}`,
+`arg_types={1: INT shimmers}`, unbounded arity (`Arity(1)`), a
+`STRING` return, an `UNKNOWN`-target read+write side-effect (the body
+runs arbitrary code), and `dialects=DIALECTS_EXCEPT_IRULES`.  Classify
+in-scope, **low-touch feature** (a single new registry command spec).
+**Rust state: LANDED** — ported as
+`rust/tcl-registry/src/commands/tcl/timerate.rs` and registered in the
+tcl pack `mod.rs` (`mod timerate;` + `timerate::spec()`).  Mirrors the
+Python fields exactly except the dialect set: the Rust tcl pack uses
+`dialects: None` for vanilla commands (its sibling `time` does too) and
+mirrors iRules exclusion via the separate iRules pack rather than
+per-command, so the `DIALECTS_EXCEPT_IRULES` restriction is a
+pack-wide, pre-existing fidelity property — not specific to this strip.
+One discriminating registry test pins the BODY role / INT hint /
+unbounded arity / STRING return / UNKNOWN read+write effect
+(`timerate_registered_with_body_and_int_hint`).
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3181,6 +3236,13 @@ priority queue:
   scope: the WASM/bytecode dispatch-gating + canonical-quoting migration
   and the `shared/tcl_list` Python consolidation.  See the `SYNC-JUN02b`
   family section.
+* **`SYNC-JUN02c` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`31d3aac8` to `origin/main`@`e64aff29` (+3 commits).  One
+  in-scope row.  **`SYNC-JUN02c-1` — LANDED**: the `timerate` command
+  spec (#522) ported to `rust/tcl-registry/src/commands/tcl/timerate.rs`.
+  Out of scope: #523 (VS Code test de-flaking), #520 (F5 OpenPGP UCS
+  decryption — `tooling/f5`), and the WASM-codegen / Zig-runtime / WASM-
+  test bulk of #522.  See the `SYNC-JUN02c` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.

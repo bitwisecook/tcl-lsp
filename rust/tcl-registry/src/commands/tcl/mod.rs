@@ -108,6 +108,7 @@ mod tcl_unsupported_corotype;
 mod tell_;
 mod throw_;
 mod time;
+mod timerate;
 mod trace;
 mod try_;
 mod unknown;
@@ -258,6 +259,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tell_::spec(),
         throw_::spec(),
         time::spec(),
+        timerate::spec(),
         trace::spec(),
         try_::spec(),
         unknown::spec(),
