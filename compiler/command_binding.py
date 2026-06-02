@@ -133,18 +133,26 @@ def _join_binding(a: Binding, b: Binding) -> Binding:
     return _TOP
 
 
+def _is_dynamic_word(word: str) -> bool:
+    """True when *word* carries a variable / command substitution.
+
+    A command-name argument that contains ``$`` or ``[`` *anywhere* — not just
+    at offset 0 — is not a static name: e.g. ``rename ::$c mystr`` lowers the old
+    name to ``::${c}``, and ``rename foo bar[x]`` makes the new name dynamic.
+    Such a mutation can rebind an unknown command, so it must collapse the state
+    to the wildcard ⊤ rather than be mistaken for a literal name.
+    """
+    return "$" in word or "[" in word
+
+
 def _proc_qname_of(args: list[str]) -> str | None:
     """Canonical qname defined by a ``proc NAME params body`` call, or None."""
     if not args or not args[0]:
         return None
     name = args[0]
-    if name.startswith("$") or name.startswith("["):
+    if _is_dynamic_word(name):
         return None  # dynamic proc name — handled as a wildcard mutation
     return _NQN(name)
-
-
-def _is_dynamic_word(word: str) -> bool:
-    return word.startswith("$") or word.startswith("[")
 
 
 def _stmt_gen(stmt: IRStatement, state: _State) -> None:
@@ -447,11 +455,8 @@ def scan_module_command_mutations(module: IRModule) -> ModuleCommandMutations:
     names: set[str] = set()
     dynamic = False
 
-    def visit(script: IRScript | None) -> None:
+    def _collect(state: _State) -> None:
         nonlocal dynamic
-        state: _State = {}
-        for stmt in _iter_calls(script):
-            _stmt_gen(stmt, state)
         if _WILDCARD in state:
             dynamic = True
         for name, binding in state.items():
@@ -460,6 +465,17 @@ def scan_module_command_mutations(module: IRModule) -> ModuleCommandMutations:
             default = _default_binding(name)
             if binding != default and default.kind is BindingKind.BUILTIN:
                 names.add(name)
+
+    def visit(script: IRScript | None) -> None:
+        state: _State = {}
+        # Collect after *each* mutation, not just the final state: a builtin
+        # renamed away and later restored (``rename string ms; …; rename ms
+        # string``) ends back at its default but was tampered with mid-body, so
+        # calls in that window must not be trusted/folded.  Mirrors
+        # ``CommandBinding.rebound_names``.
+        for stmt in _iter_calls(script):
+            _stmt_gen(stmt, state)
+            _collect(state)
 
     visit(module.top_level)
     for proc in module.procedures.values():

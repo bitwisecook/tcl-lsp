@@ -17,8 +17,10 @@ from compiler.command_binding import (
     BindingKind,
     analyse_command_binding,
     scan_command_mutations_in_bodies,
+    scan_module_command_mutations,
 )
 from compiler.compilation_unit import ensure_compilation_unit
+from compiler.lowering import lower_to_ir
 from compiler.registry.runtime import configure_signatures
 
 
@@ -198,6 +200,41 @@ class TestProcBodyMutationScan:
         cu, _ = _top("proc helper {x} {return [expr {$x+1}]}\nputs [helper 4]\n")
         cfgs = [fu.cfg for fu in cu.procedures.values()]
         mut = scan_command_mutations_in_bodies(cfgs)
+        assert not mut.dynamic
+        assert mut.names == frozenset()
+        assert mut.trusts("string")
+
+
+class TestModuleScanSoundness:
+    """``scan_module_command_mutations`` (the whole-module, CFG-free scan used to
+    build the codegen/optimiser trust verdict) must catch *transient* and
+    *embedded-substitution* builtin tampering."""
+
+    def _mut(self, src: str):
+        configure_signatures(dialect="tcl9.0")
+        return scan_module_command_mutations(lower_to_ir(src))
+
+    def test_transient_rename_and_restore_is_caught(self):
+        # ``string`` is renamed away, used, then restored — its *final* binding
+        # is back to the builtin default, but it was tampered with mid-body, so
+        # it must NOT be trusted (calls in that window would hit ``unknown``).
+        mut = self._mut("rename string ms\nset x [string length abc]\nrename ms string\n")
+        assert "::string" in mut.names
+        assert not mut.trusts("string")
+
+    def test_embedded_substitution_rename_is_dynamic(self):
+        # ``rename ::$c mystr`` — the old name carries a substitution after a
+        # literal prefix, so it's a *dynamic* rename that can touch any command.
+        mut = self._mut("set c string\nrename ::$c mystr\nputs [string length abc]\n")
+        assert mut.dynamic
+        assert not mut.trusts("string")
+
+    def test_embedded_substitution_in_new_name_is_dynamic(self):
+        mut = self._mut("rename foo bar[x]\n")
+        assert mut.dynamic
+
+    def test_clean_module_still_trusts(self):
+        mut = self._mut("proc fib {n} {return $n}\nputs [fib 3]\nputs [string length hi]\n")
         assert not mut.dynamic
         assert mut.names == frozenset()
         assert mut.trusts("string")
