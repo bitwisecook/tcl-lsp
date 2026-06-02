@@ -289,6 +289,64 @@ fn fold_equal(args: &[&str]) -> Option<String> {
     }
 }
 
+/// `string map ?-nocase? mapping string`.  ASCII-restricted (byte-exact
+/// greedy left-to-right replacement matching Tcl's `string map`; the
+/// `mapping` is a list of old/new pairs, first matching pair wins).
+fn fold_string_map(args: &[&str]) -> Option<String> {
+    let (mapping_str, s) = match args {
+        [m, s] => (*m, *s),
+        ["-nocase", m, s] => {
+            // -nocase handled below via case-insensitive byte compare.
+            return fold_string_map_impl(m, s, true);
+        }
+        _ => return None,
+    };
+    fold_string_map_impl(mapping_str, s, false)
+}
+
+fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<String> {
+    if !mapping_str.is_ascii() || !s.is_ascii() {
+        return None;
+    }
+    let pairs = crate::const_fold::split_list(mapping_str)?;
+    if pairs.len() % 2 != 0 {
+        return None;
+    }
+    let reps: Vec<(&str, &str)> = pairs
+        .chunks_exact(2)
+        .map(|kv| (kv[0].as_str(), kv[1].as_str()))
+        .collect();
+    let sb = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut pos = 0;
+    while pos < sb.len() {
+        let mut matched = false;
+        for (old, new) in &reps {
+            let ob = old.as_bytes();
+            if ob.is_empty() || pos + ob.len() > sb.len() {
+                continue;
+            }
+            let window = &sb[pos..pos + ob.len()];
+            let hit = if nocase {
+                window.eq_ignore_ascii_case(ob)
+            } else {
+                window == ob
+            };
+            if hit {
+                out.push_str(new);
+                pos += ob.len();
+                matched = true;
+                break;
+            }
+        }
+        if !matched {
+            out.push(sb[pos] as char); // ASCII byte → char
+            pos += 1;
+        }
+    }
+    Some(out)
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -572,6 +630,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string map ?-nocase? mapping string",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_string_map),
         options: &[OptionSpec {
             name: "-nocase",
             takes_value: false,
@@ -949,5 +1008,22 @@ mod tests {
         );
         assert_eq!(f("equal")(&["abc", "abc"]).as_deref(), Some("1"));
         assert_eq!(f("equal")(&["abc", "abd"]).as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn string_map_folds_match_tcl() {
+        // SYNC-JUN02d-1 (#525): `string map` greedy left-to-right replace.
+        let reg = CommandRegistry::build_default();
+        let m = reg
+            .get("string")
+            .and_then(|s| s.subcommand("map"))
+            .and_then(|s| s.const_fold)
+            .expect("map const_fold");
+        assert_eq!(m(&["a b", "aaa"]).as_deref(), Some("bbb"));
+        assert_eq!(m(&["ab AB", "xabx"]).as_deref(), Some("xABx"));
+        assert_eq!(m(&["-nocase", "abc X", "ABCdef"]).as_deref(), Some("Xdef"));
+        // Odd mapping → no fold; non-ASCII → no fold.
+        assert_eq!(m(&["a b c", "x"]), None);
+        assert_eq!(m(&["a b", "caf\u{e9}"]), None);
     }
 }

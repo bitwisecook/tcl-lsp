@@ -1455,6 +1455,10 @@ mod tests {
             vec!["{c b a}".to_string()],
             "list result is brace-quoted as one word",
         );
+        assert_eq!(fold("puts [string map {a b} aaa]"), vec!["bbb".to_string()]);
+        assert_eq!(fold("puts [subst hello]"), vec!["hello".to_string()]);
+        // `subst` with a substitution must NOT fold (no upstream resolution).
+        assert!(fold("puts [subst {$x}]").is_empty());
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),

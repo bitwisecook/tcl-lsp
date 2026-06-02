@@ -3263,9 +3263,19 @@ unbalanced braces / unterminated quote / trailing junk / backslash), a
 results are re-quoted element-wise (`lreverse {a b} c` → `c {a b}`),
 then the O129 path wraps the whole result as one word.  `dict create` /
 `merge` de-dup keys last-wins with position preserved (Tcl 9
-`Tcl_DictObjPut`).  **Remaining folds** (own follow-up strips):
-`string is` / `map` (class predicates / list-keyed mapping); `format`,
-`scan`.  (The duplicated `split_list` / `list_element` vs
+`Tcl_DictObjPut`).  **`string map`** (greedy left-to-right replace,
+`-nocase`, ASCII-restricted, byte-exact) and **`subst`** (B4) also
+landed — `subst` folds only a substitution-free string (bails on `$` /
+`[` / `\`), a *stricter* subset of Python's fold since the Rust O129
+path passes raw literal args with no upstream `$var` resolution (that is
+the deferred B2 work; folding `subst {$x}` verbatim would be unsound).
+**Remaining folds** (own follow-up strips): **`string is`** — deferred
+because Python's fold leans on Python `str` methods whose semantics
+diverge from Tcl's per-class definitions (e.g. `str.islower("abc1")` is
+`True` but Tcl's `string is lower abc1` is `0`), so a sound Rust port
+needs Tcl-faithful class predicates, not a `str`-method transcription;
+**`format`**, **`scan`** (printf / scanf semantics — need differential
+pinning).  (The duplicated `split_list` / `list_element` vs
 `tcl-compiler::codegen::helpers` is a deliberate trade-off — the
 canonical Tcl list-string codec should consolidate into a shared leaf
 like `tcl-lexer`; tracked.)
