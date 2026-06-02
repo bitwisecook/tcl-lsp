@@ -226,9 +226,7 @@ def _decrypt_seipd(body: bytes, cipher_id: int, session_key: bytes) -> bytes:
     """Decrypt a Sym. Encrypted & Integrity Protected Data packet (tag 18)."""
     version = body[0]
     if version != 1:
-        raise OpenPGPError(
-            "unsupported encrypted-data packet (AEAD/SEIPD v2); install gpg/gpg2"
-        )
+        raise OpenPGPError("unsupported encrypted-data packet (AEAD/SEIPD v2); install gpg/gpg2")
     cipher = _make_cipher(cipher_id, session_key)
     plain = _cfb_decrypt(cipher, b"\x00" * _BLOCK, body[1:])
     if len(plain) < _BLOCK + 2 + 22:
@@ -320,9 +318,7 @@ def decrypt_symmetric(data: bytes, passphrase: str | bytes) -> bytes:
         if tag == 3:
             cipher_id, session_key = _decode_skesk(body, passphrase)
         elif tag == 1:
-            raise OpenPGPError(
-                "public-key encrypted message — a passphrase cannot decrypt it"
-            )
+            raise OpenPGPError("public-key encrypted message — a passphrase cannot decrypt it")
         elif tag in (9, 18):
             enc_tag, enc_body = tag, body
 

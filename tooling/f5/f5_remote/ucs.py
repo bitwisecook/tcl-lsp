@@ -170,9 +170,7 @@ def make_passphrase_provider(
     def provider() -> str:
         if not cache:
             cache.append(
-                resolve_passphrase(
-                    env_var=env_var, explicit=explicit, allow_prompt=allow_prompt
-                )
+                resolve_passphrase(env_var=env_var, explicit=explicit, allow_prompt=allow_prompt)
             )
         return cache[0]
 
@@ -201,9 +199,7 @@ def _gpg_supports_loopback(path: str) -> bool:
     pinentry mode to accept a passphrase on a file descriptor.
     """
     try:
-        out = subprocess.run(
-            [path, "--version"], capture_output=True, text=True, timeout=10
-        )
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):  # pragma: no cover - defensive
         return True
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", out.stdout)
@@ -218,10 +214,7 @@ def _gpg_install_hint() -> str:
     if sys.platform == "darwin":
         return "install GnuPG, e.g. `brew install gnupg`"
     if sys.platform.startswith("win"):
-        return (
-            "install Gpg4win (https://www.gpg4win.org/) "
-            "or `winget install GnuPG.Gpg4win`"
-        )
+        return "install Gpg4win (https://www.gpg4win.org/) or `winget install GnuPG.Gpg4win`"
     if sys.platform.startswith("linux"):
         for tool, cmd in (
             ("apt-get", "apt install gnupg"),
@@ -382,8 +375,7 @@ def decrypt_if_encrypted(
     plaintext = decrypt_ucs_bytes(raw, provider())
     if not is_ucs_bytes(plaintext):
         raise UcsDecryptionError(
-            f"{label}: decrypted data is not a UCS archive (gzip magic missing) "
-            "— wrong passphrase?"
+            f"{label}: decrypted data is not a UCS archive (gzip magic missing) — wrong passphrase?"
         )
     return plaintext
 

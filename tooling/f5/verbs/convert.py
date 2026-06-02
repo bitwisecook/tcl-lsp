@@ -100,8 +100,8 @@ def _run_ucs2scf(args: argparse.Namespace) -> int:
 
 def _run_scf2as3(args: argparse.Namespace) -> int:
     try:
-        _, source = read_path(args.path)
-    except OSError as exc:
+        _, source = read_path(args.path, passphrase_provider=provider_from_args(args))
+    except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     cfg = parse_bigip_conf(source)
