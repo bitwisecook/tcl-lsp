@@ -2818,7 +2818,12 @@ verified against Tcl's `list`), so a non-escaping local like `set msg
 `TclConvertElement`) as a shared leaf, then (b) the O100
 single-token-whole-word re-render in the propagation pass.  Classify
 in-scope, **low-touch feature** (the quoter is ~80 LOC; the O100 hook is
-small).  Applicability pending Rust-optimiser-state check.
+small).  **Rust state: deferred** — the O100 bail lives at
+`optimiser/propagation.rs::is_value_safe_bare_word` (the exact
+metacharacter conservatism #519 removes), but the fix needs the
+`tcl_list_quote` leaf, which has **no Rust counterpart**
+(`render_static_string_word` only handles a balanced `{value}`).  Land
+the quoter first (its own row), then the O100 re-render is a one-liner.
 
 ### SYNC-JUN02b-2 — optimiser variable-aliasing & trace soundness fixes (#519)
 
@@ -2836,8 +2841,21 @@ variable, plus a trace bug.  Three fixes:
   no longer collapses writes to an escaping / traced variable.
 Classify in-scope, **soundness** — these patch Rust code that already
 exists (interproc summaries + constant propagation + the elimination /
-pattern passes).  **Highest-value applicable items.**  Applicability +
-exact Rust sites pending the state check.
+pattern passes).  **Rust state:**
+- `writes_global` aliases — **LANDED** (`interprocedural.rs`:
+  `LocalFacts.global_aliases` + `global_alias_names`; `scan_statement`
+  tracks `global` / `variable` / `upvar #0` decls and flags later bare
+  writes to aliased / `::`-qualified names).
+- call-site constant kill — **N/A**: the Rust propagation pass uses a
+  *whole-function* SCCP constant map (a var is constant only if every
+  SSA version agrees), so a callee mutating an outer-scope var the
+  caller thinks constant cannot arise — there is no statement-stepped
+  kill-site logic to patch.  (Becomes relevant only if a stepped
+  propagation lands; tracked under `-6`.)
+- O104 escaping/traced guard — **N/A**: the Rust O104 is **hint-only**
+  (it never collapses the chain to a single `set`), so there is no
+  unsound rewrite to gate.  Re-evaluate if an applicable O104 rewrite
+  lands (then it needs the `-3` observability lattice).
 
 ### SYNC-JUN02b-3 — `var_observability` flow-sensitive escape/trace lattice (#519)
 
@@ -2849,7 +2867,11 @@ union; O104 consults it point-wise.  Classify in-scope, **structural** —
 a multi-strip new subsystem (foundation for flow-sensitive alias/trace
 in memory-SSA + SCCP/GVN).  Defer to its own chunk; the SYNC-JUN02b-2
 soundness fixes are the conservative whole-function approximation that
-this later refines.
+this later refines.  **Rust state: deferred** — Rust *does* have a
+flow-sensitive var-escape analysis (`var_escape/cfg_propagation/`), but
+it answers the *codegen slot-resolution* question (`Local` vs `Frame`),
+has **no `TRACED` flag** and **no `observability` artifact** on
+`FunctionUnit`; this optimiser-soundness lattice is genuinely new.
 
 ### SYNC-JUN02b-4 — `command_binding` lattice + `command_trust` + W128 (#519)
 
@@ -2863,7 +2885,13 @@ never folded with its original semantics.  A new flow-sensitive
 diagnostic **W128** (call to a command renamed/deleted earlier in the
 file) is backed by the same lattice.  Classify in-scope, **structural**
 — a large new subsystem + a new W-code.  Defer to its own chunk(s); the
-WASM/bytecode dispatch-gating half is out of scope.
+WASM/bytecode dispatch-gating half is out of scope.  **Rust state:
+deferred** — **no Rust counterpart** (`alias.rs` tracks `interp alias`
+and the analyser flips `has_dynamic_providers` on `load`/`rename`, but
+there is no per-program-point command-resolution lattice and the Rust
+SCCP / registry folds have **no trust gate** — they unconditionally
+assume builtins keep their semantics, which is the current Rust
+behaviour everywhere).
 
 ### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
 
@@ -2871,9 +2899,12 @@ WASM/bytecode dispatch-gating half is out of scope.
 operands *as strings* (a dedicated `_apply_string_compare`), matching C
 Tcl 9 (`5 eq 5.0` → 0, `"x" ne "y"` → 1).  Previously only numeric
 evaluation, so string-only constant comparisons never folded.  Classify
-in-scope, **low-touch correctness** — patches the existing Rust
-`tcl_expr_eval` if it has the same numeric-only gap.  Applicability +
-Rust site pending the state check.
+in-scope, **low-touch correctness**.  **Rust state: LANDED** — the Rust
+`tcl_expr_eval::eval_binary` had the identical numeric-only gap
+(`StrEq`/`StrNe`/… fell through to numeric `eval`, so a bare-string
+operand yielded `None`).  Now routed through `eval_as_string` +
+`apply_string_compare`; the now-unreachable `apply_binary` arms fold
+into its `None` group.
 
 ### SYNC-JUN02b-6 — new optimiser const-folds (#519)
 
@@ -2900,11 +2931,28 @@ than fixes:
 - direct-`[expr {$x …}]` constant propagation (the SSA use-collector
   hides expr-cmd-sub reads, so `puts [expr {$x + 1}]` folds via a
   reaching-version augmentation).
-Classify in-scope, **features** — most need the corresponding Rust
-optimiser pass to exist first; each is its own incremental strip.  The
-ones whose Rust pass already exists (e.g. O115 unwrap, list/lindex fold)
-are candidate fixes; the rest are new folds.  Applicability per-fold
-pending the state check.
+Classify in-scope, **features** — each its own incremental strip.
+**Rust state: deferred.**  The Rust optimiser has **no registry
+`const_fold` / `FOLD_HINTS` mechanism** — builtin folding lives only in
+SCCP's hand-rolled `try_fold_cmd_subst` (list / format / llength /
+string-length / expr) and the value-position cmd-sub fold path
+(`propagation::visit_call_cmd_subst_folds`) handles **proc calls only**.
+So O129 / O130 / scan / the registry-routed list-lindex all need the
+fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
+- **O115 value-position unwrap** — the helper
+  (`optimiser/helpers/expr_simplify::try_unwrap_expr_in_expr`) exists
+  but only runs on standalone `ExprEval` statements; wiring it into the
+  value / return / branch-cond cmd-sub path is a clean follow-up strip.
+- **O105 string-constant interpolation** — **already present** in Rust
+  (`propagation::visit_string_interpolation`, emitted as O100); only a
+  minor `return "…$x…"` completeness gap remains.
+- **format flags** — Rust `codegen/helpers::try_format_fold` folds only
+  `%s` / `%d` / `%%` and returns `None` otherwise, so the Python *bug*
+  (dropping flags) does **not** exist (safe but incomplete); porting the
+  full printf-compatible `%` is a completeness upgrade, low urgency.
+- **list / lindex** — `fold_list_cmd` exists; there is **no
+  `fold_lindex`** and no O116 / O118 emission; routing through the
+  registry waits on the fold-hints mechanism.
 
 ### SYNC-JUN02b-7 — per-use-site DCE + braced-scalar SCCP marker (#519)
 
@@ -2916,9 +2964,16 @@ pending the state check.
 - **braced-scalar `${name}` SCCP marker** — `set x ${a(1)}` reads scalar
   `a(1)`; the reconstructed `$={name}` marker text must be treated as a
   (conservatively overdefined) variable reference, not folded as a
-  literal.  Classify in-scope, low-touch — applies only if the Rust SCCP
-  reconstructs the same marker.
-Applicability pending the state check.
+  literal.  Classify in-scope, low-touch.
+**Rust state: both N/A.**
+- per-use-site DCE — the Rust DCE (`elimination.rs`, O109 / O126) works
+  off `def_use` chains + SCCP purity, not the Python propagation→liveness
+  handshake (`propagated_expr_stmts`); the diamond-DCE bug shape this
+  fixes does not exist in the Rust architecture.
+- braced-scalar marker — Rust has **no `$=` marker** (grep-empty) and
+  does **not** mis-fold the braced scalar: a probe confirms `set x
+  ${a(1)}; return $x` produces *no* O100 / O102 / O103 fold on `x` (it is
+  treated as a var-read → overdefined), so there is nothing to patch.
 
 ## Next-up priority queue
 
@@ -3101,17 +3156,25 @@ priority queue:
   section.
 * **`SYNC-JUN02b` family** — opened 2026-06-02; advances the anchor from
   `origin/main`@`8aeaf1cd` to `origin/main`@`31d3aac8` (+1 commit, the
-  #519 optimiser mega-PR).  Seven in-scope rows: **`-2`** (alias/trace
-  soundness fixes — highest-value, patch existing Rust optimiser/interproc),
-  **`-5`** (string-comparison folding in expr-eval — low-touch),
-  **`-7`** (per-use-site DCE + braced-scalar SCCP marker), **`-1`** (O100
-  multi-word constant + canonical quoter), **`-6`** (new const-folds:
-  O129/O130/O105/O115/format/scan/list-lindex — mostly new features),
-  and the two **structural** lattices **`-3`** (`var_observability`) /
-  **`-4`** (`command_binding` + `command_trust` + W128) deferred to their
-  own chunks.  Out of scope: the WASM/bytecode dispatch-gating +
-  canonical-quoting migration and the `shared/tcl_list` Python
-  consolidation.  See the `SYNC-JUN02b` family section.
+  #519 optimiser mega-PR).  Seven in-scope rows.  **Applied now** (the
+  two clean soundness/correctness fixes to existing Rust):
+  **`-5` — LANDED** (string comparisons `eq`/`ne`/`lt`/`gt`/`le`/`ge`
+  fold as strings in `tcl_expr_eval`) and **`-2` — LANDED** (interproc
+  `writes_global` recognises `global`/`variable`/`upvar #0` aliases).
+  **Deferred** (large new subsystems / missing mechanisms): **`-1`** (O100
+  multi-word constant — needs a `tcl_list_quote` leaf), **`-3`**
+  (`var_observability` optimiser lattice — Rust's `var_escape` is
+  codegen-only, no `TRACED`), **`-4`** (`command_binding` +
+  `command_trust` + W128 — no Rust counterpart), **`-6`** (new
+  const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
+  yet; O115-value-unwrap is the cleanest follow-up, O105 already present).
+  **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
+  constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
+  hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
+  Rust has none and doesn't mis-fold `${a(1)}`, probe-confirmed).  Out of
+  scope: the WASM/bytecode dispatch-gating + canonical-quoting migration
+  and the `shared/tcl_list` Python consolidation.  See the `SYNC-JUN02b`
+  family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
