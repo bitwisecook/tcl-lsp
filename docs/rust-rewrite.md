@@ -3316,12 +3316,24 @@ fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
   quoter) instead of bailing on a non-bare-word, so `proc ::greet {} {
   return "a b c" }; puts [::greet]` folds to `puts {a b c}`.
   Discriminating test `o103_folds_multi_word_string_return_list_quoted`.
-- **B2** (nested reaching-version constants threaded into the fold so
-  `puts [expr {[string length $s]}]` → `puts 3`, gated to same-block
-  straight-line defs) — **deferred.**  B1 handles only literal args; the
-  `[expr {…}]` half and the `$var` reaching-version threading (sound
-  only for same-block straight-line defs — semi-pruned SSA omits a phi
-  for hidden join reads) are B2.  Tracked for a follow-up strip.
+- **B2 — LANDED.**  `literal_words` now resolves a single-token `$var`
+  argument to its constant value (via the SCCP `constants` map threaded
+  through `visit_call_cmd_subst_folds` → `try_o129_fold` →
+  `fold_builtin_cmd_subst_raw`, and through the B1 interpolation path),
+  keeping a multi-word value as **one** argument so it isn't re-split.
+  `set s abcde; puts [string length $s]` → `puts 5`; `set s {a b}; puts
+  [llength $s]` → `puts 2`; combined with B1, `set s abc; puts
+  "len=[string length $s]"` → `puts "len=3"`.  **Soundness:** Python
+  needed same-block straight-line def gating because its reaching-version
+  is per-point (semi-pruned SSA omits a phi for hidden join reads); the
+  Rust SCCP `constants` map is *whole-function* (a var is present only if
+  every reaching def agrees), so substituting from it is sound
+  everywhere with no gating.  A composite word (`foo$bar`), an array
+  element (`$a(1)`), or a non-constant var bails.  Discriminating test
+  `o129_resolves_constant_var_args_b2`.  **Still deferred:** the
+  `[expr {[string length $s]}]` *expr-wrapper* nesting (the outer
+  `[expr {…}]` routes through the expr path, not the const_fold path) —
+  a further follow-up.
 
 ## Next-up priority queue
 

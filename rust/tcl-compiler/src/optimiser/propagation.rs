@@ -244,7 +244,7 @@ fn walk_statement(
         } => {
             if let Some(t) = tokens {
                 visit_call_tokens(ctx, t, constants);
-                visit_call_cmd_subst_folds(ctx, cu, t);
+                visit_call_cmd_subst_folds(ctx, cu, t, constants);
             }
             try_fold_static_proc_call(ctx, cu, *span, command, args);
         }
@@ -267,7 +267,7 @@ fn walk_statement(
         Statement::AssignValue {
             tokens: Some(t), ..
         } => {
-            visit_call_cmd_subst_folds(ctx, cu, t);
+            visit_call_cmd_subst_folds(ctx, cu, t, constants);
         }
         Statement::Return {
             span,
@@ -577,6 +577,7 @@ fn visit_call_cmd_subst_folds(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
     tokens: &CommandTokens,
+    constants: &std::collections::HashMap<String, String>,
 ) {
     use crate::interprocedural::ConstantReturn;
 
@@ -607,7 +608,7 @@ fn visit_call_cmd_subst_folds(
         // needed). Checked before the O103 interproc bail so it fires
         // even when no interprocedural summary is available.
         if let Some(reg) = ctx.registry {
-            if let Some(folded) = try_o129_fold(reg, &ctx.command_mutations, inner) {
+            if let Some(folded) = try_o129_fold(reg, &ctx.command_mutations, constants, inner) {
                 ctx.report(Optimisation::new(
                     "O129",
                     "Fold constant builtin command substitution",
@@ -696,9 +697,10 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
 fn try_o129_fold(
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
+    constants: &std::collections::HashMap<String, String>,
     inner: &str,
 ) -> Option<String> {
-    let folded = fold_builtin_cmd_subst_raw(registry, mutations, inner)?;
+    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner)?;
     Some(render_propagation_word(&folded))
 }
 
@@ -712,9 +714,10 @@ fn try_o129_fold(
 fn fold_builtin_cmd_subst_raw(
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
+    constants: &std::collections::HashMap<String, String>,
     inner: &str,
 ) -> Option<String> {
-    let words = literal_words(inner)?;
+    let words = literal_words(inner, constants)?;
     let (head, rest) = words.split_first()?;
     if !mutations.trusts(head) {
         return None;
@@ -741,7 +744,10 @@ fn fold_builtin_cmd_subst_raw(
 /// carries a backslash escape (decoding is out of scope here). A braced
 /// literal (`{a b}`, `{a$b}`) yields its interior text — the contents
 /// are literal, so they fold soundly.
-fn literal_words(inner: &str) -> Option<Vec<String>> {
+fn literal_words(
+    inner: &str,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<Vec<String>> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(inner);
@@ -764,7 +770,26 @@ fn literal_words(inner: &str) -> Option<Vec<String>> {
                 words.push(text.to_owned());
                 prev_is_sep = false;
             }
-            // Var / Cmd (and any future kind) → substitution-bearing.
+            TokenType::Var => {
+                // B2 (SYNC-JUN02d-2, #525): resolve a single-token `$var`
+                // word to its constant value (kept as ONE argument so a
+                // multi-word value isn't re-split).  The Rust SCCP
+                // `constants` map is whole-function (a var is present only
+                // if every reaching def agrees), so substituting it here
+                // is sound without Python's same-block reaching-version
+                // gating.  A composite word (`foo$bar`), an array element
+                // (`$a(1)` — never a scalar constant), or a non-constant
+                // var bails.
+                if !prev_is_sep {
+                    return None;
+                }
+                let name = sm.token_text(*tok);
+                let normalised = normalise_var_name(&format!("${name}")).to_owned();
+                let value = constants.get(&normalised).or_else(|| constants.get(name))?;
+                words.push(value.clone());
+                prev_is_sep = false;
+            }
+            // Cmd (and any future kind) → substitution-bearing.
             _ => return None,
         }
     }
@@ -790,7 +815,7 @@ fn visit_call_tokens(
         visit_string_interpolation(ctx, *span, text, constants);
         // B1 (SYNC-JUN02d-2): fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
-        visit_string_interpolation_cmd_subs(ctx, *span, text);
+        visit_string_interpolation_cmd_subs(ctx, *span, text, constants);
     }
 }
 
@@ -837,6 +862,7 @@ fn visit_string_interpolation_cmd_subs(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
     text: &str,
+    constants: &std::collections::HashMap<String, String>,
 ) {
     let Some(registry) = ctx.registry else {
         return;
@@ -893,7 +919,7 @@ fn visit_string_interpolation_cmd_subs(
                 };
                 let cmd = &inside[start + 1..close];
                 if let Some(result) =
-                    fold_builtin_cmd_subst_raw(registry, &ctx.command_mutations, cmd)
+                    fold_builtin_cmd_subst_raw(registry, &ctx.command_mutations, constants, cmd)
                 {
                     // Reject a result that would re-introduce a
                     // substitution into the `"…"` context.
@@ -1642,6 +1668,36 @@ mod tests {
         assert!(fold("puts [string toupper foo 0 0]").is_empty());
         // A non-builtin head (a user proc) is not an O129 candidate.
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
+    }
+
+    #[test]
+    fn o129_resolves_constant_var_args_b2() {
+        // B2 (SYNC-JUN02d-2, #525): a constant `$var` arg in a builtin
+        // cmd-sub is resolved (whole-function-constant → sound) before
+        // folding; a multi-word value stays a single argument.
+        let fold = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O129")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(
+            fold("set s abcde\nputs [string length $s]"),
+            vec!["5".to_string()],
+        );
+        // A multi-word constant value is kept as one arg.
+        assert_eq!(
+            fold("set s {a b}\nputs [llength $s]"),
+            vec!["2".to_string()],
+        );
+        // Combined B1 + B2: resolved var inside an interpolation cmd-sub.
+        assert_eq!(
+            fold("set s abc\nputs \"len=[string length $s]\""),
+            vec!["\"len=3\"".to_string()],
+        );
+        // A non-constant var does not resolve → no fold.
+        assert!(fold("puts [string length $undefined]").is_empty());
     }
 
     #[test]
