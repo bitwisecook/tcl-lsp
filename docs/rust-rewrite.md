@@ -2607,6 +2607,119 @@ piece) + reposition adapter (this row's second piece) +
 Classify: in-scope, **structural**, closes with `S*`.  No standalone
 Rust port today.
 
+## SYNC-JUN02 family — main audit (2026-06-02)
+
+Re-audited `origin/main`@`8aeaf1cd` against the prior anchor
+`origin/main`@`59c770f6` (the SYNC-MAY31 refresh point).  `main` landed
+**5** commits since then.  Histories still diverge fully (no merge-base),
+so this remains a per-file audit, not a git rebase.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **Explorer / optimiser-lens tooling** — `a31d018d` (#517, offset-free
+  diff for the optimiser lens — `tooling/explorer/cli.py`), `7d5479d5`
+  (#513, Unicode box-drawing IR / callout trees — `tooling/explorer/` +
+  `editors/vscode/`).  Pure explorer / editor UI; close with `EXP*` /
+  editor-specific chunks.
+- **WASM emitter + Zig runtime (bulk of #516)** — `8aeaf1cd` is mostly a
+  WASM-codegen concat-aliasing fix (a shared `_emit_concat_chain` seeds
+  each multi-operand chain with a *null* accumulator so a borrowed `$var`
+  read — refcount 1 — is never mutated in place mid-expression; fixes
+  `set t $t$t$t$t` doubling) plus Tcl 9 command semantics in the Zig
+  interp (`lseq` doubles, `scan` charset / float, `binary` unsigned
+  formats, `apply` defaults).  The Rust port emits no WASM and runs no Zig
+  VM, so the codegen / runtime bulk has no Rust analyser hook — mirror is
+  the Zig workstream + the future Rust WASM emitter.  But #516 *also*
+  carries two in-scope lowering / registry slivers — see `SYNC-JUN02-3`.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-JUN02-1 — Lower TclOO method bodies to FunctionUnits + O126 method purity (#506)
+
+`main` populates `ir_module.methods` during lowering: `oo::class create` /
+`oo::define` bodies are descended and each method / constructor / destructor
+body is lifted to an `IRMethodDef` (**analysis-only** — codegen still sees
+the same `IRBarrier`, so bytecode is byte-identical).  `compile_source`
+lowers those to per-method `FunctionUnit`s in a separate
+`CompilationUnit.methods` dict; `analyse_interprocedural_ir` summarises them
+into `InterproceduralAnalysis.methods` (conservative purity: pure iff no
+local side effect and every proc callee pure; `my` / `next` self-dispatch
+surfaces as an unknown call → impure).  The optimiser then iterates method
+bodies with the owning class as `enclosing_class`, so the previously-inert
+SF-2 wiring in `_elimination.py` fires — `set unused [my <pure-method>]`
+folds to an O126 deletion while an impure-method RHS is preserved (flips
+FP-OPT-12 PARTIAL → FIXED).  A second commit hardens the **W307**
+VAR-as-command suppression to per-SSA-version precision
+(`set c notacommand; set c parse; $c x` must keep W307 alive for the
+dispatch, since the command-valued version reaches it).
+
+**Rust state — partial scaffolding, the real wiring is the gap.**
+`tcl-compiler::ir` already declares `Module.methods: HashMap<String,
+MethodDef>` and the `MethodDef` struct, and `interprocedural` declares a
+`MethodSummary` + `InterproceduralAnalysis.methods` map — but all three are
+**inert placeholders**: lowering never populates `Module.methods` (a unit
+test asserts it stays empty), `CompilationUnit` has no `methods` field and
+builds no per-method `FunctionUnit`s, the interproc `methods` map is
+initialised empty, and `optimiser::elimination` has no `enclosing_class` /
+method-body iteration (so O126-method / SF-2 never fires).  Note the
+analyser already has a *separate* OO model in `analyser/oo.rs` (its own
+`MethodDef`, for the OO W-codes) — this row is the *compiler / optimiser*
+method-FunctionUnit path, not that one.  **Rust mirror:** (1) lowering
+descends `oo::class create` / `oo::define` bodies → populate
+`Module.methods`; (2) `CompilationUnit` gains a `methods` map of per-method
+`FunctionUnit`s; (3) `build_interprocedural_analysis` summarises method
+purity into `InterproceduralAnalysis.methods`; (4) `elimination::run`
+iterates method bodies with `enclosing_class` so O126 fires on a
+pure-method RHS; (5) the W307 per-SSA-version suppression fix in
+`analyser/diagnostics.rs`.  Classify in-scope, **structural** — a
+multi-strip port.
+
+### SYNC-JUN02-2 — Profile-guided branch reordering (PGO) (#515)
+
+A new, opt-in, **off-by-default** `compiler/pgo/` subsystem: an `occurrence`
+execution-occurrence model (unifies C Tcl `trace add execution` /
+`TCL_COMPILE_STATS` opcode counts with the F5 BIG-IP rule-profiler log), a
+`profile_data` rollup, two importers (`trace_parser` — F5 profiler log;
+`tclsh_capture` — per-line `enterstep` + `info frame` capture under a local
+tclsh), and a `reorder` analysis whose `find_pgo_suggestions` emits
+**hint-only P100** `Optimisation` suggestions (with a materialised
+replacement for opt-in `--apply`) reordering mutually-exclusive,
+side-effect-free equality if/elseif (and switch) dispatch chains so the
+hottest branch is tested first.
+
+**Rust mirror:** a new `tcl-compiler::pgo` (occurrence + profile_data +
+reorder) plus a `P100` emitter.  **Lower priority / largely deferred:** it
+is opt-in and hint-only (no behavioural change when off), and the importers
+lean on profile sources that are tooling-side (F5 profiler logs, a captured
+tclsh) rather than the analyser core — so the portable slice is the
+`reorder` equality-chain analysis + the occurrence / profile data model; the
+importers classify with `F*` / tooling.  Classify in-scope, structural,
+deferred.
+
+### SYNC-JUN02-3 — in-scope slivers of #516 (switch `patterns_braced` + Tcl 9 registry facts)
+
+The WASM / Zig bulk of #516 is out of scope (above), but two pieces are not:
+
+- **`IRSwitch.patterns_braced` (lowering / IR — correctness).**  `main` adds
+  a `patterns_braced` flag to `IRSwitch`: `True` when the arms came from a
+  single braced `{pat body …}` block (patterns are literal list elements —
+  no substitution), `False` when supplied as separate words
+  (`switch $s $pat {body}`), where each pattern undergoes normal `$var` /
+  `[cmd]` runtime substitution before matching.  **Rust gap:** the Rust
+  `Statement::Switch` (and `SwitchArm`) has **no** `patterns_braced` field —
+  the term appears nowhere in `rust/`.  Without it, the analyser cannot tell
+  a literal-pattern switch from one whose patterns substitute, which matters
+  for any pattern-as-variable read tracking and for matching the C-Tcl
+  substitution semantics.  Add the flag to `tcl-compiler::ir::Statement::Switch`,
+  set it in `lowering` (braced-body form → `true`; separate-words form →
+  `false`), and thread it where switch patterns are interpreted.  Classify
+  in-scope, low-touch, **correctness**.
+- **Tcl 9 command-spec facts (registry — low-touch).**  The new / extended
+  Tcl 9 surfaces (`lseq`, `scan` charset/float, `binary` unsigned formats,
+  `apply` defaults) want matching `tcl-registry` command-spec facts (arity /
+  arg-roles / dialect).  Fold into the `SYNC-MAY19-tcl9-commands` +
+  Command-spec tracking rows when those commands are next touched.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -2628,6 +2741,8 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-foreachLine-lowering` | Landed 2026-05-19 — single-iterator `Statement::Foreach` lowering in `rust/tcl-compiler/src/lowering/structured.rs::lower_foreach_line`. |
 | — | `SYNC-MAY19-stub-overlay` | **Landed in full** via sub-strips (b) (2026-05-19), (c) (`c945baa`), and (a) (`6487a4f`).  (a) added `rust/tcl-registry/src/stub_overlay.rs` carrying `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (with `arg_indices_for_role` mirroring the registry's shape and a deterministic `fingerprint()` for cache-key plumbing); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue the analyser-side records to the registry-side overlay; `Analyser::stub_overlay` populates via `build_stub_overlay(&stub_cmds)` after the stub-pre-scan, and `infer_param_traits` / `infer_param_traits_deep` thread the overlay through their internal helpers so role-driven trait inference unions the registry's and the overlay's tables at every call site. |
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
+| 5 | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **New, actionable, self-contained compiler/optimiser work** (#506).  Lower `oo::class create` / `oo::define` method bodies to per-method `FunctionUnit`s so methods get the same dataflow as procs, then summarise method purity into the interproc table and fire O126 on `set unused [my <pure-method>]`.  The Rust `ir::Module.methods` + `MethodDef` + interproc `MethodSummary` types already exist but are **inert placeholders** (lowering never populates them, `CompilationUnit` has no `methods`, the optimiser has no `enclosing_class` iteration) — so the work is real wiring, not new types.  Also carries the W307 per-SSA-version VAR-as-command suppression fix.  Multi-strip; see the `SYNC-JUN02` family section. |
+| — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
 | 6 | `SYNC-MAY19-dialect-contextvar` | LSP server (`S*`) plumbing: thread the per-folder dialect into `LexerConfig` at document-open / change time so multi-folder workspaces with mixed dialects parse correctly.  Pure server-side, no analyser-crate changes.  Closes with `S*`. |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
 | — | `SYNC-MAY19-proc-body-const-map` | Landed 2026-05-19 — Var-token const-map materialisation + `arg_single_token` multi-token-word check in `lower_proc`. |
@@ -2747,9 +2862,15 @@ priority queue:
   with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
   var scan), `-8` (#494 backslash-continuation folding), `-10`
   (#510 inlay-hint optional positionals + `infer_function_return_type`),
-  `-2` (#474 glob/regexp `switch` keeps structured dispatch), and `-3`
+  `-2` (#474 glob/regexp `switch` keeps structured dispatch), `-3`
   (#502 `info exists` / `array exists` guard narrowing + W210
-  suppression + I230 fold) — see those family sections.  Of the remainder, none are
+  suppression + I230 fold), `-9` (#475 in-order builtin-arity
+  suppression refinement), `-4` (#501 iRules BODY-role + peer side
+  flip — the W127 emitter half is still pending, now unblocked by
+  `-1b`), and `-1b` (#498 Phase 8 place model — `place` /
+  `var_resolve` / `place_bridge` ported and the W220 / O109 consumers
+  rerouted through `overlap`; W211 / O126 already at parity) — see
+  those family sections.  Of the remainder, none are
   *correctness* blockers for the analyser flip.  **Correction to a
   stale note:** earlier rows said "the Rust analyser has no live
   caller post-#241" — that referred to the deleted differential
@@ -2759,6 +2880,18 @@ priority queue:
   `-1e` lattice-driven row and the `-5a` / `-5b` / `-5c` algorithmic
   items remain output-preserving and can land any time without
   coordination with the analyser-flip plan.
+* **`SYNC-JUN02` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`59c770f6` to `origin/main`@`8aeaf1cd` (+5 commits).
+  Three in-scope rows: `SYNC-JUN02-1` (#506 — lower TclOO method bodies to
+  per-method `FunctionUnit`s + O126 method purity / SF-2 + the W307
+  per-SSA-version VAR-as-command fix; structural, the Rust `Module.methods`
+  / interproc `MethodSummary` scaffolding exists but is inert),
+  `SYNC-JUN02-2` (#515 — opt-in PGO branch-reordering subsystem emitting
+  hint-only P100; structural, deferred), and `SYNC-JUN02-3` (#516's
+  in-scope slivers — the switch `patterns_braced` IR flag, a correctness
+  gap since `rust/` lacks it, + Tcl 9 registry facts).  Out of scope:
+  #517 / #513 (explorer + optimiser-lens UI) and the WASM-emitter /
+  Zig-runtime bulk of #516.  See the `SYNC-JUN02` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
