@@ -15,7 +15,7 @@
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::cfg::{Function, Terminator};
-use crate::ir::Statement;
+use crate::ir::{CommandTokens, Statement};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::place::{self, overlap, places_read_to_form, Place, PlaceKind};
 use crate::segmenter::segment_commands;
@@ -25,6 +25,7 @@ use crate::var_resolve::{resolve_place, ResolveContext};
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
+use tcl_lexer::TokenType;
 
 // Commands whose VAR_READ-role argument names the *whole* array, not a scalar
 // (so a write to any element is observed).  Conservative — extra members only
@@ -119,6 +120,10 @@ fn collect_upvar_aliases(
     out: &mut std::collections::HashMap<String, String>,
     namespace: &str,
 ) {
+    // Tolerate a fully-qualified head (`::upvar`, `::namespace upvar`): the
+    // shared `upvar_local_declaration_indices` grammar matches the bare forms,
+    // so a `::`-qualified call would otherwise leave `upvar_aliases` incomplete.
+    let command = command.strip_prefix("::").unwrap_or(command);
     // The namespace argument of a `namespace upvar` form (None for plain upvar).
     let ns_arg: Option<&str> =
         if command == "namespace" && args.first().map(String::as_str) == Some("upvar") {
@@ -162,6 +167,22 @@ fn collect_upvar_aliases(
         };
         out.insert(alias, target);
     }
+}
+
+/// True when arg `arg_index` of a command is a **braced literal** word
+/// (`{…}`): Tcl performs no `$` / `[` substitution on it, so its de-braced IR
+/// text must NOT be scanned for reads — `puts {$a(k)}` does *not* read `a(k)`.
+///
+/// Detected via the `Str` token kind: a `$var` lexes to `Var`, a `[cmd]` to
+/// `Cmd`, and a `"…"` (which *does* substitute) to `Esc` — only a brace-quoted
+/// word is `Str`.  `tokens.argv` is command-name-first, so args are 1-based.
+/// Mirrors `place_bridge.py`'s brace-aware `add_refs` (it scans the arg *with*
+/// its braces; the Rust IR keeps args de-braced, so we gate on the token kind).
+fn is_braced_literal(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
+    tokens
+        .and_then(|t| t.argv_kinds.get(arg_index + 1))
+        .copied()
+        == Some(TokenType::Str)
 }
 
 fn trace_target(args: &[String]) -> Option<&str> {
@@ -316,6 +337,13 @@ pub fn read_places(
             // and is analysed separately — its reads must not leak into this
             // scope.
             let structural = structural_body_indices(command, args, tokens.as_ref(), registry);
+            // Body-role args (incl. non-structural ones like an iRules
+            // `clientside {…}` script) DO run, so their `$`-refs are real reads
+            // and must still be scanned even when braced.
+            let body_idx: std::collections::HashSet<usize> = registry
+                .arg_indices_for_role(command, &arg_strs, ArgRole::Body)
+                .into_iter()
+                .collect();
             for (i, arg) in args.iter().enumerate() {
                 if structural.contains(&i) {
                     continue;
@@ -328,7 +356,13 @@ pub fn read_places(
                         // Dynamic VAR_READ name (`array get $arr_name`) → UNKNOWN.
                         out.push(place::unknown_top());
                     }
-                    word_reads(arg, ctx, &mut out, registry);
+                    // A braced literal *data* word performs no substitution, so
+                    // its de-braced IR text is not a read site (`puts {$a(k)}`
+                    // must not look like a read of `a(k)`, or a real dead store
+                    // to `a(k)` would be wrongly suppressed).
+                    if body_idx.contains(&i) || !is_braced_literal(tokens.as_ref(), i) {
+                        word_reads(arg, ctx, &mut out, registry);
+                    }
                 }
             }
             word_reads(command, ctx, &mut out, registry);
@@ -430,11 +464,16 @@ pub fn element_writes_observed_by_reads(
     use std::collections::HashSet;
 
     let is_array_assign = |stmt: &Statement| -> bool {
+        // `incr a(k)` also defines an array element and folds to the base `a`
+        // under name-level SSA, so it participates in the same FP — and
+        // `def_places` already resolves it.  (The analyser's W220 never flags
+        // an `Incr`, but the optimiser's O109 reaches it, so include it.)
         matches!(
             stmt,
             Statement::AssignConst { name, .. }
                 | Statement::AssignValue { name, .. }
                 | Statement::AssignExpr { name, .. }
+                | Statement::Incr { name, .. }
                 if name.contains('(')
         )
     };
@@ -568,6 +607,26 @@ mod tests {
         // `y` resolves to an upvar alias, not a plain local scalar.
         let p = resolve_place("y", &ctx, false, &r);
         assert_eq!(p.kind, PlaceKind::UpvarAlias);
+    }
+
+    #[test]
+    fn build_context_tolerates_qualified_upvar_head() {
+        // A fully-qualified `::upvar` head must still register the alias —
+        // `collect_upvar_aliases` strips the leading `::` so the bare-form
+        // grammar matches (otherwise `upvar_aliases` would be incomplete).
+        let r = registry();
+        let cu = CompilationUnit::build_for("proc f {} { ::upvar 1 caller y; set x 1 }", &r, false);
+        let fu = cu.function("::f").unwrap();
+        let ctx = build_resolve_context(&fu.cfg, &fu.name);
+        assert!(
+            ctx.upvar_aliases.contains_key("y"),
+            "::upvar alias should be registered; upvar_aliases={:?}",
+            ctx.upvar_aliases
+        );
+        assert_eq!(
+            resolve_place("y", &ctx, false, &r).kind,
+            PlaceKind::UpvarAlias
+        );
     }
 
     #[test]

@@ -4714,6 +4714,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn w220_braced_literal_arg_is_not_a_read() {
+        // A braced word performs no `$`-substitution, so `puts {$a(k)}` does
+        // NOT read `a(k)` — the place bridge must not treat the de-braced IR
+        // text as a read and wrongly suppress the genuine dead store on the
+        // first `set a(k)`.  (`puts $a(j)` keeps the base `a` live so `a(k)`
+        // is a W220 overwrite candidate rather than a W211.)
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {} { set a(k) 1; set a(j) 2; puts $a(j); puts {$a(k)} }",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W220"),
+            "braced literal must not suppress the a(k) dead store; got {:?}",
+            r.diagnostics,
+        );
+    }
+
     /// W220-IR-paths.  Variables prefixed with ``::`` are
     /// externally consumed (other namespaces, the global frame
     /// outside this file) — Python's ``_dead_stores`` skips

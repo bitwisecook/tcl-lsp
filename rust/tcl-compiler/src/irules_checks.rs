@@ -404,18 +404,29 @@ fn classify_stmt_for_collect_flow(
     match stmt {
         Statement::Call {
             command,
+            canonical_command,
             span,
             args,
             ..
         }
         | Statement::Barrier {
             command,
+            canonical_command,
             span,
             args,
             ..
         } => {
-            if registry.is_side_switch(command) {
-                let inner_side = match command.as_str() {
+            // Normalise to the resolved/canonical head and strip a leading
+            // `::`: IR can legally carry `::clientside` or an alias, and the
+            // bare-name `is_side_switch` lookup + the side-flip `match` would
+            // otherwise miss it (and the `match`'s `_ => peer` arm would treat
+            // an unrecognised side-switch head as `peer`).
+            let head = canonical_command
+                .as_deref()
+                .unwrap_or(command)
+                .trim_start_matches(':');
+            if registry.is_side_switch(head) {
+                let inner_side = match head {
                     "clientside" => "client",
                     "serverside" => "server",
                     // peer — the opposite-side context.
