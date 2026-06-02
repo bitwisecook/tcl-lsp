@@ -64,6 +64,19 @@ def test_global_write_survives_distrust(body: str, expected: str) -> None:
     assert _run(src) == f"<{expected}>"
 
 
+def test_array_element_unset_survives_distrust() -> None:
+    # ``set a(k) v`` compiles to an unconditional array write; ``unset``
+    # must stay on the compiled path too, or the interpreter fallback
+    # can't see the element to remove it (set-old-2.9).
+    src = "set a(1) x; set a(2) y; set a(3) z\nunset a(2)\nputs <[lsort [array names a]]>\n"
+    assert _run(src) == "<1 3>"
+
+
+def test_scalar_unset_survives_distrust() -> None:
+    src = "set z keep; set d drop\nunset d\nputs <[info exists z][info exists d]>\n"
+    assert _run(src) == "<10>"
+
+
 def test_upvar_alias_survives_distrust() -> None:
     # ``upvar`` into the caller frame must still route the write to the
     # caller's variable under distrust.

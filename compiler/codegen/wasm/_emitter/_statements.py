@@ -51,21 +51,42 @@ from .._ir import (
 )
 from .._ownership import Ownership
 
-# Scope-declaration commands (``global`` / ``variable`` / ``upvar``).
-# Their compiled hooks don't fold a value — they record the variable's
-# out-of-frame aliasing (``emitter._globals`` / ``emitter._aliases``),
-# the same fact the ``var_observability`` lattice marks *syntactically*
-# for ``::global`` / ``::variable`` / ``::upvar`` regardless of command
-# trust.  So they must NOT be skipped by the builtin-trust gate: an
-# unrelated dynamic ``rename`` distrusts every builtin (soundly, since
-# the rename *could* hit one), but routing a scope declaration to the
-# eval-fallback then leaves the codegen's var-model out of step with the
-# lattice — the variable is mistaken for a frame-local, its frame alias
-# is never set up, and a later compiled write lands in a local slot
-# instead of the global (observed as a dropped global write after a
-# ``{*}`` / distrusted statement; trace-20.8's ``traceDelete``).
-_SCOPE_DECL_COMMANDS = frozenset(
-    {"global", "variable", "upvar", "::global", "::variable", "::upvar"}
+# Commands whose compiled hook maintains the codegen's *variable model*
+# rather than folding a value, so they must NOT be skipped by the
+# builtin-trust gate even when an unrelated dynamic ``rename`` distrusts
+# every builtin (soundly — the rename *could* hit one).
+#
+# Two groups:
+#
+# * scope declarations (``global`` / ``variable`` / ``upvar``) record a
+#   variable's out-of-frame aliasing (``emitter._globals`` /
+#   ``emitter._aliases``), the same fact ``var_observability`` marks
+#   syntactically for ``::global`` / ``::variable`` / ``::upvar``.
+#   Routing them to the eval-fallback leaves the variable mistaken for a
+#   frame-local — its alias is never installed and a later compiled
+#   write lands in a local slot (a dropped global write after a ``{*}`` /
+#   distrusted statement; trace-20.8's ``traceDelete``).
+# * ``unset`` mutates the very array / scalar storage that compiled
+#   ``set`` (``IRAssignValue``) writes *unconditionally* — those writes
+#   never consult command trust.  Eval-fallbacking only ``unset`` desyncs
+#   the two: ``set a(k) v`` lands in the compiled representation while
+#   the interpreter ``unset a(k)`` can't see it, so the element is never
+#   removed (set-old-2.9).
+#
+# All of these were always compiled pre-trust-lattice, so the exemption
+# restores that behaviour for them while leaving every other builtin
+# correctly distrusted.
+_TRUST_EXEMPT_COMMANDS = frozenset(
+    {
+        "global",
+        "variable",
+        "upvar",
+        "unset",
+        "::global",
+        "::variable",
+        "::upvar",
+        "::unset",
+    }
 )
 
 
@@ -1427,7 +1448,7 @@ class _WasmEmitterStmtMixin(_Base):
         # builtin fast-path.)
         hook = (
             _REGISTRY.get_wasm_hook(command)
-            if (builtin_is_trusted(command) or command in _SCOPE_DECL_COMMANDS)
+            if (builtin_is_trusted(command) or command in _TRUST_EXEMPT_COMMANDS)
             else None
         )
         if hook is not None:
@@ -2013,10 +2034,10 @@ class _WasmEmitterStmtMixin(_Base):
         try:
             # Skip the builtin fast-path for a command renamed/redefined in this
             # unit (see the statement-context dispatch for the rationale).
-            # Scope declarations are exempt — see ``_SCOPE_DECL_COMMANDS``.
+            # Var-model commands are exempt — see ``_TRUST_EXEMPT_COMMANDS``.
             hook = (
                 _REGISTRY.get_wasm_hook(command)
-                if (builtin_is_trusted(command) or command in _SCOPE_DECL_COMMANDS)
+                if (builtin_is_trusted(command) or command in _TRUST_EXEMPT_COMMANDS)
                 else None
             )
             if hook is not None and hook(self, args, defs, EmitContext.VALUE):
