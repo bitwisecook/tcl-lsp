@@ -1442,6 +1442,19 @@ mod tests {
             vec!["bcd".to_string()]
         );
         assert_eq!(fold("puts [string index abc end]"), vec!["c".to_string()]);
+        // SYNC-JUN02d-1 (#525): list + dict folds.
+        assert_eq!(fold("puts [llength {a b c}]"), vec!["3".to_string()]);
+        // The cmd-sub replacement is one word, so a spaced result is
+        // brace-quoted by `render_propagation_word`.
+        assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
+        assert_eq!(fold("puts [join {a b c} -]"), vec!["a-b-c".to_string()]);
+        assert_eq!(fold("puts [lindex {a b c} 1]"), vec!["b".to_string()]);
+        assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
+        assert_eq!(
+            fold("puts [lreverse {a b c}]"),
+            vec!["{c b a}".to_string()],
+            "list result is brace-quoted as one word",
+        );
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),

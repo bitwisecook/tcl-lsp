@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "split",
+        const_fold: Some(crate::const_fold::fold_split),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),

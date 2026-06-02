@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrepeat",
+        const_fold: Some(crate::const_fold::fold_lrepeat),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),

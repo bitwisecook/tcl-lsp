@@ -126,39 +126,7 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
     ))
 }
 
-/// Parse a Tcl index expression (`end`, `end-N`, `end+N`, integer)
-/// against a string/list of `length`.  Mirrors `_parse_index` in
-/// `dialects/tcl/const_fold.py`.  May return a negative or
-/// out-of-range value — the caller clamps.
-fn parse_index(s: &str, length: usize) -> Option<i64> {
-    let s = s.trim();
-    let len = i64::try_from(length).ok()?;
-    if s == "end" {
-        return Some(len - 1);
-    }
-    if let Some(rest) = s.strip_prefix("end-") {
-        return rest.parse::<i64>().ok().map(|n| len - 1 - n);
-    }
-    if let Some(rest) = s.strip_prefix("end+") {
-        return rest.parse::<i64>().ok().map(|n| len - 1 + n);
-    }
-    s.parse::<i64>().ok()
-}
-
-/// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
-/// inclusive byte range over a string/list of `len`, or `None` when the
-/// range is empty (`first > last` after clamping `first` up to 0 and
-/// `last` down to `len-1`).
-fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, usize)> {
-    let last_max = i64::try_from(len).ok()? - 1;
-    let first = first.max(0);
-    let last = last.min(last_max);
-    if first > last {
-        return None;
-    }
-    // first >= 0 and last >= first >= 0, both < len → conversions succeed.
-    Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
-}
+use crate::const_fold::{clamp_range, parse_index};
 
 /// `string index string charIndex`.  ASCII-restricted (byte index ==
 /// char index for ASCII).

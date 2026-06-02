@@ -3251,15 +3251,24 @@ conservative).  **Landed so far:** the full pure-`string`-subcommand family — 
 `trim` / `trimleft` / `trimright` / `totitle`; and the index/comparison
 ops `index` / `range` / `replace` / `first` / `last` / `compare` /
 `equal` (via a `parse_index` + `clamp_range` port, ASCII-restricted).
-**Remaining folds** (own follow-up strips): `string is` / `map` (class
-predicates / list-keyed mapping); the list ops (`concat` / `join` /
-`split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`) and
-`dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
-`create`) — these need a `tcl_list_split` helper reachable from
-`tcl-registry` (the canonical Rust list-splitter lives in
-`tcl-compiler::codegen::helpers`, *above* the registry in the crate DAG,
-so the consolidation point is `tcl-lexer` or a small registry-local
-splitter); plus `format`, `scan`.
+The **list ops** (`list` / `concat` / `join` / `split` / `lindex` /
+`lrange` / `llength` / `lreverse` / `lrepeat`) and **`dict` ops**
+(`get` / `exists` / `keys` / `merge` / `size` / `values` / `create`)
+also landed, in a new registry-leaf `tcl-registry/src/const_fold.rs`
+module carrying a self-contained validating `split_list` (bails on
+unbalanced braces / unterminated quote / trailing junk / backslash), a
+`list_element` / `list_join` quoter (mirrors
+`tcl-compiler::codegen::helpers::tcl_list_element`), and the canonical
+`parse_index` / `clamp_range` shared with the `string` folds.  List
+results are re-quoted element-wise (`lreverse {a b} c` → `c {a b}`),
+then the O129 path wraps the whole result as one word.  `dict create` /
+`merge` de-dup keys last-wins with position preserved (Tcl 9
+`Tcl_DictObjPut`).  **Remaining folds** (own follow-up strips):
+`string is` / `map` (class predicates / list-keyed mapping); `format`,
+`scan`.  (The duplicated `split_list` / `list_element` vs
+`tcl-compiler::codegen::helpers` is a deliberate trade-off — the
+canonical Tcl list-string codec should consolidate into a shared leaf
+like `tcl-lexer`; tracked.)
 
 ### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
 
