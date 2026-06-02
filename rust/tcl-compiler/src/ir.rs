@@ -456,6 +456,14 @@ pub enum Statement {
         nocase: bool,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// `true` when the arms came from a single braced
+        /// `{pat body …}` block — patterns are literal list elements
+        /// with no substitution. `false` when supplied as separate
+        /// words (`switch $s $pat {body}`), where each pattern
+        /// undergoes normal `$var` / `[cmd]` runtime substitution
+        /// before matching. Mirrors Python's `IRSwitch.patterns_braced`
+        /// (defaults `true`, the canonical braced form).
+        patterns_braced: bool,
     },
 }
 
@@ -588,6 +596,13 @@ pub struct MethodDef {
     pub kind: MethodKind,
     /// Source span (may be absent for synthetic methods).
     pub span: Option<Span>,
+    /// Instance-variable names in scope for this method (class-level
+    /// `variable` declarations + the method's own `variable` decls).
+    /// A method that *writes* any of these mutates object state and is
+    /// therefore impure for O126 purposes, even though the write looks
+    /// like a plain local `set`. Used by interprocedural method-purity
+    /// (SF-2). Mirrors Python's `IRMethodDef.instance_vars`.
+    pub instance_vars: std::collections::HashSet<String>,
 }
 
 /// The kind of a class method.
@@ -642,6 +657,13 @@ pub struct Module {
     pub methods: std::collections::HashMap<String, MethodDef>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
+    /// `TclOO` method qnames defined more than once (a later
+    /// `oo::define` / in-body redefinition replaces the body at
+    /// runtime). Method purity is forced impure for these — we can't
+    /// prove which body a given dispatch runs, so the O126 `my
+    /// <method>` deletion gate must stay conservative. Mirrors
+    /// Python's `IRModule.redefined_methods`.
+    pub redefined_methods: std::collections::HashSet<String>,
     /// `namespace import` directives captured at lowering time —
     /// `(context_namespace, absolute_pattern)` pairs. Future codegen
     /// passes pattern-match each against the final
@@ -921,6 +943,7 @@ mod tests {
         assert!(module.procedures.is_empty());
         assert!(module.methods.is_empty());
         assert!(module.redefined_procedures.is_empty());
+        assert!(module.redefined_methods.is_empty());
     }
 
     #[test]
@@ -1028,6 +1051,7 @@ mod tests {
             mode: SwitchMode::Exact,
             nocase: false,
             raw_args: Vec::new(),
+            patterns_braced: true,
         };
         if let Statement::Switch { arms, mode, .. } = &stmt {
             assert_eq!(arms.len(), 2);

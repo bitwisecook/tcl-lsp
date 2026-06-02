@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, TclType};
 
+use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -46,6 +47,7 @@ pub(crate) fn find_use_site_shimmers(
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<String>,
     registry: &CommandRegistry,
+    values: &HashMap<ValueKey, LatticeValue>,
 ) -> Vec<ShimmerWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
@@ -67,6 +69,7 @@ pub(crate) fn find_use_site_shimmers(
                 registry,
                 in_loop,
                 &def_map,
+                values,
                 &mut out,
             );
         }
@@ -75,6 +78,32 @@ pub(crate) fn find_use_site_shimmers(
     out
 }
 
+/// True when `value` is a SCCP CONST string whose text is a hex /
+/// octal / binary integer literal (`0xff`, `0o15`, `0b1010`, optionally
+/// signed). These spellings classify as `String` by `literal_type` (the
+/// canonical stringified intrep differs from the source text) but
+/// promote cleanly to `Int` at the first arithmetic op — not a real
+/// shimmer. Mirrors Python's `_value_is_int_literal_string`.
+fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
+    let Some(LatticeValue::Const(ConstValue::String(text))) = value else {
+        return false;
+    };
+    let sign_stripped = text.strip_prefix(['+', '-']).unwrap_or(text);
+    let bytes = sign_stripped.as_bytes();
+    // Need at least a `0x`-style prefix plus one body digit.
+    if bytes.len() < 3 || bytes[0] != b'0' {
+        return false;
+    }
+    let body = &sign_stripped[2..];
+    match bytes[1] {
+        b'x' | b'X' => body.bytes().all(|c| c.is_ascii_hexdigit()),
+        b'o' | b'O' => body.bytes().all(|c| (b'0'..=b'7').contains(&c)),
+        b'b' | b'B' => body.bytes().all(|c| c == b'0' || c == b'1'),
+        _ => false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn check_statement(
     stmt: &Statement,
     uses: &HashMap<String, u32>,
@@ -82,6 +111,7 @@ fn check_statement(
     registry: &CommandRegistry,
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
+    values: &HashMap<ValueKey, LatticeValue>,
     out: &mut Vec<ShimmerWarning>,
 ) {
     match stmt {
@@ -161,6 +191,14 @@ fn check_statement(
             if is_numeric_compatible(current, TclType::Int) {
                 return;
             }
+            // A hex / octal / binary literal string (`0x80`, `0b1010`)
+            // classifies as String but promotes cleanly to Int at the
+            // `incr` — not a real shimmer (SYNC-MAY31-1e; avoids the
+            // spurious S101 on the tcllib `variable n 0x80; … incr n`
+            // idiom).
+            if value_is_int_literal_string(values.get(&(var.clone(), ver))) {
+                return;
+            }
             let related: Vec<(Span, String)> = def_map
                 .get(&(var.clone(), ver))
                 .map(|&sp| vec![(sp, "value defined here".to_owned())])
@@ -207,6 +245,7 @@ mod tests {
             &fu.types,
             &fu.sccp.executable_blocks,
             &registry(),
+            &fu.sccp.values,
         );
         let w = warnings
             .iter()
@@ -216,6 +255,27 @@ mod tests {
             "expected incr/String shimmer, got: {warnings:?}"
         );
         assert_eq!(w.unwrap().to_type, TclType::Int);
+    }
+
+    /// SYNC-MAY31-1e: a hex literal string (`0x80`) classifies as
+    /// String but promotes cleanly to Int at `incr` — no shimmer.
+    #[test]
+    fn no_shimmer_for_hex_literal_string_used_with_incr() {
+        let cu = CompilationUnit::build_for("set n 0x80\nincr n", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let incr_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "incr").collect();
+        assert!(
+            incr_shimmers.is_empty(),
+            "0x80 promotes cleanly to int — no incr shimmer expected: {incr_shimmers:?}",
+        );
     }
 
     /// An Int variable passed to `incr` has no shimmer.
@@ -229,6 +289,7 @@ mod tests {
             &fu.types,
             &fu.sccp.executable_blocks,
             &registry(),
+            &fu.sccp.values,
         );
         let incr_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "incr").collect();
         assert!(
@@ -249,6 +310,7 @@ mod tests {
             &fu.types,
             &fu.sccp.executable_blocks,
             &registry(),
+            &fu.sccp.values,
         );
         let w = warnings.iter().find(|w| w.command == "lindex");
         assert!(
@@ -271,6 +333,7 @@ mod tests {
             &fu.types,
             &fu.sccp.executable_blocks,
             &registry(),
+            &fu.sccp.values,
         );
         // x has Unknown type; should not produce a shimmer.
         let lindex_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "lindex").collect();

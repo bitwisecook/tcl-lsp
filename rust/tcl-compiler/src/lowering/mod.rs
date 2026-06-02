@@ -6,7 +6,7 @@
 //!
 //! Ports `core/compiler/lowering.py`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::TokenType;
 use tcl_registry::hooks::LoweringHookId;
@@ -14,7 +14,7 @@ use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::alias::{detect_interp_alias, resolve_alias, CommandAliasMap};
-use crate::ir::{CommandTokens, Module, Procedure, Script, Statement};
+use crate::ir::{CommandTokens, MethodDef, MethodKind, Module, Procedure, Script, Statement};
 use crate::lowering_hooks::{try_lower_hook, ArgTokenKind, LoweringCommand};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::segmenter::{segment_commands, segment_commands_with_offset, SegmentedCommand};
@@ -42,6 +42,117 @@ fn join_namespace(parent: &str, child: &str) -> String {
         return normalise_qualified_name(&format!("::{child}"));
     }
     normalise_qualified_name(&format!("{parent}::{child}"))
+}
+
+/// The namespace a procedure body lowers in — everything up to the
+/// last `::` of its qualified name, or `::` for a global proc.
+/// Mirrors Python's `_normalise_qualified_name(qname).rsplit("::",
+/// 1)[0] or "::"`.
+fn proc_namespace(qname: &str) -> String {
+    let n = normalise_qualified_name(qname);
+    match n.rfind("::") {
+        Some(0) | None => "::".to_string(),
+        Some(idx) => n[..idx].to_string(),
+    }
+}
+
+/// Recognise the OO definition-command spellings. Returns
+/// `Some("oo::class")` / `Some("oo::define")` when the command is one
+/// of those (with or without a leading `::`), else `None`. Mirrors
+/// Python's `canonical_command in ("::oo::class", "::oo::define")`
+/// gate, which also normalises both spellings.
+fn oo_definition_form(command: &str, canonical: Option<&str>) -> Option<&'static str> {
+    let c = canonical.unwrap_or(command);
+    let c = c.strip_prefix("::").unwrap_or(c);
+    match c {
+        "oo::class" => Some("oo::class"),
+        "oo::define" => Some("oo::define"),
+        _ => None,
+    }
+}
+
+/// True iff the command carries the class/define shape with a static
+/// braced body block:
+///
+/// * `oo::class create Name { body }` — body at argv index 3.
+/// * `oo::define Name { body }` — body at argv index 2.
+///
+/// Only static braced bodies qualify — the single-method
+/// `oo::define Name method m {...} {...}` and dynamic-body forms are
+/// left to the default lowering. Mirrors Python's
+/// `_is_oo_definition_shape`. `texts` / `kinds` / `single` are the
+/// full per-word arrays (index 0 = command word).
+fn is_oo_definition_shape(
+    form: &str,
+    texts: &[String],
+    kinds: &[TokenType],
+    single: &[bool],
+) -> bool {
+    match form {
+        "oo::class" => {
+            texts.len() >= 4
+                && texts.get(1).is_some_and(|s| s == "create")
+                && word_is_static_braced(kinds, single, 3)
+        }
+        "oo::define" => texts.len() >= 3 && word_is_static_braced(kinds, single, 2),
+        _ => false,
+    }
+}
+
+/// Full-argv index of the body word for an OO definition form
+/// (`oo::class create Name {body}` → 3, `oo::define Name {body}` → 2).
+fn oo_body_word_idx(form: &str) -> usize {
+    if form == "oo::class" {
+        3
+    } else {
+        2
+    }
+}
+
+/// True iff `command` (`::`-stripped) is `namespace` and the args are
+/// the `eval CHILD {static-braced-body}` shape — the form whose body
+/// the Rust lowerer evaluates inline and discards (it emits a
+/// `Barrier`), so the OO post-pass must re-segment it to find any
+/// classes defined directly inside the namespace.
+fn is_namespace_eval_shape(
+    command: &str,
+    texts: &[String],
+    kinds: &[TokenType],
+    single: &[bool],
+) -> bool {
+    command.strip_prefix("::").unwrap_or(command) == "namespace"
+        && texts.len() >= 4
+        && texts.get(1).is_some_and(|s| s == "eval")
+        && word_is_static_braced(kinds, single, 3)
+}
+
+/// True iff word `idx` (full argv index) is a single braced-literal
+/// (`Str`) token. Mirrors Python's `_is_static_braced`.
+fn word_is_static_braced(kinds: &[TokenType], single: &[bool], idx: usize) -> bool {
+    idx < kinds.len() && idx < single.len() && single[idx] && kinds[idx] == TokenType::Str
+}
+
+/// `SegmentedCommand` variant of [`word_is_static_braced`]: word
+/// `idx` is a single braced-literal (`Str`) token.
+fn seg_word_is_static_braced(seg: &SegmentedCommand, idx: usize) -> bool {
+    seg.single_token_word.get(idx).copied().unwrap_or(false)
+        && seg.argv.get(idx).is_some_and(|t| t.kind == TokenType::Str)
+}
+
+/// True iff `nm` is a static instance-variable name (not a `$var` /
+/// `[cmd]` substitution and not an option flag). Dynamic names are
+/// skipped — conservative.
+fn is_instance_var_name(nm: &str) -> bool {
+    !nm.is_empty() && !nm.contains('$') && !nm.contains('[') && !nm.starts_with('-')
+}
+
+/// True iff a statement's command (preferring its canonical form,
+/// `::`-stripped) equals `bare`. Mirrors Python's
+/// `stmt.canonical_command == "::{bare}"` checks while tolerating the
+/// Rust IR's `canonical_command == None` for un-aliased commands.
+fn canonical_matches(command: &str, canonical: Option<&str>, bare: &str) -> bool {
+    let c = canonical.unwrap_or(command);
+    c.strip_prefix("::").unwrap_or(c) == bare
 }
 
 /// Qualify a procedure name relative to a namespace.
@@ -408,6 +519,15 @@ pub struct Lowerer<'r> {
     /// offset see the original structure. Mirrors Python's
     /// `_dead_code_depth`.
     pub(crate) dead_code_depth: u32,
+    /// `true` while lowering a `TclOO` method body (SF-2). A `proc`
+    /// (or `namespace eval`-lifted proc) defined inside a method
+    /// body is created at method-call time in the global namespace,
+    /// NOT at class-definition time — so it must not be lifted into
+    /// `module.procedures` (codegen would otherwise emit it
+    /// unconditionally at script load). The method body is still
+    /// lowered for analysis; only the global registration is
+    /// suppressed. Mirrors Python's `_suppress_proc_register`.
+    suppress_proc_register: bool,
 }
 
 impl<'r> Lowerer<'r> {
@@ -425,6 +545,7 @@ impl<'r> Lowerer<'r> {
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
             dead_code_depth: 0,
+            suppress_proc_register: false,
         }
     }
 
@@ -1009,22 +1130,32 @@ impl<'r> Lowerer<'r> {
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
-        if let std::collections::hash_map::Entry::Vacant(e) =
-            self.module.procedures.entry(qualified.clone())
-        {
-            e.insert(Procedure {
-                name: proc_name.clone(),
-                qualified_name: qualified,
-                params,
-                span: seg.span,
-                body,
-                params_raw: args[1].clone(),
-                body_source: Some(args[2].clone()),
-                namespace_scoped: self.in_namespace_eval,
-                base_priority: 500,
-            });
-        } else {
-            self.module.redefined_procedures.insert(qualified);
+        // SF-2: a `proc` defined inside a TclOO method body is created
+        // at method-call time in the global namespace, not at script
+        // load — so it must not be lifted into `module.procedures`
+        // (codegen would otherwise emit it unconditionally). The body
+        // was still lowered above for analysis; only the global
+        // registration is suppressed. Mirrors Python's
+        // `_suppress_proc_register` guard.
+        if !self.suppress_proc_register {
+            match self.module.procedures.entry(qualified.clone()) {
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(Procedure {
+                        name: proc_name.clone(),
+                        qualified_name: qualified,
+                        params,
+                        span: seg.span,
+                        body,
+                        params_raw: args[1].clone(),
+                        body_source: Some(args[2].clone()),
+                        namespace_scoped: self.in_namespace_eval,
+                        base_priority: 500,
+                    });
+                }
+                std::collections::hash_map::Entry::Occupied(_) => {
+                    self.module.redefined_procedures.insert(qualified);
+                }
+            }
         }
 
         Statement::Call {
@@ -1543,6 +1674,275 @@ impl<'r> Lowerer<'r> {
             foreach_groups: None,
         }
     }
+
+    // ---------------------------------------------------------------
+    // TclOO method-body lowering (SF-2: method purity for O126)
+    // ---------------------------------------------------------------
+
+    /// Populate `module.methods` from the fully-assembled IR.
+    ///
+    /// Runs as a cache-independent post-pass (mirroring
+    /// [`populate_trace_facts`]): clone the top-level script and proc
+    /// bodies, then walk them — plus any `namespace eval` blocks — for
+    /// `oo::class create` / `oo::define` barriers and lift each
+    /// `method` / `constructor` / `destructor` body to an
+    /// [`MethodDef`]. Method bodies are lowered for analysis only —
+    /// codegen never reads `module.methods`, and the barrier emitted
+    /// for the class command is unchanged, so bytecode is
+    /// byte-identical. Mirrors Python's `extract_oo_methods_pass`.
+    pub fn extract_oo_methods_pass(&mut self) {
+        let top_level = self.module.top_level.clone();
+        self.walk_for_oo_methods(&top_level.statements, "::");
+        let procs: Vec<(String, Script)> = self
+            .module
+            .procedures
+            .iter()
+            .map(|(q, p)| (q.clone(), p.body.clone()))
+            .collect();
+        for (qname, body) in &procs {
+            let proc_ns = proc_namespace(qname);
+            self.walk_for_oo_methods(&body.statements, &proc_ns);
+        }
+    }
+
+    /// Recursive walk for `oo::class` / `oo::define` definition
+    /// barriers. Descends `namespace eval` blocks (tracking the active
+    /// namespace) and extracts methods from any class/define command
+    /// carrying a static braced body. Mirrors Python's
+    /// `_walk_for_oo_methods` — except the Rust lowerer evaluates a
+    /// `namespace eval` body inline and discards it (emitting a
+    /// `Barrier`), so where Python descends a preserved `IRBlock`, the
+    /// Rust walk re-segments the barrier's body token instead (see
+    /// [`Self::walk_segments_for_oo`]).
+    fn walk_for_oo_methods(&mut self, statements: &[Statement], namespace: &str) {
+        for stmt in statements {
+            match stmt {
+                // C35-folded `eval` / `uplevel` bodies survive as Blocks.
+                Statement::Block {
+                    body,
+                    namespace: block_ns,
+                    ..
+                } => {
+                    let ns = if block_ns.is_empty() {
+                        namespace
+                    } else {
+                        block_ns.as_str()
+                    };
+                    self.walk_for_oo_methods(&body.statements, ns);
+                }
+                Statement::Call {
+                    command,
+                    canonical_command,
+                    tokens: Some(ct),
+                    ..
+                }
+                | Statement::Barrier {
+                    command,
+                    canonical_command,
+                    tokens: Some(ct),
+                    ..
+                } => {
+                    if let Some(form) = oo_definition_form(command, canonical_command.as_deref()) {
+                        if is_oo_definition_shape(
+                            form,
+                            &ct.argv_texts,
+                            &ct.argv_kinds,
+                            &ct.single_token_word,
+                        ) {
+                            let idx = oo_body_word_idx(form);
+                            self.extract_oo_methods(
+                                form,
+                                &ct.argv_texts,
+                                ct.argv[idx].start() + 1,
+                                namespace,
+                            );
+                        }
+                    } else if is_namespace_eval_shape(
+                        command,
+                        &ct.argv_texts,
+                        &ct.argv_kinds,
+                        &ct.single_token_word,
+                    ) {
+                        // The body was lowered inline and discarded;
+                        // re-segment it to find classes defined directly
+                        // inside the namespace.
+                        let child_ns = join_namespace(namespace, &ct.argv_texts[2]);
+                        let body_off = ct.argv[3].start() + 1;
+                        let segments = segment_commands_with_offset(&ct.argv_texts[3], body_off);
+                        self.walk_segments_for_oo(&segments, &child_ns);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Segment-level counterpart of [`Self::walk_for_oo_methods`] used
+    /// for `namespace eval` bodies (which the lowerer discards). Walks
+    /// re-segmented commands, recursing through nested `namespace eval`
+    /// and extracting methods from `oo::class` / `oo::define` blocks.
+    fn walk_segments_for_oo(&mut self, segments: &[SegmentedCommand], namespace: &str) {
+        for seg in segments {
+            if seg.is_partial || seg.texts.is_empty() {
+                continue;
+            }
+            let kinds: Vec<TokenType> = seg.argv.iter().map(|t| t.kind).collect();
+            let cmd = seg.texts[0].as_str();
+            if let Some(form) = oo_definition_form(cmd, None) {
+                if is_oo_definition_shape(form, &seg.texts, &kinds, &seg.single_token_word) {
+                    let idx = oo_body_word_idx(form);
+                    let off = seg.argv[idx].span.start() + u32::from(seg.argv[idx].content_offset);
+                    self.extract_oo_methods(form, &seg.texts, off, namespace);
+                }
+            } else if is_namespace_eval_shape(cmd, &seg.texts, &kinds, &seg.single_token_word) {
+                let child_ns = join_namespace(namespace, &seg.texts[2]);
+                let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
+                let sub = segment_commands_with_offset(&seg.texts[3], off);
+                self.walk_segments_for_oo(&sub, &child_ns);
+            }
+        }
+    }
+
+    /// Lift `method` / `classmethod` / `constructor` / `destructor`
+    /// bodies inside an `oo::class create` / `oo::define` block to
+    /// per-method [`MethodDef`] entries keyed by
+    /// `{class_qname}::{method_name}` (constructors / destructors use
+    /// the synthetic names `<constructor>` / `<destructor>`). Mirrors
+    /// Python's `_extract_oo_methods`. `texts` is the class command's
+    /// full per-word text array; `body_content_offset` is the absolute
+    /// source offset of the first byte inside the body's braces.
+    fn extract_oo_methods(
+        &mut self,
+        form: &str,
+        texts: &[String],
+        body_content_offset: u32,
+        namespace: &str,
+    ) {
+        // `is_oo_definition_shape` guarantees the indices below exist.
+        let (class_simple, body_text) = match form {
+            "oo::class" => (texts[2].as_str(), texts[3].as_str()),
+            // oo::define
+            _ => (texts[1].as_str(), texts[2].as_str()),
+        };
+        // Dynamic class names can't be resolved statically.
+        if class_simple.contains('$') || class_simple.contains('[') {
+            return;
+        }
+        let class_qname = qualify_proc_name(namespace, class_simple);
+        let segments = segment_commands_with_offset(body_text, body_content_offset);
+
+        // Class-level instance-variable declarations (`variable a b
+        // ...`) are auto-linked into every method. The TclOO
+        // class-body `variable` slot is names-only (`variable a b c`
+        // declares three instance vars — verified vs tclsh 9.0 — NOT
+        // name/value pairs), so every literal trailing word is a name.
+        let mut class_ivars: HashSet<String> = HashSet::new();
+        for seg in &segments {
+            if !seg.is_partial && seg.texts.len() >= 2 && seg.texts[0] == "variable" {
+                for nm in &seg.texts[1..] {
+                    if is_instance_var_name(nm) {
+                        class_ivars.insert(normalise_var_name(nm).to_string());
+                    }
+                }
+            }
+        }
+
+        for seg in &segments {
+            if seg.is_partial || seg.texts.is_empty() {
+                continue;
+            }
+            let head = seg.texts[0].as_str();
+            let (name, params_str, b_idx, kind): (&str, &str, usize, &str) = match head {
+                "method" if seg.texts.len() >= 4 => {
+                    (seg.texts[1].as_str(), seg.texts[2].as_str(), 3, "method")
+                }
+                "classmethod" if seg.texts.len() >= 4 => (
+                    seg.texts[1].as_str(),
+                    seg.texts[2].as_str(),
+                    3,
+                    "classmethod",
+                ),
+                "constructor" if seg.texts.len() >= 3 => {
+                    ("<constructor>", seg.texts[1].as_str(), 2, "constructor")
+                }
+                "destructor" if seg.texts.len() >= 2 => ("<destructor>", "", 1, "destructor"),
+                _ => continue,
+            };
+            // Dynamic method names / non-static bodies are left
+            // un-lowered (the optimiser stays conservative for them).
+            if name.contains('$') || name.contains('[') {
+                continue;
+            }
+            if !seg_word_is_static_braced(seg, b_idx) {
+                continue;
+            }
+            let params = if params_str.is_empty() {
+                Vec::new()
+            } else {
+                parse_param_names(params_str)
+            };
+            // Lower the method body in its own frame (fresh const-map +
+            // proc-depth) so the enclosing scope's tracked scalars
+            // don't leak into the body's barrier-relaxation gate —
+            // exactly as the `proc` case does — and suppress
+            // nested-proc registration while doing so.
+            let body_tok = seg.argv[b_idx];
+            let body_off = body_tok.span.start() + u32::from(body_tok.content_offset);
+            self.proc_depth += 1;
+            self.const_map_stack.push(HashMap::new());
+            let prev_suppress = self.suppress_proc_register;
+            self.suppress_proc_register = true;
+            let body_script = self.lower_body(seg.texts[b_idx].as_str(), body_off, namespace);
+            self.suppress_proc_register = prev_suppress;
+            self.const_map_stack.pop();
+            self.proc_depth -= 1;
+
+            // Instance vars in scope: class-level decls plus this
+            // method's own top-level `variable` declarations. A write
+            // to any of these mutates object state (impure for O126).
+            let mut method_ivars = class_ivars.clone();
+            for st in &body_script.statements {
+                if let Statement::Call {
+                    command,
+                    canonical_command,
+                    args,
+                    ..
+                } = st
+                {
+                    if canonical_matches(command, canonical_command.as_deref(), "variable") {
+                        for nm in args {
+                            if is_instance_var_name(nm) {
+                                method_ivars.insert(normalise_var_name(nm).to_string());
+                            }
+                        }
+                    }
+                }
+            }
+
+            let method_qname = format!("{class_qname}::{name}");
+            // First definition wins for the stored body (matches proc
+            // registration), but a redefinition (a later `oo::define`
+            // or a duplicate in-body `method`) replaces the body at
+            // runtime — we can't statically know which body a given
+            // dispatch runs, so flag it impure to keep O126 sound.
+            if self.module.methods.contains_key(&method_qname) {
+                self.module.redefined_methods.insert(method_qname);
+                continue;
+            }
+            self.module.methods.insert(
+                method_qname,
+                MethodDef {
+                    class_name: class_qname.clone(),
+                    method_name: name.to_string(),
+                    params,
+                    body: body_script,
+                    kind: MethodKind::from_str_lossy(kind),
+                    span: Some(seg.span),
+                    instance_vars: method_ivars,
+                },
+            );
+        }
+    }
 }
 
 // Public API
@@ -1554,6 +1954,9 @@ impl<'r> Lowerer<'r> {
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     let mut lowerer = Lowerer::new(registry);
     lowerer.lower(source);
+    // SF-2: extract TclOO method bodies from the fully-assembled
+    // module (cache-independent — see `extract_oo_methods_pass`).
+    lowerer.extract_oo_methods_pass();
     let mut module = lowerer.module;
     populate_trace_facts(&mut module);
     module
@@ -1703,6 +2106,128 @@ mod tests {
             &m.top_level.statements[0],
             Statement::Incr { name, .. } if name == "i"
         ));
+    }
+
+    // SF-2 (SYNC-JUN02-1): the `extract_oo_methods_pass` post-pass
+    // lifts TclOO method bodies into `module.methods`.
+
+    #[test]
+    fn extracts_oo_class_methods() {
+        let src = "oo::class create Counter {\n\
+                   \x20   variable n\n\
+                   \x20   constructor {} { set n 0 }\n\
+                   \x20   method bump {} { incr n }\n\
+                   \x20   method get {} { return $n }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        let mut keys: Vec<&String> = m.methods.keys().collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                &"::Counter::<constructor>".to_string(),
+                &"::Counter::bump".to_string(),
+                &"::Counter::get".to_string(),
+            ],
+            "methods: {keys:?}",
+        );
+        let get = &m.methods["::Counter::get"];
+        assert_eq!(get.method_name, "get");
+        assert_eq!(get.kind, MethodKind::Method);
+        assert_eq!(get.class_name, "::Counter");
+        // `variable n` in the class body is an in-scope instance var
+        // for every method (auto-linked).
+        assert!(
+            get.instance_vars.contains("n"),
+            "get ivars: {:?}",
+            get.instance_vars
+        );
+        // The method body is lowered for analysis (the `incr n` /
+        // `return $n` statements are present, not an empty barrier).
+        let bump = &m.methods["::Counter::bump"];
+        assert!(
+            !bump.body.statements.is_empty(),
+            "bump body should be lowered"
+        );
+        let ctor = &m.methods["::Counter::<constructor>"];
+        assert_eq!(ctor.kind, MethodKind::Constructor);
+        assert!(m.redefined_methods.is_empty());
+    }
+
+    #[test]
+    fn extracts_oo_define_methods_and_namespaced_class() {
+        // `oo::define` adds methods to an existing class, and a class
+        // created inside `namespace eval` qualifies under that ns.
+        let src = "namespace eval ::app {\n\
+                   \x20   oo::class create Widget {\n\
+                   \x20       method draw {} { return ok }\n\
+                   \x20   }\n\
+                   }\n\
+                   oo::define ::app::Widget {\n\
+                   \x20   method hide {} { return done }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.methods.contains_key("::app::Widget::draw"),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            m.methods.contains_key("::app::Widget::hide"),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn redefined_oo_method_is_flagged() {
+        // A method redefined by a later `oo::define` keeps the first
+        // body but is recorded in `redefined_methods` so purity stays
+        // conservative.
+        let src = "oo::class create C {\n\
+                   \x20   method m {} { return 1 }\n\
+                   }\n\
+                   oo::define C {\n\
+                   \x20   method m {} { return 2 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(m.methods.contains_key("::C::m"));
+        assert!(
+            m.redefined_methods.contains("::C::m"),
+            "redefined: {:?}",
+            m.redefined_methods
+        );
+    }
+
+    #[test]
+    fn oo_method_nested_proc_not_registered_globally() {
+        // A `proc` defined inside a method body is created at
+        // method-call time, not script load — it must not leak into
+        // `module.procedures` (codegen safety).
+        let src = "oo::class create C {\n\
+                   \x20   method m {} { proc helper {} { return 1 }; return 2 }\n\
+                   }\n\
+                   proc toplevel {} { return 3 }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.procedures.contains_key("::toplevel"),
+            "procs: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !m.procedures.contains_key("::helper"),
+            "nested method proc must not be registered: {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+        // The method body still lowered the `proc helper ...` call.
+        assert!(m.methods.contains_key("::C::m"));
+    }
+
+    #[test]
+    fn no_oo_methods_for_plain_script() {
+        let m = lower_to_ir("proc greet {} { puts hi }", &reg());
+        assert!(m.methods.is_empty());
+        assert!(m.redefined_methods.is_empty());
     }
 
     #[test]

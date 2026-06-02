@@ -603,6 +603,12 @@ impl Lowerer<'_> {
         // the right content offset / encoding flags.
         let mut pairs: Vec<SwitchPair> = Vec::new();
 
+        // Patterns from a single braced body are literal list elements;
+        // patterns supplied as separate words undergo runtime
+        // `$var` / `[cmd]` substitution (the `switch $s $pat {body}`
+        // wrapper form). Mirrors Python's `patterns_braced`.
+        let mut patterns_braced = true;
+
         // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
         if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
             let body_text = &args[i];
@@ -636,7 +642,9 @@ impl Lowerer<'_> {
                 j += 2;
             }
         } else {
-            // Multi-arg form: remaining args are pattern body pairs.
+            // Multi-arg form: remaining args are pattern body pairs —
+            // each pattern word substitutes at runtime.
+            patterns_braced = false;
             let remaining = args.len() - i;
             if remaining % 2 != 0 {
                 return Self::barrier(seg, "switch odd pattern count");
@@ -671,6 +679,7 @@ impl Lowerer<'_> {
             mode,
             nocase,
             raw_args: args.to_vec(),
+            patterns_braced,
         }
     }
 
@@ -823,6 +832,41 @@ mod tests {
                 "single-braced arm body should lower to non-empty IR, got {body:?}",
             );
         }
+    }
+
+    // SYNC-JUN02-3: `patterns_braced` distinguishes a literal-pattern
+    // braced block from the substituting separate-words form.
+
+    #[test]
+    fn switch_braced_block_sets_patterns_braced_true() {
+        let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
+        let Statement::Switch {
+            patterns_braced, ..
+        } = &m.top_level.statements[0]
+        else {
+            panic!("expected Switch");
+        };
+        assert!(
+            *patterns_braced,
+            "single braced `{{pat body …}}` block → patterns_braced = true",
+        );
+    }
+
+    #[test]
+    fn switch_separate_words_sets_patterns_braced_false() {
+        // `switch $s a {body1} b {body2}` — patterns are separate words
+        // that substitute at runtime, so patterns_braced must be false.
+        let m = lower_to_ir("switch $x a {puts hi} b {set y 1}", &reg());
+        let Statement::Switch {
+            patterns_braced, ..
+        } = &m.top_level.statements[0]
+        else {
+            panic!("expected Switch");
+        };
+        assert!(
+            !*patterns_braced,
+            "separate-words pattern form → patterns_braced = false",
+        );
     }
 
     #[test]

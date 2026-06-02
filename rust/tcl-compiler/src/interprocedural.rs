@@ -13,7 +13,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::naming::normalise_qualified_name;
+use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
 // ---------------------------------------------------------------------------
@@ -338,10 +338,282 @@ pub fn build_interprocedural_analysis(
         &effect_writes,
     );
 
+    // SF-2: summarise TclOO method bodies into `MethodSummary` entries
+    // (consumed by the O126 `my <method>` purity gate).
+    let methods = build_method_summaries(
+        ir_module,
+        &known,
+        registry,
+        dialect,
+        &pure,
+        &effect_reads,
+        &effect_writes,
+    );
+
     InterproceduralAnalysis {
         procedures,
-        methods: HashMap::new(),
+        methods,
     }
+}
+
+/// Summarise `TclOO` method bodies into [`MethodSummary`] entries
+/// (SF-2). The purity rule is intentionally conservative — a method is
+/// pure iff its own body has no observable side effect (no barrier, no
+/// unknown call, no global write, no instance-var write, no local
+/// effect write) **and** every *proc* it calls is pure. A `my
+/// <method>` / `next` self-dispatch resolves to no registry trait, so
+/// it falls through to an unknown-state effect write and forces the
+/// method impure — we never mark a method pure on the strength of an
+/// unproven peer method (sound: false negatives only). A redefined
+/// method is forced impure (we can't prove which body a dispatch
+/// runs). Mirrors Python's method branch of `analyse_interprocedural_ir`.
+fn build_method_summaries(
+    ir_module: &crate::ir::Module,
+    known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    pure: &HashMap<String, bool>,
+    effect_reads: &HashMap<String, EffectRegion>,
+    effect_writes: &HashMap<String, EffectRegion>,
+) -> HashMap<String, MethodSummary> {
+    if ir_module.methods.is_empty() {
+        return HashMap::new();
+    }
+    // A call resolving to a method qname is "known" (not unknown), so
+    // seed the resolver with both procs and method names.
+    let mut method_known = known.clone();
+    method_known.extend(ir_module.methods.keys().cloned());
+
+    let mut out: HashMap<String, MethodSummary> = HashMap::with_capacity(ir_module.methods.len());
+    for (mqname, method) in &ir_module.methods {
+        let mut facts = LocalFacts {
+            local_pure: true,
+            ..LocalFacts::default()
+        };
+        let params: HashSet<String> = method.params.iter().cloned().collect();
+        scan_script(
+            &method.body,
+            mqname,
+            &method_known,
+            registry,
+            dialect,
+            &mut facts,
+            &params,
+        );
+
+        // Instance-variable writes mutate object state and survive the
+        // call — so a method that writes any in-scope instance var is
+        // impure even though the write looks like a plain local `set`.
+        let mut written_ivars: HashSet<String> = HashSet::new();
+        if !method.instance_vars.is_empty() {
+            collect_instance_var_writes(&method.body, &method.instance_vars, &mut written_ivars);
+        }
+
+        let pure_base = !facts.has_barrier
+            && !facts.has_unknown_calls
+            && !facts.writes_global
+            && written_ivars.is_empty()
+            && facts.effect_writes == EffectRegion::NONE;
+        let mut is_pure = pure_base
+            && facts
+                .direct_calls
+                .iter()
+                .all(|c| pure.get(c).copied().unwrap_or(false));
+        // A redefined method (later oo::define / duplicate body) is
+        // conservatively impure: the stored body may not be the one a
+        // given dispatch runs.
+        if ir_module.redefined_methods.contains(mqname) {
+            is_pure = false;
+        }
+
+        // Effects: the method's own local effects unioned with the
+        // (transitive) effects of every proc callee. Non-proc callees
+        // (method qnames) default to NONE — mirrors Python.
+        let mut m_reads = facts.effect_reads;
+        let mut m_writes = facts.effect_writes;
+        for c in &facts.direct_calls {
+            m_reads |= effect_reads.get(c).copied().unwrap_or(EffectRegion::NONE);
+            m_writes |= effect_writes.get(c).copied().unwrap_or(EffectRegion::NONE);
+        }
+
+        let mut calls: Vec<String> = facts.direct_calls.iter().cloned().collect();
+        calls.sort();
+        let (returns_constant, constant_return, passthrough, depends) =
+            summarise_returns(&facts.returns);
+
+        out.insert(
+            mqname.clone(),
+            MethodSummary {
+                base: ProcSummary {
+                    qualified_name: mqname.clone(),
+                    params: method.params.clone(),
+                    arity: Arity::exact(u32::try_from(method.params.len()).unwrap_or(u32::MAX)),
+                    calls,
+                    has_barrier: facts.has_barrier,
+                    has_unknown_calls: facts.has_unknown_calls,
+                    writes_global: facts.writes_global,
+                    pure: is_pure,
+                    effect_reads: m_reads,
+                    effect_writes: m_writes,
+                    returns_constant,
+                    constant_return,
+                    return_depends_on_params: depends,
+                    return_passthrough_param: passthrough,
+                    // Methods are not folded at static call sites.
+                    can_fold_static_calls: false,
+                    param_traits: HashMap::new(),
+                },
+                class_name: method.class_name.clone(),
+                method_kind: method.kind.as_str().to_owned(),
+                // Read-set / MRO-dispatch tracking is not part of SF-2;
+                // left empty (the purity gate consumes only `pure`).
+                reads_instance_vars: HashSet::new(),
+                writes_instance_vars: written_ivars,
+                calls_my: Vec::new(),
+                calls_next: false,
+            },
+        );
+    }
+    out
+}
+
+/// Recursively collect the base names of instance-variable *writes* in
+/// a method body, comparing each written name against `ivars`. Mirrors
+/// Python's CFG walk: every `defs` of a non-`::variable` / `::upvar`
+/// Call, plus every assign / incr / loop / catch target. Array-element
+/// writes (`counter(0)`) compare on the base scalar name so they are
+/// not missed. Over-approximating writes is the sound direction (a
+/// spurious write only costs an O126 fold; a missed one would wrongly
+/// delete a state mutation).
+fn collect_instance_var_writes(
+    script: &crate::ir::Script,
+    ivars: &HashSet<String>,
+    out: &mut HashSet<String>,
+) {
+    use crate::ir::Statement;
+    for stmt in &script.statements {
+        match stmt {
+            Statement::AssignConst { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::AssignValue { name, .. }
+            | Statement::Incr { name, .. } => check_ivar_write(name, ivars, out),
+            Statement::Call {
+                command,
+                canonical_command,
+                defs,
+                ..
+            } => {
+                // `variable` / `upvar` link or declare a name; they are
+                // not writes to instance state.
+                if is_variable_or_upvar(command, canonical_command.as_deref()) {
+                    continue;
+                }
+                for d in defs {
+                    check_ivar_write(d, ivars, out);
+                }
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    collect_instance_var_writes(&clause.body, ivars, out);
+                }
+                if let Some(eb) = else_body {
+                    collect_instance_var_writes(eb, ivars, out);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                collect_instance_var_writes(init, ivars, out);
+                collect_instance_var_writes(next, ivars, out);
+                collect_instance_var_writes(body, ivars, out);
+            }
+            Statement::While { body, .. } => collect_instance_var_writes(body, ivars, out),
+            Statement::Foreach {
+                iterators, body, ..
+            } => {
+                for it in iterators {
+                    for v in &it.vars {
+                        check_ivar_write(v, ivars, out);
+                    }
+                }
+                collect_instance_var_writes(body, ivars, out);
+            }
+            Statement::Catch {
+                body,
+                result_var,
+                options_var,
+                ..
+            } => {
+                collect_instance_var_writes(body, ivars, out);
+                if let Some(rv) = result_var {
+                    check_ivar_write(rv, ivars, out);
+                }
+                if let Some(ov) = options_var {
+                    check_ivar_write(ov, ivars, out);
+                }
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                collect_instance_var_writes(body, ivars, out);
+                for h in handlers {
+                    if let Some(v) = &h.var_name {
+                        check_ivar_write(v, ivars, out);
+                    }
+                    if let Some(ov) = &h.options_var {
+                        check_ivar_write(ov, ivars, out);
+                    }
+                    collect_instance_var_writes(&h.body, ivars, out);
+                }
+                if let Some(fb) = finally_body {
+                    collect_instance_var_writes(fb, ivars, out);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for arm in arms {
+                    if let Some(b) = &arm.body {
+                        collect_instance_var_writes(b, ivars, out);
+                    }
+                }
+                if let Some(db) = default_body {
+                    collect_instance_var_writes(db, ivars, out);
+                }
+            }
+            Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+                collect_instance_var_writes(body, ivars, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Record `raw` as an instance-var write when its base scalar name (an
+/// array element `arr(idx)` compares on `arr`) is a declared instance
+/// var.
+fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String>) {
+    if raw.is_empty() {
+        return;
+    }
+    let base = split_array_name(normalise_var_name(raw)).0;
+    if ivars.contains(base) {
+        out.insert(base.to_owned());
+    }
+}
+
+/// True iff a statement's command (preferring its canonical form,
+/// `::`-stripped) is `variable` or `upvar` — a link/declaration, not a
+/// write to instance state.
+fn is_variable_or_upvar(command: &str, canonical: Option<&str>) -> bool {
+    let c = canonical.unwrap_or(command);
+    let c = c.strip_prefix("::").unwrap_or(c);
+    c == "variable" || c == "upvar"
 }
 
 fn scan_all_procs(
@@ -517,6 +789,13 @@ struct LocalFacts {
     /// final `ProcSummary::param_traits` is built from this
     /// after the body walk completes.
     param_trait_flags: HashMap<String, HashSet<ProcArgTrait>>,
+    /// Local variable names this proc aliased into global /
+    /// enclosing-namespace scope via `global` / `variable` / `upvar
+    /// #0`. A later bare `set g` / `incr g` / `append g` to one of
+    /// these mutates a variable the *caller* can see, so it counts as
+    /// `writes_global` even though the written name is bare. Mirrors
+    /// Python's `_LocalFacts.global_aliases` (#519).
+    global_aliases: HashSet<String>,
 }
 
 /// Classification of a single return statement's shape.
@@ -546,6 +825,7 @@ impl Default for LocalFacts {
             effect_writes: EffectRegion::NONE,
             returns: Vec::new(),
             param_trait_flags: HashMap::new(),
+            global_aliases: HashSet::new(),
         }
     }
 }
@@ -696,7 +976,10 @@ fn scan_statement(
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::Incr { name, .. } => {
-            if is_global_or_namespace(name) {
+            // A write to a `::`-qualified name OR a name aliased into
+            // global / namespace scope earlier in the body (`global g;
+            // set g 5`) mutates caller-visible state (SYNC-JUN02b-2).
+            if is_global_or_namespace(name) || facts.global_aliases.contains(name.as_str()) {
                 facts.writes_global = true;
                 facts.local_pure = false;
                 facts.effect_writes |= EffectRegion::GLOBAL_STATE;
@@ -706,7 +989,38 @@ fn scan_statement(
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
         }
-        Statement::Call { command, args, .. } => {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } => {
+            // SYNC-JUN02b-2: track scope-aliasing declarations (`global`
+            // / `variable` / `upvar #0`) so a later bare write to an
+            // aliased name counts as `writes_global`. Declaring is not
+            // writing, so handle the declaration before the defs-based
+            // write check. Mirrors Python's `_scan_local_facts`.
+            match global_alias_names(command, args) {
+                Some(alias_names) => {
+                    if alias_names.contains("") {
+                        // Dynamic / unbounded alias target — conservative.
+                        facts.writes_global = true;
+                    }
+                    facts
+                        .global_aliases
+                        .extend(alias_names.into_iter().filter(|n| !n.is_empty()));
+                }
+                None => {
+                    // A non-declaration command that writes a `::`-qualified
+                    // or global-aliased variable (`append g`, `lappend g`,
+                    // `dict set ::cfg ...`) mutates caller-visible state.
+                    if defs.iter().any(|n| {
+                        !n.is_empty() && (n.starts_with("::") || facts.global_aliases.contains(n))
+                    }) {
+                        facts.writes_global = true;
+                    }
+                }
+            }
             scan_call_facts(
                 command, args, caller, known, registry, dialect, facts, params,
             );
@@ -789,6 +1103,46 @@ fn scan_statement(
 
 fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
+}
+
+/// Local names a scope-aliasing *command* binds to global / namespace
+/// scope. Returns `None` when *command* is not a global-aliasing
+/// declaration. The returned set holds the bound local names; an empty
+/// string (`""`) in the set is a sentinel for a dynamic / unbounded
+/// declaration (`global $x`), which the caller must treat as a global
+/// write. `upvar` at any level other than `#0` / `0` aliases a caller
+/// frame, not global scope, and returns `None`. Mirrors Python's
+/// `_global_alias_names` (#519).
+fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>> {
+    fn names(raw_names: &[String]) -> HashSet<String> {
+        raw_names
+            .iter()
+            .map(|raw| match raw.trim_start().as_bytes().first() {
+                // Dynamic alias target — can't bound the name set.
+                Some(b'$' | b'[') => String::new(),
+                _ => normalise_var_name(raw).to_owned(),
+            })
+            .collect()
+    }
+    match command {
+        "global" => Some(names(args)),
+        // `variable name ?value? name ?value? ...` — names at even indices.
+        "variable" => Some(names(&args.iter().step_by(2).cloned().collect::<Vec<_>>())),
+        "upvar" => {
+            let level = args.first()?.trim();
+            // Only `#0` / `0` alias the *global* frame; an omitted or
+            // numeric level aliases a caller frame (handled elsewhere).
+            if level != "#0" && level != "0" {
+                return None;
+            }
+            // `upvar #0 otherVar localVar ...` — local names at indices
+            // 2, 4, 6, … (every second arg after the level + otherVar).
+            Some(names(
+                &args.iter().skip(2).step_by(2).cloned().collect::<Vec<_>>(),
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// Walk an expression AST and record call-graph edges (and Body
@@ -1373,6 +1727,143 @@ mod tests {
         let s = ia.procedures.get("::greet").expect("proc summary");
         assert_eq!(s.params, vec!["name".to_string()]);
         assert_eq!(s.arity, Arity::exact(1));
+    }
+
+    // -- SYNC-JUN02b-2: writes_global recognises scope aliases ------------
+
+    #[test]
+    fn global_alias_write_counts_as_writes_global() {
+        // A bare `set g` after `global g` mutates a caller-visible
+        // variable through the alias — writes_global, even though the
+        // written name is bare (previously missed: only `::`-qualified
+        // names counted).
+        for src in [
+            "proc ::f {} { global g\nset g 5 }",
+            "proc ::f {} { variable v\nset v 1 }",
+            "proc ::f {} { upvar #0 ::x g\nset g 1 }",
+            "proc ::f {} { global g\nincr g }",
+            "proc ::f {} { global g\nappend g x }",
+        ] {
+            let ia = build(src);
+            let s = ia.procedures.get("::f").expect("::f summary");
+            assert!(s.writes_global, "expected writes_global for: {src}");
+        }
+    }
+
+    #[test]
+    fn non_aliased_local_write_is_not_writes_global() {
+        // A plain local `set g` (no global/variable/upvar #0 decl) is
+        // not a global write; `upvar 1` aliases a caller frame, not
+        // global scope, so it is not flagged here either.
+        for src in [
+            "proc ::f {} { set g 5 }",
+            "proc ::f {} { upvar 1 x g\nset g 1 }",
+        ] {
+            let ia = build(src);
+            let s = ia.procedures.get("::f").expect("::f summary");
+            assert!(!s.writes_global, "unexpected writes_global for: {src}");
+        }
+    }
+
+    // -- SF-2 (SYNC-JUN02-1) method-purity summary tests ------------------
+
+    #[test]
+    fn pure_getter_method_is_summarised_pure() {
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   variable n\n\
+             \x20   method get {} { return $n }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::get").expect("method summary");
+        assert!(m.base.pure, "read-only getter should be pure");
+        assert!(m.writes_instance_vars.is_empty());
+        assert_eq!(m.class_name, "::C");
+        assert_eq!(m.method_kind, "method");
+    }
+
+    #[test]
+    fn instance_var_write_makes_method_impure() {
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   variable n\n\
+             \x20   method bump {} { incr n }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::bump").expect("method summary");
+        assert!(!m.base.pure, "instance-var write must be impure");
+        assert!(
+            m.writes_instance_vars.contains("n"),
+            "writes_instance_vars: {:?}",
+            m.writes_instance_vars
+        );
+    }
+
+    #[test]
+    fn array_element_instance_var_write_makes_method_impure() {
+        // `set counter(0) 1` writes the instance var `counter` (compared
+        // on the base scalar name, not the raw element name).
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   variable counter\n\
+             \x20   method bump {} { set counter(0) 1 }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::bump").expect("method summary");
+        assert!(!m.base.pure);
+        assert!(m.writes_instance_vars.contains("counter"));
+    }
+
+    #[test]
+    fn my_dispatch_makes_method_impure() {
+        // `my <other>` is a dynamic self-dispatch — unresolvable
+        // statically, so the method can't be proven pure.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method a {} { my b }\n\
+             \x20   method b {} { return 1 }\n\
+             }",
+        );
+        let a = ia.methods.get("::C::a").expect("method a");
+        assert!(!a.base.pure, "my-dispatch caller must be impure");
+        // The pure leaf method still summarises pure.
+        let b = ia.methods.get("::C::b").expect("method b");
+        assert!(b.base.pure);
+    }
+
+    #[test]
+    fn redefined_method_is_forced_impure() {
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method m {} { return 1 }\n\
+             }\n\
+             oo::define C {\n\
+             \x20   method m {} { return 2 }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::m").expect("method summary");
+        assert!(!m.base.pure, "redefined method must stay conservative");
+    }
+
+    #[test]
+    fn variable_decl_is_not_counted_as_instance_var_write() {
+        // A method-local `variable x` is a link/declaration, not a
+        // write — its def must not land in `writes_instance_vars`
+        // (Python soundness fix: a read-only instance-var method isn't
+        // forced impure by *that* path).  Note: the Rust registry models
+        // `variable` itself as a scope-alias barrier, so `peek` is still
+        // impure overall — but not via the instance-var-write channel.
+        let ia = build(
+            "oo::class create C {\n\
+             \x20   method peek {} { variable x; return $x }\n\
+             }",
+        );
+        let m = ia.methods.get("::C::peek").expect("method summary");
+        assert!(
+            m.writes_instance_vars.is_empty(),
+            "variable decl wrongly counted as write: {:?}",
+            m.writes_instance_vars
+        );
     }
 
     #[test]

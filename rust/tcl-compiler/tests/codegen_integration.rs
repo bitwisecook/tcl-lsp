@@ -403,6 +403,7 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
             mode,
             nocase: false,
             raw_args: vec!["$x".into(), "a* {set r 1} b* {set r 1}".into()],
+            patterns_braced: true,
         }])
     };
     let registry = CommandRegistry::build_default();
@@ -724,6 +725,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
         methods: HashMap::new(),
         redefined_procedures: HashSet::new(),
+        redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
         traced_commands: std::collections::BTreeSet::new(),

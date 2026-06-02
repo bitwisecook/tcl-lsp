@@ -672,6 +672,7 @@ mod tests {
             mode: SwitchMode::Exact,
             nocase: false,
             raw_args: vec![],
+            patterns_braced: true,
         }]);
 
         let func = build_cfg_function("::test", &script, true);
@@ -709,6 +710,7 @@ mod tests {
             mode,
             nocase: false,
             raw_args: vec!["$x".into(), "a*".into(), "{puts $y}".into()],
+            patterns_braced: true,
         }])
     }
 

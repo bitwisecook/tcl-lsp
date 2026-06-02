@@ -21,29 +21,316 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_registry::CommandRegistry;
+
 use crate::cfg::Function as CfgFunction;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
+use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{cfg_order, SccpResult};
+use crate::segmenter::segment_commands;
+use crate::side_effects::classify_side_effects;
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
+
+/// True when `text` (a Tcl word body) contains a command substitution
+/// that has an observable side effect — writes a variable, prints to
+/// stdout, mutates global state, runs a dynamic barrier, etc. Used to
+/// gate elimination of unused / dead assignments: `set v [puts X]`
+/// discards the result but still prints, so the assignment is NOT safe
+/// to delete.
+///
+/// `interproc_pure` is the set of qualified user-proc names proven pure
+/// by interprocedural analysis; a cmd-sub of such a proc is treated as
+/// side-effect-free even though [`classify_side_effects`] is
+/// conservative for user commands. `pure_methods` + `enclosing_class`
+/// (SF-2) recognise a pure `my <method>` self-dispatch. Conservative:
+/// anything we can't classify (unknown proc, dynamic dispatch,
+/// unparseable / no registry) is treated as having a side effect.
+/// Mirrors Python's `_word_has_observable_side_effect`.
+fn word_has_observable_side_effect(
+    text: &str,
+    registry: Option<&CommandRegistry>,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
+) -> bool {
+    if !text.contains('[') {
+        return false;
+    }
+    // No registry to classify embedded commands → conservative.
+    let Some(registry) = registry else {
+        return true;
+    };
+    let sm = tcl_lexer::SourceMap::new(text);
+    let Ok(tokens) = tcl_lexer::Lexer::new(text).tokenise_all() else {
+        return true; // unparseable → conservative
+    };
+    for tok in &tokens {
+        if tok.kind != tcl_lexer::TokenType::Cmd {
+            continue;
+        }
+        // `token_text` yields the command substitution's inner text
+        // (brackets stripped); segment it to get name + args.
+        let cmds = segment_commands(sm.token_text(*tok));
+        if cmds.len() != 1 || cmds[0].texts.is_empty() {
+            // Multi-command substitution or empty → conservative.
+            return true;
+        }
+        let cmd_name = cmds[0].texts[0].as_str();
+        let cmd_args: &[String] = &cmds[0].texts[1..];
+        let se = classify_side_effects(registry, cmd_name, cmd_args, None, None);
+        if !se.pure {
+            // A user proc / method that the registry can't classify may
+            // have been interprocedurally proven pure — consult those.
+            let proc_pure = interproc_pure.contains(cmd_name)
+                || interproc_pure.contains(format!("::{cmd_name}").as_str())
+                || interproc_pure.contains(cmd_name.trim_start_matches(':'));
+            let self_dispatch_pure = matches!(cmd_name, "my" | "::my")
+                && !cmd_args.is_empty()
+                && enclosing_class.is_some_and(|cls| method_pure(cls, &cmd_args[0], pure_methods));
+            if !proc_pure && !self_dispatch_pure {
+                return true;
+            }
+        }
+        // Recurse into nested substitutions inside the args.
+        for arg in cmd_args {
+            if word_has_observable_side_effect(
+                arg,
+                Some(registry),
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Return `true` iff `class_qname::method_name` (or a common qualifier
+/// spelling) is in `pure_methods`. Mirrors Python's `_method_pure`.
+fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<String>) -> bool {
+    if method_name.is_empty() {
+        return false;
+    }
+    let cls = class_qname.trim_start_matches(':');
+    [
+        format!("{class_qname}::{method_name}"),
+        format!("::{cls}::{method_name}"),
+        format!("{cls}::{method_name}"),
+    ]
+    .iter()
+    .any(|k| pure_methods.contains(k))
+}
+
+/// Expr-tree analogue of [`word_has_observable_side_effect`] — `true`
+/// if any embedded command substitution in the expression has an
+/// observable side effect. Mirrors Python's
+/// `_expr_has_observable_side_effect`.
+fn expr_has_observable_side_effect(
+    node: &ExprNode,
+    registry: Option<&CommandRegistry>,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
+) -> bool {
+    match node {
+        ExprNode::Command { text, .. } | ExprNode::Raw { text } => word_has_observable_side_effect(
+            text,
+            registry,
+            interproc_pure,
+            pure_methods,
+            enclosing_class,
+        ),
+        ExprNode::Binary { left, right, .. } => {
+            expr_has_observable_side_effect(
+                left,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ) || expr_has_observable_side_effect(
+                right,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            )
+        }
+        ExprNode::Unary { operand, .. } => expr_has_observable_side_effect(
+            operand,
+            registry,
+            interproc_pure,
+            pure_methods,
+            enclosing_class,
+        ),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            expr_has_observable_side_effect(
+                condition,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ) || expr_has_observable_side_effect(
+                true_branch,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ) || expr_has_observable_side_effect(
+                false_branch,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            )
+        }
+        ExprNode::Call { args, .. } => args.iter().any(|a| {
+            expr_has_observable_side_effect(
+                a,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            )
+        }),
+        _ => false,
+    }
+}
+
+/// `true` when `stmt` is an assignment whose RHS can be discarded
+/// without losing observable behaviour. A literal (`AssignConst`) is
+/// always safe; value / expr forms require every embedded command
+/// substitution to be provably side-effect-free; `incr v` is safe
+/// unless its optional amount word has a side effect. Any other
+/// statement form is conservatively unsafe. Mirrors Python's
+/// `_assignment_safe_to_delete`.
+fn assignment_safe_to_delete(
+    stmt: &Statement,
+    registry: Option<&CommandRegistry>,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
+) -> bool {
+    match stmt {
+        Statement::AssignConst { .. } => true,
+        Statement::AssignValue { value, .. } => !word_has_observable_side_effect(
+            value,
+            registry,
+            interproc_pure,
+            pure_methods,
+            enclosing_class,
+        ),
+        Statement::AssignExpr { expr, .. } => !expr_has_observable_side_effect(
+            expr,
+            registry,
+            interproc_pure,
+            pure_methods,
+            enclosing_class,
+        ),
+        // `incr v` reads + writes v — the assignment itself is the
+        // observable effect, so deleting it is OK when v is dead and
+        // the optional amount word is side-effect-free.
+        Statement::Incr { amount, .. } => match amount {
+            None => true,
+            Some(a) => !word_has_observable_side_effect(
+                a,
+                registry,
+                interproc_pure,
+                pure_methods,
+                enclosing_class,
+            ),
+        },
+        // Unknown statement form — conservative.
+        _ => false,
+    }
+}
+
+/// Collect the qualified names of procs / methods that interprocedural
+/// analysis has proven pure — threaded into the O109 / O126 RHS-purity
+/// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
+/// fold. Mirrors the `interproc_pure` / `interproc_pure_methods` sets
+/// built at the top of Python's `optimise_elimination_passes`.
+fn pure_call_targets(ctx: &PassContext<'_>) -> (HashSet<String>, HashSet<String>) {
+    let interproc_pure: HashSet<String> = ctx
+        .interproc
+        .procedures
+        .iter()
+        .filter(|(_, s)| s.pure)
+        .map(|(q, _)| q.clone())
+        .collect();
+    let pure_methods: HashSet<String> = ctx
+        .interproc
+        .methods
+        .iter()
+        .filter(|(_, s)| s.base.pure)
+        .map(|(q, _)| q.clone())
+        .collect();
+    (interproc_pure, pure_methods)
+}
 
 /// Run the elimination pass — emits O107, O108, O109, O126
 /// across every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let is_top_level = |fu: &FunctionUnit| fu.name == "::top";
+    // D2-O126/O109 closure: the user-proc / TclOO-method purity sets
+    // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
+    // calls below don't alias `ctx.interproc`).
+    let (interproc_pure, pure_methods) = pure_call_targets(ctx);
 
     emit_unreachable(ctx, &cu.top_level);
-    let baseline = emit_dead_stores_and_unused(ctx, &cu.top_level, is_top_level(&cu.top_level));
+    let baseline = emit_dead_stores_and_unused(
+        ctx,
+        &cu.top_level,
+        is_top_level(&cu.top_level),
+        &interproc_pure,
+        &pure_methods,
+        None,
+    );
     emit_adce(ctx, &cu.top_level, &baseline);
 
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);
-        let baseline = emit_dead_stores_and_unused(ctx, fu, false);
+        let baseline =
+            emit_dead_stores_and_unused(ctx, fu, false, &interproc_pure, &pure_methods, None);
         emit_adce(ctx, fu, &baseline);
     }
+
+    // SF-2 (#506): optimise TclOO method bodies as functions too,
+    // passing the owning class qname so the O126 `my <method>` purity
+    // gate can resolve same-class pure methods. Instance variables
+    // escape the method frame (they are object state), so they are fed
+    // through the same escaping channel iRules cross-event state uses —
+    // the dead-store / unused-assignment passes must not delete a
+    // state-mutating `set ivar ...` inside the method body. Mirrors the
+    // method-iteration loop in `optimiser/_manager.py`.
+    let saved_cross = std::mem::take(&mut ctx.cross_event_vars);
+    for (mqname, fu) in &cu.methods {
+        let ir_method = cu.ir_module.methods.get(mqname);
+        let enclosing_class = ir_method.map(|m| m.class_name.as_str());
+        ctx.cross_event_vars = ir_method
+            .map(|m| m.instance_vars.clone())
+            .unwrap_or_default();
+        emit_unreachable(ctx, fu);
+        let baseline = emit_dead_stores_and_unused(
+            ctx,
+            fu,
+            false,
+            &interproc_pure,
+            &pure_methods,
+            enclosing_class,
+        );
+        emit_adce(ctx, fu, &baseline);
+    }
+    ctx.cross_event_vars = saved_cross;
 }
 
 fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
@@ -101,7 +388,11 @@ fn emit_dead_stores_and_unused(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
     is_top_level: bool,
+    interproc_pure: &HashSet<String>,
+    pure_methods: &HashSet<String>,
+    enclosing_class: Option<&str>,
 ) -> HashSet<(String, u32)> {
+    let registry = ctx.registry;
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let scope_aliases = scan_scope_aliases(&fu.cfg);
     // The `def_use` builder does not scan Return-value reads or
@@ -141,6 +432,20 @@ fn emit_dead_stores_and_unused(
         let Some(stmt) = block.statements.get(idx) else {
             continue;
         };
+        // D2-O109/O126 closure: gate deletion on RHS purity. The def is
+        // dead at the SSA level, but its RHS may have observable side
+        // effects (`set unused [puts X]` prints, `set unused [my
+        // impureMethod]` mutates object state). Only delete when every
+        // embedded command substitution is provably side-effect-free.
+        if !assignment_safe_to_delete(
+            stmt,
+            registry,
+            interproc_pure,
+            pure_methods,
+            enclosing_class,
+        ) {
+            continue;
+        }
         // Suppress when this element write is observed by a read the name-level
         // SSA can't see (place-model overlap — the O109 sibling of W220).
         if place_suppressed.contains(&(
@@ -787,6 +1092,98 @@ mod tests {
         assert!(
             bad.is_empty(),
             "[::set x] should count as a read for x; got {opts:?}",
+        );
+    }
+
+    // -- D2-O126/O109 RHS-purity gate (SYNC-JUN02-1 strip 4a) -------------
+
+    #[test]
+    fn o126_preserved_for_impure_command_sub_rhs() {
+        // `set unused [puts hi]` discards the result but still prints —
+        // the assignment must NOT be deleted (was a latent FP: the Rust
+        // O126 fired unconditionally on dead chains).
+        let opts = crate::optimiser::optimise(
+            "proc ::f {} { set unused [puts hi]; return 1 }",
+            &registry(),
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O126"),
+            "impure cmd-sub RHS must be preserved, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o126_fires_for_pure_user_proc_rhs() {
+        // A user proc proven pure by interproc analysis has no
+        // observable side effect, so `set unused [::pure]` folds.
+        let opts = crate::optimiser::optimise(
+            "proc ::pure {} { return 1 }\nproc ::f {} { set unused [::pure]; return 1 }",
+            &registry(),
+        );
+        assert!(
+            opts.iter().any(|o| o.code == "O126"),
+            "pure-proc RHS should fold to O126, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o126_still_fires_for_literal_rhs() {
+        // The gate must not regress the literal case — `set y 42` has
+        // no RHS side effect and stays foldable.
+        let opts = run_pass("proc ::f {} { set y 42; return 1 }");
+        assert!(
+            opts.iter().any(|o| o.code == "O126"),
+            "literal RHS should still fold, got {opts:?}",
+        );
+    }
+
+    // -- SF-2 method-body O126 (SYNC-JUN02-1 strip 4b) --------------------
+
+    #[test]
+    fn sf2_o126_folds_pure_my_dispatch_in_method_body() {
+        // The optimiser now runs over TclOO method bodies with the
+        // owning class as `enclosing_class`, so `set unused [my pure]`
+        // — a self-dispatch to a method proven pure — folds to O126.
+        // (FP-OPT-12 PARTIAL → FIXED.)
+        let src = "oo::class create C {\n\
+                   \x20   method pure {} { return 1 }\n\
+                   \x20   method uses {} { set unused [my pure]; return 2 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().any(|o| o.code == "O126"),
+            "pure `my` self-dispatch RHS should fold, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn sf2_o126_preserves_impure_my_dispatch_in_method_body() {
+        // An impure method (`puts`) must keep its self-dispatch — the
+        // assignment is preserved so the side effect still runs.
+        let src = "oo::class create C {\n\
+                   \x20   method noisy {} { puts hi }\n\
+                   \x20   method uses {} { set unused [my noisy]; return 2 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| o.code != "O126"),
+            "impure `my` self-dispatch RHS must be preserved, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn sf2_instance_var_write_in_method_not_deleted() {
+        // An instance-var write inside a method body is object state
+        // that escapes the frame — it must not be flagged O109/O126
+        // even when the method never reads it back.
+        let src = "oo::class create C {\n\
+                   \x20   variable n\n\
+                   \x20   method bump {} { set n 5 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            "instance-var write must be preserved, got {opts:?}",
         );
     }
 

@@ -1944,7 +1944,12 @@ structural sub-chunks:
 - **O106 LICM purity recursion into command substitutions.**  Extend
   `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
   and verify each is also pure — an outer pure call wrapping
-  `[incr counter]` is not loop-invariant.
+  `[incr counter]` is not loop-invariant.  **Landed (rust):**
+  `is_pure_command` and `is_pure_with_procs_core` now recurse into
+  `scan_bracketed_commands(arg)` (shared `arg_substitutions_pure`
+  helper) and reject any invocation with an impure nested subst;
+  `is_pure_command_with_traces` inherits it via its `is_pure_command`
+  delegation.
 - **S100 / S101 shimmer loop-invariance lattice.**  Walk loop blocks
   once and collect every variable name ever defined; classify
   loop-invariant uses (name *not* in the set) as S100 (one-time),
@@ -1961,6 +1966,14 @@ structural sub-chunks:
   `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
   Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
   `variable n 0x80; for {…} {…} {incr n}` (tcllib idna idiom).
+  **Landed (rust):** matched `main`'s actual shape — `0x80` still types
+  as `String` (Rust `literal_type` uses `i64::from_str`, which rejects
+  hex, same as Python's `_literal_type`), so the fix is the
+  `value_is_int_literal_string` SCCP-value guard in
+  `shimmer::use_site`: the `incr` S100/S101 detector now threads
+  `fu.sccp.values` and skips the warning when the variable's CONST
+  value is a hex/oct/bin integer-literal string (mirrors
+  `_value_is_int_literal_string`, not a `_literal_type` change).
 
 Classify all of `-1e`: in-scope, low-touch each (5-50 LOC + tests);
 no structural / dependency blockers.  Suitable for PR-sized
@@ -2674,6 +2687,43 @@ pure-method RHS; (5) the W307 per-SSA-version suppression fix in
 `analyser/diagnostics.rs`.  Classify in-scope, **structural** — a
 multi-strip port.
 
+**Landed (rust) — strips 1, 2, 3, 4a, 4b, 5.**
+- **Strip 1** (`lower TclOO method bodies to Module.methods`): a
+  cache-independent `Lowerer::extract_oo_methods_pass` post-pass walks
+  the assembled module for `oo::class create` / `oo::define` barriers
+  and lifts each `method` / `classmethod` / `constructor` / `destructor`
+  body to `ir::MethodDef`.  `MethodDef` gained `instance_vars` and
+  `Module` gained `redefined_methods`.  A `Lowerer.suppress_proc_register`
+  guard keeps a `proc` defined inside a method body out of
+  `module.procedures` (codegen safety).  **Divergence:** the Rust
+  lowerer evaluates a `namespace eval` body inline and discards it
+  (emitting a `Barrier`, not Python's `IRBlock`), so the post-pass
+  re-segments the barrier's preserved body token to find classes
+  defined directly inside a namespace (`walk_segments_for_oo`).
+- **Strip 2** (`CompilationUnit.methods`): per-method `FunctionUnit`s
+  built via a new `build_cfg_function_with_upvars` (methods stay out of
+  `cfg_module.procedures`); gated on a non-empty method set.
+- **Strip 3** (interproc): `build_method_summaries` populates
+  `InterproceduralAnalysis.methods`; the Rust interproc scans the IR
+  directly, so no pre-built `method_units` are threaded.  `my` / `next`
+  carry no registry trait → `fallback_unknown_write` → unknown-state
+  effect write → impure (same *result* as Python's unknown-call path).
+- **Strip 4a** (RHS-purity gate): the C30d-era
+  `_assignment_safe_to_delete` / `_word_has_observable_side_effect` /
+  `_expr_has_observable_side_effect` guard had **never** been ported —
+  the Rust O109/O126 fired on any dead chain, so `set unused [puts hi]`
+  was deleted with its side effect.  Ported now (with `interproc_pure`
+  for user procs + the SF-2 pure-`my`-dispatch hook), gating both
+  O109 and O126.  This is the gate #506 relies on.
+- **Strip 4b** (method iteration): `elimination::run` iterates
+  `cu.methods` with `enclosing_class`; instance vars are fed through the
+  `cross_event_vars` escaping channel.  `set unused [my pureMethod]`
+  now folds to O126, impure preserved (FP-OPT-12 → FIXED).
+- **Strip 5** (W307 §A): `w307_precise_cmd_values` reads the SCCP value
+  at the dispatch's exact SSA use-version, fixing the merged-set FP on a
+  variable reassigned from a non-command to a command before the
+  dispatch.
+
 ### SYNC-JUN02-2 — Profile-guided branch reordering (PGO) (#515)
 
 A new, opt-in, **off-by-default** `compiler/pgo/` subsystem: an `occurrence`
@@ -2713,12 +2763,221 @@ The WASM / Zig bulk of #516 is out of scope (above), but two pieces are not:
   substitution semantics.  Add the flag to `tcl-compiler::ir::Statement::Switch`,
   set it in `lowering` (braced-body form → `true`; separate-words form →
   `false`), and thread it where switch patterns are interpreted.  Classify
-  in-scope, low-touch, **correctness**.
+  in-scope, low-touch, **correctness**.  **Landed (rust):**
+  `Statement::Switch.patterns_braced` added; `lower_switch` sets it
+  (single-braced branch → `true`, separate-words branch → `false`).  No
+  consumer threading was needed — every Rust pass matches `Switch` with
+  `..` or mutates arm bodies in place (none reconstruct), so the flag is
+  preserved automatically; the WASM-codegen consumers that read it in
+  `main` are out of scope.
 - **Tcl 9 command-spec facts (registry — low-touch).**  The new / extended
   Tcl 9 surfaces (`lseq`, `scan` charset/float, `binary` unsigned formats,
   `apply` defaults) want matching `tcl-registry` command-spec facts (arity /
   arg-roles / dialect).  Fold into the `SYNC-MAY19-tcl9-commands` +
   Command-spec tracking rows when those commands are next touched.
+
+## SYNC-JUN02b family — main audit (2026-06-02, PR #519)
+
+Re-audited `origin/main`@`31d3aac8` against the prior anchor
+`origin/main`@`8aeaf1cd`.  `main` landed **1** commit — but #519 is a
+mega-PR (101 files, +4780/-1711) bundling ~17 distinct sub-changes
+across the optimiser, interproc, SCCP / expr-eval, two new
+flow-sensitive lattices, a new diagnostic, and the WASM / bytecode
+backends.  Histories still diverge fully (no merge-base) — per-file
+audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **WASM codegen** rename-gating + canonical-quoting migration
+  (`compiler/codegen/wasm/*`) and the **bytecode backend** quoting
+  migration (`compiler/codegen/bytecode/*`) — the Rust port emits
+  neither.
+- **Zig VM** list/escape consolidation (`tooling/vm/*`), the minifier,
+  and the iRule-test bridge.
+- **`shared/tcl_list.py` + `shared/tcl_subst.py` consolidation** — a
+  Python DRY refactor collapsing ~13 duplicate list/quote/backslash
+  re-implementations into one canonical home.  The Rust side already
+  owns its quoting in `tcl-lexer` / `segmenter`, so the consolidation
+  itself is Python-internal.  *But* the canonical quoter
+  (`tcl_list_quote`, a `TclScanElement` / `TclConvertElement` port) is a
+  prerequisite for the O100 Rust port — see `SYNC-JUN02b-1`.
+- `editors/*` catalogues, `samples/*`, `tests/*`, `.test-slow.stamp`,
+  `.importlinter`.
+
+In-scope rows:
+
+### SYNC-JUN02b-1 — O100 multi-word string-constant propagation + canonical quoter (#519)
+
+`main`'s O100 (`optimise_constant_var_refs`) used to bail whenever a
+constant value contained Tcl metacharacters (whitespace / `$` / `[` /
+`\`).  #519 re-renders the constant as a single self-contained word via
+the canonical `tcl_list_quote` (bare / brace-quoted / backslash-escaped,
+verified against Tcl's `list`), so a non-escaping local like `set msg
+{Hello World}; return $msg` collapses to `return {Hello World}`.
+**Rust:** needs (a) a `tcl_list_quote` port (`TclScanElement` /
+`TclConvertElement`) as a shared leaf, then (b) the O100
+single-token-whole-word re-render in the propagation pass.  Classify
+in-scope, **low-touch feature** (the quoter is ~80 LOC; the O100 hook is
+small).  **Rust state: deferred** — the O100 bail lives at
+`optimiser/propagation.rs::is_value_safe_bare_word` (the exact
+metacharacter conservatism #519 removes), but the fix needs the
+`tcl_list_quote` leaf, which has **no Rust counterpart**
+(`render_static_string_word` only handles a balanced `{value}`).  Land
+the quoter first (its own row), then the O100 re-render is a one-liner.
+
+### SYNC-JUN02b-2 — optimiser variable-aliasing & trace soundness fixes (#519)
+
+Differential fuzzing surfaced correctness bugs where the optimiser
+propagated a stale constant past a call that mutates an outer-scope
+variable, plus a trace bug.  Three fixes:
+- `interprocedural.py` — `writes_global` now recognises writes through a
+  `global` / `variable` / `upvar #0` *alias* (not just literal
+  `::`-qualified names), via the `var_scoping` grammar.
+- `optimiser/_manager.py` — a call whose callee writes a global, or
+  whose effects are unbounded (`uplevel` / `eval` barrier / unknown
+  call), kills the caller's constant knowledge of every outer-scope
+  variable at the call site.
+- `optimiser/_pattern_recognition.py` — O104 string-build-chain folding
+  no longer collapses writes to an escaping / traced variable.
+Classify in-scope, **soundness** — these patch Rust code that already
+exists (interproc summaries + constant propagation + the elimination /
+pattern passes).  **Rust state:**
+- `writes_global` aliases — **LANDED** (`interprocedural.rs`:
+  `LocalFacts.global_aliases` + `global_alias_names`; `scan_statement`
+  tracks `global` / `variable` / `upvar #0` decls and flags later bare
+  writes to aliased / `::`-qualified names).
+- call-site constant kill — **N/A**: the Rust propagation pass uses a
+  *whole-function* SCCP constant map (a var is constant only if every
+  SSA version agrees), so a callee mutating an outer-scope var the
+  caller thinks constant cannot arise — there is no statement-stepped
+  kill-site logic to patch.  (Becomes relevant only if a stepped
+  propagation lands; tracked under `-6`.)
+- O104 escaping/traced guard — **N/A**: the Rust O104 is **hint-only**
+  (it never collapses the chain to a single `set`), so there is no
+  unsound rewrite to gate.  Re-evaluate if an applicable O104 rewrite
+  lands (then it needs the `-3` observability lattice).
+
+### SYNC-JUN02b-3 — `var_observability` flow-sensitive escape/trace lattice (#519)
+
+New `compiler/var_observability.py`: a forward data-flow `EscapeFlag`
+lattice (GLOBAL / NAMESPACE / UPVAR aliasing + TRACED) per variable per
+program point.  `FunctionAnalysis.observability` carries it; the
+flow-insensitive `_escaping_var_names` is rewritten as its whole-function
+union; O104 consults it point-wise.  Classify in-scope, **structural** —
+a multi-strip new subsystem (foundation for flow-sensitive alias/trace
+in memory-SSA + SCCP/GVN).  Defer to its own chunk; the SYNC-JUN02b-2
+soundness fixes are the conservative whole-function approximation that
+this later refines.  **Rust state: deferred** — Rust *does* have a
+flow-sensitive var-escape analysis (`var_escape/cfg_propagation/`), but
+it answers the *codegen slot-resolution* question (`Local` vs `Frame`),
+has **no `TRACED` flag** and **no `observability` artifact** on
+`FunctionUnit`; this optimiser-soundness lattice is genuinely new.
+
+### SYNC-JUN02b-4 — `command_binding` lattice + `command_trust` + W128 (#519)
+
+New `compiler/command_binding.py`: a forward data-flow lattice tracking
+what each command name resolves to (BUILTIN / PROC / ALIAS / OPAQUE /
+UNKNOWN) at every program point, modelling `rename` / proc-redefinition
+/ `interp alias` flow-sensitively.  `command_trust.py` derives a
+scoped builtin-trust verdict; the optimiser gates every const-fold /
+proc-fold / incr-idiom on `builtin_is_trusted` so a rebound command is
+never folded with its original semantics.  A new flow-sensitive
+diagnostic **W128** (call to a command renamed/deleted earlier in the
+file) is backed by the same lattice.  Classify in-scope, **structural**
+— a large new subsystem + a new W-code.  Defer to its own chunk(s); the
+WASM/bytecode dispatch-gating half is out of scope.  **Rust state:
+deferred** — **no Rust counterpart** (`alias.rs` tracks `interp alias`
+and the analyser flips `has_dynamic_providers` on `load`/`rename`, but
+there is no per-program-point command-resolution lattice and the Rust
+SCCP / registry folds have **no trust gate** — they unconditionally
+assume builtins keep their semantics, which is the current Rust
+behaviour everywhere).
+
+### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
+
+`tcl_expr_eval.py` — `eq` / `ne` / `lt` / `gt` / `le` / `ge` now compare
+operands *as strings* (a dedicated `_apply_string_compare`), matching C
+Tcl 9 (`5 eq 5.0` → 0, `"x" ne "y"` → 1).  Previously only numeric
+evaluation, so string-only constant comparisons never folded.  Classify
+in-scope, **low-touch correctness**.  **Rust state: LANDED** — the Rust
+`tcl_expr_eval::eval_binary` had the identical numeric-only gap
+(`StrEq`/`StrNe`/… fell through to numeric `eval`, so a bare-string
+operand yielded `None`).  Now routed through `eval_as_string` +
+`apply_string_compare`; the now-unreachable `apply_binary` arms fold
+into its `None` group.
+
+### SYNC-JUN02b-6 — new optimiser const-folds (#519)
+
+A family of missed-optimisation closures, mostly **new folds** rather
+than fixes:
+- **O129** — general fold of any pure builtin command substitution with
+  constant args via the registry `const_fold` callbacks (`string
+  length`, `join`, `format`, `llength`, `dict get`, `concat`, `split`,
+  `string map`, …).
+- **format folding fix** — `fold_format` honours flags / width /
+  precision (`%03d 7` → `007`); `fold_cmd_subst_to_string` keeps the
+  exact string (no numeric coercion that drops a leading space).
+- **O130** — `lappend` list-build chains fold to a single `set var {…}`
+  (canonical list quoting), guarded by the same escaping/observability
+  check as O104.
+- **scan** `const_fold` for the inline (no-varName) form.
+- **list / lindex** folding routed through the registry (O116 / O118 /
+  O129) — drops the hand-rolled single-element-only folders, picking up
+  multi-element + special-char cases.
+- **O105** — string-constant interpolation (`set x hello; puts "v=$x"` →
+  `puts "v=hello"`), same-block + no-intervening-call gate.
+- **O115** — unwrap redundant nested `[expr {[expr {E}]}]` in value
+  positions (return / set), not just EXPR-role args.
+- direct-`[expr {$x …}]` constant propagation (the SSA use-collector
+  hides expr-cmd-sub reads, so `puts [expr {$x + 1}]` folds via a
+  reaching-version augmentation).
+Classify in-scope, **features** — each its own incremental strip.
+**Rust state: deferred.**  The Rust optimiser has **no registry
+`const_fold` / `FOLD_HINTS` mechanism** — builtin folding lives only in
+SCCP's hand-rolled `try_fold_cmd_subst` (list / format / llength /
+string-length / expr) and the value-position cmd-sub fold path
+(`propagation::visit_call_cmd_subst_folds`) handles **proc calls only**.
+So O129 / O130 / scan / the registry-routed list-lindex all need the
+fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
+- **O115 value-position unwrap** — **LANDED.**  A redundant double-expr
+  cmd-sub `[expr {[expr {E}]}]` now collapses to `[expr {E}]` in
+  command-argument positions (`propagation::visit_call_cmd_subst_folds`)
+  and `return` positions (`try_fold_return_terminator`), via a shared
+  `o115_redundant_nested_expr` helper that double-unwraps to confirm the
+  inner is itself an `[expr {…}]` (sound — a plain `[expr {$x+1}]` or an
+  `[expr {[other]}]` is left untouched).  `set x [expr {…}]` (lowered to
+  `AssignValue`, not walked for cmd-sub folds) remains a follow-up.
+- **O105 string-constant interpolation** — **already present** in Rust
+  (`propagation::visit_string_interpolation`, emitted as O100); only a
+  minor `return "…$x…"` completeness gap remains.
+- **format flags** — Rust `codegen/helpers::try_format_fold` folds only
+  `%s` / `%d` / `%%` and returns `None` otherwise, so the Python *bug*
+  (dropping flags) does **not** exist (safe but incomplete); porting the
+  full printf-compatible `%` is a completeness upgrade, low urgency.
+- **list / lindex** — `fold_list_cmd` exists; there is **no
+  `fold_lindex`** and no O116 / O118 emission; routing through the
+  registry waits on the fold-hints mechanism.
+
+### SYNC-JUN02b-7 — per-use-site DCE + braced-scalar SCCP marker (#519)
+
+- **per-use-site DCE** — DCE tracked consumed reads per *statement*, so
+  folding one var on a line wrongly suppressed liveness of the line's
+  other vars (diamond dead-store bug).  Now keyed per use-site
+  (block / idx / name / version).  Classify in-scope, **soundness** —
+  patches the Rust DCE if it shares the per-statement tracking.
+- **braced-scalar `${name}` SCCP marker** — `set x ${a(1)}` reads scalar
+  `a(1)`; the reconstructed `$={name}` marker text must be treated as a
+  (conservatively overdefined) variable reference, not folded as a
+  literal.  Classify in-scope, low-touch.
+**Rust state: both N/A.**
+- per-use-site DCE — the Rust DCE (`elimination.rs`, O109 / O126) works
+  off `def_use` chains + SCCP purity, not the Python propagation→liveness
+  handshake (`propagated_expr_stmts`); the diamond-DCE bug shape this
+  fixes does not exist in the Rust architecture.
+- braced-scalar marker — Rust has **no `$=` marker** (grep-empty) and
+  does **not** mis-fold the braced scalar: a probe confirms `set x
+  ${a(1)}; return $x` produces *no* O100 / O102 / O103 fold on `x` (it is
+  treated as a var-read → overdefined), so there is nothing to patch.
 
 ## Next-up priority queue
 
@@ -2741,7 +3000,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-foreachLine-lowering` | Landed 2026-05-19 — single-iterator `Statement::Foreach` lowering in `rust/tcl-compiler/src/lowering/structured.rs::lower_foreach_line`. |
 | — | `SYNC-MAY19-stub-overlay` | **Landed in full** via sub-strips (b) (2026-05-19), (c) (`c945baa`), and (a) (`6487a4f`).  (a) added `rust/tcl-registry/src/stub_overlay.rs` carrying `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (with `arg_indices_for_role` mirroring the registry's shape and a deterministic `fingerprint()` for cache-key plumbing); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue the analyser-side records to the registry-side overlay; `Analyser::stub_overlay` populates via `build_stub_overlay(&stub_cmds)` after the stub-pre-scan, and `infer_param_traits` / `infer_param_traits_deep` thread the overlay through their internal helpers so role-driven trait inference unions the registry's and the overlay's tables at every call site. |
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
-| 5 | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **New, actionable, self-contained compiler/optimiser work** (#506).  Lower `oo::class create` / `oo::define` method bodies to per-method `FunctionUnit`s so methods get the same dataflow as procs, then summarise method purity into the interproc table and fire O126 on `set unused [my <pure-method>]`.  The Rust `ir::Module.methods` + `MethodDef` + interproc `MethodSummary` types already exist but are **inert placeholders** (lowering never populates them, `CompilationUnit` has no `methods`, the optimiser has no `enclosing_class` iteration) — so the work is real wiring, not new types.  Also carries the W307 per-SSA-version VAR-as-command suppression fix.  Multi-strip; see the `SYNC-JUN02` family section. |
+| — | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **Landed (#506)** — strips 1/2/3/4a/4b/5.  `Lowerer::extract_oo_methods_pass` populates `Module.methods`; `CompilationUnit.methods` builds per-method `FunctionUnit`s; `build_method_summaries` fills `InterproceduralAnalysis.methods`; `elimination::run` iterates method bodies with `enclosing_class` so `set unused [my <pure-method>]` folds to O126 (impure preserved — FP-OPT-12 → FIXED); W307 reads the precise SSA use-version.  Strip 4a additionally ported the C30d `_assignment_safe_to_delete` RHS-purity gate that the Rust O109/O126 had been missing (it had fired on `set unused [puts hi]`).  See the `SYNC-JUN02` family section. |
 | — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
 | 6 | `SYNC-MAY19-dialect-contextvar` | LSP server (`S*`) plumbing: thread the per-folder dialect into `LexerConfig` at document-open / change time so multi-folder workspaces with mixed dialects parse correctly.  Pure server-side, no analyser-crate changes.  Closes with `S*`. |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
@@ -2882,16 +3141,46 @@ priority queue:
   coordination with the analyser-flip plan.
 * **`SYNC-JUN02` family** — opened 2026-06-02; advances the anchor from
   `origin/main`@`59c770f6` to `origin/main`@`8aeaf1cd` (+5 commits).
-  Three in-scope rows: `SYNC-JUN02-1` (#506 — lower TclOO method bodies to
-  per-method `FunctionUnit`s + O126 method purity / SF-2 + the W307
-  per-SSA-version VAR-as-command fix; structural, the Rust `Module.methods`
-  / interproc `MethodSummary` scaffolding exists but is inert),
-  `SYNC-JUN02-2` (#515 — opt-in PGO branch-reordering subsystem emitting
-  hint-only P100; structural, deferred), and `SYNC-JUN02-3` (#516's
-  in-scope slivers — the switch `patterns_braced` IR flag, a correctness
-  gap since `rust/` lacks it, + Tcl 9 registry facts).  Out of scope:
-  #517 / #513 (explorer + optimiser-lens UI) and the WASM-emitter /
-  Zig-runtime bulk of #516.  See the `SYNC-JUN02` family section.
+  Three in-scope rows.  **`SYNC-JUN02-1` (#506) — LANDED** (strips
+  1/2/3/4a/4b/5): TclOO method bodies lower to `Module.methods` +
+  per-method `FunctionUnit`s, interproc summarises method purity, the
+  optimiser fires O126 on `set unused [my <pure-method>]` (impure
+  preserved — FP-OPT-12 → FIXED), and W307 reads the precise SSA
+  use-version.  Strip 4a also closed a pre-existing Rust gap: the C30d
+  RHS-purity gate (`_assignment_safe_to_delete`) had never been ported,
+  so O109/O126 had been deleting side-effecting `set unused [cmd]`.
+  `SYNC-JUN02-3`'s switch `patterns_braced` IR flag is **also landed**
+  (`Statement::Switch.patterns_braced`, set in `lower_switch`); its Tcl 9
+  registry-fact half stays folded into `SYNC-MAY19-tcl9-commands` (touch
+  when those commands are next worked).  `SYNC-JUN02-2` (#515 — opt-in
+  PGO branch-reordering subsystem emitting hint-only P100; structural)
+  remains **deferred** (off-by-default, importers are tooling-side).  Out
+  of scope: #517 / #513 (explorer + optimiser-lens UI) and the
+  WASM-emitter / Zig-runtime bulk of #516.  See the `SYNC-JUN02` family
+  section.
+* **`SYNC-JUN02b` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`8aeaf1cd` to `origin/main`@`31d3aac8` (+1 commit, the
+  #519 optimiser mega-PR).  Seven in-scope rows.  **Applied now** (the
+  two clean soundness/correctness fixes to existing Rust):
+  **`-5` — LANDED** (string comparisons `eq`/`ne`/`lt`/`gt`/`le`/`ge`
+  fold as strings in `tcl_expr_eval`) and **`-2` — LANDED** (interproc
+  `writes_global` recognises `global`/`variable`/`upvar #0` aliases).
+  **Deferred** (large new subsystems / missing mechanisms): **`-1`** (O100
+  multi-word constant — needs a `tcl_list_quote` leaf), **`-3`**
+  (`var_observability` optimiser lattice — Rust's `var_escape` is
+  codegen-only, no `TRACED`), **`-4`** (`command_binding` +
+  `command_trust` + W128 — no Rust counterpart), **`-6`** (new
+  const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
+  yet; the O115 value-position unwrap from `-6` is **LANDED** (cmd-arg +
+  `return`), O105 already present, the rest deferred behind `FOLD_HINTS`
+  + the `-1` quoter).
+  **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
+  constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
+  hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
+  Rust has none and doesn't mis-fold `${a(1)}`, probe-confirmed).  Out of
+  scope: the WASM/bytecode dispatch-gating + canonical-quoting migration
+  and the `shared/tcl_list` Python consolidation.  See the `SYNC-JUN02b`
+  family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
