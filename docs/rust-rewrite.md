@@ -1928,13 +1928,36 @@ structural sub-chunks:
 - **A6 — shimmer per-name index pre-pass.**  Compute empty-literal
   versions + loop-body def types once per function instead of per
   phi.
+  **Rust state for A0 / A11 / A19 / A6: deferred as performance
+  chunks.**  These are *output-preserving* algorithmic speedups (O(1)
+  dominance, fewer phis, hoisted shimmer pre-pass) — they do not change
+  any diagnostic or optimisation output, so they are a poor fit for the
+  rewrite's "one discriminating test per strip that FAILS without the
+  change" discipline (there is no observable behaviour to assert) and
+  they carry real regression risk in the dominator / SSA-construction /
+  shimmer cores.  They want their own perf-focused chunk gated by a
+  benchmark + a full output-equivalence sweep, not a feature strip.
 - **W211 / W220 / O109 / O126 call-by-name suppression.**  Port
   `collect_call_by_name_reads` + `build_proc_index_from_summaries`
-  to `rust/tcl-compiler/src/interprocedural.rs` (the `param_traits`
-  infrastructure is already there per ProcSummary at line 146);
-  consume from the four emitters in `analyser/diagnostics.rs` (W211
-  / W220) and `optimiser/{elimination,unused_procs}.rs` (O109 /
-  O126).
+  to `rust/tcl-compiler/src/interprocedural.rs`; consume from the four
+  emitters in `analyser/diagnostics.rs` (W211 / W220) and
+  `optimiser/{elimination,unused_procs}.rs` (O109 / O126).
+  **Rust state: blocked — bigger than a single strip (promote to its own
+  chunk).**  The bullet's premise that "the `param_traits` infrastructure
+  is already there" is only half true: the Rust `ProcSummary.param_traits`
+  field exists, but the Rust `ProcArgTrait` enum carries only
+  `Passthrough` / `UsedInCondition` / `ForwardedToCallee` / `Unused` — it
+  has **no `VAR_READ` / `VAR_WRITE` / `DYNAMIC_NAME_LOCAL`** variants,
+  which are exactly what `collect_call_by_name_reads` keys on (it
+  suppresses a caller-local only when the callee param it lands on carries
+  VAR_READ/VAR_WRITE).  So the prerequisite is porting the
+  `proc_arg_traits.py` *call-by-name param-trait inference* (detect
+  `proc p {vn} { upvar 1 $vn loc; … }` → `vn` gets VAR_WRITE/VAR_READ),
+  then the proc-index builder, the cmd-sub-aware scan, and the four
+  consumer wirings.  Sequence as its own chunk: (a) extend `ProcArgTrait`
+  + the summary inference; (b) `collect_call_by_name_reads` +
+  `build_proc_index_from_summaries`; (c) wire W220 (highest-impact), then
+  W211 / O109 / O126.
 - **O110 InstCombine whitespace guard.**  Add the
   `strip_ws(combined) != strip_ws(input)` guard to
   `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`
@@ -3060,14 +3083,16 @@ optimiser-side diagnostic only — it consults `ctx.registry` and does
 **not** thread the registry into SCCP, so the SCCP lattice fold
 (`try_fold_cmd_subst`) is untouched (the two are complementary: O129 is
 the user-facing rewrite, SCCP feeds the constant lattice).  **Folds
-landed:** `string toupper` / `tolower` / `reverse` (ASCII-restricted for
-exact Tcl parity — non-ASCII case-maps diverge, so they bail).
+landed:** `string toupper` / `tolower` / `reverse` / `length` (all
+ASCII-restricted for exact Tcl parity — non-ASCII case-maps and the
+UTF-16-vs-USV length divergence make them bail).  `string length` is
+main's headline O129 example (`puts [string length abcde]` → `5`); it
+coexists with SCCP's hand-rolled `string length` lattice fold (different
+positions, complementary — verified the full suite stays green).
 **Deferred follow-ups** (same mechanism, add a `const_fold` per
-command): `string length` (main's headline O129 example — deferred only
-to first verify the interaction with SCCP's existing hand-rolled
-`string length` lattice fold), `join`, `format`, `concat`, `dict get`,
-`string map`, `string repeat`; and the list-returning folds (`split`,
-`lrange`, `lreverse`) which render their result list through the
+command): `join`, `format`, `concat`, `dict get`, `string map`,
+`string repeat`; and the list-returning folds (`split`, `lrange`,
+`lreverse`) which render their result list through the
 `tcl_list_element` quoter.  O130 (`lappend` chain → single `set`) and
 the inline `scan` fold are still their own strips.  Per-fold notes:
 - **O115 value-position unwrap** — **LANDED.**  A redundant double-expr

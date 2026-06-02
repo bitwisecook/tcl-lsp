@@ -1425,6 +1425,8 @@ mod tests {
         assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
         assert_eq!(fold("puts [string tolower BAR]"), vec!["bar".to_string()]);
         assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
+        // main's headline O129 example.
+        assert_eq!(fold("puts [string length abcde]"), vec!["5".to_string()]);
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),

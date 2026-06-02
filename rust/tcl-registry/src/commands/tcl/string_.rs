@@ -36,6 +36,17 @@ fn fold_reverse(args: &[&str]) -> Option<String> {
     }
 }
 
+fn fold_length(args: &[&str]) -> Option<String> {
+    // ASCII-only: for ASCII the byte length equals the character count,
+    // matching Tcl's `string length` (number of characters).  Non-ASCII
+    // bails — the char count diverges across Tcl 8.x (UTF-16 units) and
+    // Tcl 9 / Rust (Unicode scalars) for astral characters.
+    match args {
+        [s] if s.is_ascii() => Some(s.len().to_string()),
+        _ => None,
+    }
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -303,6 +314,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string length string",
         pure: true,
         return_type: Some(TclType::Int),
+        const_fold: Some(fold_length),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -609,5 +621,13 @@ mod tests {
             .and_then(|s| s.const_fold)
             .expect("reverse const_fold");
         assert_eq!(reverse(&["abc"]).as_deref(), Some("cba"));
+
+        let length = spec
+            .subcommand("length")
+            .and_then(|s| s.const_fold)
+            .expect("length const_fold");
+        assert_eq!(length(&["abcde"]).as_deref(), Some("5"));
+        assert_eq!(length(&[""]).as_deref(), Some("0"));
+        assert_eq!(length(&["caf\u{e9}"]), None, "non-ASCII bails");
     }
 }
