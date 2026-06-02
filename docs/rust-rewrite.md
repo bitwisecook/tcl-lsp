@@ -2674,6 +2674,43 @@ pure-method RHS; (5) the W307 per-SSA-version suppression fix in
 `analyser/diagnostics.rs`.  Classify in-scope, **structural** — a
 multi-strip port.
 
+**Landed (rust) — strips 1, 2, 3, 4a, 4b, 5.**
+- **Strip 1** (`lower TclOO method bodies to Module.methods`): a
+  cache-independent `Lowerer::extract_oo_methods_pass` post-pass walks
+  the assembled module for `oo::class create` / `oo::define` barriers
+  and lifts each `method` / `classmethod` / `constructor` / `destructor`
+  body to `ir::MethodDef`.  `MethodDef` gained `instance_vars` and
+  `Module` gained `redefined_methods`.  A `Lowerer.suppress_proc_register`
+  guard keeps a `proc` defined inside a method body out of
+  `module.procedures` (codegen safety).  **Divergence:** the Rust
+  lowerer evaluates a `namespace eval` body inline and discards it
+  (emitting a `Barrier`, not Python's `IRBlock`), so the post-pass
+  re-segments the barrier's preserved body token to find classes
+  defined directly inside a namespace (`walk_segments_for_oo`).
+- **Strip 2** (`CompilationUnit.methods`): per-method `FunctionUnit`s
+  built via a new `build_cfg_function_with_upvars` (methods stay out of
+  `cfg_module.procedures`); gated on a non-empty method set.
+- **Strip 3** (interproc): `build_method_summaries` populates
+  `InterproceduralAnalysis.methods`; the Rust interproc scans the IR
+  directly, so no pre-built `method_units` are threaded.  `my` / `next`
+  carry no registry trait → `fallback_unknown_write` → unknown-state
+  effect write → impure (same *result* as Python's unknown-call path).
+- **Strip 4a** (RHS-purity gate): the C30d-era
+  `_assignment_safe_to_delete` / `_word_has_observable_side_effect` /
+  `_expr_has_observable_side_effect` guard had **never** been ported —
+  the Rust O109/O126 fired on any dead chain, so `set unused [puts hi]`
+  was deleted with its side effect.  Ported now (with `interproc_pure`
+  for user procs + the SF-2 pure-`my`-dispatch hook), gating both
+  O109 and O126.  This is the gate #506 relies on.
+- **Strip 4b** (method iteration): `elimination::run` iterates
+  `cu.methods` with `enclosing_class`; instance vars are fed through the
+  `cross_event_vars` escaping channel.  `set unused [my pureMethod]`
+  now folds to O126, impure preserved (FP-OPT-12 → FIXED).
+- **Strip 5** (W307 §A): `w307_precise_cmd_values` reads the SCCP value
+  at the dispatch's exact SSA use-version, fixing the merged-set FP on a
+  variable reassigned from a non-command to a command before the
+  dispatch.
+
 ### SYNC-JUN02-2 — Profile-guided branch reordering (PGO) (#515)
 
 A new, opt-in, **off-by-default** `compiler/pgo/` subsystem: an `occurrence`
@@ -2741,7 +2778,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-foreachLine-lowering` | Landed 2026-05-19 — single-iterator `Statement::Foreach` lowering in `rust/tcl-compiler/src/lowering/structured.rs::lower_foreach_line`. |
 | — | `SYNC-MAY19-stub-overlay` | **Landed in full** via sub-strips (b) (2026-05-19), (c) (`c945baa`), and (a) (`6487a4f`).  (a) added `rust/tcl-registry/src/stub_overlay.rs` carrying `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (with `arg_indices_for_role` mirroring the registry's shape and a deterministic `fingerprint()` for cache-key plumbing); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue the analyser-side records to the registry-side overlay; `Analyser::stub_overlay` populates via `build_stub_overlay(&stub_cmds)` after the stub-pre-scan, and `infer_param_traits` / `infer_param_traits_deep` thread the overlay through their internal helpers so role-driven trait inference unions the registry's and the overlay's tables at every call site. |
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
-| 5 | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **New, actionable, self-contained compiler/optimiser work** (#506).  Lower `oo::class create` / `oo::define` method bodies to per-method `FunctionUnit`s so methods get the same dataflow as procs, then summarise method purity into the interproc table and fire O126 on `set unused [my <pure-method>]`.  The Rust `ir::Module.methods` + `MethodDef` + interproc `MethodSummary` types already exist but are **inert placeholders** (lowering never populates them, `CompilationUnit` has no `methods`, the optimiser has no `enclosing_class` iteration) — so the work is real wiring, not new types.  Also carries the W307 per-SSA-version VAR-as-command suppression fix.  Multi-strip; see the `SYNC-JUN02` family section. |
+| — | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **Landed (#506)** — strips 1/2/3/4a/4b/5.  `Lowerer::extract_oo_methods_pass` populates `Module.methods`; `CompilationUnit.methods` builds per-method `FunctionUnit`s; `build_method_summaries` fills `InterproceduralAnalysis.methods`; `elimination::run` iterates method bodies with `enclosing_class` so `set unused [my <pure-method>]` folds to O126 (impure preserved — FP-OPT-12 → FIXED); W307 reads the precise SSA use-version.  Strip 4a additionally ported the C30d `_assignment_safe_to_delete` RHS-purity gate that the Rust O109/O126 had been missing (it had fired on `set unused [puts hi]`).  See the `SYNC-JUN02` family section. |
 | — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
 | 6 | `SYNC-MAY19-dialect-contextvar` | LSP server (`S*`) plumbing: thread the per-folder dialect into `LexerConfig` at document-open / change time so multi-folder workspaces with mixed dialects parse correctly.  Pure server-side, no analyser-crate changes.  Closes with `S*`. |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
@@ -2882,16 +2919,22 @@ priority queue:
   coordination with the analyser-flip plan.
 * **`SYNC-JUN02` family** — opened 2026-06-02; advances the anchor from
   `origin/main`@`59c770f6` to `origin/main`@`8aeaf1cd` (+5 commits).
-  Three in-scope rows: `SYNC-JUN02-1` (#506 — lower TclOO method bodies to
-  per-method `FunctionUnit`s + O126 method purity / SF-2 + the W307
-  per-SSA-version VAR-as-command fix; structural, the Rust `Module.methods`
-  / interproc `MethodSummary` scaffolding exists but is inert),
+  Three in-scope rows.  **`SYNC-JUN02-1` (#506) — LANDED** (strips
+  1/2/3/4a/4b/5): TclOO method bodies lower to `Module.methods` +
+  per-method `FunctionUnit`s, interproc summarises method purity, the
+  optimiser fires O126 on `set unused [my <pure-method>]` (impure
+  preserved — FP-OPT-12 → FIXED), and W307 reads the precise SSA
+  use-version.  Strip 4a also closed a pre-existing Rust gap: the C30d
+  RHS-purity gate (`_assignment_safe_to_delete`) had never been ported,
+  so O109/O126 had been deleting side-effecting `set unused [cmd]`.
   `SYNC-JUN02-2` (#515 — opt-in PGO branch-reordering subsystem emitting
-  hint-only P100; structural, deferred), and `SYNC-JUN02-3` (#516's
+  hint-only P100; structural, deferred) and `SYNC-JUN02-3` (#516's
   in-scope slivers — the switch `patterns_braced` IR flag, a correctness
-  gap since `rust/` lacks it, + Tcl 9 registry facts).  Out of scope:
-  #517 / #513 (explorer + optimiser-lens UI) and the WASM-emitter /
-  Zig-runtime bulk of #516.  See the `SYNC-JUN02` family section.
+  gap since `rust/` lacks it, + Tcl 9 registry facts) remain open.
+  **Next actionable, self-contained item: `SYNC-JUN02-3`** (the switch
+  `patterns_braced` flag).  Out of scope: #517 / #513 (explorer +
+  optimiser-lens UI) and the WASM-emitter / Zig-runtime bulk of #516.
+  See the `SYNC-JUN02` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
