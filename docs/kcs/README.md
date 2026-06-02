@@ -120,6 +120,15 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — reproduce an `ltm monitor http(s)` from your laptop, honouring
   the 5,120-byte response-check ceiling (F5 KB K3451) so the
   result matches what the device sees.
+- [kcs-howto-verify-migration-before-after-with-query.md](kcs-howto-verify-migration-before-after-with-query.md)
+  — verify a migration before/after straight from two UCS files:
+  config parity (IPs, self-IP lockdowns, monitors, certs) with a
+  match column, plus live probes that prove the VIPs still listen,
+  serve the same cert, and answer `GET /` the same way.
+- [kcs-howto-read-encrypted-ucs-archives.md](kcs-howto-read-encrypted-ucs-archives.md)
+  — run any `f5` verb against a passphrase-protected UCS (`tmsh save
+  sys ucs ... passphrase`); supply the passphrase via
+  `F5_UCS_PASSPHRASE`, a flag, or a secure prompt.
 - [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
   — compose multi-step transformations (rename + readdress + policy
   edit) across the config in one `;`-separated query.
