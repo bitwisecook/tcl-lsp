@@ -1437,6 +1437,11 @@ mod tests {
             vec!["ababab".to_string()]
         );
         assert_eq!(fold("puts [string trim {  hi  }]"), vec!["hi".to_string()]);
+        assert_eq!(
+            fold("puts [string range abcde 1 3]"),
+            vec!["bcd".to_string()]
+        );
+        assert_eq!(fold("puts [string index abc end]"), vec!["c".to_string()]);
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),

@@ -126,6 +126,201 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
     ))
 }
 
+/// Parse a Tcl index expression (`end`, `end-N`, `end+N`, integer)
+/// against a string/list of `length`.  Mirrors `_parse_index` in
+/// `dialects/tcl/const_fold.py`.  May return a negative or
+/// out-of-range value — the caller clamps.
+fn parse_index(s: &str, length: usize) -> Option<i64> {
+    let s = s.trim();
+    let len = i64::try_from(length).ok()?;
+    if s == "end" {
+        return Some(len - 1);
+    }
+    if let Some(rest) = s.strip_prefix("end-") {
+        return rest.parse::<i64>().ok().map(|n| len - 1 - n);
+    }
+    if let Some(rest) = s.strip_prefix("end+") {
+        return rest.parse::<i64>().ok().map(|n| len - 1 + n);
+    }
+    s.parse::<i64>().ok()
+}
+
+/// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
+/// inclusive byte range over a string/list of `len`, or `None` when the
+/// range is empty (`first > last` after clamping `first` up to 0 and
+/// `last` down to `len-1`).
+fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, usize)> {
+    let last_max = i64::try_from(len).ok()? - 1;
+    let first = first.max(0);
+    let last = last.min(last_max);
+    if first > last {
+        return None;
+    }
+    // first >= 0 and last >= first >= 0, both < len → conversions succeed.
+    Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
+}
+
+/// `string index string charIndex`.  ASCII-restricted (byte index ==
+/// char index for ASCII).
+fn fold_index(args: &[&str]) -> Option<String> {
+    let [s, idx_str] = args else {
+        return None;
+    };
+    let (s, idx_str) = (*s, *idx_str);
+    if !s.is_ascii() {
+        return None;
+    }
+    let idx = parse_index(idx_str, s.len())?;
+    Some(match usize::try_from(idx) {
+        Ok(i) if i < s.len() => s[i..=i].to_owned(),
+        _ => String::new(), // negative or out of range → ""
+    })
+}
+
+/// `string range string first last`.  ASCII-restricted.
+fn fold_range(args: &[&str]) -> Option<String> {
+    let [s, first_s, last_s] = args else {
+        return None;
+    };
+    let s = *s;
+    if !s.is_ascii() {
+        return None;
+    }
+    let first = parse_index(first_s, s.len())?;
+    let last = parse_index(last_s, s.len())?;
+    match clamp_range(first, last, s.len()) {
+        Some((lo, hi)) => Some(s[lo..=hi].to_owned()),
+        None => Some(String::new()),
+    }
+}
+
+/// `string replace string first last ?newString?`.  ASCII-restricted.
+fn fold_replace(args: &[&str]) -> Option<String> {
+    let (s, first_s, last_s, repl) = match args {
+        [s, f, l] => (*s, *f, *l, ""),
+        [s, f, l, r] => (*s, *f, *l, *r),
+        _ => return None,
+    };
+    if !s.is_ascii() {
+        return None;
+    }
+    let first = parse_index(first_s, s.len())?;
+    let last = parse_index(last_s, s.len())?;
+    match clamp_range(first, last, s.len()) {
+        Some((lo, hi)) => Some(format!("{}{}{}", &s[..lo], repl, &s[hi + 1..])),
+        None => Some(s.to_owned()),
+    }
+}
+
+/// `string first needleString haystackString ?startIndex?`.
+/// ASCII-restricted.  Returns the byte/char index, or `-1`.
+fn fold_first(args: &[&str]) -> Option<String> {
+    let (needle, haystack, start) = match args {
+        [n, h] => (*n, *h, 0usize),
+        [n, h, st] => {
+            if !h.is_ascii() {
+                return None;
+            }
+            // A negative start clamps to 0.
+            (
+                *n,
+                *h,
+                usize::try_from(parse_index(st, h.len())?).unwrap_or(0),
+            )
+        }
+        _ => return None,
+    };
+    if !needle.is_ascii() || !haystack.is_ascii() {
+        return None;
+    }
+    let pos = haystack
+        .get(start..)
+        .and_then(|tail| tail.find(needle))
+        .map(|i| i + start);
+    Some(pos.map_or_else(|| "-1".to_owned(), |i| i.to_string()))
+}
+
+/// `string last needleString haystackString ?lastIndex?`.
+/// ASCII-restricted.  Searches `haystack[0..end)` from the right.
+fn fold_last(args: &[&str]) -> Option<String> {
+    let (needle, haystack, end_idx) = match args {
+        [n, h] => (*n, *h, None),
+        [n, h, last] => {
+            if !h.is_ascii() {
+                return None;
+            }
+            (*n, *h, Some(parse_index(last, h.len())? + 1))
+        }
+        _ => return None,
+    };
+    if !needle.is_ascii() || !haystack.is_ascii() {
+        return None;
+    }
+    let end = match end_idx {
+        None => haystack.len(),
+        // Clamp the (lastIndex + 1) exclusive end into `[0, len]`.
+        Some(e) => usize::try_from(e).unwrap_or(0).min(haystack.len()),
+    };
+    let pos = haystack.get(..end).and_then(|head| head.rfind(needle));
+    Some(pos.map_or_else(|| "-1".to_owned(), |i| i.to_string()))
+}
+
+/// `string compare ?-nocase? ?-length N? string1 string2`.
+/// ASCII-restricted.  Returns `-1` / `0` / `1`.
+fn fold_compare(args: &[&str]) -> Option<String> {
+    let mut nocase = false;
+    let mut length: Option<usize> = None;
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        match args[i] {
+            "-nocase" => {
+                nocase = true;
+                i += 1;
+            }
+            "-length" if i + 1 < args.len() => {
+                length = Some(args[i + 1].parse().ok()?);
+                i += 2;
+            }
+            "--" => {
+                i += 1;
+                break;
+            }
+            _ => return None,
+        }
+    }
+    if args.len() - i != 2 {
+        return None;
+    }
+    let (mut s1, mut s2) = (args[i].to_owned(), args[i + 1].to_owned());
+    if !s1.is_ascii() || !s2.is_ascii() {
+        return None;
+    }
+    if nocase {
+        s1 = s1.to_ascii_lowercase();
+        s2 = s2.to_ascii_lowercase();
+    }
+    if let Some(n) = length {
+        s1.truncate(n.min(s1.len()));
+        s2.truncate(n.min(s2.len()));
+    }
+    Some(
+        match s1.cmp(&s2) {
+            std::cmp::Ordering::Less => "-1",
+            std::cmp::Ordering::Equal => "0",
+            std::cmp::Ordering::Greater => "1",
+        }
+        .to_owned(),
+    )
+}
+
+/// `string equal ?-nocase? ?-length N? string1 string2`.
+fn fold_equal(args: &[&str]) -> Option<String> {
+    match fold_compare(args)?.as_str() {
+        "0" => Some("1".to_owned()),
+        _ => Some("0".to_owned()),
+    }
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -252,6 +447,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string compare ?-nocase? ?-length length? string1 string2",
         pure: true,
         return_type: Some(TclType::Int),
+        const_fold: Some(fold_compare),
         options: &[
             OptionSpec {
                 name: "-nocase",
@@ -277,6 +473,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string equal ?-nocase? ?-length length? string1 string2",
         pure: true,
         return_type: Some(TclType::Boolean),
+        const_fold: Some(fold_equal),
         options: &[
             OptionSpec {
                 name: "-nocase",
@@ -302,6 +499,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string first needleString haystackString ?startIndex?",
         pure: true,
         return_type: Some(TclType::Int),
+        const_fold: Some(fold_first),
         arg_types: &[(
             2,
             ArgTypeHint {
@@ -318,6 +516,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string index string charIndex",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_index),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -378,6 +577,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string last needleString haystackString ?lastIndex?",
         pure: true,
         return_type: Some(TclType::Int),
+        const_fold: Some(fold_last),
         arg_types: &[(
             2,
             ArgTypeHint {
@@ -443,6 +643,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string range string first last",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_range),
         arg_types: &[
             (
                 1,
@@ -485,6 +686,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string replace string first last ?newString?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_replace),
         arg_types: &[
             (
                 1,
@@ -736,5 +938,48 @@ mod tests {
         assert_eq!(f("totitle")(&["hELLO"]).as_deref(), Some("Hello"));
         assert_eq!(f("totitle")(&[""]).as_deref(), Some(""));
         assert_eq!(f("totitle")(&["caf\u{e9}"]), None, "non-ASCII bails");
+    }
+
+    #[test]
+    fn string_index_comparison_folds_match_tcl() {
+        // SYNC-JUN02d-1 (#525): index / range / replace / first / last /
+        // compare / equal, with `end` / `end-N` index parsing.
+        let reg = CommandRegistry::build_default();
+        let spec = reg.get("string").expect("string spec");
+        let f = |sub: &str| spec.subcommand(sub).and_then(|s| s.const_fold).unwrap();
+
+        assert_eq!(f("index")(&["abc", "1"]).as_deref(), Some("b"));
+        assert_eq!(f("index")(&["abc", "end"]).as_deref(), Some("c"));
+        assert_eq!(
+            f("index")(&["abc", "9"]).as_deref(),
+            Some(""),
+            "OOB → empty"
+        );
+        assert_eq!(f("range")(&["abcde", "1", "3"]).as_deref(), Some("bcd"));
+        assert_eq!(f("range")(&["abcde", "2", "end"]).as_deref(), Some("cde"));
+        assert_eq!(f("range")(&["abcde", "3", "1"]).as_deref(), Some(""));
+        assert_eq!(f("replace")(&["abcde", "1", "3"]).as_deref(), Some("ae"));
+        assert_eq!(
+            f("replace")(&["abcde", "1", "3", "XY"]).as_deref(),
+            Some("aXYe")
+        );
+        assert_eq!(f("first")(&["b", "abcb"]).as_deref(), Some("1"));
+        assert_eq!(f("first")(&["b", "abcb", "2"]).as_deref(), Some("3"));
+        assert_eq!(f("first")(&["z", "abc"]).as_deref(), Some("-1"));
+        assert_eq!(f("last")(&["b", "abcb"]).as_deref(), Some("3"));
+        assert_eq!(f("last")(&["z", "abc"]).as_deref(), Some("-1"));
+        assert_eq!(f("compare")(&["abc", "abc"]).as_deref(), Some("0"));
+        assert_eq!(f("compare")(&["abc", "abd"]).as_deref(), Some("-1"));
+        assert_eq!(f("compare")(&["abd", "abc"]).as_deref(), Some("1"));
+        assert_eq!(
+            f("compare")(&["-nocase", "ABC", "abc"]).as_deref(),
+            Some("0")
+        );
+        assert_eq!(
+            f("compare")(&["-length", "2", "abX", "abY"]).as_deref(),
+            Some("0")
+        );
+        assert_eq!(f("equal")(&["abc", "abc"]).as_deref(), Some("1"));
+        assert_eq!(f("equal")(&["abc", "abd"]).as_deref(), Some("0"));
     }
 }

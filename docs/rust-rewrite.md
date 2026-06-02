@@ -3246,16 +3246,20 @@ as a single word rather than rejected (sound — Rust folds *more* than
 main's reject-on-special-char guard, both correct; the analyser is not
 byte-gated against Python).  String folds are ASCII-restricted for exact
 Tcl parity (Rust/Tcl case-map + length agree on ASCII; non-ASCII bails —
-conservative).  **Landed so far:** `string toupper` / `tolower` /
-`reverse` / `length` (SYNC-JUN02b-6) plus `string cat` / `repeat` /
-`trim` / `trimleft` / `trimright` / `totitle` (this family).  **Remaining
-folds** (own follow-up strips): the index-based `string` ops (`index` /
-`range` / `replace` / `first` / `last` / `compare` / `equal` / `is` /
-`map`) which need an `_parse_index` port; the list ops (`concat` / `join`
-/ `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`) and
+conservative).  **Landed so far:** the full pure-`string`-subcommand family — `toupper`
+/ `tolower` / `reverse` / `length` (SYNC-JUN02b-6); `cat` / `repeat` /
+`trim` / `trimleft` / `trimright` / `totitle`; and the index/comparison
+ops `index` / `range` / `replace` / `first` / `last` / `compare` /
+`equal` (via a `parse_index` + `clamp_range` port, ASCII-restricted).
+**Remaining folds** (own follow-up strips): `string is` / `map` (class
+predicates / list-keyed mapping); the list ops (`concat` / `join` /
+`split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`) and
 `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
-`create`) which need list/dict-split helpers in `tcl-registry`; plus
-`format`, `scan`.
+`create`) — these need a `tcl_list_split` helper reachable from
+`tcl-registry` (the canonical Rust list-splitter lives in
+`tcl-compiler::codegen::helpers`, *above* the registry in the crate DAG,
+so the consolidation point is `tcl-lexer` or a small registry-local
+splitter); plus `format`, `scan`.
 
 ### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
 
