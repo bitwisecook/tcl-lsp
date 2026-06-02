@@ -1039,6 +1039,181 @@ fn eval_time(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(rt.obj_new_string_take(buf, total, total));
 }
 
+const TIMERATE_USAGE =
+    "wrong # args: should be \"timerate ?-direct? ?-calibrate? " ++
+    "?-overhead double? command ?time ?max-count??\"";
+
+/// Raise ``expected integer but got "X"`` (or the floating-point
+/// variant) for a bad ``timerate`` numeric argument.
+fn timerate_expected(bytes_ptr: u32, bytes_len: u32, as_float: bool) void {
+    const int_prefix: []const u8 = "expected integer but got \"";
+    const flt_prefix: []const u8 = "expected floating-point number but got \"";
+    const prefix = if (as_float) flt_prefix else int_prefix;
+    const total: u32 = @intCast(prefix.len + bytes_len + 1);
+    const buf = rt.alloc(total);
+    if (buf == 0) {
+        stubs.raise(prefix);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (bytes_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(bytes_ptr);
+        var k: u32 = 0;
+        while (k < bytes_len) : (k += 1) {
+            dst[off] = src[k];
+            off += 1;
+        }
+    }
+    dst[off] = '"';
+    off += 1;
+    catch_mod.tcl_cmd_error(rt.obj_new_string_take(buf, off, total));
+}
+
+/// Build the 8-element ``timerate`` result list as a space-joined
+/// string: ``<µs/#> µs/# <count> # <#/sec> #/sec <net-ms> net-ms``.
+fn timerate_result(usec_in: i64, count: i64) i32 {
+    var buf: [192]u8 = undefined;
+    // ``µ`` is U+00B5 → UTF-8 0xC2 0xB5.
+    const mu = "\xC2\xB5";
+    var s: []u8 = undefined;
+    if (count <= 0) {
+        s = std.fmt.bufPrint(&buf, "0 {s}s/# 0 # 0 #/sec 0 net-ms", .{mu}) catch
+            return obj_new_string(0, 0);
+    } else {
+        const usec: i64 = if (usec_in < 0) 0 else usec_in;
+        const per_iter = @divTrunc(usec, count);
+        const usec_nz: i64 = if (usec == 0) 1 else usec;
+        const per_sec: i64 = @intCast(@divTrunc(@as(i128, count) * 1_000_000, usec_nz));
+        if (usec >= 1) {
+            // net-ms = usec/1000 with exactly three fractional digits.
+            const frac = @mod(usec, 1000);
+            s = std.fmt.bufPrint(
+                &buf,
+                "{d} {s}s/# {d} # {d} #/sec {d}.{d}{d}{d} net-ms",
+                .{
+                    per_iter,              mu,                   count,                          per_sec,
+                    @divTrunc(usec, 1000), @divTrunc(frac, 100), @divTrunc(@mod(frac, 100), 10), @mod(frac, 10),
+                },
+            ) catch return obj_new_string(0, 0);
+        } else {
+            s = std.fmt.bufPrint(
+                &buf,
+                "{d} {s}s/# {d} # {d} #/sec 0 net-ms",
+                .{ per_iter, mu, count, per_sec },
+            ) catch return obj_new_string(0, 0);
+        }
+    }
+    const out = rt.alloc(@intCast(s.len));
+    if (out == 0) return obj_new_string(0, 0);
+    rt.memcpy(out, @intFromPtr(s.ptr), @intCast(s.len));
+    return rt.obj_new_string_take(out, @intCast(s.len), @intCast(s.len));
+}
+
+// ``timerate ?-direct? ?-calibrate? ?-overhead double? command ?time
+// ?max-count??`` — run *command* repeatedly until *time* ms elapse (or
+// *max-count* iterations) and report a timing summary.  Mirrors
+// ``Tcl_TimeRateObjCmd``; the adaptive batching / calibration of the C
+// version is collapsed to a straight loop (the ``-direct`` /
+// ``-calibrate`` flags are accepted but don't change the measurement).
+fn eval_timerate(words: []const i32) result_mod.InterpResult {
+    const interp = @import("../interp/tcl_interp.zig");
+    const clock = @import("../io/tcl_clock.zig");
+    const om = @import("../valtypes/tcl_obj.zig");
+
+    var i: u32 = 1;
+    var overhead: f64 = 0;
+    while (i < words.len) : (i += 1) {
+        const w = obj_ensure_string(words[i]);
+        if (w.len == 0) break;
+        const wp: [*]const u8 = @ptrFromInt(w.ptr);
+        if (wp[0] != '-') break;
+        if (str_eq(wp, w.len, "-direct") or str_eq(wp, w.len, "-calibrate")) continue;
+        if (str_eq(wp, w.len, "--")) {
+            i += 1;
+            break;
+        }
+        if (str_eq(wp, w.len, "-overhead")) {
+            i += 1;
+            if (i >= words.len) {
+                stubs.raise(TIMERATE_USAGE);
+                return result_mod.from_globals(obj_new_int(0));
+            }
+            const ov_s = obj_ensure_string(words[i]);
+            if (om.try_parse_float(ov_s.ptr, ov_s.len)) |f| {
+                overhead = f;
+            } else if (om.try_parse_int(ov_s.ptr, ov_s.len)) |n| {
+                overhead = @floatFromInt(n);
+            } else {
+                timerate_expected(ov_s.ptr, ov_s.len, true);
+                return result_mod.from_globals(obj_new_int(0));
+            }
+            continue;
+        }
+        break;
+    }
+
+    // Positional: command ?time ?max-count??.  None, or more than three,
+    // is a usage error (checked before the numeric args are parsed).
+    if (i >= words.len or i + 3 < words.len) {
+        stubs.raise(TIMERATE_USAGE);
+        return result_mod.from_globals(obj_new_int(0));
+    }
+    const cmd = words[i];
+    i += 1;
+    var maxms: i64 = 1000;
+    var maxcnt: i64 = std.math.maxInt(i64);
+    if (i < words.len) {
+        const t_s = obj_ensure_string(words[i]);
+        const t = om.try_parse_int(t_s.ptr, t_s.len) orelse {
+            timerate_expected(t_s.ptr, t_s.len, false);
+            return result_mod.from_globals(obj_new_int(0));
+        };
+        maxms = t;
+        i += 1;
+        if (i < words.len) {
+            const c_s = obj_ensure_string(words[i]);
+            const v = om.try_parse_int(c_s.ptr, c_s.len) orelse {
+                timerate_expected(c_s.ptr, c_s.len, false);
+                return result_mod.from_globals(obj_new_int(0));
+            };
+            maxcnt = if (v > 0) v else 0;
+        }
+    }
+
+    const body_s = obj_ensure_string(cmd);
+    const maxms_us: i64 = if (maxms > 0) maxms * 1000 else 0;
+    var count: i64 = 0;
+    const start_us = rt.obj_get_int(clock.clock_clicks());
+    while (count < maxcnt) {
+        const r = interp.eval_script(body_s.ptr, body_s.len);
+        const ir = result_mod.snapshot(r);
+        // ``error`` / ``return`` propagate out of timerate verbatim
+        // (errorInfo is already stamped by eval_script).
+        if (ir.code == .ERROR or ir.code == .RETURN) {
+            return result_mod.from_globals(r);
+        }
+        count += 1;
+        if (r != 0) om.tcl_obj_release(r);
+        // ``break`` ends the measurement after counting this iteration;
+        // ``continue`` / ``ok`` keep going.
+        if (ir.code == .BREAK) break;
+        const now_us = rt.obj_get_int(clock.clock_clicks());
+        if (now_us - start_us >= maxms_us) break;
+    }
+    const end_us = rt.obj_get_int(clock.clock_clicks());
+    var usec: i64 = end_us - start_us;
+    if (overhead > 0 and count > 0) {
+        const cur: i64 = @intFromFloat(overhead * @as(f64, @floatFromInt(count)));
+        usec = if (usec > cur) usec - cur else 0;
+    }
+    return result_mod.from_globals(timerate_result(usec, count));
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "return", .arity_min = 0, .arity_max = null, .handler = &eval_return },
     .{ .name = "break", .arity_min = 0, .arity_max = 0, .handler = &eval_break },
@@ -1050,4 +1225,5 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "apply", .arity_min = 1, .arity_max = null, .handler = &eval_apply_cmd },
     .{ .name = "tailcall", .arity_min = 0, .arity_max = null, .handler = &eval_tailcall },
     .{ .name = "time", .arity_min = 1, .arity_max = 2, .handler = &eval_time },
+    .{ .name = "timerate", .arity_min = 1, .arity_max = null, .handler = &eval_timerate },
 };
