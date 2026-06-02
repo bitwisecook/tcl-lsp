@@ -1706,6 +1706,83 @@ before this value so it is treated as data, not an option."
         (tcl_lexer::Span::new(span_start, span_end), span_end)
     }
 
+    /// **W128 (SYNC-JUN02b-4, #519).** Flag a call to a command that was
+    /// renamed or deleted earlier in the same file — it falls through to
+    /// the `unknown` handler.
+    ///
+    /// Backed by the flow-sensitive command-binding lattice
+    /// ([`crate::command_binding`]).  The lattice is seeded with every
+    /// module procedure (canonically qualified) as `Proc` so a proc
+    /// defined inside a `namespace eval` block — whose top-level CFG never
+    /// sees the full qname — is still known, matching the optimiser's
+    /// gating view.  A call fires W128 only when its resolved binding is
+    /// `Opaque` *and* its name was actually perturbed somewhere in this
+    /// file (`rebound_names`); a merely-undefined external command (always
+    /// opaque, never rebound) does not.  A dynamic mutation collapses the
+    /// lattice to the wildcard ⊤, under which every binding resolves to
+    /// `Unknown` (not `Opaque`), so W128 conservatively goes quiet.
+    pub(super) fn emit_w128_renamed_command(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        use crate::command_binding::{analyse_command_binding, Binding, BindingKind};
+        use crate::ir::Statement;
+        use crate::naming::normalise_qualified_name as nqn;
+
+        let cfg = &cu.top_level.cfg;
+        let seed: Vec<(String, Binding)> = cu
+            .ir_module
+            .procedures
+            .keys()
+            .map(|q| {
+                (
+                    q.clone(),
+                    Binding {
+                        kind: BindingKind::Proc,
+                        target: Some(q.clone()),
+                    },
+                )
+            })
+            .collect();
+        let binding = analyse_command_binding(cfg, registry, &seed);
+        let rebound = binding.rebound_names();
+        if rebound.is_empty() {
+            return;
+        }
+        // Reverse-postorder for deterministic diagnostic ordering.
+        for block_name in cfg.reverse_postorder() {
+            let Some(block) = cfg.blocks.get(&block_name) else {
+                continue;
+            };
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                let Statement::Call { command, span, .. } = stmt else {
+                    continue;
+                };
+                // The mutating commands themselves are not flagged.
+                if command.is_empty() || matches!(command.as_str(), "rename" | "interp" | "proc") {
+                    continue;
+                }
+                if binding.binding_at(&block_name, idx, command).kind != BindingKind::Opaque {
+                    continue;
+                }
+                if !rebound.contains(&nqn(command)) {
+                    continue; // never bound here → an ordinary external command
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W128".to_string(),
+                    span: *span,
+                    message: format!(
+                        "Command '{command}' was renamed or deleted earlier in this \
+file; this call falls through to the 'unknown' handler."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in
@@ -1728,6 +1805,12 @@ before this value so it is treated as data, not an option."
             registry.load_dialect(d);
         }
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+
+        // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
+        // deleted earlier in the file via the flow-sensitive
+        // command-binding lattice.  Independent of the CFG/SSA dead-store
+        // machinery below, so run it up front against the same `cu`.
+        self.emit_w128_renamed_command(&cu, &registry);
 
         // **C41e3 follow-up.** Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)

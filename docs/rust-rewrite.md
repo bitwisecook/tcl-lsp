@@ -2954,10 +2954,19 @@ lattice LANDED; W128 + trust-gating pending.**
   invent one (sound for a warning).  6 unit tests pin the
   builtin-default / rename-deletion-flow-sensitive / rename-redirect /
   proc-redef / dynamic-wildcard / seed cases.
-- **W128 emitter** — pending (next strip): seed with `cu.ir_module.
-  procedures` as Proc, run the lattice over `cu.top_level.cfg`, and flag
-  each `Call` whose resolved binding is Opaque and whose name is in
-  `rebound_names()`.
+- **W128 emitter — LANDED** (`analyser/diagnostics.rs::
+  emit_w128_renamed_command`, dispatched from the
+  `emit_cfg_ssa_diagnostics` orchestrator).  Seeds the lattice with
+  `cu.ir_module.procedures` as `Proc`, runs it over `cu.top_level.cfg`,
+  and flags each `Call` (in reverse-postorder, for deterministic
+  output) whose resolved binding is `Opaque` *and* whose name is in
+  `rebound_names()` — skipping the mutating commands themselves
+  (`rename` / `interp` / `proc`).  A merely-undefined external command
+  (always opaque, never rebound) does not fire; a dynamic mutation
+  collapses the lattice to the wildcard ⊤ (every binding `Unknown`, not
+  `Opaque`), so W128 conservatively goes quiet.  `rename string {};
+  string toupper x` → W128 on the `string` call.  3-case discriminating
+  test `analyse_w128_fires_on_call_to_renamed_command`.
 - **`command_trust` + fold gating** — pending: `ModuleCommandMutations`
   + `scan_module_command_mutations` (flow-insensitive whole-module union
   over proc bodies) feeding a `builtin_is_trusted` gate on the SCCP /

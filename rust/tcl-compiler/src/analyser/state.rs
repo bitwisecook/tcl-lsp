@@ -1615,6 +1615,35 @@ mod tests {
     }
 
     #[test]
+    fn analyse_w128_fires_on_call_to_renamed_command() {
+        // SYNC-JUN02b-4 (#519): a builtin renamed/deleted away earlier in
+        // the file → the later call falls through to `unknown` → W128.
+        let mut a = Analyser::new();
+        let r = a.analyse("rename string {}\nstring toupper x\n", "tcl");
+        let w128: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W128").collect();
+        assert_eq!(w128.len(), 1, "expected one W128, got {:?}", r.diagnostics);
+
+        // Negative: a normal builtin call with no rename → no W128.
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse("string toupper x\n", "tcl");
+        assert!(
+            r2.diagnostics.iter().all(|d| d.code != "W128"),
+            "unexpected W128: {:?}",
+            r2.diagnostics,
+        );
+
+        // Negative: an ordinary unknown external command (never rebound)
+        // resolves opaque but must not fire W128.
+        let mut a3 = Analyser::new();
+        let r3 = a3.analyse("someunknowncmd a b\n", "tcl");
+        assert!(
+            r3.diagnostics.iter().all(|d| d.code != "W128"),
+            "unexpected W128: {:?}",
+            r3.diagnostics,
+        );
+    }
+
+    #[test]
     fn analyse_w110_no_fire_on_for_clean_condition() {
         // ``for {set i 0} {$i < 10} {incr i} {body}`` — no ``==``
         // anywhere, but ensure the EXPR-role dispatch on ``for``
