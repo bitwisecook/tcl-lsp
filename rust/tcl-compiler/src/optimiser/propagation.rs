@@ -51,6 +51,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
+use super::helpers::expr_simplify::try_unwrap_expr_in_expr;
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
@@ -404,6 +405,20 @@ fn try_fold_return_terminator(
 ) {
     use crate::naming::normalise_var_name;
 
+    // O115: `return [expr {[expr {E}]}]` → `return [expr {E}]`. Checked
+    // before the `expr`-gate below because the return value of a cmd-sub
+    // also populates `expr`, yet the redundant-nested-expr collapse
+    // operates on the raw value text.
+    if let Some(collapsed) = value.and_then(|raw| o115_redundant_nested_expr(raw.trim())) {
+        ctx.report(Optimisation::new(
+            "O115",
+            "Remove redundant nested expr",
+            span,
+            format!("return {collapsed}"),
+        ));
+        return;
+    }
+
     // Only fold `return $v` — numeric/bare literals and complex
     // values are left to richer passes.
     if expr.is_some() {
@@ -509,6 +524,24 @@ fn try_substitute_assign_expr(
     ));
 }
 
+/// O115 (value position): collapse a redundant double-`expr` command
+/// substitution `[expr {[expr {E}]}]` to `[expr {E}]`, returning the
+/// inner cmd-sub when *word* has that shape.
+///
+/// Sound because both forms evaluate `E` as an expression. The gate is
+/// the double-unwrap: the outer `[expr {…}]`'s body must itself be an
+/// `[expr {…}]` cmd-sub, so the collapsed form stays a valid value-
+/// position word. A plain `[expr {$x + 1}]` (whose unwrap `$x + 1`
+/// would be invalid as a bare value) — or an `[expr {[other]}]` whose
+/// inner is not itself `expr` (not value-equivalent for non-numeric
+/// results) — yields `None`. Mirrors the O115 value-position path added
+/// to `optimise_expr_substitutions` (#519).
+fn o115_redundant_nested_expr(word: &str) -> Option<String> {
+    let expr_arg = try_unwrap_expr_in_expr(word)?;
+    try_unwrap_expr_in_expr(&expr_arg)?;
+    Some(expr_arg)
+}
+
 /// O103 (CMD-subst form): walk each argv word looking for a
 /// command substitution `[cmd …]` whose head resolves to a proc
 /// with `can_fold_static_calls` and a proven `constant_return`.
@@ -526,9 +559,6 @@ fn visit_call_cmd_subst_folds(
 ) {
     use crate::interprocedural::ConstantReturn;
 
-    let Some(ia) = cu.interproc.as_ref() else {
-        return;
-    };
     for (i, argv_span) in tokens.argv.iter().enumerate() {
         let single = tokens.single_token_word.get(i).copied().unwrap_or(false);
         if !single {
@@ -538,6 +568,21 @@ fn visit_call_cmd_subst_folds(
             continue;
         };
         let Some(inner) = text.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+            continue;
+        };
+        // O115: collapse a redundant double-`expr` cmd-sub in this
+        // argument value position (needs no interproc summary).
+        if let Some(collapsed) = o115_redundant_nested_expr(text) {
+            ctx.report(Optimisation::new(
+                "O115",
+                "Remove redundant nested expr",
+                full_word_span(ctx.source, *argv_span),
+                collapsed,
+            ));
+            continue;
+        }
+        // O103 (below) folds a pure-proc cmd-sub to its constant return.
+        let Some(ia) = cu.interproc.as_ref() else {
             continue;
         };
         let Some(head) = parse_cmd_subst_head(inner) else {
@@ -1128,6 +1173,47 @@ mod tests {
         // Leading `$` / `[` / `{` / `"` → would re-substitute.
         assert_eq!(parse_cmd_subst_head("$cmd"), None);
         assert_eq!(parse_cmd_subst_head("[cmd]"), None);
+    }
+
+    #[test]
+    fn o115_collapses_redundant_nested_expr_in_value_positions() {
+        // SYNC-JUN02b-6 (#519): a redundant double-`expr` cmd-sub
+        // `[expr {[expr {E}]}]` collapses to `[expr {E}]` in command-arg
+        // and return value positions (previously O115 only fired on a
+        // standalone `expr` statement).
+        let collapsed = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O115")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(
+            collapsed("proc ::f {x} { puts [expr {[expr {$x * 2}]}] }"),
+            vec!["[expr {$x * 2}]".to_string()],
+            "command-arg position should collapse",
+        );
+        assert_eq!(
+            collapsed("proc ::f {x} { return [expr {[expr {$x * 2}]}] }"),
+            vec!["return [expr {$x * 2}]".to_string()],
+            "return position should collapse",
+        );
+    }
+
+    #[test]
+    fn o115_value_position_is_sound() {
+        // A single `[expr {$x + 1}]` must NOT collapse (its unwrap
+        // `$x + 1` would be invalid as a bare value), and an
+        // `[expr {[other]}]` whose inner is not itself `expr` is not
+        // value-equivalent for non-numeric results.
+        let has_o115 = |src: &str| -> bool {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .iter()
+                .any(|o| o.code == "O115")
+        };
+        assert!(!has_o115("proc ::f {x} { puts [expr {$x + 1}] }"));
+        assert!(!has_o115("proc ::f {x} { return [expr {$x + 1}] }"));
+        assert!(!has_o115("proc ::f {x} { puts [expr {[someproc]}] }"));
     }
 
     #[test]

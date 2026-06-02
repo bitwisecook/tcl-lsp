@@ -2939,10 +2939,14 @@ string-length / expr) and the value-position cmd-sub fold path
 (`propagation::visit_call_cmd_subst_folds`) handles **proc calls only**.
 So O129 / O130 / scan / the registry-routed list-lindex all need the
 fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
-- **O115 value-position unwrap** — the helper
-  (`optimiser/helpers/expr_simplify::try_unwrap_expr_in_expr`) exists
-  but only runs on standalone `ExprEval` statements; wiring it into the
-  value / return / branch-cond cmd-sub path is a clean follow-up strip.
+- **O115 value-position unwrap** — **LANDED.**  A redundant double-expr
+  cmd-sub `[expr {[expr {E}]}]` now collapses to `[expr {E}]` in
+  command-argument positions (`propagation::visit_call_cmd_subst_folds`)
+  and `return` positions (`try_fold_return_terminator`), via a shared
+  `o115_redundant_nested_expr` helper that double-unwraps to confirm the
+  inner is itself an `[expr {…}]` (sound — a plain `[expr {$x+1}]` or an
+  `[expr {[other]}]` is left untouched).  `set x [expr {…}]` (lowered to
+  `AssignValue`, not walked for cmd-sub folds) remains a follow-up.
 - **O105 string-constant interpolation** — **already present** in Rust
   (`propagation::visit_string_interpolation`, emitted as O100); only a
   minor `return "…$x…"` completeness gap remains.
@@ -3167,7 +3171,9 @@ priority queue:
   codegen-only, no `TRACED`), **`-4`** (`command_binding` +
   `command_trust` + W128 — no Rust counterpart), **`-6`** (new
   const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
-  yet; O115-value-unwrap is the cleanest follow-up, O105 already present).
+  yet; the O115 value-position unwrap from `-6` is **LANDED** (cmd-arg +
+  `return`), O105 already present, the rest deferred behind `FOLD_HINTS`
+  + the `-1` quoter).
   **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
   constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
   hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
