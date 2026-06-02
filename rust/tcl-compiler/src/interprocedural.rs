@@ -789,6 +789,13 @@ struct LocalFacts {
     /// final `ProcSummary::param_traits` is built from this
     /// after the body walk completes.
     param_trait_flags: HashMap<String, HashSet<ProcArgTrait>>,
+    /// Local variable names this proc aliased into global /
+    /// enclosing-namespace scope via `global` / `variable` / `upvar
+    /// #0`. A later bare `set g` / `incr g` / `append g` to one of
+    /// these mutates a variable the *caller* can see, so it counts as
+    /// `writes_global` even though the written name is bare. Mirrors
+    /// Python's `_LocalFacts.global_aliases` (#519).
+    global_aliases: HashSet<String>,
 }
 
 /// Classification of a single return statement's shape.
@@ -818,6 +825,7 @@ impl Default for LocalFacts {
             effect_writes: EffectRegion::NONE,
             returns: Vec::new(),
             param_trait_flags: HashMap::new(),
+            global_aliases: HashSet::new(),
         }
     }
 }
@@ -968,7 +976,10 @@ fn scan_statement(
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::Incr { name, .. } => {
-            if is_global_or_namespace(name) {
+            // A write to a `::`-qualified name OR a name aliased into
+            // global / namespace scope earlier in the body (`global g;
+            // set g 5`) mutates caller-visible state (SYNC-JUN02b-2).
+            if is_global_or_namespace(name) || facts.global_aliases.contains(name.as_str()) {
                 facts.writes_global = true;
                 facts.local_pure = false;
                 facts.effect_writes |= EffectRegion::GLOBAL_STATE;
@@ -978,7 +989,38 @@ fn scan_statement(
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
         }
-        Statement::Call { command, args, .. } => {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } => {
+            // SYNC-JUN02b-2: track scope-aliasing declarations (`global`
+            // / `variable` / `upvar #0`) so a later bare write to an
+            // aliased name counts as `writes_global`. Declaring is not
+            // writing, so handle the declaration before the defs-based
+            // write check. Mirrors Python's `_scan_local_facts`.
+            match global_alias_names(command, args) {
+                Some(alias_names) => {
+                    if alias_names.contains("") {
+                        // Dynamic / unbounded alias target — conservative.
+                        facts.writes_global = true;
+                    }
+                    facts
+                        .global_aliases
+                        .extend(alias_names.into_iter().filter(|n| !n.is_empty()));
+                }
+                None => {
+                    // A non-declaration command that writes a `::`-qualified
+                    // or global-aliased variable (`append g`, `lappend g`,
+                    // `dict set ::cfg ...`) mutates caller-visible state.
+                    if defs.iter().any(|n| {
+                        !n.is_empty() && (n.starts_with("::") || facts.global_aliases.contains(n))
+                    }) {
+                        facts.writes_global = true;
+                    }
+                }
+            }
             scan_call_facts(
                 command, args, caller, known, registry, dialect, facts, params,
             );
@@ -1061,6 +1103,46 @@ fn scan_statement(
 
 fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
+}
+
+/// Local names a scope-aliasing *command* binds to global / namespace
+/// scope. Returns `None` when *command* is not a global-aliasing
+/// declaration. The returned set holds the bound local names; an empty
+/// string (`""`) in the set is a sentinel for a dynamic / unbounded
+/// declaration (`global $x`), which the caller must treat as a global
+/// write. `upvar` at any level other than `#0` / `0` aliases a caller
+/// frame, not global scope, and returns `None`. Mirrors Python's
+/// `_global_alias_names` (#519).
+fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>> {
+    fn names(raw_names: &[String]) -> HashSet<String> {
+        raw_names
+            .iter()
+            .map(|raw| match raw.trim_start().as_bytes().first() {
+                // Dynamic alias target — can't bound the name set.
+                Some(b'$' | b'[') => String::new(),
+                _ => normalise_var_name(raw).to_owned(),
+            })
+            .collect()
+    }
+    match command {
+        "global" => Some(names(args)),
+        // `variable name ?value? name ?value? ...` — names at even indices.
+        "variable" => Some(names(&args.iter().step_by(2).cloned().collect::<Vec<_>>())),
+        "upvar" => {
+            let level = args.first()?.trim();
+            // Only `#0` / `0` alias the *global* frame; an omitted or
+            // numeric level aliases a caller frame (handled elsewhere).
+            if level != "#0" && level != "0" {
+                return None;
+            }
+            // `upvar #0 otherVar localVar ...` — local names at indices
+            // 2, 4, 6, … (every second arg after the level + otherVar).
+            Some(names(
+                &args.iter().skip(2).step_by(2).cloned().collect::<Vec<_>>(),
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// Walk an expression AST and record call-graph edges (and Body
@@ -1645,6 +1727,42 @@ mod tests {
         let s = ia.procedures.get("::greet").expect("proc summary");
         assert_eq!(s.params, vec!["name".to_string()]);
         assert_eq!(s.arity, Arity::exact(1));
+    }
+
+    // -- SYNC-JUN02b-2: writes_global recognises scope aliases ------------
+
+    #[test]
+    fn global_alias_write_counts_as_writes_global() {
+        // A bare `set g` after `global g` mutates a caller-visible
+        // variable through the alias — writes_global, even though the
+        // written name is bare (previously missed: only `::`-qualified
+        // names counted).
+        for src in [
+            "proc ::f {} { global g\nset g 5 }",
+            "proc ::f {} { variable v\nset v 1 }",
+            "proc ::f {} { upvar #0 ::x g\nset g 1 }",
+            "proc ::f {} { global g\nincr g }",
+            "proc ::f {} { global g\nappend g x }",
+        ] {
+            let ia = build(src);
+            let s = ia.procedures.get("::f").expect("::f summary");
+            assert!(s.writes_global, "expected writes_global for: {src}");
+        }
+    }
+
+    #[test]
+    fn non_aliased_local_write_is_not_writes_global() {
+        // A plain local `set g` (no global/variable/upvar #0 decl) is
+        // not a global write; `upvar 1` aliases a caller frame, not
+        // global scope, so it is not flagged here either.
+        for src in [
+            "proc ::f {} { set g 5 }",
+            "proc ::f {} { upvar 1 x g\nset g 1 }",
+        ] {
+            let ia = build(src);
+            let s = ia.procedures.get("::f").expect("::f summary");
+            assert!(!s.writes_global, "unexpected writes_global for: {src}");
+        }
     }
 
     // -- SF-2 (SYNC-JUN02-1) method-purity summary tests ------------------
