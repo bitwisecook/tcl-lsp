@@ -10,6 +10,7 @@ from pathlib import Path
 from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
 from dialects.f5.bigip.parser import parse_bigip_conf
 
+from ._paths import read_path
 from ._registry import verb
 
 
@@ -70,16 +71,6 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.set_defaults(handler=_run_cleanup)
 
 
-def _read_path(path_str: str) -> tuple[str, str]:
-    """Return ``(uri, source)`` for *path_str*.  ``-`` reads stdin."""
-    if path_str == "-":
-        return ("stdin://input", sys.stdin.read())
-    path = Path(path_str).resolve()
-    if not path.is_file():
-        raise FileNotFoundError(f"not a file: {path_str}")
-    return (path.as_uri(), path.read_text(encoding="utf-8", errors="replace"))
-
-
 def _split_keep_arguments(keep: list[str]) -> tuple[frozenset[str], frozenset[str]]:
     paths: set[str] = set()
     prefixes: set[str] = set()
@@ -96,8 +87,8 @@ def _run_cleanup(args: argparse.Namespace) -> int:
     configs = {}
     for path_str in args.paths:
         try:
-            uri, src = _read_path(path_str)
-        except OSError as exc:
+            uri, src = read_path(path_str)
+        except (OSError, ValueError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         sources[uri] = src
