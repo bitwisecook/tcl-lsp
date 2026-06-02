@@ -15,6 +15,7 @@ from pathlib import Path
 from tooling.f5.f5_remote.ucs import extract_ucs_file
 
 from ._emit import add_format_arg, render_config
+from ._paths import add_passphrase_args, provider_from_args
 from ._registry import verb
 
 
@@ -31,13 +32,18 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "for the rest of the f5 CLI verbs.  By default only the canonical\n"
         "bigip_base / bigip / bigip_gtm / bigip_user / bigip_script members\n"
         "are included; use --include-extras to pull every additional\n"
-        "config/*.conf member found inside the archive."
+        "config/*.conf member found inside the archive.\n"
+        "\n"
+        "Encrypted UCS archives (tmsh save sys ucs ... passphrase ...) are\n"
+        "decrypted transparently; the passphrase is read from the\n"
+        "F5_UCS_PASSPHRASE environment variable or prompted for securely."
     )
     p.epilog = (
         "Examples:\n"
         "  f5 extract prod.ucs > prod.scf\n"
         "  f5 extract prod.ucs -o prod.scf\n"
         "  f5 extract prod.ucs --include-extras -o full.scf\n"
+        "  F5_UCS_PASSPHRASE=s3cret f5 extract encrypted.ucs -o prod.scf\n"
     )
     p.add_argument(
         "ucs",
@@ -58,6 +64,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     add_format_arg(p, tmsh_default_verb="create")
+    add_passphrase_args(p)
     p.set_defaults(handler=_run_extract)
 
 
@@ -67,15 +74,11 @@ def _run_extract(args: argparse.Namespace) -> int:
         print(f"error: not a file: {args.ucs}", file=sys.stderr)
         return 2
     try:
-        if args.include_extras:
-            from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
-
-            data = ucs_path.read_bytes()
-            if not is_ucs_bytes(data):
-                raise ValueError(f"{args.ucs}: not a UCS archive (gzip magic missing)")
-            scf = ucs_to_scf(data, include_extras=True)
-        else:
-            scf = extract_ucs_file(ucs_path)
+        scf = extract_ucs_file(
+            ucs_path,
+            passphrase_provider=provider_from_args(args),
+            include_extras=args.include_extras,
+        )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
