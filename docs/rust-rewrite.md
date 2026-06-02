@@ -2750,7 +2750,13 @@ The WASM / Zig bulk of #516 is out of scope (above), but two pieces are not:
   substitution semantics.  Add the flag to `tcl-compiler::ir::Statement::Switch`,
   set it in `lowering` (braced-body form → `true`; separate-words form →
   `false`), and thread it where switch patterns are interpreted.  Classify
-  in-scope, low-touch, **correctness**.
+  in-scope, low-touch, **correctness**.  **Landed (rust):**
+  `Statement::Switch.patterns_braced` added; `lower_switch` sets it
+  (single-braced branch → `true`, separate-words branch → `false`).  No
+  consumer threading was needed — every Rust pass matches `Switch` with
+  `..` or mutates arm bodies in place (none reconstruct), so the flag is
+  preserved automatically; the WASM-codegen consumers that read it in
+  `main` are out of scope.
 - **Tcl 9 command-spec facts (registry — low-touch).**  The new / extended
   Tcl 9 surfaces (`lseq`, `scan` charset/float, `binary` unsigned formats,
   `apply` defaults) want matching `tcl-registry` command-spec facts (arity /
@@ -2927,14 +2933,15 @@ priority queue:
   use-version.  Strip 4a also closed a pre-existing Rust gap: the C30d
   RHS-purity gate (`_assignment_safe_to_delete`) had never been ported,
   so O109/O126 had been deleting side-effecting `set unused [cmd]`.
-  `SYNC-JUN02-2` (#515 — opt-in PGO branch-reordering subsystem emitting
-  hint-only P100; structural, deferred) and `SYNC-JUN02-3` (#516's
-  in-scope slivers — the switch `patterns_braced` IR flag, a correctness
-  gap since `rust/` lacks it, + Tcl 9 registry facts) remain open.
-  **Next actionable, self-contained item: `SYNC-JUN02-3`** (the switch
-  `patterns_braced` flag).  Out of scope: #517 / #513 (explorer +
-  optimiser-lens UI) and the WASM-emitter / Zig-runtime bulk of #516.
-  See the `SYNC-JUN02` family section.
+  `SYNC-JUN02-3`'s switch `patterns_braced` IR flag is **also landed**
+  (`Statement::Switch.patterns_braced`, set in `lower_switch`); its Tcl 9
+  registry-fact half stays folded into `SYNC-MAY19-tcl9-commands` (touch
+  when those commands are next worked).  `SYNC-JUN02-2` (#515 — opt-in
+  PGO branch-reordering subsystem emitting hint-only P100; structural)
+  remains **deferred** (off-by-default, importers are tooling-side).  Out
+  of scope: #517 / #513 (explorer + optimiser-lens UI) and the
+  WASM-emitter / Zig-runtime bulk of #516.  See the `SYNC-JUN02` family
+  section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.

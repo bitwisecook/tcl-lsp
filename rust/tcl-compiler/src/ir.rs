@@ -456,6 +456,14 @@ pub enum Statement {
         nocase: bool,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// `true` when the arms came from a single braced
+        /// `{pat body …}` block — patterns are literal list elements
+        /// with no substitution. `false` when supplied as separate
+        /// words (`switch $s $pat {body}`), where each pattern
+        /// undergoes normal `$var` / `[cmd]` runtime substitution
+        /// before matching. Mirrors Python's `IRSwitch.patterns_braced`
+        /// (defaults `true`, the canonical braced form).
+        patterns_braced: bool,
     },
 }
 
@@ -1043,6 +1051,7 @@ mod tests {
             mode: SwitchMode::Exact,
             nocase: false,
             raw_args: Vec::new(),
+            patterns_braced: true,
         };
         if let Statement::Switch { arms, mode, .. } = &stmt {
             assert_eq!(arms.len(), 2);
