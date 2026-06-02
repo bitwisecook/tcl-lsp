@@ -2855,12 +2855,24 @@ verified against Tcl's `list`), so a non-escaping local like `set msg
 `TclConvertElement`) as a shared leaf, then (b) the O100
 single-token-whole-word re-render in the propagation pass.  Classify
 in-scope, **low-touch feature** (the quoter is ~80 LOC; the O100 hook is
-small).  **Rust state: deferred** — the O100 bail lives at
-`optimiser/propagation.rs::is_value_safe_bare_word` (the exact
-metacharacter conservatism #519 removes), but the fix needs the
-`tcl_list_quote` leaf, which has **no Rust counterpart**
-(`render_static_string_word` only handles a balanced `{value}`).  Land
-the quoter first (its own row), then the O100 re-render is a one-liner.
+small).  **Rust state: LANDED.**  The canonical quoter already existed as
+`codegen::helpers::tcl_list_element` — a faithful `TclConvertElement`
+port (its special-char set `[ \t\n\r{}"\\;$[]]` matches the reference
+`tclUtil.c::TclScanElement` TYPE_SUBS / TYPE_BRACE / TYPE_SPACE switch,
+and it is already validated by the C20 codegen differential harness), so
+no new leaf was needed (`render_static_string_word` bailed on unbalanced
+braces / backslash; `tcl_list_element` brace-quotes when balanced and
+backslash-escapes otherwise).  The O100 re-render is a new
+`propagation.rs::render_propagation_word` helper — a safe bare word
+(int / `[A-Za-z0-9_./:+-]`) is emitted verbatim (preserving the existing
+parity-tested fast path), everything else routes through
+`tcl_list_element`.  Wired into both O100 sites:
+`visit_simple_var_word` (command-argument position) and
+`try_fold_return_terminator` (`return` value position), each of which
+previously bailed at `is_value_safe_bare_word`.  `set msg {Hello World};
+return $msg` → `return {Hello World}`; `set m {a$b}; puts $m` →
+`puts {a$b}` (literal — braces suppress the would-be substitution).
+Discriminating test `o100_multi_word_constant_renders_via_quoter`.
 
 ### SYNC-JUN02b-2 — optimiser variable-aliasing & trace soundness fixes (#519)
 
@@ -3269,10 +3281,13 @@ priority queue:
   #519 optimiser mega-PR).  Seven in-scope rows.  **Applied now** (the
   two clean soundness/correctness fixes to existing Rust):
   **`-5` — LANDED** (string comparisons `eq`/`ne`/`lt`/`gt`/`le`/`ge`
-  fold as strings in `tcl_expr_eval`) and **`-2` — LANDED** (interproc
-  `writes_global` recognises `global`/`variable`/`upvar #0` aliases).
-  **Deferred** (large new subsystems / missing mechanisms): **`-1`** (O100
-  multi-word constant — needs a `tcl_list_quote` leaf), **`-3`**
+  fold as strings in `tcl_expr_eval`), **`-2` — LANDED** (interproc
+  `writes_global` recognises `global`/`variable`/`upvar #0` aliases),
+  and **`-1` — LANDED** (O100 multi-word constant re-renders via the
+  existing `codegen::helpers::tcl_list_element` `TclConvertElement`
+  quoter — no new leaf needed — wired into both O100 propagation sites
+  via `render_propagation_word`).
+  **Deferred** (large new subsystems / missing mechanisms): **`-3`**
   (`var_observability` optimiser lattice — Rust's `var_escape` is
   codegen-only, no `TRACED`), **`-4`** (`command_binding` +
   `command_trust` + W128 — no Rust counterpart), **`-6`** (new

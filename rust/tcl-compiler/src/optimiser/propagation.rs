@@ -460,14 +460,14 @@ fn try_fold_return_terminator(
     let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
         return;
     };
-    if !is_value_safe_bare_word(resolved) {
-        return;
-    }
+    // SYNC-JUN02b-1: render the constant as a single self-contained word
+    // rather than bailing on metacharacters (`return {Hello World}`).
+    let word = render_propagation_word(resolved);
     ctx.report(Optimisation::new(
         "O100",
         "Fold return of constant variable",
         span,
-        format!("return {resolved}"),
+        format!("return {word}"),
     ));
 }
 
@@ -702,14 +702,14 @@ fn visit_simple_var_word(
     else {
         return;
     };
-    if !is_value_safe_bare_word(value) {
-        return;
-    }
+    // SYNC-JUN02b-1: re-render a metacharacter-bearing constant as a
+    // single self-contained word instead of bailing.
+    let word = render_propagation_word(value);
     ctx.report(Optimisation::new(
         "O100",
         "Propagate constant into command argument",
         span,
-        value.clone(),
+        word,
     ));
 }
 
@@ -866,6 +866,28 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     is_safe_word(value)
 }
 
+/// SYNC-JUN02b-1 (#519): render a constant `value` as a single,
+/// self-contained Tcl word for O100 propagation into a command-argument
+/// or `return` value position.
+///
+/// A safe bare word (integer or `[A-Za-z0-9_./:+-]`-only identifier) is
+/// emitted verbatim — its existing parity-tested behaviour. Anything
+/// else (whitespace, `$` / `[` / `;` / quotes, unbalanced braces, a
+/// trailing backslash, …) is re-rendered through the canonical
+/// `TclConvertElement`-style quoter [`crate::codegen::helpers::tcl_list_element`]
+/// (bare / brace-quoted / backslash-escaped, verified against Tcl's
+/// `list`), so `set msg {Hello World}; return $msg` collapses to
+/// `return {Hello World}` instead of bailing. The quoter never fails —
+/// it always yields a word that re-evaluates to the literal `value` —
+/// so this is total.
+fn render_propagation_word(value: &str) -> String {
+    if is_value_safe_bare_word(value) {
+        value.to_owned()
+    } else {
+        crate::codegen::helpers::tcl_list_element(value)
+    }
+}
+
 fn sccp_constants_for(fu: &FunctionUnit) -> std::collections::HashMap<String, String> {
     use super::helpers::literals::format_constant;
 
@@ -954,6 +976,35 @@ mod tests {
         assert!(
             opts.iter().all(|o| o.code != "O100"),
             "unsafe string should not be propagated, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o100_multi_word_constant_renders_via_quoter() {
+        // SYNC-JUN02b-1 (#519): a constant containing whitespace or
+        // metacharacters is re-rendered as a single self-contained word
+        // via the canonical quoter instead of bailing.
+        // `return` value position → `return {Hello World}`.
+        let ret = run_pass("proc ::f {} { set msg {Hello World}\nreturn $msg }");
+        assert!(
+            ret.iter()
+                .any(|o| o.code == "O100" && o.replacement == "return {Hello World}"),
+            "expected O100 `return {{Hello World}}`, got {ret:?}",
+        );
+        // Command-argument position → `puts {Hello World}`.
+        let arg = run_pass("proc ::f {} { set msg {Hello World}\nputs $msg }");
+        assert!(
+            arg.iter()
+                .any(|o| o.code == "O100" && o.replacement == "{Hello World}"),
+            "expected O100 `{{Hello World}}` arg, got {arg:?}",
+        );
+        // A `$`/`[`-bearing literal constant is brace-quoted (the value
+        // is literal — braces suppress the would-be substitution).
+        let meta = run_pass("proc ::f {} { set m {a$b}\nputs $m }");
+        assert!(
+            meta.iter()
+                .any(|o| o.code == "O100" && o.replacement == "{a$b}"),
+            "expected O100 `{{a$b}}` arg, got {meta:?}",
         );
     }
 
