@@ -1,0 +1,382 @@
+"""Flow-sensitive command-binding lattice.
+
+A single, principled source of truth for "what does *this command name* resolve
+to at this program point" — the property the optimiser must respect before it
+constant-folds a builtin command substitution, rewrites an ``incr`` idiom, or
+inlines a static proc call, and the property new diagnostics use to reason about
+``rename`` / ``interp alias`` / proc redefinition.
+
+The Tcl command table is mutable interpreter state: ``rename``, ``proc`` (re)defs
+and ``interp alias`` rebind names *as the script runs*.  A flat whole-unit table
+cannot tell ``call a`` apart before vs. after ``rename a b`` — so this is a
+forward data-flow lattice over the CFG (a :class:`Binding` per command name,
+joined to ``UNKNOWN`` when predecessors disagree), exactly like
+:mod:`compiler.var_observability` does for variable aliasing.  A ``rename`` only
+perturbs calls that *follow* it; code before it keeps the original binding.
+
+``unknown`` semantics
+---------------------
+A name that has been renamed/deleted away (or was never defined) is **not** an
+error and **not** dead code: Tcl dispatches the call to the ``unknown`` handler
+(auto-load, ``package require``, ``namespace unknown`` …).  Such a name is
+therefore modelled as :data:`BindingKind.OPAQUE` — *opaque*, never foldable, but
+not assertable-as-broken.  Redefining ``unknown`` itself, ``namespace unknown``,
+or any *dynamic* ``rename $x …`` widens resolution for **every** unbound name, so
+those collapse the whole state to a wildcard ``UNKNOWN`` from that point on.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from enum import Enum, auto
+
+from shared.alias import detect_interp_alias
+from shared.naming import normalise_qualified_name as _NQN
+
+from .cfg import CFGBranch, CFGFunction, CFGGoto
+from .ir import IRBarrier, IRCall, IRStatement
+from .registry import REGISTRY
+
+
+class BindingKind(Enum):
+    """What a command name resolves to at a program point.
+
+    Ordered as a lattice of height 3: ``BOTTOM`` (unreached) < any concrete
+    binding < ``UNKNOWN`` (⊤).  Two *different* concrete bindings join to
+    ``UNKNOWN``; a binding joined with itself is unchanged.
+    """
+
+    BOTTOM = auto()  # ⊥ — block not yet reached by the fixpoint
+    BUILTIN = auto()  # the original core/registry command, unperturbed
+    PROC = auto()  # a user procedure (``target`` = its canonical qname)
+    ALIAS = auto()  # an ``interp alias`` (``target`` = the alias target name)
+    OPAQUE = auto()  # renamed/deleted-away or never-defined → dispatches to
+    #                 ``unknown`` / auto-load: opaque, never foldable, NOT an error
+    UNKNOWN = auto()  # ⊤ — conflicting bindings at a merge, or dynamic mutation
+
+
+@dataclass(frozen=True, slots=True)
+class Binding:
+    """A command name's resolution at a point: a :class:`BindingKind` + target."""
+
+    kind: BindingKind
+    target: str | None = None
+
+    @property
+    def is_original_builtin(self) -> bool:
+        """True when the name still denotes its original core command."""
+        return self.kind is BindingKind.BUILTIN
+
+    @property
+    def is_foldable_proc(self) -> bool:
+        """True when the name denotes a single, known user proc."""
+        return self.kind is BindingKind.PROC and self.target is not None
+
+
+_BOTTOM = Binding(BindingKind.BOTTOM)
+_TOP = Binding(BindingKind.UNKNOWN)
+_OPAQUE = Binding(BindingKind.OPAQUE)
+_BUILTIN = Binding(BindingKind.BUILTIN)
+
+# A sparse per-name map; an absent name takes its *default* binding (a pure
+# function of the name — builtin if the registry knows it, else opaque).  The
+# wildcard key marks "every name is ⊤ from here" after a dynamic mutation; it
+# can never collide with a real name because normalised names start with "::".
+_State = dict[str, Binding]
+_WILDCARD = "*"
+
+
+def _default_binding(qname: str) -> Binding:
+    """The unperturbed binding of *qname* before any rename/proc/alias event.
+
+    A globally-scoped bare name the registry knows is its ``BUILTIN``; anything
+    else is ``OPAQUE`` (undefined → resolved via ``unknown`` / auto-load until a
+    ``proc`` / ``interp alias`` event binds it).
+    """
+    bare = qname[2:] if qname.startswith("::") else qname
+    # Only an unqualified global name can be a core builtin (``::string`` →
+    # ``string``); a namespaced tail like ``::ns::foo`` is never a builtin.
+    if "::" not in bare and REGISTRY.get_any(bare) is not None:
+        return _BUILTIN
+    return _OPAQUE
+
+
+def _binding_in(state: _State, qname: str) -> Binding:
+    """Resolve *qname*'s binding within *state*, honouring wildcard + default."""
+    if _WILDCARD in state:
+        return _TOP
+    return state.get(qname, _default_binding(qname))
+
+
+def _join_binding(a: Binding, b: Binding) -> Binding:
+    """Lattice join: ⊥ is identity, equal stays, anything else rises to ⊤."""
+    if a.kind is BindingKind.BOTTOM:
+        return b
+    if b.kind is BindingKind.BOTTOM:
+        return a
+    if a == b:
+        return a
+    return _TOP
+
+
+def _proc_qname_of(args: list[str]) -> str | None:
+    """Canonical qname defined by a ``proc NAME params body`` call, or None."""
+    if not args or not args[0]:
+        return None
+    name = args[0]
+    if name.startswith("$") or name.startswith("["):
+        return None  # dynamic proc name — handled as a wildcard mutation
+    return _NQN(name)
+
+
+def _is_dynamic_word(word: str) -> bool:
+    return word.startswith("$") or word.startswith("[")
+
+
+def _stmt_gen(stmt: IRStatement, state: _State) -> None:
+    """Apply *stmt*'s command-table mutation to *state* in place.
+
+    Recognises the three static rebinding forms — ``proc`` (definition /
+    redefinition), ``rename`` (redirect or deletion) and ``interp alias`` — plus
+    their *dynamic* variants, which collapse the state to a wildcard ⊤.
+    """
+    if not isinstance(stmt, (IRCall, IRBarrier)):
+        return
+    if _WILDCARD in state:
+        return  # already maximally conservative
+    cmd = stmt.canonical_command
+    args = list(stmt.args)
+
+    if cmd == "::proc":
+        qname = _proc_qname_of(args)
+        if qname is None:
+            # ``proc $x …`` defines an unknown name — be conservative.
+            state[_WILDCARD] = _TOP
+            return
+        prev = _binding_in(state, qname)
+        # First definition binds the proc; a *re*definition of an
+        # already-proc/builtin name we can no longer pin to one body.
+        if prev.kind in (BindingKind.OPAQUE, BindingKind.BOTTOM):
+            state[qname] = Binding(BindingKind.PROC, qname)
+        else:
+            state[qname] = _TOP
+        return
+
+    if cmd == "::rename":
+        if len(args) != 2 or _is_dynamic_word(args[0]) or _is_dynamic_word(args[1]):
+            # ``rename $old …`` / ``rename … [x]`` can touch any command.
+            state[_WILDCARD] = _TOP
+            return
+        old, new = _NQN(args[0]), (args[1] and _NQN(args[1]))
+        moved = _binding_in(state, old)
+        # The old name is now unbound → falls through to ``unknown``/auto-load.
+        state[old] = _OPAQUE
+        if new:
+            # The new name inherits whatever the old name denoted.
+            state[new] = moved
+        return
+
+    if cmd == "::interp":
+        detected = detect_interp_alias(stmt.command, args)
+        if detected is not None:
+            alias_name, target_cmd, _prepended = detected
+            if _is_dynamic_word(alias_name) or _is_dynamic_word(target_cmd):
+                state[_WILDCARD] = _TOP
+                return
+            state[_NQN(alias_name)] = Binding(BindingKind.ALIAS, _NQN(target_cmd))
+            return
+        # ``interp alias`` with a non-current target path, or a dynamic form we
+        # could not destructure — only the alias subcommand mutates bindings.
+        if args and args[0] == "alias":
+            state[_WILDCARD] = _TOP
+        return
+
+
+def _merge_preds(pred_exits: list[_State]) -> _State:
+    """Join predecessor exit states into a block-entry state.
+
+    Sparsity carries *two distinct* notions of "absent" that must not be
+    conflated: a name absent from a finished predecessor exit takes its
+    **default** binding, whereas a name not yet contributed to the running
+    accumulator is **⊥** (identity for join).  So the merge is computed
+    per-name across *all* predecessors at once, seeding the accumulator at ⊥.
+    A single predecessor whose state is the wildcard ⊤ forces every name to ⊤,
+    i.e. the whole merge is the wildcard state.
+    """
+    if not pred_exits:
+        return {}
+    if any(_WILDCARD in pe for pe in pred_exits):
+        return {_WILDCARD: _TOP}
+
+    relevant: set[str] = set()
+    for pe in pred_exits:
+        relevant.update(pe)
+    entry: _State = {}
+    for name in relevant:
+        acc = _BOTTOM
+        for pe in pred_exits:
+            acc = _join_binding(acc, pe.get(name, _default_binding(name)))
+        if acc != _default_binding(name):
+            entry[name] = acc
+    return entry
+
+
+def _successors(block) -> tuple[str, ...]:
+    term = block.terminator
+    if isinstance(term, CFGGoto):
+        return (term.target,)
+    if isinstance(term, CFGBranch):
+        return (term.true_target, term.false_target)
+    return ()
+
+
+@dataclass(frozen=True, slots=True)
+class CommandBinding:
+    """Result of the command-binding analysis for one function/script.
+
+    ``block_entry`` holds the lattice state at each block's entry; point-wise
+    queries replay the gen of the statements before the queried index.
+    """
+
+    block_entry: dict[str, _State]
+    _ordered_blocks: tuple[str, ...]
+    _block_stmts: dict[str, tuple[IRStatement, ...]]
+
+    def state_at(self, block: str, stmt_idx: int) -> _State:
+        """Lattice state in force when ``block``'s statement *stmt_idx* runs."""
+        state = dict(self.block_entry.get(block, {}))
+        stmts = self._block_stmts.get(block, ())
+        for i in range(min(stmt_idx, len(stmts))):
+            _stmt_gen(stmts[i], state)
+        return state
+
+    def binding_at(self, block: str, stmt_idx: int, command_name: str) -> Binding:
+        """The binding of *command_name* when ``block::stmt_idx`` executes."""
+        return _binding_in(self.state_at(block, stmt_idx), _NQN(command_name))
+
+    def is_original_builtin_at(self, block: str, stmt_idx: int, command_name: str) -> bool:
+        """True when *command_name* still denotes its core builtin at this point."""
+        return self.binding_at(block, stmt_idx, command_name).is_original_builtin
+
+    def rebound_names(self) -> frozenset[str]:
+        """Every command name perturbed from its default *anywhere* in the body.
+
+        The flow-insensitive view: the union over all points of names whose
+        binding ever differs from its default (renamed, redefined, aliased,
+        deleted) — including names rebound transiently and later restored.
+        """
+        names: set[str] = set()
+        for block in self._ordered_blocks:
+            state = dict(self.block_entry.get(block, {}))
+            for name, binding in state.items():
+                if name == _WILDCARD or binding != _default_binding(name):
+                    names.add(name)
+            for stmt in self._block_stmts.get(block, ()):
+                _stmt_gen(stmt, state)
+                for name, binding in state.items():
+                    if name == _WILDCARD or binding != _default_binding(name):
+                        names.add(name)
+        return frozenset(names)
+
+    def has_wildcard(self) -> bool:
+        """True when some path performs a *dynamic* command-table mutation."""
+        for block in self._ordered_blocks:
+            state = dict(self.block_entry.get(block, {}))
+            if _WILDCARD in state:
+                return True
+            for stmt in self._block_stmts.get(block, ()):
+                _stmt_gen(stmt, state)
+                if _WILDCARD in state:
+                    return True
+        return False
+
+
+
+def analyse_command_binding(cfg: CFGFunction) -> CommandBinding:
+    """Compute the flow-sensitive command-binding lattice for *cfg*."""
+    blocks = cfg.blocks
+    block_stmts = {name: blk.statements for name, blk in blocks.items()}
+
+    preds: dict[str, list[str]] = {name: [] for name in blocks}
+    for name, blk in blocks.items():
+        for succ in _successors(blk):
+            if succ in preds:
+                preds[succ].append(name)
+    for src, handler in cfg.exception_edges:
+        if handler in preds and src in blocks:
+            preds[handler].append(src)
+
+    order = cfg.reverse_postorder()
+
+    block_entry: dict[str, _State] = {name: {} for name in blocks}
+    block_exit: dict[str, _State] = {name: {} for name in blocks}
+
+    # Monotonic forward fixpoint: the per-name lattice has height 3 and the join
+    # only ever rises (toward ⊤), so RPO iteration to a fixpoint terminates.
+    changed = True
+    while changed:
+        changed = False
+        for name in order:
+            entry = _merge_preds([block_exit[p] for p in preds.get(name, ())])
+            block_entry[name] = entry
+            exit_state = dict(entry)
+            for stmt in block_stmts.get(name, ()):
+                _stmt_gen(stmt, exit_state)
+            if exit_state != block_exit[name]:
+                block_exit[name] = exit_state
+                changed = True
+
+    return CommandBinding(
+        block_entry=block_entry,
+        _ordered_blocks=tuple(order),
+        _block_stmts=block_stmts,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleCommandMutations:
+    """Conservative, flow-insensitive summary of rebindings *inside proc bodies*.
+
+    A ``rename`` / ``proc`` redef / ``interp alias`` buried in a proc body only
+    takes effect when that proc is *called*, and the call order across procs is
+    not statically known.  Rather than a full interprocedural call-effect
+    fixpoint, v1 takes the sound over-approximation: any command name a proc body
+    may rebind is treated as untrusted *everywhere*.  Top-level rebindings stay
+    precise via the flow-sensitive :class:`CommandBinding` lattice.
+
+    * ``names`` — canonical command names some proc/method body may rebind.
+    * ``dynamic`` — a proc/method body performs a dynamic ``rename``/alias/proc
+      (target not statically known), or redefines ``unknown`` / sets
+      ``namespace unknown`` → resolution of *any* unbound name is opaque.
+    """
+
+    names: frozenset[str]
+    dynamic: bool
+
+    def trusts(self, command_name: str) -> bool:
+        """True when *command_name* is not clobbered by any proc-body mutation."""
+        if self.dynamic:
+            return False
+        return _NQN(command_name) not in self.names
+
+
+def scan_command_mutations_in_bodies(
+    cfgs: Iterable[CFGFunction],
+) -> ModuleCommandMutations:
+    """Summarise command-table mutations across a set of proc/method body CFGs.
+
+    Driven off each body's *CFG* (not its raw statement stream) so renames buried
+    in control flow inside the body are caught.  Reuses the same lattice as the
+    flow-sensitive top-level analysis — one grammar, one gen function.
+    """
+    names: set[str] = set()
+    dynamic = False
+    for cfg in cfgs:
+        cb = analyse_command_binding(cfg)
+        if cb.has_wildcard():
+            dynamic = True
+        for name in cb.rebound_names():
+            if name != _WILDCARD:
+                names.add(name)
+    return ModuleCommandMutations(names=frozenset(names), dynamic=dynamic)
