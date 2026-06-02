@@ -440,10 +440,14 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         // but ``h`` / ``hh`` truncate to short / signed-char before
         // formatting (test format-10.x).
         var h_mod: u8 = 0;
+        var l_mod: bool = false;
         while (i < fs.len) : (i += 1) {
             switch (fp[i]) {
                 'h' => h_mod += 1,
-                'l', 'L', 'j', 'z', 't', 'q' => {},
+                // ``l`` / ``ll`` / ``L`` / ``j`` / ``z`` / ``t`` / ``q``
+                // all select the full 64-bit-wide integer width; without
+                // any of them Tcl 9 renders the low 32 bits (format-17.1).
+                'l', 'L', 'j', 'z', 't', 'q' => l_mod = true,
                 else => break,
             }
         }
@@ -491,6 +495,7 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             width,
             precision,
             h_mod,
+            l_mod,
         );
     }
 
@@ -517,18 +522,20 @@ fn emit_conversion(
     width: u32,
     precision: i32,
     h_mod: u8,
+    l_mod: bool,
 ) u32 {
     switch (conv) {
-        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, 10, false, false, h_mod),
-        'u' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 10, false, true, h_mod),
-        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, false, true, h_mod),
-        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, true, true, h_mod),
-        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 8, false, true, h_mod),
-        'b' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 2, false, true, h_mod),
+        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, 10, false, false, h_mod, l_mod),
+        'u' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 10, false, true, h_mod, l_mod),
+        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, false, true, h_mod, l_mod),
+        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, true, true, h_mod, l_mod),
+        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 8, false, true, h_mod, l_mod),
+        'b' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 2, false, true, h_mod, l_mod),
         // ``%p`` / ``%zd`` / ``%td`` — pointer / size_t / ptrdiff_t.
         // Tcl 9 renders ``%p`` as ``0x`` + lowercase hex of the wide
-        // value; ``%zd`` / ``%td`` are decimal aliases.
-        'p' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, true, width, precision, 16, false, true, 0),
+        // value; ``%zd`` / ``%td`` are decimal aliases.  Force the wide
+        // width so the full pointer survives.
+        'p' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, true, width, precision, 16, false, true, 0, true),
         's' => return emit_str(out, off, cap, arg, left_align, zero_pad, width, precision),
         'c' => return emit_char(out, off, cap, arg, left_align, zero_pad, width),
         'f', 'e', 'g', 'E', 'G', 'F' => return emit_float(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, conv),
@@ -590,6 +597,7 @@ fn emit_int(
     upper: bool,
     unsigned_conv: bool,
     h_mod: u8,
+    l_mod: bool,
 ) u32 {
     var off = off_in;
     // Bignum-aware path: when the operand exceeds i64, render via
@@ -622,15 +630,26 @@ fn emit_int(
     }
     var digits: [80]u8 = undefined;
     var dlen: u32 = 0;
+    // Tcl 9 integer width: with no length modifier, every integer
+    // conversion renders the low 32 bits (``%d 7810179016327718216`` →
+    // ``1819043144``, ``%d 4294967296`` → ``0``, ``%x`` → ``6c6c6548``);
+    // ``l`` / ``ll`` keep the full 64-bit wide value (``%ld`` / ``%lx``).
+    // ``h`` / ``hh`` already narrowed ``n`` to short / signed-char above,
+    // so only the no-modifier case needs the 32-bit clamp here.
+    if (h_mod == 0 and !l_mod) {
+        n = @as(i64, @as(i32, @truncate(n)));
+    }
     var negative = n < 0;
     // For unsigned conversions (``%u`` / ``%x`` / ``%o`` / ``%b``),
-    // Tcl 9 truncates the value to its 32-bit two's-complement form
-    // and renders it as an unsigned 32-bit integer — ``format "%x"
-    // -12`` → ``fffffff4``, ``format "%u" -12`` → ``4294967284``.
+    // render the value's two's-complement bits as unsigned — 32-bit for
+    // the narrowed / no-modifier case, the full 64 bits under ``l``
+    // (``format "%x" -12`` → ``fffffff4``, ``%lx`` keeps all 16 digits).
     var u: u64 = undefined;
     if (unsigned_conv) {
-        const masked: u32 = @bitCast(@as(i32, @truncate(n)));
-        u = @as(u64, masked);
+        u = if (l_mod)
+            @as(u64, @bitCast(n))
+        else
+            @as(u64, @as(u32, @bitCast(@as(i32, @truncate(n)))));
         negative = false;
     } else {
         u = if (negative) @intCast(-n) else @intCast(n);
