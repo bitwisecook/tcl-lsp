@@ -673,6 +673,31 @@ class _WasmEmitterValuesMixin(_Base):
         flush()
         return parts
 
+    def _emit_concat_chain(self, append_idx: int, emit_fns: "list") -> None:
+        """Emit a string-concat chain that never mutates its operands.
+
+        ``tcl_cmd_append(acc, x)`` mutates ``acc`` in place when ``acc``
+        has refcount 1.  A borrowed ``$var`` read has refcount 1 (held
+        only by the variable), so using it directly as the accumulator
+        corrupts the variable's value when a later operand re-reads it —
+        the ``$x$x$x`` / ``string cat $x $x`` doubling bug.
+
+        Seeding the chain with a null (``0``) TclObj makes the first
+        ``tcl_cmd_append(0, op0)`` produce a *fresh owned copy* of the
+        first operand (see ``tcl_cmd_append``'s ``current == 0`` path);
+        every subsequent append then mutates that private accumulator,
+        leaving all operand objects untouched.  Each ``emit_fns`` entry
+        is a zero-arg callable that pushes one operand TclObj.  Always
+        leaves an OWNED TclObj on the stack — including the single-operand
+        case, which still seeds the null accumulator so a borrowed
+        ``$var`` operand (e.g. ``string cat $x``) is copied rather than
+        returned borrowed (callers rely on the OWNED contract).
+        """
+        self._emit_i32_const(0)
+        for fn in emit_fns:
+            fn()
+            self._emit_call(append_idx)
+
     def _emit_interpolated_value(self, value: str) -> None:
         """Emit a TclObj for an interpolated string with $var/[cmd] chunks.
 
@@ -689,12 +714,7 @@ class _WasmEmitterValuesMixin(_Base):
             self._emit_obj_literal(value)
             return
 
-        # Emit the first part
-        self._emit_part(parts[0])
-        # Concat remaining parts
-        for part in parts[1:]:
-            self._emit_part(part)
-            self._emit_call(append_idx)
+        self._emit_concat_chain(append_idx, [lambda p=part: self._emit_part(p) for part in parts])
 
     def _emit_part(self, part: tuple[str, str]) -> None:
         kind, data = part
@@ -1063,10 +1083,9 @@ class _WasmEmitterValuesMixin(_Base):
                 if append_idx is None:
                     self._emit_eval_fallback("string", cmd_args)
                     return
-                self._emit_value(sub_args[0])
-                for rest in sub_args[1:]:
-                    self._emit_value(rest)
-                    self._emit_call(append_idx)
+                self._emit_concat_chain(
+                    append_idx, [lambda a=arg: self._emit_value(a) for arg in sub_args]
+                )
                 return
             sri = subcommand_runtime_import_for("string", subcmd)
             if sri is not None and sri.import_key in self._shared_imports:

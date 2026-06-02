@@ -157,6 +157,80 @@ class TestOptLens:
         code, out = _run_source(self.SRC, capsys, extra=["--show", "types", "--opt", "on"])
         assert code == 0  # types view renders normally regardless of lens
 
+    # Folding the first two statements to ``puts 3`` deletes two lines, so the
+    # trailing ``puts done`` slides from line 4 to line 2.  Its IR summary is
+    # byte-for-byte identical — only its source range moved.  A raw text diff
+    # would flag it (the ``[4:1-4:9]`` vs ``[2:1-2:9]`` range differs); the
+    # node-level diff must leave it as quiet context.
+    SHIFT_SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b\nputs done"
+
+    def test_opt_diff_ignores_offset_shift(self, capsys):
+        code, out = _run_source(self.SHIFT_SRC, capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        # The genuinely rewritten statements are still surfaced.
+        assert "+  ├── call puts 3" in out
+        # ``puts done`` only moved line:col — it must not appear as a +/- line.
+        moved = [line for line in out.splitlines() if line[:1] in "+-" and "puts done" in line]
+        assert moved == [], f"offset-only shift leaked into the diff: {moved}"
+
+
+class TestDiffNormalisation:
+    """Unit tests for the offset-ignoring diff key (``_normalise_diff_line``)."""
+
+    def test_tree_connector_and_range_collapse(self):
+        from tooling.explorer.cli import _normalise_diff_line
+
+        # Same node, different sibling position (├── vs └──) and source range.
+        a = _normalise_diff_line("│   ├── call puts ${b} [3:1-3:7]")
+        b = _normalise_diff_line("    └── call puts ${b} [9:9-9:99]")
+        assert a == b
+
+    def test_byte_offset_and_literal_index_collapse(self):
+        from tooling.explorer.cli import _normalise_diff_line
+
+        # Same instruction, shifted byte offset and literal-pool index.
+        a = _normalise_diff_line('    (15) push1 4\t# "puts"')
+        b = _normalise_diff_line('    (2) push1 0\t# "puts"')
+        assert a == b
+
+    def test_variable_slot_collapses_but_arity_is_kept(self):
+        from tooling.explorer.cli import _normalise_diff_line
+
+        # %vN slot shifts when a variable is dropped — the comment names it.
+        assert _normalise_diff_line('    (4) loadScalar1 %v2\t# var "a"') == _normalise_diff_line(
+            '    (9) loadScalar1 %v1\t# var "a"'
+        )
+        # Arity (invokeStk1 2) is semantic — distinct arities stay distinct.
+        assert _normalise_diff_line("    (4) invokeStk1 2\t# puts") != _normalise_diff_line(
+            "    (4) invokeStk1 3\t# puts"
+        )
+
+    def test_distinct_content_stays_distinct(self):
+        from tooling.explorer.cli import _normalise_diff_line
+
+        assert _normalise_diff_line('  └── call puts "a"') != _normalise_diff_line(
+            '  └── call puts "b"'
+        )
+
+    def test_offset_only_difference_reports_no_change(self):
+        # When the two streams differ only in offsets, the diff has nothing to
+        # show: it must print the "no change" line, not bare --- / +++ headers.
+        # (get_grouped_opcodes is a generator, so the emptiness check must
+        # materialise it first.)
+        import contextlib
+        import io
+
+        from tooling.explorer.cli import _print_opt_diff
+
+        before = ["  ├── call puts hi [1:1-1:7]"]
+        after = ["  └── call puts hi [9:9-9:15]"]  # same node, only connector + range moved
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_opt_diff("ir", before, after, use_colour=False)
+        out = buf.getvalue()
+        assert "no change under the optimiser" in out
+        assert "--- ir" not in out and "+++ ir" not in out
+
 
 # LineIndex unit tests
 

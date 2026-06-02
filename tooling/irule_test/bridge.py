@@ -35,6 +35,7 @@ _FRAMEWORK_FILES = [
     "state_layers.tcl",
     "tmm_shim.tcl",
     "expr_ops.tcl",
+    "profiler.tcl",
     "command_mocks.tcl",
     "_mock_stubs.tcl",
     "itest_core.tcl",
@@ -640,6 +641,15 @@ class IruleTestSession:
             flat.extend([k, str(v)])
         await self._send({"cmd": "set_state", "layer": layer, "values": flat})
 
+    async def eval_tcl(self, script: str) -> str:
+        """Evaluate a raw Tcl *script* in the framework and return its result.
+
+        Used by tooling that drives framework internals directly (e.g. the
+        profile generator toggling ``::itest::profiler``).
+        """
+        resp = await self._send({"cmd": "eval", "script": script})
+        return str(resp.get("result", ""))
+
     async def fire_event(self, event: str) -> EventResult:
         """Fire a single event and return the result."""
         resp = await self._send({"cmd": "fire_event", "event": event})
@@ -947,6 +957,14 @@ class IruleTestSessionSync:
     def close_connection(self) -> None:
         assert self._session and self._loop
         self._loop.run_until_complete(self._session.close_connection())
+
+    def set_state(self, layer: str, values: dict[str, Any]) -> None:
+        assert self._session and self._loop
+        self._loop.run_until_complete(self._session.set_state(layer, values))
+
+    def eval_tcl(self, script: str) -> str:
+        assert self._session and self._loop
+        return self._loop.run_until_complete(self._session.eval_tcl(script))
 
     def get_decisions(self, category: str = "") -> list[tuple[str, str, Any]]:
         assert self._session and self._loop

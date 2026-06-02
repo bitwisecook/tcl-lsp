@@ -6,7 +6,7 @@ Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes
 
 ## Applies to
 
-VS Code
+VS Code, JetBrains, tcl-lsp CLI
 
 ## Availability
 
@@ -35,11 +35,23 @@ The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassemb
 - A label on `block` / `loop` / `if` opens identifying the Tcl construct that produced them (`foreach`, `while`, `for`, `if`, `catch body`, `switch arm`).
 - Orthogonal control-flow arrows in the left gutter showing every branch target, with forward edges drawn solid-blue and back-edges drawn dashed-yellow.
 
+### Optimiser lens (off / on / diff)
+
+The IR, CFG, SSA, bytecode, and WASM tabs each carry an optimiser lens with three modes:
+
+- **off** — the program as written.
+- **on** — the program after the optimiser runs.
+- **diff** — a localised diff of the two.
+
+The diff compares the *node* (an IR statement, a CFG block, a bytecode instruction), not the rendered text. Byte offsets, source ranges, statement and literal-pool indices, local-variable slots, header tallies, and the box-drawing tree/gutter glyphs all shift whenever the optimiser adds or removes a node, even when the surrounding nodes are untouched. The diff normalises those position-only tokens away so a single rewrite surfaces as a single localised change rather than flagging every following line. Operand values that carry meaning — instruction arities, increment immediates, literal text, variable names — are kept, so genuinely different nodes still differ.
+
+The `tcl-explorer` CLI and TUI render the same offset-free diff via `--opt diff` (for example `tcl-explorer script.tcl --show ir --opt diff`). The web panel does this for the IR/CFG diff and the bytecode "Show optimiser diff" view.
+
 ## File-path anchors
 
 - `editors/vscode/src/compilerExplorer.ts`
 - `editors/vscode/src/compilerExplorerHtml.ts`
-- `tooling/explorer/`
+- `tooling/explorer/` (`_normalise_diff_line` / `_print_opt_diff` in `cli.py`; `normaliseForDiff` / `irToLines` in `static/explorer-core.js`)
 
 ## Failure modes
 

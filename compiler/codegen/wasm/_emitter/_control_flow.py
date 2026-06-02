@@ -361,13 +361,35 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.END)
         self._emit(WasmOp.END)
 
-    def _emit_switch(self, subject: str, arms, default_body, *, mode: str = "exact") -> None:
+    def _emit_switch(
+        self,
+        subject: str,
+        arms,
+        default_body,
+        *,
+        mode: str = "exact",
+        patterns_braced: bool = True,
+    ) -> None:
         """Emit a switch statement as a chain of if/else.
 
         Uses ``string_equal`` for exact matching and ``string_match``
         for glob matching.  Falls back to i64 integer comparison when
         the runtime imports are unavailable.
+
+        *patterns_braced* is True when the arms came from a single braced
+        ``{pat body ...}`` block (patterns are literal list elements) and
+        False when they came as separate words (``switch $s $pat {body}``),
+        in which case each pattern is a substitutable word and must be
+        emitted via ``_emit_value`` so ``$pattern`` resolves to its value
+        rather than being matched as the literal text ``$pattern``.
         """
+
+        def _emit_pattern(p: str) -> None:
+            if patterns_braced:
+                self._emit_obj_literal(p)
+            else:
+                self._emit_value(p)
+
         # Determine comparison function
         if mode == "glob":
             cmp_import = self._shared_imports.get("tcl_string_match")
@@ -397,11 +419,11 @@ class _WasmEmitterCtrlMixin(_Base):
             for g_idx, (patterns, body) in enumerate(groups):
                 # Emit the first pattern comparison
                 if mode == "glob":
-                    self._emit_obj_literal(patterns[0])
+                    _emit_pattern(patterns[0])
                     self._emit_local_get(subject_local)
                 else:
                     self._emit_local_get(subject_local)
-                    self._emit_obj_literal(patterns[0])
+                    _emit_pattern(patterns[0])
                 self._emit_call(cmp_import)
                 # string_equal/string_match returns TclObj wrapping 0 or 1
                 self._emit_unbox_int()
@@ -409,11 +431,11 @@ class _WasmEmitterCtrlMixin(_Base):
                 # OR in any additional fallthrough patterns
                 for pattern in patterns[1:]:
                     if mode == "glob":
-                        self._emit_obj_literal(pattern)
+                        _emit_pattern(pattern)
                         self._emit_local_get(subject_local)
                     else:
                         self._emit_local_get(subject_local)
-                        self._emit_obj_literal(pattern)
+                        _emit_pattern(pattern)
                     self._emit_call(cmp_import)
                     self._emit_unbox_int()
                     self._emit(WasmOp.I32_WRAP_I64)

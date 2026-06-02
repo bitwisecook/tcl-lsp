@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -1632,6 +1633,100 @@ def _capture_view(
     return buf.getvalue().splitlines()
 
 
+# The optimiser shifts byte offsets, source ranges, sequence indices, and the
+# box-drawing connectors that encode tree depth / control-flow edges every time
+# it adds or removes a node.  The opt-diff compares *nodes* (an IR statement, a
+# bytecode instruction, a CFG block), so these position-only tokens are
+# collapsed to a constant before diffing — otherwise a single rewrite shifts
+# every following line and the localised change drowns in offset noise.  This
+# mirrors the web GUI, which already diffs offset-free keys (``normaliseForDiff``
+# / ``irToLines`` in ``static/explorer-core.js``).
+_DIFF_RANGE_SPAN = re.compile(r"\[(?:\d+:\d+-\d+:\d+|\?:\?-\?:\?)\]")  # [1:1-1:7] source range
+_DIFF_ASM_OFFSET = re.compile(r"^(\s*)\(\d+\)")  # (0) bytecode byte offset
+_DIFF_CFG_INDEX = re.compile(r"\[\d+\]")  # [0] CFG statement sequence number
+_DIFF_PC_TARGET = re.compile(r"\bpc \d+")  # absolute jump target (pc 33)
+_DIFF_ASM_COUNTS = re.compile(r"\b\d+ (instructions|bytes|literals|variables)\b")  # header tallies
+_DIFF_PUSH_LITERAL = re.compile(
+    r"\b(push\d+) \d+"
+)  # push1 0 -> push1 (the comment names the literal)
+_DIFF_LITERAL_INDEX = re.compile(r"^(\s*)\d+: ")  # literal-pool table index
+_DIFF_LVT_SLOT = re.compile(r"%v\d+")  # local-variable-table slot (the comment names the variable)
+_DIFF_BOX_ARROWS = "▶◀▸◂▴▾"
+
+
+def _normalise_diff_line(line: str) -> str:
+    """Reduce a rendered view line to an offset-free comparison key.
+
+    Maps every position-only token (tree/gutter glyph, source range, byte
+    offset, sequence index, literal-pool index, header tally) to a constant so
+    two renderings of the *same* node compare equal even when the optimiser
+    shifted everything around it.  Operand values that carry meaning —
+    instruction arities, increment immediates, variable slots, literal text —
+    are left untouched so genuinely different nodes still differ.
+    """
+    # Box-drawing glyphs (U+2500–U+257F) and arrowheads encode position, not
+    # content; map each to a single space so ``├──`` vs ``└──`` and the CFG
+    # edge gutter never register as a change while column width (the tree
+    # depth) is preserved.
+    key = "".join(" " if "─" <= ch <= "╿" or ch in _DIFF_BOX_ARROWS else ch for ch in line)
+    key = _DIFF_RANGE_SPAN.sub("[]", key)
+    key = _DIFF_ASM_OFFSET.sub(r"\1()", key)
+    key = _DIFF_CFG_INDEX.sub("[]", key)
+    key = _DIFF_PC_TARGET.sub("pc", key)
+    key = _DIFF_ASM_COUNTS.sub(r"N \1", key)
+    key = _DIFF_PUSH_LITERAL.sub(r"\1", key)
+    key = _DIFF_LITERAL_INDEX.sub(r"\1#: ", key)
+    key = _DIFF_LVT_SLOT.sub("%v", key)
+    return key.rstrip()
+
+
+def _print_opt_diff(view: str, before: list[str], after: list[str], *, use_colour: bool) -> None:
+    """Print a unified diff of two rendered views with offsets ignored.
+
+    The hunks are computed over offset-free keys (:func:`_normalise_diff_line`)
+    so only genuine node changes drive the diff, but the *original* lines —
+    offsets and all — are what gets displayed, so the reader still sees the real
+    instruction stream.  Lines that differ only in offsets fall into ``equal``
+    runs and render as quiet context.
+    """
+    import difflib
+
+    matcher = difflib.SequenceMatcher(
+        None,
+        [_normalise_diff_line(line) for line in before],
+        [_normalise_diff_line(line) for line in after],
+        autojunk=False,
+    )
+    # get_grouped_opcodes is a generator (always truthy) — materialise it so the
+    # "no change" check below fires when the streams are offset-identical.
+    groups = list(matcher.get_grouped_opcodes(n=3))
+    if not groups:
+        print(
+            style(f"{view}: no change under the optimiser (offsets ignored)", Ansi.DIM, use_colour)
+        )
+        return
+    print(style(f"--- {view} (original)", Ansi.RED, use_colour))
+    print(style(f"+++ {view} (optimised)", Ansi.GREEN, use_colour))
+    for group in groups:
+        first, last = group[0], group[-1]
+        print(
+            style(
+                f"@@ -{first[1] + 1},{last[2] - first[1]} +{first[3] + 1},{last[4] - first[3]} @@",
+                Ansi.CYAN,
+                use_colour,
+            )
+        )
+        for tag, i1, i2, j1, j2 in group:
+            if tag == "equal":
+                for line in before[i1:i2]:
+                    print(f" {line}")
+                continue
+            for line in before[i1:i2]:
+                print(style(f"-{line}", Ansi.RED, use_colour))
+            for line in after[j1:j2]:
+                print(style(f"+{line}", Ansi.GREEN, use_colour))
+
+
 def render_view_opt(
     view: str,
     result: CompilerExplorerResult,
@@ -1692,9 +1787,9 @@ def render_view_opt(
         )
         return
 
-    # diff: a rendered-text unified diff, surface-agnostic across all OPT_VIEWS.
-    import difflib
-
+    # diff: a node-level unified diff, surface-agnostic across all OPT_VIEWS.
+    # Offsets are normalised away (see _normalise_diff_line) so the diff tracks
+    # the node, not where the optimiser pushed it.
     before = _capture_view(
         view, result, source, line_index=line_index, views=views, max_annotations=max_annotations
     )
@@ -1706,23 +1801,7 @@ def render_view_opt(
         views=views,
         max_annotations=max_annotations,
     )
-    diff = list(
-        difflib.unified_diff(
-            before, after, fromfile=f"{view} (original)", tofile=f"{view} (optimised)", lineterm=""
-        )
-    )
-    if not diff:
-        print(style(f"{view}: no change under the optimiser", Ansi.DIM, use_colour))
-        return
-    for line in diff:
-        if line.startswith("+"):
-            print(style(line, Ansi.GREEN, use_colour))
-        elif line.startswith("-"):
-            print(style(line, Ansi.RED, use_colour))
-        elif line.startswith("@@"):
-            print(style(line, Ansi.CYAN, use_colour))
-        else:
-            print(line)
+    _print_opt_diff(view, before, after, use_colour=use_colour)
 
 
 def _summary_parts(result: CompilerExplorerResult, dialect: str) -> list[str]:

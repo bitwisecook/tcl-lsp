@@ -1369,7 +1369,13 @@ def _scan_needed_imports(
                 _scan_script(body)
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
-            case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
+            case IRSwitch(
+                subject=subject,
+                arms=arms,
+                default_body=default_body,
+                mode=mode,
+                patterns_braced=patterns_braced,
+            ):
                 if mode == "glob":
                     needed.add("tcl_string_match")
                 elif mode == "regexp":
@@ -1398,6 +1404,15 @@ def _scan_needed_imports(
                     # against its raw source text rather than its
                     # runtime value.
                     _scan_value(subject)
+                    if not patterns_braced:
+                        # Separate-word patterns (``switch -- $s $pat body``)
+                        # are emitted via ``_emit_value`` and may carry
+                        # ``$var`` / ``[cmd]`` / ``$arr(key)`` substitutions
+                        # that need their own runtime imports (``tcl_append``
+                        # / ``tcl_array_get`` / …).  Braced-block patterns are
+                        # literal list elements and need no scan.
+                        for arm in arms:
+                            _scan_value(arm.pattern)
                     for arm in arms:
                         if arm.body:
                             _scan_script(arm.body)

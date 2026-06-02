@@ -38,6 +38,14 @@ _F = TypeVar("_F", bound=Callable)
 class CodeKind(Enum):
     DIAGNOSTIC = "diagnostic"
     OPTIMISATION = "optimisation"
+    PGO = "pgo"
+    """Profile-guided suggestion code (e.g. ``P100``).
+
+    Deliberately a kind of its own — **not** ``OPTIMISATION`` — so PGO codes
+    are excluded from :func:`optimisation_codes` and therefore never swept
+    into the ``full`` / ``aggressive`` optimisation profiles (which enable
+    *all* registered optimisation codes).  PGO is opt-in: it only runs when
+    a profile is explicitly supplied via the dedicated entry points."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +240,46 @@ def default_disabled_diagnostics() -> frozenset[str]:
 def optimisation_codes() -> frozenset[str]:
     """All registered optimisation codes."""
     return frozenset(c for c, info in _registry.items() if info.kind is CodeKind.OPTIMISATION)
+
+
+def pgo(code: str, description: str) -> Callable[[_F], _F]:
+    """Register a profile-guided optimisation (PGO) code.
+
+    Use as ``@pgo(...)`` decorator or bare call.  PGO codes live in their
+    own :class:`CodeKind` so they are excluded from
+    :func:`optimisation_codes` and never auto-enabled by the optimisation
+    profiles — they only surface through the explicit, opt-in PGO entry
+    points (see :mod:`compiler.pgo`).
+    """
+    if code in _registry:
+        existing = _registry[code]
+        if existing.description == description and existing.kind is CodeKind.PGO:
+
+            def _identity_dup(fn: _F) -> _F:
+                return fn
+
+            return _identity_dup
+        raise ValueError(f"Duplicate PGO code: {code}")
+    _registry[code] = CodeInfo(
+        code=code,
+        description=description,
+        kind=CodeKind.PGO,
+    )
+
+    def _identity(fn: _F) -> _F:
+        return fn
+
+    return _identity
+
+
+def pgo_codes() -> frozenset[str]:
+    """All registered profile-guided optimisation codes."""
+    return frozenset(c for c, info in _registry.items() if info.kind is CodeKind.PGO)
+
+
+# Profile-guided optimisation codes (P-series).  Off by default everywhere:
+# emitted only by the opt-in ``compiler.pgo`` entry points.
+pgo("P100", "Reorder conditional branches so the most-frequently-taken case is tested first.")
 
 
 # Source-level style and package diagnostics.
