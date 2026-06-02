@@ -659,6 +659,29 @@ pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Fu
     builder.build_function(name, script)
 }
 
+/// Build a CFG for a single script body with an explicit upvar
+/// context (from [`prepare_cfg_context`]). Used for `TclOO` method
+/// bodies (SF-2), which are lowered to their own [`Function`]s
+/// outside [`build_cfg`] (methods are deliberately excluded from
+/// [`CfgModule::procedures`] — codegen never emits them) but still
+/// need the same call-site def invalidation as procs. Mirrors
+/// Python's `build_cfg_function(..., upvar_procs=, proc_params=)`.
+///
+/// The maps come straight from [`prepare_cfg_context`] (default
+/// hasher), so the signature isn't generalised over `BuildHasher`.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn build_cfg_function_with_upvars(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    upvar_procs: HashMap<String, UpvarInfo>,
+    proc_params: HashMap<String, Vec<String>>,
+) -> Function {
+    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params);
+    builder.build_function(name, script)
+}
+
 /// Deduplicate a `Vec` while preserving first-occurrence order.
 fn dedup_preserve_order(v: &mut Vec<String>) {
     let mut seen = std::collections::HashSet::new();

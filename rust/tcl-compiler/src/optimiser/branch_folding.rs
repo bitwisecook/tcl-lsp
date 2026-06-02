@@ -394,6 +394,7 @@ mod tests {
             },
             top_level: fu,
             procedures: HashMap::new(),
+            methods: HashMap::new(),
             interproc: None,
             connection_scope: None,
         }

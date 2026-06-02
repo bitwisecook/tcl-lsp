@@ -158,6 +158,13 @@ pub struct CompilationUnit {
     pub top_level: FunctionUnit,
     /// Per-procedure analyses keyed by qualified name.
     pub procedures: HashMap<String, FunctionUnit>,
+    /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s
+    /// (SF-2). Keyed by `{class_qname}::{method_name}`; empty for
+    /// non-OO sources. Kept separate from [`Self::procedures`] so the
+    /// per-proc diagnostic passes are unaffected — only the optimiser's
+    /// O126 gate iterates these. Mirrors Python's
+    /// `CompilationUnit.methods`.
+    pub methods: HashMap<String, FunctionUnit>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
@@ -204,6 +211,36 @@ impl CompilationUnit {
                 FunctionUnit::build(qname, cfg.clone(), params, registry),
             );
         }
+        // SF-2: lower TclOO method bodies (populated in
+        // `ir_module.methods` by lowering) to per-method
+        // `FunctionUnit`s, using the same CFG → SSA → analysis
+        // pipeline as procs. Kept in a separate map so the per-proc
+        // diagnostic passes (which iterate `procedures`) are
+        // unaffected — only the interproc purity summary and the O126
+        // optimiser gate consume methods. Gated on a non-empty method
+        // set so non-OO sources skip the upvar-context scan entirely.
+        let methods: HashMap<String, FunctionUnit> = if ir_module.methods.is_empty() {
+            HashMap::new()
+        } else {
+            let (upvar_procs, proc_params) = crate::cfg_builder::prepare_cfg_context(&ir_module);
+            ir_module
+                .methods
+                .iter()
+                .map(|(mqname, method)| {
+                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                        mqname,
+                        &method.body,
+                        true,
+                        upvar_procs.clone(),
+                        proc_params.clone(),
+                    );
+                    (
+                        mqname.clone(),
+                        FunctionUnit::build(mqname, cfg, &method.params, registry),
+                    )
+                })
+                .collect()
+        };
         // **C41d7.** Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
         // ``when`` block is present so non-iRules consumers
@@ -226,6 +263,7 @@ impl CompilationUnit {
             cfg_module,
             top_level,
             procedures,
+            methods,
             interproc: None,
             connection_scope,
         }
@@ -343,6 +381,39 @@ mod tests {
         assert!(!cu.procedures.is_empty());
         assert!(cu.function("::greet").is_some());
         assert!(cu.function("::top").is_some());
+        // No OO methods in a plain proc source.
+        assert!(cu.methods.is_empty());
+    }
+
+    #[test]
+    fn build_for_lowers_oo_methods_to_function_units() {
+        // SF-2 (SYNC-JUN02-1): TclOO method bodies get their own
+        // FunctionUnit (CFG → SSA → analysis) in `cu.methods`, kept
+        // separate from `procedures` so the optimiser's O126 gate can
+        // iterate them. `procedures` stays free of method qnames.
+        let src = "oo::class create Counter {\n\
+                   \x20   variable n\n\
+                   \x20   method bump {} { incr n }\n\
+                   \x20   method get {} { return $n }\n\
+                   }\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let mut keys: Vec<&String> = cu.methods.keys().collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                &"::Counter::bump".to_string(),
+                &"::Counter::get".to_string()
+            ],
+            "method units: {keys:?}",
+        );
+        // Each method unit carries a real analysis pipeline (its CFG
+        // has the entry block at minimum).
+        let get = &cu.methods["::Counter::get"];
+        assert_eq!(get.name, "::Counter::get");
+        assert!(!get.cfg.blocks.is_empty());
+        // Methods are NOT mixed into the per-proc map.
+        assert!(!cu.procedures.contains_key("::Counter::get"));
     }
 
     #[test]
