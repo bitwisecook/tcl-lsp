@@ -227,8 +227,22 @@ pub fn instcombine_expr(expr: &str, bool_context: bool) -> (String, bool) {
     }
     let simplified = simplify_to_fixpoint(&parsed, bool_context);
     let rendered = render_expr(&simplified);
-    let changed = rendered != trimmed;
+    // SYNC-MAY31-1e (#498): suppress O110 noise. When the canonical
+    // re-render differs from the input only in whitespace (e.g.
+    // `$x<0` → `$x < 0`), it is a spacing preference, not a real
+    // finding — report no change. Structural rewrites (paren removal,
+    // identity folds, operand reordering, …) all alter non-whitespace
+    // characters and still register as changed. Mirrors Python's
+    // `_strip_ws` guard in `compiler/optimiser/_propagation.py`.
+    let changed = strip_ws(&rendered) != strip_ws(trimmed);
     (rendered, changed)
+}
+
+/// Return `expr` with all whitespace removed. Port of Python's
+/// `_strip_ws` ([`_propagation._strip_ws`]) — the whitespace-insensitive
+/// comparison key for the O110 noise guard.
+fn strip_ws(expr: &str) -> String {
+    expr.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
 /// Apply one pass of local simplifications to `node`, returning
@@ -967,5 +981,37 @@ mod tests {
         let (out, changed) = instcombine_expr("$x + $y", false);
         assert!(!changed);
         assert_eq!(out, "$x + $y");
+    }
+
+    #[test]
+    fn instcombine_whitespace_only_rerender_is_not_a_change() {
+        // SYNC-MAY31-1e (#498): a re-render differing from the input
+        // only in whitespace (`$x<0` → `$x < 0`) is canonical-spacing
+        // noise, not an O110 finding. The guard strips all whitespace
+        // before comparing, so the spacing-only re-render reports no
+        // change.
+        let (out, changed) = instcombine_expr("$x<0", false);
+        assert!(
+            !changed,
+            "whitespace-only re-render must not count as changed (got {out:?})",
+        );
+        // The narrow no-op case (input already canonical) also reports
+        // no change — unchanged from before the guard.
+        let (_, unchanged) = instcombine_expr("$x + $y", false);
+        assert!(!unchanged);
+        // A real structural change (identity fold) still fires.
+        let (reduced, structural) = instcombine_expr("$x * 1", false);
+        assert!(
+            structural,
+            "identity fold `$x * 1` → `$x` must still register as changed",
+        );
+        assert_eq!(reduced.trim(), "$x");
+    }
+
+    #[test]
+    fn strip_ws_removes_all_whitespace() {
+        assert_eq!(strip_ws("$x < 0"), "$x<0");
+        assert_eq!(strip_ws("  a  b\tc\n"), "abc");
+        assert_eq!(strip_ws("nospace"), "nospace");
     }
 }

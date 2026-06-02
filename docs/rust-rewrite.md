@@ -1941,6 +1941,19 @@ structural sub-chunks:
   (currently `rendered != trimmed` — character-level structural).
   Also add the mixed-bitwise/shift paren preservation in
   `render_expr` and the commutative-no-op reassoc skip.
+  **Landed (rust):** the whitespace guard — `instcombine_expr` now
+  computes `changed = strip_ws(&rendered) != strip_ws(trimmed)` via a
+  new module-local `strip_ws` (port of Python's `_propagation._strip_ws`,
+  all-whitespace removal), so a spacing-only re-render (`$x<0` →
+  `$x < 0`) no longer fires O110 in either the standalone-`expr` path
+  (`expr_simplify.rs`) or the branch-condition path (`branch_folding.rs`
+  consumes the same `changed` flag); structural rewrites still fire
+  because they alter non-whitespace characters.  Two discriminating
+  tests (`instcombine_whitespace_only_rerender_is_not_a_change`,
+  `strip_ws_removes_all_whitespace`).  **Still pending:** the mixed
+  bitwise/shift paren preservation in `render_expr` and the
+  commutative-no-op reassoc skip (separate strips — each needs its own
+  `render_expr` / reassoc investigation + test).
 - **O106 LICM purity recursion into command substitutions.**  Extend
   `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
   and verify each is also pure — an outer pure call wrapping
