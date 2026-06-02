@@ -1515,6 +1515,10 @@ fn do_regsub_command(
 
         const argv_slice: []const i32 = @as([*]const i32, @ptrFromInt(argv))[0..total_args];
         const cmd_result = interp.eval_command(argv_slice);
+        // ``eval_command`` hands back a +1 TclObj; ``grow_append`` copies
+        // its bytes, so release this iteration's result on every exit path
+        // (append, error/flow break) rather than leaking one per match.
+        defer if (cmd_result != 0) obj.tcl_obj_release(cmd_result);
 
         // Release every argv slot (each carried a +1 ref).
         var rj: u32 = 0;
@@ -1523,7 +1527,12 @@ fn do_regsub_command(
             if (v != 0) obj.tcl_obj_release(v);
         }
 
-        if (result_mod.snapshot(0).code == .ERROR) {
+        // Any non-OK completion of the command prefix (error, but also
+        // ``return`` / ``break`` / ``continue``) aborts the substitution
+        // and propagates: the signal flag eval_command set stays live for
+        // the enclosing dispatcher, we skip the unmatched-tail append, and
+        // free the partially-built output below.
+        if (result_mod.snapshot(0).code != .OK) {
             errored = true;
             break;
         }

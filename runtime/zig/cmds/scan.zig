@@ -346,7 +346,13 @@ fn validate_scan_format(
         while (i < total) : (i += 1) {
             if (counts[i] > 1)
                 return .{ .err = "variable is assigned by multiple \"%n$\" conversion specifiers" };
-            if (!got_xpg and counts[i] == 0)
+            // An unassigned slot is an error in the *variable* form —
+            // both for an XPG gap (``scan {1} {%2$d} a b``) and for
+            // surplus variables (``scan {1 2} {%d %d} a b c``).  Tcl 9
+            // reports both as "variable is not assigned ...".  The inline
+            // (no-variable) form is exempt: it legitimately yields leading
+            // empty list elements (``scan {1} {%2$d}`` -> ``{} 1``).
+            if (has_vars and counts[i] == 0)
                 return .{ .err = "variable is not assigned by any conversion specifiers" };
         }
     }

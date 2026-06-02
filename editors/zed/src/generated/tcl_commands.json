@@ -2964,6 +2964,10 @@
       "summary": "Time the execution of a script"
     },
     {
+      "name": "timerate",
+      "summary": "Measure the rate of execution of a script"
+    },
+    {
       "name": "trace",
       "summary": "Monitor variable accesses, command usages and command executions",
       "subcommands": [

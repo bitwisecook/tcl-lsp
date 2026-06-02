@@ -170,7 +170,25 @@ def test_scan_unsigned_bases(source: str, expected: str) -> None:
             "catch {scan {} {%10c} a} m; puts $m",
             "field width may not be specified in %c conversion",
         ),
+        # An XPG gap in the *variable* form is an error: ``%2$d`` leaves
+        # the first variable unassigned.
+        (
+            "catch {scan {1} {%2$d} a b} m; puts $m",
+            "variable is not assigned by any conversion specifiers",
+        ),
+        # Surplus variables (more names than conversions) error the same
+        # way in the variable form.
+        (
+            "catch {scan {1 2} {%d %d} a b c} m; puts $m",
+            "variable is not assigned by any conversion specifiers",
+        ),
     ],
 )
 def test_scan_validation_errors(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+def test_scan_xpg_gap_inline_is_allowed() -> None:
+    # The inline (no-variable) form legitimately yields leading empty list
+    # elements for an XPG gap — only the variable form errors.
+    assert _run("puts [scan {1} {%2$d}]") == "{} 1"

@@ -14,6 +14,19 @@ const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int = rt.obj_new_int;
 const obj_new_string = rt.obj_new_string;
 
+/// Read ``clock_clicks`` in microseconds, releasing the transient TclObj
+/// it allocates.  ``clock_clicks`` returns a fresh ``obj_new_int``; the
+/// callers only want the integer, so without this each timing sample
+/// (``timerate``'s start / per-iteration / end reads) leaks one object.
+fn clicks_us() i64 {
+    const clk = @import("../io/tcl_clock.zig");
+    const obj_lifecycle = @import("../valtypes/tcl_obj.zig");
+    const o = clk.clock_clicks();
+    const v = rt.obj_get_int(o);
+    if (o != 0) obj_lifecycle.tcl_obj_release(o);
+    return v;
+}
+
 fn eval_return(words: []const i32) result_mod.InterpResult {
     // Tcl's ``return -level N -code C value`` produces an exception
     // that unwinds *N* frames with code C.  The default ``return val``
@@ -1003,13 +1016,12 @@ fn eval_tailcall(words: []const i32) result_mod.InterpResult {
 fn eval_time(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const interp = @import("../interp/tcl_interp.zig");
-    const clock = @import("../io/tcl_clock.zig");
     const obj_mod_time = @import("../valtypes/tcl_obj.zig");
 
     const count: i64 = if (words.len >= 3) rt.obj_get_int(words[2]) else 1;
     const body_s = obj_ensure_string(words[1]);
 
-    const start_us = rt.obj_get_int(clock.clock_clicks());
+    const start_us = clicks_us();
     var i: i64 = 0;
     var last: i32 = 0;
     while (i < count) : (i += 1) {
@@ -1024,7 +1036,7 @@ fn eval_time(words: []const i32) result_mod.InterpResult {
     // Loop completed normally — release the final body result
     // (we don't propagate it; the summary string is built fresh).
     if (last != 0) obj_mod_time.tcl_obj_release(last);
-    const end_us = rt.obj_get_int(clock.clock_clicks());
+    const end_us = clicks_us();
     const per_iter = if (count > 0) @divTrunc(end_us - start_us, count) else 0;
 
     // Build "<N> microseconds per iteration".  ``obj_new_int`` mints
@@ -1133,7 +1145,6 @@ fn timerate_result(usec_in: i64, count: i64) i32 {
 // ``-calibrate`` flags are accepted but don't change the measurement).
 fn eval_timerate(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
-    const clock = @import("../io/tcl_clock.zig");
     const om = @import("../valtypes/tcl_obj.zig");
 
     var i: u32 = 1;
@@ -1199,7 +1210,7 @@ fn eval_timerate(words: []const i32) result_mod.InterpResult {
     const body_s = obj_ensure_string(cmd);
     const maxms_us: i64 = if (maxms > 0) maxms * 1000 else 0;
     var count: i64 = 0;
-    const start_us = rt.obj_get_int(clock.clock_clicks());
+    const start_us = clicks_us();
     while (count < maxcnt) {
         const r = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(r);
@@ -1213,10 +1224,10 @@ fn eval_timerate(words: []const i32) result_mod.InterpResult {
         // ``break`` ends the measurement after counting this iteration;
         // ``continue`` / ``ok`` keep going.
         if (ir.code == .BREAK) break;
-        const now_us = rt.obj_get_int(clock.clock_clicks());
+        const now_us = clicks_us();
         if (now_us - start_us >= maxms_us) break;
     }
-    const end_us = rt.obj_get_int(clock.clock_clicks());
+    const end_us = clicks_us();
     var usec: i64 = end_us - start_us;
     if (overhead > 0 and count > 0) {
         const cur: i64 = @intFromFloat(overhead * @as(f64, @floatFromInt(count)));
