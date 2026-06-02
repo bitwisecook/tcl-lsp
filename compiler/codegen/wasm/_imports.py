@@ -673,6 +673,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # Rename-aware compiled-proc dispatch guard.  ``proc_lookup`` resolves
+    # a command name (TclObj) against the live, namespace-aware runtime
+    # command table (rename / redefinition aware) and ``proc_get_func_idx``
+    # reads the bucket's stored WASM function index (0 when absent / not
+    # AOT-compiled).  ``exec_trace_quiescent`` is 1 only when no trace is
+    # registered/active and we're not inside a callback.  Together they let
+    # ``_emit_distrust_proc_subst`` verify a name still maps to the expected
+    # compiled proc — and that no trace would be skipped — before a cheap
+    # direct ``call``.
+    "tcl_proc_lookup": ("tcl", "proc_lookup", [ValType.I32], [ValType.I32]),
+    "tcl_proc_get_func_idx": ("tcl", "proc_get_func_idx", [ValType.I32], [ValType.I32]),
+    "tcl_exec_trace_quiescent": ("tcl", "exec_trace_quiescent", [], [ValType.I32]),
     # Source-text body stash for compiled procs.  Called from the
     # registration prologue right after ``proc_register_compiled`` so
     # ``info body`` can return the original ``proc`` body rather than

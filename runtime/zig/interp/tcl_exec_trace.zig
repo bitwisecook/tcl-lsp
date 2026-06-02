@@ -55,6 +55,24 @@ pub var step_depth: u32 = 0;
 // fire traces.
 pub var suppress: u32 = 0;
 
+/// True (1) when the interp is fully *quiescent* w.r.t. tracing: no
+/// execution / command / step trace is registered (``any_traces`` counts
+/// all of them, including command rename/delete), no step context is
+/// active, and we are not inside a trace callback (``suppress``).
+///
+/// The compiled-codegen distrust rename-guard
+/// (``_emit_distrust_proc_subst``) consults this before taking a cheap
+/// direct ``call``: a direct call bypasses ``eval_command`` entirely, so
+/// it must NOT fire when any trace could observe the dispatch *or* when a
+/// callback is mutating the command table underneath us (the
+/// command-rename/delete-trace tests in trace.test).  Unlike
+/// ``eval_command``'s own fast path, ``suppress`` does NOT make this
+/// return 1 — being inside a callback is exactly when a direct call is
+/// unsafe here.
+pub export fn exec_trace_quiescent() i32 {
+    return if (any_traces == 0 and step_depth == 0 and suppress == 0) 1 else 0;
+}
+
 pub fn push_step(bucket: u32) void {
     if (step_depth < step_stack.len) {
         step_stack[step_depth] = bucket;

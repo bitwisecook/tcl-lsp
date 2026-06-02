@@ -80,6 +80,7 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCtrlMixin
@@ -743,7 +744,28 @@ class _WasmEmitterExprMixin(_Base):
         # TODO(command-binding): renamed-*to-a-proc* still traps here — the
         # interpreter fallback can't dispatch to a compiled proc body; needs
         # interp→compiled-proc dispatch in the Zig runtime.  See _values.py.
+        # A *known compiled proc* gets a rename-aware, trace-aware guarded
+        # dispatch instead of a blind eval-fallback — see
+        # ``_emit_distrust_proc_subst``.  Without it, every recursive
+        # ``[proc …]`` under distrust pushes ~10 interpreter wasm frames
+        # per level, overflowing the recursion gate for a deep
+        # ``expr``-bodied recursion (compExpr-old-3.8's ``12days``).
         if not builtin_is_trusted(cmd_name):
+            proc_info = self._resolve_proc(cmd_name, self._full_proc_index)
+            if (
+                proc_info is not None
+                and self._distrust_proc_guard
+                and "tcl_proc_lookup" in self._shared_imports
+                and "tcl_proc_get_func_idx" in self._shared_imports
+                and "tcl_exec_trace_quiescent" in self._shared_imports
+            ):
+                func_idx, n_params = proc_info
+                qname = self._resolve_proc_qname(cmd_name)
+                has_args_tail = qname is not None and qname in self._proc_args_tail
+                self._emit_distrust_proc_subst(
+                    cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=True
+                )
+                return
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             self._emit_unbox_int()
             return

@@ -1062,7 +1062,14 @@ class _WasmEmitterStmtMixin(_Base):
             qname = f"::{name}"
         self._emit_obj_literal(qname)
         self._emit_i32_const(n_params)
-        self._emit_i32_const(1)  # func_idx marker
+        # Store the proc's REAL WASM function index (matching the init-time
+        # registration) so the distrust rename-guard can verify a name
+        # still maps to this exact compiled proc.  This re-register runs at
+        # the runtime ``proc`` site and would otherwise clobber the init
+        # value back to a bare marker.  Falls back to ``1`` for a name with
+        # no AOT function (runtime-only redefine — not direct-callable).
+        _real_func_idx = self._full_proc_index.get(qname, (0, 0))[0] or 1
+        self._emit_i32_const(_real_func_idx)
         self._emit_i32_const(1 if has_args_tail else 0)
         self._emit_i32_const(n_required)
         self._emit_call(reg_idx)
@@ -1115,7 +1122,9 @@ class _WasmEmitterStmtMixin(_Base):
         # the caller executed ``namespace import ::tcltest::*``.
         return self._resolve_import(command)
 
-    def _resolve_proc(self, command: str) -> tuple[int, int] | None:
+    def _resolve_proc(
+        self, command: str, index: "dict[str, tuple[int, int]] | None" = None
+    ) -> tuple[int, int] | None:
         """Look up a user-defined proc by name, returning (func_idx, n_params) or None.
 
         Resolution order for an *unqualified* name (Tcl namespace-path
@@ -1129,23 +1138,31 @@ class _WasmEmitterStmtMixin(_Base):
           3. ``::<name>`` — the global namespace.
           4. Bare ``<name>`` — defensive fallback for non-standard
              proc-index entries.
+
+        *index* overrides the map consulted (default: the callable
+        proc-index, with rename/redefinition-invalidated entries removed).
+        The distrust rename-guard passes the **full** proc-index so it can
+        still find a proc's compile-time func_idx even when the callable
+        map dropped it — soundness there comes from the runtime func_idx +
+        trace-quiescent checks, not from invalidation.
         """
+        idx = index if index is not None else self._proc_index
         if command.startswith("::"):
-            return self._proc_index.get(command)
+            return idx.get(command)
         # Inside a namespace-eval block, try the block's namespace first.
         if self._block_namespace and self._block_namespace != "::":
             ns_qname = f"{self._block_namespace}::{command}"
-            hit = self._proc_index.get(ns_qname)
+            hit = idx.get(ns_qname)
             if hit is not None:
                 return hit
         # Try the enclosing proc's own namespace — captured in
         # ``_proc_namespace`` at emitter construction time.
         if self._proc_namespace and self._proc_namespace != "::":
             ns_qname = f"{self._proc_namespace}::{command}"
-            hit = self._proc_index.get(ns_qname)
+            hit = idx.get(ns_qname)
             if hit is not None:
                 return hit
-        direct = self._proc_index.get(f"::{command}") or self._proc_index.get(command)
+        direct = idx.get(f"::{command}") or idx.get(command)
         if direct is not None:
             return direct
         # Final step: consult ``namespace import`` mappings so bare
@@ -1153,7 +1170,7 @@ class _WasmEmitterStmtMixin(_Base):
         # dispatch directly instead of falling back to ``tcl_eval``.
         imported = self._resolve_import(command)
         if imported is not None:
-            return self._proc_index.get(imported)
+            return idx.get(imported)
         return None
 
     def _emit_call_stmt(

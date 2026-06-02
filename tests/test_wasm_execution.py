@@ -788,6 +788,16 @@ class TestCommandDispatch:
             # ``info args`` / ``info default`` can materialise a fresh
             # TclObj on demand for AOT-compiled procs.
             "proc_set_params_source_raw",
+            # Rename-aware compiled-dispatch guard helpers, pulled in for
+            # any module with procs.  ``proc_lookup`` + ``proc_get_func_idx``
+            # let a distrusted proc command-substitution verify the name
+            # still maps to this exact compiled proc, and
+            # ``exec_trace_quiescent`` gates the direct call on tracing
+            # being inactive — see ``_emit_distrust_proc_subst``.  Present
+            # but only *called* under builtin distrust in a trace-free unit.
+            "proc_lookup",
+            "proc_get_func_idx",
+            "exec_trace_quiescent",
             "frame_push",
             "frame_pop",
             # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``

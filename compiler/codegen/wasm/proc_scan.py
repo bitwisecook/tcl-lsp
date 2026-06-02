@@ -11,6 +11,7 @@ the runtime ``tcl_eval`` / ``proc_lookup`` path.
 from __future__ import annotations
 
 from ...ir import (
+    IRBarrier,
     IRBlock,
     IRCall,
     IRCatch,
@@ -24,6 +25,16 @@ from ...ir import (
     IRTry,
     IRWhile,
 )
+
+
+def _is_dispatch_trace_add(cmd: object, args: "list[object] | tuple[object, ...]") -> bool:
+    """True for ``trace add command`` / ``trace add execution`` — the
+    trace kinds whose callbacks run during dispatch / command-table
+    mutation.  ``trace add variable`` is excluded (it doesn't perturb
+    command dispatch)."""
+    if cmd not in ("trace", "::trace"):
+        return False
+    return len(args) >= 2 and args[0] == "add" and args[1] in ("command", "execution")
 
 
 def _proc_name_variants(name: str, context_ns: str = "::") -> tuple[str, ...]:
@@ -67,7 +78,7 @@ def _proc_name_variants(name: str, context_ns: str = "::") -> tuple[str, ...]:
 
 def _collect_dynamically_modified_procs(
     ir_module: IRModule,
-) -> tuple[set[tuple[str, str]], bool]:
+) -> tuple[set[tuple[str, str]], bool, bool]:
     """Return the set of ``(context_ns, name)`` pairs for procs that
     ``rename`` / ``interp hide`` / ``interp expose`` touches
     anywhere in ``ir_module``, plus a ``full_flush`` flag that's
@@ -100,10 +111,17 @@ def _collect_dynamically_modified_procs(
     """
     affected: set[tuple[str, str]] = set()
     full_flush = [False]
+    uses_dispatch_traces = [False]
 
     def _scan_statement(stmt: IRStatement, context_ns: str) -> None:
         match stmt:
+            case IRBarrier(command=cmd, args=args):
+                # ``trace`` is a dynamic command, lowered to a barrier.
+                if _is_dispatch_trace_add(cmd, args):
+                    uses_dispatch_traces[0] = True
             case IRCall(command=cmd, args=args):
+                if _is_dispatch_trace_add(cmd, args):
+                    uses_dispatch_traces[0] = True
                 if cmd == "rename" and len(args) >= 1:
                     affected.add((context_ns, args[0]))
                     if len(args) >= 2:
@@ -186,4 +204,4 @@ def _collect_dynamically_modified_procs(
             # inside a method is so rare that the extra root probe
             # is harmless.
             _scan_script(method.body, "::")
-    return affected, full_flush[0]
+    return affected, full_flush[0], uses_dispatch_traces[0]

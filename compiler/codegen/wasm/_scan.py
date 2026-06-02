@@ -1514,6 +1514,11 @@ def _scan_needed_imports(
     # ``var_resolve``).  Only needed when the module has any procs.
     if ir_module.procedures:
         needed.add("tcl_proc_register_compiled")
+        # Rename-aware dispatch guard for proc calls in command
+        # substitutions under builtin distrust — see ``_emit_command_subst``.
+        needed.add("tcl_proc_lookup")
+        needed.add("tcl_proc_get_func_idx")
+        needed.add("tcl_exec_trace_quiescent")
         # Stash the source-text body on every compiled proc whose
         # body source survived lowering so ``info body`` returns the
         # original ``proc`` body verbatim rather than the empty string

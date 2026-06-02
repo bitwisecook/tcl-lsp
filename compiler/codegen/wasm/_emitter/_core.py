@@ -69,6 +69,8 @@ class _WasmEmitterBase:
         func_index_base: int = 0,
         shared_imports: dict[str, int] | None = None,
         proc_index: dict[str, tuple[int, int]] | None = None,
+        full_proc_index: dict[str, tuple[int, int]] | None = None,
+        distrust_proc_guard: bool = False,
         proc_defaults: dict[str, tuple[str | None, ...]] | None = None,
         proc_args_tail: set[str] | None = None,
         shared_strings: list[tuple[str, int]] | None = None,
@@ -115,8 +117,24 @@ class _WasmEmitterBase:
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
-        # proc_index maps qualified name → (func_idx, n_params)
+        # proc_index maps qualified name → (func_idx, n_params).  This is
+        # the *callable* map: entries for procs whose runtime dispatch may
+        # have changed (rename / interp mutation) are removed so direct
+        # calls downgrade to the eval fallback.
         self._proc_index: dict[str, tuple[int, int]] = proc_index or {}
+        # The *full* proc-index — never invalidated.  Used by the distrust
+        # rename-guard (``_emit_distrust_proc_subst``) to recover a proc's
+        # compile-time func_idx even when the callable map dropped it; the
+        # guard's runtime func_idx + trace-quiescent checks supply the
+        # soundness that invalidation would otherwise provide.  Falls back
+        # to the callable map when not supplied.
+        self._full_proc_index: dict[str, tuple[int, int]] = (
+            full_proc_index if full_proc_index is not None else self._proc_index
+        )
+        # Whether the distrust rename-guard (``_emit_distrust_proc_subst``)
+        # may fire in this unit.  False for units using command / execution
+        # traces or a child interp — see ``wasm_codegen_module``.
+        self._distrust_proc_guard: bool = distrust_proc_guard
         # Per-proc default-value strings, indexed by slot.  Consulted
         # by ``_emit_cmd_proc_call`` to pad missing call-site args
         # with the declared default rather than a boxed zero.
@@ -955,7 +973,13 @@ class _WasmEmitterBase:
                 ) in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
-                    self._emit_i32_const(1)  # func_idx marker (any non-zero)
+                    # Store the proc's REAL WASM function index (not a bare
+                    # ``1`` marker).  The runtime only tests it for ``!= 0``
+                    # ("is AOT-compiled"), but a unique per-proc value lets
+                    # the distrust rename-guard verify a name still maps to
+                    # this exact compiled proc before a cheap direct call.
+                    _real_func_idx = self._full_proc_index.get(qname, (0, 0))[0] or 1
+                    self._emit_i32_const(_real_func_idx)
                     self._emit_i32_const(1 if has_args_tail else 0)
                     self._emit_i32_const(n_required)
                     self._emit_call(reg_idx)
