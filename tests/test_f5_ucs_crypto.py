@@ -366,3 +366,52 @@ def test_query_cli_reads_encrypted_ucs(tmp_path, capsys, monkeypatch):
     code, out, err = _run(["query", ".ltm.pool[].name", str(enc)], capsys)
     assert code == 0, err
     assert "encp" in out  # the pool name, read end-to-end out of an encrypted UCS
+
+
+# ---------------------------------------------------------------------------
+# Robustness / error-surface (review-comment regressions)
+# ---------------------------------------------------------------------------
+
+
+def test_is_pgp_bytes_tolerates_leading_whitespace_on_armor():
+    assert ucs.is_pgp_bytes(b"\n\n  -----BEGIN PGP MESSAGE-----\n\nx\n")
+
+
+def test_corrupt_ucs_raises_valueerror_not_tarerror():
+    # gzip magic but not a valid tar → ValueError (caught by CLI verbs),
+    # never a raw tarfile.TarError.
+    import gzip
+
+    bogus = gzip.compress(b"definitely not a tar archive")
+    assert ucs.is_ucs_bytes(bogus)
+    with pytest.raises(ValueError):
+        ucs.ucs_to_scf(bogus)
+
+
+def test_truncated_openpgp_raises_openpgperror():
+    truncated = _V1[:20]  # cut mid-packet → would otherwise be IndexError
+    with pytest.raises(_openpgp.OpenPGPError):
+        _openpgp.decrypt_symmetric(truncated, _PASSPHRASE)
+
+
+def test_looks_like_ucs_gates_gzip_on_suffix_but_not_pgp():
+    from tooling.f5.verbs._paths import _looks_like_ucs
+
+    gz = ucs.make_test_ucs({"config/bigip.conf": "ltm pool /Common/p { }\n"})
+    # plain gzip: only a UCS for .ucs paths or stdin, not arbitrary suffixes
+    assert _looks_like_ucs(gz, suffix=".ucs", is_stdin=False)
+    assert _looks_like_ucs(gz, suffix="", is_stdin=True)
+    assert not _looks_like_ucs(gz, suffix=".gz", is_stdin=False)
+    assert not _looks_like_ucs(gz, suffix=".conf", is_stdin=False)
+    # OpenPGP is unambiguous → recognised regardless of suffix
+    assert _looks_like_ucs(_V1, suffix=".conf", is_stdin=False)
+
+
+@requires_gpg
+def test_s2k_matches_gpg_with_passphrase_longer_than_count():
+    # RFC 4880 §3.7.1.3: when the S2K octet count is below len(salt+pass),
+    # the *full* salt+passphrase is hashed.  A 3000-byte passphrase makes
+    # that path observable; the bundled decryptor must still match gpg.
+    payload = ucs.make_test_ucs({"config/bigip.conf": "ltm pool /Common/edge { }\n"})
+    ciphertext = _gpg_encrypt(payload, "P" * 3000, "--s2k-mode", "3", "--cipher-algo", "AES128")
+    assert _openpgp.decrypt_symmetric(ciphertext, "P" * 3000) == payload

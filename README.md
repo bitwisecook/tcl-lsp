@@ -794,9 +794,9 @@ Highlights of the newer verbs:
   vars, an XDG `hosts.toml`, or interactive prompt.
 - **Encrypted UCS** — archives saved with `tmsh save sys ucs <name>
   passphrase <pass>` are GnuPG symmetric (AES-128) OpenPGP messages (F5
-  KB K5437).  Every verb that reads a `.ucs` (`extract`, `convert
-  ucs2scf`, `query`, `grep`, `cleanup`, `diff`, `irule …`, …) decrypts
-  them transparently and entirely **in memory** — the decrypted archive
+  KB K5437).  Every verb that reads a `.ucs` — `extract`,
+  `convert ucs2scf`, `query`, `grep`, `cleanup`, `diff`, `irule …` —
+  decrypts them transparently and entirely **in memory**; the decrypted archive
   (which holds SSL private keys) never touches disk.  The passphrase is
   read from `$F5_UCS_PASSPHRASE` or a secure terminal prompt; `extract`
   and `convert` also accept `--passphrase-env VAR` / `--no-passphrase-prompt`.

@@ -308,29 +308,37 @@ def decrypt_symmetric(data: bytes, passphrase: str | bytes) -> bytes:
     """
     if isinstance(passphrase, str):
         passphrase = passphrase.encode("utf-8")
-    packets = _parse_packets(_maybe_dearmor(data))
+    # Packet parsing indexes into the byte string and unpacks length
+    # fields; on truncated/malformed input that surfaces as IndexError or
+    # struct.error.  Normalise those to OpenPGPError so the public error
+    # surface (and the UcsDecryptionError wrapper in ucs.py) stays
+    # consistent instead of leaking an unexpected exception type.
+    try:
+        packets = _parse_packets(_maybe_dearmor(data))
 
-    cipher_id: int | None = None
-    session_key: bytes | None = None
-    enc_tag: int | None = None
-    enc_body: bytes | None = None
-    for tag, body in packets:
-        if tag == 3:
-            cipher_id, session_key = _decode_skesk(body, passphrase)
-        elif tag == 1:
-            raise OpenPGPError("public-key encrypted message — a passphrase cannot decrypt it")
-        elif tag in (9, 18):
-            enc_tag, enc_body = tag, body
+        cipher_id: int | None = None
+        session_key: bytes | None = None
+        enc_tag: int | None = None
+        enc_body: bytes | None = None
+        for tag, body in packets:
+            if tag == 3:
+                cipher_id, session_key = _decode_skesk(body, passphrase)
+            elif tag == 1:
+                raise OpenPGPError("public-key encrypted message — a passphrase cannot decrypt it")
+            elif tag in (9, 18):
+                enc_tag, enc_body = tag, body
 
-    if session_key is None or cipher_id is None:
-        raise OpenPGPError(
-            "no symmetric-key session packet — this is not a passphrase-encrypted UCS"
-        )
-    if enc_body is None:
-        raise OpenPGPError("no encrypted-data packet found in message")
-    if enc_tag == 9:
-        raise OpenPGPError(
-            "legacy SED packet (no MDC) is unsupported by the bundled "
-            "decryptor — install gpg/gpg2 to decrypt this archive"
-        )
-    return _extract_literal(_decrypt_seipd(enc_body, cipher_id, session_key))
+        if session_key is None or cipher_id is None:
+            raise OpenPGPError(
+                "no symmetric-key session packet — this is not a passphrase-encrypted UCS"
+            )
+        if enc_body is None:
+            raise OpenPGPError("no encrypted-data packet found in message")
+        if enc_tag == 9:
+            raise OpenPGPError(
+                "legacy SED packet (no MDC) is unsupported by the bundled "
+                "decryptor — install gpg/gpg2 to decrypt this archive"
+            )
+        return _extract_literal(_decrypt_seipd(enc_body, cipher_id, session_key))
+    except (IndexError, struct.error) as exc:
+        raise OpenPGPError(f"malformed or truncated OpenPGP message: {exc}") from exc

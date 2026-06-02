@@ -30,6 +30,22 @@ def _is_gzip(data: bytes) -> bool:
     return len(data) >= 2 and data[0] == 0x1F and data[1] == 0x8B
 
 
+def _looks_like_ucs(raw: bytes, *, suffix: str, is_stdin: bool) -> bool:
+    """Whether *raw* should be extracted/decrypted as a UCS archive.
+
+    OpenPGP magic is unambiguous (a bigip.conf is never an OpenPGP
+    message), so an encrypted UCS is recognised regardless of file
+    extension.  Plain gzip magic is a weaker signal — lots of unrelated
+    ``.gz`` files share it — so it is only treated as a UCS for ``.ucs``
+    paths or stdin (where there is no suffix to go on).
+    """
+    if is_pgp_bytes(raw):
+        return True
+    if _is_gzip(raw):
+        return is_stdin or suffix in _UCS_SUFFIXES
+    return False
+
+
 def add_passphrase_args(parser: argparse.ArgumentParser) -> None:
     """Add the shared ``--passphrase-env`` / ``--no-passphrase-prompt`` flags.
 
@@ -93,7 +109,7 @@ def read_path(
     errors = "strict" if strict else "replace"
     if path_str == "-":
         raw = sys.stdin.buffer.read()
-        if is_pgp_bytes(raw) or _is_gzip(raw):
+        if _looks_like_ucs(raw, suffix="", is_stdin=True):
             return (
                 "stdin://input",
                 ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label="stdin"),
@@ -105,12 +121,13 @@ def read_path(
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
     raw = path.read_bytes()
-    if is_pgp_bytes(raw) or _is_gzip(raw):
+    suffix = path.suffix.lower()
+    if _looks_like_ucs(raw, suffix=suffix, is_stdin=False):
         return (
             path.as_uri(),
             ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label=path_str),
         )
-    if path.suffix.lower() in _UCS_SUFFIXES:
+    if suffix in _UCS_SUFFIXES:
         raise ValueError(f"{path_str}: not a valid UCS archive")
     return (path.as_uri(), raw.decode("utf-8", errors=errors))
 
@@ -224,8 +241,10 @@ def _load_one(
     suffix = Path(path_str).suffix.lower() if path_str != "-" else ""
 
     # UCS — gzipped tar of /config, possibly OpenPGP-encrypted — extract
-    # (decrypting first if needed) and treat as a SCF.
-    if suffix in _UCS_SUFFIXES or is_pgp_bytes(raw) or _is_gzip(raw):
+    # (decrypting first if needed) and treat as a SCF.  A ``.ucs`` that is
+    # neither gzip nor OpenPGP still routes here so it fails with a clear
+    # "not a valid UCS archive" rather than being parsed as garbage text.
+    if suffix in _UCS_SUFFIXES or _looks_like_ucs(raw, suffix=suffix, is_stdin=path_str == "-"):
         label = path_str if path_str != "-" else "<stdin>"
         text = ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label=label)
         cfg = parse_bigip_conf(text)

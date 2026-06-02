@@ -8,9 +8,10 @@ members in a deterministic order.
 
 BIG-IP can also encrypt a UCS with a passphrase
 (``tmsh save sys ucs <name> passphrase <pass>``).  Per F5 KB K5437 the
-archive is then a GnuPG **symmetric** (passphrase) OpenPGP message —
-128-bit AES — whose plaintext is the ordinary gzip tar.  We decrypt it
-two ways, in order:
+archive is then a GnuPG **symmetric** (passphrase) OpenPGP message whose
+plaintext is the ordinary gzip tar.  BIG-IP uses 128-bit AES, but the
+decryptor accepts AES-128/192/256 so archives produced with other GnuPG
+settings still load.  We decrypt it two ways, in order:
 
 1. Shell out to ``gpg``/``gpg2`` if present — exactly what BIG-IP itself
    uses.  The decrypted bytes are streamed back over a pipe and never
@@ -88,7 +89,9 @@ def is_pgp_bytes(data: bytes) -> bool:
     UCS starts with a Symmetric-Key Encrypted Session Key packet
     (tag 3 → first byte ``0x8C``).
     """
-    if data.startswith(b"-----BEGIN PGP"):
+    # Armored input may carry leading whitespace; inspect only a small
+    # bounded prefix so large inputs are never copied.
+    if data[:64].lstrip().startswith(b"-----BEGIN PGP"):
         return True
     if not data:
         return False
@@ -392,27 +395,34 @@ def ucs_to_scf(ucs_bytes: bytes, *, include_extras: bool = False) -> str:
     seen: set[str] = set()
     extras: list[tuple[str, str]] = []
 
-    with tarfile.open(fileobj=io.BytesIO(ucs_bytes), mode="r:*") as tf:
-        members_by_name = {m.name.lstrip("./"): m for m in tf.getmembers() if m.isfile()}
+    # ``tarfile``/gzip raise TarError (and occasionally EOFError) on a
+    # corrupt archive or a gzip stream that isn't a tar; normalise those
+    # to ValueError so every CLI call site's ``(OSError, ValueError)``
+    # handler reports them cleanly instead of crashing with a traceback.
+    try:
+        with tarfile.open(fileobj=io.BytesIO(ucs_bytes), mode="r:*") as tf:
+            members_by_name = {m.name.lstrip("./"): m for m in tf.getmembers() if m.isfile()}
 
-        for canonical in _SCF_MEMBER_ORDER:
-            member = members_by_name.get(canonical)
-            if member is None:
-                continue
-            text = _read_member(tf, member)
-            chunks.append(f"#\n# {canonical}\n#\n{text.rstrip()}\n")
-            seen.add(canonical)
-
-        if include_extras:
-            for name, member in sorted(members_by_name.items()):
-                if name in seen:
-                    continue
-                if not name.startswith("config/"):
-                    continue
-                if not name.endswith(".conf"):
+            for canonical in _SCF_MEMBER_ORDER:
+                member = members_by_name.get(canonical)
+                if member is None:
                     continue
                 text = _read_member(tf, member)
-                extras.append((name, text))
+                chunks.append(f"#\n# {canonical}\n#\n{text.rstrip()}\n")
+                seen.add(canonical)
+
+            if include_extras:
+                for name, member in sorted(members_by_name.items()):
+                    if name in seen:
+                        continue
+                    if not name.startswith("config/"):
+                        continue
+                    if not name.endswith(".conf"):
+                        continue
+                    text = _read_member(tf, member)
+                    extras.append((name, text))
+    except (tarfile.TarError, EOFError) as exc:
+        raise ValueError(f"invalid UCS archive: {exc}") from exc
 
     for name, text in extras:
         chunks.append(f"#\n# {name}\n#\n{text.rstrip()}\n")
