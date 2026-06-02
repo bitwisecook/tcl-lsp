@@ -3204,6 +3204,69 @@ One discriminating registry test pins the BODY role / INT hint /
 unbounded arity / STRING return / UNKNOWN read+write effect
 (`timerate_registered_with_body_and_int_hint`).
 
+## SYNC-JUN02d family — main audit (2026-06-02, PR #525)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`e64aff29`.  `main` landed **2** commits; advances the
+anchor to `origin/main`@`40278cc0`.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#524** (`da16799b`) — *Add KCS guides for migration verification and
+  encrypted UCS handling.*  F5 query builtins + KCS docs + UCS crypto
+  (`dialects/f5/query/*`, `docs/kcs/*`, `tooling/f5/*`).  **Out of
+  scope** (F5 tooling / docs).
+- **#525 Part A** (`40278cc0`) — the command-binding codegen follow-ups
+  (bytecode rename-gate on `_try_bytecoded` / inline cmd-subst dispatch;
+  WASM value/tail-position `IRIncr` rename-gate; interp→compiled-proc
+  dispatch).  **Out of scope** — `compiler/codegen/bytecode/*`,
+  `compiler/codegen/wasm/*`; the Rust port emits neither backend.
+
+In-scope rows (#525 Part B — "missed optimisations", all reuse **O129**;
+no new codes):
+
+### SYNC-JUN02d-1 — registry `const_fold` callback library (#525)
+
+`main` added `dialects/tcl/const_fold.py` — the canonical FOLD_HINTS
+data: ~40 `const_fold` callbacks (`fold_list` / `concat` / `join` /
+`split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`; the
+`string` subcommand family `cat` / `compare` / `equal` / `first` /
+`index` / `is` / `last` / `length` / `map` / `range` / `repeat` /
+`replace` / `reverse` / `tolower` / `totitle` / `toupper` / `trim` /
+`trimleft` / `trimright`; the `dict` family `create` / `exists` / `get`
+/ `keys` / `merge` / `size` / `values`; plus `format`, `subst`, `scan`)
+wired onto the `const_fold` field of the matching `CommandSpec` /
+`SubCommand`.  Consumed by SCCP + the O129 fold.  Classify in-scope,
+**features** — each its own incremental strip on top of the FOLD_HINTS
+mechanism already landed (SYNC-JUN02b-6).  **Rust state: partial.**  The
+mechanism + `string toupper` / `tolower` / `reverse` / `length` landed
+under SYNC-JUN02b-6.  The Rust folds reuse `render_propagation_word`
+(quote-via-`tcl_list_element`) so a special-char result is brace-quoted
+as a single word rather than rejected (sound — Rust folds *more* than
+main's reject-on-special-char guard, both correct; the analyser is not
+byte-gated against Python).  String folds are ASCII-restricted for exact
+Tcl parity (Rust/Tcl case-map + length agree on ASCII; non-ASCII bails —
+conservative).  Remaining folds are batched in follow-up strips below.
+
+### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
+
+The consumer-side optimisation gaps #525 closes:
+- **B1** — fold a pure builtin / `[expr {…}]` substitution embedded
+  *inside* an interpolation string (`puts "v=[string length abc]"` →
+  `puts "v=5"`); the replacement is spliced raw (not list-quoted) since
+  it lands inside the `"…"`.
+- **B2** — thread the reaching-version SCCP constants into the registry
+  cmd-sub folder so a nested read folds (`puts [expr {[string length
+  $s]}]` → `puts 3`), gated to same-block straight-line defs for
+  soundness (semi-pruned SSA omits a phi for hidden join reads).
+- **B3** — a pure proc returning a multi-word string folds, list-quoted
+  (the O103 fold + the canonical quoter).
+Classify in-scope, **features** — consumer-logic ports on top of the
+fold library.  **Rust state: deferred** — these extend
+`propagation::visit_call_cmd_subst_folds` / the string-interpolation
+path with the reaching-version + embedded-splice logic; tracked for
+follow-up strips.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
