@@ -19,7 +19,11 @@ from ._helpers import (
     _braced_token_range_from_range,
     _constants_from_exit_versions,
 )
-from ._propagation import _strip_ws, _substitute_expr_proc_calls
+from ._propagation import (
+    _strip_ws,
+    _substitute_expr_builtin_cmd_subs,
+    _substitute_expr_proc_calls,
+)
 from ._types import Optimisation, PassContext
 
 opt(
@@ -93,6 +97,11 @@ def optimise_branch_proc_calls(
             constants,
             namespace=namespace,
         )
+        substituted, cmd_changed = _substitute_expr_builtin_cmd_subs(
+            substituted,
+            ssa_uses=ssa_block.exit_versions if ssa_block is not None else None,
+            values=analysis.values,
+        )
 
         # O115: unwrap redundant nested expr in branch condition
         unwrapped = _try_unwrap_expr_in_expr(expr_text)
@@ -130,7 +139,7 @@ def optimise_branch_proc_calls(
             types=analysis.types,
         )
 
-        if not (var_changed or proc_changed or compare_changed or combine_changed):
+        if not (var_changed or proc_changed or cmd_changed or compare_changed or combine_changed):
             continue
 
         # Track propagated branch uses for post-propagation DSE.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from compiler.parsing.expr_parser import parse_expr as _parse_expr_ast
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 from ._helpers import _regexp_to_glob
 from .opcodes import (
@@ -930,10 +930,10 @@ class _CmdSubstMixin:
             elif len(sub_args) % 2 == 0 and all(
                 "$" not in a and "[" not in a for a, _b, *_ in sub_args
             ):
-                from ._helpers import _tcl_list_element
+                from shared.tcl_list import tcl_list_join
 
                 clean = [a for a, _b, *_ in sub_args]
-                folded = " ".join(_tcl_list_element(a) for a in clean)
+                folded = tcl_list_join(clean)
                 self._push_lit(folded)
                 self._emit(Op.DUP)
                 self._emit(Op.VERIFY_DICT)

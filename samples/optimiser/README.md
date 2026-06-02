@@ -12,6 +12,7 @@ produces from a single input file.
 | `profile_standard.tcl` | Output at **standard** — readability + constant folding |
 | `profile_full.tcl` | Output at **full** — all passes, single pass |
 | `profile_aggressive.tcl` | Output at **aggressive** — all passes, multi-pass to fixpoint |
+| `deep_pipeline.tcl` | Deep multi-pass stress sample — layered so each optimisation exposes the next (5+ passes, interprocedural folding). Runs on C Tcl 9; `tests/test_optimiser_deep_sample.py` proves the optimised / formatted / minified forms all stay behaviourally identical. |
 
 ## Profiles
 

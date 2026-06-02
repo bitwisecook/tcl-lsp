@@ -17,7 +17,7 @@ from compiler.ir import (
     IRStatement,
     IRSwitch,
 )
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
 from ._types import Instruction
 from .opcodes import Op

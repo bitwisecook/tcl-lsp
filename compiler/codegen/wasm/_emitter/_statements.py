@@ -11,9 +11,11 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.command_trust import builtin_is_trusted
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext
+from shared.tcl_list import tcl_list_quote
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 from shared.tokens import TokenType
 
 from ....ir import (
@@ -37,9 +39,6 @@ from ....ir import (
     IRTry,
     IRUpFrame,
     IRWhile,
-)
-from .._encoding import (
-    _tcl_list_quote,
 )
 from .._imports import (
     command_emits_nothing,
@@ -297,6 +296,23 @@ class _WasmEmitterStmtMixin(_Base):
                     self._const_map.pop(name, None)
 
             case IRIncr(name=name, amount=amount):
+                # ``incr`` renamed/redefined in this unit → run it through the
+                # interpreter (live runtime command table) instead of the inline
+                # increment, so the replacement command's semantics apply.
+                # TODO(command-binding): if ``incr`` was renamed *to a proc*,
+                # the interpreter fallback traps rather than calling the compiled
+                # proc (needs interp→compiled-proc dispatch).  Also: the
+                # value-context IRIncr in _control_flow.py / _optimisation.py is
+                # NOT yet gated (rarer; stack-discipline-sensitive) — gate those
+                # too once interp→proc dispatch lands.  See _values.py.
+                if not builtin_is_trusted("incr"):
+                    self._intern_local(name)
+                    incr_args = (name,) if amount is None else (name, amount)
+                    self._emit_eval_fallback("incr", incr_args)
+                    self._emit(WasmOp.DROP)
+                    if self._optimise:
+                        self._const_map.pop(name, None)
+                    return
                 # Issue #262: route through the runtime helper so the
                 # strict-integer guard fires on the current value
                 # (a float string like ``"52.60"`` raises ``expected
@@ -425,7 +441,7 @@ class _WasmEmitterStmtMixin(_Base):
                             # backslash-bearing word.  See the
                             # IRBarrier branch above for the
                             # ``namespace {*}"…\n…"`` repro.
-                            t = _tcl_list_quote(t, first=False)
+                            t = tcl_list_quote(t, first=False)
                         elif i < len(single_word) and not single_word[i] and t:
                             # Multi-token concatenation (``"$body (suffix)"``,
                             # ``foo$bar``, …).  ``_word_piece`` joined the
@@ -706,7 +722,7 @@ class _WasmEmitterStmtMixin(_Base):
                                     # command name itself, which list-quote
                                     # would force-brace despite never
                                     # needing the wrap).
-                                    t = _tcl_list_quote(t, first=False)
+                                    t = tcl_list_quote(t, first=False)
                                 parts.append(prefix + t)
                             script = " ".join(parts)
                             self._emit_eval_fallback(
@@ -1385,7 +1401,14 @@ class _WasmEmitterStmtMixin(_Base):
         # Uses get_wasm_hook (not get_any) to scan all specs: dialect packs
         # loaded after the emitter was first imported add new specs without
         # hooks, but the hook is still on an earlier spec.
-        hook = _REGISTRY.get_wasm_hook(command)
+        #
+        # Honour the command-binding lattice: a builtin that was renamed /
+        # redefined in this unit no longer has its core semantics, so skip the
+        # direct hook and fall through to the interpreter, which resolves the
+        # name through the live (rename-aware) runtime command table.  (Procs
+        # already dispatch via the runtime table above, so this only guards the
+        # builtin fast-path.)
+        hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
         if hook is not None:
             # Stash the current call's tokens on self so a hook that
             # routes to ``_emit_eval_fallback`` can recover the
@@ -1534,13 +1557,13 @@ class _WasmEmitterStmtMixin(_Base):
             parts.append(
                 subj
                 if (subj.startswith("$") or subj.startswith("["))
-                else _tcl_list_quote(subj, first=False)
+                else tcl_list_quote(subj, first=False)
             )
         for word in raw_args[i:]:
             if word.startswith("$") or word.startswith("["):
                 parts.append(word)
             else:
-                parts.append(_tcl_list_quote(word, first=False))
+                parts.append(tcl_list_quote(word, first=False))
         return " ".join(parts)
 
     def _emit_eval_fallback(
@@ -1672,7 +1695,7 @@ class _WasmEmitterStmtMixin(_Base):
                             # Use list-quote to get balanced/escaped form.
                             # Args are never at command-start so a leading
                             # ``#`` does not need quoting.
-                            parts.append(_tcl_list_quote(a, first=False))
+                            parts.append(tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
                     elif _arg_is_multi_token(i):
@@ -1703,7 +1726,7 @@ class _WasmEmitterStmtMixin(_Base):
                         # ``\`` + ``{``.  Apply backslash substitution
                         # so the value we embed in the script reflects
                         # what the original word would have evaluated
-                        # to.  _tcl_list_quote then encodes it as a
+                        # to.  tcl_list_quote then encodes it as a
                         # safe Tcl word that round-trips through the
                         # interpreter's word parser.
                         #
@@ -1734,9 +1757,9 @@ class _WasmEmitterStmtMixin(_Base):
                         # Script args never sit at command-start — pass
                         # ``first=False`` so a leading ``#`` is left alone.
                         if prepped is None:
-                            parts.append(_tcl_list_quote(a, first=False))
+                            parts.append(tcl_list_quote(a, first=False))
                         else:
-                            parts.append(_tcl_list_quote(prepped, first=False))
+                            parts.append(tcl_list_quote(prepped, first=False))
                 script = " ".join(parts)
             # Sync all live proc-locals into the frame so the
             # interpreter can see them via var_resolve.  We sync
@@ -1967,7 +1990,9 @@ class _WasmEmitterStmtMixin(_Base):
         prev_tokens = getattr(self, "_current_call_tokens", None)
         self._current_call_tokens = tokens
         try:
-            hook = _REGISTRY.get_wasm_hook(command)
+            # Skip the builtin fast-path for a command renamed/redefined in this
+            # unit (see the statement-context dispatch for the rationale).
+            hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
             if hook is not None and hook(self, args, defs, EmitContext.VALUE):
                 return
         finally:

@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.substitution import backslash_subst
+from shared.tcl_subst import backslash_subst
 from shared.tokens import Token, TokenType
 
 

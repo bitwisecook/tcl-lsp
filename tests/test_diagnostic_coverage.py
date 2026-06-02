@@ -148,6 +148,13 @@ FIXTURES: dict[str, Case] = {
     "W114": Case(
         "set x [expr {[expr {1}]}]\nputs $x\n", "[expr {1}]", "set x [expr {1}]\nputs $x\n"
     ),
+    # W128: a call to a command renamed/deleted away earlier in the file (the
+    # call after the rename); clean = the call uses the new name instead.
+    "W128": Case(
+        "proc myproc {} {return 1}\nmyproc\nrename myproc gone\nmyproc\n",
+        "myproc",
+        "proc myproc {} {return 1}\nmyproc\nrename myproc gone\ngone\n",
+    ),
     "W123": Case("boguscommand foo bar\n", "boguscommand", "puts hi\n"),
     "W212": Case("set $x 1\n", "$x", "set x 1\n"),
     "W300": Case("source $f\n", "$f", "source data.tcl\n"),
@@ -752,6 +759,10 @@ RANGE_FIXME: dict[str, FiresCase] = {
     # String-build chain: each step's range bleeds onto the next line's
     # first character instead of ending at the statement.
     "O104": FiresCase("set s a\nappend s b\nappend s c\nputs $s\n", "set s abc\nputs $s\n"),
+    # Builtin command-substitution fold via the registry const_fold callbacks.
+    "O129": FiresCase("puts [string length abcde]\n", "puts 5\n"),
+    # lappend list-build chain fold.
+    "O130": FiresCase("set l {}\nlappend l a b\nputs $l\n", "set l {a b}\nputs $l\n"),
     # Dead store: range bleeds onto the following line's first character.
     "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
     # lassign-pack of consecutive set literals: range bleeds onto the

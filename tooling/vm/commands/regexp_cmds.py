@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from shared.tcl_list import TclListError, tcl_list_quote, tcl_list_split
+
 from ..types import TclError, TclResult
 
 if TYPE_CHECKING:
@@ -26,39 +28,8 @@ def _translate_pattern(pattern: str) -> str:
 
 
 def _tcl_list_element(s: str) -> str:
-    """Format a string as a Tcl list element, quoting if needed."""
-    if s == "":
-        return "{}"
-    # Characters that require bracing
-    needs_quoting = False
-    for ch in s:
-        if ch in ' \t\n\\{}"$;':
-            needs_quoting = True
-            break
-    if not needs_quoting:
-        return s
-    # If no unbalanced braces, brace it
-    depth = 0
-    has_bad_braces = False
-    for ch in s:
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth < 0:
-                has_bad_braces = True
-                break
-    if depth != 0:
-        has_bad_braces = True
-    if not has_bad_braces:
-        return "{" + s + "}"
-    # Backslash-quote special chars
-    result: list[str] = []
-    for ch in s:
-        if ch in ' \t\n\\{}"$;':
-            result.append("\\")
-        result.append(ch)
-    return "".join(result)
+    """Format a string as a Tcl list element (canonical quoting)."""
+    return tcl_list_quote(s, first=False)
 
 
 def _cmd_regexp(interp: TclInterp, args: list[str]) -> TclResult:
@@ -345,45 +316,11 @@ def _tcl_regsub_replace(m: re.Match[str], sub_spec: str) -> str:
 
 
 def _split_tcl_list(s: str) -> list[str]:
-    """Minimal Tcl list split for command prefix parsing."""
-    # Simple brace/quote-aware split
-    result: list[str] = []
-    i = 0
-    while i < len(s):
-        # Skip whitespace
-        while i < len(s) and s[i] in " \t\n":
-            i += 1
-        if i >= len(s):
-            break
-        if s[i] == "{":
-            depth = 1
-            i += 1
-            start = i
-            while i < len(s) and depth > 0:
-                if s[i] == "{":
-                    depth += 1
-                elif s[i] == "}":
-                    depth -= 1
-                i += 1
-            if depth != 0:
-                raise TclError("unmatched open brace in list")
-            result.append(s[start : i - 1])
-        elif s[i] == '"':
-            i += 1
-            start = i
-            while i < len(s) and s[i] != '"':
-                if s[i] == "\\":
-                    i += 1
-                i += 1
-            result.append(s[start:i])
-            if i < len(s):
-                i += 1
-        else:
-            start = i
-            while i < len(s) and s[i] not in " \t\n":
-                i += 1
-            result.append(s[start:i])
-    return result
+    """Split a Tcl list for command-prefix parsing (canonical, strict)."""
+    try:
+        return tcl_list_split(s, strict=True)
+    except TclListError as exc:
+        raise TclError(str(exc)) from exc
 
 
 def _cmd_regsub(interp: TclInterp, args: list[str]) -> TclResult:

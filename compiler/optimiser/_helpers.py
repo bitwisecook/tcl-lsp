@@ -19,8 +19,17 @@ from shared.naming import (
 )
 from shared.tokens import SourcePosition, Token, TokenType
 
+from ..command_trust import builtin_is_trusted
 from ..core_analyses import LatticeKind, LatticeValue
-from ..ir import CommandTokens
+from ..ir import (
+    CommandTokens,
+    IRAssignConst,
+    IRAssignExpr,
+    IRAssignValue,
+    IRBarrier,
+    IRCall,
+    IRIncr,
+)
 from ..token_helpers import parse_command_words as _parse_command_words
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
 from ..token_helpers import word_piece as _word_piece
@@ -505,42 +514,6 @@ def _parse_single_command_from_range(
     return argv_texts, argv_tokens, argv_single
 
 
-def _try_fold_list_command(cmd_text: str) -> str | None:
-    """Fold ``[list literal1 literal2 ...]`` to a literal value."""
-    parsed = _parse_command_words(cmd_text)
-    if parsed is None:
-        return None
-    cmd_texts, cmd_tokens, cmd_single = parsed
-    if not cmd_texts or cmd_texts[0] != "list":
-        return None
-    if len(cmd_texts) == 1:
-        # ``[list]`` evaluates to an empty value but in source position it
-        # must be SOMETHING — replacing it with the empty string would
-        # turn ``set r [list]`` into ``set r ;`` which is a read, not a
-        # write.  Use ``{}`` (canonical empty list literal).
-        return "{}"
-    for i in range(1, len(cmd_texts)):
-        if i >= len(cmd_single) or not cmd_single[i]:
-            return None
-        if i >= len(cmd_tokens):
-            return None
-        tok = cmd_tokens[i]
-        if tok.type not in (TokenType.STR, TokenType.ESC):
-            return None
-        if not _is_plain_literal(cmd_texts[i]):
-            return None
-        if not _SAFE_WORD_RE.fullmatch(cmd_texts[i]):
-            return None
-    elements = cmd_texts[1:]
-    if len(elements) == 1:
-        return elements[0]
-    # Multi-element lists: folding [list a b c] to {a b c} changes the intrep
-    # from list to string.  Downstream list commands (lindex, lrange, …) would
-    # then shimmer the braced literal back, and benchmarks show no measurable
-    # performance benefit from the fold.  Skip to avoid triggering S100.
-    return None
-
-
 def _parse_string_length_arg(cmd_text: str) -> str | None:
     """If *cmd_text* is ``[string length <arg>]`` or ``string length <arg>``,
     return the ``<arg>`` text.
@@ -573,53 +546,6 @@ def _parse_string_length_arg(cmd_text: str) -> str | None:
     return argv[2]
 
 
-def _try_fold_lindex_command(cmd_text: str) -> str | None:
-    """Fold ``[lindex {a b c} N]`` to the element at index *N*."""
-    parsed = _parse_command_words(cmd_text)
-    if parsed is None:
-        return None
-    cmd_texts, cmd_tokens, cmd_single = parsed
-    if len(cmd_texts) != 3 or cmd_texts[0] != "lindex":
-        return None
-    # List argument must be a braced literal.
-    if not cmd_single[1] or cmd_tokens[1].type is not TokenType.STR:
-        return None
-    list_text = cmd_texts[1]
-    # Only handle simple lists (no nested braces or backslashes).
-    if any(ch in list_text for ch in "{}\\"):
-        return None
-    # Index must be a literal.
-    if not cmd_single[2]:
-        return None
-    if cmd_tokens[2].type not in (TokenType.STR, TokenType.ESC):
-        return None
-    idx_text = cmd_texts[2].strip()
-    if idx_text == "end":
-        idx = -1
-    elif idx_text.startswith("end-"):
-        try:
-            offset = int(idx_text[4:])
-            idx = -(offset + 1)
-        except ValueError:
-            return None
-    else:
-        try:
-            idx = int(idx_text)
-        except ValueError:
-            return None
-    elements = list_text.split()
-    if not elements:
-        return ""
-    if idx < 0:
-        idx = len(elements) + idx
-    if idx < 0 or idx >= len(elements):
-        return ""
-    result = elements[idx]
-    if not _SAFE_WORD_RE.fullmatch(result):
-        return None
-    return result
-
-
 def _try_incr_idiom(
     argv_texts: list[str],
     argv_tokens: list[Token],
@@ -645,6 +571,11 @@ def _try_incr_idiom(
     from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprRaw, ExprVar
 
     if len(argv_texts) != 3 or argv_texts[0] != "set":
+        return None
+    # The rewrite reads ``set`` and emits ``incr`` — only sound while both still
+    # denote their builtins (a rename/redefinition makes the rewrite change
+    # behaviour).
+    if not builtin_is_trusted("set") or not builtin_is_trusted("incr"):
         return None
     # Variable must be a simple name.
     if not argv_single[1] or argv_tokens[1].type not in (TokenType.ESC, TokenType.STR):
@@ -757,3 +688,62 @@ def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | N
     if strlen_arg is not None:
         return ("strlen", strlen_arg, n - 1)
     return None
+
+
+def safe_string_constants(
+    constants: dict[str, str],
+    block,
+    use_idx: int,
+) -> dict[str, str]:
+    """Return the subset of *constants* safe for string-interpolation propagation.
+
+    String interpolation was previously not propagated, so existing tests rely
+    on SCCP-unsound scenarios (upvar aliasing, catch exception paths) being
+    harmless.  To avoid regressions we only propagate a constant into a string
+    when its defining assignment is in the **same basic block** and there is no
+    intervening ``IRCall`` or ``IRBarrier`` between the definition and the use
+    that could mutate the variable through ``upvar`` or exception side-effects.
+
+    The defining assignment may be any constant-producing form — numeric
+    (``IRAssignConst``), a string value (``set a hi`` → ``IRAssignValue``), or a
+    folded expression (``IRAssignExpr``) — not just ``IRAssignConst``; the SCCP
+    lattice (via *constants*) already proves the value is constant.
+
+    ``use_idx`` is the statement index of the use; pass ``len(block.statements)``
+    to gate the block's *terminator* (e.g. a ``return``), which sits after every
+    statement.
+    """
+    if not constants:
+        return constants
+
+    # Scan statements [0 .. use_idx) in this block to find the most recent
+    # constant-producing assignment for each name and whether a call/barrier
+    # sits between the def and the use.
+    last_def_idx: dict[str, int] = {}
+    call_or_barrier_indices: list[int] = []
+
+    for si in range(use_idx):
+        if si >= len(block.statements):
+            break
+        s = block.statements[si]
+        if isinstance(s, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
+            name = _normalise_var_name(s.name)
+            if name in constants:
+                last_def_idx[name] = si
+        if isinstance(s, (IRCall, IRBarrier)):
+            call_or_barrier_indices.append(si)
+
+    if not last_def_idx:
+        return {}
+
+    safe: dict[str, str] = {}
+    for name, def_si in last_def_idx.items():
+        # Check that no call/barrier sits between the def and the use.
+        blocked = False
+        for ci in call_or_barrier_indices:
+            if ci > def_si:
+                blocked = True
+                break
+        if not blocked:
+            safe[name] = constants[name]
+    return safe

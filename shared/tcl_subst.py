@@ -1,7 +1,10 @@
-"""Tcl backslash escape processing.
+"""Tcl backslash escape processing (the unescape primitive).
 
-Shared by the compiler (for expr string literals inside braces) and
-the VM runtime substitution engine.
+A pure, dialect-agnostic port of Tcl's backslash substitution
+(``Tcl_Backslash`` / the ``\\`` arm of ``TclSubstTokens``).  Lives in
+``shared/`` so every concern that needs to decode Tcl escapes — the parser,
+codegen, the bytecode VM, list splitting in :mod:`shared.tcl_list` — shares one
+implementation rather than re-deriving the escape table.
 """
 
 from __future__ import annotations

@@ -24,6 +24,7 @@ from .cfg import (
     cfg_context_fingerprint,
     prepare_cfg_context,
 )
+from .command_trust import command_trust, module_command_trust
 from .connection_scope import ConnectionScope, build_connection_scope
 from .core_analyses import FunctionAnalysis, analyse_function
 from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
@@ -472,207 +473,209 @@ def _compile_source_inner(
     from .passes.interp_boundaries import insert_interp_boundaries
 
     ir_module = insert_interp_boundaries(ir_module)
+    with command_trust(module_command_trust(ir_module)):
+        # Extract TclOO class names from the IR so type propagation can
+        # recognise ``[ClassName new]`` as returning an OBJECT instance.
+        if not known_classes:
+            known_classes = _extract_class_names(ir_module)
+        known_classes_fp = known_classes_fingerprint(known_classes)
 
-    # Extract TclOO class names from the IR so type propagation can
-    # recognise ``[ClassName new]`` as returning an OBJECT instance.
-    if not known_classes:
-        known_classes = _extract_class_names(ir_module)
-    known_classes_fp = known_classes_fingerprint(known_classes)
-
-    upvar_procs, all_proc_params = prepare_cfg_context(ir_module)
-    context_fingerprint = cfg_context_fingerprint(upvar_procs, all_proc_params)
-    top_cfg = build_cfg_function(
-        "::top",
-        ir_module.top_level,
-        upvar_procs=upvar_procs,
-        proc_params=all_proc_params,
-        faithful_exceptions=True,
-    )
-    top_ssa = build_ssa(top_cfg)
-    top_analysis = analyse_function(top_cfg, top_ssa, known_classes=known_classes)
-    top_unit = FunctionUnit(
-        cfg=top_cfg,
-        ssa=top_ssa,
-        analysis=top_analysis,
-        execution_intent=build_function_execution_intent(top_cfg),
-    )
-
-    proc_cfgs: dict[str, CFGFunction] = {}
-    proc_units: dict[str, FunctionUnit] = {}
-    # D3-P2 / D3-P8 closure: collect call-site literal arg values per
-    # user proc so the SCCP analysis can fold them.  Shared helper
-    # also used by ``analyse_ir_module``; see its docstring for the
-    # full reasoning.  The per-proc fingerprint is folded into the
-    # proc-cache / reposition keys below so a proc whose body text and
-    # position are unchanged is still re-analysed when a caller edits a
-    # literal arg (``foo 1`` → ``foo 0``) that seeds its ``param_constants``.
-    from compiler.core_analyses import (
-        _collect_call_site_constants,
-        _params_constants_from_call_sites,
-    )
-
-    call_site_constants = _collect_call_site_constants(ir_module)
-    call_site_constants_fps = call_site_constants_fingerprint(call_site_constants)
-
-    for qname, ir_proc in ir_module.procedures.items():
-        cache_key = _proc_cache_key(
-            source,
-            qname,
-            ir_proc.range.start.offset,
-            ir_proc.range.end.offset,
-            stub_fingerprint=stub_fingerprint,
-            context_fingerprint=context_fingerprint,
-            start_line=ir_proc.range.start.line,
-            start_char=ir_proc.range.start.character,
-            known_classes_fp=known_classes_fp,
-            call_site_constants_fp=call_site_constants_fps.get(qname, 0),
-        )
-
-        # Try the proc cache before rebuilding CFG + SSA + analysis.
-        if proc_cache and cache_key is not None:
-            cached = proc_cache.get(cache_key)
-            if cached is not None:
-                proc_units[qname] = cached
-                proc_cfgs[qname] = cached.cfg
-                continue
-
-        # Decide the byte-size half of the complexity guard *before* SSA /
-        # dataflow: a flat generated command list is block-light (so the
-        # block-count guard inside build_ssa/analyse_function never fires) yet
-        # byte-huge, and running the full O(blocks·vars) SSA + SCCP/taint/
-        # liveness walk on it costs seconds for near-zero findings.  Thread the
-        # decision in as a skip flag so those passes return trivial results,
-        # rather than computing them and discarding via the guard afterwards.
-        body_bytes = ir_proc.range.end.offset - ir_proc.range.start.offset
-        byte_guarded = body_bytes > _DEEP_ANALYSIS_BODY_BYTES
-
-        cfg = build_cfg_function(
-            qname,
-            ir_proc.body,
+        upvar_procs, all_proc_params = prepare_cfg_context(ir_module)
+        context_fingerprint = cfg_context_fingerprint(upvar_procs, all_proc_params)
+        top_cfg = build_cfg_function(
+            "::top",
+            ir_module.top_level,
             upvar_procs=upvar_procs,
             proc_params=all_proc_params,
             faithful_exceptions=True,
         )
-        proc_cfgs[qname] = cfg
+        top_ssa = build_ssa(top_cfg)
+        top_analysis = analyse_function(top_cfg, top_ssa, known_classes=known_classes)
+        top_unit = FunctionUnit(
+            cfg=top_cfg,
+            ssa=top_ssa,
+            analysis=top_analysis,
+            execution_intent=build_function_execution_intent(top_cfg),
+        )
 
-        # Reposition fast-path: the proc body text (and every non-positional
-        # validity input) is unchanged but the proc moved, so the primary cache
-        # missed only because its absolute positions shifted.  The freshly-built
-        # CFG above already carries correct ranges; the cached unit's SSA +
-        # dataflow ``analysis`` / ``execution_intent`` are position-independent
-        # (keyed by block name + statement index + SSA value key), so reuse them
-        # instead of paying for SSA + the ~85%-of-cost dataflow analysis.  We
-        # still rebuild SSA (cheap, ~11%) because the cached SSA wraps the *old*
-        # IR statements with stale ranges and is consumed for ranges downstream.
-        if reposition_cache is not None and not byte_guarded:
-            repos_key = _proc_reposition_key(
+        proc_cfgs: dict[str, CFGFunction] = {}
+        proc_units: dict[str, FunctionUnit] = {}
+        # D3-P2 / D3-P8 closure: collect call-site literal arg values per
+        # user proc so the SCCP analysis can fold them.  Shared helper
+        # also used by ``analyse_ir_module``; see its docstring for the
+        # full reasoning.  The per-proc fingerprint is folded into the
+        # proc-cache / reposition keys below so a proc whose body text and
+        # position are unchanged is still re-analysed when a caller edits a
+        # literal arg (``foo 1`` → ``foo 0``) that seeds its ``param_constants``.
+        from compiler.core_analyses import (
+            _collect_call_site_constants,
+            _params_constants_from_call_sites,
+        )
+
+        call_site_constants = _collect_call_site_constants(ir_module)
+        call_site_constants_fps = call_site_constants_fingerprint(call_site_constants)
+
+        for qname, ir_proc in ir_module.procedures.items():
+            cache_key = _proc_cache_key(
                 source,
                 qname,
                 ir_proc.range.start.offset,
                 ir_proc.range.end.offset,
                 stub_fingerprint=stub_fingerprint,
                 context_fingerprint=context_fingerprint,
+                start_line=ir_proc.range.start.line,
+                start_char=ir_proc.range.start.character,
                 known_classes_fp=known_classes_fp,
                 call_site_constants_fp=call_site_constants_fps.get(qname, 0),
             )
-            repos = reposition_cache.get(repos_key) if repos_key is not None else None
-            if repos is not None and not repos.complexity_guarded:
-                ssa = build_ssa(cfg)
-                proc_units[qname] = FunctionUnit(
-                    cfg=cfg,
-                    ssa=ssa,
-                    analysis=repos.analysis,
-                    execution_intent=repos.execution_intent,
-                    complexity_guarded=repos.complexity_guarded,
+
+            # Try the proc cache before rebuilding CFG + SSA + analysis.
+            if proc_cache and cache_key is not None:
+                cached = proc_cache.get(cache_key)
+                if cached is not None:
+                    proc_units[qname] = cached
+                    proc_cfgs[qname] = cached.cfg
+                    continue
+
+            # Decide the byte-size half of the complexity guard *before* SSA /
+            # dataflow: a flat generated command list is block-light (so the
+            # block-count guard inside build_ssa/analyse_function never fires) yet
+            # byte-huge, and running the full O(blocks·vars) SSA + SCCP/taint/
+            # liveness walk on it costs seconds for near-zero findings.  Thread the
+            # decision in as a skip flag so those passes return trivial results,
+            # rather than computing them and discarding via the guard afterwards.
+            body_bytes = ir_proc.range.end.offset - ir_proc.range.start.offset
+            byte_guarded = body_bytes > _DEEP_ANALYSIS_BODY_BYTES
+
+            cfg = build_cfg_function(
+                qname,
+                ir_proc.body,
+                upvar_procs=upvar_procs,
+                proc_params=all_proc_params,
+                faithful_exceptions=True,
+            )
+            proc_cfgs[qname] = cfg
+
+            # Reposition fast-path: the proc body text (and every non-positional
+            # validity input) is unchanged but the proc moved, so the primary cache
+            # missed only because its absolute positions shifted.  The freshly-built
+            # CFG above already carries correct ranges; the cached unit's SSA +
+            # dataflow ``analysis`` / ``execution_intent`` are position-independent
+            # (keyed by block name + statement index + SSA value key), so reuse them
+            # instead of paying for SSA + the ~85%-of-cost dataflow analysis.  We
+            # still rebuild SSA (cheap, ~11%) because the cached SSA wraps the *old*
+            # IR statements with stale ranges and is consumed for ranges downstream.
+            if reposition_cache is not None and not byte_guarded:
+                repos_key = _proc_reposition_key(
+                    source,
+                    qname,
+                    ir_proc.range.start.offset,
+                    ir_proc.range.end.offset,
+                    stub_fingerprint=stub_fingerprint,
+                    context_fingerprint=context_fingerprint,
+                    known_classes_fp=known_classes_fp,
+                    call_site_constants_fp=call_site_constants_fps.get(qname, 0),
                 )
-                time.sleep(0)  # Yield GIL between procedures
-                continue
+                repos = reposition_cache.get(repos_key) if repos_key is not None else None
+                if repos is not None and not repos.complexity_guarded:
+                    ssa = build_ssa(cfg)
+                    proc_units[qname] = FunctionUnit(
+                        cfg=cfg,
+                        ssa=ssa,
+                        analysis=repos.analysis,
+                        execution_intent=repos.execution_intent,
+                        complexity_guarded=repos.complexity_guarded,
+                    )
+                    time.sleep(0)  # Yield GIL between procedures
+                    continue
 
-        ssa = build_ssa(cfg, force_guard=byte_guarded)
-        proc_params = frozenset(ir_proc.params)
-        param_constants = _params_constants_from_call_sites(ir_proc, call_site_constants, qname)
-        analysis = analyse_function(
-            cfg,
-            ssa,
-            params=proc_params,
+            ssa = build_ssa(cfg, force_guard=byte_guarded)
+            proc_params = frozenset(ir_proc.params)
+            param_constants = _params_constants_from_call_sites(ir_proc, call_site_constants, qname)
+            analysis = analyse_function(
+                cfg,
+                ssa,
+                params=proc_params,
+                known_classes=known_classes,
+                force_guard=byte_guarded,
+                param_constants=param_constants,
+            )
+            # Single complexity-guard decision consulted by every per-proc
+            # diagnostic pass: byte-heavy (decided above) OR block-heavy.
+            guarded = byte_guarded or is_complexity_guarded(cfg)
+            proc_units[qname] = FunctionUnit(
+                cfg=cfg,
+                ssa=ssa,
+                analysis=analysis,
+                execution_intent=build_function_execution_intent(cfg),
+                complexity_guarded=guarded,
+            )
+            time.sleep(0)  # Yield GIL between procedures
+
+        # SF-2: lower TclOO method bodies (populated in ir_module.methods by
+        # lowering) to per-method FunctionUnits, using the same CFG → SSA →
+        # analysis pipeline as procs.  Kept in a separate dict so the per-proc
+        # diagnostic passes (which iterate ``procedures``) are unaffected — only
+        # the interprocedural purity summary and the O126 optimiser gate consume
+        # methods.  Methods are analysis-only artefacts; codegen never reads them.
+        method_units: dict[str, FunctionUnit] = {}
+        for mqname, ir_method in ir_module.methods.items():
+            m_range = ir_method.range
+            m_byte_guarded = bool(
+                m_range is not None
+                and (m_range.end.offset - m_range.start.offset) > _DEEP_ANALYSIS_BODY_BYTES
+            )
+            m_cfg = build_cfg_function(
+                mqname,
+                ir_method.body,
+                upvar_procs=upvar_procs,
+                proc_params=all_proc_params,
+                faithful_exceptions=True,
+            )
+            m_ssa = build_ssa(m_cfg, force_guard=m_byte_guarded)
+            m_analysis = analyse_function(
+                m_cfg,
+                m_ssa,
+                params=frozenset(ir_method.params),
+                known_classes=known_classes,
+                force_guard=m_byte_guarded,
+            )
+            method_units[mqname] = FunctionUnit(
+                cfg=m_cfg,
+                ssa=m_ssa,
+                analysis=m_analysis,
+                execution_intent=build_function_execution_intent(m_cfg),
+                complexity_guarded=m_byte_guarded or is_complexity_guarded(m_cfg),
+            )
+            time.sleep(0)  # Yield GIL between methods
+
+        cfg_module = CFGModule(top_level=top_cfg, procedures=proc_cfgs)
+
+        interproc = analyse_interprocedural_ir(
+            ir_module,
+            source=source,
+            proc_local_cache=interproc_cache,
+            prune_local_cache=prune_interproc_cache,
+            proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
+            method_units={
+                qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in method_units.items()
+            },
+            stub_fingerprint=stub_fingerprint,
+            context_fingerprint=context_fingerprint,
+            deep_param_traits=deep_param_traits,
+        )
+
+        when_procs = {qn: fu for qn, fu in proc_units.items() if qn.startswith("::when::")}
+        conn_scope = build_connection_scope(when_procs, ir_module) if when_procs else None
+
+        return CompilationUnit(
+            source=source,
+            ir_module=ir_module,
+            cfg_module=cfg_module,
+            top_level=top_unit,
+            procedures=proc_units,
+            interproc=interproc,
+            methods=method_units,
+            connection_scope=conn_scope,
             known_classes=known_classes,
-            force_guard=byte_guarded,
-            param_constants=param_constants,
         )
-        # Single complexity-guard decision consulted by every per-proc
-        # diagnostic pass: byte-heavy (decided above) OR block-heavy.
-        guarded = byte_guarded or is_complexity_guarded(cfg)
-        proc_units[qname] = FunctionUnit(
-            cfg=cfg,
-            ssa=ssa,
-            analysis=analysis,
-            execution_intent=build_function_execution_intent(cfg),
-            complexity_guarded=guarded,
-        )
-        time.sleep(0)  # Yield GIL between procedures
-
-    # SF-2: lower TclOO method bodies (populated in ir_module.methods by
-    # lowering) to per-method FunctionUnits, using the same CFG → SSA →
-    # analysis pipeline as procs.  Kept in a separate dict so the per-proc
-    # diagnostic passes (which iterate ``procedures``) are unaffected — only
-    # the interprocedural purity summary and the O126 optimiser gate consume
-    # methods.  Methods are analysis-only artefacts; codegen never reads them.
-    method_units: dict[str, FunctionUnit] = {}
-    for mqname, ir_method in ir_module.methods.items():
-        m_range = ir_method.range
-        m_byte_guarded = bool(
-            m_range is not None
-            and (m_range.end.offset - m_range.start.offset) > _DEEP_ANALYSIS_BODY_BYTES
-        )
-        m_cfg = build_cfg_function(
-            mqname,
-            ir_method.body,
-            upvar_procs=upvar_procs,
-            proc_params=all_proc_params,
-            faithful_exceptions=True,
-        )
-        m_ssa = build_ssa(m_cfg, force_guard=m_byte_guarded)
-        m_analysis = analyse_function(
-            m_cfg,
-            m_ssa,
-            params=frozenset(ir_method.params),
-            known_classes=known_classes,
-            force_guard=m_byte_guarded,
-        )
-        method_units[mqname] = FunctionUnit(
-            cfg=m_cfg,
-            ssa=m_ssa,
-            analysis=m_analysis,
-            execution_intent=build_function_execution_intent(m_cfg),
-            complexity_guarded=m_byte_guarded or is_complexity_guarded(m_cfg),
-        )
-        time.sleep(0)  # Yield GIL between methods
-
-    cfg_module = CFGModule(top_level=top_cfg, procedures=proc_cfgs)
-
-    interproc = analyse_interprocedural_ir(
-        ir_module,
-        source=source,
-        proc_local_cache=interproc_cache,
-        prune_local_cache=prune_interproc_cache,
-        proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
-        method_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in method_units.items()},
-        stub_fingerprint=stub_fingerprint,
-        context_fingerprint=context_fingerprint,
-        deep_param_traits=deep_param_traits,
-    )
-
-    when_procs = {qn: fu for qn, fu in proc_units.items() if qn.startswith("::when::")}
-    conn_scope = build_connection_scope(when_procs, ir_module) if when_procs else None
-
-    return CompilationUnit(
-        source=source,
-        ir_module=ir_module,
-        cfg_module=cfg_module,
-        top_level=top_unit,
-        procedures=proc_units,
-        interproc=interproc,
-        methods=method_units,
-        connection_scope=conn_scope,
-        known_classes=known_classes,
-    )

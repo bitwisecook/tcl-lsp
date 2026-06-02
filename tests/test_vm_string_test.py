@@ -26,7 +26,6 @@ pytestmark = pytest.mark.slow
 KNOWN_FAILURES_SPLIT: set[str] = {
     "split-1.1",
     "split-1.6",
-    "split-1.8",
     "split-2.1",
     "split-2.2",
 }

@@ -11,13 +11,12 @@ else:
 
 from collections.abc import Callable
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backslash_subst
+from compiler.command_trust import builtin_is_trusted
 from compiler.registry import REGISTRY as _REGISTRY
 from compiler.registry import EmitContext as _EmitContext
+from shared.tcl_list import tcl_list_quote
+from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
-from .._encoding import (
-    _tcl_list_quote,
-)
 from .._imports import (
     runtime_import_for,
     subcommand_runtime_import_for,
@@ -799,6 +798,23 @@ class _WasmEmitterValuesMixin(_Base):
         cmd_name = parts[0]
         cmd_args = parts[1:]
 
+        # A command renamed / redefined in this unit no longer carries its
+        # builtin semantics — route it through the interpreter (which resolves
+        # the name via the live, rename-aware runtime command table) rather than
+        # any builtin fast-path / subcommand import below.  Untouched commands
+        # (the common case: an empty untrusted set) are unaffected.
+        #
+        # TODO(command-binding): this is correct when the builtin was renamed
+        # *away* (the interpreter sees no such command and errors, matching Tcl).
+        # When a builtin is renamed/redefined *to a user proc* (e.g.
+        # ``rename string ::s; proc string {...}``), the interpreter fallback
+        # currently traps because tcl_eval can't dispatch to a *compiled* proc
+        # body — full correctness needs interp→compiled-proc dispatch in the Zig
+        # runtime.  Until then this fails safe (trap) instead of miscomputing.
+        if not builtin_is_trusted(cmd_name):
+            self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+            return
+
         # [expr {...}] — compile expression and leave TclObj on stack.
         # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
@@ -1240,7 +1256,9 @@ class _WasmEmitterValuesMixin(_Base):
         prev_tokens = getattr(self, "_current_call_tokens", None)
         self._current_call_tokens = None
         try:
-            hook = _REGISTRY.get_wasm_hook(cmd_name)
+            # Skip the builtin fast-path for a command renamed/redefined in this
+            # unit — the live runtime command table resolves it instead.
+            hook = _REGISTRY.get_wasm_hook(cmd_name) if builtin_is_trusted(cmd_name) else None
             if hook is not None and hook(self, tuple(cmd_args), (), _EmitContext.VALUE):
                 return
         finally:
@@ -1586,7 +1604,7 @@ class _WasmEmitterValuesMixin(_Base):
             # Build the list string at compile time.  IR values have outer
             # braces already stripped by the lexer, so treat brace-looking
             # values (e.g. "{}" from source "{{}}") as literal data and let
-            # _tcl_list_quote encode them correctly.  Non-braced values may
+            # tcl_list_quote encode them correctly.  Non-braced values may
             # have raw backslash sequences that need expansion first; braced
             # values carry their exact source bytes and must pass through
             # unchanged.
@@ -1598,7 +1616,7 @@ class _WasmEmitterValuesMixin(_Base):
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
             list_str = " ".join(
-                _tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
+                tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
                 for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)
@@ -1613,7 +1631,7 @@ class _WasmEmitterValuesMixin(_Base):
                 self._emit_call(lappend_idx)
         else:
             # No lappend available — fall back to compile-time join.
-            # IR values are already de-braced by the lexer; _tcl_list_quote
+            # IR values are already de-braced by the lexer; tcl_list_quote
             # handles proper list encoding.
             def _prep2(a: str, braced: bool) -> str:
                 if braced:
@@ -1621,7 +1639,7 @@ class _WasmEmitterValuesMixin(_Base):
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
             list_str = " ".join(
-                _tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
+                tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
                 for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)

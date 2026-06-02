@@ -62,9 +62,7 @@ KNOWN_FAILURES_RENAME: set[str] = {
     "rename-3.2",
 }
 
-KNOWN_FAILURES_UNKNOWN: set[str] = {
-    "unknown-3.1",
-}
+KNOWN_FAILURES_UNKNOWN: set[str] = set()
 
 KNOWN_FAILURES_PROC: set[str] = {
     "proc-1.2",

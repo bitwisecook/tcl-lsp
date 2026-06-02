@@ -1010,6 +1010,11 @@ class _WasmEmitterOptMixin(_Base):
                 if self._optimise:
                     self._const_map.clear()
             elif isinstance(last, IRIncr):
+                # TODO(command-binding): not rename-gated (value/tail position).
+                # If ``incr`` is renamed/redefined in this unit this still emits
+                # the inline increment instead of routing to the interpreter; cf.
+                # the statement-context gate in _statements.py.  Gate once
+                # interp→compiled-proc dispatch lands.  See _values.py.
                 # Emit incr keeping the new value (i32 TclObj) on stack.
                 # Alias-aware: reads/writes route through globals for
                 # upvar/variable-bound locals.

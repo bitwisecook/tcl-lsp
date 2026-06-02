@@ -34,6 +34,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from shared.tcl_list import tcl_list_quote, tcl_list_split
 from shared.text_edits import apply_edits
 
 if TYPE_CHECKING:
@@ -736,35 +737,13 @@ def _eval_format(args: list[str]) -> str | None:
 
 
 def _tcl_list_split(text: str) -> list[str]:
-    """Simple Tcl list splitting (handles braces and quotes)."""
-    return _split_simple_command(text.strip())
-
-
-# Characters that require quoting when producing a Tcl list element.
-_TCL_LIST_SPECIAL = frozenset(' \t\n"{}[]$;\\')
+    """Split a Tcl list string into elements (canonical, lenient)."""
+    return tcl_list_split(text.strip())
 
 
 def _tcl_list_element(value: str) -> str:
-    """Quote *value* as a canonical Tcl list element.
-
-    Bare words are returned as-is.  Values containing Tcl special
-    characters are brace-quoted when safe, otherwise backslash-escaped.
-    """
-    if not value:
-        return "{}"
-    if not any(ch in _TCL_LIST_SPECIAL for ch in value):
-        return value
-    # Brace-quoting is safe when braces are properly nested and no backslash.
-    if "\\" not in value and _braces_balanced(value):
-        return "{" + value + "}"
-    # Fallback: backslash-escape special characters.
-    out: list[str] = []
-    for ch in value:
-        if ch in _TCL_LIST_SPECIAL:
-            out.append("\\" + ch)
-        else:
-            out.append(ch)
-    return "".join(out)
+    """Quote *value* as a canonical Tcl list element."""
+    return tcl_list_quote(value, first=False)
 
 
 # String folding core

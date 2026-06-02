@@ -1222,3 +1222,30 @@ class TestIRulesCombinedExpressions:
             )
             == 1
         )
+
+
+class TestStringComparisonFolding:
+    """`eq`/`ne`/`lt`/`gt`/`le`/`ge` compare operands AS STRINGS, so the
+    constant evaluator must extract string operands (not just numeric)."""
+
+    def test_string_eq(self):
+        assert _eval('"x" eq "x"') == 1
+        assert _eval('"x" eq "y"') == 0
+        assert _eval('"abc" eq "abc"') == 1
+
+    def test_string_ne(self):
+        assert _eval('"x" ne "y"') == 1
+        assert _eval('"x" ne "x"') == 0
+
+    def test_string_ordering(self):
+        assert _eval('"a" lt "b"') == 1
+        assert _eval('"b" gt "a"') == 1
+        assert _eval('"a" le "a"') == 1
+        assert _eval('"b" ge "b"') == 1
+
+    def test_eq_is_string_not_numeric(self):
+        # `eq` is a *string* compare: "5" and "5.0" differ as strings even
+        # though they are numerically equal (matches C Tcl 9).
+        assert _eval("5 eq 5") == 1
+        assert _eval("5 eq 5.0") == 0
+        assert _eval('5 eq "5"') == 1

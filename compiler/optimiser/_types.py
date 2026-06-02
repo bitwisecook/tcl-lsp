@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from compiler.interprocedural import InterproceduralAnalysis
@@ -12,6 +12,7 @@ from ..ir import IRModule
 
 if TYPE_CHECKING:
     from ..cfg import CFGFunction
+    from ..command_binding import CommandBinding
 
 _OPT_PRIORITY = {
     "O126": 10,
@@ -60,6 +61,10 @@ class _StringWriteChain:
     var_word: str
     writes: list[int]
     value: str
+    # When not None the chain is in *list* mode: it began as ``set var <list>``
+    # and was extended by ``lappend``, so the accumulated state is a list of
+    # elements rendered with list quoting rather than string concatenation.
+    elements: list[str] | None = None
 
 
 @dataclass
@@ -76,6 +81,22 @@ class PassContext:
     propagated_use_groups: dict[tuple[str, int], int]
     propagated_expr_stmts: set[tuple[str, int]]
     ir_module: IRModule | None
+    # Per-use-site record of which ``(name, version)`` reads were folded away at
+    # a given ``(block, statement_index)``.  A statement that folds *one*
+    # variable's ``$ref`` (e.g. ``puts "$a $b"`` where only ``$b`` is a same-block
+    # constant) must still count as a live consumer of the *other* variables it
+    # references — ``propagated_expr_stmts`` is too coarse (per-statement) for
+    # that, so DCE consults this finer-grained set instead.
+    propagated_use_sites: set[tuple[str, int, str, int]] = field(default_factory=set)
+    # Flow-sensitive command-binding lattice for the function currently being
+    # processed — set only for the **top-level** script (where definition / rename
+    # order is fully known); ``None`` inside proc/method bodies, whose per-function
+    # lattice can't see the enclosing module's proc definitions.  Proc-call folding
+    # consults it (with ``cur_block``/``cur_idx``) so a ``[a]`` after ``rename a b``
+    # is not folded as the now-renamed-away proc.
+    command_binding: CommandBinding | None = None
+    cur_block: str = ""
+    cur_idx: int = -1
 
     def alloc_group(self) -> int:
         """Allocate and return the next group ID."""

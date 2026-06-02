@@ -23,6 +23,7 @@ from typing import TypeAlias
 
 from compiler.parsing.expr_parser import parse_expr
 from compiler.registry.dialect import active_dialect
+from shared.tcl_list import tcl_list_split
 
 from .expr_ast import (
     BinOp,
@@ -195,51 +196,11 @@ def _eval_as_string(
 
 
 def _split_tcl_list(text: str) -> list[str]:
-    """Split a simple Tcl list string into elements.
+    """Split a simple Tcl list string into elements (lenient).
 
-    Handles space-separated words and brace-grouped elements.
-    Does NOT handle full Tcl list quoting rules (backslash, nested braces)
-    but covers the constant cases seen in practice.
+    Thin wrapper over the canonical :func:`shared.tcl_list.tcl_list_split`.
     """
-    result: list[str] = []
-    i = 0
-    n = len(text)
-    while i < n:
-        # Skip whitespace
-        while i < n and text[i] in " \t\n\r":
-            i += 1
-        if i >= n:
-            break
-        if text[i] == "{":
-            # Brace-quoted element
-            level = 1
-            i += 1
-            start = i
-            while i < n and level > 0:
-                if text[i] == "{":
-                    level += 1
-                elif text[i] == "}":
-                    level -= 1
-                i += 1
-            result.append(text[start : i - 1])
-        elif text[i] == '"':
-            # Quote-delimited element
-            i += 1
-            start = i
-            while i < n and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1  # skip escaped char
-                i += 1
-            result.append(text[start:i])
-            if i < n:
-                i += 1  # skip closing quote
-        else:
-            # Bare word
-            start = i
-            while i < n and text[i] not in " \t\n\r":
-                i += 1
-            result.append(text[start:i])
-    return result
+    return tcl_list_split(text)
 
 
 # Binary operators
@@ -254,6 +215,20 @@ _IRULES_STRING_OPS = frozenset(
         BinOp.MATCHES_REGEX,
         BinOp.IN,
         BinOp.NI,
+    }
+)
+
+# ``eq`` / ``ne`` / ``lt`` / ``gt`` / ``le`` / ``ge`` always compare their
+# operands *as strings* (unlike ``==``/``!=``), so a constant fold must extract
+# string operands — evaluating ``"x"`` numerically yields nothing.
+_STRING_COMPARE_OPS = frozenset(
+    {
+        BinOp.STR_EQ,
+        BinOp.STR_NE,
+        BinOp.STR_LT,
+        BinOp.STR_LE,
+        BinOp.STR_GT,
+        BinOp.STR_GE,
     }
 )
 
@@ -296,6 +271,17 @@ def _eval_binary(
         if rs is None:
             return None
         return _apply_irules_string_op(op, ls, rs)
+
+    # ``eq``/``ne``/``lt``/``gt``/``le``/``ge`` — string comparison: extract
+    # string operands (so ``"x" ne "y"`` and ``5 eq "5"`` fold) and compare.
+    if op in _STRING_COMPARE_OPS:
+        ls = _eval_as_string(left, env)
+        if ls is None:
+            return None
+        rs = _eval_as_string(right, env)
+        if rs is None:
+            return None
+        return _apply_string_compare(op, ls, rs)
 
     # All other operators evaluate both sides
     lv = _eval(left, env)
@@ -379,20 +365,29 @@ def _apply_binary(op: BinOp, a: TclValue, b: TclValue) -> TclValue | None:
         case BinOp.GE:
             return 1 if a >= b else 0
 
-        # String comparison — compare string representations
-        case BinOp.STR_EQ:
-            return 1 if str(a) == str(b) else 0
-        case BinOp.STR_NE:
-            return 1 if str(a) != str(b) else 0
-        case BinOp.STR_LT:
-            return 1 if str(a) < str(b) else 0
-        case BinOp.STR_LE:
-            return 1 if str(a) <= str(b) else 0
-        case BinOp.STR_GT:
-            return 1 if str(a) > str(b) else 0
-        case BinOp.STR_GE:
-            return 1 if str(a) >= str(b) else 0
+        # String-comparison ops (eq/ne/lt/le/gt/ge) are routed to
+        # ``_apply_string_compare`` from ``_eval_binary`` before they ever reach
+        # here (they need string — not numeric — operands), so they fall through.
+        case _:
+            return None
 
+
+def _apply_string_compare(op: BinOp, a: str, b: str) -> int | None:
+    """Apply a Tcl string-comparison operator (``eq``/``ne``/``lt``/…) to two
+    already-stringified operands, returning ``1``/``0`` or ``None``."""
+    match op:
+        case BinOp.STR_EQ:
+            return 1 if a == b else 0
+        case BinOp.STR_NE:
+            return 1 if a != b else 0
+        case BinOp.STR_LT:
+            return 1 if a < b else 0
+        case BinOp.STR_LE:
+            return 1 if a <= b else 0
+        case BinOp.STR_GT:
+            return 1 if a > b else 0
+        case BinOp.STR_GE:
+            return 1 if a >= b else 0
         case _:
             return None
 

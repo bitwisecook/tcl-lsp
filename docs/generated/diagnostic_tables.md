@@ -31,6 +31,7 @@
 | W125 | warning | Orphaned control-flow keyword used as standalone command. | ✓ |
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W127 | warning | Value not in the command's allowed set. | ✓ |
+| W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
@@ -138,6 +139,8 @@
 | O126 | dce | Remove unused variable assignments — eliminate `set` statements for variables that are never read. |  |  | ✓ |
 | O127 | code_motion | Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. |  |  | ✓ |
 | O128 | readability | Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument. | ✓ | ✓ | ✓ |
+| O129 | constant_folding | Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …). |  | ✓ | ✓ |
+| O130 | pattern | Fold static `lappend` list build chains into a single assignment. |  | ✓ | ✓ |
 
 **Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
 progressively more passes (single-pass). `aggressive` = `full` with multi-pass

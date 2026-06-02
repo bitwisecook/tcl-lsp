@@ -64,6 +64,30 @@ class TestOptimiseDocument:
         # The rewritten source folds the constant through to the puts.
         assert "puts 3" in result["source"]
 
+    def _optimised(self, source: str) -> str:
+        uri = "file:///opt.tcl"
+        workspace_state.open(uri, source)
+        result = commands.on_optimise_document(uri)
+        assert result is not None
+        return result["source"]
+
+    def test_string_constant_interpolation(self):
+        # O105: a safe string constant folds into an interpolating string.
+        assert 'puts "val=hello"' in self._optimised('set x hello\nputs "val=$x"\n')
+
+    def test_nested_command_substitution_folds(self):
+        # Inside-out fold: [list a b c] -> {a b c}, then [llength {a b c}] -> 3.
+        assert "puts 3" in self._optimised("puts [llength [list a b c]]\n")
+
+    def test_return_string_interpolation(self):
+        out = self._optimised('proc f {} {set x hi\nreturn "got $x"}\nputs [f]\n')
+        assert 'return "got hi"' in out
+
+    def test_rename_blocks_unsound_fold(self):
+        # A builtin renamed away must NOT be folded with builtin semantics.
+        out = self._optimised("rename list ::l\nputs [llength [list a b c]]\n")
+        assert "puts 3" not in out
+
 
 # ── tools: minify document ─────────────────────────────────────────────
 
@@ -142,6 +166,14 @@ class TestServerDiagnostics:
     def test_catch_without_result_is_w302(self):
         codes = _codes(get_diagnostics("catch {error e}\n"))
         assert "W302" in codes
+
+    def test_renamed_away_command_is_w128(self):
+        codes = _codes(get_diagnostics("proc a {} {return 1}\na\nrename a b\na\n"))
+        assert "W128" in codes
+
+    def test_renamed_command_new_name_is_clean(self):
+        codes = _codes(get_diagnostics("proc a {} {return 1}\na\nrename a b\nb\n"))
+        assert "W128" not in codes
 
     def test_arity_error_is_e002(self):
         diags = get_diagnostics("set\n")

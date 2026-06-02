@@ -10,6 +10,7 @@ from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from compiler.types import TclType
 
 from ._base import register
+from .const_fold import fold_scan
 
 _SOURCE = "Tcl man page scan.n"
 
@@ -44,6 +45,7 @@ class ScanCommand(CommandDef):
                 ),
             ),
             arg_role_resolver=_scan_arg_roles,
+            const_fold=fold_scan,
             validation=ValidationSpec(
                 arity=Arity(2),
             ),

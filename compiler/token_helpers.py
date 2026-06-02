@@ -12,6 +12,20 @@ from shared.tokens import Token, TokenType
 
 from .eval_helpers import DECIMAL_INT_RE
 
+# Compiler-internal marker for a braced scalar whose name is array-shaped.
+# ``${a(1)}`` in source refers to a *scalar* named ``a(1)`` — braces suppress
+# array parsing — unlike bare ``$a(1)`` (array ``a`` element ``1``).
+# :func:`word_piece` reconstructs the braced-scalar word as ``$={name}`` so the
+# rest of the pipeline can tell the two apart (codegen emits push + loadStk for
+# the marked form rather than an array load).  It is a *variable reference*,
+# never a literal — analyses must decode it, not treat it as opaque text.
+BRACED_SCALAR_MARKER_PREFIX = "$={"
+
+
+def contains_braced_scalar_marker(text: str) -> bool:
+    """True if *text* embeds a ``$={name}`` braced-scalar variable marker."""
+    return BRACED_SCALAR_MARKER_PREFIX in text
+
 
 def word_piece(tok: Token) -> str:
     """Return the source-level text fragment for a single token.
@@ -46,7 +60,7 @@ def word_piece(tok: Token) -> str:
             # Braced form with array-like name: ${a(1)} is a scalar,
             # NOT an array access.  Mark with $= prefix so codegen
             # emits push + loadStk instead of array load.
-            return f"$={{{tok.text}}}"
+            return f"{BRACED_SCALAR_MARKER_PREFIX}{tok.text}}}"
         # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
         # inside the parens) must round-trip verbatim — the ``${…}`` wrapper
         # below would collapse the recursive substitution into a literal

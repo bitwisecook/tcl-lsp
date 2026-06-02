@@ -80,6 +80,27 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("W128 fires for a call to a command renamed away earlier in the file", async () => {
+    const renameUri = getDocUri("diagnostics-rename.tcl");
+    await activate(renameUri);
+    const diagnostics = await waitForDiagnostics(renameUri, { minCount: 1 });
+
+    const w128 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W128";
+    });
+
+    assert.ok(w128.length >= 1, `Expected at least one W128 diagnostic, got ${w128.length}`);
+    assert.ok(
+      w128.every((d) => d.severity === vscode.DiagnosticSeverity.Warning),
+      "W128 should be a warning",
+    );
+    assert.ok(
+      w128.some((d) => d.message.includes("renamed or deleted")),
+      `Expected W128 message to mention rename/delete, got: ${w128.map((d) => d.message).join("; ")}`,
+    );
+  });
+
   test("W125 does not fire for correctly placed else", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);

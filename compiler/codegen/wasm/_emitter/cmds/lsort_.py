@@ -18,7 +18,7 @@ def _smart_quote_arg(a: str) -> str:
     """Quote *a* as a single Tcl word for ``tcl_eval``.
 
     Mirrors the eval-fallback logic without the double-brace
-    wrapping that ``_tcl_list_quote`` applies for safety: we know
+    wrapping that ``tcl_list_quote`` applies for safety: we know
     each arg here came from a parsed source word (literal,
     substitution, or option) so we can use the simpler rule of
     ``{a}`` when *a* has whitespace and balanced braces, ``"a"``

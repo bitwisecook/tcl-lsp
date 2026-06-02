@@ -149,6 +149,54 @@ class _LocalFacts:
     writes_global: bool
     effect_reads: EffectRegion
     effect_writes: EffectRegion
+    # Local variable names this proc has aliased into global / enclosing-
+    # namespace scope via ``global`` / ``variable`` / ``upvar #0`` (or ``0``).
+    # A write to any of these names mutates a variable the *caller* can see,
+    # so it counts as ``writes_global`` even though the written name is bare.
+    global_aliases: set[str] = field(default_factory=set)
+
+
+def _global_alias_names(command: str, args: tuple[str, ...]) -> set[str] | None:
+    """Local names a scope-aliasing *command* binds to global/namespace scope.
+
+    Returns ``None`` when *command* is not a global-aliasing declaration.
+    Returns the set of bound local names for ``global`` / ``variable`` /
+    ``upvar #0`` (``0``); a sentinel-bearing set including ``""`` signals a
+    dynamic/unbounded declaration the caller must treat pessimistically.
+
+    ``upvar`` at any *other* level aliases a caller frame, not global scope,
+    and is handled conservatively elsewhere — so it returns ``None`` here.
+    """
+
+    def _names(raw_names: list[str]) -> set[str]:
+        out: set[str] = set()
+        for raw in raw_names:
+            head = raw.lstrip()[:1]
+            if head in ("$", "["):
+                # Dynamic alias target — can't bound the name set.
+                out.add("")
+                continue
+            out.add(_normalise_var_name(raw))
+        return out
+
+    if command == "global":
+        return _names(list(args))
+    if command == "variable":
+        # ``variable name ?value? name ?value? ...`` — names at even indices.
+        return _names([args[i] for i in range(0, len(args), 2)])
+    if command == "upvar":
+        if not args:
+            return None
+        level = args[0].strip()
+        # Only ``#0`` / ``0`` alias the *global* frame.  ``upvar`` with the
+        # level omitted defaults to 1 (a caller frame), as do explicit
+        # numeric levels — none of which is a global write.
+        if level not in ("#0", "0"):
+            return None
+        # ``upvar #0 otherVar localVar ...`` — local names are every second
+        # arg after the level.
+        return _names([args[i] for i in range(2, len(args), 2)])
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -580,6 +628,27 @@ def _scan_local_facts(
             continue
 
         if isinstance(stmt, IRCall):
+            # Track scope-aliasing declarations (``global`` / ``variable`` /
+            # ``upvar #0``) so a later bare ``set g`` / ``incr g`` to an
+            # aliased name is recognised as a global write.  These declaration
+            # commands record ``defs`` for the alias itself, so handle them
+            # before the defs-based write check below (declaring is not
+            # writing a value).
+            alias_names = _global_alias_names(stmt.command, stmt.args)
+            if alias_names is not None:
+                if "" in alias_names:
+                    # Dynamic/unbounded alias target — be conservative.
+                    facts.writes_global = True
+                facts.global_aliases |= {n for n in alias_names if n}
+            else:
+                # A non-declaration command that writes a global-aliased or
+                # ``::``-qualified variable (``append g``, ``lappend g``,
+                # ``dict set ::cfg ...``) mutates caller-visible state.
+                for name in stmt.defs:
+                    if name and (name.startswith("::") or name in facts.global_aliases):
+                        facts.writes_global = True
+                        break
+
             target = resolve_call_target(stmt.command, stmt.args, caller_qname, known_procs)
             if target is None:
                 _apply_effect(
@@ -611,7 +680,7 @@ def _scan_local_facts(
             continue
 
         if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
-            if stmt.name.startswith("::"):
+            if stmt.name.startswith("::") or stmt.name in facts.global_aliases:
                 facts.writes_global = True
             if isinstance(stmt, IRAssignExpr) and _expr_has_command_sub(stmt.expr):
                 facts.has_unknown_calls = True
