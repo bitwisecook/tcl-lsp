@@ -4659,6 +4659,81 @@ def _builtin_x509_from_config(value: Any) -> dict[str, Any]:
 
 
 @_register(
+    "ucs_cert",
+    summary="Parse the real certificate a BIG-IP cert object points at, read from its UCS.",
+    signatures=("ucs_cert(cert: object) -> object",),
+    details="""
+    Takes a ``sys file ssl-cert`` (or ``cm cert``) object that was
+    loaded from a UCS archive and returns the *actual* certificate,
+    parsed into the same shape :func:`x509_parse` produces (``subject``
+    / ``issuer`` / ``serial`` / ``fingerprint_sha256`` / ``sans`` /
+    ``not_after`` / ``key_size`` / ``public_key_pem`` / …).
+
+    Unlike :func:`x509_from_config`, which only surfaces the metadata
+    the ``.conf`` stanza happens to record — on a real archive that is
+    often just file pointers (``cache-path`` / ``revision``), with no
+    ``fingerprint`` / ``serial`` / ``sans`` — ``ucs_cert`` re-opens the
+    UCS the object came from, reads the PEM out of the filestore
+    (located by the stanza's ``cache-path``), and parses it.  That
+    recovers the full identity even when the stanza carries nothing.
+
+    Certificates are public, so no key or master key is involved.  An
+    encrypted UCS is decrypted with the same passphrase resolution the
+    other verbs use (``$F5_UCS_PASSPHRASE`` / prompt).  Reads from disk
+    like :func:`cert_load`; it is not gated by ``--enable-probes``.
+
+    Raises when the object did not come from a file-backed UCS, when
+    the stanza has no ``cache-path``, or when no matching member is in
+    the archive.
+
+    Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
+    ``cert_load``, ``tls_handshake``.
+    """,
+    examples=(
+        '.sys["file-ssl-cert"]["/Common/app.crt"] | ucs_cert(.)',
+        '.sys["file-ssl-cert"][] | ucs_cert(.) | {subject, fingerprint_sha256, not_after}',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ucs_cert(value: Any) -> dict[str, Any]:
+    from ._probes import UCS_CERT_READER
+
+    if not isinstance(value, ObjectRef):
+        raise BuiltinError(
+            "ucs_cert: expects a sys file ssl-cert object (pipe through "
+            '.sys["file-ssl-cert"][ref] first)'
+        )
+    config_uri = value.config_uri or ""
+    if not config_uri:
+        raise BuiltinError(
+            f"ucs_cert: {value.full_path or 'object'} has no source — it was not "
+            "loaded from a UCS / file"
+        )
+    cache_path = ""
+    for key in ("cache-path", "source-path"):
+        raw = value.fields.get(key)
+        if raw:
+            cache_path = str(raw).strip().strip('"')
+            if key == "source-path" and cache_path.startswith("file://"):
+                cache_path = cache_path[len("file://") :]
+            if cache_path:
+                break
+    if not cache_path:
+        raise BuiltinError(
+            f"ucs_cert: {value.full_path or 'cert'} has no cache-path/source-path; "
+            "cannot locate the cert file in the archive"
+        )
+    reader = UCS_CERT_READER.get()
+    if reader is None:
+        raise BuiltinError(
+            "ucs_cert: no UCS reader is wired in this context (run it through the f5 CLI)"
+        )
+    return reader(config_uri, cache_path)
+
+
+@_register(
     "x509_eq",
     summary="Compare two ``x509_parse``-shaped dicts for cert identity.",
     signatures=("x509_eq(a: object, b: object) -> boolean",),

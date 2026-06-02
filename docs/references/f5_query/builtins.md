@@ -35,7 +35,7 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition), [`rename_prefix`](#rename_prefix)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_config`](#x509_from_config), [`x509_parse`](#x509_parse)
+  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`ucs_cert`](#ucs_cert), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_config`](#x509_from_config), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`), object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`), and jq-style tree manipulation (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `walk` / `recurse` / `until` / `repeat`).
@@ -5621,6 +5621,49 @@ Hops the router didn't answer for show up with ``ip=null``.
 
 ```
 traceroute("8.8.8.8") | last(.) | .ip
+```
+
+### `ucs_cert`
+
+Parse the real certificate a BIG-IP cert object points at, read from its UCS.
+
+**Signatures**
+
+- `ucs_cert(cert: object) -> object`
+
+**Details**
+
+Takes a ``sys file ssl-cert`` (or ``cm cert``) object that was
+loaded from a UCS archive and returns the *actual* certificate,
+parsed into the same shape :func:`x509_parse` produces (``subject``
+/ ``issuer`` / ``serial`` / ``fingerprint_sha256`` / ``sans`` /
+``not_after`` / ``key_size`` / ``public_key_pem`` / …).
+
+Unlike :func:`x509_from_config`, which only surfaces the metadata
+the ``.conf`` stanza happens to record — on a real archive that is
+often just file pointers (``cache-path`` / ``revision``), with no
+``fingerprint`` / ``serial`` / ``sans`` — ``ucs_cert`` re-opens the
+UCS the object came from, reads the PEM out of the filestore
+(located by the stanza's ``cache-path``), and parses it.  That
+recovers the full identity even when the stanza carries nothing.
+
+Certificates are public, so no key or master key is involved.  An
+encrypted UCS is decrypted with the same passphrase resolution the
+other verbs use (``$F5_UCS_PASSPHRASE`` / prompt).  Reads from disk
+like :func:`cert_load`; it is not gated by ``--enable-probes``.
+
+Raises when the object did not come from a file-backed UCS, when
+the stanza has no ``cache-path``, or when no matching member is in
+the archive.
+
+Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
+``cert_load``, ``tls_handshake``.
+
+**Examples**
+
+```
+.sys["file-ssl-cert"]["/Common/app.crt"] | ucs_cert(.)
+.sys["file-ssl-cert"][] | ucs_cert(.) | {subject, fingerprint_sha256, not_after}
 ```
 
 ### `url_get`

@@ -448,6 +448,60 @@ def ucs_archive_to_scf(
     return ucs_to_scf(data, include_extras=include_extras)
 
 
+def read_ucs_member(
+    raw: bytes,
+    member_path: str,
+    *,
+    passphrase_provider: PassphraseProvider | None = None,
+    label: str = "UCS",
+) -> bytes:
+    """Return the bytes of a single file member from a UCS archive.
+
+    Decrypts *raw* first when it is OpenPGP-encrypted (a UCS holds SSL
+    private keys, so the cleartext stays in memory), then extracts the
+    member named by *member_path* — typically a BIG-IP filestore
+    ``cache-path`` such as
+    ``/config/filestore/files_d/Common_d/certificate_d/:Common:foo.crt_1``.
+
+    Matching is tolerant: the leading ``/`` is optional, and the
+    ``:partition:`` filename prefix BIG-IP writes on disk is matched
+    even when the ``cache-path`` recorded in the stanza omits it (and
+    vice versa).  Raises :class:`KeyError` when no member matches and
+    :class:`ValueError` when the archive is corrupt.
+    """
+    data = decrypt_if_encrypted(raw, passphrase_provider=passphrase_provider, label=label)
+    if not is_ucs_bytes(data):
+        raise ValueError(f"{label}: not a valid UCS archive")
+    want = member_path.lstrip("/").lstrip("./")
+    base = want.rsplit("/", 1)[-1]
+    # The ``:partition:`` prefix is informational for matching — compare
+    # the bare leaf so a stanza cache-path and the on-disk filename agree.
+    bare = base.split(":")[-1]
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
+            files = [m for m in tf.getmembers() if m.isfile()]
+            by_name = {m.name.lstrip("./"): m for m in files}
+            member = by_name.get(want)
+            if member is None:
+                candidates = [
+                    m
+                    for m in files
+                    if (mbase := m.name.rsplit("/", 1)[-1]) == base or mbase.split(":")[-1] == bare
+                ]
+                if len(candidates) > 1:
+                    # Prefer a filestore path so a same-named pair in
+                    # different stores doesn't collide.
+                    narrowed = [m for m in candidates if "/filestore/" in m.name]
+                    candidates = narrowed or candidates
+                member = candidates[0] if candidates else None
+            if member is None:
+                raise KeyError(member_path)
+            fh = tf.extractfile(member)
+            return fh.read() if fh is not None else b""
+    except (tarfile.TarError, EOFError) as exc:
+        raise ValueError(f"invalid UCS archive: {exc}") from exc
+
+
 def _read_member(tf: tarfile.TarFile, member: tarfile.TarInfo) -> str:
     fh = tf.extractfile(member)
     if fh is None:
