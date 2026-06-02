@@ -1966,6 +1966,14 @@ structural sub-chunks:
   `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
   Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
   `variable n 0x80; for {…} {…} {incr n}` (tcllib idna idiom).
+  **Landed (rust):** matched `main`'s actual shape — `0x80` still types
+  as `String` (Rust `literal_type` uses `i64::from_str`, which rejects
+  hex, same as Python's `_literal_type`), so the fix is the
+  `value_is_int_literal_string` SCCP-value guard in
+  `shimmer::use_site`: the `incr` S100/S101 detector now threads
+  `fu.sccp.values` and skips the warning when the variable's CONST
+  value is a hex/oct/bin integer-literal string (mirrors
+  `_value_is_int_literal_string`, not a `_literal_type` change).
 
 Classify all of `-1e`: in-scope, low-touch each (5-50 LOC + tests);
 no structural / dependency blockers.  Suitable for PR-sized

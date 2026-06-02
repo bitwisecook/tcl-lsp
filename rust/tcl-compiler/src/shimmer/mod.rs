@@ -112,6 +112,7 @@ pub(crate) fn find_shimmer_warnings(
     types: &HashMap<ValueKey, TypeLattice>,
     executable_blocks: &HashSet<String>,
     registry: &CommandRegistry,
+    values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers(
@@ -120,6 +121,7 @@ pub(crate) fn find_shimmer_warnings(
         types,
         executable_blocks,
         registry,
+        values,
     ));
     out.extend(phi::find_phi_shimmers(cfg, ssa, types, executable_blocks));
     out.extend(expr::find_expr_shimmers(cfg, ssa, types, executable_blocks));
@@ -164,10 +166,15 @@ mod tests {
         let ssa = crate::ssa::build_ssa(&f, &registry());
         let sccp = crate::sccp::sccp(&f, &ssa, None);
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-        assert!(
-            find_shimmer_warnings(&f, &ssa, &types, &sccp.executable_blocks, &registry())
-                .is_empty()
-        );
+        assert!(find_shimmer_warnings(
+            &f,
+            &ssa,
+            &types,
+            &sccp.executable_blocks,
+            &registry(),
+            &sccp.values
+        )
+        .is_empty());
         assert!(find_thunking_warnings(&f, &ssa, &types, &sccp.executable_blocks).is_empty());
     }
 }

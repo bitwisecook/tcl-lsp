@@ -216,6 +216,7 @@ pub fn run_all_checks(
             &fu.types,
             &fu.sccp.executable_blocks,
             registry,
+            &fu.sccp.values,
         ) {
             out.push(Diagnostic::from_shimmer(&w));
         }
