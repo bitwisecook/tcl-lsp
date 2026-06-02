@@ -140,6 +140,13 @@ export async function waitForServerLog(
  * Pass ``opts.since = getServerLogSize()`` captured **before** the
  * triggering action (didOpen, edit, restart) so the wait only matches
  * the run you care about, not a deep pass from an earlier test.
+ *
+ * Defaults to a 20s deadline (matching ``waitForDiagnostics``) rather
+ * than ``waitForServerLog``'s 5s: the deep pass runs *after* the basic
+ * pass and is at least as slow, so under parallel ``test-slow`` load it
+ * routinely needs more than 5s to land — a tighter default made callers
+ * like the ``optimiser.enabled`` toggle test flake.  Callers may still
+ * pass an explicit ``timeout`` to override.
  */
 export async function waitForDeepDiagnostics(
   docUri: vscode.Uri,
@@ -148,7 +155,7 @@ export async function waitForDeepDiagnostics(
   const uri = docUri.toString();
   const hit = await waitForServerLog(
     (line) => line.includes("[timing] deep diagnostics") && line.includes(`uri=${uri}`),
-    opts,
+    { since: opts?.since, timeout: opts?.timeout ?? 20_000 },
   );
   if (hit === null) {
     throw new Error(
