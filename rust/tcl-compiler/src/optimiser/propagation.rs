@@ -602,6 +602,21 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
+        // O129: fold a pure-builtin cmd-sub with constant (literal) args
+        // through the registry `const_fold` callback (no interproc
+        // needed). Checked before the O103 interproc bail so it fires
+        // even when no interprocedural summary is available.
+        if let Some(reg) = ctx.registry {
+            if let Some(folded) = try_o129_fold(reg, inner) {
+                ctx.report(Optimisation::new(
+                    "O129",
+                    "Fold constant builtin command substitution",
+                    full_word_span(ctx.source, *argv_span),
+                    folded,
+                ));
+                continue;
+            }
+        }
         // O103 (below) folds a pure-proc cmd-sub to its constant return.
         let Some(ia) = cu.interproc.as_ref() else {
             continue;
@@ -664,6 +679,72 @@ fn parse_cmd_subst_head(inner: &str) -> Option<&str> {
         return None;
     }
     Some(head)
+}
+
+/// O129 (SYNC-JUN02b-6, #519): fold a pure-builtin command substitution
+/// `[cmd args…]` (or `[cmd sub args…]`) whose arguments are constant
+/// literals, by consulting the registry `const_fold` callback for the
+/// resolved command (or subcommand). Returns the rendered replacement
+/// word, or `None` when the head isn't a const-foldable builtin, an
+/// argument isn't a clean literal, or the fold itself declines.
+///
+/// The result is rendered through [`render_propagation_word`] so a
+/// multi-word fold result (`string toupper {a b}` → `A B`) is emitted
+/// as a single brace-quoted word.
+fn try_o129_fold(registry: &tcl_registry::CommandRegistry, inner: &str) -> Option<String> {
+    let words = literal_words(inner)?;
+    let (head, rest) = words.split_first()?;
+    let spec = registry.get(head)?;
+    let folded = if spec.subcommands.is_empty() {
+        let fold = spec.const_fold?;
+        let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
+        fold(&arg_refs)?
+    } else {
+        // Subcommand-dispatched builtin (`string`, `dict`, …): the fold
+        // lives on the matching subcommand and sees the args after it.
+        let (sub, sub_rest) = rest.split_first()?;
+        let fold = spec.subcommand(sub)?.const_fold?;
+        let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
+        fold(&arg_refs)?
+    };
+    Some(render_propagation_word(&folded))
+}
+
+/// Re-lex a command-substitution interior into its literal words for the
+/// O129 const-fold. Returns `None` (bail — do not fold) if any word is
+/// not a single clean literal token: a `$var` / `[cmd]` substitution
+/// (`Var` / `Cmd`), a multi-token word (`foo$bar`), or a word whose text
+/// carries a backslash escape (decoding is out of scope here). A braced
+/// literal (`{a b}`, `{a$b}`) yields its interior text — the contents
+/// are literal, so they fold soundly.
+fn literal_words(inner: &str) -> Option<Vec<String>> {
+    use tcl_lexer::{Lexer, SourceMap, TokenType};
+
+    let sm = SourceMap::new(inner);
+    let tokens = Lexer::new(inner).tokenise_all().ok()?;
+    let mut words: Vec<String> = Vec::new();
+    let mut prev_is_sep = true;
+    for tok in &tokens {
+        match tok.kind {
+            TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment => {
+                prev_is_sep = true;
+            }
+            TokenType::Esc | TokenType::Str => {
+                if !prev_is_sep {
+                    return None; // multi-token word — not a clean literal
+                }
+                let text = sm.token_text(*tok);
+                if text.contains('\\') {
+                    return None; // unhandled escape — bail conservatively
+                }
+                words.push(text.to_owned());
+                prev_is_sep = false;
+            }
+            // Var / Cmd (and any future kind) → substitution-bearing.
+            _ => return None,
+        }
+    }
+    Some(words)
 }
 
 fn visit_call_tokens(
@@ -1315,6 +1396,35 @@ mod tests {
         assert!(!has_o115("proc ::f {x} { puts [expr {$x + 1}] }"));
         assert!(!has_o115("proc ::f {x} { return [expr {$x + 1}] }"));
         assert!(!has_o115("proc ::f {x} { puts [expr {[someproc]}] }"));
+    }
+
+    #[test]
+    fn o129_folds_pure_builtin_cmd_subst() {
+        // SYNC-JUN02b-6 (#519): a pure-builtin cmd-sub with constant
+        // (literal) args folds via the registry `const_fold` callback
+        // (O129). `optimise_raw` sets `ctx.registry`, which the O129
+        // path requires.
+        let fold = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O129")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
+        assert_eq!(fold("puts [string tolower BAR]"), vec!["bar".to_string()]);
+        assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
+        // A braced literal with a space → result rendered as one word.
+        assert_eq!(
+            fold("puts [string toupper {a b}]"),
+            vec!["{A B}".to_string()],
+        );
+        // A `$var` arg is not a constant literal → no fold.
+        assert!(fold("puts [string toupper $x]").is_empty());
+        // The range form (`string toupper s first last`) does not fold.
+        assert!(fold("puts [string toupper foo 0 0]").is_empty());
+        // A non-builtin head (a user proc) is not an O129 candidate.
+        assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
     }
 
     #[test]

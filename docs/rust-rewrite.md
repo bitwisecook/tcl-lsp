@@ -2981,13 +2981,30 @@ than fixes:
   hides expr-cmd-sub reads, so `puts [expr {$x + 1}]` folds via a
   reaching-version augmentation).
 Classify in-scope, **features** — each its own incremental strip.
-**Rust state: deferred.**  The Rust optimiser has **no registry
-`const_fold` / `FOLD_HINTS` mechanism** — builtin folding lives only in
-SCCP's hand-rolled `try_fold_cmd_subst` (list / format / llength /
-string-length / expr) and the value-position cmd-sub fold path
-(`propagation::visit_call_cmd_subst_folds`) handles **proc calls only**.
-So O129 / O130 / scan / the registry-routed list-lindex all need the
-fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
+**Rust state: FOLD_HINTS mechanism + O129 LANDED (initial folds);
+O130 / scan / registry-routed list-lindex deferred.**  The registry
+`const_fold` mechanism is now wired: pure builtins expose a
+`ConstFoldFn` (already a field on `CommandSpec` / `SubCommand`), and the
+optimiser's `propagation::try_o129_fold` resolves a cmd-sub head to its
+spec (or subcommand), checks every arg is a clean literal via
+`literal_words`, calls the `const_fold`, and renders the result through
+`render_propagation_word` (so a multi-word fold result is brace-quoted).
+Emitted as **O129** from `visit_call_cmd_subst_folds`, before the O103
+interproc bail (so it fires with no interproc summary).  This is the
+optimiser-side diagnostic only — it consults `ctx.registry` and does
+**not** thread the registry into SCCP, so the SCCP lattice fold
+(`try_fold_cmd_subst`) is untouched (the two are complementary: O129 is
+the user-facing rewrite, SCCP feeds the constant lattice).  **Folds
+landed:** `string toupper` / `tolower` / `reverse` (ASCII-restricted for
+exact Tcl parity — non-ASCII case-maps diverge, so they bail).
+**Deferred follow-ups** (same mechanism, add a `const_fold` per
+command): `string length` (main's headline O129 example — deferred only
+to first verify the interaction with SCCP's existing hand-rolled
+`string length` lattice fold), `join`, `format`, `concat`, `dict get`,
+`string map`, `string repeat`; and the list-returning folds (`split`,
+`lrange`, `lreverse`) which render their result list through the
+`tcl_list_element` quoter.  O130 (`lappend` chain → single `set`) and
+the inline `scan` fold are still their own strips.  Per-fold notes:
 - **O115 value-position unwrap** — **LANDED.**  A redundant double-expr
   cmd-sub `[expr {[expr {E}]}]` now collapses to `[expr {E}]` in
   command-argument positions (`propagation::visit_call_cmd_subst_folds`)
@@ -3287,20 +3304,24 @@ priority queue:
   existing `codegen::helpers::tcl_list_element` `TclConvertElement`
   quoter — no new leaf needed — wired into both O100 propagation sites
   via `render_propagation_word`).
-  **Deferred** (large new subsystems / missing mechanisms): **`-3`**
+  **`-6` — FOLD_HINTS mechanism + O129 LANDED (initial folds).**  The
+  registry `const_fold` mechanism is wired: `propagation::try_o129_fold`
+  resolves a cmd-sub head to its spec/subcommand, checks all args are
+  clean literals, calls the `const_fold`, and emits **O129** with the
+  result rendered as a single word.  Folds landed: `string toupper` /
+  `tolower` / `reverse` (ASCII-restricted).  Also from `-6`: the O115
+  value-position unwrap is **LANDED** (cmd-arg + `return` + the `set`
+  AssignValue follow-up — caveat: the canonical `set x [expr {[expr
+  {E}]}]` lowers to `AssignExpr`, pre-collapsing the outer `expr`, so
+  O115's *suggestion* for that exact shape is a separate AssignExpr-side
+  follow-up), and O105 is already present.  Deferred follow-ups (same
+  mechanism): more `const_fold`s (`string length`, `join`, `format`,
+  `concat`, `dict get`, `string map`, the list-returning folds), O130
+  (`lappend` chain fold), and the inline `scan` fold.
+  **Deferred** (large new subsystems): **`-3`**
   (`var_observability` optimiser lattice — Rust's `var_escape` is
-  codegen-only, no `TRACED`), **`-4`** (`command_binding` +
-  `command_trust` + W128 — no Rust counterpart), **`-6`** (new
-  const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
-  yet; the O115 value-position unwrap from `-6` is **LANDED** (cmd-arg +
-  `return`, **plus the `set` value-position follow-up**: `walk_statement`
-  now visits `Statement::AssignValue` for cmd-sub folds, so `set y
-  [::answer]` folds the pure-proc cmd-sub like `puts [::answer]` —
-  caveat: the canonical `set x [expr {[expr {E}]}]` lowers to
-  `AssignExpr`, pre-collapsing the outer `expr`, so O115's user-visible
-  *suggestion* for that exact shape is a separate AssignExpr-side
-  follow-up), O105 already present, the rest deferred behind `FOLD_HINTS`
-  + the `-1` quoter).
+  codegen-only, no `TRACED`) and **`-4`** (`command_binding` +
+  `command_trust` + W128 — no Rust counterpart).
   **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
   constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
   hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —

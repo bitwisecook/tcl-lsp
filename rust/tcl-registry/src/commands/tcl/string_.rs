@@ -2,6 +2,40 @@
 
 use crate::prelude::*;
 
+/// SYNC-JUN02b-6 (#519): compile-time folds for pure `string`
+/// subcommands, consumed by the optimiser's O129 general-builtin
+/// constant-fold path through the registry `const_fold` callbacks.
+///
+/// Each receives the arguments *after* the subcommand word (so
+/// `[string toupper foo]` calls [`fold_toupper`] with `["foo"]`) and
+/// is restricted to ASCII input: Rust's `to_ascii_uppercase` /
+/// `to_ascii_lowercase` and char-reversal agree with Tcl's
+/// `Tcl_UtfToUpper` / `Tcl_UtfToLower` / `string reverse` exactly on
+/// ASCII, while non-ASCII case mapping diverges (Rust's full Unicode
+/// `char::to_uppercase` can expand one char to several, e.g. ß → SS,
+/// whereas Tcl maps 1:1). Bailing on non-ASCII is conservative —
+/// never a wrong fold.
+fn fold_toupper(args: &[&str]) -> Option<String> {
+    match args {
+        [s] if s.is_ascii() => Some(s.to_ascii_uppercase()),
+        _ => None,
+    }
+}
+
+fn fold_tolower(args: &[&str]) -> Option<String> {
+    match args {
+        [s] if s.is_ascii() => Some(s.to_ascii_lowercase()),
+        _ => None,
+    }
+}
+
+fn fold_reverse(args: &[&str]) -> Option<String> {
+    match args {
+        [s] if s.is_ascii() => Some(s.chars().rev().collect()),
+        _ => None,
+    }
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -383,6 +417,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string reverse string",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_reverse),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -392,6 +427,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string tolower string ?first? ?last?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_tolower),
         arg_types: &[
             (
                 1,
@@ -442,6 +478,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string toupper string ?first? ?last?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_toupper),
         arg_types: &[
             (
                 1,
@@ -537,5 +574,40 @@ pub fn spec() -> CommandSpec {
             "Tcl string(1)",
         )),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CommandRegistry;
+
+    #[test]
+    fn pure_string_subcommands_carry_const_fold() {
+        // SYNC-JUN02b-6 (#519): toupper / tolower / reverse expose a
+        // const_fold callback for the optimiser's O129 path.
+        let reg = CommandRegistry::build_default();
+        let spec = reg.get("string").expect("string spec");
+
+        let toupper = spec
+            .subcommand("toupper")
+            .and_then(|s| s.const_fold)
+            .expect("toupper const_fold");
+        assert_eq!(toupper(&["foo"]).as_deref(), Some("FOO"));
+        // The range form (`string toupper s first last`) must not fold.
+        assert_eq!(toupper(&["foo", "0", "0"]), None);
+        // Non-ASCII bails (conservative — Rust/Tcl case maps diverge).
+        assert_eq!(toupper(&["caf\u{e9}"]), None);
+
+        let tolower = spec
+            .subcommand("tolower")
+            .and_then(|s| s.const_fold)
+            .expect("tolower const_fold");
+        assert_eq!(tolower(&["FOO"]).as_deref(), Some("foo"));
+
+        let reverse = spec
+            .subcommand("reverse")
+            .and_then(|s| s.const_fold)
+            .expect("reverse const_fold");
+        assert_eq!(reverse(&["abc"]).as_deref(), Some("cba"));
     }
 }
