@@ -1980,10 +1980,20 @@ structural sub-chunks:
     flags `tag` W211/W220; a genuinely-unused local still does.
     Discriminating tests `call_by_name_var_not_flagged_unused_or_dead`
     (analyser) + `collect`/`build` coverage via the trait test.
-    **Still pending:** the optimiser consumers **O109 / O126**
-    (`optimiser/{elimination,unused_procs}`) — the same proc-index +
-    `collect_call_by_name_reads` feed, gated into the dead-store /
-    unused-result folds.
+  - **(c) — O109 / O126 LANDED.**  `optimiser::elimination::run` builds
+    the proc-index once (from `ctx.interproc`) and threads it into
+    `emit_dead_stores_and_unused`, which computes the per-function
+    `collect_call_by_name_reads` and skips a dead-store (O109) / unused
+    (O126) verdict for any suppressed name — the same loop covers both.
+    Discriminating test `o109_o126_suppressed_for_call_by_name_var`
+    (a call-by-name `upvar` callee suppresses a dead store a plain
+    callee leaves intact).  **All four consumers (W211 / W220 / O109 /
+    O126) now honour call-by-name.**  Long tail (own follow-ups): the
+    full `proc_arg_traits.py` handler set the trait inference still skips
+    — `foreach`/`while`/`for`/`after` body-var writes, `scan`/`lassign`/
+    `regexp`/`regsub` variadic var-writes, and the `DYNAMIC_NAME_LOCAL`
+    refinement (only needed if `set $param` dynamic-name detection is
+    ever added).
 - **O110 InstCombine whitespace guard.**  Add the
   `strip_ws(combined) != strip_ws(input)` guard to
   `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`

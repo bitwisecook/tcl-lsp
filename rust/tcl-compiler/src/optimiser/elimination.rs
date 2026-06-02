@@ -285,6 +285,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
     let (interproc_pure, pure_methods) = pure_call_targets(ctx);
+    // SYNC-JUN02d-2: the call-by-name proc-index (caller-locals passed by
+    // name to an upvar callee must not be deleted as dead/unused — O109 /
+    // O126).  Built once; borrows `ctx.interproc` before the `&mut ctx`
+    // emit calls below.
+    let proc_index = crate::interprocedural::build_proc_index_from_summaries(&ctx.interproc);
 
     emit_unreachable(ctx, &cu.top_level);
     let baseline = emit_dead_stores_and_unused(
@@ -294,13 +299,21 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         &interproc_pure,
         &pure_methods,
         None,
+        &proc_index,
     );
     emit_adce(ctx, &cu.top_level, &baseline);
 
     for fu in cu.procedures.values() {
         emit_unreachable(ctx, fu);
-        let baseline =
-            emit_dead_stores_and_unused(ctx, fu, false, &interproc_pure, &pure_methods, None);
+        let baseline = emit_dead_stores_and_unused(
+            ctx,
+            fu,
+            false,
+            &interproc_pure,
+            &pure_methods,
+            None,
+            &proc_index,
+        );
         emit_adce(ctx, fu, &baseline);
     }
 
@@ -327,6 +340,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             &interproc_pure,
             &pure_methods,
             enclosing_class,
+            &proc_index,
         );
         emit_adce(ctx, fu, &baseline);
     }
@@ -384,6 +398,7 @@ struct DseEntry {
 /// dead SSA def in `fu.def_use`. Returns the set of SSA value
 /// keys that were reported — the ADCE pass uses it as the
 /// "already eliminated" seed for its fixpoint.
+#[allow(clippy::too_many_arguments)]
 fn emit_dead_stores_and_unused(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
@@ -391,10 +406,15 @@ fn emit_dead_stores_and_unused(
     interproc_pure: &HashSet<String>,
     pure_methods: &HashSet<String>,
     enclosing_class: Option<&str>,
+    proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
     let registry = ctx.registry;
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let scope_aliases = scan_scope_aliases(&fu.cfg);
+    // SYNC-JUN02d-2: caller-locals this function passes by name to an
+    // upvar callee — not dead/unused even when the name-level SSA sees
+    // no read (the callee reads/writes it through the alias).
+    let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
     // The `def_use` builder does not scan Return-value reads or
     // embedded string-interpolation reads; do a supplementary
     // textual pass over the CFG to collect every var name that
@@ -462,6 +482,11 @@ fn emit_dead_stores_and_unused(
         }
         // Skip cross-event vars (iRules scope).
         if ctx.cross_event_vars.contains(var) {
+            continue;
+        }
+        // SYNC-JUN02d-2: skip a caller-local passed by name to an upvar
+        // callee — the callee consumes it through the alias (O109 / O126).
+        if call_by_name.contains(var) {
             continue;
         }
         let any_other_live = fu
@@ -968,6 +993,34 @@ mod tests {
             assert_eq!(o.replacement, "");
             assert!(!o.span.is_empty());
         }
+    }
+
+    #[test]
+    fn o109_o126_suppressed_for_call_by_name_var() {
+        // SYNC-JUN02d-2: a caller-local passed by name to an upvar callee
+        // must not be deleted as a dead store / unused result.
+        // `optimise_raw` builds the interproc summaries the proc-index
+        // needs (the bare `run_pass` path has empty interproc).
+        let count_dead = |src: &str| -> usize {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .iter()
+                .filter(|o| o.code == "O109" || o.code == "O126")
+                .count()
+        };
+        // `noup` is a plain proc → `tag` is NOT call-by-name → the
+        // overwritten `set tag init` is a dead store.
+        let no_cbn = count_dead(
+            "proc ::noup {x} { return 1 }\nproc ::f {} { set tag init\nset tag x\nnoup tag }",
+        );
+        // `fill` upvar-writes its param → `tag` is call-by-name → the
+        // dead store on `tag` is suppressed.
+        let with_cbn = count_dead(
+            "proc ::fill {vn} { upvar 1 $vn v\nset v 1 }\nproc ::f {} { set tag init\nset tag x\nfill tag }",
+        );
+        assert!(
+            with_cbn < no_cbn,
+            "call-by-name should suppress a dead store (no_cbn={no_cbn}, with_cbn={with_cbn})",
+        );
     }
 
     #[test]
