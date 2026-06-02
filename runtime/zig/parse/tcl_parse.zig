@@ -295,34 +295,27 @@ pub fn parse_command(
         }
 
         // Detect ``{*}`` argument-expansion prefix (Tcl 8.5+).  The
-        // three-character sequence ``{*}`` immediately before a word
-        // signals that the word should be evaluated and then split as
-        // a Tcl list, with each element inserted as a separate
-        // argument.  Strip the prefix here and record the expansion
-        // flag; the actual splitting happens in eval_script.
+        // three-character sequence ``{*}`` signals that the *immediately
+        // following* word should be evaluated and split as a Tcl list,
+        // each element inserted as a separate argument.  Per
+        // ``tclParse.c`` the prefix only triggers expansion when a
+        // *non-whitespace, non-terminator* character follows with no
+        // intervening space: a standalone ``{*}`` (at end-of-command or
+        // followed by whitespace / ``\n`` / ``;``) is the ordinary
+        // brace-quoted literal word ``*``.
         var expand = false;
         if (src[p] == '{' and p + 2 < len and src[p + 1] == '*' and src[p + 2] == '}') {
-            expand = true;
-            p += 3;
-            // Skip any whitespace between {*} and the word (rare but
-            // valid in Tcl: ``cmd {*} $args`` is the same as
-            // ``cmd {*}$args``).
-            p = skip_space(src, p, len);
-            if (p >= len or src[p] == '\n' or src[p] == ';') {
-                // bare {*} with nothing following — treat as empty expansion.
-                // Anchor to a real byte inside the source span so downstream
-                // ``ParseCommand`` doesn't u32-underflow when computing
-                // ``word_ptrs[i] - @intFromPtr(src)`` for the empty word's
-                // start offset.  ``p - 1`` points at the closing ``}`` of
-                // the ``{*}`` marker (always valid because ``p >= 3`` after
-                // consuming the three-byte prefix).
-                word_ptrs[count] = @intFromPtr(src) + (p - 1);
-                word_lens[count] = 0;
-                word_braced[count] = false;
-                word_expand[count] = true;
-                count += 1;
-                break;
+            const after = p + 3;
+            const expands = after < len and !(src[after] == ' ' or src[after] == '\t' or
+                src[after] == 0x0B or src[after] == 0x0C or src[after] == '\n' or
+                src[after] == '\r' or src[after] == ';' or
+                (src[after] == '\\' and after + 1 < len and src[after + 1] == '\n'));
+            if (expands) {
+                expand = true;
+                p += 3;
             }
+            // Otherwise fall through and parse ``{*}`` as a literal
+            // braced word below.
         }
 
         var word_kind_brace_or_quote = false;
