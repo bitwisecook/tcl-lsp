@@ -2945,8 +2945,22 @@ fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
   and `return` positions (`try_fold_return_terminator`), via a shared
   `o115_redundant_nested_expr` helper that double-unwraps to confirm the
   inner is itself an `[expr {…}]` (sound — a plain `[expr {$x+1}]` or an
-  `[expr {[other]}]` is left untouched).  `set x [expr {…}]` (lowered to
-  `AssignValue`, not walked for cmd-sub folds) remains a follow-up.
+  `[expr {[other]}]` is left untouched).  **`set` value-position
+  cmd-sub folds now wired** — `walk_statement` grew a `Statement::
+  AssignValue` arm that runs `visit_call_cmd_subst_folds` over the
+  set's value words, so `set y [::answer]` folds the pure-proc cmd-sub
+  to its constant return (O103) just like `puts [::answer]` does
+  (discriminating test `o103_cmd_subst_fires_on_set_value_target`).
+  **Finding:** the *canonical* `set x [expr {[expr {E}]}]` does **not**
+  reach this arm — `extract_single_expr_arg` strips the outer `expr` at
+  lowering time, so it becomes an `AssignExpr` whose `ExprCommand` holds
+  the inner `[expr {E}]`; the AssignValue arm therefore unlocks O103 (and
+  O100 / O115 for the rarer AssignValue forms that retain a nested-expr
+  cmd-sub word), while the user-visible O115 *source suggestion* for the
+  pre-collapsed `set x [expr {[expr {E}]}]` would need a separate
+  AssignExpr-side check (deferred — not the documented quick win).  Only
+  the cmd-sub fold path is wired (not bare-`$var` `visit_call_tokens`): a
+  `set y $c` RHS is SCCP / load-forwarding territory.
 - **O105 string-constant interpolation** — **already present** in Rust
   (`propagation::visit_string_interpolation`, emitted as O100); only a
   minor `return "…$x…"` completeness gap remains.
@@ -3227,7 +3241,13 @@ priority queue:
   `command_trust` + W128 — no Rust counterpart), **`-6`** (new
   const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
   yet; the O115 value-position unwrap from `-6` is **LANDED** (cmd-arg +
-  `return`), O105 already present, the rest deferred behind `FOLD_HINTS`
+  `return`, **plus the `set` value-position follow-up**: `walk_statement`
+  now visits `Statement::AssignValue` for cmd-sub folds, so `set y
+  [::answer]` folds the pure-proc cmd-sub like `puts [::answer]` —
+  caveat: the canonical `set x [expr {[expr {E}]}]` lowers to
+  `AssignExpr`, pre-collapsing the outer `expr`, so O115's user-visible
+  *suggestion* for that exact shape is a separate AssignExpr-side
+  follow-up), O105 already present, the rest deferred behind `FOLD_HINTS`
   + the `-1` quoter).
   **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
   constant-kill (whole-function SCCP) + O104 guard (Rust O104 is

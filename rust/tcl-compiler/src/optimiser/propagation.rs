@@ -248,6 +248,27 @@ fn walk_statement(
             }
             try_fold_static_proc_call(ctx, cu, *span, command, args);
         }
+        // `set TARGET [cmd-sub]` lowers to `AssignValue` carrying the
+        // full command's tokens (`["set", TARGET, "[cmd-sub]"]`). Walk
+        // its value words for the value-position cmd-sub folds — O115
+        // redundant-nested-expr collapse and the O103 pure-proc
+        // constant-return fold — so a `set` target gets the same folds a
+        // command-argument position already gets. Only the cmd-sub fold
+        // path is wired (not `visit_call_tokens`): a bare `set y $c` RHS
+        // is handled by SCCP / load-forwarding, and folding it here would
+        // change behaviour beyond the documented gap. SYNC-JUN02b-6 (#519).
+        //
+        // Note: the *canonical* `set x [expr {[expr {E}]}]` does not reach
+        // this arm — `extract_single_expr_arg` strips the outer `expr` at
+        // lowering time, producing an `AssignExpr` whose `ExprCommand`
+        // holds the inner `[expr {E}]`. So O115 fires here only for the
+        // rarer AssignValue forms that retain a nested-expr cmd-sub word;
+        // the O103 pure-proc fold is the common reachable case.
+        Statement::AssignValue {
+            tokens: Some(t), ..
+        } => {
+            visit_call_cmd_subst_folds(ctx, cu, t);
+        }
         Statement::Return {
             span,
             value,
@@ -1113,6 +1134,35 @@ mod tests {
                 && o.replacement == "42"
                 && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
             "expected applicable O103 spanning `[::answer]`, got {o103s:?}",
+        );
+    }
+
+    #[test]
+    fn o103_cmd_subst_fires_on_set_value_target() {
+        // SYNC-JUN02b-6 (#519): the value-position cmd-sub folds must also
+        // fire on a `set TARGET [cmd-sub]` target. `set` lowers to
+        // `AssignValue`, which `walk_statement` did not visit for cmd-sub
+        // folds, so `set y [::answer]` missed the O103 fold that the same
+        // `[::answer]` gets in a command-argument position (`puts
+        // [::answer]`). With the AssignValue arm wired, the set value
+        // folds identically.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let source = "proc ::answer {} { return 42 }\nproc ::f {} { set y [::answer]\nputs $y }";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        let o103s: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|o| o.code == "O103")
+            .collect();
+        assert!(
+            o103s.iter().any(|o| !o.hint_only
+                && o.replacement == "42"
+                && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
+            "expected applicable O103 spanning the `[::answer]` set value, got {o103s:?}",
         );
     }
 
