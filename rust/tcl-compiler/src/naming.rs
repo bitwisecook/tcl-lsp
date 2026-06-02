@@ -58,6 +58,49 @@ pub fn normalise_qualified_name(name: &str) -> String {
     format!("::{}", parts.join("::"))
 }
 
+/// Split a Tcl variable reference into `(base, element)`.
+///
+/// Strips `$` / `${…}` substitution sigils first, then separates the
+/// optional `(element)` array-index suffix from the base name.  Returns
+/// `(base, None)` for scalar references.  Mirrors Python's
+/// `shared/naming.py::split_array_name`, including the brace-form rule that
+/// `${arr}(foo)` is the scalar `arr` followed by literal `(foo)`, whereas
+/// `${arr(foo)}` *is* the array element `arr(foo)`.
+///
+/// ```
+/// use tcl_compiler::naming::split_array_name;
+/// assert_eq!(split_array_name("arr"), ("arr", None));
+/// assert_eq!(split_array_name("arr(foo)"), ("arr", Some("foo")));
+/// assert_eq!(split_array_name("$arr(foo)"), ("arr", Some("foo")));
+/// assert_eq!(split_array_name("${arr(foo)}"), ("arr", Some("foo")));
+/// assert_eq!(split_array_name("${arr}(foo)"), ("arr", None));
+/// assert_eq!(split_array_name("${arr}"), ("arr", None));
+/// ```
+#[must_use]
+pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
+    // `${…}` brace form: only the chars inside the braces are the reference;
+    // an `(idx)` *inside* the braces is an element, one *after* `}` is not.
+    if let Some(after) = name.strip_prefix("${") {
+        if let Some(rel) = after.find('}') {
+            let inner = &after[..rel];
+            if inner.ends_with(')') {
+                if let Some(idx) = inner.find('(') {
+                    return (&inner[..idx], Some(&inner[idx + 1..inner.len() - 1]));
+                }
+            }
+            return (inner, None);
+        }
+        // No closing brace — fall through (Python gates on `"}" in base`).
+    }
+    let base = name.strip_prefix('$').unwrap_or(name);
+    if base.ends_with(')') {
+        if let Some(idx) = base.find('(') {
+            return (&base[..idx], Some(&base[idx + 1..base.len() - 1]));
+        }
+    }
+    (base, None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,6 +108,21 @@ mod tests {
     #[test]
     fn simple_dollar() {
         assert_eq!(normalise_var_name("$foo"), "foo");
+    }
+
+    #[test]
+    fn split_array_name_forms() {
+        assert_eq!(split_array_name("arr"), ("arr", None));
+        assert_eq!(split_array_name("arr(foo)"), ("arr", Some("foo")));
+        assert_eq!(split_array_name("$arr(foo)"), ("arr", Some("foo")));
+        assert_eq!(split_array_name("${arr(foo)}"), ("arr", Some("foo")));
+        // `${arr}(foo)` is scalar `arr` then literal `(foo)` — not an element.
+        assert_eq!(split_array_name("${arr}(foo)"), ("arr", None));
+        assert_eq!(split_array_name("${arr}"), ("arr", None));
+        // dynamic index text is preserved verbatim for later classification.
+        assert_eq!(split_array_name("a($i)"), ("a", Some("$i")));
+        // a `)` with no `(` is not an element.
+        assert_eq!(split_array_name("weird)"), ("weird)", None));
     }
 
     #[test]

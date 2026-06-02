@@ -54,6 +54,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::ssa::ValueKey;
+use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
 // Optimisation diagnostic
@@ -205,6 +206,11 @@ pub struct PassContext<'a> {
     /// Optional structured IR — some passes walk the pre-CFG
     /// tree to recover original source positions.
     pub ir_module: Option<&'a IrModule>,
+    /// Command registry — set by the `optimise*` entry points so the
+    /// elimination pass can resolve [`crate::place::Place`]s via the place
+    /// bridge (O109 array-element precision).  `None` in the bare
+    /// [`PassContext::new`] test path → place suppression is simply skipped.
+    pub registry: Option<&'a CommandRegistry>,
 }
 
 impl<'a> PassContext<'a> {

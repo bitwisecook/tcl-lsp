@@ -162,6 +162,24 @@ impl CommandRegistry {
         })
     }
 
+    /// Whether `name` is an iRules side-switch — `clientside`,
+    /// `serverside`, or `peer` — i.e. a command that evaluates its
+    /// nesting-script body under a different connection-side context
+    /// than the surrounding event.  Mirrors Python's
+    /// `CommandRegistry.is_side_switch` ([`Traits::IS_SIDE_SWITCH`]),
+    /// consulted by the iRules collect/release/payload flow check when
+    /// it descends into a side-switch body.  Like
+    /// [`Self::is_byte_compiled`], checks every spec registered under
+    /// the name.
+    #[must_use]
+    pub fn is_side_switch(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::IS_SIDE_SWITCH))
+        })
+    }
+
     /// Resolve argument indices for a given role.
     ///
     /// For subcommand-based commands (e.g. `dict create`), pass the

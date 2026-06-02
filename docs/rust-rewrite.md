@@ -1607,6 +1607,81 @@ Structural new surfaces (no Rust mirror today):
   emitters reroute through `places_read_to_form` instead of plain
   variable-name comparison.  Classify in-scope, structural — fold
   into the C41 analyser-core port or land as its own follow-up.
+
+  **Landed (rust) — `SYNC-MAY31-1b`, complete.**  Per the
+  `docs/design/compiler/phase8-place-migration.md` ledger, the headline
+  ARRAY_ELEM precision win on `main` was achieved with the *suppress-only*
+  `overlap` relation + the 8E refinement, **without** the full 8F versioned
+  substrate — so the Rust port mirrors that: port `place` / `var_resolve`
+  / `place_bridge`, then reroute the W220 / O109 consumers through
+  `overlap` (W211 / O126 turned out to already be at parity — see below).
+  Staged, output-equivalent until the consumer reroute:
+  - **Stage 1 (done): `tcl-compiler::place`.**  Faithful port of
+    `place.py` — `Place` / `Index` / `PlaceKind` / `IndexKind`,
+    constructors, `base` / `is_global`, the over-approximating `overlap`
+    (with the 8E dynamic-*index*-vs-dynamic-*alias* split), and
+    `places_read_to_form`.  Self-contained (stdlib only); 13
+    discriminating unit tests including the `a(k)` ≠ `a(j)` disjointness
+    and the gregorian-style dynamic-alias precision case.  No consumer
+    wired yet → corpus byte-identical.
+  - **Stage 2 (done): `tcl-compiler::var_resolve`.**  Faithful port of
+    `var_resolve.py` — `ResolveContext`, `resolve_place` (scalar /
+    array-elem / whole-array / dynamic-name → UNKNOWN), and
+    `resolve_dict_path`, reusing a new `naming::split_array_name` and the
+    existing `VarReferenceScanner` for dynamic-index/name reads.  11 unit
+    tests (local/global/ns binding, literal vs dynamic element, upvar
+    alias owner, trace→observed, the `a(k)`≠`a(j)` resolve→overlap
+    integration).  No consumer wired yet → output-equivalent.
+  - **Stage 3 (done): `tcl-compiler::place_bridge`.**  Faithful port of
+    `place_bridge.py` — `build_resolve_context` (scans the CFG for
+    `global` / `variable` / `upvar` / `trace` decls), `def_places`,
+    `read_places` (element-granular `$`-refs via a new
+    `var_refs::scan_var_ref_forms` *forms* scanner; VAR_READ-role name
+    args incl. whole-array `array get`; `places_read_to_form` for
+    dynamic index/name reads; structural proc/method bodies skipped by
+    reusing `ssa::structural_body_indices`), and `terminator_read_places`
+    (branch conditions + non-braced returns).  New helpers:
+    `var_refs::{scan_var_ref_forms, command_subst_texts}` and
+    `ExprNode::command_texts`.  5 bridge tests + helper tests, including
+    the end-to-end check that `set a(k) 1; set a(j) 2; puts $a(k)`
+    produces an `a(k)` def observed by a read while `a(j)` is observed by
+    none.  No consumer wired yet → output-equivalent.
+  - **Stage 4 (done): reroute the W220 dead-store consumer through
+    `overlap`.**  Both the analyser (W220) and the optimiser (O109 —
+    `Eliminate dead store`) now consult one shared helper,
+    `place_bridge::element_writes_observed_by_reads`: for each function it
+    builds the `ResolveContext`, collects every read place (statements +
+    terminators), and reports each **array-element / dict-path** write
+    whose def place `overlap`s a read.  The consumer then suppresses those
+    candidates.  Scalars keep their precise name-level verdict (the
+    suppression is element-granular only), and a cheap "has array-element
+    assign" pre-check keeps non-array functions cost-free.  So
+    `set a(k) 1; set a(j) 2; puts $a(k)` no longer false-fires W220/O109 on
+    `a(k)`, while `set x 1; set x 2; puts $x` (scalar) and
+    `set a(k) 1; set a(j) 2; puts $a(j)` (a(k) genuinely dead) still do.
+    The optimiser path threads the registry to the elimination pass via a
+    new `PassContext::registry` (set by the `optimise*` entry points;
+    `None` on the bare `run_pass` test path — so existing optimiser tests
+    are unaffected).  Four discriminating tests (analyser + optimiser ×
+    {array suppressed, genuine still fires}); the suppressed ones verified
+    to fail without the reroute.  Note: O109 emits an *optimisation
+    suggestion*, not bytecode — and it is a **separate** computation from
+    W220 (unlike Python's shared `analysis.dead_stores`), so there is no
+    shared-list desync and no VM-equivalence concern.  The rare
+    same-element reassignment dead store is intentionally not recovered
+    (needs the versioned 8F substrate), matching `main`'s suppress-only
+    stage.
+
+  **W211 / O126 (unused variable) — already at parity, no reroute needed.**
+  Investigated and confirmed a no-op in Rust: the def-use builder tracks
+  reads at the name level (so `array get a`, `puts $a(k)`, dynamic-index,
+  `eval`, expr command-subs are all already seen as uses of base `a`), and
+  W211/O126 are name-level-granular (fire only when the *whole* variable
+  has no live version).  The cross-scope upvar cases Python's place model
+  removed there (−2) are already handled in Rust by the `scope_aliases`
+  filter.  Wiring the place model in (verified against the suite) changed
+  no output, so it was reverted rather than ship effect-less code with no
+  discriminating test.
 - **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
   registry-aware green-tree descent (`descend_command`) single-sources
   body role-resolution.  Phase 1: shared loop-nesting forest
@@ -1772,8 +1847,15 @@ on the Python side.
   reads, dynamic_nonwild)` so element-overlap queries answer from the
   same-base bucket plus wildcard / dynamic checks (A4); share the
   predicate between dead-store (W220) and unused-variable (W211)
-  passes so the read_places walk runs once per function (A5).  N/A
-  until the Place model ports (`SYNC-MAY31-1b`).
+  passes so the read_places walk runs once per function (A5).
+  **Landed (rust) via `SYNC-MAY31-1b`:** the predicate is shared between
+  the analyser's W220 and the optimiser's O109 through
+  `place_bridge::element_writes_observed_by_reads` (one read_places walk
+  per function).  The Rust port uses a full-scan `overlap` rather than the
+  bucketed `by_base` index — semantically equivalent (UNKNOWN /
+  UPVAR_ALIAS reads overlap every element either way); the bucketing is a
+  deferred perf optimisation, not a correctness gate.  W211 needs no share
+  (already at parity — see the `SYNC-MAY31-1b` section).
 - **A6 — shimmer per-name indices computed once per function.**
   `_find_phi_shimmers` and `_find_thunking` previously called
   `_empty_literal_versions(ssa, name)` + `_loop_body_def_types(...)`
@@ -2139,10 +2221,37 @@ Two deltas:
    `analyser/diagnostics.rs::emit_w127_*` emitter, fed by the SCCP
    lattice + the existing `places_read_to_form` machinery (the latter
    landed only on `main` with SYNC-MAY31-1's place model, so this row
-   depends on `-1b`).
+   depended on `-1b` — **now landed**, so the emitter is unblocked).
 
 Classify: BODY-role piece is in-scope, low-touch (registry edit +
-tests).  W127 emitter is in-scope, depends on `-1b`.
+tests).  W127 emitter is in-scope; its `-1b` place-model dependency has
+landed (emitter itself still to do).
+
+**Landed (rust) — BODY-role piece only.**  The four registry specs now
+declare the nesting script:
+`clientside` / `serverside` set `arg_roles = &[(0, ArgRole::Body)]` with
+arity `Arity::new(0, 1)` (bare query form or one body, default
+`BodyKind::Plain`); `peer` gains `Traits::IS_SIDE_SWITCH`,
+`arg_roles = &[(0, ArgRole::Body)]`, the synopsis `peer NESTING_SCRIPT`,
+and the required-body arity `Arity::new(1, 1)`; `after` gains an
+`arg_role_resolver` (mirroring `_after_arg_roles` — the trailing timer
+script, never `-periodic`, never the `cancel`/`info` forms) plus
+`body_kind = BodyKind::Structural` (the timer body runs deferred in its
+own dispatch context).  A new `CommandRegistry::is_side_switch` mirrors
+Python's helper.  The analyser's generic `dispatch_body_arguments`
+recursion picks the role up automatically, so problems nested in these
+bodies are now flagged (verified: a nested zero-arg `set` trips E002
+inside each of the four bodies).  The collect/release/payload flow
+check (`irules_checks.rs::find_collect_flow_warnings`) now descends into
+side-switch bodies with the switched side — `clientside`/`serverside`
+fixed, `peer` flipped to the *opposite* of the current side — so a
+`clientside { TCP::collect }` satisfies a `CLIENT_DATA` requirement and
+a `peer { TCP::collect }` in a client event satisfies `SERVER_DATA` (not
+`CLIENT_DATA`).  Six discriminating tests (registry roles/arity, two
+collect-flow behaviours, body recursion across all four), each verified
+to fail without the change.  **Still deferred:** the W127 emitter — its
+`-1b` place-model dependency (`places_read_to_form`) has now **landed**,
+so it is unblocked (emitter itself still to do).
 
 ### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
 
@@ -2349,18 +2458,28 @@ suppress the check when the qualified call resolves to a user
 SYNC-MAY21-3 confirmed 0 E002/E003 false positives across tcllib 2.0
 + the Tcl 8.6 standard library with this shape.
 
-What's **not** yet ported: the second refinement — gating suppression
-on *reachable, in-order* proc definitions (so a top-level call before
-a `proc close` later in the file fires the arity check against the
-builtin).  Rust's post-walk flush in `flush_arity_diagnostics`
-intentionally drops shadowing-order constraints to handle the
-common "call before definition" case in well-formed code; matching
-Python's stricter check would need a per-call dominator/lexical-order
-test against the proc definition's IR location.
+Classify: in-scope, low-touch refinement.  Rust was ~90 % at parity
+already; the remaining in-order gate is described below.
 
-Classify: in-scope, low-touch refinement.  Rust is ~90 % at parity
-already; the in-order/reachability refinement is a follow-up to
-SYNC-MAY21-3 if the FP rate proves problematic in practice.
+**Landed (rust).**  The in-order half of the refinement now ports.
+`emit_arity_diagnostics` captures an `enforce_order` flag per candidate
+— `true` for top-level calls (module body, `namespace eval` bodies,
+conditionals), `false` for proc-body calls — derived from a new
+`scope_path_in_proc_body` helper (any `ScopeKind::Proc` on the
+call's scope path means the call resolves after load, so order is not
+enforced).  `flush_arity_diagnostics` now splits the suppression set:
+classes / aliases / ensembles / inline stubs always exist at run time
+and stay un-gated, while a shadowing **proc** silences a top-level call
+only when its definition (`ProcDef::name_span` start) lexically precedes
+the call.  So a top-level `close x y z` *before* a later `proc close`
+again fires E003 against the builtin, while the namespace-scoped guard
+(SYNC-MAY21-3) and proc-body forward-references stay suppressed.  Three
+discriminating analyser tests (call-before-def fires, call-after-def
+suppressed, proc-body call un-gated), each verified to fail without the
+gate.  Deferred (matches the old note): *excluding* conditionally
+defined procs from the shadow set needs the CFG dominator model, so a
+conditional `proc close` before the call still suppresses — no worse
+than the prior behaviour and no new false positives.
 
 ### SYNC-MAY31-10 — Inlay hints `is_optional` synopsis tagging + `infer_return_type` (#510)
 
@@ -2488,6 +2607,119 @@ piece) + reposition adapter (this row's second piece) +
 Classify: in-scope, **structural**, closes with `S*`.  No standalone
 Rust port today.
 
+## SYNC-JUN02 family — main audit (2026-06-02)
+
+Re-audited `origin/main`@`8aeaf1cd` against the prior anchor
+`origin/main`@`59c770f6` (the SYNC-MAY31 refresh point).  `main` landed
+**5** commits since then.  Histories still diverge fully (no merge-base),
+so this remains a per-file audit, not a git rebase.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **Explorer / optimiser-lens tooling** — `a31d018d` (#517, offset-free
+  diff for the optimiser lens — `tooling/explorer/cli.py`), `7d5479d5`
+  (#513, Unicode box-drawing IR / callout trees — `tooling/explorer/` +
+  `editors/vscode/`).  Pure explorer / editor UI; close with `EXP*` /
+  editor-specific chunks.
+- **WASM emitter + Zig runtime (bulk of #516)** — `8aeaf1cd` is mostly a
+  WASM-codegen concat-aliasing fix (a shared `_emit_concat_chain` seeds
+  each multi-operand chain with a *null* accumulator so a borrowed `$var`
+  read — refcount 1 — is never mutated in place mid-expression; fixes
+  `set t $t$t$t$t` doubling) plus Tcl 9 command semantics in the Zig
+  interp (`lseq` doubles, `scan` charset / float, `binary` unsigned
+  formats, `apply` defaults).  The Rust port emits no WASM and runs no Zig
+  VM, so the codegen / runtime bulk has no Rust analyser hook — mirror is
+  the Zig workstream + the future Rust WASM emitter.  But #516 *also*
+  carries two in-scope lowering / registry slivers — see `SYNC-JUN02-3`.
+
+In-scope rows (mirror these into the Rust workstream):
+
+### SYNC-JUN02-1 — Lower TclOO method bodies to FunctionUnits + O126 method purity (#506)
+
+`main` populates `ir_module.methods` during lowering: `oo::class create` /
+`oo::define` bodies are descended and each method / constructor / destructor
+body is lifted to an `IRMethodDef` (**analysis-only** — codegen still sees
+the same `IRBarrier`, so bytecode is byte-identical).  `compile_source`
+lowers those to per-method `FunctionUnit`s in a separate
+`CompilationUnit.methods` dict; `analyse_interprocedural_ir` summarises them
+into `InterproceduralAnalysis.methods` (conservative purity: pure iff no
+local side effect and every proc callee pure; `my` / `next` self-dispatch
+surfaces as an unknown call → impure).  The optimiser then iterates method
+bodies with the owning class as `enclosing_class`, so the previously-inert
+SF-2 wiring in `_elimination.py` fires — `set unused [my <pure-method>]`
+folds to an O126 deletion while an impure-method RHS is preserved (flips
+FP-OPT-12 PARTIAL → FIXED).  A second commit hardens the **W307**
+VAR-as-command suppression to per-SSA-version precision
+(`set c notacommand; set c parse; $c x` must keep W307 alive for the
+dispatch, since the command-valued version reaches it).
+
+**Rust state — partial scaffolding, the real wiring is the gap.**
+`tcl-compiler::ir` already declares `Module.methods: HashMap<String,
+MethodDef>` and the `MethodDef` struct, and `interprocedural` declares a
+`MethodSummary` + `InterproceduralAnalysis.methods` map — but all three are
+**inert placeholders**: lowering never populates `Module.methods` (a unit
+test asserts it stays empty), `CompilationUnit` has no `methods` field and
+builds no per-method `FunctionUnit`s, the interproc `methods` map is
+initialised empty, and `optimiser::elimination` has no `enclosing_class` /
+method-body iteration (so O126-method / SF-2 never fires).  Note the
+analyser already has a *separate* OO model in `analyser/oo.rs` (its own
+`MethodDef`, for the OO W-codes) — this row is the *compiler / optimiser*
+method-FunctionUnit path, not that one.  **Rust mirror:** (1) lowering
+descends `oo::class create` / `oo::define` bodies → populate
+`Module.methods`; (2) `CompilationUnit` gains a `methods` map of per-method
+`FunctionUnit`s; (3) `build_interprocedural_analysis` summarises method
+purity into `InterproceduralAnalysis.methods`; (4) `elimination::run`
+iterates method bodies with `enclosing_class` so O126 fires on a
+pure-method RHS; (5) the W307 per-SSA-version suppression fix in
+`analyser/diagnostics.rs`.  Classify in-scope, **structural** — a
+multi-strip port.
+
+### SYNC-JUN02-2 — Profile-guided branch reordering (PGO) (#515)
+
+A new, opt-in, **off-by-default** `compiler/pgo/` subsystem: an `occurrence`
+execution-occurrence model (unifies C Tcl `trace add execution` /
+`TCL_COMPILE_STATS` opcode counts with the F5 BIG-IP rule-profiler log), a
+`profile_data` rollup, two importers (`trace_parser` — F5 profiler log;
+`tclsh_capture` — per-line `enterstep` + `info frame` capture under a local
+tclsh), and a `reorder` analysis whose `find_pgo_suggestions` emits
+**hint-only P100** `Optimisation` suggestions (with a materialised
+replacement for opt-in `--apply`) reordering mutually-exclusive,
+side-effect-free equality if/elseif (and switch) dispatch chains so the
+hottest branch is tested first.
+
+**Rust mirror:** a new `tcl-compiler::pgo` (occurrence + profile_data +
+reorder) plus a `P100` emitter.  **Lower priority / largely deferred:** it
+is opt-in and hint-only (no behavioural change when off), and the importers
+lean on profile sources that are tooling-side (F5 profiler logs, a captured
+tclsh) rather than the analyser core — so the portable slice is the
+`reorder` equality-chain analysis + the occurrence / profile data model; the
+importers classify with `F*` / tooling.  Classify in-scope, structural,
+deferred.
+
+### SYNC-JUN02-3 — in-scope slivers of #516 (switch `patterns_braced` + Tcl 9 registry facts)
+
+The WASM / Zig bulk of #516 is out of scope (above), but two pieces are not:
+
+- **`IRSwitch.patterns_braced` (lowering / IR — correctness).**  `main` adds
+  a `patterns_braced` flag to `IRSwitch`: `True` when the arms came from a
+  single braced `{pat body …}` block (patterns are literal list elements —
+  no substitution), `False` when supplied as separate words
+  (`switch $s $pat {body}`), where each pattern undergoes normal `$var` /
+  `[cmd]` runtime substitution before matching.  **Rust gap:** the Rust
+  `Statement::Switch` (and `SwitchArm`) has **no** `patterns_braced` field —
+  the term appears nowhere in `rust/`.  Without it, the analyser cannot tell
+  a literal-pattern switch from one whose patterns substitute, which matters
+  for any pattern-as-variable read tracking and for matching the C-Tcl
+  substitution semantics.  Add the flag to `tcl-compiler::ir::Statement::Switch`,
+  set it in `lowering` (braced-body form → `true`; separate-words form →
+  `false`), and thread it where switch patterns are interpreted.  Classify
+  in-scope, low-touch, **correctness**.
+- **Tcl 9 command-spec facts (registry — low-touch).**  The new / extended
+  Tcl 9 surfaces (`lseq`, `scan` charset/float, `binary` unsigned formats,
+  `apply` defaults) want matching `tcl-registry` command-spec facts (arity /
+  arg-roles / dialect).  Fold into the `SYNC-MAY19-tcl9-commands` +
+  Command-spec tracking rows when those commands are next touched.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -2509,6 +2741,8 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-foreachLine-lowering` | Landed 2026-05-19 — single-iterator `Statement::Foreach` lowering in `rust/tcl-compiler/src/lowering/structured.rs::lower_foreach_line`. |
 | — | `SYNC-MAY19-stub-overlay` | **Landed in full** via sub-strips (b) (2026-05-19), (c) (`c945baa`), and (a) (`6487a4f`).  (a) added `rust/tcl-registry/src/stub_overlay.rs` carrying `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (with `arg_indices_for_role` mirroring the registry's shape and a deterministic `fingerprint()` for cache-key plumbing); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue the analyser-side records to the registry-side overlay; `Analyser::stub_overlay` populates via `build_stub_overlay(&stub_cmds)` after the stub-pre-scan, and `infer_param_traits` / `infer_param_traits_deep` thread the overlay through their internal helpers so role-driven trait inference unions the registry's and the overlay's tables at every call site. |
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
+| 5 | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **New, actionable, self-contained compiler/optimiser work** (#506).  Lower `oo::class create` / `oo::define` method bodies to per-method `FunctionUnit`s so methods get the same dataflow as procs, then summarise method purity into the interproc table and fire O126 on `set unused [my <pure-method>]`.  The Rust `ir::Module.methods` + `MethodDef` + interproc `MethodSummary` types already exist but are **inert placeholders** (lowering never populates them, `CompilationUnit` has no `methods`, the optimiser has no `enclosing_class` iteration) — so the work is real wiring, not new types.  Also carries the W307 per-SSA-version VAR-as-command suppression fix.  Multi-strip; see the `SYNC-JUN02` family section. |
+| — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
 | 6 | `SYNC-MAY19-dialect-contextvar` | LSP server (`S*`) plumbing: thread the per-folder dialect into `LexerConfig` at document-open / change time so multi-folder workspaces with mixed dialects parse correctly.  Pure server-side, no analyser-crate changes.  Closes with `S*`. |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
 | — | `SYNC-MAY19-proc-body-const-map` | Landed 2026-05-19 — Var-token const-map materialisation + `arg_single_token` multi-token-word check in `lower_proc`. |
@@ -2628,9 +2862,15 @@ priority queue:
   with `S*`).  **Landed (rust):** `SYNC-MAY31-7` (#473 `ExprRaw`
   var scan), `-8` (#494 backslash-continuation folding), `-10`
   (#510 inlay-hint optional positionals + `infer_function_return_type`),
-  `-2` (#474 glob/regexp `switch` keeps structured dispatch), and `-3`
+  `-2` (#474 glob/regexp `switch` keeps structured dispatch), `-3`
   (#502 `info exists` / `array exists` guard narrowing + W210
-  suppression + I230 fold) — see those family sections.  Of the remainder, none are
+  suppression + I230 fold), `-9` (#475 in-order builtin-arity
+  suppression refinement), `-4` (#501 iRules BODY-role + peer side
+  flip — the W127 emitter half is still pending, now unblocked by
+  `-1b`), and `-1b` (#498 Phase 8 place model — `place` /
+  `var_resolve` / `place_bridge` ported and the W220 / O109 consumers
+  rerouted through `overlap`; W211 / O126 already at parity) — see
+  those family sections.  Of the remainder, none are
   *correctness* blockers for the analyser flip.  **Correction to a
   stale note:** earlier rows said "the Rust analyser has no live
   caller post-#241" — that referred to the deleted differential
@@ -2640,6 +2880,18 @@ priority queue:
   `-1e` lattice-driven row and the `-5a` / `-5b` / `-5c` algorithmic
   items remain output-preserving and can land any time without
   coordination with the analyser-flip plan.
+* **`SYNC-JUN02` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`59c770f6` to `origin/main`@`8aeaf1cd` (+5 commits).
+  Three in-scope rows: `SYNC-JUN02-1` (#506 — lower TclOO method bodies to
+  per-method `FunctionUnit`s + O126 method purity / SF-2 + the W307
+  per-SSA-version VAR-as-command fix; structural, the Rust `Module.methods`
+  / interproc `MethodSummary` scaffolding exists but is inert),
+  `SYNC-JUN02-2` (#515 — opt-in PGO branch-reordering subsystem emitting
+  hint-only P100; structural, deferred), and `SYNC-JUN02-3` (#516's
+  in-scope slivers — the switch `patterns_braced` IR flag, a correctness
+  gap since `rust/` lacks it, + Tcl 9 registry facts).  Out of scope:
+  #517 / #513 (explorer + optimiser-lens UI) and the WASM-emitter /
+  Zig-runtime bulk of #516.  See the `SYNC-JUN02` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
