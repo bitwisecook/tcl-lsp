@@ -1615,6 +1615,38 @@ mod tests {
     }
 
     #[test]
+    fn call_by_name_var_not_flagged_unused_or_dead() {
+        // SYNC-JUN02d-2: a caller-local passed *by name* to a proc that
+        // upvar-writes its param (`fill tag`) must not be flagged W211
+        // (unused) or W220 (dead store).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc ::fill {vn} { upvar 1 $vn v\nset v 1 }\n\
+             proc ::f {} { set tag init\nset tag x\nfill tag }\n",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().all(|d| {
+                !((d.code == "W211" || d.code == "W220") && d.message.contains("tag"))
+            }),
+            "call-by-name var `tag` must not be flagged unused/dead, got {:?}",
+            r.diagnostics,
+        );
+
+        // Negative control: a genuinely unused local is still flagged
+        // (the suppression didn't disable W211 wholesale).
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse("proc ::g {} { set unused 1\nputs hi }\n", "tcl");
+        assert!(
+            r2.diagnostics
+                .iter()
+                .any(|d| d.code == "W211" && d.message.contains("unused")),
+            "a genuinely unused var should still be flagged, got {:?}",
+            r2.diagnostics,
+        );
+    }
+
+    #[test]
     fn analyse_w128_fires_on_call_to_renamed_command() {
         // SYNC-JUN02b-4 (#519): a builtin renamed/deleted away earlier in
         // the file → the later call falls through to `unknown` → W128.

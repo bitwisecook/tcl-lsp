@@ -1820,12 +1820,27 @@ file; this call falls through to the 'unknown' handler."
         // `_diag_commands.py:264-296`.
         let globals_written = globals_written_by_procs(&cu);
 
+        // **W220 call-by-name suppression (SYNC-JUN02d-2).** Build the
+        // interprocedural proc-index once so a caller-local passed *by
+        // name* to a proc that consumes it via `upvar` (`set tag "";
+        // asnPeekTag data tag type dummy`) is not flagged as a dead
+        // store.  `collect_call_by_name_reads` then yields the suppressed
+        // names per function, merged into the dead-store `cross_event_vars`.
+        let cbn_proc_index = {
+            let ia = crate::interprocedural::build_interprocedural_analysis(
+                &cu.ir_module,
+                &registry,
+                Some(self.dialect.as_str()),
+            );
+            crate::interprocedural::build_proc_index_from_summaries(&ia)
+        };
+
         // **C41-default-on-followups-postpass W220-IR-paths.**
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
         // top-level.  Mirrors `_diagnostics.py:147-149`.
-        let top_level_cross_event_vars: HashSet<String> = if self
+        let mut top_level_cross_event_vars: HashSet<String> = if self
             .file_path
             .as_deref()
             .is_some_and(|p| p.ends_with("pkgIndex.tcl"))
@@ -1834,6 +1849,10 @@ file; this call falls through to the 'unknown' handler."
         } else {
             HashSet::new()
         };
+        top_level_cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+            &cu.top_level.cfg,
+            &cbn_proc_index,
+        ));
 
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
@@ -1855,7 +1874,7 @@ file; this call falls through to the 'unknown' handler."
             // diagnostics suppress vars that may be read in a
             // different iRule event.  Mirrors
             // `_diagnostics.py:165-167`.
-            let cross_event_vars: HashSet<String> =
+            let mut cross_event_vars: HashSet<String> =
                 if let Some(scope) = cu.connection_scope.as_ref() {
                     if qname.starts_with("::when::") {
                         scope
@@ -1870,6 +1889,12 @@ file; this call falls through to the 'unknown' handler."
                 } else {
                     HashSet::new()
                 };
+            // SYNC-JUN02d-2: suppress dead-store on caller-locals this
+            // proc passes by name to an upvar callee.
+            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+                &fu.cfg,
+                &cbn_proc_index,
+            ));
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 &cu.ir_module,
@@ -1980,10 +2005,17 @@ file; this call falls through to the 'unknown' handler."
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
-        let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
-            &self.source,
-            &function_unit.cfg,
-        );
+        let mut textually_referenced =
+            crate::optimiser::elimination::collect_textual_var_references(
+                &self.source,
+                &function_unit.cfg,
+            );
+        // A var read in another iRule event, or consumed *by name* via a
+        // call-by-name upvar callee (SYNC-JUN02d-2), is "used" — suppress
+        // the unused-variable (W211) hint too, not just the dead store
+        // (W220).  Mirrors Python threading `cross_event_vars` through
+        // both `_dead_stores` and `_unused_variables`.
+        textually_referenced.extend(cross_event_vars.iter().cloned());
         let ir_proc = ir_module.procedures.get(&function_unit.name);
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(

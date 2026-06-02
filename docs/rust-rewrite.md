@@ -1960,9 +1960,30 @@ structural sub-chunks:
     place (only the `upvar`-alias path marks them), so the same — correct
     — "no suppression" result falls out without the extra trait.  3-case
     discriminating test `call_by_name_param_traits_inferred`.
-  - **(b) / (c) pending:** `collect_call_by_name_reads` +
-    `build_proc_index_from_summaries`, then wire W220 (highest-impact),
-    then W211 / O109 / O126.
+  - **(b) — LANDED.**  `interprocedural::build_proc_index_from_summaries`
+    (a `command → (params, param_traits)` lookup keyed by both qualified
+    and bare names) + `collect_call_by_name_reads(cfg, index)`, which
+    scans direct `Call` / `Barrier` statements *and* a whole-value
+    `[cmd …]` substitution of an `AssignValue` / `AssignExpr` / `Return`
+    (the dominant tcllib shape `set len [asnPeekTag data tag type
+    dummy]`), recording each literal-name arg that lands on a callee
+    param carrying `VarRead` / `VarWrite`.
+  - **(c) — W211 + W220 LANDED.**  The analyser's `emit_cfg_ssa_
+    diagnostics` builds the proc-index once (from a fresh interproc
+    summary), and per function merges `collect_call_by_name_reads` into
+    the dead-store suppression set.  `emit_cfg_ssa_diagnostics_for_
+    function_full` then folds that set into *both* the W220 dead-store
+    path (`cross_event_vars`) and — newly — the W211 unused-variable
+    path (`textually_referenced`), which also closes a pre-existing gap
+    where iRules `cross_event_vars` didn't suppress W211 (Python threads
+    it through both).  `set tag init; set tag x; fill tag` no longer
+    flags `tag` W211/W220; a genuinely-unused local still does.
+    Discriminating tests `call_by_name_var_not_flagged_unused_or_dead`
+    (analyser) + `collect`/`build` coverage via the trait test.
+    **Still pending:** the optimiser consumers **O109 / O126**
+    (`optimiser/{elimination,unused_procs}`) — the same proc-index +
+    `collect_call_by_name_reads` feed, gated into the dead-store /
+    unused-result folds.
 - **O110 InstCombine whitespace guard.**  Add the
   `strip_ws(combined) != strip_ws(input)` guard to
   `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`

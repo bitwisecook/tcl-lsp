@@ -212,6 +212,126 @@ pub struct InterproceduralAnalysis {
     pub methods: HashMap<String, MethodSummary>,
 }
 
+/// A command-name → `(params, param_traits)` lookup, keyed by both the
+/// qualified (`::setvar`) and bare (`setvar`) name.  Input to
+/// [`collect_call_by_name_reads`].  SYNC-JUN02d-2.
+pub type ProcIndex = HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)>;
+
+/// Build a [`ProcIndex`] from interprocedural summaries.  Mirrors
+/// Python's `build_proc_index_from_summaries`.  SYNC-JUN02d-2.
+#[must_use]
+pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
+    let mut index = ProcIndex::new();
+    for (qname, summary) in &ia.procedures {
+        let entry = (summary.params.clone(), summary.param_traits.clone());
+        let bare = qname.trim_start_matches(':');
+        index.insert(qname.clone(), entry.clone());
+        if bare != qname.as_str() {
+            index.insert(bare.to_owned(), entry);
+        }
+    }
+    index
+}
+
+/// Record any literal-name argument landing on a callee param that
+/// carries `VarRead` / `VarWrite` (a call-by-name read/write).
+fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
+    if cmd.is_empty() || cmd.contains(['$', '[']) {
+        return;
+    }
+    let Some((params, traits_map)) = index
+        .get(cmd)
+        .or_else(|| index.get(&format!("::{cmd}")))
+        .or_else(|| index.get(cmd.trim_start_matches(':')))
+    else {
+        return;
+    };
+    for (i, arg) in args.iter().enumerate() {
+        let Some(pname) = params.get(i) else {
+            break;
+        };
+        let is_var = traits_map.get(pname).is_some_and(|t| {
+            t.contains(&ProcArgTrait::VarRead) || t.contains(&ProcArgTrait::VarWrite)
+        });
+        // A substituted (`$x`) / array / non-name arg names a runtime
+        // variable we can't identify — skip (preserve genuine FPs where
+        // the caller passed a literal string, not a name).
+        if is_var
+            && !arg.is_empty()
+            && !arg.contains(['$', '['])
+            && arg
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+        {
+            out.insert(arg.clone());
+        }
+    }
+}
+
+/// Scan a whole-value `[cmd …]` command substitution (the dominant
+/// tcllib call-by-name shape, `set len [asnPeekTag data tag type
+/// dummy]`).  A simple whitespace split suffices — the call-by-name
+/// args are literal names, and [`add_call_by_name`] rejects anything
+/// that isn't.
+fn scan_value_cmd_subst(text: &str, index: &ProcIndex, out: &mut HashSet<String>) {
+    let Some(inner) = text
+        .trim()
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+    else {
+        return;
+    };
+    let mut words = inner.split_whitespace();
+    if let Some(cmd) = words.next() {
+        let args: Vec<String> = words.map(str::to_owned).collect();
+        add_call_by_name(cmd, &args, index, out);
+    }
+}
+
+/// Caller-local variable names passed *by name* to a user proc that
+/// consumes them via `upvar` (call-by-name) — these must NOT be flagged
+/// dead / unused (W211 / W220 / O109 / O126).  Mirrors Python's
+/// `collect_call_by_name_reads`.  SYNC-JUN02d-2.
+///
+/// Scans direct `Call` / `Barrier` statements plus a `[cmd …]`
+/// substitution that is the whole value of an `AssignValue` /
+/// `AssignExpr` / `Return`.
+#[must_use]
+pub fn collect_call_by_name_reads(
+    cfg: &crate::cfg::Function,
+    index: &ProcIndex,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut out = HashSet::new();
+    if index.is_empty() {
+        return out;
+    }
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { command, args, .. }
+                | Statement::Barrier { command, args, .. } => {
+                    add_call_by_name(command, args, index, &mut out);
+                }
+                Statement::AssignValue { value, .. } => {
+                    scan_value_cmd_subst(value, index, &mut out);
+                }
+                Statement::Return { value: Some(v), .. } => {
+                    scan_value_cmd_subst(v, index, &mut out);
+                }
+                Statement::AssignExpr {
+                    expr: crate::expr_ast::ExprNode::Command { text, .. },
+                    ..
+                } => {
+                    scan_value_cmd_subst(text, index, &mut out);
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
 // ---------------------------------------------------------------------------
 // Call-target resolution
 // ---------------------------------------------------------------------------
