@@ -2916,11 +2916,30 @@ union; O104 consults it point-wise.  Classify in-scope, **structural** —
 a multi-strip new subsystem (foundation for flow-sensitive alias/trace
 in memory-SSA + SCCP/GVN).  Defer to its own chunk; the SYNC-JUN02b-2
 soundness fixes are the conservative whole-function approximation that
-this later refines.  **Rust state: deferred** — Rust *does* have a
-flow-sensitive var-escape analysis (`var_escape/cfg_propagation/`), but
-it answers the *codegen slot-resolution* question (`Local` vs `Frame`),
-has **no `TRACED` flag** and **no `observability` artifact** on
-`FunctionUnit`; this optimiser-soundness lattice is genuinely new.
+this later refines.  **Rust state: lattice LANDED** as
+`rust/tcl-compiler/src/var_observability.rs` (genuinely new — the
+existing `var_escape/cfg_propagation/` answers the *codegen
+slot-resolution* question `Local` vs `Frame` and has no `TRACED` flag).
+`EscapeFlag` is a `bitflags` set-union lattice (GLOBAL / NAMESPACE /
+UPVAR / TRACED; `empty()` = ⊥, join = bitwise OR) with `aliased` /
+`writes_outer_scope` / `is_traced` accessors.  `stmt_gen` reuses the
+shared `var_scoping` grammar (`global_declaration_indices` →
+GLOBAL, `variable_declaration_indices` → NAMESPACE,
+`upvar_local_declaration_indices` → UPVAR / GLOBAL (`#0`/`0`) /
+NAMESPACE (`namespace upvar`), `trace add variable` → TRACED).
+`analyse_var_observability` is a monotonic RPO forward fixpoint with
+union merge; `VarObservability` borrows the cfg and answers `flag_at` /
+`is_escaping_at` / `is_traced_at` point-wise plus `escaping_var_names`
+(the whole-function union that replaces the old flow-insensitive
+`_escaping_var_names`).  5 unit tests pin global-marks-following /
+variable-namespace / trace-observable / upvar-level-0-vs-N /
+private-local-empty.  **No optimiser consumer yet** — the Rust O104 is
+hint-only (SYNC-JUN02b-2), so this is landed as the foundation an
+applicable O104 (and memory-SSA / SCCP / GVN alias-trace reasoning)
+will consume.  Minor precision gap: the Rust
+`upvar_local_declaration_indices` rejects a `$`-dynamic caller *or*
+local var (Python's `allow_dynamic_target=True` tolerates a dynamic
+caller); harmless while O104 stays hint-only.
 
 ### SYNC-JUN02b-4 — `command_binding` lattice + `command_trust` + W128 (#519)
 
@@ -3364,10 +3383,13 @@ priority queue:
   mechanism): more `const_fold`s (`string length`, `join`, `format`,
   `concat`, `dict get`, `string map`, the list-returning folds), O130
   (`lappend` chain fold), and the inline `scan` fold.
-  **Deferred** (large new subsystems): **`-3`**
-  (`var_observability` optimiser lattice — Rust's `var_escape` is
-  codegen-only, no `TRACED`) and **`-4`** (`command_binding` +
-  `command_trust` + W128 — no Rust counterpart).
+  **`-3` — lattice LANDED** (`var_observability.rs`: the
+  `EscapeFlag` GLOBAL/NAMESPACE/UPVAR/TRACED set-union lattice +
+  `analyse_var_observability` fixpoint + `escaping_var_names` union;
+  no optimiser consumer yet since the Rust O104 is hint-only — landed
+  as the foundation).  **`-4` — LANDED** (`command_binding` lattice +
+  W128 diagnostic + `command_trust` `ModuleCommandMutations` gate on
+  O129; SCCP-fold gating + incr-idiom are follow-ups).
   **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
   constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
   hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
