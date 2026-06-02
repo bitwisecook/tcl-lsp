@@ -523,6 +523,9 @@ fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) 
     const bp: [*]const u8 = @ptrFromInt(b_ptr);
     var i: u32 = 0;
     var j: u32 = 0;
+    // Case difference only breaks ties: recorded at the first differing
+    // position, applied at the end if the case-folded strings are equal.
+    var secondary: i32 = 0;
     while (i < a_len and j < b_len) {
         if (ap[i] >= '0' and ap[i] <= '9' and bp[j] >= '0' and bp[j] <= '9') {
             // Skip leading zeros to find significant digit start.
@@ -547,28 +550,49 @@ fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) 
                     return if (ap[a_sig_start + k] < bp[b_sig_start + k]) -1 else 1;
                 }
             }
-            // Equal numerically — tie-break by zero-count (fewer
-            // leading zeros sorts first).
+            // Equal numerically — the leading-zero count is a SECONDARY
+            // tiebreak (more leading zeros sorts later), recorded only at
+            // the first difference so an earlier case tiebreak still wins
+            // (cmdIL-4.3).  Matches C ``DictionaryCompare``'s
+            // ``secondaryDiff = zeros``.
             const a_zeros = a_sig_start - a_zero_start;
             const b_zeros = b_sig_start - b_zero_start;
-            if (a_zeros != b_zeros) {
-                return if (a_zeros < b_zeros) -1 else 1;
+            if (secondary == 0 and a_zeros != b_zeros) {
+                secondary = if (a_zeros < b_zeros) -1 else 1;
             }
         } else {
-            var ac: u8 = ap[i];
-            var bc: u8 = bp[j];
-            if (nocase) {
-                if (ac >= 'A' and ac <= 'Z') ac += 32;
-                if (bc >= 'A' and bc <= 'Z') bc += 32;
-            }
+            // Non-digit run.  Dictionary order is primarily
+            // case-INSENSITIVE — compare the lower-cased characters,
+            // matching C ``DictionaryCompare``.  Folding to lower (not
+            // upper) makes punctuation between ``Z`` and ``a`` sort
+            // before ``A`` (cmdIL-4.28..4.33).  A case difference only
+            // breaks an otherwise-equal tie, and then upper-case sorts
+            // before lower-case (cmdIL-4.17 / 4.20).
+            const ac_raw = ap[i];
+            const bc_raw = bp[j];
+            var ac = ac_raw;
+            var bc = bc_raw;
+            if (ac >= 'A' and ac <= 'Z') ac += 32;
+            if (bc >= 'A' and bc <= 'Z') bc += 32;
             if (ac != bc) return if (ac < bc) -1 else 1;
+            if (secondary == 0 and !nocase) {
+                const a_up = ac_raw >= 'A' and ac_raw <= 'Z';
+                const a_lo = ac_raw >= 'a' and ac_raw <= 'z';
+                const b_up = bc_raw >= 'A' and bc_raw <= 'Z';
+                const b_lo = bc_raw >= 'a' and bc_raw <= 'z';
+                if (a_up and b_lo) {
+                    secondary = -1;
+                } else if (b_up and a_lo) {
+                    secondary = 1;
+                }
+            }
             i += 1;
             j += 1;
         }
     }
     if (i < a_len) return 1;
     if (j < b_len) return -1;
-    return 0;
+    return secondary;
 }
 
 // Bytewise compare with optional case-folding.
