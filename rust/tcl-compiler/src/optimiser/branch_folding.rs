@@ -382,6 +382,7 @@ mod tests {
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
                 redefined_procedures: std::collections::HashSet::new(),
+                redefined_methods: std::collections::HashSet::new(),
                 namespace_imports: Vec::new(),
                 namespace_exports: Vec::new(),
                 traced_commands: std::collections::BTreeSet::new(),

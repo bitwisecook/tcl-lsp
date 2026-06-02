@@ -724,6 +724,7 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
         methods: HashMap::new(),
         redefined_procedures: HashSet::new(),
+        redefined_methods: HashSet::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
         traced_commands: std::collections::BTreeSet::new(),
