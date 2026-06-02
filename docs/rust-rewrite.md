@@ -1942,22 +1942,27 @@ structural sub-chunks:
   to `rust/tcl-compiler/src/interprocedural.rs`; consume from the four
   emitters in `analyser/diagnostics.rs` (W211 / W220) and
   `optimiser/{elimination,unused_procs}.rs` (O109 / O126).
-  **Rust state: blocked — bigger than a single strip (promote to its own
-  chunk).**  The bullet's premise that "the `param_traits` infrastructure
-  is already there" is only half true: the Rust `ProcSummary.param_traits`
-  field exists, but the Rust `ProcArgTrait` enum carries only
-  `Passthrough` / `UsedInCondition` / `ForwardedToCallee` / `Unused` — it
-  has **no `VAR_READ` / `VAR_WRITE` / `DYNAMIC_NAME_LOCAL`** variants,
-  which are exactly what `collect_call_by_name_reads` keys on (it
-  suppresses a caller-local only when the callee param it lands on carries
-  VAR_READ/VAR_WRITE).  So the prerequisite is porting the
-  `proc_arg_traits.py` *call-by-name param-trait inference* (detect
-  `proc p {vn} { upvar 1 $vn loc; … }` → `vn` gets VAR_WRITE/VAR_READ),
-  then the proc-index builder, the cmd-sub-aware scan, and the four
-  consumer wirings.  Sequence as its own chunk: (a) extend `ProcArgTrait`
-  + the summary inference; (b) `collect_call_by_name_reads` +
-  `build_proc_index_from_summaries`; (c) wire W220 (highest-impact), then
-  W211 / O109 / O126.
+  **Rust state: (a) trait inference LANDED; (b) / (c) pending.**
+  - **(a) — LANDED.**  `ProcArgTrait` gained `VarRead` / `VarWrite`
+    variants, and `interprocedural::scan_statement` now ports
+    `proc_arg_traits.py::_handle_upvar`: `upvar ?level? $param local`
+    marks the source `$param` `VarRead`, and — only for the default
+    level 1, which writes back to the caller's frame — records a
+    `local → param` alias (`LocalFacts.upvar_aliases`) so a later `set`
+    / `incr` / `append` / `lappend` (Assign / Incr `name` or a Call
+    `def`, excluding `upvar`'s own defining `defs`) upgrades the param to
+    `VarWrite`.  `upvar #0` / `0` / level ≥ 2 stay `VarRead` (a non-caller
+    frame — no write-back).  A `$param` *local*-name binding is itself a
+    `VarWrite`.  The `DYNAMIC_NAME_LOCAL` refinement is intentionally
+    *not* ported: it exists to *exclude* `set $param` (dynamic
+    callee-local name) params from suppression, but the Rust inference
+    simply doesn't detect those as `VarRead`/`VarWrite` in the first
+    place (only the `upvar`-alias path marks them), so the same — correct
+    — "no suppression" result falls out without the extra trait.  3-case
+    discriminating test `call_by_name_param_traits_inferred`.
+  - **(b) / (c) pending:** `collect_call_by_name_reads` +
+    `build_proc_index_from_summaries`, then wire W220 (highest-impact),
+    then W211 / O109 / O126.
 - **O110 InstCombine whitespace guard.**  Add the
   `strip_ws(combined) != strip_ws(input)` guard to
   `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`
