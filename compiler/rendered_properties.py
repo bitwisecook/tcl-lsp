@@ -25,8 +25,8 @@ from dataclasses import dataclass
 from enum import Flag, auto
 
 from compiler.parsing.lexer import TclLexer
-from compiler.parsing.substitution import backslash_subst
 from compiler.registry import REGISTRY
+from shared.tcl_subst import backslash_subst
 from shared.tokens import TokenType
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto

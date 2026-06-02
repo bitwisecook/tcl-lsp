@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from compiler.codegen.bytecode import FunctionAsm, Instruction, Op
 from compiler.codegen.bytecode.opcodes import _INDEX_END
+from shared.tcl_list import TclListError, tcl_list_quote, tcl_list_split
 
 from .compiler import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 from .types import ReturnCode, TclBreak, TclContinue, TclError, TclResult, TclReturn
@@ -1899,141 +1900,25 @@ def _lset_nested(encoded_list: str, path: list[str], value: str) -> str:
 def _split_list(text: str) -> list[str]:
     """Split a Tcl list string into elements.
 
-    Raises :class:`TclError` for malformed list syntax (unmatched braces,
-    extra characters after close-brace/close-quote, etc.).
+    Delegates to the canonical :func:`shared.tcl_list.tcl_list_split` (strict
+    mode, with ``backslash_subst`` so bare/quoted elements decode to their
+    runtime *values* — what ``lindex`` returns) and re-raises its
+    :class:`TclListError` as the VM's :class:`TclError`.
     """
-    result: list[str] = []
-    i = 0
-    n = len(text)
-    while i < n:
-        while i < n and text[i] in " \t\n\r":
-            i += 1
-        if i >= n:
-            break
-        if text[i] == "{":
-            level = 1
-            i += 1
-            start = i
-            while i < n and level > 0:
-                if text[i] == "\\":
-                    i += 2
-                    continue
-                if text[i] == "{":
-                    level += 1
-                elif text[i] == "}":
-                    level -= 1
-                i += 1
-            if level > 0:
-                raise TclError("unmatched open brace in list")
-            result.append(text[start : i - 1])
-            # After close brace, next char must be whitespace or end
-            if i < n and text[i] not in " \t\n\r":
-                ch = text[i]
-                raise TclError(f'list element in braces followed by "{ch}" instead of space')
-        elif text[i] == '"':
-            i += 1
-            start = i
-            while i < n and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            if i >= n:
-                raise TclError("unmatched open quote in list")
-            result.append(text[start:i])
-            i += 1
-            # After close quote, next char must be whitespace or end
-            if i < n and text[i] not in " \t\n\r":
-                ch = text[i]
-                raise TclError(f'list element in quotes followed by "{ch}" instead of space')
-        else:
-            start = i
-            while i < n and text[i] not in " \t\n\r":
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            result.append(text[start:i])
-    return result
+    try:
+        return tcl_list_split(text, strict=True, unescape=True)
+    except TclListError as exc:
+        raise TclError(str(exc)) from exc
 
 
 def _list_escape(s: str) -> str:
-    """Escape a string for inclusion in a Tcl list.
+    """Escape a string for inclusion in a Tcl list element.
 
-    Uses brace quoting when the braces would be balanced (accounting
-    for backslash-escaped braces), and falls back to backslash escaping
-    otherwise — matching Tcl's own list representation rules.
+    Thin wrapper over the canonical :func:`shared.tcl_list.tcl_list_quote`.
+    Uses ``first=True`` (a leading ``#`` is quoted) — historically every VM
+    list element was rendered this way.
     """
-    if not s:
-        return "{}"
-
-    # Characters that need quoting in a Tcl list element
-    _NEEDS_QUOTING = frozenset(' \t\n\r{}[]$;"\\')
-
-    needs_quote = False
-    for ch in s:
-        if ch in _NEEDS_QUOTING:
-            needs_quote = True
-            break
-    # Leading # also needs quoting (would start a comment)
-    if s[0] == "#":
-        needs_quote = True
-
-    if not needs_quote:
-        return s
-
-    # Try brace quoting — only works when braces are balanced
-    # (after accounting for all backslash-escaped chars) and the string
-    # contains no backslash-newline sequences or trailing backslash.
-    can_brace = True
-    depth = 0
-    i = 0
-    n = len(s)
-    while i < n:
-        ch = s[i]
-        if ch == "\\":
-            if i + 1 < n:
-                if s[i + 1] == "\n":
-                    # Backslash-newline → unsafe for brace quoting
-                    can_brace = False
-                    break
-                # Skip escaped char (\{, \}, \\, etc. don't affect depth)
-                i += 2
-                continue
-            else:
-                # Trailing backslash → unsafe for brace quoting
-                can_brace = False
-                break
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth < 0:
-                can_brace = False
-                break
-        i += 1
-    if depth != 0:
-        can_brace = False
-
-    if can_brace:
-        return "{" + s + "}"
-
-    # Fall back to backslash escaping
-    out: list[str] = []
-    for ch in s:
-        if ch in '{}[]$";\\':
-            out.append("\\" + ch)
-        elif ch == " ":
-            out.append("\\ ")
-        elif ch == "\t":
-            out.append("\\t")
-        elif ch == "\n":
-            out.append("\\n")
-        elif ch == "\r":
-            out.append("\\r")
-        elif ch == "#" and not out:
-            out.append("\\#")
-        else:
-            out.append(ch)
-    return "".join(out)
+    return tcl_list_quote(s, first=True)
 
 
 # Index parsing

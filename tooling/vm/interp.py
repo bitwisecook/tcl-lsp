@@ -1097,7 +1097,7 @@ class TclInterp:
                     content = text[1:-1]
                     # Collapse backslash-newline continuations inside braces
                     if "\\\n" in content:
-                        from compiler.parsing.substitution import backslash_subst
+                        from shared.tcl_subst import backslash_subst
 
                         content = backslash_subst(content)
                     return content

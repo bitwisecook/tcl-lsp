@@ -11,7 +11,7 @@ substitution intact:
                                      the no-newline flag
 
 The channel-aware paths used to fall back to the interpreter, which
-round-tripped any quoted-string arg through ``_tcl_list_quote``.
+round-tripped any quoted-string arg through ``tcl_list_quote``.
 That helper braces words containing spaces / ``$`` / ``[``, and
 braced words suppress substitution — so ``puts $chan "==== $name
 FAILED"`` reached :func:`tcl_eval` as ``puts $chan {==== $name

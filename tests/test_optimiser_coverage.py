@@ -418,13 +418,32 @@ class TestO100ConstantVarRefPropagation:
         assert 'puts "7}"' not in o
         assert 'puts "7"' in o
 
-    def test_no_propagate_string_value_in_string(self):
-        """String (non-numeric) constants are not propagated into strings."""
+    def test_propagate_safe_string_value_in_string(self):
+        """A *safe* string constant (no Tcl-special chars) folds into a string.
+
+        ``set x hello`` proves ``x`` is the literal ``hello`` (SCCP CONST), so
+        ``puts "val=$x"`` → ``puts "val=hello"`` — byte-identical on tclsh9.
+        """
         s = 'set x hello\nputs "val=$x"'
-        assert _not_has(s, "O105")
+        assert _has(s, "O105")
+        o, _ = _opt(s)
+        assert 'puts "val=hello"' in o
+
+    def test_propagate_string_value_with_space_in_string(self):
+        s = 'set x "a b"\nputs "val=$x"'
+        assert _has(s, "O105")
+        o, _ = _opt(s)
+        assert 'puts "val=a b"' in o
 
     def test_no_propagate_unsafe_value_with_dollar_in_string(self):
+        """A constant whose value contains ``$`` must NOT fold into a string —
+        re-interpolating it would introduce a fresh variable substitution."""
         s = 'set x {$y}\nputs "val=$x"'
+        assert _not_has(s, "O105")
+
+    def test_no_propagate_unsafe_value_with_bracket_in_string(self):
+        """Likewise a value containing ``[`` would inject a command sub."""
+        s = 'set x {[exit]}\nputs "val=$x"'
         assert _not_has(s, "O105")
 
     def test_no_propagate_in_string_across_call_barrier(self):

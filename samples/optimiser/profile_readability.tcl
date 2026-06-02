@@ -25,7 +25,7 @@ proc greet {name} {
 
 # O115: redundant nested expr
 proc double_expr {x} {
-    return [expr {[expr {$x * 2}]}]
+    return [expr {$x * 2}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---

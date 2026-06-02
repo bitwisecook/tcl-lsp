@@ -15,41 +15,16 @@ SCCP calls them when all arguments resolve to known constants.
 
 from __future__ import annotations
 
+from shared.tcl_list import tcl_list_join, tcl_list_split
+
 # ---------------------------------------------------------------------------
 # list / concat / join / split / lindex / lrange / llength / lreverse / lrepeat
 # ---------------------------------------------------------------------------
 
 
-def _tcl_list_element(value: str) -> str:
-    """Render *value* as a single Tcl list element with proper quoting."""
-    if value == "":
-        return "{}"
-    specials = set(' \t\n\r\v\f{}[];$"\\')
-    if not any(ch in specials for ch in value):
-        return value
-    # Brace-quoting when the element has no unbalanced braces and
-    # doesn't end with a backslash.
-    if "{" not in value and "}" not in value and not value.endswith("\\"):
-        return "{" + value + "}"
-    # Fall back to backslash escaping.
-    escaped: list[str] = []
-    for ch in value:
-        if ch == "\n":
-            escaped.append("\\n")
-        elif ch == "\r":
-            escaped.append("\\r")
-        elif ch == "\t":
-            escaped.append("\\t")
-        elif ch in ' []{};$"\\':
-            escaped.append("\\" + ch)
-        else:
-            escaped.append(ch)
-    return "".join(escaped)
-
-
 def fold_list(args: tuple[str, ...]) -> str | None:
     """``list arg ...`` — returns a proper Tcl list."""
-    return " ".join(_tcl_list_element(arg) for arg in args)
+    return tcl_list_join(args)
 
 
 def fold_concat(args: tuple[str, ...]) -> str | None:
@@ -614,6 +589,105 @@ def fold_format(args: tuple[str, ...]) -> str | None:
         return None
 
 
+_SCAN_WS = " \t\n\r\f\v"
+
+
+def fold_scan(args: tuple[str, ...]) -> str | None:
+    """``scan string format`` — the *inline* (no ``varName``) form only.
+
+    Returns the list of converted values.  Deliberately conservative: only the
+    integer / string / char conversions (``%d %o %x %X %u %s %c``) are folded,
+    and only when **every** conversion succeeds (no whitespace-flag, width,
+    ``*`` suppression, ``%[`` set, size modifier, or float conversion, and no
+    partial / failed match — those have empty-element semantics we don't
+    reproduce).  Returns ``None`` (don't fold) otherwise.
+    """
+    if len(args) != 2:  # the ?varName ...? form has side effects — never fold
+        return None
+    return _tcl_scan(args[0], args[1])
+
+
+def _tcl_scan(string: str, fmt: str) -> str | None:
+    results: list[str] = []
+    si = 0
+    fi = 0
+    n = len(string)
+    m = len(fmt)
+    while fi < m:
+        fc = fmt[fi]
+        if fc in " \t\n":
+            # whitespace in the format matches a (possibly empty) run
+            while si < n and string[si] in _SCAN_WS:
+                si += 1
+            fi += 1
+            continue
+        if fc != "%":
+            if si < n and string[si] == fc:
+                si += 1
+                fi += 1
+                continue
+            return None  # literal mismatch — bail conservatively
+        # conversion specifier
+        fi += 1
+        if fi >= m:
+            return None
+        conv = fmt[fi]
+        if conv == "%":
+            if si < n and string[si] == "%":
+                si += 1
+                fi += 1
+                continue
+            return None
+        # Suppression / width / size / scan-set / positional — not folded.
+        if conv in "*0123456789[lhqLjzt" or conv == "$":
+            return None
+        fi += 1
+        if conv == "c":
+            # %c consumes exactly one character (no whitespace skip).
+            if si >= n:
+                return None
+            results.append(str(ord(string[si])))
+            si += 1
+            continue
+        # Numeric / string conversions skip leading whitespace.
+        while si < n and string[si] in _SCAN_WS:
+            si += 1
+        if si >= n:
+            return None  # nothing left to convert — bail
+        if conv == "s":
+            start = si
+            while si < n and string[si] not in _SCAN_WS:
+                si += 1
+            results.append(string[start:si])
+        elif conv in "doxXu":
+            start = si
+            if string[si] in "+-":
+                si += 1
+            digit_start = si
+            if conv in "xX":
+                base = 16
+                allowed = "0123456789abcdefABCDEF"
+            elif conv == "o":
+                base = 8
+                allowed = "01234567"
+            else:  # d, u
+                base = 10
+                allowed = "0123456789"
+            while si < n and string[si] in allowed:
+                si += 1
+            if si == digit_start:
+                return None  # no digits — conversion failed
+            try:
+                results.append(str(int(string[start:si], base)))
+            except ValueError:
+                return None
+        else:
+            return None  # %f/%e/%g and any other conversion — not folded
+    if not results:
+        return None
+    return tcl_list_join(results)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -621,10 +695,8 @@ def fold_format(args: tuple[str, ...]) -> str | None:
 
 def _split_list(s: str) -> list[str] | None:
     """Split a Tcl list string into elements (simple cases)."""
-    from compiler.tcl_expr_eval import _split_tcl_list
-
     try:
-        return _split_tcl_list(s)
+        return tcl_list_split(s)
     except Exception:
         return None
 
@@ -730,59 +802,84 @@ def _is_int(s: str) -> bool:
         return False
 
 
+def _format_int_arg(raw: str) -> int:
+    """Parse a Tcl integer argument to ``format`` (decimal, or 0x/0o/0b)."""
+    try:
+        return int(raw)
+    except ValueError:
+        return int(raw, 0)  # 0x.. / 0o.. / 0b.. — raises ValueError if not
+
+
 def _tcl_format(fmt: str, vals: tuple[str, ...]) -> str | None:
-    """Basic Tcl format → Python format conversion for %s, %d, %f, %x."""
-    result: list[str] = []
+    """Constant-fold Tcl ``format`` via Python ``%`` conversion.
+
+    Handles the conversions ``%s %d %i %u %f %e %E %g %G %x %X %o %c`` with
+    optional ``- + space 0 #`` flags, a numeric width, and a numeric
+    precision — exactly the cases where Python's printf-style ``%`` operator is
+    byte-identical to C Tcl 9's ``format`` (verified against ``tclsh9.0`` in
+    tests/test_const_fold_vs_tcl.py).  Anything outside that — ``*`` dynamic
+    width/precision, ``l``/``h``/… size modifiers, positional ``%n$``
+    specifiers, or an unknown conversion — returns ``None`` so the optimiser
+    leaves the original ``format`` call untouched rather than risk a wrong
+    literal.
+    """
+    out: list[str] = []
     vi = 0
     i = 0
-    while i < len(fmt):
-        if fmt[i] == "%" and i + 1 < len(fmt):
+    n = len(fmt)
+    while i < n:
+        ch = fmt[i]
+        if ch != "%":
+            out.append(ch)
             i += 1
-            if fmt[i] == "%":
-                result.append("%")
-                i += 1
-                continue
-            # Skip flags and width
-            while i < len(fmt) and fmt[i] in "-+ 0#":
-                i += 1
-            while i < len(fmt) and fmt[i].isdigit():
-                i += 1
-            if i < len(fmt) and fmt[i] == ".":
-                i += 1
-                while i < len(fmt) and fmt[i].isdigit():
-                    i += 1
-            if i >= len(fmt) or vi >= len(vals):
+            continue
+        i += 1
+        if i < n and fmt[i] == "%":
+            out.append("%")
+            i += 1
+            continue
+        flags = ""
+        while i < n and fmt[i] in "-+ 0#":
+            flags += fmt[i]
+            i += 1
+        if i < n and fmt[i] == "*":  # dynamic width — not folded
+            return None
+        width = ""
+        while i < n and fmt[i].isdigit():
+            width += fmt[i]
+            i += 1
+        prec = ""
+        if i < n and fmt[i] == ".":
+            prec = "."
+            i += 1
+            if i < n and fmt[i] == "*":  # dynamic precision — not folded
                 return None
-            spec = fmt[i]
-            val = vals[vi]
-            vi += 1
-            if spec == "s":
-                result.append(val)
-            elif spec == "d":
-                try:
-                    result.append(str(int(val)))
-                except ValueError:
-                    return None
-            elif spec in ("f", "e", "g"):
-                try:
-                    result.append(str(float(val)))
-                except ValueError:
-                    return None
-            elif spec in ("x", "X"):
-                try:
-                    n = int(val)
-                    result.append(format(n, spec))
-                except ValueError:
-                    return None
-            elif spec == "c":
-                try:
-                    result.append(chr(int(val)))
-                except (ValueError, OverflowError):
-                    return None
+            while i < n and fmt[i].isdigit():
+                prec += fmt[i]
+                i += 1
+        # Size modifiers / positional specifiers — Tcl/Python semantics diverge.
+        if i < n and (fmt[i] in "lhqLtjz" or fmt[i] == "$"):
+            return None
+        if i >= n or vi >= len(vals):
+            return None
+        conv = fmt[i]
+        i += 1
+        raw = vals[vi]
+        vi += 1
+        pyspec = "%" + flags + width + prec
+        try:
+            if conv in "diu":
+                out.append((pyspec + "d") % _format_int_arg(raw))
+            elif conv in "xXo":
+                out.append((pyspec + conv) % _format_int_arg(raw))
+            elif conv in "feEgG":
+                out.append((pyspec + conv) % float(raw))
+            elif conv == "s":
+                out.append((pyspec + "s") % raw)
+            elif conv == "c":
+                out.append((pyspec + "c") % _format_int_arg(raw))
             else:
                 return None
-            i += 1
-        else:
-            result.append(fmt[i])
-            i += 1
-    return "".join(result)
+        except (ValueError, TypeError, OverflowError):
+            return None
+    return "".join(out)

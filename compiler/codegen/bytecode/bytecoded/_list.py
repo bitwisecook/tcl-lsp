@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._helpers import _tcl_list_element
+from shared.tcl_list import tcl_list_join
+
 from ..format import _esc
 from ..opcodes import (
     _INDEX_END,
@@ -171,8 +172,7 @@ def codegen_list(emitter: _Emitter, args: tuple[str, ...]) -> bool:
             clean_args.append(a[3:-3])
         else:
             clean_args.append(a)
-    parts = [_tcl_list_element(a) for a in clean_args]
-    result = " ".join(parts) if parts else ""
+    result = tcl_list_join(clean_args)
     # List fold produces a computed Tcl_Obj — use a fresh
     # literal slot so later identical strings get their own.
     idx = emitter._lit.register(result)

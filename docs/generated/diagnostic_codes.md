@@ -31,6 +31,7 @@
 | W125 | warning | Orphaned control-flow keyword used as standalone command. | ✓ |
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W127 | warning | Value not in the command's allowed set. | ✓ |
+| W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

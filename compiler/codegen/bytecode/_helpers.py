@@ -2,53 +2,15 @@
 
 from __future__ import annotations
 
+from shared.tcl_list import tcl_list_split
+
 
 def _split_list_simple(text: str) -> list[str]:
     """Split a constant Tcl list string into elements (compile-time only).
 
-    Handles braces, quotes, and backslash escaping.  Does not validate
-    syntax strictly — used only for known-good constant arguments.
+    Thin wrapper over the canonical :func:`shared.tcl_list.tcl_list_split`.
     """
-    result: list[str] = []
-    i = 0
-    n = len(text)
-    while i < n:
-        while i < n and text[i] in " \t\n\r":
-            i += 1
-        if i >= n:
-            break
-        if text[i] == "{":
-            level = 1
-            i += 1
-            start = i
-            while i < n and level > 0:
-                if text[i] == "\\":
-                    i += 2
-                    continue
-                if text[i] == "{":
-                    level += 1
-                elif text[i] == "}":
-                    level -= 1
-                i += 1
-            result.append(text[start : i - 1])
-        elif text[i] == '"':
-            i += 1
-            start = i
-            while i < n and text[i] != '"':
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            result.append(text[start:i])
-            if i < n:
-                i += 1
-        else:
-            start = i
-            while i < n and text[i] not in " \t\n\r":
-                if text[i] == "\\":
-                    i += 1
-                i += 1
-            result.append(text[start:i])
-    return result
+    return tcl_list_split(text)
 
 
 # Tcl 9.0 default trim characters — pushed when ``string trim`` is

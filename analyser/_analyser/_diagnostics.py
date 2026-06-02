@@ -33,6 +33,8 @@ class _AnalyserDiagsMixin(_Base):
 
         def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None: ...
 
+        def _emit_renamed_command_diagnostics(self, cu: CompilationUnit) -> None: ...
+
         def _emit_constant_branch_diagnostics(
             self,
             cfg: CFGFunction,
@@ -174,6 +176,8 @@ class _AnalyserDiagsMixin(_Base):
             cu.top_level.analysis,
             cu.top_level.execution_intent,
         )
+        # W121: a call to a command renamed/deleted away earlier in the file.
+        self._emit_renamed_command_diagnostics(cu)
         conn = cu.connection_scope
         for qname, fu in cu.procedures.items():
             if fu.complexity_guarded:

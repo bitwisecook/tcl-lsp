@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._helpers import _tcl_list_element
+from shared.tcl_list import tcl_list_join
+
 from ..opcodes import Op
 
 if TYPE_CHECKING:
@@ -137,8 +138,7 @@ def codegen_dict(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C90
                     a[3:-3] if a.startswith("\x00\x01{") and a.endswith("}\x01\x00") else a
                     for a in rest
                 ]
-                parts = [_tcl_list_element(a) for a in clean_rest]
-                result = " ".join(parts) if parts else ""
+                result = tcl_list_join(clean_rest)
                 emitter._push_lit(result)
                 emitter._emit(Op.DUP)
                 emitter._emit(Op.VERIFY_DICT)

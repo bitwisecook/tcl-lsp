@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-from compiler.parsing.substitution import backslash_subst as _tcl_backsubst
 from shared.alias import CommandAliasMap
 from shared.alias import expr_alias_names as _expr_alias_names
 from shared.naming import normalise_var_name as _normalise_var_name
+from shared.tcl_subst import backslash_subst as _tcl_backsubst
 
 from ..ir import (
     IRAssignConst,

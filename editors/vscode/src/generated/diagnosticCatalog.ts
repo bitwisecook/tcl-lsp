@@ -191,6 +191,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W128",
+    section: "warning",
+    description:
+      "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",
@@ -794,6 +801,17 @@ export const OPTIMISATIONS: OptimisationDef[] = [
     code: "O128",
     description:
       "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument.",
+    defaultEnabled: true,
+  },
+  {
+    code: "O129",
+    description:
+      "Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …).",
+    defaultEnabled: true,
+  },
+  {
+    code: "O130",
+    description: "Fold static `lappend` list build chains into a single assignment.",
     defaultEnabled: true,
   },
 ];

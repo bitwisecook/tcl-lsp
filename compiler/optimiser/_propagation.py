@@ -9,6 +9,7 @@ from compiler.interprocedural import (
     fold_static_proc_call,
 )
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.lexer import TclLexer
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
@@ -17,6 +18,7 @@ from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
 from shared.ranges import range_from_token
+from shared.tcl_list import tcl_list_quote
 from shared.tokens import Token, TokenType
 
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
@@ -41,6 +43,7 @@ from ._helpers import (
     _parse_single_command_from_range,
     _render_folded_literal,
     _resolve_summary_proc_name,
+    safe_string_constants,
 )
 from ._types import Optimisation, PassContext
 
@@ -110,6 +113,14 @@ opt(
     opt_category="constant_folding",
 )
 opt(
+    code="O129",
+    description=(
+        "Fold a pure builtin command substitution with constant arguments "
+        "(`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …)."
+    ),
+    opt_category="constant_folding",
+)
+opt(
     code="O120",
     description="Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
     opt_category="readability",
@@ -170,7 +181,12 @@ def optimise_expression_args(
             constants,
             namespace=namespace,
         )
-        changed = var_changed or proc_changed
+        substituted_expr, cmd_changed = _substitute_expr_builtin_cmd_subs(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            values=values,
+        )
+        changed = var_changed or proc_changed or cmd_changed
 
         # O115/O113/O117/O120 pre-checks on the original expression text
         sr_detected = _try_strength_reduce_expr(expr_text)[1]
@@ -265,6 +281,29 @@ def optimise_expression_args(
             )
 
 
+def _fold_builtin_cmd_subst(
+    cmd_text: str,
+    ssa_uses: dict[str, int] | None,
+    values: dict | None,
+) -> str | None:
+    """Constant-fold a pure builtin ``[cmd args]`` to a safe Tcl word, or None.
+
+    Delegates to the shared registry folder (the same one SCCP uses) so a
+    command folds here exactly when SCCP would treat its result as a constant;
+    the value is then rendered as a single brace/escape-quoted word.
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    # ``cmd_text`` is the CMD token body (no surrounding brackets); the folder
+    # parses the ``[cmd ...]`` substitution form and returns the command's
+    # exact string output (no numeric coercion — ``format %5.2f`` keeps its
+    # leading-space padding).  Render it as one safe Tcl word.
+    result = fold_cmd_subst_to_string(f"[{cmd_text}]", ssa_uses or {}, values or {})
+    if result is None:
+        return None
+    return tcl_list_quote(result, first=False)
+
+
 def optimise_expr_substitutions(
     ctx: PassContext,
     arg_tokens: list[Token],
@@ -275,36 +314,35 @@ def optimise_expr_substitutions(
     types: dict[tuple[str, int], TypeLattice] | None = None,
     values: dict | None = None,
 ) -> None:
-    from ._helpers import _try_fold_lindex_command, _try_fold_list_command
-
     for idx, tok in enumerate(arg_tokens):
         if idx >= len(arg_single) or not arg_single[idx]:
             continue
         if tok.type is not TokenType.CMD:
             continue
 
-        # O116: fold [list a b c] -> a b c
-        list_result = _try_fold_list_command(tok.text)
-        if list_result is not None:
+        # Fold any pure builtin command substitution with constant arguments
+        # via the *registry* const_fold callbacks — the single source of truth
+        # for how each command folds (string / llength / lrange / join / split /
+        # concat / format / dict / list / lindex / ...).  The callbacks are
+        # verified byte-identical to C Tcl 9 (tests/test_const_fold_vs_tcl.py);
+        # the result is rendered as one safe Tcl word so it can replace the
+        # substitution in any word position.  ``list`` / ``lindex`` keep their
+        # historical diagnostic codes (O116 / O118) for editor granularity;
+        # everything else reports the general O129.
+        general = _fold_builtin_cmd_subst(tok.text, ssa_uses, values)
+        if general is not None:
+            head = tok.text.split(None, 1)[0] if tok.text.strip() else ""
+            code = {"list": "O116", "lindex": "O118"}.get(head, "O129")
+            message = {
+                "O116": "Fold constant list command",
+                "O118": "Fold constant lindex command",
+            }.get(code, "Fold constant command substitution")
             ctx.optimisations.append(
                 Optimisation(
-                    code="O116",
-                    message="Fold constant list command",
+                    code=code,
+                    message=message,
                     range=_command_subst_range(tok),
-                    replacement=list_result,
-                )
-            )
-            continue
-
-        # O118: fold [lindex {a b c} 1] -> b
-        lindex_result = _try_fold_lindex_command(tok.text)
-        if lindex_result is not None:
-            ctx.optimisations.append(
-                Optimisation(
-                    code="O118",
-                    message="Fold constant lindex command",
-                    range=_command_subst_range(tok),
-                    replacement=lindex_result,
+                    replacement=general,
                 )
             )
             continue
@@ -313,7 +351,31 @@ def optimise_expr_substitutions(
         if expr_arg is None:
             continue
 
+        # O115: unwrap a redundant nested expr command substitution.  When the
+        # outer expr body is exactly ``[expr {E}]`` (e.g. inside ``return
+        # [expr {[expr {$x * 2}]}]``), the inner command sub is pointless --
+        # collapse ``[expr {[expr {E}]}]`` to ``[expr {E}]``.  ``optimise_
+        # expression_args`` only fires for EXPR-role args, so this is the path
+        # that reaches expr command subs sitting in value positions.
+        unwrapped = _try_unwrap_expr_in_expr(expr_arg)
+        if unwrapped is not None and unwrapped != expr_arg:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O115",
+                    message="Remove redundant nested expr",
+                    range=_command_subst_range(tok),
+                    replacement=f"[expr {{{unwrapped}}}]",
+                )
+            )
+            continue
+
         substituted_expr, changed, _subst = _substitute_expr_constants(expr_arg, constants)
+        substituted_expr, cmd_changed = _substitute_expr_builtin_cmd_subs(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            values=values,
+        )
+        changed = changed or cmd_changed
         sc_detected = _try_eq_ne_string_compare_simplify_expr(
             expr_arg,
             ssa_uses=ssa_uses,
@@ -375,6 +437,25 @@ def optimise_expr_substitutions(
             )
 
 
+def _binding_allows_proc_fold(ctx: PassContext, proc_word: str, resolved: str) -> bool:
+    """True when *proc_word* still resolves to *resolved* at the current point.
+
+    Consults the flow-sensitive command-binding lattice (set only for the top
+    level).  When unavailable (inside proc/method bodies) the call is allowed —
+    the ``redefined_procedures`` gate and the module-level builtin-trust overlay
+    still apply there.  At the top level a call whose name has been renamed away
+    (now opaque), rebound to a *different* proc, or made ambiguous (UNKNOWN) is
+    refused, so ``[a]`` after ``rename a b`` is not folded as the old proc.
+    """
+    cb = ctx.command_binding
+    if cb is None:
+        return True
+    from ..command_binding import BindingKind
+
+    binding = cb.binding_at(ctx.cur_block, ctx.cur_idx, proc_word)
+    return binding.kind is BindingKind.PROC and binding.target == resolved
+
+
 def optimise_static_proc_calls(
     ctx: PassContext,
     arg_tokens: list[Token],
@@ -420,6 +501,13 @@ def optimise_static_proc_calls(
         if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
             continue
 
+        # Flow-sensitive rename gate: at the top level the binding lattice knows
+        # whether ``proc_word`` still resolves to *this* proc at this point — a
+        # call after ``rename a b`` (so ``a`` is now opaque) must not be folded
+        # as the old proc.
+        if not _binding_allows_proc_fold(ctx, proc_word, resolved):
+            continue
+
         static_args: list[int | bool | str] = []
         all_static = True
         for i in range(arg_start, len(cmd_texts)):
@@ -463,9 +551,6 @@ def optimise_static_proc_calls(
         )
 
 
-_UNSAFE_IN_WORD_RE = re.compile(r'[\$\[\]\\"\s{}]')
-
-
 def _is_braced_var_token(tok: Token) -> bool:
     """Return True when ``tok`` is a ``${name}`` style variable token."""
     if tok.type is not TokenType.VAR:
@@ -502,16 +587,21 @@ def optimise_constant_var_refs(
         value = constants.get(name)
         if value is None:
             continue
-        # String constants with Tcl metacharacters ($, [, \, etc.) would
-        # change the interpretation if substituted as a bare word.
-        if _UNSAFE_IN_WORD_RE.search(value):
-            continue
+        # This $var is a single-token whole word (``arg_single[idx]``), so the
+        # constant can be inlined as the canonical Tcl source for that value.
+        # ``tcl_list_quote`` is the project's 1:1 port of Tcl's own
+        # ``TclScanElement``/``TclConvertElement``: it returns a single word
+        # that parses back to exactly ``value`` -- bare when safe, brace-quoted
+        # when brace-balanced, backslash-escaped otherwise -- which is what
+        # ``$var`` already evaluates to.  ``first=False`` because the
+        # substituted word is always an argument, never a command head, so a
+        # leading ``#`` need not be quoted.
         ctx.optimisations.append(
             Optimisation(
                 code="O100",
                 message="Propagate constant into command argument",
                 range=_var_token_range(tok),
-                replacement=value,
+                replacement=tcl_list_quote(value, first=False),
             )
         )
 
@@ -609,6 +699,29 @@ def optimise_return_terminator(
     )
     optimise_constant_var_refs(ctx, arg_tokens_slice, arg_single_slice, constants)
 
+    # Propagate constants into ``$var`` refs embedded in a quoted return value,
+    # e.g. ``set x hi; return "got $x"`` → ``return "got hi"`` (O105).  Use the
+    # same same-block / no-intervening-call safety gate as the statement loop;
+    # ``_parse_single_command_from_range`` only keeps each word's first token, so
+    # re-lex the return command to recover the nested VAR tokens inside strings.
+    safe_constants = safe_string_constants(constants, block, len(block.statements))
+    if safe_constants:
+        all_tokens: list[Token] = []
+        lexer = TclLexer(
+            source[start : end + 1],
+            base_offset=start,
+            base_line=ret_range.start.line,
+            base_col=ret_range.start.character,
+        )
+        while True:
+            t = lexer.get_token()
+            if t is None:
+                break
+            all_tokens.append(t)
+        optimise_string_interpolation_var_refs(
+            ctx, arg_tokens_slice, arg_single_slice, safe_constants, tuple(all_tokens)
+        )
+
 
 def _substitute_expr_proc_calls(
     ctx: PassContext,
@@ -639,6 +752,55 @@ def _substitute_expr_proc_calls(
             )
             if folded_text is not None:
                 pieces.append(folded_text)
+                changed = True
+            else:
+                pieces.append(tok.text)
+        else:
+            pieces.append(tok.text)
+
+        cursor = tok.end + 1
+
+    if cursor < len(expr):
+        pieces.append(expr[cursor:])
+
+    return "".join(pieces), changed
+
+
+def _substitute_expr_builtin_cmd_subs(
+    expr: str,
+    *,
+    ssa_uses: dict[str, int] | None = None,
+    values: dict | None = None,
+) -> tuple[str, bool]:
+    """Fold pure *builtin* command substitutions embedded in an expr body.
+
+    ``[expr {[string length abc] + 2}]`` → the inner ``[string length abc]``
+    folds to ``3`` (via the registry ``const_fold`` callbacks, the same source
+    of truth O129 uses), leaving ``3 + 2`` for :func:`_try_fold_expr` to finish.
+    An integer result is inlined bare so arithmetic keeps folding; any other
+    clean value (``[string toupper hi]`` → ``HI``) is rendered as a quoted expr
+    operand.  ``fold_cmd_subst_to_string`` already guarantees the result is free
+    of ``"`` / ``$`` / ``[`` / ``\\`` / ``;`` / newline, so double-quoting is safe.
+    User-proc calls are left untouched (handled by
+    :func:`_substitute_expr_proc_calls`).
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    pieces: list[str] = []
+    cursor = 0
+    changed = False
+
+    for tok in tokenise_expr(expr, dialect=active_dialect()):
+        if tok.start > cursor:
+            pieces.append(expr[cursor : tok.start])
+
+        if tok.type is ExprTokenType.COMMAND and len(tok.text) >= 2:
+            folded = fold_cmd_subst_to_string(tok.text, ssa_uses or {}, values or {})
+            if folded is not None:
+                if _parse_decimal_int(folded) is not None:
+                    pieces.append(folded)
+                else:
+                    pieces.append(f'"{folded}"')
                 changed = True
             else:
                 pieces.append(tok.text)
@@ -700,6 +862,10 @@ def _try_fold_proc_call_in_expr(
 
     # Don't fold calls to redefined procedures.
     if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
+        return None
+
+    # Flow-sensitive rename gate (see optimise_static_proc_calls).
+    if not _binding_allows_proc_fold(ctx, proc_word, resolved):
         return None
 
     folded = fold_static_proc_call(ctx.interproc, resolved, tuple(static_args))

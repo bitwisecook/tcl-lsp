@@ -113,6 +113,7 @@ class TclLspSettingsPanel {
     private val diagW125 = JBCheckBox("W125: Orphaned control-flow keyword used as standalone com...")
     private val diagW126 = JBCheckBox("W126: Non-channel value in channel argument position")
     private val diagW127 = JBCheckBox("W127: Value not in the command's allowed set")
+    private val diagW128 = JBCheckBox("W128: Command called after it was renamed or deleted earli...")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
@@ -239,6 +240,8 @@ class TclLspSettingsPanel {
     private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
     private val optO127 = JBCheckBox("O127: Inline single-use variable assignment")
     private val optO128 = JBCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...")
+    private val optO129 = JBCheckBox("O129: Fold a pure builtin command substitution with consta...")
+    private val optO130 = JBCheckBox("O130: Fold static lappend list build chains into a single ...")
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -341,8 +344,8 @@ class TclLspSettingsPanel {
             diagW105, diagW106, diagW108, diagW110, diagW111, diagW112,
             diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
             diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
-            diagW127, diagW200, diagW201, diagW230, diagW231, diagW232,
-            diagW233, diagW240, diagW241,
+            diagW127, diagW128, diagW200, diagW201, diagW230, diagW231,
+            diagW232, diagW233, diagW240, diagW241,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -416,7 +419,8 @@ class TclLspSettingsPanel {
             optO106, optO107, optO108, optO109, optO110, optO111,
             optO112, optO113, optO114, optO115, optO116, optO117,
             optO118, optO119, optO120, optO121, optO122, optO123,
-            optO124, optO125, optO126, optO127, optO128,
+            optO124, optO125, optO126, optO127, optO128, optO129,
+            optO130,
         ).forEach { optPanel.add(it) }
         builder.addComponent(optPanel)
         // @generated:opt-ui:end
@@ -547,6 +551,7 @@ class TclLspSettingsPanel {
             diagW125.isSelected != s.diagnosticW125 ||
             diagW126.isSelected != s.diagnosticW126 ||
             diagW127.isSelected != s.diagnosticW127 ||
+            diagW128.isSelected != s.diagnosticW128 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW230.isSelected != s.diagnosticW230 ||
@@ -656,6 +661,8 @@ class TclLspSettingsPanel {
             optO126.isSelected != s.optimiserO126 ||
             optO127.isSelected != s.optimiserO127 ||
             optO128.isSelected != s.optimiserO128 ||
+            optO129.isSelected != s.optimiserO129 ||
+            optO130.isSelected != s.optimiserO130 ||
             // @generated:opt-dirty:end
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
@@ -767,6 +774,7 @@ class TclLspSettingsPanel {
         s.diagnosticW125 = diagW125.isSelected
         s.diagnosticW126 = diagW126.isSelected
         s.diagnosticW127 = diagW127.isSelected
+        s.diagnosticW128 = diagW128.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW230 = diagW230.isSelected
@@ -876,6 +884,8 @@ class TclLspSettingsPanel {
         s.optimiserO126 = optO126.isSelected
         s.optimiserO127 = optO127.isSelected
         s.optimiserO128 = optO128.isSelected
+        s.optimiserO129 = optO129.isSelected
+        s.optimiserO130 = optO130.isSelected
         // @generated:opt-apply:end
 
         s.shimmerEnabled = shimmerEnabled.isSelected
@@ -1003,6 +1013,7 @@ class TclLspSettingsPanel {
         diagW125.isSelected = s.diagnosticW125
         diagW126.isSelected = s.diagnosticW126
         diagW127.isSelected = s.diagnosticW127
+        diagW128.isSelected = s.diagnosticW128
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW230.isSelected = s.diagnosticW230
@@ -1112,6 +1123,8 @@ class TclLspSettingsPanel {
         optO126.isSelected = s.optimiserO126
         optO127.isSelected = s.optimiserO127
         optO128.isSelected = s.optimiserO128
+        optO129.isSelected = s.optimiserO129
+        optO130.isSelected = s.optimiserO130
         // @generated:opt-reset:end
 
         shimmerEnabled.isSelected = s.shimmerEnabled

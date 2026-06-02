@@ -54,6 +54,7 @@ from shared.naming import split_array_name
 from shared.tokens import TokenType
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from .command_trust import builtin_is_trusted
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import (
     BinOp,
@@ -114,6 +115,7 @@ from .static_loops import (
 )
 from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
+from .token_helpers import contains_braced_scalar_marker
 from .types import TclType, TypeLattice, type_join
 from .value_shapes import is_pure_var_ref
 from .var_refs import VarReferenceScanner, body_write_names, command_sub_write_names
@@ -123,6 +125,7 @@ if TYPE_CHECKING:
     from .memory_ssa import MemorySSAFunction
     from .rendered_properties import RenderedValueProps
     from .taint import TaintLattice
+    from .var_observability import VarObservability
 
 _RETURN_VAR_SCANNER = VarReferenceScanner()
 
@@ -154,6 +157,34 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     cmd = commands[0]
     args_text = inner[cmd.argv[1].start.offset :].rstrip() if len(cmd.argv) >= 2 else ""
     return cmd.texts[0], args_text
+
+
+def _parse_cmd_subst_command(value: str):
+    """Like :func:`_parse_cmd_subst` but return the whole ``SegmentedCommand``.
+
+    The command's ``argv`` carries per-word *token types*, which is exactly what
+    distinguishes a genuine bare command substitution (``[list a b]`` → a ``CMD``
+    token) from a braced literal that merely *contains* brackets (``{[list a b]}``
+    → a ``STR`` token).  ``fold_cmd_subst_to_string`` needs that distinction to
+    safely fold nested command subs inside-out without misreading a literal.
+    """
+    v = value.strip()
+    if not (v.startswith("[") and v.endswith("]")):
+        return None
+    lexer = TclLexer(v)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = lexer.get_token()
+    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
+        nxt = lexer.get_token()
+    if nxt is not None:
+        return None
+    inner = v[1:-1]
+    commands = segment_commands(inner)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    return commands[0]
 
 
 def _parse_safe_unset_ref(cmd_text: str) -> str | None:
@@ -412,6 +443,10 @@ class FunctionAnalysis:
     rendered_props: dict[SSAValueKey, "RenderedValueProps"] = field(default_factory=dict)
     def_use_chains: "DefUseResult | None" = None
     memory_ssa: "MemorySSAFunction | None" = None
+    # Flow-sensitive alias + trace-observability lattice — the shared source of
+    # truth for "is this variable a private local at this point?".  ``None``
+    # only for complexity-guarded bodies.
+    observability: "VarObservability | None" = None
     # Joined type of all ``CFGReturn`` terminators in the function.  Unlike
     # ``types`` (which is keyed by SSA def-sites and therefore empty for
     # procs whose body is just ``return [expr ...]``), this is computed
@@ -668,12 +703,55 @@ def _try_fold_cmd_subst(
     Uses registry-based fold callbacks from ``FOLD_HINTS`` /
     ``FOLD_SUBCOMMAND_HINTS``.  Returns a ``LatticeValue`` if the command
     is foldable with all-constant arguments, or ``None`` if not.
+
+    The lattice value is numeric where the result *looks* numeric (so SCCP can
+    reason about ``[llength ...] + 1`` etc.).  Callers that must reproduce the
+    command's exact string output (e.g. the O129 source rewrite) should use
+    :func:`fold_cmd_subst_to_string`, which skips that coercion — ``format
+    %5.2f`` yields the string ``" 3.14"`` whose canonical float rep ``3.14``
+    differs.
     """
-    parsed = _parse_cmd_subst(value)
-    if parsed is None:
+    raw = fold_cmd_subst_to_string(value, uses, values)
+    if raw is None:
+        return None
+    parsed = _parse_literal_value(raw)
+    # Keep the *exact* output string whenever parsing would change its form —
+    # ``format`` padding / leading zeros / leading space (``" 3.14"`` → ``3.14``,
+    # ``"007"`` → ``7``).  In those cases the string itself is the constant;
+    # coercing would lose the formatting when it's propagated back to source.
+    # Only adopt the parsed (possibly numeric) form when it round-trips exactly,
+    # so SCCP still gets ``int``/``float`` values for ``[llength ...] + 1`` etc.
+    if str(parsed) != raw:
+        return LatticeValue.const(raw)
+    return LatticeValue.const(parsed)
+
+
+def fold_cmd_subst_to_string(
+    value: str,
+    uses: dict[str, int],
+    values: dict[SSAValueKey, LatticeValue],
+) -> str | None:
+    """Constant-fold ``[cmd args...]`` to its exact string result, or ``None``.
+
+    Same registry fold callbacks as :func:`_try_fold_cmd_subst`, but returns
+    the callback's raw string (no numeric coercion), so the caller can render
+    the command's output byte-for-byte.
+    """
+    cmd = _parse_cmd_subst_command(value)
+    if cmd is None:
         return None
 
-    cmd_name, args_text = parsed
+    cmd_name = cmd.texts[0]
+    # Per-word value + token + single-token flag, sliced past the command name.
+    arg_texts = cmd.texts[1:]
+    arg_tokens = cmd.argv[1:]
+    arg_single = cmd.single_token_word[1:]
+
+    # A builtin only folds while it still denotes its core command in this unit;
+    # a ``rename``/redefinition (here or in a body) makes the result whatever the
+    # replacement returns.  Checked for every (possibly nested) head we fold.
+    if not builtin_is_trusted(cmd_name):
+        return None
 
     # Look up fold callback — check subcommand hints first.
     fold_fn = FOLD_HINTS.get(cmd_name)
@@ -681,40 +759,45 @@ def _try_fold_cmd_subst(
     if fold_fn is None and subcmd_folds is None:
         return None
 
-    # For subcommand-based commands, extract the subcommand name.
+    # For subcommand-based commands, the first arg word is the subcommand.
     if subcmd_folds is not None and fold_fn is None:
-        parts = args_text.split(None, 1)
-        if not parts:
+        if not arg_texts:
             return None
-        sub_name = parts[0]
+        sub_name = arg_texts[0]
         fold_fn = subcmd_folds.get(sub_name)
         if fold_fn is None:
             return None
-        args_text = parts[1] if len(parts) > 1 else ""
+        arg_texts = arg_texts[1:]
+        arg_tokens = arg_tokens[1:]
+        arg_single = arg_single[1:]
 
     # Narrow Optional for the type checker: every reachable path above
     # either returned or assigned a non-None fold_fn.
     assert fold_fn is not None
 
-    # Split into individual arguments first (respecting braces/quotes),
-    # then resolve variable references in each arg individually.
-    try:
-        arg_list = _split_tcl_list(args_text) if args_text.strip() else []
-    except Exception:
-        return None
-
-    # Resolve variable references in each argument.
+    # Resolve each argument to a literal value.  A word's *token type* tells us
+    # how to treat brackets: a bare ``[...]`` command substitution is a single
+    # ``CMD`` token (fold it inside-out via recursion), whereas a braced/quoted
+    # literal that merely contains ``[`` is a ``STR``/``ESC`` token and must be
+    # left alone — re-running it as a command would change semantics.  The
+    # ``single`` flag rejects multi-token words like ``[list a]x`` whose first
+    # token is a CMD but which carry trailing text the fold would drop.
     resolved_args: list[str] = []
-    for arg in arg_list:
-        if "[" in arg:
-            return None  # nested command substitution — can't fold
-        if "$" in arg:
-            folded = _fold_interpolation(arg, uses, values)
+    for text, tok, single in zip(arg_texts, arg_tokens, arg_single):
+        if single and tok.type is TokenType.CMD:
+            nested = fold_cmd_subst_to_string(f"[{tok.text}]", uses, values)
+            if nested is None:
+                return None  # inner sub isn't a constant-foldable builtin
+            resolved_args.append(nested)
+        elif "[" in text:
+            return None  # mixed text + command sub (or unrecognised) — bail
+        elif "$" in text:
+            folded = _fold_interpolation(text, uses, values)
             if folded.kind is not LatticeKind.CONST:
                 return None
             resolved_args.append(str(folded.value))
         else:
-            resolved_args.append(arg)
+            resolved_args.append(text)
 
     # Call the fold callback.
     try:
@@ -731,7 +814,7 @@ def _try_fold_cmd_subst(
     # We only reject characters that break command parsing.
     if any(ch in ';\n[$"\\' for ch in result):
         return None
-    return LatticeValue.const(_parse_literal_value(result))
+    return result
 
 
 def _evaluate_def(
@@ -747,6 +830,13 @@ def _evaluate_def(
             return _substitute_expr_with_lattice(expr, ssa_stmt.uses, values)
 
         case IRAssignValue(value=value):
+            # A ``$={name}`` marker is a braced-scalar *variable reference*
+            # (the SSA use-collector doesn't decode it, so it never reaches
+            # ``ssa_stmt.uses``).  It must not be mistaken for a literal whose
+            # text happens to be ``$={...}`` — resolving the scalar isn't
+            # tracked, so it's conservatively overdefined, matching ``${ns::y}``.
+            if contains_braced_scalar_marker(value):
+                return OVERDEFINED
             if not ssa_stmt.uses:
                 # Only treat as constant if the value doesn't contain
                 # command substitutions (which have runtime results).
@@ -775,6 +865,11 @@ def _evaluate_def(
             return _fold_interpolation(value, ssa_stmt.uses, values)
 
         case IRIncr(name=raw_name, amount=amount_text):
+            # ``incr`` only has its arithmetic meaning while it is still the
+            # builtin; if it was renamed/redefined in this unit the value is
+            # whatever the replacement command returns — not statically known.
+            if not builtin_is_trusted("incr"):
+                return OVERDEFINED
             name = _normalise_var_name(raw_name)
             base_ver = ssa_stmt.uses.get(name, 0)
             base = values.get((name, base_ver), UNKNOWN)
@@ -1847,48 +1942,16 @@ def _escaping_var_names(cfg: CFGFunction) -> frozenset[str]:
     (W211), nor eliminated by DCE, even when the local analysis sees no local
     read.
 
-    Uses the shared :mod:`compiler.var_scoping` grammar so every alias
-    form is recognised identically to memory-SSA alias detection — a single
-    source of truth rather than ad-hoc command-name matching (which misses
-    ``namespace upvar``, whose IR command is just ``namespace``).
+    This is the *whole-function* (flow-insensitive) view of the shared
+    :mod:`compiler.var_observability` lattice — every name that is aliased or
+    traced *anywhere* in the function.  The lattice is the single source of
+    truth (one grammar, one analysis); callers that can pin down a program
+    point should prefer its flow-sensitive ``is_escaping_at`` /
+    ``is_observed_at`` queries via :attr:`FunctionAnalysis.observability`.
     """
-    from compiler.var_scoping import (
-        global_declaration_indices,
-        upvar_local_declaration_indices,
-        variable_declaration_indices,
-    )
+    from compiler.var_observability import analyse_var_observability
 
-    names: set[str] = set()
-    for block in cfg.blocks.values():
-        for stmt in block.statements:
-            if not isinstance(stmt, (IRCall, IRBarrier)):
-                continue
-            args = stmt.args
-            for i in upvar_local_declaration_indices(stmt.command, args, allow_dynamic_target=True):
-                if 0 <= i < len(args):
-                    names.add(_normalise_var_name(args[i]))
-            if stmt.canonical_command == "::global":
-                for i in global_declaration_indices(args):
-                    if 0 <= i < len(args):
-                        names.add(_normalise_var_name(args[i]))
-            elif stmt.canonical_command == "::variable":
-                for i in variable_declaration_indices(args):
-                    if 0 <= i < len(args):
-                        names.add(_normalise_var_name(args[i]))
-            elif stmt.canonical_command == "::trace":
-                # `trace add variable NAME ...` (8.5+) or `trace variable NAME
-                # ...` (8.4): any trace makes accesses to NAME observable, so
-                # its writes are not dead.  Conservative — covers all ops.
-                target: str | None = None
-                if len(args) >= 3 and args[0] == "add" and args[1] == "variable":
-                    target = args[2]
-                elif len(args) >= 2 and args[0] == "variable":
-                    target = args[1]
-                if target is not None:
-                    nm = _normalise_var_name(target)
-                    if nm:
-                        names.add(nm)
-    return frozenset(names)
+    return analyse_var_observability(cfg).escaping_names()
 
 
 def _reportable_local(place: Place) -> bool:
@@ -4017,6 +4080,8 @@ def analyse_function(
     except Exception:
         _log.warning("memory-SSA construction failed", exc_info=True)
 
+    from .var_observability import analyse_var_observability
+
     return FunctionAnalysis(
         live_in=live_in,
         live_out=live_out,
@@ -4033,6 +4098,7 @@ def analyse_function(
         def_use_chains=du_result,
         memory_ssa=mem_ssa,
         return_type=return_type,
+        observability=analyse_var_observability(cfg),
     )
 
 

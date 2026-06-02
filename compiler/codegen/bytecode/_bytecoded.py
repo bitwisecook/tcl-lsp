@@ -23,6 +23,18 @@ class _BytecodedMixin:
     def _try_bytecoded(self: _Emitter, cmd: str, args: tuple[str, ...]) -> bool:
         from compiler.registry import REGISTRY
 
+        # TODO(command-binding): this bytecode backend direct-dispatches a
+        # builtin by *name* via its registry ``vm`` codegen hook, ignoring any
+        # ``rename`` / redefinition in the unit — the same unsoundness the WASM
+        # backend had before it was gated (e.g. ``rename string ::s; string
+        # length hi`` would still emit the builtin).  It needs the same fix:
+        #   1. scope the lattice-derived trust verdict around the bytecode
+        #      codegen entry (``with command_trust(module_command_trust(...))``,
+        #      as compiler/codegen/wasm/api.py does), and
+        #   2. gate this dispatch on ``builtin_is_trusted(cmd)`` so a rebound
+        #      command falls through to the interpreter path instead.
+        # And, as in WASM, full correctness for a builtin renamed *to a proc*
+        # additionally needs interp→compiled-proc dispatch in the VM runtime.
         spec = REGISTRY.get_any(cmd)
         if spec is None:
             return False

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.lexer import _thread_local as _lexer_thread_local
-from compiler.parsing.substitution import _BACKSLASH_MAP, backslash_subst
+from shared.tcl_subst import _BACKSLASH_MAP, backslash_subst
 from shared.tokens import TokenType
 
 from .types import TclBreak, TclContinue, TclError, TclReturn

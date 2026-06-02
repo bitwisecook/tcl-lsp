@@ -6,6 +6,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from shared.diagnostic import Range
+from shared.tcl_list import tcl_list_join
 
 from ....cfg import (
     CFGFunction,
@@ -41,46 +42,6 @@ _I32_MIN = -(1 << 31)
 _I32_MAX = (1 << 31) - 1
 _I64_MIN = -(1 << 63)
 _I64_MAX = (1 << 63) - 1
-
-
-# Tcl list-quote special characters — any of these in an element force
-# brace-quoting on emission.  Used by :func:`_tcl_list_quote` to
-# reconstruct the params spec for ``info args`` parity.
-_TCL_LIST_SPECIAL = frozenset(' \t\n\r{}"\\$;[')
-
-
-def _tcl_list_quote(value: str) -> str:
-    """Brace-quote ``value`` as a Tcl list element when it contains any
-    structural character; otherwise emit as-is.  Empty values become
-    ``{}``.  Backslashes / unbalanced braces inside the value fall back
-    to backslash-quoting so the rebuilt list still parses.
-    """
-    if not value:
-        return "{}"
-    if any(c in _TCL_LIST_SPECIAL for c in value):
-        depth = 0
-        ok = True
-        for c in value:
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth < 0:
-                    ok = False
-                    break
-            elif c == "\\":
-                ok = False
-                break
-        if ok and depth == 0:
-            return "{" + value + "}"
-        out_chars: list[str] = []
-        for c in value:
-            if c in _TCL_LIST_SPECIAL:
-                out_chars.append("\\" + c)
-            else:
-                out_chars.append(c)
-        return "".join(out_chars)
-    return value
 
 
 class _WasmEmitterBase:
@@ -918,10 +879,12 @@ class _WasmEmitterBase:
         for i, name in enumerate(params):
             default = defaults[i] if i < len(defaults) else None
             if default is None:
-                out.append(_tcl_list_quote(name))
+                out.append(name)
             else:
-                out.append("{" + _tcl_list_quote(name) + " " + _tcl_list_quote(default) + "}")
-        return " ".join(out)
+                # A param with a default is itself a two-element ``{name
+                # default}`` sub-list inside the outer params list.
+                out.append(tcl_list_join([name, default]))
+        return tcl_list_join(out)
 
     def _compute_n_required(self, qname: str, params: tuple[str, ...]) -> int:
         """Count required (no-default) positional params, excluding ``args`` tail."""

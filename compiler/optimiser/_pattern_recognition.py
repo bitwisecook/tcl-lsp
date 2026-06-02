@@ -13,6 +13,7 @@ from shared.naming import (
 )
 from shared.tokens import Token, TokenType
 
+from ..command_trust import builtin_is_trusted
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -53,7 +54,7 @@ def _append_read_var(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> str | None:
-    if len(argv_texts) != 2 or argv_texts[0] != "append":
+    if len(argv_texts) != 2 or argv_texts[0] != "append" or not builtin_is_trusted("append"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -65,7 +66,7 @@ def _static_set_write(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> tuple[str, str, str] | None:
-    if len(argv_texts) != 3 or argv_texts[0] != "set":
+    if len(argv_texts) != 3 or argv_texts[0] != "set" or not builtin_is_trusted("set"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -80,7 +81,7 @@ def _static_append_write(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> tuple[str, str, str] | None:
-    if len(argv_texts) < 3 or argv_texts[0] != "append":
+    if len(argv_texts) < 3 or argv_texts[0] != "append" or not builtin_is_trusted("append"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -95,6 +96,61 @@ def _static_append_write(
             return None
         pieces.append(piece)
     return _normalise_var_name(argv_texts[1]), argv_texts[1], "".join(pieces)
+
+
+def _static_lappend_write(
+    argv_texts: list[str],
+    argv_tokens: list[Token],
+    argv_single: list[bool],
+) -> tuple[str, str, list[str]] | None:
+    """``lappend var e1 e2 ...`` with a static var and all-static elements.
+
+    Returns ``(var_key, var_word, [element_value, ...])`` — each argument is a
+    *single list element* (its parsed value), or ``None`` when any part is
+    dynamic.
+    """
+    if len(argv_texts) < 3 or argv_texts[0] != "lappend" or not builtin_is_trusted("lappend"):
+        return None
+    if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
+        return None
+    elements: list[str] = []
+    for idx in range(2, len(argv_texts)):
+        piece = _parse_static_string_arg(
+            argv_texts[idx],
+            argv_tokens[idx],
+            single_token=argv_single[idx],
+        )
+        if piece is None:
+            return None
+        elements.append(piece)
+    return _normalise_var_name(argv_texts[1]), argv_texts[1], elements
+
+
+def _value_to_list_elements(value: str) -> list[str] | None:
+    """Split a chain's current string value into list elements for ``lappend``.
+
+    ``lappend`` requires the variable's current value to be a well-formed Tcl
+    list; if it isn't (``lappend`` would raise at runtime) we must not fold, so
+    return ``None`` on malformed input.
+    """
+    from shared.tcl_list import TclListError, tcl_list_split
+
+    try:
+        return tcl_list_split(value, strict=True)
+    except TclListError:
+        return None
+
+
+def _render_list_word(elements: list[str]) -> str:
+    """Render *elements* as the single ``set`` value-word that recreates them.
+
+    Joins them into a canonical Tcl list, then quotes that as one word — e.g.
+    ``["a", "b c"]`` → ``{a {b c}}`` so ``set v {a {b c}}`` reproduces the
+    two-element list.
+    """
+    from shared.tcl_list import tcl_list_join, tcl_list_quote
+
+    return tcl_list_quote(tcl_list_join(elements), first=False)
 
 
 def _written_var_keys(
@@ -250,13 +306,32 @@ def _statement_rewrite_context(
     return range_by_stmt, next_start_by_stmt
 
 
+opt(
+    code="O130",
+    description="Fold static `lappend` list build chains into a single assignment.",
+    opt_category="pattern",
+)
+
+
 @opt(
     code="O104",
     description="Fold static string build chains into a single assignment.",
     opt_category="pattern",
 )
-def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
+def optimise_string_build_chains(ctx: PassContext, cfg, ssa, analysis=None) -> None:
     source = ctx.source
+    # A variable that aliases outer scope (``global`` / ``variable`` /
+    # ``upvar``) or sits under a ``trace`` is observable on *every* write, so
+    # folding a ``set x A; append x B`` chain into one ``set`` would drop a
+    # trace callback or a write another scope can see.  Consult the shared
+    # flow-sensitive alias/observability lattice point-wise so a chain entirely
+    # *before* such a declaration still folds.
+    obs = getattr(analysis, "observability", None) if analysis is not None else None
+    if obs is None:
+        from compiler.var_observability import analyse_var_observability
+
+        obs = analyse_var_observability(cfg)
+    assert obs is not None  # narrow: either the cached lattice or freshly computed
     for block_name, block in cfg.blocks.items():
         ssa_block = ssa.blocks.get(block_name)
         if ssa_block is None:
@@ -284,7 +359,27 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
             chain = active.pop(var_key, None)
             if chain is None or len(chain.writes) < 2:
                 return
-            rendered = _render_static_string_word(chain.value)
+            # If the variable is aliased or traced at *any* write in the chain,
+            # that write is observable (a trace fires, or another scope sees
+            # it), so the chain must not be collapsed.  Flow-sensitive: a chain
+            # whose writes all precede the declaration still folds.
+            escaping = False
+            for write_idx in chain.writes:
+                if obs.is_escaping_at(block_name, write_idx, var_key):
+                    escaping = True
+                    break
+            if escaping:
+                return
+            if chain.elements is not None:
+                rendered = _render_list_word(chain.elements)
+                code = "O130"
+                fold_msg = "Fold write-only list build chain"
+                dead_msg = "Remove dead intermediate list write"
+            else:
+                rendered = _render_static_string_word(chain.value)
+                code = "O104"
+                fold_msg = "Fold write-only string build chain"
+                dead_msg = "Remove dead intermediate string write"
             if rendered is None:
                 return
             last_idx = chain.writes[-1]
@@ -293,8 +388,8 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
                 return
             ctx.optimisations.append(
                 Optimisation(
-                    code="O104",
-                    message="Fold write-only string build chain",
+                    code=code,
+                    message=fold_msg,
                     range=last_range,
                     replacement=f"set {chain.var_word} {rendered}",
                 )
@@ -311,8 +406,8 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
                 )
                 ctx.optimisations.append(
                     Optimisation(
-                        code="O104",
-                        message="Remove dead intermediate string write",
+                        code=code,
+                        message=dead_msg,
                         range=dead_rewrite_range,
                         replacement="",
                     )
@@ -395,10 +490,36 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
             if static_append is not None:
                 var_key, var_word, append_value = static_append
                 chain = active.get(var_key)
-                if chain is not None:
+                if chain is not None and chain.elements is None:
+                    # String-concat extension of a string-mode chain.
                     chain.var_word = var_word
                     chain.writes.append(idx)
                     chain.value += append_value
+                    continue
+                # ``append`` onto a list-mode chain mixes string + list
+                # semantics; stop the chain and leave this write alone.
+                if chain is not None:
+                    finish_chain(var_key)
+                continue
+
+            static_lappend = _static_lappend_write(argv_texts, argv_tokens, argv_single)
+            if static_lappend is not None:
+                var_key, var_word, new_elements = static_lappend
+                chain = active.get(var_key)
+                if chain is not None:
+                    if chain.elements is None:
+                        # First ``lappend`` after a ``set`` — reinterpret the
+                        # current value as a list (bail if it isn't one).
+                        base = _value_to_list_elements(chain.value)
+                        if base is None:
+                            finish_chain(var_key)
+                            continue
+                        chain.elements = base
+                    chain.var_word = var_word
+                    chain.writes.append(idx)
+                    chain.elements.extend(new_elements)
+                    continue
+                # No active chain (unknown prior value) — can't fold to a set.
                 continue
 
             for written in _written_var_keys(argv_texts, argv_tokens, argv_single):

@@ -1171,14 +1171,21 @@ class TestStaticSubstringFolding:
         assert not any("input:" in v for v in folds.values())
 
     def test_static_folds_in_symbol_map(self):
-        """Static fold details appear in the symbol map."""
-        source = 'set x hello\nputs "greeting: $x"\n'
+        """Static fold details appear in the symbol map.
+
+        Plain ``$x`` interpolation is now folded upstream by the optimiser
+        (O105), so this exercises the minifier's *unique* contribution — a pure
+        command substitution embedded in a quoted string (``[string length $x]``),
+        which the optimiser leaves intact for the minifier's static-substr pass.
+        """
+        source = 'set x hello\nputs "length is [string length $x]"\n'
         result = minify_tcl(source, aggressive=True)
-        # The ``greeting: $x`` template must be statically folded, and every
-        # recorded fold must carry the resolved ``hello`` value.
+        # The command-sub template must be statically folded, and every recorded
+        # fold must carry the resolved length (``5``).
         assert result.symbol_map.static_folds, result.source
         for _original, folded in result.symbol_map.static_folds.items():
-            assert "hello" in folded
+            assert "5" in folded
+        assert "string length" not in result.source
 
     def test_no_fold_when_var_not_in_ssa(self):
         """Variables not tracked by SSA (e.g. global) are not folded."""
@@ -1236,11 +1243,15 @@ class TestStaticSubstringFolding:
         assert "INFO: done" in result.source
 
     def test_dead_set_kept_when_var_still_used(self):
-        """set is NOT removed when the variable is still referenced."""
-        source = 'set x hello\nputs "greeting: $x"\nputs $x\n'
+        """set is NOT removed when the variable is still referenced.
+
+        The minifier folds the ``[string length $x]`` command-sub in the first
+        string but ``x`` is still read (the nested ``$x`` inside that command-sub
+        is hidden from the optimiser's SSA), so the static-substr dead-set pass
+        must conservatively keep ``set x hello`` rather than dropping it.
+        """
+        source = 'set x hello\nputs "len=[string length $x]"\nputs $x\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is used as a bare argument in `puts $x`, so the assignment must
-        # survive minification rather than being eliminated as a dead store.
         assert "set x hello" in result.source
 
     def test_format_static_folds_in_symbol_map(self):

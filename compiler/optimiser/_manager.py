@@ -8,9 +8,10 @@ from compiler.interprocedural import InterproceduralAnalysis
 from shared.naming import normalise_var_name as _NORMALISE
 
 from ..cfg import CFGFunction
+from ..command_trust import command_trust, module_command_trust
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
-from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
+from ..ir import IRCall, IRModule, IRScript
 from . import (
     _branch_folding,
     _code_sinking,
@@ -25,6 +26,7 @@ from ._helpers import (
     _namespace_from_qualified,
     _select_non_overlapping_optimisations,
     _tokens_for_statement,
+    safe_string_constants,
 )
 from ._propagation import (
     optimise_constant_var_refs,
@@ -40,55 +42,85 @@ from ._types import Optimisation, PassContext
 log = logging.getLogger(__name__)
 
 
-def _safe_string_constants(
-    constants: dict[str, str],
-    block,
-    use_idx: int,
-) -> dict[str, str]:
-    """Return the subset of *constants* safe for string-interpolation propagation.
+def _global_scope_names(cfg: CFGFunction, *, is_top_level: bool) -> set[str]:
+    """Names whose storage lives in the *outer* (global / namespace) scope.
 
-    String interpolation was previously not propagated, so existing tests rely
-    on SCCP-unsound scenarios (upvar aliasing, catch exception paths) being
-    harmless.  To avoid regressions we only propagate a constant into a string
-    when the defining ``set`` (``IRAssignConst``) is in the **same basic block**
-    and there is no intervening ``IRCall`` or ``IRBarrier`` between the
-    definition and the use that could mutate the variable through ``upvar``
-    or exception side-effects.
+    A callee that ``writes_global`` may clobber any of these, so the caller's
+    constant knowledge of them must be killed at the call site.  Uses the
+    canonical :mod:`compiler.var_scoping` alias grammar so every declaration
+    form (``global`` / ``variable`` / ``namespace upvar`` …) is recognised the
+    same way memory-SSA recognises it — not ad-hoc command matching.
+
+    * At the **top level** every simple variable *is* a global, so all defined
+      names qualify.
+    * Inside a **proc** only ``::``-qualified writes and names bound to outer
+      scope by a ``global`` / ``variable`` declaration qualify; plain locals do
+      not (a callee's global write can't touch them).
     """
-    if not constants:
-        return constants
+    from compiler.var_scoping import (
+        global_declaration_indices,
+        variable_declaration_indices,
+    )
 
-    # Scan statements [0 .. use_idx) in this block to find the most recent
-    # IRAssignConst for each constant and whether a call/barrier sits between
-    # the def and the use.
-    last_def_idx: dict[str, int] = {}
-    call_or_barrier_indices: list[int] = []
+    names: set[str] = set()
+    for block in cfg.blocks.values():
+        for stmt in block.statements:
+            stmt_name = getattr(stmt, "name", None)
+            if stmt_name and stmt_name.startswith("::"):
+                names.add(_NORMALISE(stmt_name))
+            defs = getattr(stmt, "defs", None) or ()
+            for d in defs:
+                if d and d.startswith("::"):
+                    names.add(_NORMALISE(d))
+            if is_top_level:
+                if stmt_name:
+                    names.add(_NORMALISE(stmt_name))
+                for d in defs:
+                    if d:
+                        names.add(_NORMALISE(d))
+            elif isinstance(stmt, IRCall):
+                args = stmt.args
+                if stmt.canonical_command == "::global":
+                    idxs = global_declaration_indices(args)
+                elif stmt.canonical_command == "::variable":
+                    idxs = variable_declaration_indices(args)
+                else:
+                    idxs = []
+                for i in idxs:
+                    if 0 <= i < len(args) and args[i]:
+                        names.add(_NORMALISE(args[i]))
+    return names
 
-    for si in range(use_idx):
-        if si >= len(block.statements):
-            break
-        s = block.statements[si]
-        if isinstance(s, IRAssignConst):
-            name = _NORMALISE(s.name)
-            if name in constants:
-                last_def_idx[name] = si
-        if isinstance(s, (IRCall, IRBarrier)):
-            call_or_barrier_indices.append(si)
 
-    if not last_def_idx:
-        return {}
+def _augment_expr_subst_constants(
+    constants: dict[str, str],
+    argv_texts: list[str],
+    reach_versions: dict[str, int],
+    values,
+) -> None:
+    """Fold in constants read *inside* expr/body command substitutions.
 
-    safe: dict[str, str] = {}
-    for name, def_si in last_def_idx.items():
-        # Check that no call/barrier sits between the def and the use.
-        blocked = False
-        for ci in call_or_barrier_indices:
-            if ci > def_si:
-                blocked = True
-                break
-        if not blocked:
-            safe[name] = constants[name]
-    return safe
+    The SSA use-collector deliberately keeps reads hidden in ``[expr {$x}]``
+    (and BODY scripts nested in substitutions) out of ``stmt.uses`` so
+    read-before-set isn't perturbed — which also hides them from
+    :func:`_constants_from_uses`.  Recover those names and, using their
+    *reaching* SSA version, fold in any SCCP-known constant.  This lets the
+    expr-substitution pass propagate + fold a direct ``puts [expr {$x + 1}]``
+    the same way it already does for ``set y [expr {$x + 1}]`` (whose expr
+    reads *are* in ``uses``).
+    """
+    from compiler.ssa import expr_substitution_read_names
+
+    names = expr_substitution_read_names(argv_texts)
+    if not names:
+        return
+    extra_uses = {n: reach_versions[n] for n in names if reach_versions.get(n, 0) > 0}
+    if not extra_uses:
+        return
+    # Reuse the same CONST-check + formatting as the uses-based path; don't
+    # override a value already present from real uses.
+    for name, value in _constants_from_uses(extra_uses, values).items():
+        constants.setdefault(name, value)
 
 
 class _CompilerOptimiser:
@@ -126,81 +158,84 @@ class _CompilerOptimiser:
             ir_module=self._ir_module,
         )
 
-        self._process_function(
-            ctx,
-            cu.top_level.cfg,
-            cu.top_level.ssa,
-            cu.top_level.analysis,
-            execution_intent=cu.top_level.execution_intent,
-            ir_script=cu.ir_module.top_level,
-            namespace="::",
-            is_top_level=True,
-        )
-        conn = cu.connection_scope
-        for qname, fu in cu.procedures.items():
-            if fu.complexity_guarded:
-                continue  # deep analysis skipped for pathologically large bodies
-            if conn is not None and qname.startswith("::when::"):
-                ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
-                # RULE_INIT's purpose is to initialise static:: variables for
-                # all other events.  Any static:: def there is inherently
-                # cross-event, even when the cross-event analysis can't prove
-                # a matching read (e.g. reads inside quoted expr strings).
-                from ..ir import when_event_name
-
-                if when_event_name(qname) == "RULE_INIT":
-                    rule_init_statics = frozenset(
-                        name
-                        for block in fu.ssa.blocks.values()
-                        for stmt in block.statements
-                        for name in stmt.defs
-                        if name.startswith("static::")
-                    )
-                    ctx.cross_event_vars = ctx.cross_event_vars | rule_init_statics
-            else:
-                ctx.cross_event_vars = frozenset()
-            ir_proc = cu.ir_module.procedures.get(qname)
+        with command_trust(module_command_trust(cu.ir_module)):
             self._process_function(
                 ctx,
-                fu.cfg,
-                fu.ssa,
-                fu.analysis,
-                execution_intent=fu.execution_intent,
-                ir_script=ir_proc.body if ir_proc else None,
-                namespace=_namespace_from_qualified(qname),
+                cu.top_level.cfg,
+                cu.top_level.ssa,
+                cu.top_level.analysis,
+                execution_intent=cu.top_level.execution_intent,
+                ir_script=cu.ir_module.top_level,
+                namespace="::",
+                is_top_level=True,
             )
-        # SF-2: optimise TclOO method bodies as functions too, passing the
-        # owning class qname so the O126 ``my <method>`` purity gate can
-        # resolve same-class pure methods.  Rewrites map back to source via
-        # the method body's statement ranges (same as procs).
-        for mqname, fu in cu.methods.items():
-            if fu.complexity_guarded:
-                continue
-            ir_method = cu.ir_module.methods.get(mqname)
-            # Instance variables escape the method frame (they are object
-            # state), so a write to one is NOT a dead store even when the
-            # method never reads it back.  Feed them through the same
-            # escaping-var channel iRules cross-event state uses, so the
-            # dead-store / unused-assignment passes don't delete a
-            # state-mutating ``set ivar ...`` inside the method body.
-            ctx.cross_event_vars = frozenset(ir_method.instance_vars) if ir_method else frozenset()
-            self._process_function(
-                ctx,
-                fu.cfg,
-                fu.ssa,
-                fu.analysis,
-                execution_intent=fu.execution_intent,
-                ir_script=ir_method.body if ir_method else None,
-                namespace=_namespace_from_qualified(mqname),
-                enclosing_class=ir_method.class_name if ir_method else None,
-            )
-        ctx.cross_event_vars = frozenset()
-        # Tail-call detection (cross-procedure, runs once).
-        _tail_call.optimise_tail_calls(ctx)
-        # Module-level passes
-        _unused_procs.optimise_unused_procs(ctx)
+            conn = cu.connection_scope
+            for qname, fu in cu.procedures.items():
+                if fu.complexity_guarded:
+                    continue  # deep analysis skipped for pathologically large bodies
+                if conn is not None and qname.startswith("::when::"):
+                    ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
+                    # RULE_INIT's purpose is to initialise static:: variables for
+                    # all other events.  Any static:: def there is inherently
+                    # cross-event, even when the cross-event analysis can't prove
+                    # a matching read (e.g. reads inside quoted expr strings).
+                    from ..ir import when_event_name
 
-        return ctx.optimisations
+                    if when_event_name(qname) == "RULE_INIT":
+                        rule_init_statics = frozenset(
+                            name
+                            for block in fu.ssa.blocks.values()
+                            for stmt in block.statements
+                            for name in stmt.defs
+                            if name.startswith("static::")
+                        )
+                        ctx.cross_event_vars = ctx.cross_event_vars | rule_init_statics
+                else:
+                    ctx.cross_event_vars = frozenset()
+                ir_proc = cu.ir_module.procedures.get(qname)
+                self._process_function(
+                    ctx,
+                    fu.cfg,
+                    fu.ssa,
+                    fu.analysis,
+                    execution_intent=fu.execution_intent,
+                    ir_script=ir_proc.body if ir_proc else None,
+                    namespace=_namespace_from_qualified(qname),
+                )
+            # SF-2: optimise TclOO method bodies as functions too, passing the
+            # owning class qname so the O126 ``my <method>`` purity gate can
+            # resolve same-class pure methods.  Rewrites map back to source via
+            # the method body's statement ranges (same as procs).
+            for mqname, fu in cu.methods.items():
+                if fu.complexity_guarded:
+                    continue
+                ir_method = cu.ir_module.methods.get(mqname)
+                # Instance variables escape the method frame (they are object
+                # state), so a write to one is NOT a dead store even when the
+                # method never reads it back.  Feed them through the same
+                # escaping-var channel iRules cross-event state uses, so the
+                # dead-store / unused-assignment passes don't delete a
+                # state-mutating ``set ivar ...`` inside the method body.
+                ctx.cross_event_vars = (
+                    frozenset(ir_method.instance_vars) if ir_method else frozenset()
+                )
+                self._process_function(
+                    ctx,
+                    fu.cfg,
+                    fu.ssa,
+                    fu.analysis,
+                    execution_intent=fu.execution_intent,
+                    ir_script=ir_method.body if ir_method else None,
+                    namespace=_namespace_from_qualified(mqname),
+                    enclosing_class=ir_method.class_name if ir_method else None,
+                )
+            ctx.cross_event_vars = frozenset()
+            # Tail-call detection (cross-procedure, runs once).
+            _tail_call.optimise_tail_calls(ctx)
+            # Module-level passes
+            _unused_procs.optimise_unused_procs(ctx)
+
+            return ctx.optimisations
 
     def _process_function(
         self,
@@ -218,9 +253,29 @@ class _CompilerOptimiser:
         source = ctx.source
         ctx.propagated_branch_uses = set()
         ctx.propagated_expr_stmts = set()
+        ctx.propagated_use_sites = set()
+        # Flow-sensitive proc-call gating is only sound at the top level, where
+        # the binding lattice sees every proc definition and rename in order; a
+        # proc body's own lattice would default enclosing-proc names to OPAQUE
+        # and wrongly block mutual-proc folding, so leave it None there.
+        if is_top_level:
+            from ..command_binding import Binding, BindingKind, analyse_command_binding
+
+            # Seed with every module proc (already canonically qualified) so a
+            # proc defined inside a ``namespace eval`` block is known to be a
+            # proc even though the top-level CFG never sees its ``proc`` stmt.
+            seed = {
+                qname: Binding(BindingKind.PROC, qname)
+                for qname in (ctx.ir_module.procedures if ctx.ir_module else {})
+            }
+            ctx.command_binding = analyse_command_binding(cfg, initial=seed)
+        else:
+            ctx.command_binding = None
+        ctx.cur_block = ""
+        ctx.cur_idx = -1
 
         # Pattern recognition (pre-loop)
-        _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa)
+        _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa, analysis)
         _pattern_recognition.optimise_incr_idioms(ctx, cfg, ssa, analysis)
         _pattern_recognition.optimise_multi_set_packing(ctx, cfg, ssa)
         _pattern_recognition.optimise_end_offset_indexes(ctx, cfg, ssa)
@@ -249,6 +304,35 @@ class _CompilerOptimiser:
                 for name in statement_cmd_sub_write_names(stmt):
                     if name:
                         kill_sites.append((stmt_range.start.offset, name))
+
+        # writes-global closure: a call to a user proc that mutates an
+        # outer-scope variable -- directly (``set ::g``) or through a
+        # ``global`` / ``variable`` / ``upvar #0`` alias (``global g; set
+        # g``) -- invalidates the caller's constant knowledge of every
+        # variable that lives in that outer scope.  Without this a top-level
+        # constant survives past a call that overwrites it, so O100 would
+        # propagate the stale value (unsound).  The callee's effect is read
+        # from its interprocedural ``writes_global`` summary; the outer-scope
+        # name set uses the canonical ``var_scoping`` alias grammar.
+        global_scope_names = _global_scope_names(cfg, is_top_level=is_top_level)
+        if global_scope_names:
+            for block in cfg.blocks.values():
+                for stmt in block.statements:
+                    if not isinstance(stmt, IRCall):
+                        continue
+                    stmt_range = getattr(stmt, "range", None)
+                    if stmt_range is None:
+                        continue
+                    summary = ctx.interproc.procedures.get(stmt.canonical_command or "")
+                    # A callee clobbers outer-scope constants when it provably
+                    # writes a global, OR when its effects are unbounded -- a
+                    # barrier (``uplevel`` / ``eval``) or an unknown call could
+                    # write *any* global, including via ``uplevel #0``.
+                    if summary is not None and (
+                        summary.writes_global or summary.has_barrier or summary.has_unknown_calls
+                    ):
+                        for name in global_scope_names:
+                            kill_sites.append((stmt_range.start.offset, name))
         kill_sites.sort()
 
         # Statement loop (propagation)
@@ -257,9 +341,17 @@ class _CompilerOptimiser:
             if ssa_block is None:
                 continue
 
+            # Reaching SSA version of each variable as we walk the block, so a
+            # read hidden inside an expr/body command substitution (absent from
+            # ``stmt.uses``) can be resolved to its current value.
+            running_versions: dict[str, int] = dict(getattr(ssa_block, "entry_versions", {}) or {})
             for idx, ssa_stmt in enumerate(ssa_block.statements):
+                reach_versions = running_versions
+                running_versions = {**running_versions, **ssa_stmt.defs}
                 if idx < 0 or idx >= len(block.statements):
                     continue
+                ctx.cur_block = block_name
+                ctx.cur_idx = idx
                 stmt = block.statements[idx]
                 stmt_range = getattr(stmt, "range", None)
                 if stmt_range is None:
@@ -277,6 +369,9 @@ class _CompilerOptimiser:
                 arg_tokens = argv_tokens[1:]
                 arg_single = argv_single[1:]
                 constants = _constants_from_uses(ssa_stmt.uses, analysis.values)
+                _augment_expr_subst_constants(
+                    constants, argv_texts, reach_versions, analysis.values
+                )
                 stmt_start = stmt_range.start.offset
                 if constants:
                     for kill_offset, var_name in kill_sites:
@@ -345,6 +440,7 @@ class _CompilerOptimiser:
                                 if ref in orig_span and ref not in opt.replacement:
                                     ctx.propagated_branch_uses.add((name, ver))
                                     ctx.propagated_use_groups[(name, ver)] = group_id
+                                    ctx.propagated_use_sites.add((block_name, idx, name, ver))
 
                 # Propagate constants into $var refs inside multi-token words
                 # (string interpolation), e.g. puts "$x is the value".
@@ -354,7 +450,7 @@ class _CompilerOptimiser:
                 # same block with no intervening calls or barriers.
                 ct = getattr(stmt, "tokens", None)
                 if ct is not None and ct.all_tokens and constants:
-                    safe_constants = _safe_string_constants(
+                    safe_constants = safe_string_constants(
                         constants,
                         block,
                         idx,
@@ -377,11 +473,27 @@ class _CompilerOptimiser:
                                     group=str_group,
                                 )
                             ctx.propagated_expr_stmts.add((block_name, idx))
-                            for name in safe_constants:
-                                ver = ssa_stmt.uses.get(name, 0)
-                                if ver > 0:
-                                    ctx.propagated_branch_uses.add((name, ver))
-                                    ctx.propagated_use_groups[(name, ver)] = str_group
+                            # Mark ONLY the variables whose ``$ref`` was actually
+                            # replaced as consumed — not every safe constant.  A
+                            # name can be a *safe constant* yet not appear in the
+                            # string (e.g. the ``append`` target, or a var only
+                            # read elsewhere); marking it consumed would let DCE
+                            # wrongly delete its still-needed assignment.  Each
+                            # O105 rewrite's range is exactly the ``$name`` /
+                            # ``${name}`` token, so an exact match identifies it.
+                            for i in range(n_str, len(ctx.optimisations)):
+                                opt = ctx.optimisations[i]
+                                orig_span = source[
+                                    opt.range.start.offset : opt.range.end.offset + 1
+                                ]
+                                for name in safe_constants:
+                                    ver = ssa_stmt.uses.get(name, 0)
+                                    if ver <= 0:
+                                        continue
+                                    if orig_span in (f"${name}", "${" + name + "}"):
+                                        ctx.propagated_branch_uses.add((name, ver))
+                                        ctx.propagated_use_groups[(name, ver)] = str_group
+                                        ctx.propagated_use_sites.add((block_name, idx, name, ver))
 
             optimise_return_terminator(ctx, source, block, ssa_block, analysis, namespace=namespace)
 
