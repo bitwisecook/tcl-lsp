@@ -88,6 +88,28 @@ class TestOptimiseDocument:
         out = self._optimised("rename list ::l\nputs [llength [list a b c]]\n")
         assert "puts 3" not in out
 
+    def test_command_sub_in_interpolation_string_folds(self):
+        # Part B1: a pure builtin command sub embedded inside a quoted string
+        # surfaces as an O129 fold through the LSP optimise command.
+        uri = "file:///opt.tcl"
+        workspace_state.open(uri, 'puts "v=[string length abc]"\n')
+        result = commands.on_optimise_document(uri)
+        assert result is not None
+        assert 'puts "v=3"' in result["source"]
+        assert "O129" in {o["code"] for o in result["optimisations"]}
+
+    def test_nested_expr_var_fold_via_lsp(self):
+        # Part B2 (Gap-B): a constant read inside a nested [expr {[cmd $v]}].
+        assert "puts 4" in self._optimised("set s abcd\nputs [expr {[string length $s]}]\n")
+
+    def test_subst_literal_fold_via_lsp(self):
+        # Part B4: literal [subst {...}] folds.
+        assert "puts hello" in self._optimised("puts [subst {hello}]\n")
+
+    def test_pure_proc_multiword_string_fold_via_lsp(self):
+        # Part B3: a pure proc returning a multi-word string folds (list-quoted).
+        assert "puts {hi there}" in self._optimised('proc f {} {return "hi there"}\nputs [f]\n')
+
 
 # ── tools: minify document ─────────────────────────────────────────────
 

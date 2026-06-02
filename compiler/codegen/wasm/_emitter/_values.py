@@ -805,17 +805,20 @@ class _WasmEmitterValuesMixin(_Base):
         # any builtin fast-path / subcommand import below.  Untouched commands
         # (the common case: an empty untrusted set) are unaffected.
         #
-        # TODO(command-binding): this is correct when the builtin was renamed
-        # *away* (the interpreter sees no such command and errors, matching Tcl).
-        # When a builtin is renamed/redefined *to a user proc* (e.g.
-        # ``rename string ::s; proc string {...}``), the interpreter fallback
-        # currently traps because tcl_eval can't dispatch to a *compiled* proc
-        # body — full correctness needs interp→compiled-proc dispatch in the Zig
-        # runtime.  Until then this fails safe (trap) instead of miscomputing.
-        # A *known compiled proc* gets a rename-aware, trace-aware guarded
-        # dispatch (mirrors ``_emit_command_subst``): needed for proc calls
-        # that appear as command *arguments* (``[string range $c [12days …]
-        # end]``).  See ``_emit_distrust_proc_subst``.
+        # Renamed *away*: the interpreter sees no such command and errors,
+        # matching Tcl.  Renamed/redefined *to a user proc* (``rename string
+        # ::s; proc string {...}``) now dispatches to the proc — the runtime's
+        # ``eval_proc_call_bucket`` routes a compiled (``func_idx != 0``) proc
+        # through the host bridge, so both the eval-fallback path and the
+        # guarded direct dispatch below run the replacement proc (verified vs
+        # tclsh in ``tests/test_wasm_real_tcl.py``).  A *known compiled proc*
+        # takes the rename-aware, trace-aware guarded dispatch (mirrors
+        # ``_emit_command_subst``): needed for proc calls that appear as command
+        # *arguments* (``[string range $c [12days …] end]``).  See
+        # ``_emit_distrust_proc_subst``.  Known narrow gap: a *variadic*
+        # ``{args}`` proc shadowing a *renamed* builtin binds ``args`` short
+        # (AOT prologue pre-registers procs before the rename runs); fixed-arity
+        # shadows are correct.
         if not builtin_is_trusted(cmd_name):
             proc_info = self._resolve_proc(cmd_name, self._full_proc_index)
             if (

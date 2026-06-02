@@ -1198,31 +1198,41 @@ def codegen_module(
     optimise: bool = False,
 ) -> ModuleAsm:
     """Generate bytecode assembly for an entire module."""
-    # Proc definitions are now always emitted as runtime IRCall
-    # statements at their original source positions (the lowering
-    # always returns IRCall for ``proc``).  We no longer pre-emit
-    # them via _pending_proc_defs because that would double-emit
-    # and, more critically, emit proc defs from inside ``catch``
-    # bodies at the top level where errors cannot be intercepted.
-    top = _Emitter(
-        cfg_module.top_level,
-        optimise=optimise,
-        is_proc=False,
-    ).generate()
+    from compiler.command_trust import command_trust, module_command_trust
 
-    procs: dict[str, FunctionAsm] = {}
-    for qname, cfg_func in cfg_module.procedures.items():
-        ir_proc = ir_module.procedures.get(qname)
-        # Skip procs defined inside namespace eval — tclsh compiles
-        # them lazily at runtime, not at compile time.
-        if ir_proc and ir_proc.namespace_scoped:
-            continue
-        # Skip procs whose body is purely a runtime-dispatch barrier
-        # (e.g. ``proc set_global {} {uplevel #0 {set ::g 42}}``):
-        # tclsh keeps these uncompiled so their bytecode doesn't
-        # appear in the captured reference disasm either.
-        if _proc_is_compile_blocked(ir_proc):
-            continue
-        params = ir_proc.params if ir_proc else ()
-        procs[qname] = codegen_function(cfg_func, params=params, optimise=optimise, is_proc=True)
-    return ModuleAsm(top_level=top, procedures=procs)
+    # Scope the lattice-derived builtin-trust verdict around the whole codegen
+    # so ``_try_bytecoded`` can refuse to direct-dispatch a renamed / redefined
+    # builtin (mirrors ``compiler/codegen/wasm/api.py``).  ``module_command_trust``
+    # is the whole-unit summary of tampered builtins; an empty set (the common
+    # case) leaves every direct dispatch enabled exactly as before.
+    with command_trust(module_command_trust(ir_module)):
+        # Proc definitions are now always emitted as runtime IRCall
+        # statements at their original source positions (the lowering
+        # always returns IRCall for ``proc``).  We no longer pre-emit
+        # them via _pending_proc_defs because that would double-emit
+        # and, more critically, emit proc defs from inside ``catch``
+        # bodies at the top level where errors cannot be intercepted.
+        top = _Emitter(
+            cfg_module.top_level,
+            optimise=optimise,
+            is_proc=False,
+        ).generate()
+
+        procs: dict[str, FunctionAsm] = {}
+        for qname, cfg_func in cfg_module.procedures.items():
+            ir_proc = ir_module.procedures.get(qname)
+            # Skip procs defined inside namespace eval — tclsh compiles
+            # them lazily at runtime, not at compile time.
+            if ir_proc and ir_proc.namespace_scoped:
+                continue
+            # Skip procs whose body is purely a runtime-dispatch barrier
+            # (e.g. ``proc set_global {} {uplevel #0 {set ::g 42}}``):
+            # tclsh keeps these uncompiled so their bytecode doesn't
+            # appear in the captured reference disasm either.
+            if _proc_is_compile_blocked(ir_proc):
+                continue
+            params = ir_proc.params if ir_proc else ()
+            procs[qname] = codegen_function(
+                cfg_func, params=params, optimise=optimise, is_proc=True
+            )
+        return ModuleAsm(top_level=top, procedures=procs)

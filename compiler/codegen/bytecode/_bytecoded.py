@@ -21,20 +21,24 @@ class _BytecodedMixin:
     """Mixin: bytecoded command optimisations dispatched via REGISTRY hooks."""
 
     def _try_bytecoded(self: _Emitter, cmd: str, args: tuple[str, ...]) -> bool:
+        from compiler.command_trust import builtin_is_trusted
         from compiler.registry import REGISTRY
 
-        # TODO(command-binding): this bytecode backend direct-dispatches a
-        # builtin by *name* via its registry ``vm`` codegen hook, ignoring any
-        # ``rename`` / redefinition in the unit — the same unsoundness the WASM
-        # backend had before it was gated (e.g. ``rename string ::s; string
-        # length hi`` would still emit the builtin).  It needs the same fix:
-        #   1. scope the lattice-derived trust verdict around the bytecode
-        #      codegen entry (``with command_trust(module_command_trust(...))``,
-        #      as compiler/codegen/wasm/api.py does), and
-        #   2. gate this dispatch on ``builtin_is_trusted(cmd)`` so a rebound
-        #      command falls through to the interpreter path instead.
-        # And, as in WASM, full correctness for a builtin renamed *to a proc*
-        # additionally needs interp→compiled-proc dispatch in the VM runtime.
+        # A builtin renamed / redefined in this unit no longer carries its core
+        # semantics, so its ``vm`` codegen hook (a direct, name-keyed dispatch)
+        # must not fire — return False so ``_emit_call`` falls through to the
+        # generic ``invokeStk``, which resolves the name through the live,
+        # rename-aware runtime command table (matching the WASM backend's
+        # value/expr/statement gates).  The trust verdict is scoped around the
+        # bytecode codegen entry in ``codegen_module``; outside that scope the
+        # default "trust all" keeps standalone ``codegen_function`` unchanged.
+        #
+        # A builtin renamed *to a user proc* additionally needs interp→compiled-
+        # proc dispatch in the VM runtime to *execute* correctly; until then the
+        # generic invoke fails safe (the VM resolves the live command) rather
+        # than emitting the wrong builtin inline.
+        if not builtin_is_trusted(cmd):
+            return False
         spec = REGISTRY.get_any(cmd)
         if spec is None:
             return False
