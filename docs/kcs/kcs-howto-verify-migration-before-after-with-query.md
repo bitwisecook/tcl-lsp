@@ -60,8 +60,8 @@ f5 query --name old=old.ucs --name new=new.ucs --table '$old
       | {check:"monitor", object:$fp, old:($o.send+" => "+$o.recv), new:($n.send+" => "+$n.recv),
          match:(if tsv($o.send,$o.recv,$o.interval,$o.timeout)==tsv($n.send,$n.recv,$n.interval,$n.timeout) then "OK" else "FAIL" end)} ),
     ( $new.sys["file-ssl-cert"][] as $n | ($n."full-path") as $fp | select(contains($cok,$fp))
-      | x509_from_config($old.sys["file-ssl-cert"][$fp]) as $o | x509_from_config($n) as $nn
-      | {check:"cert", object:$fp, old:$o.serial, new:$nn.serial,
+      | ucs_cert($old.sys["file-ssl-cert"][$fp]) as $o | ucs_cert($n) as $nn
+      | {check:"cert", object:$fp, old:$o.fingerprint_sha256, new:$nn.fingerprint_sha256,
          match:(if x509_eq($o,$nn) then "OK" else "FAIL" end)} )' \
   old.ucs new.ucs | grep -v '^#'
 ```
@@ -75,14 +75,18 @@ f5 query --name old=old.ucs --name new=new.ucs --table '$old
 | self-ip | /Common/self-ext     | none                     | all                      | FAIL  |
 | self-ip | /Common/self-int     | all                      | all                      | OK    |
 | monitor | /Common/http_health  | GET / => 200             | GET / => 200             | OK    |
-| cert    | /Common/app.crt      | 1000                     | 1000                     | OK    |
+| cert    | /Common/app.crt      | 80083D43…A6DE8271        | 80083D43…A6DE8271        | OK    |
 +---------+----------------------+--------------------------+--------------------------+-------+
 ```
 
-Each cert match uses `x509_eq`, which compares cert identity
-(fingerprint, or subject + issuer + serial) rather than field-by-field
-noise. Add `| select(.match=="FAIL")` to show only the drift. Run
-single checks by keeping just one arm of the query.
+The cert check uses **`ucs_cert`**, which reads the *real* PEM out of the
+UCS filestore and parses it. That matters: a real `sys file ssl-cert`
+stanza usually records only `cache-path` / `revision`, no fingerprint or
+serial, so `x509_from_config` (stanza metadata) would compare two empty
+projections. `ucs_cert` recovers the true identity, and `x509_eq`
+compares it (by fingerprint, or subject + issuer + serial). Add
+`| select(.match=="FAIL")` to show only the drift. Run single checks by
+keeping just one arm of the query.
 
 ### Inventory parity (added or removed objects)
 
@@ -111,7 +115,7 @@ your trust chain. This report lists, per VIP, whether it listens, the
 f5 query --enable-probes --ca-bundle app-ca.pem --table '
   .ltm.virtual[]
   | (host(.destination)) as $h | (port(.destination)) as $p
-  | (any(.profiles[] | .context=="clientside")) as $tls
+  | (any(.profiles[] | .context=="clientside") or $p==443) as $tls
   | (if $tls then "https" else "http" end) as $scheme
   | (url_get($scheme + "://" + $h + ":" + ($p|tostring) + "/")) as $r
   | { vs:.name, target:($h+":"+($p|tostring)), scheme:$scheme,
@@ -129,6 +133,12 @@ f5 query --enable-probes --ca-bundle app-ca.pem --table '
 +--------------+-----------------+--------+-----------+-------+--------+
 ```
 
+A virtual counts as HTTPS when it carries a clientside SSL profile *or*
+listens on `443`. The port test matters: BIG-IP attaches a client-SSL
+profile with an empty `{ }` body (no explicit `context`), so a
+context-only predicate misses those VIPs and probes them as plain HTTP.
+For TLS on a non-standard port, add it to the `$p==443` test.
+
 To compare the two boxes in one shot, probe `$old`'s VIPs and `$new`'s
 VIPs and match every externally visible signal — status, content type,
 body size, TLS protocol, and the served cert (`x509_eq`):
@@ -138,7 +148,7 @@ f5 query --enable-probes --ca-bundle app-ca.pem --name old=old.ucs --name new=ne
   | [ $old.ltm.virtual[]."full-path" ] as $ok
   | $new.ltm.virtual[] as $nv | ($nv."full-path") as $fp | select(contains($ok,$fp))
   | $old.ltm.virtual[$fp] as $ov
-  | (any($nv.profiles[] | .context=="clientside")) as $tls
+  | (any($nv.profiles[] | .context=="clientside") or port($nv.destination)==443) as $tls
   | (if $tls then "https" else "http" end) as $sch
   | (url_get($sch+"://"+host($ov.destination)+":"+(port($ov.destination)|tostring)+"/")) as $or
   | (url_get($sch+"://"+host($nv.destination)+":"+(port($nv.destination)|tostring)+"/")) as $nr
@@ -166,6 +176,43 @@ f5 query --enable-probes --ca-bundle app-ca.pem --name old=old.ucs --name new=ne
 A swapped certificate is the classic migration trap — the app still
 answers `200`, but the cert column flips to `FAIL` because the two live
 handshakes return different serials.
+
+### Probe the VS cert and compare it to the cert in the UCS
+
+The check above compares the two *live* boxes to each other. To tie the
+running cert back to the **baseline** — does the new box serve the same
+cert the old box's archive holds? — read the real cert out of `old.ucs`
+with `ucs_cert` and compare it to the live handshake:
+
+```
+f5 query --enable-probes --ca-bundle app-ca.pem --name old=old.ucs --table '$old
+  | $old.ltm.virtual[]
+  | select(any(.profiles[] | .context=="clientside") or port(.destination)==443) as $vs
+  | tls_handshake(host($vs.destination), port($vs.destination), "app.example.com").peer_cert as $live
+  | ucs_cert($old.sys["file-ssl-cert"]["/Common/app.crt"]) as $baseline
+  | { vs:$vs.name,
+      ucs_fp:$baseline.fingerprint_sha256, live_fp:$live.fingerprint_sha256,
+      matches_baseline:(if x509_eq($baseline, $live) then "OK" else "FAIL" end) }
+' old.ucs | grep -v '^#'
+```
+
+```
++--------------+------------------+------------------+------------------+
+| vs           | ucs_fp           | live_fp          | matches_baseline |
++--------------+------------------+------------------+------------------+
+| app_https_vs | 80083D43…A6DE82… | 80083D43…A6DE82… | OK               |
++--------------+------------------+------------------+------------------+
+```
+
+`ucs_cert` reads the actual PEM from the UCS filestore (located by the
+stanza's `cache-path`), so this works even when the archive is
+encrypted — set `F5_UCS_PASSPHRASE` and the cert is decrypted in memory
+along with the rest. Certificates are public, so no key or master key is
+involved; that is a separate concern (see
+[reading an encrypted UCS](kcs-howto-read-encrypted-ucs-archives.md)).
+
+Point the cert at a profile's `cert-key-chain` to resolve it per VS;
+here it is referenced by path because there is one app cert.
 
 ## How to tell it worked
 

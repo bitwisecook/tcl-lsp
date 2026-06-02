@@ -39,6 +39,16 @@ PROBES_ENABLED: ContextVar[bool] = ContextVar("_bigip_query_probes_enabled", def
 # internal / self-signed CA.
 TLS_CA_BUNDLE: ContextVar[str | None] = ContextVar("_bigip_query_tls_ca_bundle", default=None)
 
+# Injected reader for ``ucs_cert``.  Reading a cert out of a UCS
+# archive means decrypting + un-tarring the file on disk, which lives
+# in the ``tooling`` layer that ``dialects`` must not import.  The CLI
+# sets this contextvar to a callable ``(config_uri, cache_path) ->
+# x509_parse-shaped dict``; the builtin stays a thin dispatcher so the
+# layering contract holds.  ``None`` means "not wired" (e.g. the engine
+# was driven by a host that didn't register a reader) and the builtin
+# raises a clear error.
+UCS_CERT_READER: ContextVar[Any] = ContextVar("_bigip_query_ucs_cert_reader", default=None)
+
 
 # NOTE: this module is the live network-probe layer for the ``f5 query``
 # DSL.  The ``url_*`` and ``tls_handshake`` builtins MUST accept whatever

@@ -128,7 +128,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-read-encrypted-ucs-archives.md](kcs-howto-read-encrypted-ucs-archives.md)
   — run any `f5` verb against a passphrase-protected UCS (`tmsh save
   sys ucs ... passphrase`); supply the passphrase via
-  `F5_UCS_PASSPHRASE`, a flag, or a secure prompt.
+  `F5_UCS_PASSPHRASE` or a secure prompt (`extract` / `convert` add
+  `--passphrase-env` / `--no-passphrase-prompt`).
 - [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
   — compose multi-step transformations (rename + readdress + policy
   edit) across the config in one `;`-separated query.

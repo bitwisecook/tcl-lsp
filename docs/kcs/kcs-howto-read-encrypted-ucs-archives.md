@@ -30,12 +30,14 @@ Every `f5` verb that reads a `.ucs` decrypts it **transparently** —
 in memory and never written to disk, because a UCS contains the
 device's SSL private keys.
 
-The passphrase is resolved in this order:
+There is no flag that takes the passphrase value on the command line —
+that would leak it into your shell history and the process list. The
+passphrase is resolved in this order:
 
-1. an explicit flag (`extract` / `convert` only — see below);
-2. the `F5_UCS_PASSPHRASE` environment variable;
-3. a secure terminal prompt, shown only when the session is
-   interactive.
+1. the `F5_UCS_PASSPHRASE` environment variable — or a variable you
+   name with `--passphrase-env VAR` (on `extract` / `convert`);
+2. a secure terminal prompt, shown only when the session is
+   interactive (suppress it with `--no-passphrase-prompt`).
 
 ### Pass the passphrase by environment variable (works on every verb)
 
