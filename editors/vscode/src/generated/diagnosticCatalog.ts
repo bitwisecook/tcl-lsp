@@ -191,6 +191,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W128",
+    section: "warning",
+    description:
+      "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

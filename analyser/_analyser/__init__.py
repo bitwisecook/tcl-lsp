@@ -6,6 +6,7 @@ from ._core import _AnalyserBase
 from ._diag_brace_then_paren import _AnalyserDiagBraceThenParenMixin
 from ._diag_branches import _AnalyserDiagBranchesMixin
 from ._diag_channel import _AnalyserDiagChannelMixin
+from ._diag_command_binding import _AnalyserDiagCommandBindingMixin
 from ._diag_commands import _AnalyserDiagCommandsMixin
 from ._diag_interval_bounds import _AnalyserDiagIntervalBoundsMixin
 from ._diag_ip import _AnalyserDiagIPMixin
@@ -34,6 +35,7 @@ class Analyser(
     _AnalyserDiagVarCommandMixin,
     _AnalyserDiagBraceThenParenMixin,
     _AnalyserDiagBranchesMixin,
+    _AnalyserDiagCommandBindingMixin,
     _AnalyserDiagChannelMixin,
     _AnalyserDiagIntervalBoundsMixin,
     _AnalyserDiagIPMixin,

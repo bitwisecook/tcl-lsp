@@ -242,6 +242,12 @@ diag("W112", "Trailing whitespace.", section="warning")
 diag("W115", "Backslash-newline in comment silently swallows the next line.", section="warning")
 diag("W118", "Inconsistent line endings.", section="warning")
 diag("W120", "Command used without a corresponding `package require`.", section="warning")
+diag(
+    "W128",
+    "Command called after it was renamed or deleted earlier in this file; "
+    "the call falls through to the `unknown` handler.",
+    section="warning",
+)
 
 
 # tclpkg package manager diagnostics (W130–W134).
