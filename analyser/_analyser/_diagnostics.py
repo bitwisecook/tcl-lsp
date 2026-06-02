@@ -33,6 +33,8 @@ class _AnalyserDiagsMixin(_Base):
 
         def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None: ...
 
+        def _emit_renamed_command_diagnostics(self, cu: CompilationUnit) -> None: ...
+
         def _emit_constant_branch_diagnostics(
             self,
             cfg: CFGFunction,

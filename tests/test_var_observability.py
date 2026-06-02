@@ -16,6 +16,7 @@ from compiler.var_observability import EscapeFlag, analyse_var_observability
 def _cfg(src: str, proc: str | None = None):
     configure_signatures(dialect="tcl9.0")
     cu = ensure_compilation_unit(src, logger=None, context="t")
+    assert cu is not None
     if proc is None:
         return cu.top_level.cfg
     return cu.procedures[proc].cfg

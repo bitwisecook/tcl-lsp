@@ -281,7 +281,7 @@ def _eval_binary(
         rs = _eval_as_string(right, env)
         if rs is None:
             return None
-        return _apply_binary(op, ls, rs)
+        return _apply_string_compare(op, ls, rs)
 
     # All other operators evaluate both sides
     lv = _eval(left, env)
@@ -365,20 +365,29 @@ def _apply_binary(op: BinOp, a: TclValue, b: TclValue) -> TclValue | None:
         case BinOp.GE:
             return 1 if a >= b else 0
 
-        # String comparison — compare string representations
-        case BinOp.STR_EQ:
-            return 1 if str(a) == str(b) else 0
-        case BinOp.STR_NE:
-            return 1 if str(a) != str(b) else 0
-        case BinOp.STR_LT:
-            return 1 if str(a) < str(b) else 0
-        case BinOp.STR_LE:
-            return 1 if str(a) <= str(b) else 0
-        case BinOp.STR_GT:
-            return 1 if str(a) > str(b) else 0
-        case BinOp.STR_GE:
-            return 1 if str(a) >= str(b) else 0
+        # String-comparison ops (eq/ne/lt/le/gt/ge) are routed to
+        # ``_apply_string_compare`` from ``_eval_binary`` before they ever reach
+        # here (they need string — not numeric — operands), so they fall through.
+        case _:
+            return None
 
+
+def _apply_string_compare(op: BinOp, a: str, b: str) -> int | None:
+    """Apply a Tcl string-comparison operator (``eq``/``ne``/``lt``/…) to two
+    already-stringified operands, returning ``1``/``0`` or ``None``."""
+    match op:
+        case BinOp.STR_EQ:
+            return 1 if a == b else 0
+        case BinOp.STR_NE:
+            return 1 if a != b else 0
+        case BinOp.STR_LT:
+            return 1 if a < b else 0
+        case BinOp.STR_LE:
+            return 1 if a <= b else 0
+        case BinOp.STR_GT:
+            return 1 if a > b else 0
+        case BinOp.STR_GE:
+            return 1 if a >= b else 0
         case _:
             return None
 

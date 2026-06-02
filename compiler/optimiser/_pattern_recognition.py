@@ -331,6 +331,7 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa, analysis=None) -> N
         from compiler.var_observability import analyse_var_observability
 
         obs = analyse_var_observability(cfg)
+    assert obs is not None  # narrow: either the cached lattice or freshly computed
     for block_name, block in cfg.blocks.items():
         ssa_block = ssa.blocks.get(block_name)
         if ssa_block is None:
@@ -362,7 +363,12 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa, analysis=None) -> N
             # that write is observable (a trace fires, or another scope sees
             # it), so the chain must not be collapsed.  Flow-sensitive: a chain
             # whose writes all precede the declaration still folds.
-            if any(obs.is_escaping_at(block_name, w, var_key) for w in chain.writes):
+            escaping = False
+            for write_idx in chain.writes:
+                if obs.is_escaping_at(block_name, write_idx, var_key):
+                    escaping = True
+                    break
+            if escaping:
                 return
             if chain.elements is not None:
                 rendered = _render_list_word(chain.elements)
