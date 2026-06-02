@@ -3238,7 +3238,6 @@ before this value so it is treated as data, not an option."
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use crate::analyses::{ConstValue, LatticeValue};
         use crate::types::TypeKind;
         use std::collections::HashMap;
 
@@ -3297,18 +3296,9 @@ before this value so it is treated as data, not an option."
                             out: &mut HashMap<String, HashSet<String>>| {
             for (key, lv) in &sccp.values {
                 let (var_name, _ver) = key;
-                let values: Option<Vec<String>> = match lv {
-                    LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
-                    LatticeValue::ConstSet(set) => set
-                        .iter()
-                        .map(|cv| match cv {
-                            ConstValue::String(s) => Some(s.clone()),
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<_>>>(),
-                    _ => None,
+                let Some(values) = lattice_command_values(lv) else {
+                    continue;
                 };
-                let Some(values) = values else { continue };
                 let entry = out.entry(var_name.clone()).or_default();
                 for v in values {
                     entry.insert(v);
@@ -3345,6 +3335,25 @@ before this value so it is treated as data, not an option."
                 || known_class_tails.contains(v)
                 || self.result.all_classes.contains_key(&format!("::{v}"))
         };
+
+        // Per-SSA-version refinement (post-stage2 §A): map each
+        // function to its source range + FunctionUnit so the W307
+        // suppression can read the value at the dispatch's *exact* SSA
+        // use-version instead of the merged set.  ``::top`` covers the
+        // whole source; a proc's narrower range wins where it contains
+        // the offset.  Mirrors Python's ``_func_ranges`` /
+        // ``_all_fus_named`` (methods are ``in_method``-suppressed, so
+        // — like Python's loop — they are left out).
+        let mut func_ranges: Vec<(String, u32, u32)> = vec![("::top".to_string(), 0, u32::MAX)];
+        let mut fu_by_qname: HashMap<String, &crate::compilation_unit::FunctionUnit> =
+            HashMap::new();
+        fu_by_qname.insert("::top".to_string(), &cu.top_level);
+        for (qname, fu) in &cu.procedures {
+            fu_by_qname.insert(qname.clone(), fu);
+            if let Some(ir_proc) = cu.ir_module.procedures.get(qname) {
+                func_ranges.push((qname.clone(), ir_proc.span.start(), ir_proc.span.end()));
+            }
+        }
 
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);
@@ -3442,7 +3451,21 @@ before this value so it is treated as data, not an option."
             if site.in_method {
                 continue;
             }
-            if let Some(values) = all_constsets.get(&site.var_name) {
+            // Prefer the value at the dispatch's exact SSA use-version;
+            // fall back to the merged constset when no precise version
+            // is found. This drops the merged-set false positive on a
+            // variable reassigned from a non-command to a known command
+            // before the dispatch (`set c x; set c puts; $c ...`).
+            let precise = w307_precise_cmd_values(
+                &func_ranges,
+                &fu_by_qname,
+                site.cmd_span.start(),
+                &site.var_name,
+            );
+            let effective = precise
+                .as_ref()
+                .or_else(|| all_constsets.get(&site.var_name));
+            if let Some(values) = effective {
                 if !values.is_empty() && values.iter().all(|v| is_known_command(v)) {
                     continue;
                 }
@@ -4150,6 +4173,89 @@ fn walk_dialect_invalid_ops(
         }
         _ => {}
     }
+}
+
+/// Expand a CONST / CONSTSET lattice value into the flat set of its
+/// string values, or `None` for any non-string-constant lattice state.
+/// Mirrors Python's `_lattice_to_set` as consumed by the W307 emitter.
+fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<String>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    match lv {
+        LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
+        LatticeValue::ConstSet(set) => set
+            .iter()
+            .map(|cv| match cv {
+                ConstValue::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>(),
+        _ => None,
+    }
+}
+
+/// The SCCP value set of `var_name` at the SSA use-version that reaches
+/// the dispatch statement at `offset` (W307 per-SSA-version refinement).
+///
+/// The merged `all_constsets` map unions every version of a variable,
+/// so `set c notacommand; set c parse; $c x` wrongly keeps
+/// `notacommand` in the set even though only the `parse` version
+/// reaches the dispatch. Reading the value at the use site's exact
+/// version removes that false positive.
+///
+/// Purely additive: returns a set only when a CFG statement containing
+/// `offset` that *uses* `var_name` is found and its version has a
+/// concrete CONST / CONSTSET value — otherwise `None`, and the caller
+/// falls back to the merged-set logic. Never broadens a fire into a
+/// suppression unsoundly — the value is the exact one flowing into the
+/// dispatch. Mirrors Python's `_precise_cmd_values`.
+fn w307_precise_cmd_values(
+    func_ranges: &[(String, u32, u32)],
+    fu_by_qname: &std::collections::HashMap<String, &crate::compilation_unit::FunctionUnit>,
+    offset: u32,
+    var_name: &str,
+) -> Option<HashSet<String>> {
+    // Narrowest function range containing `offset` (mirrors the
+    // scoping `_constsets_for_offset` uses).
+    let mut best: Option<(u32, &str)> = None;
+    for (qname, start, end) in func_ranges {
+        if *start <= offset && offset <= *end {
+            let width = end - start;
+            if best.map_or(true, |(bw, _)| width < bw) {
+                best = Some((width, qname.as_str()));
+            }
+        }
+    }
+    let fu = fu_by_qname.get(best?.1)?;
+
+    // Narrowest CFG statement containing `offset` that uses `var_name`,
+    // reading its SSA use-version (CFG / SSA blocks are parallel-indexed).
+    let mut best_width: Option<u32> = None;
+    let mut best_version: Option<u32> = None;
+    for (block_name, block) in &fu.cfg.blocks {
+        let Some(ssa_block) = fu.ssa.blocks.get(block_name) else {
+            continue;
+        };
+        for (idx, stmt) in block.statements.iter().enumerate() {
+            let span = stmt.span();
+            if !(span.start() <= offset && offset <= span.end()) {
+                continue;
+            }
+            let Some(ssa_stmt) = ssa_block.statements.get(idx) else {
+                continue;
+            };
+            let Some(version) = ssa_stmt.uses.get(var_name) else {
+                continue;
+            };
+            let width = span.end() - span.start();
+            if best_width.map_or(true, |bw| width < bw) {
+                best_width = Some(width);
+                best_version = Some(*version);
+            }
+        }
+    }
+    let version = best_version?;
+    let lv = fu.sccp.values.get(&(var_name.to_string(), version))?;
+    Some(lattice_command_values(lv)?.into_iter().collect())
 }
 
 #[cfg(test)]
@@ -5774,6 +5880,44 @@ foo
         assert!(
             w307s.is_empty(),
             "W307 must be suppressed when var holds known command name; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_per_ssa_version_after_reassignment() {
+        // Per-SSA-version refinement (SYNC-JUN02-1 strip 5): `cmd` is
+        // reassigned from a non-command to a known command before the
+        // dispatch.  The merged const-set {notacommand, puts} would
+        // wrongly keep W307 alive; reading the value at the dispatch's
+        // exact SSA use-version ("puts") suppresses it.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc foo {} { set cmd notacommand\nset cmd puts\n$cmd hello }",
+            "tcl",
+        );
+        let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+        assert!(
+            w307s.is_empty(),
+            "W307 must read the precise reaching version (\"puts\"); got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_still_fires_when_precise_version_not_a_command() {
+        // The mirror case: the reaching version is a non-command, so
+        // W307 must still fire (the refinement only suppresses when the
+        // exact value is provably a known command).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc foo {} { set cmd puts\nset cmd notacommand\n$cmd hello }",
+            "tcl",
+        );
+        let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+        assert!(
+            !w307s.is_empty(),
+            "W307 should fire when the reaching version isn't a command; got {:?}",
             r.diagnostics,
         );
     }
