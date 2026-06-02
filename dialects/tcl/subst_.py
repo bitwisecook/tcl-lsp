@@ -16,6 +16,7 @@ from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from compiler.types import TclType
 
 from ._base import register
+from .const_fold import fold_subst
 
 _SOURCE = "Tcl subst(1)"
 
@@ -57,6 +58,10 @@ class SubstCommand(CommandDef):
             ),
             taint_sink=True,
             is_unescape_command=True,
+            # Folds only the literal ``subst string`` form (no options): ``$var``
+            # is resolved by the lattice as subst would, ``[command]`` makes the
+            # folder bail (side effect), and a backslash escape is left unfolded.
+            const_fold=fold_subst,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

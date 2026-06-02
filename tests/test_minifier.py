@@ -1173,19 +1173,24 @@ class TestStaticSubstringFolding:
     def test_static_folds_in_symbol_map(self):
         """Static fold details appear in the symbol map.
 
-        Plain ``$x`` interpolation is now folded upstream by the optimiser
-        (O105), so this exercises the minifier's *unique* contribution — a pure
-        command substitution embedded in a quoted string (``[string length $x]``),
-        which the optimiser leaves intact for the minifier's static-substr pass.
+        Both plain ``$x`` interpolation (O105) and a *space-free* command
+        substitution embedded in a quoted string (``[string length $x]`` → O129
+        / Part B1) are now folded upstream by the optimiser.  This exercises the
+        minifier's *remaining* unique contribution: a command substitution whose
+        result contains whitespace (``[list a b c]`` → ``a b c``).  The optimiser
+        leaves that one intact — splicing a space into a *bare* interpolation
+        word would split it into extra arguments — but the minifier knows the
+        substitution sits inside a double-quoted string, where a space is safe,
+        so its static-substr pass folds it.
         """
-        source = 'set x hello\nputs "length is [string length $x]"\n'
+        source = 'puts "got [list a b c]"\n'
         result = minify_tcl(source, aggressive=True)
         # The command-sub template must be statically folded, and every recorded
-        # fold must carry the resolved length (``5``).
+        # fold must carry the resolved list (``a b c``).
         assert result.symbol_map.static_folds, result.source
         for _original, folded in result.symbol_map.static_folds.items():
-            assert "5" in folded
-        assert "string length" not in result.source
+            assert "a b c" in folded
+        assert "list a b c" not in result.source
 
     def test_no_fold_when_var_not_in_ssa(self):
         """Variables not tracked by SSA (e.g. global) are not folded."""

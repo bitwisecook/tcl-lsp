@@ -336,13 +336,13 @@ class _WasmEmitterStmtMixin(_Base):
             case IRIncr(name=name, amount=amount):
                 # ``incr`` renamed/redefined in this unit → run it through the
                 # interpreter (live runtime command table) instead of the inline
-                # increment, so the replacement command's semantics apply.
-                # TODO(command-binding): if ``incr`` was renamed *to a proc*,
-                # the interpreter fallback traps rather than calling the compiled
-                # proc (needs interp→compiled-proc dispatch).  Also: the
-                # value-context IRIncr in _control_flow.py / _optimisation.py is
-                # NOT yet gated (rarer; stack-discipline-sensitive) — gate those
-                # too once interp→proc dispatch lands.  See _values.py.
+                # increment, so the replacement command's semantics apply.  When
+                # ``incr`` was renamed *to a proc*, the eval-fallback's
+                # ``tcl_eval`` dispatches to the compiled proc via
+                # ``eval_proc_call_bucket`` (``incr`` is fixed-arity, so the
+                # variadic-shadow gap doesn't apply).  The value/tail-context
+                # IRIncr in _control_flow.py / _optimisation.py is now gated the
+                # same way.  See _values.py.
                 if not builtin_is_trusted("incr"):
                     self._intern_local(name)
                     incr_args = (name,) if amount is None else (name, amount)
