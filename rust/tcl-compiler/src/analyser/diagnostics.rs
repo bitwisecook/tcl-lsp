@@ -1925,91 +1925,27 @@ before this value so it is treated as data, not an option."
         }
     }
 
-    /// Statements whose dead-store W220 should be **suppressed** because their
-    /// array-element / dict-path def place is observed by some read in the
-    /// function (Phase 8 place-model precision, SYNC-MAY31-1b stage 4).
+    /// Statements whose dead-store **W220** hint should be **suppressed**
+    /// because their array-element / dict-path def place is observed by some
+    /// read in the function (Phase 8 place-model precision, SYNC-MAY31-1b).
     ///
     /// Name-level SSA folds `a(k)` / `a(j)` / `$a` to the base name `a`, so a
     /// later `set a(j) 2` looks like it overwrites `set a(k) 1` before any read
-    /// — a false dead store when `a(k)` is in fact read.  Resolving each
-    /// element write to a [`Place`](crate::place::Place) and consulting the
-    /// over-approximating [`overlap`](crate::place::overlap) against the
-    /// function's read places suppresses exactly that case.  Scalars keep the
-    /// precise name-level verdict (they don't fold), so a genuine
-    /// `set x 1; set x 2; puts $x` dead store still fires.  Mirrors the
-    /// suppress-only `overlap` consumer on `main`
-    /// (`docs/design/compiler/phase8-place-migration.md`); the rare
-    /// same-element reassignment dead store is intentionally not recovered (it
-    /// needs the versioned 8F substrate).
-    ///
-    /// Returns `(block_name, statement_index)` keys.  Empty when the function
-    /// has no array-element assignment (the common case — no extra cost) or no
-    /// registry is bound.
+    /// — a false dead store when `a(k)` is in fact read.  Delegates to the
+    /// shared [`crate::place_bridge::element_writes_observed_by_reads`] (also
+    /// used by the optimiser's O109), which resolves each element write to a
+    /// [`Place`](crate::place::Place) and consults the over-approximating
+    /// [`overlap`](crate::place::overlap).  Scalars keep the precise name-level
+    /// verdict (they don't fold), so a genuine `set x 1; set x 2; puts $x` dead
+    /// store still fires.  Empty when no registry is bound (e.g. the bare
+    /// `emit_cfg_ssa_diagnostics` test path).
     fn place_suppressed_dead_stores(
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> std::collections::HashSet<(String, i32)> {
-        use crate::ir::Statement;
-        use crate::place::{overlap, Place, PlaceKind};
-        use crate::place_bridge::{
-            build_resolve_context, def_places, read_places, terminator_read_places,
-        };
-
-        let mut out = std::collections::HashSet::new();
-        let Some(registry) = self.registry.as_ref() else {
-            return out;
-        };
-
-        let is_array_assign = |stmt: &Statement| -> bool {
-            matches!(
-                stmt,
-                Statement::AssignConst { name, .. }
-                    | Statement::AssignValue { name, .. }
-                    | Statement::AssignExpr { name, .. }
-                    if name.contains('(')
-            )
-        };
-
-        // Cheap pre-check: only array-element assignments can be mis-folded by
-        // the name-level SSA, so non-array functions cost nothing.
-        let has_array_assign = fu
-            .cfg
-            .blocks
-            .values()
-            .any(|b| b.statements.iter().any(&is_array_assign));
-        if !has_array_assign {
-            return out;
-        }
-
-        let ctx = build_resolve_context(&fu.cfg, &fu.name);
-        // All read places in the function, collected once.
-        let mut reads: Vec<Place> = Vec::new();
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                reads.extend(read_places(stmt, &ctx, registry));
-            }
-            if let Some(term) = &block.terminator {
-                reads.extend(terminator_read_places(term, &ctx, registry));
-            }
-        }
-
-        for (block_name, block) in &fu.cfg.blocks {
-            for (idx, stmt) in block.statements.iter().enumerate() {
-                if !is_array_assign(stmt) {
-                    continue;
-                }
-                let observed = def_places(stmt, &ctx, registry).iter().any(|d| {
-                    matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
-                        && reads.iter().any(|r| overlap(d, r))
-                });
-                if observed {
-                    if let Ok(i) = i32::try_from(idx) {
-                        out.insert((block_name.clone(), i));
-                    }
-                }
-            }
-        }
-        out
+        self.registry.as_ref().map_or_else(Default::default, |reg| {
+            crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg)
+        })
     }
 
     /// W220 — dead-store hint.

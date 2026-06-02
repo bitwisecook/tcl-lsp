@@ -54,6 +54,7 @@ pub fn optimise_with_dialect(
     let _ = interproc;
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
     run_passes(&mut ctx, &cu, &PassId::all());
     select_non_overlapping(&ctx.optimisations)
 }
@@ -73,6 +74,7 @@ pub fn optimise_raw(
     let cu = CompilationUnit::build_for(source, registry, false);
     let ia = build_interprocedural_analysis(&cu.ir_module, registry, dialect);
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
     run_passes(&mut ctx, &cu, &PassId::all());
     ctx.optimisations
 }

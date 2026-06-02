@@ -17,7 +17,7 @@ use tcl_registry::{ArgRole, CommandRegistry};
 use crate::cfg::{Function, Terminator};
 use crate::ir::Statement;
 use crate::naming::{normalise_qualified_name, normalise_var_name};
-use crate::place::{self, places_read_to_form, Place};
+use crate::place::{self, overlap, places_read_to_form, Place, PlaceKind};
 use crate::segmenter::segment_commands;
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{command_subst_texts, scan_var_ref_forms, vars_in_expr};
@@ -401,6 +401,81 @@ pub fn terminator_read_places(
             }
         }
         Terminator::Goto { .. } => {}
+    }
+    out
+}
+
+/// `(block_name, statement_index)` of every array-element / dict-path
+/// assignment in *cfg* whose def [`Place`] is **observed** by some read place
+/// in the function — the element writes a *name-level* dead-store / unused
+/// analysis mis-folds (SSA collapses `a(k)` / `a(j)` / `$a` to the base `a`)
+/// but that a read in fact keeps live.
+///
+/// Shared by the analyser (W220) and the optimiser (O109): both flag an
+/// overwritten/unused SSA def at name granularity, so both consult this to
+/// suppress the array-element false positives.  The suppression is
+/// element-granular only — scalar defs (which never fold) keep their precise
+/// name-level verdict.  A whole-array / UNKNOWN / upvar-alias read overlaps
+/// every element (so `array get a` keeps each `a(k)` write live); this
+/// full-scan `overlap` matches `main`'s bucketed `_make_element_observed`,
+/// where `UNKNOWN` / `UPVAR_ALIAS` reads are wildcards (here `overlap` returns
+/// `true` on those edges).  Empty (no cost) when *cfg* has no array-element
+/// assignment.
+#[must_use]
+pub fn element_writes_observed_by_reads(
+    cfg: &Function,
+    fn_qname: &str,
+    registry: &CommandRegistry,
+) -> std::collections::HashSet<(String, i32)> {
+    use std::collections::HashSet;
+
+    let is_array_assign = |stmt: &Statement| -> bool {
+        matches!(
+            stmt,
+            Statement::AssignConst { name, .. }
+                | Statement::AssignValue { name, .. }
+                | Statement::AssignExpr { name, .. }
+                if name.contains('(')
+        )
+    };
+
+    let mut out = HashSet::new();
+    // Cheap pre-check: only array-element assignments can be mis-folded.
+    if !cfg
+        .blocks
+        .values()
+        .any(|b| b.statements.iter().any(&is_array_assign))
+    {
+        return out;
+    }
+
+    let ctx = build_resolve_context(cfg, fn_qname);
+    // All read places in the function, collected once.
+    let mut reads: Vec<Place> = Vec::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            reads.extend(read_places(stmt, &ctx, registry));
+        }
+        if let Some(term) = &block.terminator {
+            reads.extend(terminator_read_places(term, &ctx, registry));
+        }
+    }
+
+    for (block_name, block) in &cfg.blocks {
+        for (idx, stmt) in block.statements.iter().enumerate() {
+            if !is_array_assign(stmt) {
+                continue;
+            }
+            let observed = def_places(stmt, &ctx, registry).iter().any(|d| {
+                matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
+                    && reads.iter().any(|r| overlap(d, r))
+            });
+            if observed {
+                if let Ok(i) = i32::try_from(idx) {
+                    out.insert((block_name.clone(), i));
+                }
+            }
+        }
     }
     out
 }

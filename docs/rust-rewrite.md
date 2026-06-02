@@ -1646,29 +1646,41 @@ Structural new surfaces (no Rust mirror today):
     produces an `a(k)` def observed by a read while `a(j)` is observed by
     none.  No consumer wired yet → output-equivalent.
   - **Stage 4 (done): reroute the W220 dead-store consumer through
-    `overlap`.**  `emit_dead_store_diagnostics` now consults a new
-    `place_suppressed_dead_stores` helper: for each function it builds the
-    `ResolveContext`, collects every read place (statements +
-    terminators), and suppresses a dead-store candidate whose
-    **array-element / dict-path** def place overlaps a read.  Scalars keep
-    their precise name-level verdict (the suppression is element-granular
-    only), and a cheap "has array-element assign" pre-check keeps non-array
-    functions cost-free.  So `set a(k) 1; set a(j) 2; puts $a(k)` no longer
-    false-fires W220 on `a(k)`, while `set x 1; set x 2; puts $x` still
-    does.  Two discriminating analyser tests (array suppressed, scalar
-    still fires), the array one verified to fail without the reroute.
-    Note: only the **analyser** W220 is rerouted — the Rust optimiser DCE
-    (O109) is a *separate* computation (unlike Python's shared
-    `analysis.dead_stores`), so there is no shared-list desync and no
-    VM-equivalence concern here.  The rare same-element reassignment dead
-    store is intentionally not recovered (needs the versioned 8F
-    substrate), matching `main`'s suppress-only stage.
+    `overlap`.**  Both the analyser (W220) and the optimiser (O109 —
+    `Eliminate dead store`) now consult one shared helper,
+    `place_bridge::element_writes_observed_by_reads`: for each function it
+    builds the `ResolveContext`, collects every read place (statements +
+    terminators), and reports each **array-element / dict-path** write
+    whose def place `overlap`s a read.  The consumer then suppresses those
+    candidates.  Scalars keep their precise name-level verdict (the
+    suppression is element-granular only), and a cheap "has array-element
+    assign" pre-check keeps non-array functions cost-free.  So
+    `set a(k) 1; set a(j) 2; puts $a(k)` no longer false-fires W220/O109 on
+    `a(k)`, while `set x 1; set x 2; puts $x` (scalar) and
+    `set a(k) 1; set a(j) 2; puts $a(j)` (a(k) genuinely dead) still do.
+    The optimiser path threads the registry to the elimination pass via a
+    new `PassContext::registry` (set by the `optimise*` entry points;
+    `None` on the bare `run_pass` test path — so existing optimiser tests
+    are unaffected).  Four discriminating tests (analyser + optimiser ×
+    {array suppressed, genuine still fires}); the suppressed ones verified
+    to fail without the reroute.  Note: O109 emits an *optimisation
+    suggestion*, not bytecode — and it is a **separate** computation from
+    W220 (unlike Python's shared `analysis.dead_stores`), so there is no
+    shared-list desync and no VM-equivalence concern.  The rare
+    same-element reassignment dead store is intentionally not recovered
+    (needs the versioned 8F substrate), matching `main`'s suppress-only
+    stage.
 
-  Remaining follow-ups (optional, separate chunks): the **W211** unused
-  and **O109** optimiser-DCE consumers could likewise route through
-  `overlap` for full parity; both are lower-value than the W220 −88 win
-  (W211 array cases are mostly false *negatives* from name folding; O109
-  is an optimiser/VM-gated change).
+  **W211 / O126 (unused variable) — already at parity, no reroute needed.**
+  Investigated and confirmed a no-op in Rust: the def-use builder tracks
+  reads at the name level (so `array get a`, `puts $a(k)`, dynamic-index,
+  `eval`, expr command-subs are all already seen as uses of base `a`), and
+  W211/O126 are name-level-granular (fire only when the *whole* variable
+  has no live version).  The cross-scope upvar cases Python's place model
+  removed there (−2) are already handled in Rust by the `scope_aliases`
+  filter.  Wiring the place model in (verified against the suite) changed
+  no output, so it was reverted rather than ship effect-less code with no
+  discriminating test.
 - **Phase 0 / 1 / 6 / 7 — shared infrastructure.**  Phase 0:
   registry-aware green-tree descent (`descend_command`) single-sources
   body role-resolution.  Phase 1: shared loop-nesting forest

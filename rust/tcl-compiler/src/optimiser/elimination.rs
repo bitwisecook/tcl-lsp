@@ -111,6 +111,16 @@ fn emit_dead_stores_and_unused(
     // textually is kept live — conservative but correct.
     let textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
 
+    // Phase 8 place model (SYNC-MAY31-1b): array-element writes the name-level
+    // SSA mis-folds (`set a(k) 1` "overwritten" by `set a(j) 2`) but that a read
+    // observes.  Shared with the analyser's W220.  Empty unless a registry is
+    // bound (set by the `optimise*` entry points) and the function writes array
+    // elements — so the bare test/`run_pass` path keeps its prior behaviour.
+    let place_suppressed = ctx
+        .registry
+        .map(|reg| crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg))
+        .unwrap_or_default();
+
     // Collect one DseEntry per dead chain then sort + emit.
     let mut entries: Vec<DseEntry> = Vec::new();
 
@@ -131,6 +141,14 @@ fn emit_dead_stores_and_unused(
         let Some(stmt) = block.statements.get(idx) else {
             continue;
         };
+        // Suppress when this element write is observed by a read the name-level
+        // SSA can't see (place-model overlap — the O109 sibling of W220).
+        if place_suppressed.contains(&(
+            chain.definition.block.clone(),
+            chain.definition.statement_index,
+        )) {
+            continue;
+        }
         // Skip if the variable is a scope alias — writes through
         // global / upvar are visible in other scopes.
         let (var, _) = &chain.key;
@@ -655,6 +673,35 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O109"),
             "expected O109 for overwritten store, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o109_array_element_overwrite_not_dead() {
+        // SYNC-MAY31-1b place model: `set a(k) 1` is NOT a dead store — the
+        // later `set a(j) 2` bumps the name-level SSA version of base `a`, but
+        // `puts $a(k)` reads a(k) and a(k) ≠ a(j).  Goes through `optimise`,
+        // which binds the registry the place bridge needs (`run_pass` leaves it
+        // unbound, so the bare-path scalar test above is unaffected).
+        let opts = crate::optimiser::optimise(
+            "proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }",
+            &registry(),
+        );
+        assert!(
+            opts.iter().all(|o| o.code != "O109"),
+            "no O109 expected — a(k) is read by `puts $a(k)`; got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o109_array_element_genuinely_dead_still_fires() {
+        // Precision guard: here only a(j) is read, so a(k) IS overwritten
+        // before any read — O109 must still fire on it.  The place model
+        // suppresses only element writes that a read actually observes.
+        let opts = crate::optimiser::optimise("set a(k) 1\nset a(j) 2\nputs $a(j)", &registry());
+        assert!(
+            opts.iter().any(|o| o.code == "O109"),
+            "O109 expected — a(k) is overwritten and never read; got {opts:?}",
         );
     }
 
