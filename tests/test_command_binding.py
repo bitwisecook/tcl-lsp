@@ -100,7 +100,6 @@ class TestFlowSensitiveRename:
     def test_rename_deletion_is_opaque_not_error(self):
         # ``rename foo {}`` deletes foo; a later call hits ``unknown`` (opaque).
         cu, res = _top("proc foo {} {return 1}\nrename foo {}\nfoo\n")
-        binding = _binding_at_command(res, cu.top_level.cfg, "::foo", "foo")
         # the *last* `foo` (post-deletion) is opaque
         b, i = _end(cu.top_level.cfg)
         assert res.binding_at(b, i, "foo").kind is BindingKind.OPAQUE
@@ -108,11 +107,7 @@ class TestFlowSensitiveRename:
     def test_builtin_rename_away_then_redefine_is_proc(self):
         # rename incr ::orig ; proc incr {…}: `incr` is now a *user proc*, so it
         # is no longer the foldable builtin, and ::orig holds the real builtin.
-        src = (
-            "rename incr ::orig_incr\n"
-            "proc incr {v} {upvar 1 $v x; ::orig_incr x 100}\n"
-            "set c 0\n"
-        )
+        src = "rename incr ::orig_incr\nproc incr {v} {upvar 1 $v x; ::orig_incr x 100}\nset c 0\n"
         cu, res = _top(src)
         b, i = _end(cu.top_level.cfg)
         assert res.binding_at(b, i, "incr").kind is BindingKind.PROC
@@ -160,10 +155,7 @@ class TestBranchJoin:
 
     def test_rename_on_both_arms_agrees(self):
         # Same rename on both arms → the binding is deterministic (opaque) after.
-        src = (
-            "if {$x} {rename string ::s2} else {rename string ::s2}\n"
-            "puts [string length hi]\n"
-        )
+        src = "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n"
         cu, res = _top(src)
         binding = _binding_at_command(res, cu.top_level.cfg, "::puts", "string")
         # string was renamed away on every path → opaque (auto-load), not ⊤

@@ -128,9 +128,7 @@ class TestWholeFunctionUnion:
         # _escaping_var_names now derives from the same lattice.
         src = "set x 1\ntrace add variable x write {apply {{a b c} {}}}\nset x 2\n"
         cfg = _cfg(src)
-        assert set(_escaping_var_names(cfg)) == set(
-            analyse_var_observability(cfg).escaping_names()
-        )
+        assert set(_escaping_var_names(cfg)) == set(analyse_var_observability(cfg).escaping_names())
 
 
 class TestO104UsesLatticeFlowSensitively:

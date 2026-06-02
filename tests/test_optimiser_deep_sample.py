@@ -54,9 +54,7 @@ pytestmark = pytest.mark.skipif(_TCLSH9 is None, reason="tclsh9.0 not available"
 
 def _run(source: str) -> str:
     assert _TCLSH9 is not None
-    proc = subprocess.run(
-        [_TCLSH9], input=source, capture_output=True, text=True, timeout=15
-    )
+    proc = subprocess.run([_TCLSH9], input=source, capture_output=True, text=True, timeout=15)
     assert proc.returncode == 0, f"tclsh failed: {proc.stderr}"
     return proc.stdout
 

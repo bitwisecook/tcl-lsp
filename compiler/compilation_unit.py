@@ -474,7 +474,6 @@ def _compile_source_inner(
 
     ir_module = insert_interp_boundaries(ir_module)
     with command_trust(module_command_trust(ir_module)):
-
         # Extract TclOO class names from the IR so type propagation can
         # recognise ``[ClassName new]`` as returning an OBJECT instance.
         if not known_classes:
@@ -658,7 +657,9 @@ def _compile_source_inner(
             proc_local_cache=interproc_cache,
             prune_local_cache=prune_interproc_cache,
             proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
-            method_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in method_units.items()},
+            method_units={
+                qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in method_units.items()
+            },
             stub_fingerprint=stub_fingerprint,
             context_fingerprint=context_fingerprint,
             deep_param_traits=deep_param_traits,

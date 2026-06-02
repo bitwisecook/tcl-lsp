@@ -996,7 +996,7 @@ class TestConstantVarRefPropagation:
 
     def test_string_constant_with_metachars_propagated_safely(self):
         """Metacharacters in the value are suppressed by the braces, not run."""
-        source = 'set x {a $b [c]}\nputs $x'
+        source = "set x {a $b [c]}\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert optimised == "puts {a $b [c]}"
         assert any(r.code == "O100" for r in rewrites)

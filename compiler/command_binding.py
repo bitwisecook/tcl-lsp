@@ -305,7 +305,6 @@ class CommandBinding:
         return False
 
 
-
 def analyse_command_binding(
     cfg: CFGFunction,
     *,

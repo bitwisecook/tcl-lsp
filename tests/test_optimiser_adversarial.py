@@ -51,9 +51,7 @@ pytestmark = pytest.mark.skipif(_TCLSH9 is None, reason="tclsh9.0 not available"
 
 def _run(source: str) -> tuple[int, str]:
     assert _TCLSH9 is not None
-    proc = subprocess.run(
-        [_TCLSH9], input=source, capture_output=True, text=True, timeout=15
-    )
+    proc = subprocess.run([_TCLSH9], input=source, capture_output=True, text=True, timeout=15)
     return proc.returncode, proc.stdout
 
 
@@ -71,28 +69,15 @@ def _optimise(source: str) -> str:
 _CORRECTNESS: dict[str, str] = {
     # --- variable aliasing: a callee mutating an outer-scope variable must
     #     invalidate the caller's constant knowledge of it ---
-    "global_decl_write": (
-        "set g 1\nproc f {} {global g; set g 5}\nf\nputs $g"
-    ),
-    "global_incr": (
-        "set g 1\nproc f {} {global g; incr g}\nf\nf\nputs $g"
-    ),
-    "global_qualified": (
-        "set ::g 1\nproc f {} {set ::g 5}\nf\nputs $::g"
-    ),
-    "global_interleaved": (
-        "set g 5\nproc f {} {global g; set g 9}\nputs $g\nf\nputs $g"
-    ),
+    "global_decl_write": ("set g 1\nproc f {} {global g; set g 5}\nf\nputs $g"),
+    "global_incr": ("set g 1\nproc f {} {global g; incr g}\nf\nf\nputs $g"),
+    "global_qualified": ("set ::g 1\nproc f {} {set ::g 5}\nf\nputs $::g"),
+    "global_interleaved": ("set g 5\nproc f {} {global g; set g 9}\nputs $g\nf\nputs $g"),
     "namespace_variable_write": (
-        "namespace eval n {variable v 1}\n"
-        "proc n::f {} {variable v; set v 5}\nn::f\nputs $n::v"
+        "namespace eval n {variable v 1}\nproc n::f {} {variable v; set v 5}\nn::f\nputs $n::v"
     ),
-    "global_array_elem": (
-        "set arr(k) 1\nproc f {} {global arr; set arr(k) 9}\nf\nputs $arr(k)"
-    ),
-    "uplevel_zero_global": (
-        "proc run {} {uplevel #0 {set g 9}}\nset g 1\nrun\nputs $g"
-    ),
+    "global_array_elem": ("set arr(k) 1\nproc f {} {global arr; set arr(k) 9}\nf\nputs $arr(k)"),
+    "uplevel_zero_global": ("proc run {} {uplevel #0 {set g 9}}\nset g 1\nrun\nputs $g"),
     "upvar_caller_static": (
         "proc setit {} {upvar 1 y x; set x 99}\n"
         "proc caller {} {set y 1; setit; return $y}\nputs [caller]"
@@ -117,32 +102,30 @@ _CORRECTNESS: dict[str, str] = {
         "append s a\nappend s b\nputs $s|$::log"
     ),
     # --- command substitution side effects must survive ---
-    "cmdsub_side_effect": "set x [puts hi]\nputs \"got=$x\"",
+    "cmdsub_side_effect": 'set x [puts hi]\nputs "got=$x"',
     "dead_store_with_cmdsub": "set x [puts a]\nset x [puts b]\nputs done",
     # --- expr corner cases: folding must match Tcl 9 exactly ---
     "bignum_pow": "puts [expr {2 ** 100}]",
     "float_fold": "puts [expr {0.1 + 0.2}]",
-    "signed_div_mod": "puts \"[expr {-7 / 2}]|[expr {-7 % 2}]|[expr {7 % -2}]\"",
-    "hex_and_octal": "puts \"[expr {0x10 + 1}]|[expr {0o17 + 1}]\"",
-    "ternary_string": "set a 1\nputs [expr {$a ? \"yes\" : \"no\"}]",
-    "string_eq_number": "set x 10\nif {$x == \"10\"} {puts eq}",
+    "signed_div_mod": 'puts "[expr {-7 / 2}]|[expr {-7 % 2}]|[expr {7 % -2}]"',
+    "hex_and_octal": 'puts "[expr {0x10 + 1}]|[expr {0o17 + 1}]"',
+    "ternary_string": 'set a 1\nputs [expr {$a ? "yes" : "no"}]',
+    "string_eq_number": 'set x 10\nif {$x == "10"} {puts eq}',
     # --- incr-idiom soundness: a float var must NOT become incr ---
     "incr_idiom_float": "set x 1.5\nset x [expr {$x + 1}]\nputs $x",
     # --- multiply-by-one is identity only for numbers; string must error/keep ---
-    "mul_by_one_string": "set x abc\nif {[catch {expr {$x * 1}} e]} {puts \"err\"}",
+    "mul_by_one_string": 'set x abc\nif {[catch {expr {$x * 1}} e]} {puts "err"}',
     # --- dynamic command (re)definition ---
     "redefine_proc": "proc f {} {return 1}\nproc f {} {return 2}\nputs [f]",
     "rename_user_proc": "proc f {} {return 7}\nrename f g\nputs [g]",
     # --- control flow with side effects ---
     "while_side_condition": "set i 0\nset n 0\nwhile {[incr i] <= 3} {incr n}\nputs $n",
-    "foreach_multi_var": (
-        "set out {}\nforeach {a b} {1 2 3 4} {lappend out $a$b}\nputs $out"
-    ),
+    "foreach_multi_var": ("set out {}\nforeach {a b} {1 2 3 4} {lappend out $a$b}\nputs $out"),
     "dead_code_after_return": "proc f {} {return 1\nputs unreachable}\nputs [f]",
     # --- misc value-shape traps ---
     "indirect_var_name": "set name x\nset x 42\nputs [set $name]",
-    "list_special_chars": "set x [list \"a b\" {c} \\$d]\nputs $x",
-    "empty_string_eq": "set x \"\"\nif {$x eq \"\"} {puts empty}",
+    "list_special_chars": 'set x [list "a b" {c} \\$d]\nputs $x',
+    "empty_string_eq": 'set x ""\nif {$x eq ""} {puts empty}',
     "set_returns_value": "puts [set x 42]",
     # --- lappend list-build chains (O130): these must stay equivalent whether
     #     or not they fold (escaping / traced / aliased vars must NOT fold) ---
@@ -151,15 +134,9 @@ _CORRECTNESS: dict[str, str] = {
         "trace add variable l write {apply {{a b c} {lappend ::log w}}}\n"
         "lappend l a\nlappend l b\nputs $l|$::log"
     ),
-    "lappend_global": (
-        "set l {}\nproc f {} {global l; lappend l a; lappend l b}\nf\nputs $l"
-    ),
-    "lappend_upvar": (
-        "proc f {} {upvar 1 l x; lappend x a; lappend x b}\nset l {}\nf\nputs $l"
-    ),
-    "lappend_read_between": (
-        "set l {}\nlappend l a\nputs $l\nlappend l b\nputs $l"
-    ),
+    "lappend_global": ("set l {}\nproc f {} {global l; lappend l a; lappend l b}\nf\nputs $l"),
+    "lappend_upvar": ("proc f {} {upvar 1 l x; lappend x a; lappend x b}\nset l {}\nf\nputs $l"),
+    "lappend_read_between": ("set l {}\nlappend l a\nputs $l\nlappend l b\nputs $l"),
     "lappend_nested_elements": "set l {}\nlappend l {a b} {c d}\nputs $l",
     # A braced literal that merely *contains* brackets must not be mistaken for
     # a command substitution when folding a nested builtin (llength of the
@@ -174,31 +151,21 @@ _CORRECTNESS: dict[str, str] = {
         "set c 0\nincr c\nputs $c"
     ),
     "rename_builtin_append_chain": (
-        "rename append ::ap\nproc append {args} {return X}\n"
-        "set s a\nappend s b\nputs $s"
+        "rename append ::ap\nproc append {args} {return X}\nset s a\nappend s b\nputs $s"
     ),
     "rename_builtin_lappend_chain": (
-        "rename lappend ::lp\nproc lappend {args} {return Z}\n"
-        "set l {}\nlappend l a\nputs $l"
+        "rename lappend ::lp\nproc lappend {args} {return Z}\nset l {}\nlappend l a\nputs $l"
     ),
-    "rename_proc_then_call_renamed_name": (
-        "proc a {} {return 5}\nputs [a]\nrename a b\nputs [b]"
-    ),
+    "rename_proc_then_call_renamed_name": ("proc a {} {return 5}\nputs [a]\nrename a b\nputs [b]"),
     "redefine_builtin_string_as_proc": (
         "proc string {args} {return HACKED}\nputs [string length hi]"
     ),
-    "interp_alias_over_builtin": (
-        "interp alias {} llength {} return\nputs [llength {a b c}]"
-    ),
+    "interp_alias_over_builtin": ("interp alias {} llength {} return\nputs [llength {a b c}]"),
     # Calling the *old* name after a rename must not fold (it now hits unknown
     # → errors): same stdout-then-error on both original and optimised.
-    "call_renamed_away_name_errors": (
-        "proc a {} {return 5}\nputs [a]\nrename a b\nputs [a]"
-    ),
+    "call_renamed_away_name_errors": ("proc a {} {return 5}\nputs [a]\nrename a b\nputs [a]"),
     # A rename buried in a proc body distrusts that builtin unit-wide.
-    "rename_inside_proc_body": (
-        "proc danger {} {rename string ::s2}\nputs [string length hi]"
-    ),
+    "rename_inside_proc_body": ("proc danger {} {rename string ::s2}\nputs [string length hi]"),
     # Return-value string interpolation must respect aliasing: ``v`` is an
     # upvar alias of the caller's variable, so ``return "v=$v"`` must NOT bake in
     # any stale same-block value.
@@ -227,6 +194,7 @@ def test_optimisation_preserves_behaviour(name: str) -> None:
 # with builtin semantics.  Here ``incr`` is replaced by a proc that adds 100;
 # ``set c 0; incr c`` must NOT fold to ``1``.
 # ---------------------------------------------------------------------------
+
 
 def test_rename_builtin_is_sound() -> None:
     source = (
@@ -329,11 +297,7 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
     # defined before a branch (different block → not a same-block constant
     # here) but ``b`` is local, so only ``$b`` folds; ``set a`` must stay.
     "mixed_interp_keeps_live_def": (
-        "set x 5\n"
-        "set a [expr {$x + $x}]\n"
-        "if {$a > 5} {puts hi}\n"
-        "set b 99\n"
-        'puts "$a $b"',
+        'set x 5\nset a [expr {$x + $x}]\nif {$a > 5} {puts hi}\nset b 99\nputs "$a $b"',
         'puts "$a 99"',
     ),
     # Nested builtin command subs fold inside-out: the inner [list a b c]

@@ -132,10 +132,7 @@ class TestTclListJoinSplitRoundTrip:
         if tclsh is None:
             pytest.skip("no tclsh on PATH")
         # Pass elements via a newline-delimited env var; rebuild + ``list`` them.
-        script = (
-            "set parts [split $env(ELEMS) \\n]\n"
-            "puts -nonewline [list {*}$parts]"
-        )
+        script = "set parts [split $env(ELEMS) \\n]\nputs -nonewline [list {*}$parts]"
         out = subprocess.run(
             [tclsh],
             input=script,

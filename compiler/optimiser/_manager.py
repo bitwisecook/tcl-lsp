@@ -216,7 +216,9 @@ class _CompilerOptimiser:
                 # escaping-var channel iRules cross-event state uses, so the
                 # dead-store / unused-assignment passes don't delete a
                 # state-mutating ``set ivar ...`` inside the method body.
-                ctx.cross_event_vars = frozenset(ir_method.instance_vars) if ir_method else frozenset()
+                ctx.cross_event_vars = (
+                    frozenset(ir_method.instance_vars) if ir_method else frozenset()
+                )
                 self._process_function(
                     ctx,
                     fu.cfg,
@@ -327,9 +329,7 @@ class _CompilerOptimiser:
                     # barrier (``uplevel`` / ``eval``) or an unknown call could
                     # write *any* global, including via ``uplevel #0``.
                     if summary is not None and (
-                        summary.writes_global
-                        or summary.has_barrier
-                        or summary.has_unknown_calls
+                        summary.writes_global or summary.has_barrier or summary.has_unknown_calls
                     ):
                         for name in global_scope_names:
                             kill_sites.append((stmt_range.start.offset, name))
@@ -440,9 +440,7 @@ class _CompilerOptimiser:
                                 if ref in orig_span and ref not in opt.replacement:
                                     ctx.propagated_branch_uses.add((name, ver))
                                     ctx.propagated_use_groups[(name, ver)] = group_id
-                                    ctx.propagated_use_sites.add(
-                                        (block_name, idx, name, ver)
-                                    )
+                                    ctx.propagated_use_sites.add((block_name, idx, name, ver))
 
                 # Propagate constants into $var refs inside multi-token words
                 # (string interpolation), e.g. puts "$x is the value".
@@ -485,7 +483,9 @@ class _CompilerOptimiser:
                             # ``${name}`` token, so an exact match identifies it.
                             for i in range(n_str, len(ctx.optimisations)):
                                 opt = ctx.optimisations[i]
-                                orig_span = source[opt.range.start.offset : opt.range.end.offset + 1]
+                                orig_span = source[
+                                    opt.range.start.offset : opt.range.end.offset + 1
+                                ]
                                 for name in safe_constants:
                                     ver = ssa_stmt.uses.get(name, 0)
                                     if ver <= 0:
@@ -493,9 +493,7 @@ class _CompilerOptimiser:
                                     if orig_span in (f"${name}", "${" + name + "}"):
                                         ctx.propagated_branch_uses.add((name, ver))
                                         ctx.propagated_use_groups[(name, ver)] = str_group
-                                        ctx.propagated_use_sites.add(
-                                            (block_name, idx, name, ver)
-                                        )
+                                        ctx.propagated_use_sites.add((block_name, idx, name, ver))
 
             optimise_return_terminator(ctx, source, block, ssa_block, analysis, namespace=namespace)
 

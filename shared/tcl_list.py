@@ -224,9 +224,7 @@ def tcl_list_split(s: str, *, strict: bool = False, unescape: bool = False) -> l
                 continue
             result.append(s[start : i - 1])
             if strict and i < n and s[i] not in _LIST_ELEM_WHITESPACE:
-                raise TclListError(
-                    f'list element in braces followed by "{s[i]}" instead of space'
-                )
+                raise TclListError(f'list element in braces followed by "{s[i]}" instead of space')
         elif ch == '"':
             i += 1
             start = i
@@ -242,9 +240,7 @@ def tcl_list_split(s: str, *, strict: bool = False, unescape: bool = False) -> l
             result.append(_subst(s[start:i]))
             i += 1
             if strict and i < n and s[i] not in _LIST_ELEM_WHITESPACE:
-                raise TclListError(
-                    f'list element in quotes followed by "{s[i]}" instead of space'
-                )
+                raise TclListError(f'list element in quotes followed by "{s[i]}" instead of space')
         else:
             start = i
             while i < n and s[i] not in _LIST_ELEM_WHITESPACE:
