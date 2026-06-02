@@ -2243,6 +2243,30 @@ fn variable_exists_in_flat_globals(ns: u32, simple_ptr: u32, simple_len: u32) bo
     return obj_helpers.obj_get_int(r) != 0;
 }
 
+/// Probe whether a namespace variable has been *declared* — present in
+/// the flat namespace var table — even when it currently holds no value.
+/// ``variable foo`` with no value creates a ``value = 0`` entry via
+/// ``ns_var_create(ns_root, <fqn>)``, which the value-gated
+/// :func:`variable_exists_in_flat_globals` misses; ``namespace which
+/// -variable`` must still report the FQN for a bare ``variable foo``
+/// declaration (var-5.2).
+fn variable_declared_in_flat_globals(ns: u32, simple_ptr: u32, simple_len: u32) bool {
+    const fqn = tcl_ns.ns_build_fqn(ns, simple_ptr, simple_len);
+    if (fqn.ptr == 0 or fqn.len == 0) return false;
+    // Strip the leading ``::`` so the key matches the flat-store
+    // convention ``ns_var_create`` / ``global_set`` use.
+    var fptr = fqn.ptr;
+    var flen = fqn.len;
+    if (flen >= 2) {
+        const fp: [*]const u8 = @ptrFromInt(fptr);
+        if (fp[0] == ':' and fp[1] == ':') {
+            fptr += 2;
+            flen -= 2;
+        }
+    }
+    return tcl_ns.ns_var_find(tcl_ns.ns_root(), fptr, flen) != 0;
+}
+
 pub fn eval_namespace_which(words: []const i32) i32 {
     // Argument shapes:
     //   namespace which name                         → -command (default)
@@ -2296,14 +2320,20 @@ pub fn eval_namespace_which(words: []const i32) i32 {
             const v = tcl_ns.ns_var_find(r.target_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
             // Flat-key fallback: build the FQN and probe the global
-            // store directly.
+            // store directly — first by value, then (for a bare
+            // ``variable foo`` declaration) by presence in the flat
+            // namespace var table.
             if (variable_exists_in_flat_globals(r.target_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
+            if (variable_declared_in_flat_globals(r.target_ns, r.simple_ptr, r.simple_len))
                 return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
         }
         if (r.alt_ns != 0) {
             const v = tcl_ns.ns_var_find(r.alt_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
             if (variable_exists_in_flat_globals(r.alt_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
+            if (variable_declared_in_flat_globals(r.alt_ns, r.simple_ptr, r.simple_len))
                 return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
         }
         return obj_new_string(0, 0);
