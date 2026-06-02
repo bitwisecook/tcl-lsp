@@ -607,8 +607,31 @@ fn emit_int(
     // for any large power of two).  ``%h*`` truncates to short
     // first, so a bignum operand passed through ``%hd`` falls
     // back to the i64 path below.
-    if (h_mod == 0 and arg != 0 and obj.obj_type(arg) == obj.TYPE_BIGNUM) {
-        return emit_int_bignum(out, off_in, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, base, upper, unsigned_conv);
+    if (h_mod == 0 and arg != 0) {
+        if (obj.obj_get_bignum_managed(arg)) |m| {
+            return emit_int_bignum(out, off_in, cap, m, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, base, upper, unsigned_conv);
+        }
+        // A non-bignum-typed operand whose integer value still overflows
+        // i64 — e.g. a bignum argument that lost its TYPE_BIGNUM rep
+        // going through ``tcl_cmd_format_list`` (a ``format`` with more
+        // than three args builds a Tcl list, and list elements are plain
+        // strings).  Without this 2**100 truncated to its low 64 bits
+        // and rendered as ``0`` (format-1.12).  ``try_parse_int`` fails
+        // only when the value doesn't fit i64; ``alloc_from_string``
+        // then confirms it is a well-formed integer (not a ``%s``-style
+        // word).  The fresh BigInt renders this conversion only — the
+        // arg obj is never mutated, so a later ``%s`` of the same
+        // operand keeps its original spelling.
+        const ot = obj.obj_type(arg);
+        if (ot == obj.TYPE_STRING or ot == obj.TYPE_INLINE_STRING) {
+            const s = obj_ensure_string(arg);
+            if (obj.try_parse_int(s.ptr, s.len) == null) {
+                if (bignum.alloc_from_string(s.ptr, s.len)) |m| {
+                    defer bignum.destroy(m);
+                    return emit_int_bignum(out, off_in, cap, m, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, base, upper, unsigned_conv);
+                }
+            }
+        }
     }
     var n: i64 = 0;
     if (arg != 0) n = obj_get_int(arg);
@@ -757,7 +780,7 @@ fn emit_int_bignum(
     out: [*]u8,
     off_in: u32,
     _: u32,
-    arg: i32,
+    m: *const bignum.BigInt,
     left_align: bool,
     zero_pad: bool,
     show_sign: bool,
@@ -770,7 +793,6 @@ fn emit_int_bignum(
     unsigned_conv: bool,
 ) u32 {
     var off = off_in;
-    const m = obj.obj_get_bignum_managed(arg) orelse return off;
     const case: std.fmt.Case = if (upper) .upper else .lower;
     // Route through ``alloc_format_base`` so the base-8 limb-
     // boundary bug in Zig 0.16's ``Managed.toString`` (extracts
@@ -958,9 +980,9 @@ fn utf8_byte_prefix(ptr: u32, len: u32, max_chars: u32) u32 {
 
 /// ``%c`` — encode a Unicode code-point as UTF-8 (Tcl 9 emits four-
 /// byte sequences for the supplementary planes and uses the lone
-/// surrogate range too).  Accepts negative / out-of-range values by
-/// truncating to the low 21 bits and falling back to U+FFFD when the
-/// resulting value is non-Unicode.
+/// surrogate range too).  Mirrors ``FormatObjCmd``'s ``case 'c'``:
+/// take the argument as a 32-bit int and map any value whose UNSIGNED
+/// form exceeds U+10FFFF to U+FFFD (the replacement character).
 fn emit_char(
     out: [*]u8,
     off_in: u32,
@@ -973,12 +995,14 @@ fn emit_char(
     var off = off_in;
     var n: i64 = 0;
     if (arg != 0) n = obj_get_int(arg);
-    // Tcl 9 truncates to the low 21 bits before encoding, so values
-    // beyond U+10FFFF map back into the BMP / supplementary range.
-    const masked: u32 = @as(u32, @bitCast(@as(i32, @truncate(n)))) & 0x1FFFFF;
-    var cp: u32 = masked;
-    // Code points above U+10FFFF round to U+FFFD (the replacement
-    // character) — matches Tcl's TCL_COMBINE handling.
+    // Reference Tcl checks ``(unsigned)code > 0x10FFFF`` on the raw
+    // 32-bit argument — it does NOT first mask to 21 bits.  Masking
+    // first let a large value whose low 21 bits happen to land in range
+    // (e.g. ``0x10000041``, which carries Tcl's internal TCL_COMBINE
+    // bit 0x10000000 plus ``'A'``) wrap back to a valid code point
+    // instead of the replacement character (format-8.28).  Negative
+    // arguments likewise become a huge unsigned value and fold to FFFD.
+    var cp: u32 = @bitCast(@as(i32, @truncate(n)));
     if (cp > 0x10FFFF) cp = 0xFFFD;
     var seq: [4]u8 = undefined;
     var seq_len: u32 = 0;
