@@ -643,13 +643,11 @@ fn visit_call_cmd_subst_folds(
             ConstantReturn::Float(f) => f.to_string(),
             ConstantReturn::Bool(true) => "1".to_owned(),
             ConstantReturn::Bool(false) => "0".to_owned(),
-            ConstantReturn::Str(s) => {
-                if is_value_safe_bare_word(s) {
-                    s.clone()
-                } else {
-                    continue;
-                }
-            }
+            // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
+            // too, list-quoted as a single word via the canonical quoter
+            // (the cmd-sub is one argument word) — `set msg {a b}; return
+            // $msg` in the callee no longer blocks the fold.
+            ConstantReturn::Str(s) => render_propagation_word(s),
         };
         ctx.report(Optimisation::new(
             "O103",
@@ -1426,6 +1424,31 @@ mod tests {
                 && o.replacement == "42"
                 && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
             "expected applicable O103 spanning `[::answer]`, got {o103s:?}",
+        );
+    }
+
+    #[test]
+    fn o103_folds_multi_word_string_return_list_quoted() {
+        // B3 (SYNC-JUN02d-2, #525): a pure proc returning a multi-word
+        // string folds in a cmd-sub position, list-quoted as one word
+        // (previously bailed because `a b c` is not a safe bare word).
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let source = "proc ::greet {} { return \"a b c\" }\nputs [::greet]";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        let o103s: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|o| o.code == "O103")
+            .collect();
+        assert!(
+            o103s
+                .iter()
+                .any(|o| !o.hint_only && o.replacement == "{a b c}"),
+            "expected applicable O103 folding [::greet] to {{a b c}}, got {o103s:?}",
         );
     }
 

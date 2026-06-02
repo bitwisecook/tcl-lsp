@@ -1411,6 +1411,15 @@ fn classify_return(
     if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
         return ReturnKind::Literal(inside.to_owned());
     }
+    // B3 (SYNC-JUN02d-2, #525): a substitution-free value — including a
+    // multi-word string whose delimiters the lowerer already stripped
+    // (`return {a b c}` / `return "a b c"` both lower to the value
+    // `a b c`) — is a literal constant return.  Gated on no `$` / `[` /
+    // `\` so a `$param` passthrough or a command substitution still
+    // falls through to its own classification below.
+    if !v.contains(['$', '[', '\\']) {
+        return ReturnKind::Literal(v.to_owned());
+    }
     // Passthrough of `$param`.
     if let Some(name) = v.strip_prefix('$') {
         if params.contains(name) {

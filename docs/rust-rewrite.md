@@ -3307,13 +3307,21 @@ fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
   into the `"…"` (`$` / `[` / `]` / `\` / `"`) is left unfolded; at
   least one successful fold is required to emit.  Discriminating test
   `o129_folds_embedded_cmd_subst_in_interpolation`.
+- **B3 — LANDED.**  Two pieces: (a) `interprocedural::classify_return`
+  now treats a substitution-free return value (no `$` / `[` / `\`) as a
+  `Literal` — `return {a b c}` / `return "a b c"` both lower to the
+  value `a b c` (delimiters stripped), which previously fell through to
+  `Other` and blocked the fold; (b) the cmd-sub O103 `Str` arm renders
+  the constant return via `render_propagation_word` (the canonical
+  quoter) instead of bailing on a non-bare-word, so `proc ::greet {} {
+  return "a b c" }; puts [::greet]` folds to `puts {a b c}`.
+  Discriminating test `o103_folds_multi_word_string_return_list_quoted`.
 - **B2** (nested reaching-version constants threaded into the fold so
   `puts [expr {[string length $s]}]` → `puts 3`, gated to same-block
-  straight-line defs) and **B3** (a pure proc returning a multi-word
-  string folds, list-quoted) — **deferred.**  B1 handles only literal
-  args (the `[expr {…}]` half and `$var` reaching-version threading are
-  B2); B3 extends the O103 proc-fold with the canonical quoter.  Tracked
-  for follow-up strips.
+  straight-line defs) — **deferred.**  B1 handles only literal args; the
+  `[expr {…}]` half and the `$var` reaching-version threading (sound
+  only for same-block straight-line defs — semi-pruned SSA omits a phi
+  for hidden join reads) are B2.  Tracked for a follow-up strip.
 
 ## Next-up priority queue
 
