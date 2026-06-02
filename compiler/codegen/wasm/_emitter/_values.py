@@ -783,6 +783,14 @@ class _WasmEmitterValuesMixin(_Base):
         # the name via the live, rename-aware runtime command table) rather than
         # any builtin fast-path / subcommand import below.  Untouched commands
         # (the common case: an empty untrusted set) are unaffected.
+        #
+        # TODO(command-binding): this is correct when the builtin was renamed
+        # *away* (the interpreter sees no such command and errors, matching Tcl).
+        # When a builtin is renamed/redefined *to a user proc* (e.g.
+        # ``rename string ::s; proc string {...}``), the interpreter fallback
+        # currently traps because tcl_eval can't dispatch to a *compiled* proc
+        # body — full correctness needs interp→compiled-proc dispatch in the Zig
+        # runtime.  Until then this fails safe (trap) instead of miscomputing.
         if not builtin_is_trusted(cmd_name):
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             return

@@ -683,6 +683,14 @@ class _WasmEmitterCtrlMixin(_Base):
                     keep_on_stack=True,
                 )
             case IRIncr(name=name, amount=amount):
+                # TODO(command-binding): not rename-gated.  When ``incr`` is
+                # renamed/redefined in this unit this value-context lowering
+                # still emits the inline integer increment instead of routing to
+                # the interpreter (cf. the statement-context IRIncr gate in
+                # _statements.py).  Left ungated for now because this position
+                # leaves a result on the stack and the eval-fallback stack
+                # discipline here is delicate; gate it once interp→compiled-proc
+                # dispatch lands so the renamed-to-proc case is also correct.
                 # Issue #262: route through ``tcl_incr`` for the
                 # strict-integer guard (rejects float strings).
                 # Lenient read so an unset scalar initialises to 0

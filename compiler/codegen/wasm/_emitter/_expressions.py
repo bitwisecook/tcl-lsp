@@ -740,6 +740,9 @@ class _WasmEmitterExprMixin(_Base):
         # builtin semantics — route it through the interpreter (live runtime
         # command table) rather than any builtin fast-path below.  Common case
         # (empty untrusted set) is unaffected.
+        # TODO(command-binding): renamed-*to-a-proc* still traps here — the
+        # interpreter fallback can't dispatch to a compiled proc body; needs
+        # interp→compiled-proc dispatch in the Zig runtime.  See _values.py.
         if not builtin_is_trusted(cmd_name):
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             self._emit_unbox_int()
