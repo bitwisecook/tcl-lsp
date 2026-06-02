@@ -2935,12 +2935,34 @@ diagnostic **W128** (call to a command renamed/deleted earlier in the
 file) is backed by the same lattice.  Classify in-scope, **structural**
 — a large new subsystem + a new W-code.  Defer to its own chunk(s); the
 WASM/bytecode dispatch-gating half is out of scope.  **Rust state:
-deferred** — **no Rust counterpart** (`alias.rs` tracks `interp alias`
-and the analyser flips `has_dynamic_providers` on `load`/`rename`, but
-there is no per-program-point command-resolution lattice and the Rust
-SCCP / registry folds have **no trust gate** — they unconditionally
-assume builtins keep their semantics, which is the current Rust
-behaviour everywhere).
+lattice LANDED; W128 + trust-gating pending.**
+- **`command_binding` lattice — LANDED** as
+  `rust/tcl-compiler/src/command_binding.rs`: `BindingKind`
+  (Bottom / Builtin / Proc / Alias / Opaque / Unknown), `Binding`,
+  a sparse per-name `State` with a `wildcard` flag, the `stmt_gen`
+  transfer (`proc` (re)def → Proc; `rename OLD NEW` → OLD Opaque, NEW
+  inherits; `rename OLD {}` deletion → Opaque; `interp alias` → Alias;
+  dynamic `$`/`[` forms → wildcard ⊤), `join_binding` / `merge_preds`
+  (per-name join over predecessors, default-vs-⊥ sparsity), and the RPO
+  `analyse_command_binding` fixpoint seeded by a caller-supplied
+  `&[(String, Binding)]` (the W128 seed = module procs).  `CommandBinding`
+  borrows the cfg + registry and answers `binding_at` /
+  `is_original_builtin_at` / `rebound_names` / `has_wildcard` by replaying
+  gen from each block entry.  Predecessors come from terminator
+  successors only — the Rust CFG has no explicit exception edges (catch
+  is opaque), which can only *miss* a rebinding at a handler, never
+  invent one (sound for a warning).  6 unit tests pin the
+  builtin-default / rename-deletion-flow-sensitive / rename-redirect /
+  proc-redef / dynamic-wildcard / seed cases.
+- **W128 emitter** — pending (next strip): seed with `cu.ir_module.
+  procedures` as Proc, run the lattice over `cu.top_level.cfg`, and flag
+  each `Call` whose resolved binding is Opaque and whose name is in
+  `rebound_names()`.
+- **`command_trust` + fold gating** — pending: `ModuleCommandMutations`
+  + `scan_module_command_mutations` (flow-insensitive whole-module union
+  over proc bodies) feeding a `builtin_is_trusted` gate on the SCCP /
+  registry / O129 folds (the Rust folds currently have **no trust
+  gate**).  The WASM/bytecode dispatch-gating half stays out of scope.
 
 ### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
 

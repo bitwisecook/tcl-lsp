@@ -73,6 +73,7 @@ pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod codegen;
+pub mod command_binding;
 pub mod compilation_unit;
 pub mod compiler_checks;
 pub mod connection_scope;
