@@ -866,12 +866,22 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     var match_count: i32 = 0;
     var pos_cp: u32 = start_offset_cp;
     while (true) {
-        // Stop at end-of-subject.  Reference Tcl's
-        // ``RegexpObjCmd`` exits the ``-all`` loop the moment
-        // ``offset == stringLength`` — without this, a pattern like
-        // ``a*`` against ``a`` produced an extra empty match at the
-        // EOF position (regexp.test 18.8 / 18.9 / 18.10).
-        if (pos_cp >= sub_u.len) break;
+        // Mirror ``Tcl_RegexpObjCmd``'s ``-all`` loop: attempt the match
+        // at ``offset`` FIRST, and break only *after* the match has been
+        // recorded and the offset advanced past the end — the C loop's
+        // ``if (offset >= stringLength) break;`` sits at the bottom (see
+        // the advance below).  An earlier revision hoisted that check to
+        // the top, which meant an empty subject (``offset ==
+        // stringLength == 0``) never attempted a single match: every
+        // capture / matchVar / -inline / -indices form then returned 0
+        // against ``""`` even though the pattern matches the empty
+        // string (regexp-1.5, regexp-23.1, regexpComp-1.5).  Worse,
+        // ``regexp {(x*)y*} {} whole`` left ``whole`` unset, surfacing
+        // downstream as ``can't read "whole"``.  The only up-front guard
+        // we keep is against ``offset`` running *past* the end (e.g. a
+        // ``-start`` index beyond the string), which would otherwise
+        // underflow ``remaining_cp``.
+        if (pos_cp > sub_u.len) break;
         const remaining_cp: usize = sub_u.len - pos_cp;
         const sub_u_start: u32 = sub_u.ptr + pos_cp * 4;
         // After the first iteration, pass ``REG_NOTBOL`` so the
@@ -959,12 +969,20 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
 
         if (!all_mode) break;
         // Advance past the match.  Empty match → advance one cp to
-        // avoid infinite loop.
+        // avoid infinite loop (matches the C loop's ``offset +=
+        // matches[0].end; if (matchLength == 0) offset++;``).
         if (match_end_cp == match_start_cp) {
             pos_cp = match_start_cp + 1;
         } else {
             pos_cp = match_end_cp;
         }
+        // End-of-subject termination, checked AFTER advancing — this is
+        // the C loop's ``if (offset >= stringLength) break;``.  Keeping
+        // it here (rather than at the top) stops ``a*`` against ``a``
+        // from logging a spurious empty match at the EOF position
+        // (regexp-18.8 / 18.9 / 18.10) while still letting the first
+        // iteration run against an empty subject.
+        if (pos_cp >= sub_u.len) break;
     }
 
     regfree_safe(re_ptr);
@@ -1868,7 +1886,31 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     var pmatch_buf: [NMATCH * REGMATCH_T_SIZE]u8 = undefined;
     const pmatch: [*]u8 = &pmatch_buf;
 
-    while (pos <= sub_u.len) {
+    // ``Tcl_RegsubObjCmd`` routes ``-all`` + a metacharacter-free
+    // pattern + a literal subSpec (no ``&`` / ``\``) through a
+    // string-map fast path.  For the *empty* pattern that fast path
+    // matches strictly *between* characters — ``regsub -all {} foo X``
+    // yields ``XfXoXo`` (``wlen`` matches), NOT a trailing match at the
+    // end-of-string position.  The general suffix loop below uses
+    // ``pos <= wlen`` (inclusive) so anchors like ``$`` and patterns
+    // like ``x*`` still match at EOF, but for this one case that
+    // inclusive bound over-counts by one (regexpComp-21.10) and turns
+    // ``regsub -all {} {} X`` into a spurious single match
+    // (regexpComp-21.11).  Detect the empty-pattern/literal-subSpec
+    // combination and use the exclusive bound so the trailing empty
+    // match is suppressed, mirroring the C fast path.  A ``&`` / ``\``
+    // in the subSpec disqualifies it — C falls back to the general
+    // loop there and *does* take the trailing match.
+    const empty_pat_map = blk: {
+        if (!do_all or pat_u.len != 0) break :blk false;
+        var k: usize = 0;
+        while (k < repl_s.len) : (k += 1) {
+            if (repl_bytes[k] == '&' or repl_bytes[k] == '\\') break :blk false;
+        }
+        break :blk true;
+    };
+
+    while (if (empty_pat_map) pos < sub_u.len else pos <= sub_u.len) {
         const remaining = sub_u.len - pos;
 
         // Pass the remaining subject suffix to TclReExec.  Set
