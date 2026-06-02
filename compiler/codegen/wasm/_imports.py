@@ -618,6 +618,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_frame_set_type": ("tcl", "frame_set_type_i32", [ValType.I32], []),
     "tcl_frame_set_script": ("tcl", "frame_set_script", [ValType.I32], []),
     "tcl_frame_set_proc_name": ("tcl", "frame_set_proc_name", [ValType.I32], []),
+    # Records the proc / lambda formal-parameter spec on the current
+    # frame so ``info locals`` / ``info vars`` enumerate the formals in
+    # *declaration* order (matching C's compiled-local order) ahead of
+    # the body's other locals.  Stamped by the compiled-proc prologue
+    # only when the body references ``info locals`` / ``info vars``.
+    "tcl_frame_set_params": ("tcl", "frame_set_params", [ValType.I32], []),
     "tcl_frame_set_cmd_text": ("tcl", "frame_set_cmd_text", [ValType.I32], []),
     "tcl_frame_set_line": ("tcl", "frame_set_line", [ValType.I32], []),
     # Phase 8 follow-up: codegen claims line-stamp ownership for the
@@ -667,6 +673,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # Rename-aware compiled-proc dispatch guard.  ``proc_lookup`` resolves
+    # a command name (TclObj) against the live, namespace-aware runtime
+    # command table (rename / redefinition aware) and ``proc_get_func_idx``
+    # reads the bucket's stored WASM function index (0 when absent / not
+    # AOT-compiled).  ``exec_trace_quiescent`` is 1 only when no trace is
+    # registered/active and we're not inside a callback.  Together they let
+    # ``_emit_distrust_proc_subst`` verify a name still maps to the expected
+    # compiled proc — and that no trace would be skipped — before a cheap
+    # direct ``call``.
+    "tcl_proc_lookup": ("tcl", "proc_lookup", [ValType.I32], [ValType.I32]),
+    "tcl_proc_get_func_idx": ("tcl", "proc_get_func_idx", [ValType.I32], [ValType.I32]),
+    "tcl_exec_trace_quiescent": ("tcl", "exec_trace_quiescent", [], [ValType.I32]),
     # Source-text body stash for compiled procs.  Called from the
     # registration prologue right after ``proc_register_compiled`` so
     # ``info body`` can return the original ``proc`` body rather than

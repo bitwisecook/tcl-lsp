@@ -294,7 +294,18 @@ def wasm_codegen_module(
         # that mapping must not lose entries, even when the
         # corresponding calls route through eval.
         callable_proc_index: dict[str, tuple[int, int]] = dict(proc_index)
-        dynamically_modified, full_flush = _collect_dynamically_modified_procs(ir_module)
+        dynamically_modified, full_flush, uses_dispatch_traces = (
+            _collect_dynamically_modified_procs(ir_module)
+        )
+        # The distrust rename-guard takes a cheap direct ``call`` for a
+        # proc command-substitution after verifying (at run time) the name
+        # still maps to the proc and tracing is quiescent.  Disable it
+        # entirely for units that use command / execution traces or a child
+        # interp: those exercise command-table mutation during dispatch in
+        # ways the per-call guard can't fully reason about (trace.test's
+        # command rename/delete traces), and they never carry the deep
+        # ``expr``-bodied recursion the guard exists to rescue.
+        distrust_proc_guard = not (uses_dispatch_traces or full_flush)
         if full_flush:
             # Child-interp mutation: any direct call emitted from this
             # module can see a modified proc registry after the fact.
@@ -384,6 +395,8 @@ def wasm_codegen_module(
             is_proc=False,
             shared_imports=shared_imports,
             proc_index=callable_proc_index,
+            full_proc_index=proc_index,
+            distrust_proc_guard=distrust_proc_guard,
             proc_defaults=proc_defaults,
             proc_args_tail=proc_args_tail,
             shared_strings=shared_strings,
@@ -435,6 +448,8 @@ def wasm_codegen_module(
                 is_proc=True,
                 shared_imports=shared_imports,
                 proc_index=callable_proc_index,
+                full_proc_index=proc_index,
+                distrust_proc_guard=distrust_proc_guard,
                 proc_defaults=proc_defaults,
                 proc_args_tail=proc_args_tail,
                 shared_strings=shared_strings,

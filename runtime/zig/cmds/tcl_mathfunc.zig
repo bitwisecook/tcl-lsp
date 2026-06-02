@@ -54,6 +54,26 @@ fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
 
+    // ``max`` / ``min`` — variadic numeric extremum (Tcl 9
+    // ``tcl::mathfunc::max`` / ``min``).  Returns the original arg-obj
+    // of the chosen extremum so its int / double type is preserved;
+    // comparison is by numeric value.
+    if (std.mem.eql(u8, name, "max") or std.mem.eql(u8, name, "min")) {
+        const want_max = name[1] == 'a';
+        var best: i32 = words[1];
+        var best_f: f64 = obj.obj_get_float(words[1]);
+        var k: u32 = 2;
+        while (k < words.len) : (k += 1) {
+            const f = obj.obj_get_float(words[k]);
+            if ((want_max and f > best_f) or (!want_max and f < best_f)) {
+                best = words[k];
+                best_f = f;
+            }
+        }
+        obj.tcl_obj_retain(best);
+        return result_mod.from_globals(best);
+    }
+
     // Single-arg dispatch.
     if (words.len == 2) {
         if (std.mem.eql(u8, name, "abs") or std.mem.eql(u8, name, "fabs")) {
@@ -108,12 +128,10 @@ fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
 
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "::tcl::mathfunc::abs", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
-    .{ .name = "::tcl::mathfunc::fabs", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::int", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::entier", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::wide", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::double", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
-    .{ .name = "::tcl::mathfunc::float", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::round", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::log", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::log10", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
@@ -137,7 +155,8 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "::tcl::mathfunc::isnan", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::isnormal", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::issubnormal", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
-    .{ .name = "::tcl::mathfunc::fpclassify", .arity_min = 1, .arity_max = 1, .handler = &eval_mathfunc },
+    .{ .name = "::tcl::mathfunc::max", .arity_min = 1, .arity_max = null, .handler = &eval_mathfunc },
+    .{ .name = "::tcl::mathfunc::min", .arity_min = 1, .arity_max = null, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::pow", .arity_min = 2, .arity_max = 2, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::atan2", .arity_min = 2, .arity_max = 2, .handler = &eval_mathfunc },
     .{ .name = "::tcl::mathfunc::fmod", .arity_min = 2, .arity_max = 2, .handler = &eval_mathfunc },

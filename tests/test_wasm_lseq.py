@@ -56,3 +56,27 @@ def test_lseq_oversized_series_is_empty_not_hang() -> None:
     # No lazy series rep — a multi-million element double request returns
     # empty rather than OOM/hang.
     assert _run("puts [llength [lseq 0.0 1e7]]") == "0"
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        # Operands are evaluated as expressions — ``double(...)`` coerces
+        # the whole series to floating point (lseq-1.25).
+        ("puts [lseq double(0) 2]", "0.0 1.0 2.0"),
+        ("puts [lseq 0 double(2)]", "0.0 1.0 2.0"),
+        ("puts [lseq 0 count 3 by double(1)]", "0.0 1.0 2.0"),
+        # Arithmetic-string operands (lseq-1.26).
+        ("puts [lseq 1 {3.0+0}]", "1.0 2.0 3.0"),
+        ("puts [lseq 1 [expr {3.0 + 0}] 1]", "1.0 2.0 3.0"),
+        # Single-argument count is also an expression (lseq-2.19).
+        ("puts [lseq {1+1}]", "0 1"),
+        ("puts [lseq {1+1} {5+5} {2+2}]", "2 6 10"),
+        ("puts [lseq {1+1} count {2+2} by {2+2}]", "2 6 10 14"),
+        # The count expression is evaluated exactly once (lseq-2.20).
+        ("set i 1; set r [lseq {[incr i]}]; puts [list $r $i]", "{0 1} 2"),
+        ("set i 1; set r [lseq {0 + [incr i]}]; puts [list $r $i]", "{0 1} 2"),
+    ],
+)
+def test_lseq_expression_operands(body: str, expected: str) -> None:
+    assert _run(body) == expected

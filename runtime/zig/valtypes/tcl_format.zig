@@ -240,7 +240,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
     if (fs.len == 0) return obj_new_string(0, 0);
     const fp: [*]const u8 = @ptrFromInt(fs.ptr);
 
-    var arg_idx: u32 = 0;
+    // Single argument cursor shared by XPG3 positions, ``*`` width /
+    // ``.*`` precision, and the conversion value — mirrors C
+    // ``Tcl_FormatObjCmd``'s ``objIndex``.  Signed so ``%0$`` (position
+    // 0 → -1) is caught as out-of-range.
+    var obj_index: i64 = 0;
 
     // Preallocate a generously-sized buffer.  Per-conversion writers
     // don't bounds-check, so the buffer must be large enough for
@@ -310,23 +314,44 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             continue;
         }
         // Optional positional spec: ``%N$...`` selects the Nth (1-indexed)
-        // argument instead of the next sequential one.  ``N`` is parsed
-        // greedily as decimal digits; the trailing ``$`` confirms the
-        // form (without it we restart and treat the digits as a width).
-        var explicit_arg: ?u32 = null;
-        if (i < fs.len and fp[i] >= '1' and fp[i] <= '9') {
-            // Look ahead for a trailing ``$``.  If absent, this is a
-            // width spec — back-track and let the width parser below
-            // pick it up.
+        // argument.  In XPG mode the explicit position seeds the shared
+        // ``obj_index`` cursor; a following ``*`` width / ``.*``
+        // precision then consumes the arg at that cursor and advances it,
+        // so the conversion value is the arg the cursor finally lands on
+        // (mirrors C ``Tcl_FormatObjCmd``).  ``N`` is parsed greedily as
+        // decimal digits; the trailing ``$`` confirms the form (without
+        // it the digits are a width).  ``%0$`` (or any out-of-range
+        // index) is an error.
+        var new_xpg = false;
+        if (i < fs.len and fp[i] >= '0' and fp[i] <= '9') {
             var k: u32 = i;
-            var idx: u32 = 0;
+            var idx: i64 = 0;
             while (k < fs.len and fp[k] >= '0' and fp[k] <= '9') : (k += 1) {
-                idx = idx * 10 + @as(u32, fp[k] - '0');
+                idx = idx * 10 + @as(i64, fp[k] - '0');
+                if (idx > 0x7FFF_FFFF) idx = 0x7FFF_FFFF;
             }
-            if (k < fs.len and fp[k] == '$' and idx >= 1) {
-                explicit_arg = idx - 1;
+            if (k < fs.len and fp[k] == '$') {
+                new_xpg = true;
+                obj_index = idx - 1; // 1-based → 0-based; %0$ → -1
                 i = k + 1; // step past ``$``
             }
+        }
+        if (new_xpg) {
+            saw_positional = true;
+        } else {
+            saw_sequential = true;
+        }
+        if (saw_positional and saw_sequential) {
+            stubs.raise("cannot mix \"%\" and \"%n$\" conversion specifiers");
+            return obj_new_string(0, 0);
+        }
+        if (obj_index < 0 or obj_index >= args.len) {
+            if (saw_positional) {
+                stubs.raise("\"%n$\" argument index out of range");
+            } else {
+                stubs.raise("not enough arguments for all format specifiers");
+            }
+            return obj_new_string(0, 0);
         }
         // Parse flags, width, precision.
         var left_align = false;
@@ -346,17 +371,20 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         }
         var width: u32 = 0;
         if (i < fs.len and fp[i] == '*') {
-            // ``%-*s`` / ``%*s`` — consume the next arg as the width.
-            // Matches reference Tcl's ``Tcl_FormatObjCmd`` star-width
-            // semantics; opt.test's ``OptTree`` (``format "%-*s"``)
-            // depends on this for column alignment.
+            // ``%-*s`` / ``%*s`` (and XPG ``%N$*s``) — the arg at the
+            // cursor is the width; the cursor then advances to the
+            // conversion value.  Needs one arg beyond the width.
             i += 1;
-            if (arg_idx >= args.len) {
-                stubs.raise("not enough arguments for all format specifiers");
+            if (obj_index + 1 >= args.len) {
+                if (saw_positional) {
+                    stubs.raise("\"%n$\" argument index out of range");
+                } else {
+                    stubs.raise("not enough arguments for all format specifiers");
+                }
                 return obj_new_string(0, 0);
             }
-            const w_arg = args[arg_idx];
-            arg_idx += 1;
+            const w_arg = args[@intCast(obj_index)];
+            obj_index += 1;
             const w_opt = checked_int(w_arg);
             if (w_opt == null) return obj_new_string(0, 0);
             const w = w_opt.?;
@@ -376,18 +404,26 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         if (i < fs.len and fp[i] == '.') {
             i += 1;
             if (i < fs.len and fp[i] == '*') {
-                // ``%.*s`` — dynamic precision from the next arg.
+                // ``%.*s`` (and XPG ``%N$.*s``) — the arg at the cursor
+                // is the precision; the cursor then advances to the
+                // value.  Negative precision means "none" (→ 0); an
+                // out-of-(i32)-range positive precision is clamped to an
+                // effectively-unbounded value (format-11.13 / 11.14).
                 i += 1;
-                if (arg_idx >= args.len) {
-                    stubs.raise("not enough arguments for all format specifiers");
+                if (obj_index + 1 >= args.len) {
+                    if (saw_positional) {
+                        stubs.raise("\"%n$\" argument index out of range");
+                    } else {
+                        stubs.raise("not enough arguments for all format specifiers");
+                    }
                     return obj_new_string(0, 0);
                 }
-                const p_arg = args[arg_idx];
-                arg_idx += 1;
+                const p_arg = args[@intCast(obj_index)];
+                obj_index += 1;
                 const p_opt = checked_int(p_arg);
                 if (p_opt == null) return obj_new_string(0, 0);
                 const p = p_opt.?;
-                precision = if (p < 0) 0 else @intCast(p);
+                precision = if (p < 0) 0 else if (p > 0x4000_0000) 0x4000_0000 else @intCast(p);
             } else {
                 precision = 0;
                 while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
@@ -404,10 +440,14 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         // but ``h`` / ``hh`` truncate to short / signed-char before
         // formatting (test format-10.x).
         var h_mod: u8 = 0;
+        var l_mod: bool = false;
         while (i < fs.len) : (i += 1) {
             switch (fp[i]) {
                 'h' => h_mod += 1,
-                'l', 'L', 'j', 'z', 't', 'q' => {},
+                // ``l`` / ``ll`` / ``L`` / ``j`` / ``z`` / ``t`` / ``q``
+                // all select the full 64-bit-wide integer width; without
+                // any of them Tcl 9 renders the low 32 bits (format-17.1).
+                'l', 'L', 'j', 'z', 't', 'q' => l_mod = true,
                 else => break,
             }
         }
@@ -418,30 +458,12 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         const conv = fp[i];
         i += 1;
 
-        // Pull the arg: explicit positional if requested, else the
-        // next sequential.  Mixing positional and sequential specs in
-        // the same format string is an error.
-        var pick: u32 = arg_idx;
-        if (explicit_arg) |idx| {
-            saw_positional = true;
-            pick = idx;
-        } else {
-            saw_sequential = true;
-        }
-        if (saw_positional and saw_sequential) {
-            stubs.raise("cannot mix \"%\" and \"%n$\" conversion specifiers");
-            return obj_new_string(0, 0);
-        }
-        if (pick >= args.len) {
-            if (explicit_arg != null) {
-                stubs.raise("\"%n$\" argument index out of range");
-            } else {
-                stubs.raise("not enough arguments for all format specifiers");
-            }
-            return obj_new_string(0, 0);
-        }
-        const a = args[pick];
-        if (explicit_arg == null) arg_idx += 1;
+        // The cursor now points at the conversion value (the up-front
+        // validation and any ``*`` width / ``.*`` precision guarantee it
+        // is in range).  Sequential specs advance the cursor for the
+        // next conversion; XPG specs re-seed it from their ``%N$``.
+        const a = args[@intCast(obj_index)];
+        if (saw_sequential) obj_index += 1;
 
         // Validate the conversion arg up front so any
         // "expected integer / float" diagnostic surfaces with the
@@ -473,6 +495,7 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             width,
             precision,
             h_mod,
+            l_mod,
         );
     }
 
@@ -499,18 +522,20 @@ fn emit_conversion(
     width: u32,
     precision: i32,
     h_mod: u8,
+    l_mod: bool,
 ) u32 {
     switch (conv) {
-        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, 10, false, false, h_mod),
-        'u' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 10, false, true, h_mod),
-        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, false, true, h_mod),
-        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, true, true, h_mod),
-        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 8, false, true, h_mod),
-        'b' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 2, false, true, h_mod),
+        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, 10, false, false, h_mod, l_mod),
+        'u' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 10, false, true, h_mod, l_mod),
+        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, false, true, h_mod, l_mod),
+        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, true, true, h_mod, l_mod),
+        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 8, false, true, h_mod, l_mod),
+        'b' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 2, false, true, h_mod, l_mod),
         // ``%p`` / ``%zd`` / ``%td`` — pointer / size_t / ptrdiff_t.
         // Tcl 9 renders ``%p`` as ``0x`` + lowercase hex of the wide
-        // value; ``%zd`` / ``%td`` are decimal aliases.
-        'p' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, true, width, precision, 16, false, true, 0),
+        // value; ``%zd`` / ``%td`` are decimal aliases.  Force the wide
+        // width so the full pointer survives.
+        'p' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, true, width, precision, 16, false, true, 0, true),
         's' => return emit_str(out, off, cap, arg, left_align, zero_pad, width, precision),
         'c' => return emit_char(out, off, cap, arg, left_align, zero_pad, width),
         'f', 'e', 'g', 'E', 'G', 'F' => return emit_float(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, conv),
@@ -572,6 +597,7 @@ fn emit_int(
     upper: bool,
     unsigned_conv: bool,
     h_mod: u8,
+    l_mod: bool,
 ) u32 {
     var off = off_in;
     // Bignum-aware path: when the operand exceeds i64, render via
@@ -604,15 +630,26 @@ fn emit_int(
     }
     var digits: [80]u8 = undefined;
     var dlen: u32 = 0;
+    // Tcl 9 integer width: with no length modifier, every integer
+    // conversion renders the low 32 bits (``%d 7810179016327718216`` →
+    // ``1819043144``, ``%d 4294967296`` → ``0``, ``%x`` → ``6c6c6548``);
+    // ``l`` / ``ll`` keep the full 64-bit wide value (``%ld`` / ``%lx``).
+    // ``h`` / ``hh`` already narrowed ``n`` to short / signed-char above,
+    // so only the no-modifier case needs the 32-bit clamp here.
+    if (h_mod == 0 and !l_mod) {
+        n = @as(i64, @as(i32, @truncate(n)));
+    }
     var negative = n < 0;
     // For unsigned conversions (``%u`` / ``%x`` / ``%o`` / ``%b``),
-    // Tcl 9 truncates the value to its 32-bit two's-complement form
-    // and renders it as an unsigned 32-bit integer — ``format "%x"
-    // -12`` → ``fffffff4``, ``format "%u" -12`` → ``4294967284``.
+    // render the value's two's-complement bits as unsigned — 32-bit for
+    // the narrowed / no-modifier case, the full 64 bits under ``l``
+    // (``format "%x" -12`` → ``fffffff4``, ``%lx`` keeps all 16 digits).
     var u: u64 = undefined;
     if (unsigned_conv) {
-        const masked: u32 = @bitCast(@as(i32, @truncate(n)));
-        u = @as(u64, masked);
+        u = if (l_mod)
+            @as(u64, @bitCast(n))
+        else
+            @as(u64, @as(u32, @bitCast(@as(i32, @truncate(n)))));
         negative = false;
     } else {
         u = if (negative) @intCast(-n) else @intCast(n);

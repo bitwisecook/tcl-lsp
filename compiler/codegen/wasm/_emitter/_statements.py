@@ -51,6 +51,44 @@ from .._ir import (
 )
 from .._ownership import Ownership
 
+# Commands whose compiled hook maintains the codegen's *variable model*
+# rather than folding a value, so they must NOT be skipped by the
+# builtin-trust gate even when an unrelated dynamic ``rename`` distrusts
+# every builtin (soundly — the rename *could* hit one).
+#
+# Two groups:
+#
+# * scope declarations (``global`` / ``variable`` / ``upvar``) record a
+#   variable's out-of-frame aliasing (``emitter._globals`` /
+#   ``emitter._aliases``), the same fact ``var_observability`` marks
+#   syntactically for ``::global`` / ``::variable`` / ``::upvar``.
+#   Routing them to the eval-fallback leaves the variable mistaken for a
+#   frame-local — its alias is never installed and a later compiled
+#   write lands in a local slot (a dropped global write after a ``{*}`` /
+#   distrusted statement; trace-20.8's ``traceDelete``).
+# * ``unset`` mutates the very array / scalar storage that compiled
+#   ``set`` (``IRAssignValue``) writes *unconditionally* — those writes
+#   never consult command trust.  Eval-fallbacking only ``unset`` desyncs
+#   the two: ``set a(k) v`` lands in the compiled representation while
+#   the interpreter ``unset a(k)`` can't see it, so the element is never
+#   removed (set-old-2.9).
+#
+# All of these were always compiled pre-trust-lattice, so the exemption
+# restores that behaviour for them while leaving every other builtin
+# correctly distrusted.
+_TRUST_EXEMPT_COMMANDS = frozenset(
+    {
+        "global",
+        "variable",
+        "upvar",
+        "unset",
+        "::global",
+        "::variable",
+        "::upvar",
+        "::unset",
+    }
+)
+
 
 def _escape_dquote(text: str) -> str:
     """Escape a multi-token IR word for embedding inside a ``"…"`` literal.
@@ -1024,7 +1062,14 @@ class _WasmEmitterStmtMixin(_Base):
             qname = f"::{name}"
         self._emit_obj_literal(qname)
         self._emit_i32_const(n_params)
-        self._emit_i32_const(1)  # func_idx marker
+        # Store the proc's REAL WASM function index (matching the init-time
+        # registration) so the distrust rename-guard can verify a name
+        # still maps to this exact compiled proc.  This re-register runs at
+        # the runtime ``proc`` site and would otherwise clobber the init
+        # value back to a bare marker.  Falls back to ``1`` for a name with
+        # no AOT function (runtime-only redefine — not direct-callable).
+        _real_func_idx = self._full_proc_index.get(qname, (0, 0))[0] or 1
+        self._emit_i32_const(_real_func_idx)
         self._emit_i32_const(1 if has_args_tail else 0)
         self._emit_i32_const(n_required)
         self._emit_call(reg_idx)
@@ -1077,7 +1122,9 @@ class _WasmEmitterStmtMixin(_Base):
         # the caller executed ``namespace import ::tcltest::*``.
         return self._resolve_import(command)
 
-    def _resolve_proc(self, command: str) -> tuple[int, int] | None:
+    def _resolve_proc(
+        self, command: str, index: "dict[str, tuple[int, int]] | None" = None
+    ) -> tuple[int, int] | None:
         """Look up a user-defined proc by name, returning (func_idx, n_params) or None.
 
         Resolution order for an *unqualified* name (Tcl namespace-path
@@ -1091,23 +1138,31 @@ class _WasmEmitterStmtMixin(_Base):
           3. ``::<name>`` — the global namespace.
           4. Bare ``<name>`` — defensive fallback for non-standard
              proc-index entries.
+
+        *index* overrides the map consulted (default: the callable
+        proc-index, with rename/redefinition-invalidated entries removed).
+        The distrust rename-guard passes the **full** proc-index so it can
+        still find a proc's compile-time func_idx even when the callable
+        map dropped it — soundness there comes from the runtime func_idx +
+        trace-quiescent checks, not from invalidation.
         """
+        idx = index if index is not None else self._proc_index
         if command.startswith("::"):
-            return self._proc_index.get(command)
+            return idx.get(command)
         # Inside a namespace-eval block, try the block's namespace first.
         if self._block_namespace and self._block_namespace != "::":
             ns_qname = f"{self._block_namespace}::{command}"
-            hit = self._proc_index.get(ns_qname)
+            hit = idx.get(ns_qname)
             if hit is not None:
                 return hit
         # Try the enclosing proc's own namespace — captured in
         # ``_proc_namespace`` at emitter construction time.
         if self._proc_namespace and self._proc_namespace != "::":
             ns_qname = f"{self._proc_namespace}::{command}"
-            hit = self._proc_index.get(ns_qname)
+            hit = idx.get(ns_qname)
             if hit is not None:
                 return hit
-        direct = self._proc_index.get(f"::{command}") or self._proc_index.get(command)
+        direct = idx.get(f"::{command}") or idx.get(command)
         if direct is not None:
             return direct
         # Final step: consult ``namespace import`` mappings so bare
@@ -1115,7 +1170,7 @@ class _WasmEmitterStmtMixin(_Base):
         # dispatch directly instead of falling back to ``tcl_eval``.
         imported = self._resolve_import(command)
         if imported is not None:
-            return self._proc_index.get(imported)
+            return idx.get(imported)
         return None
 
     def _emit_call_stmt(
@@ -1408,7 +1463,11 @@ class _WasmEmitterStmtMixin(_Base):
         # name through the live (rename-aware) runtime command table.  (Procs
         # already dispatch via the runtime table above, so this only guards the
         # builtin fast-path.)
-        hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
+        hook = (
+            _REGISTRY.get_wasm_hook(command)
+            if (builtin_is_trusted(command) or command in _TRUST_EXEMPT_COMMANDS)
+            else None
+        )
         if hook is not None:
             # Stash the current call's tokens on self so a hook that
             # routes to ``_emit_eval_fallback`` can recover the
@@ -1992,7 +2051,12 @@ class _WasmEmitterStmtMixin(_Base):
         try:
             # Skip the builtin fast-path for a command renamed/redefined in this
             # unit (see the statement-context dispatch for the rationale).
-            hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
+            # Var-model commands are exempt — see ``_TRUST_EXEMPT_COMMANDS``.
+            hook = (
+                _REGISTRY.get_wasm_hook(command)
+                if (builtin_is_trusted(command) or command in _TRUST_EXEMPT_COMMANDS)
+                else None
+            )
             if hook is not None and hook(self, args, defs, EmitContext.VALUE):
                 return
         finally:

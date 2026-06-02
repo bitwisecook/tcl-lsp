@@ -487,75 +487,82 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
     return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
-/// Check whether *c* matches the ``[…]`` character class starting at
-/// *pat*[start].  Returns ``(matches, end)`` where *end* is the
-/// position just past the closing ``]``.  ``end == plen`` signals a
-/// malformed (unclosed) class — caller treats the original ``[`` as
-/// a literal in that case.
-fn glob_match_class(pat: [*]const u8, plen: u32, start: u32, c: u8, nocase: bool) struct { matched: bool, end: u32, ok: bool } {
-    // *start* points at the opening ``[``.
-    var i: u32 = start + 1;
-    if (i >= plen) return .{ .matched = false, .end = start, .ok = false };
-    var negate = false;
-    if (pat[i] == '!' or pat[i] == '^') {
-        negate = true;
-        i += 1;
-    }
-    var matched = false;
-    while (i < plen and pat[i] != ']') {
-        var ch = pat[i];
-        if (ch == '\\' and i + 1 < plen) {
-            ch = pat[i + 1];
-            i += 2;
+/// Match codepoint *cp* against the ``[…]`` character class beginning at
+/// *pat[start]* (the ``[``).  Faithful port of the bracket arm of C
+/// ``Tcl_StringCaseMatch`` (tclUtil.c):
+///
+///   * ``-`` is *always* a range separator and consumes the following
+///     codepoint as the range end — even ``]`` (so ``[A-]`` is the range
+///     ``A``..``]``, NOT the set ``{A, -}``); a trailing ``-`` (at
+///     end-of-pattern) makes the whole match fail;
+///   * matching stops at the first member/range that contains *cp*;
+///   * there is no negation — ``^`` / ``!`` are ordinary members;
+///   * members and ranges are full Unicode codepoints (UTF-8 decoded),
+///     with optional case folding.
+///
+/// Returns ``matched`` (cp is a member), ``closed`` (a ``]`` terminates
+/// the class) and ``end`` (position just past the ``]``, valid when
+/// ``closed``).  A non-matching or malformed class reports
+/// ``matched = false``; the caller fails the match.  A matching but
+/// *unclosed* class (no ``]`` before end-of-pattern) is completed by the
+/// caller iff the input string is exhausted.
+fn glob_match_class(pat: [*]const u8, plen: u32, start: u32, cp: u32, nocase: bool) struct { matched: bool, end: u32, closed: bool } {
+    var i: u32 = start + 1; // past '['
+    const tcp = if (nocase) codepoint_lower(cp) else cp;
+    while (true) {
+        if (i >= plen or pat[i] == ']') {
+            // Reached the end of the class without a match.
+            return .{ .matched = false, .end = if (i < plen) i + 1 else plen, .closed = i < plen };
+        }
+        // Member start codepoint (honouring a ``\`` escape).
+        var startc: u32 = undefined;
+        if (pat[i] == '\\' and i + 1 < plen) {
+            const d = decode_utf8_at(pat, plen, i + 1);
+            startc = d.cp;
+            i += 1 + d.len;
         } else {
+            const d = decode_utf8_at(pat, plen, i);
+            startc = d.cp;
+            i += d.len;
+        }
+        var member_matched = false;
+        if (i < plen and pat[i] == '-') {
             i += 1;
-        }
-        // Range: ``a-z`` — but only if the ``-`` isn't immediately
-        // followed by the closing ``]`` (then ``-`` is literal).
-        if (i + 1 < plen and pat[i] == '-' and pat[i + 1] != ']') {
-            var hi = pat[i + 1];
-            if (hi == '\\' and i + 2 < plen) {
-                hi = pat[i + 2];
-                i += 3;
+            if (i >= plen) {
+                // ``-`` with no range end — malformed, whole match fails.
+                return .{ .matched = false, .end = plen, .closed = false };
+            }
+            var endc: u32 = undefined;
+            if (pat[i] == '\\' and i + 1 < plen) {
+                const d = decode_utf8_at(pat, plen, i + 1);
+                endc = d.cp;
+                i += 1 + d.len;
             } else {
-                i += 2;
+                const d = decode_utf8_at(pat, plen, i);
+                endc = d.cp;
+                i += d.len;
             }
-            // Range normalisation: Tcl reorders inverted ranges, so
-            // ``[A-fh-Z]`` is the same as ``[A-f] ∪ [Z-h]`` (which
-            // covers ``g``).  Test the lower-half and upper-half
-            // independently.
-            const lo = if (ch < hi) ch else hi;
-            const upper = if (ch < hi) hi else ch;
-            var test_c = c;
-            var lo_c = lo;
-            var hi_c = upper;
+            var lo = startc;
+            var hi = endc;
             if (nocase) {
-                test_c = ascii_lower(test_c);
-                lo_c = ascii_lower(lo_c);
-                hi_c = ascii_lower(hi_c);
+                lo = codepoint_lower(lo);
+                hi = codepoint_lower(hi);
             }
-            if (test_c >= lo_c and test_c <= hi_c) matched = true;
+            // Inverted ranges (``[z-a]``) compare either way round.
+            const a = if (lo < hi) lo else hi;
+            const b = if (lo < hi) hi else lo;
+            if (tcp >= a and tcp <= b) member_matched = true;
         } else {
-            var test_c = c;
-            var ch_c = ch;
-            if (nocase) {
-                test_c = ascii_lower(test_c);
-                ch_c = ascii_lower(ch_c);
-            }
-            if (test_c == ch_c) matched = true;
+            const sc = if (nocase) codepoint_lower(startc) else startc;
+            if (sc == tcp) member_matched = true;
+        }
+        if (member_matched) {
+            // Skip to the closing ``]``.
+            while (i < plen and pat[i] != ']') i += 1;
+            if (i >= plen) return .{ .matched = true, .end = plen, .closed = false };
+            return .{ .matched = true, .end = i + 1, .closed = true };
         }
     }
-    if (i >= plen) {
-        // Unclosed character class — Tcl 9 treats this as an
-        // implicit close at end-of-pattern (string-11.29.0:
-        // ``string match \[a a`` returns 1 because ``[a`` is read
-        // as the class ``[a]``).  The collected ``matched`` flag
-        // already reflects the comparison against *c*; report
-        // ``end = plen`` so the outer matcher consumes the rest of
-        // the pattern.
-        return .{ .matched = if (negate) !matched else matched, .end = plen, .ok = true };
-    }
-    return .{ .matched = if (negate) !matched else matched, .end = i + 1, .ok = true };
 }
 
 pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
@@ -609,24 +616,20 @@ fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_i
         }
         if (pc == '[') {
             if (vi >= vlen) return false;
-            const r = glob_match_class(pat, plen, pi, val[vi], nocase);
-            if (!r.ok) {
-                // Unclosed ``[`` — treat as literal.
-                if (vi >= vlen) return false;
-                var pc_lit: u8 = pc;
-                var vc: u8 = val[vi];
-                if (nocase) {
-                    pc_lit = ascii_lower(pc_lit);
-                    vc = ascii_lower(vc);
-                }
-                if (pc_lit != vc) return false;
-                pi += 1;
-                vi += 1;
-                continue;
-            }
+            // Decode a full codepoint from the value so multi-byte
+            // members / ranges compare correctly (util-5.13 / 5.17 /
+            // 5.23).
+            const dv = decode_utf8_at(val, vlen, vi);
+            const r = glob_match_class(pat, plen, pi, dv.cp, nocase);
             if (!r.matched) return false;
+            vi += dv.len;
+            if (!r.closed) {
+                // Matched a member of an unclosed class — the whole
+                // pattern matches iff the input is now exhausted
+                // (Tcl's ``return *str == '\0'``; util-5.40).
+                return vi == vlen;
+            }
             pi = r.end;
-            vi += 1;
             continue;
         }
         if (pc == '\\' and pi + 1 < plen) {

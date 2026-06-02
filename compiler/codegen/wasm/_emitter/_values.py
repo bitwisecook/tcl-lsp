@@ -382,6 +382,7 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterExprMixin
@@ -811,7 +812,26 @@ class _WasmEmitterValuesMixin(_Base):
         # currently traps because tcl_eval can't dispatch to a *compiled* proc
         # body — full correctness needs interp→compiled-proc dispatch in the Zig
         # runtime.  Until then this fails safe (trap) instead of miscomputing.
+        # A *known compiled proc* gets a rename-aware, trace-aware guarded
+        # dispatch (mirrors ``_emit_command_subst``): needed for proc calls
+        # that appear as command *arguments* (``[string range $c [12days …]
+        # end]``).  See ``_emit_distrust_proc_subst``.
         if not builtin_is_trusted(cmd_name):
+            proc_info = self._resolve_proc(cmd_name, self._full_proc_index)
+            if (
+                proc_info is not None
+                and self._distrust_proc_guard
+                and "tcl_proc_lookup" in self._shared_imports
+                and "tcl_proc_get_func_idx" in self._shared_imports
+                and "tcl_exec_trace_quiescent" in self._shared_imports
+            ):
+                func_idx, n_params = proc_info
+                qname = self._resolve_proc_qname(cmd_name)
+                has_args_tail = qname is not None and qname in self._proc_args_tail
+                self._emit_distrust_proc_subst(
+                    cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=False
+                )
+                return
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             return
 

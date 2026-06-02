@@ -457,6 +457,89 @@ class _WasmEmitterCmdMixin(_Base):
             self._emit(WasmOp.END)
         self._emit_local_get(result_tmp)
 
+    def _emit_distrust_proc_subst(
+        self,
+        cmd_name: str,
+        cmd_args: "list[str]",
+        cmd_text: str,
+        func_idx: int,
+        n_params: int,
+        has_args_tail: bool,
+        *,
+        unbox: bool,
+    ) -> None:
+        """Rename-aware compiled dispatch for a proc command-substitution
+        under builtin distrust.
+
+        A dynamic ``rename`` distrusts every builtin in the unit, which
+        would otherwise push every ``[proc …]`` command substitution
+        through the frame-heavy interpreter eval-fallback.  For a deeply
+        self-recursive ``expr`` body (compExpr-old-3.8's ``12days``,
+        ~445 levels) that overflows the wasm-stack recursion gate, since
+        each interpreter dispatch costs ~10 wasm frames.  But blindly
+        taking the cheap direct ``call func_idx`` would ignore a runtime
+        ``rename`` / redefinition, and would skip any trace.
+
+        Take the direct call only when BOTH hold at run time:
+
+        * ``proc_get_func_idx(proc_lookup(name)) == func_idx`` — the name
+          still denotes *this exact* compiled proc (renamed-away yields 0,
+          renamed-to / redefined yields a different index → fall back); and
+        * ``exec_trace_quiescent()`` — no execution / command / step trace
+          is registered or active and we are not inside a trace callback,
+          so a direct call (which bypasses ``eval_command`` and the
+          command table) can't skip a trace or race a callback mutating the
+          command table (trace.test's command rename/delete traces).
+
+        Otherwise fall back to the interpreter, which honours the live
+        binding and fires traces.  The lookup completes (and pops) before
+        the call, so the recursion accumulates only the direct call's
+        single wasm frame per level — the footprint that lets the deep
+        recursion succeed.
+
+        *unbox* selects the i64 (expression) vs i32 (value) result shape.
+        """
+        lookup_idx = self._shared_imports["tcl_proc_lookup"]
+        get_func_idx = self._shared_imports["tcl_proc_get_func_idx"]
+        quiescent_idx = self._shared_imports["tcl_exec_trace_quiescent"]
+        block_ty = ValType.I64 if unbox else ValType.I32
+        # (proc_get_func_idx(proc_lookup(name)) == func_idx) & quiescent
+        self._emit_obj_literal(cmd_name)
+        self._emit_call(lookup_idx)
+        self._emit_call(get_func_idx)
+        self._emit_i32_const(func_idx)
+        self._emit(WasmOp.I32_EQ)
+        self._emit_call(quiescent_idx)
+        self._emit(WasmOp.I32_AND)
+        self._emit(WasmOp.IF, bytes([block_ty]))
+        # Name still maps to this compiled proc and tracing is quiescent —
+        # cheap direct call.  Mirrors the trusted value-context dispatch,
+        # including ``args``-tail packing.
+        argv0_local = self._emit_prepare_pending_argv0(cmd_name)
+        if has_args_tail and n_params > 0:
+            fixed = n_params - 1
+            for i in range(min(fixed, len(cmd_args))):
+                self._emit_value(cmd_args[i])
+            for _slot in range(len(cmd_args), fixed):
+                self._emit_i32_const(0)
+            self._emit_args_list(tuple(cmd_args[fixed:]))
+        else:
+            for i in range(min(n_params, len(cmd_args))):
+                self._emit_value(cmd_args[i])
+            for _slot in range(len(cmd_args), n_params):
+                self._emit_i32_const(0)
+        self._emit_push_pending_argv0(argv0_local)
+        self._emit_compiled_call_with_bridge(func_idx)
+        if unbox:
+            self._emit_unbox_int()
+        self._emit(WasmOp.ELSE)
+        # Renamed / redefined away, or a trace is live — let the
+        # interpreter resolve it (rename-aware, trace-firing).
+        self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+        if unbox:
+            self._emit_unbox_int()
+        self._emit(WasmOp.END)
+
     def _emit_signal_check_and_return(self) -> None:
         """Emit a signal check after an eval-fallback's ``tcl_eval``.
 

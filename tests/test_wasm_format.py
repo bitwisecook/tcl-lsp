@@ -83,3 +83,53 @@ def test_format_bad_field_specifier() -> None:
     lines = out.strip().splitlines()
     assert lines[0] == "1"
     assert 'bad field specifier "r"' in lines[1]
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # XPG3 positional + dynamic width/precision share one arg cursor:
+        # the explicit position drives ``*`` / ``.*``, and the value is
+        # the arg the cursor lands on next (format-11.8 / 11.9 / 11.12).
+        ("puts -nonewline [format {%2$*d %3$d} 1 10 4]", "         4 4"),
+        ("puts -nonewline [format {%2$.*s %4$d} 1 5 abcdefghijklmnop 44]", "abcde 44"),
+        ("puts -nonewline [format {%2$*d} 4 5 6]", "    6"),
+        ("puts -nonewline [format {%1$s %2$s %1$s} a b]", "a b a"),
+        # Negative dynamic precision means none; an out-of-int-range
+        # positive precision is effectively unbounded (format-11.13/11.14).
+        (
+            "puts -nonewline [format {%2$.*s %4$d} 1 -4294967298 abcdefghijklmnop 44]",
+            " 44",
+        ),
+        (
+            "puts -nonewline [format {%2$.*s %4$d} 1 4294967298 abcdefghijklmnop 44]",
+            "abcdefghijklmnop 44",
+        ),
+    ],
+)
+def test_format_xpg_positional(source: str, expected: str) -> None:
+    assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # %0$ (and any out-of-range index) is an error (format-11.4).
+        (
+            "puts [list [catch {format {%2$d %0$d} 4 5 6} m] $m]",
+            '1 {"%n$" argument index out of range}',
+        ),
+        # %N$*d needs an arg past the width (format-11.11).
+        (
+            "puts [list [catch {format {%2$*d} 4 5} m] $m]",
+            '1 {"%n$" argument index out of range}',
+        ),
+        # Mixing positional and sequential specifiers.
+        (
+            "puts [list [catch {format {%1$d %d} 4 5} m] $m]",
+            '1 {cannot mix "%" and "%n$" conversion specifiers}',
+        ),
+    ],
+)
+def test_format_xpg_errors(source: str, expected: str) -> None:
+    assert _run(source).strip() == expected
