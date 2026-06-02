@@ -51,3 +51,27 @@ def _run(source: str) -> str:
 )
 def test_lsort_dictionary(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # -integer accepts Tcl base prefixes (0x / 0o / 0b / 0d) — the
+        # same syntax Tcl_GetWideIntFromObj parses (cmdIL-3.11 / 3.19).
+        (
+            "puts [lsort -integer {35 21 0x20 0d30 0o23 100 8}]",
+            "8 0o23 21 0d30 0x20 35 100",
+        ),
+        (
+            "puts [lsort -decreasing -integer {35 21 0x20 30 0o23 100 8}]",
+            "100 35 0x20 30 21 0o23 8",
+        ),
+        ("puts [lsort -integer {0x20 10}]", "10 0x20"),
+        ("puts [lsort -integer {0o23 10}]", "10 0o23"),
+        ("puts [lsort -integer {0b101 4 0d7}]", "4 0b101 0d7"),
+        # Plain decimal still works.
+        ("puts [lsort -integer {35 21 100 8}]", "8 21 35 100"),
+    ],
+)
+def test_lsort_integer_prefixes(source: str, expected: str) -> None:
+    assert _run(source) == expected

@@ -656,7 +656,7 @@ fn lsort_make_key(elem_obj: i32, opts: *const LsortOpts) LsortKey {
     var key: LsortKey = .{ .obj = key_obj, .str_ptr = s.ptr, .str_len = s.len };
     switch (opts.mode) {
         .integer => {
-            if (obj_mod.try_parse_int(s.ptr, s.len)) |v| {
+            if (lsort_parse_int(s.ptr, s.len)) |v| {
                 key.int_val = v;
             }
         },
@@ -670,6 +670,62 @@ fn lsort_make_key(elem_obj: i32, opts: *const LsortOpts) LsortKey {
         else => {},
     }
     return key;
+}
+
+/// Parse a Tcl integer for ``lsort -integer``, accepting the base
+/// prefixes ``Tcl_GetWideIntFromObj`` does — ``0x`` (hex), ``0o``
+/// (octal), ``0b`` (binary), ``0d`` (decimal) — on top of the plain
+/// decimal path.  Returns null when the string isn't a valid integer
+/// (the caller leaves the key at 0, mirroring the prior lenient
+/// behaviour).  Fixes cmdIL-3.11.
+fn lsort_parse_int(ptr: u32, len: u32) ?i64 {
+    if (obj_mod.try_parse_int(ptr, len)) |v| return v;
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+    var neg = false;
+    if (i < len and (src[i] == '-' or src[i] == '+')) {
+        neg = src[i] == '-';
+        i += 1;
+    }
+    if (i + 1 >= len or src[i] != '0') return null;
+    const base: u64 = switch (src[i + 1]) {
+        'x', 'X' => 16,
+        'o', 'O' => 8,
+        'b', 'B' => 2,
+        'd', 'D' => 10,
+        else => return null,
+    };
+    i += 2;
+    var mag: u64 = 0;
+    var any = false;
+    while (i < len) : (i += 1) {
+        const c = src[i];
+        const d: u64 = if (c >= '0' and c <= '9')
+            c - '0'
+        else if (c >= 'a' and c <= 'f')
+            @as(u64, c - 'a') + 10
+        else if (c >= 'A' and c <= 'F')
+            @as(u64, c - 'A') + 10
+        else
+            break;
+        if (d >= base) return null;
+        const m = @mulWithOverflow(mag, base);
+        if (m[1] != 0) return null;
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return null;
+        mag = a[0];
+        any = true;
+    }
+    while (i < len and (src[i] == ' ' or src[i] == '\t')) i += 1;
+    if (i != len or !any) return null;
+    if (neg) {
+        if (mag > 0x8000_0000_0000_0000) return null;
+        return @bitCast(0 -% mag);
+    }
+    if (mag > 0x7FFF_FFFF_FFFF_FFFF) return null;
+    return @bitCast(mag);
 }
 
 fn lsort_compare(a: *const LsortKey, b: *const LsortKey, opts: *const LsortOpts) i32 {
