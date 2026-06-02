@@ -419,9 +419,39 @@ fn eval_binary(op: BinOp, left: &ExprNode, right: &ExprNode, env: &Env) -> Optio
         return apply_irules_string_op(op, &ls, &rs);
     }
 
+    // Tcl string-comparison ops (`eq`/`ne`/`lt`/`le`/`gt`/`ge`) always
+    // compare their operands *as strings* (unlike `==`/`!=`), so extract
+    // string operands — evaluating a bare string like `"x"` numerically
+    // yields nothing, leaving `"x" ne "y"` (and `5 eq 5.0`) unfolded.
+    // Mirrors `tcl_expr_eval.py::_STRING_COMPARE_OPS` (#519).
+    if matches!(
+        op,
+        BinOp::StrEq | BinOp::StrNe | BinOp::StrLt | BinOp::StrLe | BinOp::StrGt | BinOp::StrGe
+    ) {
+        let ls = eval_as_string(left, env)?;
+        let rs = eval_as_string(right, env)?;
+        return apply_string_compare(op, &ls, &rs);
+    }
+
     let lv = eval(left, env)?;
     let rv = eval(right, env)?;
     apply_binary(op, lv, rv)
+}
+
+/// Apply a Tcl string-comparison operator (`eq`/`ne`/`lt`/`le`/`gt`/`ge`)
+/// to two already-stringified operands. Mirrors Python's
+/// `_apply_string_compare`.
+fn apply_string_compare(op: BinOp, a: &str, b: &str) -> Option<TclValue> {
+    let result = match op {
+        BinOp::StrEq => a == b,
+        BinOp::StrNe => a != b,
+        BinOp::StrLt => a < b,
+        BinOp::StrLe => a <= b,
+        BinOp::StrGt => a > b,
+        BinOp::StrGe => a >= b,
+        _ => return None,
+    };
+    Some(TclValue::Int(i64::from(result)))
 }
 
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
@@ -480,29 +510,17 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
             numeric_cmp(a, b) != std::cmp::Ordering::Less,
         ))),
 
-        // String comparison — render both sides via format_tcl_value
-        // and compare lexicographically.
-        BinOp::StrEq => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) == format_tcl_value(b),
-        ))),
-        BinOp::StrNe => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) != format_tcl_value(b),
-        ))),
-        BinOp::StrLt => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) < format_tcl_value(b),
-        ))),
-        BinOp::StrLe => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) <= format_tcl_value(b),
-        ))),
-        BinOp::StrGt => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) > format_tcl_value(b),
-        ))),
-        BinOp::StrGe => Some(TclValue::Int(i64::from(
-            format_tcl_value(a) >= format_tcl_value(b),
-        ))),
-
-        // Short-circuit and iRules string ops are handled in eval_binary.
-        BinOp::And
+        // String-comparison ops (eq/ne/lt/le/gt/ge) are routed through
+        // `apply_string_compare` from `eval_binary` before they reach here
+        // (they need string, not numeric, operands), as are the
+        // short-circuit and iRules string ops.
+        BinOp::StrEq
+        | BinOp::StrNe
+        | BinOp::StrLt
+        | BinOp::StrLe
+        | BinOp::StrGt
+        | BinOp::StrGe
+        | BinOp::And
         | BinOp::Or
         | BinOp::WordAnd
         | BinOp::WordOr
@@ -1007,6 +1025,22 @@ mod tests {
     fn string_comparisons() {
         assert_eq!(eval_str("1 eq 1"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("1 ne 2"), Some(TclValue::Int(1)));
+    }
+
+    #[test]
+    fn string_comparisons_fold_string_operands() {
+        // SYNC-JUN02b-5 (#519): `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
+        // operands AS strings, so string-only operands now fold
+        // (previously `eval` parsed them numerically, returning None).
+        assert_eq!(eval_str("\"x\" eq \"y\""), Some(TclValue::Int(0)));
+        assert_eq!(eval_str("\"x\" ne \"y\""), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("\"x\" eq \"x\""), Some(TclValue::Int(1)));
+        // Lexical ordering on string operands.
+        assert_eq!(eval_str("\"abc\" lt \"abd\""), Some(TclValue::Int(1)));
+        assert_eq!(eval_str("\"b\" gt \"a\""), Some(TclValue::Int(1)));
+        // `5 eq 5.0` compares the strings "5" vs "5.0" (→ 0), matching
+        // C Tcl 9 — a regression guard for the numeric-looking case.
+        assert_eq!(eval_str("5 eq 5.0"), Some(TclValue::Int(0)));
     }
 
     #[test]
