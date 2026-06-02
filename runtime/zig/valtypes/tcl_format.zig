@@ -240,7 +240,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
     if (fs.len == 0) return obj_new_string(0, 0);
     const fp: [*]const u8 = @ptrFromInt(fs.ptr);
 
-    var arg_idx: u32 = 0;
+    // Single argument cursor shared by XPG3 positions, ``*`` width /
+    // ``.*`` precision, and the conversion value — mirrors C
+    // ``Tcl_FormatObjCmd``'s ``objIndex``.  Signed so ``%0$`` (position
+    // 0 → -1) is caught as out-of-range.
+    var obj_index: i64 = 0;
 
     // Preallocate a generously-sized buffer.  Per-conversion writers
     // don't bounds-check, so the buffer must be large enough for
@@ -310,23 +314,44 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             continue;
         }
         // Optional positional spec: ``%N$...`` selects the Nth (1-indexed)
-        // argument instead of the next sequential one.  ``N`` is parsed
-        // greedily as decimal digits; the trailing ``$`` confirms the
-        // form (without it we restart and treat the digits as a width).
-        var explicit_arg: ?u32 = null;
-        if (i < fs.len and fp[i] >= '1' and fp[i] <= '9') {
-            // Look ahead for a trailing ``$``.  If absent, this is a
-            // width spec — back-track and let the width parser below
-            // pick it up.
+        // argument.  In XPG mode the explicit position seeds the shared
+        // ``obj_index`` cursor; a following ``*`` width / ``.*``
+        // precision then consumes the arg at that cursor and advances it,
+        // so the conversion value is the arg the cursor finally lands on
+        // (mirrors C ``Tcl_FormatObjCmd``).  ``N`` is parsed greedily as
+        // decimal digits; the trailing ``$`` confirms the form (without
+        // it the digits are a width).  ``%0$`` (or any out-of-range
+        // index) is an error.
+        var new_xpg = false;
+        if (i < fs.len and fp[i] >= '0' and fp[i] <= '9') {
             var k: u32 = i;
-            var idx: u32 = 0;
+            var idx: i64 = 0;
             while (k < fs.len and fp[k] >= '0' and fp[k] <= '9') : (k += 1) {
-                idx = idx * 10 + @as(u32, fp[k] - '0');
+                idx = idx * 10 + @as(i64, fp[k] - '0');
+                if (idx > 0x7FFF_FFFF) idx = 0x7FFF_FFFF;
             }
-            if (k < fs.len and fp[k] == '$' and idx >= 1) {
-                explicit_arg = idx - 1;
+            if (k < fs.len and fp[k] == '$') {
+                new_xpg = true;
+                obj_index = idx - 1; // 1-based → 0-based; %0$ → -1
                 i = k + 1; // step past ``$``
             }
+        }
+        if (new_xpg) {
+            saw_positional = true;
+        } else {
+            saw_sequential = true;
+        }
+        if (saw_positional and saw_sequential) {
+            stubs.raise("cannot mix \"%\" and \"%n$\" conversion specifiers");
+            return obj_new_string(0, 0);
+        }
+        if (obj_index < 0 or obj_index >= args.len) {
+            if (saw_positional) {
+                stubs.raise("\"%n$\" argument index out of range");
+            } else {
+                stubs.raise("not enough arguments for all format specifiers");
+            }
+            return obj_new_string(0, 0);
         }
         // Parse flags, width, precision.
         var left_align = false;
@@ -346,17 +371,20 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         }
         var width: u32 = 0;
         if (i < fs.len and fp[i] == '*') {
-            // ``%-*s`` / ``%*s`` — consume the next arg as the width.
-            // Matches reference Tcl's ``Tcl_FormatObjCmd`` star-width
-            // semantics; opt.test's ``OptTree`` (``format "%-*s"``)
-            // depends on this for column alignment.
+            // ``%-*s`` / ``%*s`` (and XPG ``%N$*s``) — the arg at the
+            // cursor is the width; the cursor then advances to the
+            // conversion value.  Needs one arg beyond the width.
             i += 1;
-            if (arg_idx >= args.len) {
-                stubs.raise("not enough arguments for all format specifiers");
+            if (obj_index + 1 >= args.len) {
+                if (saw_positional) {
+                    stubs.raise("\"%n$\" argument index out of range");
+                } else {
+                    stubs.raise("not enough arguments for all format specifiers");
+                }
                 return obj_new_string(0, 0);
             }
-            const w_arg = args[arg_idx];
-            arg_idx += 1;
+            const w_arg = args[@intCast(obj_index)];
+            obj_index += 1;
             const w_opt = checked_int(w_arg);
             if (w_opt == null) return obj_new_string(0, 0);
             const w = w_opt.?;
@@ -376,18 +404,26 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         if (i < fs.len and fp[i] == '.') {
             i += 1;
             if (i < fs.len and fp[i] == '*') {
-                // ``%.*s`` — dynamic precision from the next arg.
+                // ``%.*s`` (and XPG ``%N$.*s``) — the arg at the cursor
+                // is the precision; the cursor then advances to the
+                // value.  Negative precision means "none" (→ 0); an
+                // out-of-(i32)-range positive precision is clamped to an
+                // effectively-unbounded value (format-11.13 / 11.14).
                 i += 1;
-                if (arg_idx >= args.len) {
-                    stubs.raise("not enough arguments for all format specifiers");
+                if (obj_index + 1 >= args.len) {
+                    if (saw_positional) {
+                        stubs.raise("\"%n$\" argument index out of range");
+                    } else {
+                        stubs.raise("not enough arguments for all format specifiers");
+                    }
                     return obj_new_string(0, 0);
                 }
-                const p_arg = args[arg_idx];
-                arg_idx += 1;
+                const p_arg = args[@intCast(obj_index)];
+                obj_index += 1;
                 const p_opt = checked_int(p_arg);
                 if (p_opt == null) return obj_new_string(0, 0);
                 const p = p_opt.?;
-                precision = if (p < 0) 0 else @intCast(p);
+                precision = if (p < 0) 0 else if (p > 0x4000_0000) 0x4000_0000 else @intCast(p);
             } else {
                 precision = 0;
                 while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
@@ -418,30 +454,12 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         const conv = fp[i];
         i += 1;
 
-        // Pull the arg: explicit positional if requested, else the
-        // next sequential.  Mixing positional and sequential specs in
-        // the same format string is an error.
-        var pick: u32 = arg_idx;
-        if (explicit_arg) |idx| {
-            saw_positional = true;
-            pick = idx;
-        } else {
-            saw_sequential = true;
-        }
-        if (saw_positional and saw_sequential) {
-            stubs.raise("cannot mix \"%\" and \"%n$\" conversion specifiers");
-            return obj_new_string(0, 0);
-        }
-        if (pick >= args.len) {
-            if (explicit_arg != null) {
-                stubs.raise("\"%n$\" argument index out of range");
-            } else {
-                stubs.raise("not enough arguments for all format specifiers");
-            }
-            return obj_new_string(0, 0);
-        }
-        const a = args[pick];
-        if (explicit_arg == null) arg_idx += 1;
+        // The cursor now points at the conversion value (the up-front
+        // validation and any ``*`` width / ``.*`` precision guarantee it
+        // is in range).  Sequential specs advance the cursor for the
+        // next conversion; XPG specs re-seed it from their ``%N$``.
+        const a = args[@intCast(obj_index)];
+        if (saw_sequential) obj_index += 1;
 
         // Validate the conversion arg up front so any
         // "expected integer / float" diagnostic surfaces with the
