@@ -1547,6 +1547,12 @@ def _scan_needed_imports(
         # already covered).  No-op for synthetic procs without a
         # body_source.
         needed.add("tcl_frame_set_script")
+        # Record the formal-parameter spec on the frame so ``info
+        # locals`` / ``info vars`` enumerate the proc's formals in
+        # *declaration* order.  The prologue only emits the call when
+        # the body actually references ``info locals`` / ``info vars``,
+        # but the import has to be available for that conditional stamp.
+        needed.add("tcl_frame_set_params")
         # Phase 8 follow-up: per-call-site ``frame_set_line`` stamp
         # so ``info frame -line`` returns the source line of the
         # currently-executing command rather than the proc's

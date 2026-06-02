@@ -4481,6 +4481,9 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Phase 8: stamp call-site metadata for ``info frame``.
     frames.frame_set_type(.PROC);
     frames.frame_set_script(body_obj);
+    // Record the formal-parameter spec so ``info locals`` / ``info vars``
+    // enumerate the formals in declaration order.
+    if (params_obj != 0) frames.frame_set_params(params_obj);
     {
         const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
         const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
@@ -5474,6 +5477,9 @@ pub fn eval_apply(words: []const i32) i32 {
     // useful diagnostic.
     frames.frame_set_type(.PROC);
     frames.frame_set_script(body_obj);
+    // Record the lambda's parameter spec so ``info locals`` / ``info
+    // vars`` enumerate the formals in declaration order (apply-8.*).
+    frames.frame_set_params(params_obj);
     {
         const apply_lit: []const u8 = "apply";
         const fq = obj_new_string_copy(@intFromPtr(apply_lit.ptr), apply_lit.len);

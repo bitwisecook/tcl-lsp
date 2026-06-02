@@ -55,6 +55,7 @@ class _WasmEmitterBase:
         def _emit_block(self, *a: Any, **kw: Any) -> Any: ...
         def _run_optimisations(self, *a: Any, **kw: Any) -> Any: ...
         def _body_references_info_level(self, *a: Any, **kw: Any) -> Any: ...
+        def _body_references_info_locals(self, *a: Any, **kw: Any) -> Any: ...
         def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
         def _local_slot_index(self, *a: Any, **kw: Any) -> Any: ...
 
@@ -582,6 +583,14 @@ class _WasmEmitterBase:
         if summary.wants_frame:
             return True
         if self._body_references_info_level():
+            return True
+        # ``info locals`` / ``info vars`` enumerate the current frame's
+        # variables, so the proc needs its own frame — without one the
+        # query reads the caller's frame (or, when elided entirely,
+        # comes back empty).  The escape summary covers the common
+        # shapes, but a deeply-nested ``[… [info locals] …]`` subst can
+        # slip past it; this substring-based backstop catches those.
+        if self._body_references_info_locals():
             return True
         return False
 
@@ -1334,6 +1343,29 @@ class _WasmEmitterBase:
                 self._emit_i32_const(len(body_bytes))
                 self._emit_call(obj_str_idx)
                 self._emit_call(set_script_idx)
+            # Record the formal-parameter spec on the frame so ``info
+            # locals`` / ``info vars`` enumerate this proc's formals in
+            # *declaration* order (matching C's compiled-local order)
+            # ahead of the body's other locals — without it the hash
+            # store hands them back in bucket order.  Gated on the body
+            # actually referencing ``info locals`` / ``info vars`` (the
+            # only readers of the ordering) so non-introspecting procs
+            # skip the per-call allocation; those bodies also force the
+            # pessimistic frame + hash-table local storage that the
+            # runtime's ``frame_find`` walk relies on.
+            if (
+                "tcl_frame_set_params" in self._shared_imports
+                and self._body_references_info_locals()
+            ):
+                params_source = self._build_params_source(qname, self._params)
+                if params_source:
+                    set_params_idx = self._shared_imports["tcl_frame_set_params"]
+                    params_offset = self._intern_string(params_source)
+                    params_bytes = params_source.encode("utf-8", errors="surrogatepass")
+                    self._emit_i32_const(params_offset + 4)
+                    self._emit_i32_const(len(params_bytes))
+                    self._emit_call(obj_str_idx)
+                    self._emit_call(set_params_idx)
             # Phase 8 follow-up: claim line-stamp ownership so a
             # nested ``eval_script`` (e.g. resolving a ``[…]`` inside
             # the body) doesn't clobber the per-statement stamps

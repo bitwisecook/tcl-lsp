@@ -87,25 +87,47 @@ class _WasmEmitterOptMixin(_Base):
         once per proc at prologue time; linear in the number of
         statements.
         """
+        return self._body_references_info_subs(("level", "frame"))
+
+    def _body_references_info_locals(self) -> bool:
+        """Walk the CFG's IR for any ``info locals`` / ``info vars``
+        call so the compiled-proc prologue knows to stamp
+        ``frame_set_params``: those two subcommands enumerate the
+        frame's locals, and the formals must come out in *declaration*
+        order (matching C's compiled-local order), which the runtime
+        reconstructs from the stored param-spec.  Mirrors
+        :meth:`_body_references_info_level`; run once per proc at
+        prologue time.
+        """
+        return self._body_references_info_subs(("locals", "vars"))
+
+    def _body_references_info_subs(self, subs: tuple[str, ...]) -> bool:
+        """Shared CFG walk behind :meth:`_body_references_info_level`
+        and :meth:`_body_references_info_locals`.
+
+        Returns True when the body issues ``info <sub>`` for any *sub*
+        in *subs* — whether as a bare call, ``info <sub> N``, or a
+        bracketed ``[info <sub> …]`` substitution embedded in another
+        command's argument / return-value / expression string.
+        """
         from ....cfg import CFGFunction
         from ....ir import IRCall
 
-        _INTROSPECT_SUBS = ("level", "frame")
+        brackets = tuple(f"[info {s}" for s in subs)
+
+        def _has_bracket(text: str) -> bool:
+            return any(b in text for b in brackets)
 
         def _walk(stmt) -> bool:
             if isinstance(stmt, IRCall):
-                if (
-                    stmt.canonical_command == "::info"
-                    and stmt.args
-                    and stmt.args[0] in _INTROSPECT_SUBS
-                ):
+                if stmt.canonical_command == "::info" and stmt.args and stmt.args[0] in subs:
                     return True
-                # Bracketed ``[info level …]`` / ``[info frame …]``
-                # can appear as command-subst inside another call's
-                # arguments (``puts [llength [info level 0]]``).
-                # Substring scan finds them without re-parsing.
+                # Bracketed ``[info <sub> …]`` can appear as
+                # command-subst inside another call's arguments
+                # (``puts [llength [info level 0]]``).  Substring scan
+                # finds them without re-parsing.
                 for a in stmt.args:
-                    if "[info level" in a or "[info frame" in a:
+                    if isinstance(a, str) and _has_bracket(a):
                         return True
             # ``return [info level ...]`` is an IRReturn whose
             # ``value`` carries the bracketed substitution as a
@@ -114,10 +136,10 @@ class _WasmEmitterOptMixin(_Base):
             # returns its own invocation argv (e.g. trace wrappers,
             # tcltest helpers).
             value = getattr(stmt, "value", None)
-            if isinstance(value, str) and ("[info level" in value or "[info frame" in value):
+            if isinstance(value, str) and _has_bracket(value):
                 return True
             expr = getattr(stmt, "expr", None)
-            if isinstance(expr, str) and ("[info level" in expr or "[info frame" in expr):
+            if isinstance(expr, str) and _has_bracket(expr):
                 return True
             # Recurse into bodies of compound statements.
             for attr in ("body", "init", "next", "else_body", "finally_body"):

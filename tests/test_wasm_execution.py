@@ -870,6 +870,15 @@ class TestCommandDispatch:
             "frame_set_proc_name",
             "frame_set_line",
             "frame_set_script",
+            # ``frame_set_params`` records the proc's formal-parameter
+            # spec on the frame so ``info locals`` / ``info vars``
+            # enumerate the formals in declaration order.  Pulled in for
+            # any module with procs (like the other frame-metadata
+            # stamps); the prologue only emits the call when the body
+            # references ``info locals`` / ``info vars`` — so for this
+            # pure-arithmetic proc the import is present but uncalled,
+            # exactly as ``frame_set_script`` is for a body-less proc.
+            "frame_set_params",
             "frame_claim_line_codegen",
             # Phase 7 indexed-local accessors.  Pulled in for every
             # compiled proc so a slot-resolved name can route to the

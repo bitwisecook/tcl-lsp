@@ -618,6 +618,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_frame_set_type": ("tcl", "frame_set_type_i32", [ValType.I32], []),
     "tcl_frame_set_script": ("tcl", "frame_set_script", [ValType.I32], []),
     "tcl_frame_set_proc_name": ("tcl", "frame_set_proc_name", [ValType.I32], []),
+    # Records the proc / lambda formal-parameter spec on the current
+    # frame so ``info locals`` / ``info vars`` enumerate the formals in
+    # *declaration* order (matching C's compiled-local order) ahead of
+    # the body's other locals.  Stamped by the compiled-proc prologue
+    # only when the body references ``info locals`` / ``info vars``.
+    "tcl_frame_set_params": ("tcl", "frame_set_params", [ValType.I32], []),
     "tcl_frame_set_cmd_text": ("tcl", "frame_set_cmd_text", [ValType.I32], []),
     "tcl_frame_set_line": ("tcl", "frame_set_line", [ValType.I32], []),
     # Phase 8 follow-up: codegen claims line-stamp ownership for the
