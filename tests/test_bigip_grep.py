@@ -6,6 +6,7 @@ import io
 import json
 import sys
 import textwrap
+import types
 from pathlib import Path
 
 import pytest
@@ -436,7 +437,10 @@ def test_cli_grep_reads_stdin_with_dash(monkeypatch, capsys) -> None:
         ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }
         """
     )
-    monkeypatch.setattr(sys, "stdin", io.StringIO(src))
+    # The shared reader sniffs stdin as bytes (so gzip/encrypted UCS piped
+    # in are recognised), so the fake stdin must expose a binary ``buffer``.
+    fake_stdin = types.SimpleNamespace(buffer=io.BytesIO(src.encode("utf-8")))
+    monkeypatch.setattr(sys, "stdin", fake_stdin)
     rc = f5_cli.main(["grep", "/Common/n1", "-"])
     captured = capsys.readouterr()
     assert rc == 0

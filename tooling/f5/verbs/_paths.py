@@ -6,12 +6,20 @@ keeps every new verb consistent.
 
 from __future__ import annotations
 
+import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from dialects.f5.bigip.model import BigipConfig, BigipRule
 from dialects.f5.bigip.parser import parse_bigip_conf
+from tooling.f5.f5_remote.ucs import (
+    DEFAULT_PASSPHRASE_ENV,
+    PassphraseProvider,
+    is_pgp_bytes,
+    make_passphrase_provider,
+    ucs_archive_to_scf,
+)
 
 _IRULE_SUFFIXES = frozenset({".tcl", ".irul", ".irule"})
 _BIGIP_SUFFIXES = frozenset({".conf", ".scf"})
@@ -22,7 +30,48 @@ def _is_gzip(data: bytes) -> bool:
     return len(data) >= 2 and data[0] == 0x1F and data[1] == 0x8B
 
 
-def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
+def add_passphrase_args(parser: argparse.ArgumentParser) -> None:
+    """Add the shared ``--passphrase-env`` / ``--no-passphrase-prompt`` flags.
+
+    Verbs that may be pointed at an encrypted ``.ucs`` call this so the
+    passphrase source is discoverable in ``--help``.  Even without these
+    flags every verb honours ``$F5_UCS_PASSPHRASE`` and prompts on a TTY,
+    because :func:`read_path` & friends fall back to a default provider.
+    """
+    group = parser.add_argument_group("encrypted UCS")
+    group.add_argument(
+        "--passphrase-env",
+        metavar="VAR",
+        default=DEFAULT_PASSPHRASE_ENV,
+        help=(
+            "environment variable holding the passphrase for an encrypted "
+            "UCS archive (default: %(default)s)."
+        ),
+    )
+    group.add_argument(
+        "--no-passphrase-prompt",
+        action="store_true",
+        help=(
+            "never prompt on the terminal for an encrypted-UCS passphrase; "
+            "require the environment variable instead."
+        ),
+    )
+
+
+def provider_from_args(args: argparse.Namespace) -> PassphraseProvider:
+    """Build a passphrase provider from :func:`add_passphrase_args` options."""
+    return make_passphrase_provider(
+        env_var=getattr(args, "passphrase_env", None) or DEFAULT_PASSPHRASE_ENV,
+        allow_prompt=not getattr(args, "no_passphrase_prompt", False),
+    )
+
+
+def read_path(
+    path_str: str,
+    *,
+    strict: bool = False,
+    passphrase_provider: PassphraseProvider | None = None,
+) -> tuple[str, str]:
     """Return ``(uri, source)`` for *path_str*.  ``-`` reads stdin.
 
     When *strict* is true, undecodable bytes raise
@@ -33,43 +82,48 @@ def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
     has lost a byte to a replacement char, writing the rewritten
     text back overwrites the original byte for good.
 
-    ``.ucs`` archives (and gzipped streams from stdin) are
-    transparently extracted to SCF via :func:`ucs_to_scf` so every
-    verb that reads via ``read_path`` (``query``, ``rename``,
-    ``merge``, ``convert``, ``unredact``) accepts UCS the same way it
-    accepts ``.scf``/``.conf``.
+    ``.ucs`` archives — plain *or* encrypted (OpenPGP), and gzipped /
+    OpenPGP streams from stdin — are transparently extracted to SCF via
+    :func:`ucs_archive_to_scf`, so every verb that reads via
+    ``read_path`` (``query``, ``rename``, ``merge``, ``convert``,
+    ``unredact``, …) accepts a UCS the same way it accepts
+    ``.scf``/``.conf``.  Encrypted archives resolve their passphrase via
+    *passphrase_provider* (default: ``$F5_UCS_PASSPHRASE`` / TTY prompt).
     """
     errors = "strict" if strict else "replace"
     if path_str == "-":
         raw = sys.stdin.buffer.read()
-        if _is_gzip(raw):
-            from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
-
-            if not is_ucs_bytes(raw):
-                raise ValueError("stdin: gzip stream is not a UCS archive")
-            return ("stdin://input", ucs_to_scf(raw))
+        if is_pgp_bytes(raw) or _is_gzip(raw):
+            return (
+                "stdin://input",
+                ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label="stdin"),
+            )
         if strict:
             return ("stdin://input", raw.decode("utf-8"))
         return ("stdin://input", raw.decode("utf-8", errors="replace"))
     path = Path(path_str).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
-    suffix = path.suffix.lower()
-    if suffix in _UCS_SUFFIXES:
-        from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+    raw = path.read_bytes()
+    if is_pgp_bytes(raw) or _is_gzip(raw):
+        return (
+            path.as_uri(),
+            ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label=path_str),
+        )
+    if path.suffix.lower() in _UCS_SUFFIXES:
+        raise ValueError(f"{path_str}: not a valid UCS archive")
+    return (path.as_uri(), raw.decode("utf-8", errors=errors))
 
-        raw = path.read_bytes()
-        if not is_ucs_bytes(raw):
-            raise ValueError(f"{path_str}: not a valid UCS archive")
-        return (path.as_uri(), ucs_to_scf(raw))
-    return (path.as_uri(), path.read_text(encoding="utf-8", errors=errors))
 
-
-def load_paths(paths: list[str]) -> tuple[dict[str, str], dict[str, BigipConfig]]:
+def load_paths(
+    paths: list[str],
+    *,
+    passphrase_provider: PassphraseProvider | None = None,
+) -> tuple[dict[str, str], dict[str, BigipConfig]]:
     sources: dict[str, str] = {}
     configs: dict[str, BigipConfig] = {}
     for p in paths:
-        uri, src = read_path(p)
+        uri, src = read_path(p, passphrase_provider=passphrase_provider)
         sources[uri] = src
         configs[uri] = parse_bigip_conf(src)
     return sources, configs
@@ -154,6 +208,8 @@ def _classify_text_input(
 
 def _load_one(
     path_str: str,
+    *,
+    passphrase_provider: PassphraseProvider | None = None,
 ) -> tuple[list[IruleInput], dict[str, BigipConfig], dict[str, str]]:
     """Resolve a single CLI path to iRule inputs, configs, and source text.
 
@@ -167,15 +223,12 @@ def _load_one(
     origin, raw = _read_path_bytes(path_str)
     suffix = Path(path_str).suffix.lower() if path_str != "-" else ""
 
-    # UCS — gzipped tar of /config — extract and treat as a SCF.
-    if suffix in _UCS_SUFFIXES or _is_gzip(raw):
-        from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
-
-        if not is_ucs_bytes(raw):
-            raise ValueError(f"{path_str}: not a valid UCS archive")
-        text = ucs_to_scf(raw)
-        cfg = parse_bigip_conf(text)
+    # UCS — gzipped tar of /config, possibly OpenPGP-encrypted — extract
+    # (decrypting first if needed) and treat as a SCF.
+    if suffix in _UCS_SUFFIXES or is_pgp_bytes(raw) or _is_gzip(raw):
         label = path_str if path_str != "-" else "<stdin>"
+        text = ucs_archive_to_scf(raw, passphrase_provider=passphrase_provider, label=label)
+        cfg = parse_bigip_conf(text)
         return (
             _config_to_irule_inputs(origin=origin, label_prefix=label, config=cfg),
             {origin: cfg},
@@ -206,23 +259,26 @@ def load_irule_inputs(
     paths: list[str],
     *,
     inline_sources: list[str] | None = None,
+    passphrase_provider: PassphraseProvider | None = None,
 ) -> tuple[list[IruleInput], dict[str, BigipConfig], dict[str, str]]:
     """Resolve a mix of paths and inline sources into iRule bodies.
 
     Each path may be:
 
-    - ``-`` (stdin): bytes are sniffed; gzip → UCS, otherwise text is
-      parsed as a bigip.conf/SCF; if no rules are found the whole text
-      is treated as a single iRule.
+    - ``-`` (stdin): bytes are sniffed; gzip/OpenPGP → UCS, otherwise
+      text is parsed as a bigip.conf/SCF; if no rules are found the whole
+      text is treated as a single iRule.
     - ``.tcl`` / ``.irul`` / ``.irule``: standalone iRule body.
-    - ``.ucs``: gzipped tar; canonical SCF members are concatenated and
-      every ``ltm rule`` is emitted.
+    - ``.ucs``: gzipped tar — plain or OpenPGP-encrypted; canonical SCF
+      members are concatenated and every ``ltm rule`` is emitted.
     - ``.conf`` / ``.scf`` (or any other extension): parsed as a bigip
       config; every ``ltm rule`` is emitted.  If no rules are found the
       whole file is treated as a single iRule.
 
     *inline_sources* is a list of literal iRule snippets supplied via
-    ``--source``; each becomes its own :class:`IruleInput`.
+    ``--source``; each becomes its own :class:`IruleInput`.  Encrypted
+    UCS archives resolve their passphrase via *passphrase_provider*
+    (default: ``$F5_UCS_PASSPHRASE`` / interactive prompt).
 
     Returns ``(inputs, configs, sources)``.  *configs* maps each
     input's origin to the parsed (or synthetic single-rule)
@@ -259,7 +315,9 @@ def load_irule_inputs(
         sources[origin] = source_text
 
     for path_str in paths:
-        loaded, loaded_configs, loaded_sources = _load_one(path_str)
+        loaded, loaded_configs, loaded_sources = _load_one(
+            path_str, passphrase_provider=passphrase_provider
+        )
         inputs.extend(loaded)
         configs.update(loaded_configs)
         sources.update(loaded_sources)

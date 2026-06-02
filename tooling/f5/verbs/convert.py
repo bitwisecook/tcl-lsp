@@ -9,9 +9,9 @@ from pathlib import Path
 
 from dialects.f5.bigip.convert import scf_to_as3
 from dialects.f5.bigip.parser import parse_bigip_conf
-from tooling.f5.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+from tooling.f5.f5_remote.ucs import is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf
 
-from ._paths import read_path
+from ._paths import add_passphrase_args, provider_from_args, read_path
 from ._registry import verb
 
 
@@ -59,6 +59,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action="store_true",
         help="(scf2as3) Print a coverage report on stderr listing unmapped objects.",
     )
+    add_passphrase_args(p)
     p.set_defaults(handler=_run_convert)
 
 
@@ -80,10 +81,16 @@ def _run_ucs2scf(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if not is_ucs_bytes(data):
+    if not (is_ucs_bytes(data) or is_pgp_bytes(data)):
         print(f"error: {args.path}: not a UCS archive", file=sys.stderr)
         return 2
-    text = ucs_to_scf(data)
+    try:
+        text = ucs_archive_to_scf(
+            data, passphrase_provider=provider_from_args(args), label=args.path
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
     else:

@@ -792,6 +792,24 @@ Highlights of the newer verbs:
 - **`f5 fetch`** — pull SCF/UCS from a live BIG-IP via iControl REST or
   SSH (system `ssh`/`scp`).  Credentials resolve from CLI flags, env
   vars, an XDG `hosts.toml`, or interactive prompt.
+- **Encrypted UCS** — archives saved with `tmsh save sys ucs <name>
+  passphrase <pass>` are GnuPG symmetric (AES-128) OpenPGP messages (F5
+  KB K5437).  Every verb that reads a `.ucs` (`extract`, `convert
+  ucs2scf`, `query`, `grep`, `cleanup`, `diff`, `irule …`, …) decrypts
+  them transparently and entirely **in memory** — the decrypted archive
+  (which holds SSL private keys) never touches disk.  The passphrase is
+  read from `$F5_UCS_PASSPHRASE` or a secure terminal prompt; `extract`
+  and `convert` also accept `--passphrase-env VAR` / `--no-passphrase-prompt`.
+  Decryption shells out to `gpg`/`gpg2` when present (exactly what BIG-IP
+  uses) and otherwise falls back to a bundled, dependency-free
+  pure-Python OpenPGP decryptor, so it works even in the zipapp on a host
+  with no GnuPG installed.
+
+  ```sh
+  export F5_UCS_PASSPHRASE='…'        # or be prompted on a TTY
+  f5 extract encrypted.ucs -o prod.scf
+  f5 query '.ltm.virtual[].name' encrypted.ucs
+  ```
 - **`f5 explain {virtual|pool} <name>`** — print the resolved profile
   chain, iRule chain, persistence, SNAT, default pool, and members for
   one object: the operator's "what actually happens to this VIP?"
