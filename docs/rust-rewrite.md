@@ -1608,13 +1608,14 @@ Structural new surfaces (no Rust mirror today):
   variable-name comparison.  Classify in-scope, structural — fold
   into the C41 analyser-core port or land as its own follow-up.
 
-  **Landed (rust) — `SYNC-MAY31-1b`, in progress.**  Per the
+  **Landed (rust) — `SYNC-MAY31-1b`, complete.**  Per the
   `docs/design/compiler/phase8-place-migration.md` ledger, the headline
   ARRAY_ELEM precision win on `main` was achieved with the *suppress-only*
   `overlap` relation + the 8E refinement, **without** the full 8F versioned
   substrate — so the Rust port mirrors that: port `place` / `var_resolve`
-  / `place_bridge`, then reroute the W220 / W211 / O109 consumers through
-  `overlap`.  Staged, output-equivalent until the consumer reroute:
+  / `place_bridge`, then reroute the W220 / O109 consumers through
+  `overlap` (W211 / O126 turned out to already be at parity — see below).
+  Staged, output-equivalent until the consumer reroute:
   - **Stage 1 (done): `tcl-compiler::place`.**  Faithful port of
     `place.py` — `Place` / `Index` / `PlaceKind` / `IndexKind`,
     constructors, `base` / `is_global`, the over-approximating `overlap`
@@ -1846,8 +1847,15 @@ on the Python side.
   reads, dynamic_nonwild)` so element-overlap queries answer from the
   same-base bucket plus wildcard / dynamic checks (A4); share the
   predicate between dead-store (W220) and unused-variable (W211)
-  passes so the read_places walk runs once per function (A5).  N/A
-  until the Place model ports (`SYNC-MAY31-1b`).
+  passes so the read_places walk runs once per function (A5).
+  **Landed (rust) via `SYNC-MAY31-1b`:** the predicate is shared between
+  the analyser's W220 and the optimiser's O109 through
+  `place_bridge::element_writes_observed_by_reads` (one read_places walk
+  per function).  The Rust port uses a full-scan `overlap` rather than the
+  bucketed `by_base` index — semantically equivalent (UNKNOWN /
+  UPVAR_ALIAS reads overlap every element either way); the bucketing is a
+  deferred perf optimisation, not a correctness gate.  W211 needs no share
+  (already at parity — see the `SYNC-MAY31-1b` section).
 - **A6 — shimmer per-name indices computed once per function.**
   `_find_phi_shimmers` and `_find_thunking` previously called
   `_empty_literal_versions(ssa, name)` + `_loop_body_def_types(...)`
@@ -2213,10 +2221,11 @@ Two deltas:
    `analyser/diagnostics.rs::emit_w127_*` emitter, fed by the SCCP
    lattice + the existing `places_read_to_form` machinery (the latter
    landed only on `main` with SYNC-MAY31-1's place model, so this row
-   depends on `-1b`).
+   depended on `-1b` — **now landed**, so the emitter is unblocked).
 
 Classify: BODY-role piece is in-scope, low-touch (registry edit +
-tests).  W127 emitter is in-scope, depends on `-1b`.
+tests).  W127 emitter is in-scope; its `-1b` place-model dependency has
+landed (emitter itself still to do).
 
 **Landed (rust) — BODY-role piece only.**  The four registry specs now
 declare the nesting script:
@@ -2240,8 +2249,9 @@ fixed, `peer` flipped to the *opposite* of the current side — so a
 a `peer { TCP::collect }` in a client event satisfies `SERVER_DATA` (not
 `CLIENT_DATA`).  Six discriminating tests (registry roles/arity, two
 collect-flow behaviours, body recursion across all four), each verified
-to fail without the change.  **Still deferred:** the W127 emitter
-(depends on `-1b`'s place model, not yet landed).
+to fail without the change.  **Still deferred:** the W127 emitter — its
+`-1b` place-model dependency (`places_read_to_form`) has now **landed**,
+so it is unblocked (emitter itself still to do).
 
 ### SYNC-MAY31-5 — Dataflow fixpoint algorithmic improvements (#478)
 
