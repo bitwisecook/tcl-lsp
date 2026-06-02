@@ -1950,10 +1950,17 @@ structural sub-chunks:
   consumes the same `changed` flag); structural rewrites still fire
   because they alter non-whitespace characters.  Two discriminating
   tests (`instcombine_whitespace_only_rerender_is_not_a_change`,
-  `strip_ws_removes_all_whitespace`).  **Still pending:** the mixed
-  bitwise/shift paren preservation in `render_expr` and the
-  commutative-no-op reassoc skip (separate strips — each needs its own
-  `render_expr` / reassoc investigation + test).
+  `strip_ws_removes_all_whitespace`).  The other two halves of this
+  bullet are **N/A in Rust** (investigated, no bug shape): (a) the mixed
+  bitwise/shift paren preservation — Rust's
+  `expr_ast::needs_parens_for_binary_child` + its precedence table are
+  byte-identical to `main`'s `_needs_parens_for_binary_child` /
+  `_PRECEDENCE`, so `render_expr` is already at paren parity; (b) the
+  commutative-no-op reassoc skip — the Rust instcombine
+  (`simplify_node_once`) performs **no** commutative reassociation (only
+  identity folds, strength-reduction, strlen / streq promotion, and
+  DeMorgan reductions), so there is no no-op reassoc to skip.  The O110
+  `-1e` bullet is therefore fully addressed.
 - **O106 LICM purity recursion into command substitutions.**  Extend
   `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
   and verify each is also pure — an outer pure call wrapping
@@ -1975,6 +1982,23 @@ structural sub-chunks:
   detection on `foreach a { set x "str" }; foreach b { set x [list] }`.
   Also: destructure-foreach (`foreach VARS LIST break`) is excluded
   from the loop_body_types contribution.
+  **Rust state: bug present, but not a body_types port — promote to its
+  own chunk.**  The Rust S102 (`shimmer/thunking.rs`) does **not** use a
+  `body_types` map; it flags a loop-header phi whose `TypeLattice` is
+  `Shimmered`.  A probe confirms the sibling-loop case *does*
+  false-positive (`foreach a {…} { set x "str" }; foreach b {…} { set x
+  [list 1 2] }` reports `x` oscillating String/List at loop b's header).
+  The root cause differs from Python's: loop b's header phi merges the
+  *entry* value (`"str"`, carried from loop a) with the *back-edge*
+  value (`[list]`), and the detector treats any entry-vs-back-edge type
+  difference as oscillation.  This is structurally identical to the
+  *passing* `thunking_detected_for_int_string_oscillation` case
+  (`set x 0; while {…} { set x "hello" }` — Int entry, String back-edge),
+  so the fix is **not** the per-loop `body_types` rework but an
+  architecture-specific refinement: distinguish a one-time entry→body
+  conversion (back-edge type uniform across iterations) from genuine
+  per-iteration oscillation.  Risky precision rework that could change
+  the existing passing case — own chunk, not a quick win.
 - **Hex / binary literal INT typing** in the shimmer type lattice.
   `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
   Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
