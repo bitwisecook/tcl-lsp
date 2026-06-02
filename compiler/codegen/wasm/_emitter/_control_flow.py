@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from ....command_trust import builtin_is_trusted
 from ....expr_ast import (
     ExprNode,
 )
@@ -705,14 +706,23 @@ class _WasmEmitterCtrlMixin(_Base):
                     keep_on_stack=True,
                 )
             case IRIncr(name=name, amount=amount):
-                # TODO(command-binding): not rename-gated.  When ``incr`` is
-                # renamed/redefined in this unit this value-context lowering
-                # still emits the inline integer increment instead of routing to
-                # the interpreter (cf. the statement-context IRIncr gate in
-                # _statements.py).  Left ungated for now because this position
-                # leaves a result on the stack and the eval-fallback stack
-                # discipline here is delicate; gate it once interp→compiled-proc
-                # dispatch lands so the renamed-to-proc case is also correct.
+                # ``incr`` renamed/redefined in this unit → route this value
+                # (tail-of-catch-body) lowering through the interpreter so the
+                # replacement command's semantics apply instead of the inline
+                # integer increment (cf. the statement-context gate in
+                # _statements.py).  ``_emit_eval_fallback`` leaves the result
+                # (boxed TclObj) on the stack — exactly what this position needs
+                # for ``catch_set_ok_result`` to latch — and reloads locals from
+                # the frame internally, so a later read of *name* sees the
+                # interpreter's update rather than a stale local.  (A builtin
+                # renamed *to a compiled proc* still traps in the fallback until
+                # interp→compiled-proc dispatch lands — fails safe.  See
+                # _values.py.)
+                if not builtin_is_trusted("incr"):
+                    self._intern_local(name)
+                    incr_args = (name,) if amount is None else (name, amount)
+                    self._emit_eval_fallback("incr", incr_args)
+                    return
                 # Issue #262: route through ``tcl_incr`` for the
                 # strict-integer guard (rejects float strings).
                 # Lenient read so an unset scalar initialises to 0

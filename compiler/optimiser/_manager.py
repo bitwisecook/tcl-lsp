@@ -35,6 +35,7 @@ from ._propagation import (
     optimise_load_forwarding,
     optimise_return_terminator,
     optimise_static_proc_calls,
+    optimise_string_interpolation_cmd_subs,
     optimise_string_interpolation_var_refs,
 )
 from ._types import Optimisation, PassContext
@@ -97,6 +98,7 @@ def _augment_expr_subst_constants(
     argv_texts: list[str],
     reach_versions: dict[str, int],
     values,
+    block_local_defs: frozenset[str],
 ) -> None:
     """Fold in constants read *inside* expr/body command substitutions.
 
@@ -108,19 +110,79 @@ def _augment_expr_subst_constants(
     expr-substitution pass propagate + fold a direct ``puts [expr {$x + 1}]``
     the same way it already does for ``set y [expr {$x + 1}]`` (whose expr
     reads *are* in ``uses``).
+
+    **Soundness gate** — ``reach_versions`` comes from the *semi-pruned* SSA,
+    which omits φ-nodes for variables whose only reads are these hidden ones.
+    So at a control-flow join ``entry_versions[x]`` can still name a *pre-join*
+    version (``set x 5; if … {set x 9}; puts [expr {$x+1}]`` leaves ``x`` at the
+    ``5`` version, no φ) — pinning that would fold the join to the wrong value.
+    Only names in *block_local_defs* (defined by a straight-line statement
+    earlier in this same basic block, so no join sits between the def and the
+    read) are trusted; a call that clobbers such a name produces an in-block
+    havoc def whose lattice value is OVERDEFINED, so the CONST check still bails.
     """
     from compiler.ssa import expr_substitution_read_names
 
     names = expr_substitution_read_names(argv_texts)
     if not names:
         return
-    extra_uses = {n: reach_versions[n] for n in names if reach_versions.get(n, 0) > 0}
+    extra_uses = {
+        n: reach_versions[n]
+        for n in names
+        if n in block_local_defs and reach_versions.get(n, 0) > 0
+    }
     if not extra_uses:
         return
     # Reuse the same CONST-check + formatting as the uses-based path; don't
     # override a value already present from real uses.
     for name, value in _constants_from_uses(extra_uses, values).items():
         constants.setdefault(name, value)
+
+
+def _augment_subst_uses(
+    ssa_uses: dict[str, int],
+    argv_texts: list[str],
+    reach_versions: dict[str, int],
+    block_local_defs: frozenset[str],
+) -> dict[str, int]:
+    """Reaching SSA versions for vars read *inside* expr/body command subs.
+
+    The SSA use-collector deliberately keeps reads hidden in ``[expr {$x}]``
+    (and BODY scripts nested in a substitution) out of ``stmt.uses`` so
+    read-before-set isn't perturbed.  But the *registry* cmd-sub folder
+    (:func:`compiler.core_analyses.fold_cmd_subst_to_string`) resolves ``$x``
+    through that very ``uses`` map, so the constant stays invisible to it: a
+    nested fold like ``puts [expr {[string length $s]}]`` (Gap-B) or a folded
+    cmd-sub embedded in an interpolation string (``puts "sq=[expr {$x*$x}]"``)
+    never fires.  Recover those names and pin each to its *reaching* SSA version
+    so the folder sees exactly the constant SCCP already proved.
+
+    Soundness is gated the same way as :func:`_augment_expr_subst_constants`:
+    only names in *block_local_defs* (defined earlier in this straight-line
+    basic block) are pinned, because the semi-pruned SSA's ``entry_versions``
+    can name a stale pre-join version for a variable read only in these hidden
+    positions (no φ was inserted).
+
+    Returned as a fresh map (or ``ssa_uses`` unchanged when nothing was hidden)
+    that is passed *only* to the folding passes — the real ``stmt.uses`` is left
+    intact, so the propagated-use / dead-store marking, which keys on the
+    shallow set, is unaffected.
+    """
+    from compiler.ssa import expr_substitution_read_names
+
+    names = expr_substitution_read_names(argv_texts)
+    if not names:
+        return ssa_uses
+    augmented: dict[str, int] | None = None
+    for n in names:
+        if n in ssa_uses or n not in block_local_defs:
+            continue
+        v = reach_versions.get(n, 0)
+        if v > 0:
+            if augmented is None:
+                augmented = dict(ssa_uses)
+            augmented[n] = v
+    return augmented if augmented is not None else ssa_uses
 
 
 class _CompilerOptimiser:
@@ -345,9 +407,16 @@ class _CompilerOptimiser:
             # read hidden inside an expr/body command substitution (absent from
             # ``stmt.uses``) can be resolved to its current value.
             running_versions: dict[str, int] = dict(getattr(ssa_block, "entry_versions", {}) or {})
+            # Names assigned by a straight-line statement earlier in *this* basic
+            # block — the only ones whose ``reach_versions`` entry is a sound
+            # value for a hidden (expr/cmd-sub) read, since no control-flow join
+            # sits between such a def and the read (see _augment_subst_uses).
+            block_local_defs: frozenset[str] = frozenset()
             for idx, ssa_stmt in enumerate(ssa_block.statements):
                 reach_versions = running_versions
+                reach_local_defs = block_local_defs
                 running_versions = {**running_versions, **ssa_stmt.defs}
+                block_local_defs = block_local_defs | frozenset(ssa_stmt.defs)
                 if idx < 0 or idx >= len(block.statements):
                     continue
                 ctx.cur_block = block_name
@@ -370,7 +439,14 @@ class _CompilerOptimiser:
                 arg_single = argv_single[1:]
                 constants = _constants_from_uses(ssa_stmt.uses, analysis.values)
                 _augment_expr_subst_constants(
-                    constants, argv_texts, reach_versions, analysis.values
+                    constants, argv_texts, reach_versions, analysis.values, reach_local_defs
+                )
+                # Gap-B: vars read inside ``[expr {…}]`` / nested cmd-subs are
+                # hidden from ``stmt.uses``; pin their reaching versions so the
+                # registry cmd-sub folder can resolve them (see
+                # :func:`_augment_subst_uses`).  Real ``uses`` stays untouched.
+                subst_uses = _augment_subst_uses(
+                    ssa_stmt.uses, argv_texts, reach_versions, reach_local_defs
                 )
                 stmt_start = stmt_range.start.offset
                 if constants:
@@ -388,7 +464,7 @@ class _CompilerOptimiser:
                     arg_single,
                     constants,
                     namespace=namespace,
-                    ssa_uses=ssa_stmt.uses,
+                    ssa_uses=subst_uses,
                     types=analysis.types,
                     values=analysis.values,
                 )
@@ -397,7 +473,7 @@ class _CompilerOptimiser:
                     arg_tokens,
                     arg_single,
                     constants,
-                    ssa_uses=ssa_stmt.uses,
+                    ssa_uses=subst_uses,
                     types=analysis.types,
                     values=analysis.values,
                 )
@@ -405,6 +481,22 @@ class _CompilerOptimiser:
                     ctx, arg_tokens, arg_single, constants, namespace=namespace
                 )
                 optimise_constant_var_refs(ctx, arg_tokens, arg_single, constants)
+                # Fold pure builtin / expr command subs embedded *inside* an
+                # interpolation string (``puts "v=[string length abc]"``).  Run
+                # ungated on ``constants`` — a literal-arg builtin sub
+                # (``[string length abc]``) needs none; ``subst_uses`` +
+                # ``values`` carry the Gap-B reaching constants for the var case.
+                ct_cmd = getattr(stmt, "tokens", None)
+                if ct_cmd is not None and ct_cmd.all_tokens:
+                    optimise_string_interpolation_cmd_subs(
+                        ctx,
+                        arg_tokens,
+                        arg_single,
+                        ct_cmd.all_tokens,
+                        constants,
+                        ssa_uses=subst_uses,
+                        values=analysis.values,
+                    )
                 # Track expression uses consumed by constant propagation/folding.
                 if len(ctx.optimisations) > n_before:
                     propagation_codes = frozenset(("O100", "O101", "O102", "O103"))

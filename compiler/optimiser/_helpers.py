@@ -17,6 +17,7 @@ from shared.naming import (
 from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from shared.tcl_list import tcl_list_quote
 from shared.tokens import SourcePosition, Token, TokenType
 
 from ..command_trust import builtin_is_trusted
@@ -157,6 +158,21 @@ def _render_folded_literal(value: int | float | bool | str) -> str | None:
     if isinstance(value, str):
         if _SAFE_WORD_RE.fullmatch(value):
             return value
+        # A pure proc returning a *multi-word* string (``return "hi there"``)
+        # folds too — render it as one safe Tcl word via the project's
+        # ``TclScanElement`` port (brace-quotes spaces, balances braces) so the
+        # substituted word parses back to exactly the proc's result.
+        # ``first=False``: the folded value always replaces a command *argument*
+        # (a ``[proc …]`` substitution), never a command head.
+        #
+        # The interprocedural evaluator returns the *raw* return-value text, so
+        # any backslash escape / substitution / quote / separator means the raw
+        # text is not a plain literal — and brace-quoting would bake the raw
+        # bytes in (``return "a\$b"`` → value ``a$b`` but raw ``a\$b``).  Reject
+        # exactly the set ``fold_cmd_subst_to_string`` rejects so only literal
+        # values that survive re-parsing unchanged are inlined.
+        if not any(ch in ';\n\r[]$"\\' for ch in value):
+            return tcl_list_quote(value, first=False)
     return None
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from compiler.command_trust import builtin_is_trusted
 from compiler.parsing.expr_parser import parse_expr as _parse_expr_ast
 from shared.tcl_subst import backslash_subst as _tcl_backslash_subst
 
@@ -444,6 +445,17 @@ class _CmdSubstMixin:
 
         cmd = parts[0][0]
         args = parts[1:]
+
+        # A builtin renamed / redefined in this unit no longer carries its core
+        # semantics, so none of the specialised inline-opcode dispatches below
+        # (``strlen``, ``incrStkImm``, ``str*``, …) may fire for it — emit a
+        # generic invoke so the runtime resolves the live, rename-aware command.
+        # Mirrors the ``_try_bytecoded`` gate and the WASM value/expr gates; the
+        # trust verdict is scoped around the codegen entry in ``codegen_module``
+        # (default "trust all" outside it leaves every inline dispatch enabled).
+        if not builtin_is_trusted(cmd):
+            self._emit_generic_cmd_subst(cmd, args)
+            return
 
         if cmd == "expr" and len(args) == 1:
             # Inline the expression body

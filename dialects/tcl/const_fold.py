@@ -589,6 +589,38 @@ def fold_format(args: tuple[str, ...]) -> str | None:
         return None
 
 
+# TODO(const-fold): ``lseq`` (Tcl 9) is a provable false-negative — ``lseq 1 5``
+# folds to ``{1 2 3 4 5}`` and ``lseq 0 10 2`` to ``{0 2 4 6 8 10}``.  Deferred
+# rather than implemented because lseq has several arg shapes whose edge
+# semantics need differential pinning against tclsh9 before a fold is safe:
+# the ``start end ?step?`` and ``start end by step`` forms, ``count`` /
+# ``start count`` short forms, descending ranges (negative effective step),
+# float operands (``lseq 0 1 0.25`` yields doubles), and the ``..`` operator
+# form.  A wrong fold here would be a false *positive*, so it stays unfolded
+# until a ``fold_lseq`` callback is written against the full matrix.
+
+
+def fold_subst(args: tuple[str, ...]) -> str | None:
+    """``subst string`` — the plain single-argument form only.
+
+    By the time the registry fold machinery calls this, every ``$var`` in
+    *string* has already been resolved against the SCCP lattice (matching
+    ``subst``'s own single-pass variable substitution) and any ``[command]``
+    substitution has made the caller bail — command execution is a side effect,
+    never folded.  The one substitution ``subst`` still performs that we don't
+    model is *backslash*, so a literal carrying a backslash isn't folded.  The
+    ``-nobackslashes`` / ``-nocommands`` / ``-novariables`` options change which
+    substitutions apply, so only the bare ``subst string`` form (no leading
+    ``-option``) folds — the multi-arg form is rejected here.
+    """
+    if len(args) != 1:
+        return None
+    s = args[0]
+    if "\\" in s:
+        return None
+    return s
+
+
 _SCAN_WS = " \t\n\r\f\v"
 
 

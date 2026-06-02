@@ -238,3 +238,55 @@ class TestModuleScanSoundness:
         assert not mut.dynamic
         assert mut.names == frozenset()
         assert mut.trusts("string")
+
+
+class TestBytecodeRenameGate:
+    """The bytecode backend must not direct-dispatch a renamed/redefined builtin
+    by name — it has to fall through to a generic ``invokeStk`` so the VM
+    resolves the live, rename-aware command (matching tclsh's own bytecode for
+    the same script, which also emits a generic invoke past a preceding
+    ``rename``).  See ``compiler/codegen/bytecode/_bytecoded.py`` /
+    ``_cmd_subst.py`` and the gate scoped in ``codegen_module``."""
+
+    def _asm(self, src: str) -> str:
+        from compiler.cfg import build_cfg
+        from compiler.codegen.bytecode import codegen_module, format_module_asm
+
+        configure_signatures(dialect="tcl9.0")
+        cu = ensure_compilation_unit(src, logger=None, context="t")
+        assert cu is not None
+        return format_module_asm(codegen_module(build_cfg(cu.ir_module), cu.ir_module))
+
+    def test_untouched_string_length_inlines_strlen(self):
+        # The baseline specialised opcode must still be emitted when nothing
+        # tampers with ``string`` (true negative — gating must not over-suppress).
+        assert "strlen" in self._asm("puts [string length hi]")
+
+    def test_renamed_string_falls_through_to_invoke(self):
+        asm = self._asm("rename string ::s\nputs [string length hi]")
+        assert "strlen" not in asm
+        # The whole ``string length hi`` is reassembled as a generic invoke.
+        assert "invokeStk" in asm
+
+    def test_renamed_incr_falls_through(self):
+        asm = self._asm("rename incr ::oi\nset c 0\nputs [incr c]")
+        assert "incrScalar" not in asm
+        assert "incrStk" not in asm
+
+    def test_unrelated_builtin_still_inlines_after_rename(self):
+        # Renaming ``incr`` must not stop ``string length`` from inlining strlen.
+        asm = self._asm("rename incr ::oi\nputs [string length hi]")
+        assert "strlen" in asm
+
+    def test_standalone_codegen_function_unchanged(self):
+        # Outside the module trust scope the default is "trust all" — a bare
+        # ``codegen_function`` keeps inlining (no behaviour change for callers
+        # that don't establish a trust context).
+        from compiler.cfg import build_cfg
+        from compiler.codegen.bytecode import codegen_function, format_function_asm
+
+        configure_signatures(dialect="tcl9.0")
+        cu = ensure_compilation_unit("puts [string length hi]", logger=None, context="t")
+        assert cu is not None
+        top = build_cfg(cu.ir_module).top_level
+        assert "strlen" in format_function_asm(codegen_function(top))

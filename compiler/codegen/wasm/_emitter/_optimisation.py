@@ -16,6 +16,7 @@ from ....cfg import (
     CFGGoto,
     CFGReturn,
 )
+from ....command_trust import builtin_is_trusted
 from ....expr_ast import (
     ExprNode,
     ExprRaw,
@@ -1032,11 +1033,25 @@ class _WasmEmitterOptMixin(_Base):
                 if self._optimise:
                     self._const_map.clear()
             elif isinstance(last, IRIncr):
-                # TODO(command-binding): not rename-gated (value/tail position).
-                # If ``incr`` is renamed/redefined in this unit this still emits
-                # the inline increment instead of routing to the interpreter; cf.
-                # the statement-context gate in _statements.py.  Gate once
-                # interp→compiled-proc dispatch lands.  See _values.py.
+                # ``incr`` renamed/redefined in this unit → route this tail
+                # (return-value) lowering through the interpreter so the
+                # replacement command's semantics apply, rather than the inline
+                # integer increment.  ``_emit_eval_fallback`` leaves the result
+                # (boxed TclObj) on the stack and reloads locals from the frame
+                # internally, so the value is exactly what this tail position
+                # needs to return; the proc returns immediately afterwards.
+                # Mirrors the statement-context gate in _statements.py.  (A
+                # builtin renamed *to a compiled proc* still traps in the
+                # fallback until interp→compiled-proc dispatch lands — fails
+                # safe rather than miscomputing.  See _values.py.)
+                if not builtin_is_trusted("incr"):
+                    self._intern_local(last.name)
+                    incr_args = (last.name,) if last.amount is None else (last.name, last.amount)
+                    self._emit_eval_fallback("incr", incr_args)
+                    if self._optimise:
+                        self._const_map.pop(last.name, None)
+                    self._emit(WasmOp.RETURN)
+                    return
                 # Emit incr keeping the new value (i32 TclObj) on stack.
                 # Alias-aware: reads/writes route through globals for
                 # upvar/variable-bound locals.
