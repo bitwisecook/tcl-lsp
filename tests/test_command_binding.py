@@ -121,11 +121,25 @@ class TestFlowSensitiveRename:
 
 
 class TestRedefinition:
-    def test_proc_redefined_is_unknown(self):
-        # Two definitions of the same name: we can't pin one body → ⊤.
+    def test_proc_redefined_stays_proc(self):
+        # Two definitions of the same name: the name is still bound to *a* proc
+        # (the later body wins).  The lattice records PROC; refusing to fold a
+        # redefined proc is the separate ``redefined_procedures`` gate's job.
         cu, res = _top("proc f {} {return 1}\nproc f {} {return 2}\nf\n")
         b, i = _end(cu.top_level.cfg)
-        assert res.binding_at(b, i, "f").kind is BindingKind.UNKNOWN
+        binding = res.binding_at(b, i, "f")
+        assert binding.kind is BindingKind.PROC
+        assert binding.target == "::f"
+
+    def test_proc_named_like_mathfunc_is_proc_not_builtin(self):
+        # ``max`` is an expr math function but not a top-level command; defining
+        # ``proc max`` binds a real, foldable proc (regression: it must not be
+        # mistaken for redefining a builtin and collapsing to UNKNOWN).
+        cu, res = _top("proc max {a b} {return $a}\nputs [max 1 2]\n")
+        b, i = _end(cu.top_level.cfg)
+        binding = res.binding_at(b, i, "max")
+        assert binding.kind is BindingKind.PROC
+        assert binding.target == "::max"
 
 
 class TestInterpAlias:

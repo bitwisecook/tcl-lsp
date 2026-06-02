@@ -35,7 +35,20 @@ from shared.alias import detect_interp_alias
 from shared.naming import normalise_qualified_name as _NQN
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto
-from .ir import IRBarrier, IRCall, IRStatement
+from .ir import (
+    IRBarrier,
+    IRCall,
+    IRCatch,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRModule,
+    IRScript,
+    IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
+)
 from .registry import REGISTRY
 
 
@@ -154,13 +167,13 @@ def _stmt_gen(stmt: IRStatement, state: _State) -> None:
             # ``proc $x …`` defines an unknown name — be conservative.
             state[_WILDCARD] = _TOP
             return
-        prev = _binding_in(state, qname)
-        # First definition binds the proc; a *re*definition of an
-        # already-proc/builtin name we can no longer pin to one body.
-        if prev.kind in (BindingKind.OPAQUE, BindingKind.BOTTOM):
-            state[qname] = Binding(BindingKind.PROC, qname)
-        else:
-            state[qname] = _TOP
+        # The name is now bound to this proc (whether it shadowed a builtin or a
+        # prior proc).  We always record PROC: a *re*definition still leaves the
+        # name a proc — the optimiser refuses to fold redefined procs via the
+        # separate ``redefined_procedures`` gate, and a proc that *shadows a
+        # builtin* is caught by the builtin-trust overlay (the name is no longer
+        # its default BUILTIN, so builtin folding of it is disabled unit-wide).
+        state[qname] = Binding(BindingKind.PROC, qname)
         return
 
     if cmd == "::rename":
@@ -293,10 +306,23 @@ class CommandBinding:
 
 
 
-def analyse_command_binding(cfg: CFGFunction) -> CommandBinding:
-    """Compute the flow-sensitive command-binding lattice for *cfg*."""
+def analyse_command_binding(
+    cfg: CFGFunction,
+    *,
+    initial: dict[str, Binding] | None = None,
+) -> CommandBinding:
+    """Compute the flow-sensitive command-binding lattice for *cfg*.
+
+    *initial* seeds the entry block's state — the command bindings already in
+    force when this function begins.  The top-level analysis seeds it with every
+    module procedure (``{qname: PROC(qname)}``) so a proc defined inside a
+    ``namespace eval`` block (whose ``proc`` statement the top-level CFG never
+    sees with its full qname) is still known to be a proc, while top-level
+    ``rename`` / redefinition events still perturb it flow-sensitively.
+    """
     blocks = cfg.blocks
     block_stmts = {name: blk.statements for name, blk in blocks.items()}
+    seed: _State = dict(initial or {})
 
     preds: dict[str, list[str]] = {name: [] for name in blocks}
     for name, blk in blocks.items():
@@ -318,7 +344,10 @@ def analyse_command_binding(cfg: CFGFunction) -> CommandBinding:
     while changed:
         changed = False
         for name in order:
-            entry = _merge_preds([block_exit[p] for p in preds.get(name, ())])
+            pred_exits = [block_exit[p] for p in preds.get(name, ())]
+            if name == cfg.entry:
+                pred_exits.append(seed)
+            entry = _merge_preds(pred_exits)
             block_entry[name] = entry
             exit_state = dict(entry)
             for stmt in block_stmts.get(name, ()):
@@ -359,6 +388,77 @@ class ModuleCommandMutations:
         if self.dynamic:
             return False
         return _NQN(command_name) not in self.names
+
+
+def _iter_calls(script: IRScript | None) -> Iterable[IRStatement]:
+    """Yield every ``IRCall`` / ``IRBarrier`` in *script*, recursing into the
+    nested bodies of structured nodes (if / for / while / foreach / catch /
+    try / switch) so a rebinding buried in control flow is not missed."""
+    if script is None:
+        return
+    for stmt in script.statements:
+        if isinstance(stmt, (IRCall, IRBarrier)):
+            yield stmt
+        elif isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                yield from _iter_calls(clause.body)
+            yield from _iter_calls(stmt.else_body)
+        elif isinstance(stmt, IRFor):
+            yield from _iter_calls(stmt.init)
+            yield from _iter_calls(stmt.next)
+            yield from _iter_calls(stmt.body)
+        elif isinstance(stmt, IRWhile):
+            yield from _iter_calls(stmt.body)
+        elif isinstance(stmt, IRForeach):
+            yield from _iter_calls(stmt.body)
+        elif isinstance(stmt, IRCatch):
+            yield from _iter_calls(stmt.body)
+        elif isinstance(stmt, IRTry):
+            yield from _iter_calls(stmt.body)
+            for handler in stmt.handlers:
+                yield from _iter_calls(handler.body)
+            yield from _iter_calls(stmt.finally_body)
+        elif isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                yield from _iter_calls(arm.body)
+            yield from _iter_calls(stmt.default_body)
+
+
+def scan_module_command_mutations(module: IRModule) -> ModuleCommandMutations:
+    """Summarise command-table mutations across the whole module.
+
+    A CFG-free recursive IR walk over the top-level script *and* every
+    proc/method body (so it can run *before* the per-function CFGs are built
+    during compilation-unit assembly).  Flow-insensitive by construction — the
+    builtin-trust verdict only needs the *set* of names the unit may rebind, so
+    applying the gen of every nested ``IRCall`` into one accumulating state and
+    collecting the perturbed names (and any wildcard) is sufficient and sound.
+
+    For top-level *flow-sensitive* reasoning (``call a; rename a b; call b``) use
+    :func:`analyse_command_binding` directly; this whole-module union is the
+    conservative input to the builtin-fold gate.
+    """
+    names: set[str] = set()
+    dynamic = False
+
+    def visit(script: IRScript | None) -> None:
+        nonlocal dynamic
+        state: _State = {}
+        for stmt in _iter_calls(script):
+            _stmt_gen(stmt, state)
+        if _WILDCARD in state:
+            dynamic = True
+        for name, binding in state.items():
+            if name != _WILDCARD and binding != _default_binding(name):
+                names.add(name)
+
+    visit(module.top_level)
+    for proc in module.procedures.values():
+        visit(proc.body)
+    for method in module.methods.values():
+        visit(method.body)
+
+    return ModuleCommandMutations(names=frozenset(names), dynamic=dynamic)
 
 
 def scan_command_mutations_in_bodies(

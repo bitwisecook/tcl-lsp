@@ -54,6 +54,7 @@ from shared.naming import split_array_name
 from shared.tokens import TokenType
 
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from .command_trust import builtin_is_trusted
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import (
     BinOp,
@@ -746,6 +747,12 @@ def fold_cmd_subst_to_string(
     arg_tokens = cmd.argv[1:]
     arg_single = cmd.single_token_word[1:]
 
+    # A builtin only folds while it still denotes its core command in this unit;
+    # a ``rename``/redefinition (here or in a body) makes the result whatever the
+    # replacement returns.  Checked for every (possibly nested) head we fold.
+    if not builtin_is_trusted(cmd_name):
+        return None
+
     # Look up fold callback — check subcommand hints first.
     fold_fn = FOLD_HINTS.get(cmd_name)
     subcmd_folds = FOLD_SUBCOMMAND_HINTS.get(cmd_name)
@@ -858,6 +865,11 @@ def _evaluate_def(
             return _fold_interpolation(value, ssa_stmt.uses, values)
 
         case IRIncr(name=raw_name, amount=amount_text):
+            # ``incr`` only has its arithmetic meaning while it is still the
+            # builtin; if it was renamed/redefined in this unit the value is
+            # whatever the replacement command returns — not statically known.
+            if not builtin_is_trusted("incr"):
+                return OVERDEFINED
             name = _normalise_var_name(raw_name)
             base_ver = ssa_stmt.uses.get(name, 0)
             base = values.get((name, base_ver), UNKNOWN)

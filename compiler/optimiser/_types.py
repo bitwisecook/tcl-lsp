@@ -12,6 +12,7 @@ from ..ir import IRModule
 
 if TYPE_CHECKING:
     from ..cfg import CFGFunction
+    from ..command_binding import CommandBinding
 
 _OPT_PRIORITY = {
     "O126": 10,
@@ -87,6 +88,15 @@ class PassContext:
     # references — ``propagated_expr_stmts`` is too coarse (per-statement) for
     # that, so DCE consults this finer-grained set instead.
     propagated_use_sites: set[tuple[str, int, str, int]] = field(default_factory=set)
+    # Flow-sensitive command-binding lattice for the function currently being
+    # processed — set only for the **top-level** script (where definition / rename
+    # order is fully known); ``None`` inside proc/method bodies, whose per-function
+    # lattice can't see the enclosing module's proc definitions.  Proc-call folding
+    # consults it (with ``cur_block``/``cur_idx``) so a ``[a]`` after ``rename a b``
+    # is not folded as the now-renamed-away proc.
+    command_binding: CommandBinding | None = None
+    cur_block: str = ""
+    cur_idx: int = -1
 
     def alloc_group(self) -> int:
         """Allocate and return the next group ID."""

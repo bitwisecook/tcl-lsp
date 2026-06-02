@@ -8,6 +8,7 @@ from compiler.interprocedural import InterproceduralAnalysis
 from shared.naming import normalise_var_name as _NORMALISE
 
 from ..cfg import CFGFunction
+from ..command_trust import command_trust, module_command_trust
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
 from ..ir import IRCall, IRModule, IRScript
@@ -157,81 +158,82 @@ class _CompilerOptimiser:
             ir_module=self._ir_module,
         )
 
-        self._process_function(
-            ctx,
-            cu.top_level.cfg,
-            cu.top_level.ssa,
-            cu.top_level.analysis,
-            execution_intent=cu.top_level.execution_intent,
-            ir_script=cu.ir_module.top_level,
-            namespace="::",
-            is_top_level=True,
-        )
-        conn = cu.connection_scope
-        for qname, fu in cu.procedures.items():
-            if fu.complexity_guarded:
-                continue  # deep analysis skipped for pathologically large bodies
-            if conn is not None and qname.startswith("::when::"):
-                ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
-                # RULE_INIT's purpose is to initialise static:: variables for
-                # all other events.  Any static:: def there is inherently
-                # cross-event, even when the cross-event analysis can't prove
-                # a matching read (e.g. reads inside quoted expr strings).
-                from ..ir import when_event_name
-
-                if when_event_name(qname) == "RULE_INIT":
-                    rule_init_statics = frozenset(
-                        name
-                        for block in fu.ssa.blocks.values()
-                        for stmt in block.statements
-                        for name in stmt.defs
-                        if name.startswith("static::")
-                    )
-                    ctx.cross_event_vars = ctx.cross_event_vars | rule_init_statics
-            else:
-                ctx.cross_event_vars = frozenset()
-            ir_proc = cu.ir_module.procedures.get(qname)
+        with command_trust(module_command_trust(cu.ir_module)):
             self._process_function(
                 ctx,
-                fu.cfg,
-                fu.ssa,
-                fu.analysis,
-                execution_intent=fu.execution_intent,
-                ir_script=ir_proc.body if ir_proc else None,
-                namespace=_namespace_from_qualified(qname),
+                cu.top_level.cfg,
+                cu.top_level.ssa,
+                cu.top_level.analysis,
+                execution_intent=cu.top_level.execution_intent,
+                ir_script=cu.ir_module.top_level,
+                namespace="::",
+                is_top_level=True,
             )
-        # SF-2: optimise TclOO method bodies as functions too, passing the
-        # owning class qname so the O126 ``my <method>`` purity gate can
-        # resolve same-class pure methods.  Rewrites map back to source via
-        # the method body's statement ranges (same as procs).
-        for mqname, fu in cu.methods.items():
-            if fu.complexity_guarded:
-                continue
-            ir_method = cu.ir_module.methods.get(mqname)
-            # Instance variables escape the method frame (they are object
-            # state), so a write to one is NOT a dead store even when the
-            # method never reads it back.  Feed them through the same
-            # escaping-var channel iRules cross-event state uses, so the
-            # dead-store / unused-assignment passes don't delete a
-            # state-mutating ``set ivar ...`` inside the method body.
-            ctx.cross_event_vars = frozenset(ir_method.instance_vars) if ir_method else frozenset()
-            self._process_function(
-                ctx,
-                fu.cfg,
-                fu.ssa,
-                fu.analysis,
-                execution_intent=fu.execution_intent,
-                ir_script=ir_method.body if ir_method else None,
-                namespace=_namespace_from_qualified(mqname),
-                enclosing_class=ir_method.class_name if ir_method else None,
-            )
-        ctx.cross_event_vars = frozenset()
-        # Tail-call detection (cross-procedure, runs once).
-        _tail_call.optimise_tail_calls(ctx)
-        # Module-level passes
-        _unused_procs.optimise_unused_procs(ctx)
+            conn = cu.connection_scope
+            for qname, fu in cu.procedures.items():
+                if fu.complexity_guarded:
+                    continue  # deep analysis skipped for pathologically large bodies
+                if conn is not None and qname.startswith("::when::"):
+                    ctx.cross_event_vars = conn.cross_event_defs | conn.cross_event_imports
+                    # RULE_INIT's purpose is to initialise static:: variables for
+                    # all other events.  Any static:: def there is inherently
+                    # cross-event, even when the cross-event analysis can't prove
+                    # a matching read (e.g. reads inside quoted expr strings).
+                    from ..ir import when_event_name
 
-        return ctx.optimisations
+                    if when_event_name(qname) == "RULE_INIT":
+                        rule_init_statics = frozenset(
+                            name
+                            for block in fu.ssa.blocks.values()
+                            for stmt in block.statements
+                            for name in stmt.defs
+                            if name.startswith("static::")
+                        )
+                        ctx.cross_event_vars = ctx.cross_event_vars | rule_init_statics
+                else:
+                    ctx.cross_event_vars = frozenset()
+                ir_proc = cu.ir_module.procedures.get(qname)
+                self._process_function(
+                    ctx,
+                    fu.cfg,
+                    fu.ssa,
+                    fu.analysis,
+                    execution_intent=fu.execution_intent,
+                    ir_script=ir_proc.body if ir_proc else None,
+                    namespace=_namespace_from_qualified(qname),
+                )
+            # SF-2: optimise TclOO method bodies as functions too, passing the
+            # owning class qname so the O126 ``my <method>`` purity gate can
+            # resolve same-class pure methods.  Rewrites map back to source via
+            # the method body's statement ranges (same as procs).
+            for mqname, fu in cu.methods.items():
+                if fu.complexity_guarded:
+                    continue
+                ir_method = cu.ir_module.methods.get(mqname)
+                # Instance variables escape the method frame (they are object
+                # state), so a write to one is NOT a dead store even when the
+                # method never reads it back.  Feed them through the same
+                # escaping-var channel iRules cross-event state uses, so the
+                # dead-store / unused-assignment passes don't delete a
+                # state-mutating ``set ivar ...`` inside the method body.
+                ctx.cross_event_vars = frozenset(ir_method.instance_vars) if ir_method else frozenset()
+                self._process_function(
+                    ctx,
+                    fu.cfg,
+                    fu.ssa,
+                    fu.analysis,
+                    execution_intent=fu.execution_intent,
+                    ir_script=ir_method.body if ir_method else None,
+                    namespace=_namespace_from_qualified(mqname),
+                    enclosing_class=ir_method.class_name if ir_method else None,
+                )
+            ctx.cross_event_vars = frozenset()
+            # Tail-call detection (cross-procedure, runs once).
+            _tail_call.optimise_tail_calls(ctx)
+            # Module-level passes
+            _unused_procs.optimise_unused_procs(ctx)
+
+            return ctx.optimisations
 
     def _process_function(
         self,
@@ -250,6 +252,25 @@ class _CompilerOptimiser:
         ctx.propagated_branch_uses = set()
         ctx.propagated_expr_stmts = set()
         ctx.propagated_use_sites = set()
+        # Flow-sensitive proc-call gating is only sound at the top level, where
+        # the binding lattice sees every proc definition and rename in order; a
+        # proc body's own lattice would default enclosing-proc names to OPAQUE
+        # and wrongly block mutual-proc folding, so leave it None there.
+        if is_top_level:
+            from ..command_binding import Binding, BindingKind, analyse_command_binding
+
+            # Seed with every module proc (already canonically qualified) so a
+            # proc defined inside a ``namespace eval`` block is known to be a
+            # proc even though the top-level CFG never sees its ``proc`` stmt.
+            seed = {
+                qname: Binding(BindingKind.PROC, qname)
+                for qname in (ctx.ir_module.procedures if ctx.ir_module else {})
+            }
+            ctx.command_binding = analyse_command_binding(cfg, initial=seed)
+        else:
+            ctx.command_binding = None
+        ctx.cur_block = ""
+        ctx.cur_idx = -1
 
         # Pattern recognition (pre-loop)
         _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa, analysis)
@@ -329,6 +350,8 @@ class _CompilerOptimiser:
                 running_versions = {**running_versions, **ssa_stmt.defs}
                 if idx < 0 or idx >= len(block.statements):
                     continue
+                ctx.cur_block = block_name
+                ctx.cur_idx = idx
                 stmt = block.statements[idx]
                 stmt_range = getattr(stmt, "range", None)
                 if stmt_range is None:

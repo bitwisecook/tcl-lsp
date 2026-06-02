@@ -437,6 +437,25 @@ def optimise_expr_substitutions(
             )
 
 
+def _binding_allows_proc_fold(ctx: PassContext, proc_word: str, resolved: str) -> bool:
+    """True when *proc_word* still resolves to *resolved* at the current point.
+
+    Consults the flow-sensitive command-binding lattice (set only for the top
+    level).  When unavailable (inside proc/method bodies) the call is allowed —
+    the ``redefined_procedures`` gate and the module-level builtin-trust overlay
+    still apply there.  At the top level a call whose name has been renamed away
+    (now opaque), rebound to a *different* proc, or made ambiguous (UNKNOWN) is
+    refused, so ``[a]`` after ``rename a b`` is not folded as the old proc.
+    """
+    cb = ctx.command_binding
+    if cb is None:
+        return True
+    from ..command_binding import BindingKind
+
+    binding = cb.binding_at(ctx.cur_block, ctx.cur_idx, proc_word)
+    return binding.kind is BindingKind.PROC and binding.target == resolved
+
+
 def optimise_static_proc_calls(
     ctx: PassContext,
     arg_tokens: list[Token],
@@ -480,6 +499,13 @@ def optimise_static_proc_calls(
 
         # Don't fold calls to redefined procedures.
         if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
+            continue
+
+        # Flow-sensitive rename gate: at the top level the binding lattice knows
+        # whether ``proc_word`` still resolves to *this* proc at this point — a
+        # call after ``rename a b`` (so ``a`` is now opaque) must not be folded
+        # as the old proc.
+        if not _binding_allows_proc_fold(ctx, proc_word, resolved):
             continue
 
         static_args: list[int | bool | str] = []
@@ -836,6 +862,10 @@ def _try_fold_proc_call_in_expr(
 
     # Don't fold calls to redefined procedures.
     if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
+        return None
+
+    # Flow-sensitive rename gate (see optimise_static_proc_calls).
+    if not _binding_allows_proc_fold(ctx, proc_word, resolved):
         return None
 
     folded = fold_static_proc_call(ctx.interproc, resolved, tuple(static_args))

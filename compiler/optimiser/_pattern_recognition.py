@@ -13,6 +13,7 @@ from shared.naming import (
 )
 from shared.tokens import Token, TokenType
 
+from ..command_trust import builtin_is_trusted
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -53,7 +54,7 @@ def _append_read_var(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> str | None:
-    if len(argv_texts) != 2 or argv_texts[0] != "append":
+    if len(argv_texts) != 2 or argv_texts[0] != "append" or not builtin_is_trusted("append"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -65,7 +66,7 @@ def _static_set_write(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> tuple[str, str, str] | None:
-    if len(argv_texts) != 3 or argv_texts[0] != "set":
+    if len(argv_texts) != 3 or argv_texts[0] != "set" or not builtin_is_trusted("set"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -80,7 +81,7 @@ def _static_append_write(
     argv_tokens: list[Token],
     argv_single: list[bool],
 ) -> tuple[str, str, str] | None:
-    if len(argv_texts) < 3 or argv_texts[0] != "append":
+    if len(argv_texts) < 3 or argv_texts[0] != "append" or not builtin_is_trusted("append"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None
@@ -108,7 +109,7 @@ def _static_lappend_write(
     *single list element* (its parsed value), or ``None`` when any part is
     dynamic.
     """
-    if len(argv_texts) < 3 or argv_texts[0] != "lappend":
+    if len(argv_texts) < 3 or argv_texts[0] != "lappend" or not builtin_is_trusted("lappend"):
         return None
     if not _is_static_var_word(argv_texts[1], argv_tokens[1], single_token=argv_single[1]):
         return None

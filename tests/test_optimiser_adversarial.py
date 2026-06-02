@@ -166,6 +166,39 @@ _CORRECTNESS: dict[str, str] = {
     # literal string "[list a b]" is 3, not the 2 a wrongly-folded sub gives).
     "nested_cmdsub_braced_literal": "puts [llength {[list a b]}]",
     "nested_cmdsub_quoted_literal": 'puts [string length "[x]"]',
+    # --- command-binding lattice: renamed / redefined commands must not fold
+    #     with their original builtin / proc semantics ---
+    "rename_builtin_redefined_proc": (
+        "rename incr ::orig_incr\n"
+        "proc incr {v} {upvar 1 $v x; ::orig_incr x 100}\n"
+        "set c 0\nincr c\nputs $c"
+    ),
+    "rename_builtin_append_chain": (
+        "rename append ::ap\nproc append {args} {return X}\n"
+        "set s a\nappend s b\nputs $s"
+    ),
+    "rename_builtin_lappend_chain": (
+        "rename lappend ::lp\nproc lappend {args} {return Z}\n"
+        "set l {}\nlappend l a\nputs $l"
+    ),
+    "rename_proc_then_call_renamed_name": (
+        "proc a {} {return 5}\nputs [a]\nrename a b\nputs [b]"
+    ),
+    "redefine_builtin_string_as_proc": (
+        "proc string {args} {return HACKED}\nputs [string length hi]"
+    ),
+    "interp_alias_over_builtin": (
+        "interp alias {} llength {} return\nputs [llength {a b c}]"
+    ),
+    # Calling the *old* name after a rename must not fold (it now hits unknown
+    # → errors): same stdout-then-error on both original and optimised.
+    "call_renamed_away_name_errors": (
+        "proc a {} {return 5}\nputs [a]\nrename a b\nputs [a]"
+    ),
+    # A rename buried in a proc body distrusts that builtin unit-wide.
+    "rename_inside_proc_body": (
+        "proc danger {} {rename string ::s2}\nputs [string length hi]"
+    ),
     # Return-value string interpolation must respect aliasing: ``v`` is an
     # upvar alias of the caller's variable, so ``return "v=$v"`` must NOT bake in
     # any stale same-block value.
@@ -189,18 +222,13 @@ def test_optimisation_preserves_behaviour(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Known limitation: renaming/redefining a *builtin* defeats the optimiser's
-# assumption that core commands keep their semantics.  Here ``incr`` is
-# replaced by a proc that adds 100, but the optimiser still folds
-# ``set c 0; incr c`` to ``1`` using builtin ``incr`` semantics.  Documented
-# as a strict-xfail so it auto-flags if ever fixed.
+# Renaming / redefining a *builtin* is now handled soundly: the command-binding
+# lattice marks the rebound name untrusted, so the optimiser refuses to fold it
+# with builtin semantics.  Here ``incr`` is replaced by a proc that adds 100;
+# ``set c 0; incr c`` must NOT fold to ``1``.
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    reason="optimiser assumes builtins (incr/set/...) are not renamed/redefined",
-    strict=True,
-)
-def test_rename_builtin_is_unsound() -> None:
+def test_rename_builtin_is_sound() -> None:
     source = (
         "rename incr ::orig_incr\n"
         "proc incr {v} {upvar 1 $v x; ::orig_incr x 100}\n"
@@ -342,6 +370,17 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
     "expr_embedded_cmdsub_branch": (
         "if {[llength {a b c}] == 3} {puts three}",
         "puts three",
+    ),
+    # Flow-sensitive precision: a proc call *before* its rename still folds
+    # (only calls after the rename are blocked).
+    "fold_proc_before_its_rename": (
+        "proc a {} {return 5}\nputs [a]\nrename a b\n",
+        "puts 5",
+    ),
+    # Renaming one builtin must not stop folding of an *unrelated* builtin.
+    "unrelated_builtin_still_folds_after_rename": (
+        "rename incr ::orig_incr\nputs [string length hello]\n",
+        "puts 5",
     ),
 }
 

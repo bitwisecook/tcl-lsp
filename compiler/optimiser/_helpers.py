@@ -19,6 +19,7 @@ from shared.naming import (
 )
 from shared.tokens import SourcePosition, Token, TokenType
 
+from ..command_trust import builtin_is_trusted
 from ..core_analyses import LatticeKind, LatticeValue
 from ..ir import (
     CommandTokens,
@@ -570,6 +571,11 @@ def _try_incr_idiom(
     from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprRaw, ExprVar
 
     if len(argv_texts) != 3 or argv_texts[0] != "set":
+        return None
+    # The rewrite reads ``set`` and emits ``incr`` — only sound while both still
+    # denote their builtins (a rename/redefinition makes the rewrite change
+    # behaviour).
+    if not builtin_is_trusted("set") or not builtin_is_trusted("incr"):
         return None
     # Variable must be a simple name.
     if not argv_single[1] or argv_tokens[1].type not in (TokenType.ESC, TokenType.STR):
