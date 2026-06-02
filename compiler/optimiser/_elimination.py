@@ -764,10 +764,17 @@ def _eliminate_propagated_constants(
             # Statement uses.
             for idx, ssa_stmt in enumerate(ssa_block.statements):
                 if ssa_stmt.uses.get(name) == ver:
+                    # A statement is a live consumer of ``(name, ver)`` unless
+                    # *this specific read* was folded away.  ``propagated_use_sites``
+                    # records folds per ``(block, idx, name, ver)``; consulting it
+                    # (rather than the per-statement ``propagated_expr_stmts``) keeps
+                    # ``puts "$a $b"`` live for ``a`` when only ``$b`` was folded.
                     if (block_name, idx) not in already_removed and (
                         block_name,
                         idx,
-                    ) not in ctx.propagated_expr_stmts:
+                        name,
+                        ver,
+                    ) not in ctx.propagated_use_sites:
                         has_live_consumer = True
                         break
             if has_live_consumer:

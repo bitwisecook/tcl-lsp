@@ -20,7 +20,15 @@ from shared.naming import (
 from shared.tokens import SourcePosition, Token, TokenType
 
 from ..core_analyses import LatticeKind, LatticeValue
-from ..ir import CommandTokens
+from ..ir import (
+    CommandTokens,
+    IRAssignConst,
+    IRAssignExpr,
+    IRAssignValue,
+    IRBarrier,
+    IRCall,
+    IRIncr,
+)
 from ..token_helpers import parse_command_words as _parse_command_words
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
 from ..token_helpers import word_piece as _word_piece
@@ -674,3 +682,62 @@ def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | N
     if strlen_arg is not None:
         return ("strlen", strlen_arg, n - 1)
     return None
+
+
+def safe_string_constants(
+    constants: dict[str, str],
+    block,
+    use_idx: int,
+) -> dict[str, str]:
+    """Return the subset of *constants* safe for string-interpolation propagation.
+
+    String interpolation was previously not propagated, so existing tests rely
+    on SCCP-unsound scenarios (upvar aliasing, catch exception paths) being
+    harmless.  To avoid regressions we only propagate a constant into a string
+    when its defining assignment is in the **same basic block** and there is no
+    intervening ``IRCall`` or ``IRBarrier`` between the definition and the use
+    that could mutate the variable through ``upvar`` or exception side-effects.
+
+    The defining assignment may be any constant-producing form — numeric
+    (``IRAssignConst``), a string value (``set a hi`` → ``IRAssignValue``), or a
+    folded expression (``IRAssignExpr``) — not just ``IRAssignConst``; the SCCP
+    lattice (via *constants*) already proves the value is constant.
+
+    ``use_idx`` is the statement index of the use; pass ``len(block.statements)``
+    to gate the block's *terminator* (e.g. a ``return``), which sits after every
+    statement.
+    """
+    if not constants:
+        return constants
+
+    # Scan statements [0 .. use_idx) in this block to find the most recent
+    # constant-producing assignment for each name and whether a call/barrier
+    # sits between the def and the use.
+    last_def_idx: dict[str, int] = {}
+    call_or_barrier_indices: list[int] = []
+
+    for si in range(use_idx):
+        if si >= len(block.statements):
+            break
+        s = block.statements[si]
+        if isinstance(s, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
+            name = _normalise_var_name(s.name)
+            if name in constants:
+                last_def_idx[name] = si
+        if isinstance(s, (IRCall, IRBarrier)):
+            call_or_barrier_indices.append(si)
+
+    if not last_def_idx:
+        return {}
+
+    safe: dict[str, str] = {}
+    for name, def_si in last_def_idx.items():
+        # Check that no call/barrier sits between the def and the use.
+        blocked = False
+        for ci in call_or_barrier_indices:
+            if ci > def_si:
+                blocked = True
+                break
+        if not blocked:
+            safe[name] = constants[name]
+    return safe

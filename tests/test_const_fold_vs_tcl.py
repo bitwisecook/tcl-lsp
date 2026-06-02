@@ -146,6 +146,24 @@ _E2E = [
     "puts [scan ff %x]",
     "puts [scan {1 2 3} {%d %d %d}]",
     "set n [scan 99 %d]\nputs $n",
+    # nested builtin command subs fold inside-out (the inner sub becomes a
+    # literal, then the outer folds on a later pass)
+    "puts [llength [list a b c]]",
+    "puts [string length [string cat ab cd]]",
+    "puts [lindex [list a b c] end]",
+    "puts [join [list a b c] -]",
+    "puts [string length [list a b c]]",
+    'puts [llength [list "a b" c]]',
+    "puts [lindex [lrange {a b c d} 1 3] 0]",
+    # a braced literal that merely *contains* brackets must NOT be folded as a
+    # command sub — its value is the literal text, list-length 3, not 2.
+    "puts [llength {[list a b]}]",
+    # builtin command subs embedded inside an expr fold (then the arithmetic /
+    # comparison folds on top)
+    "puts [expr {[string length abc] + 2}]",
+    "set n [expr {[llength {a b c}] * 2}]\nputs $n",
+    'puts [expr {[string toupper hi] eq "HI"}]',
+    "if {[llength {a b c}] == 3} {puts three}",
 ]
 
 

@@ -10,7 +10,7 @@ from shared.naming import normalise_var_name as _NORMALISE
 from ..cfg import CFGFunction
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
-from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
+from ..ir import IRCall, IRModule, IRScript
 from . import (
     _branch_folding,
     _code_sinking,
@@ -25,6 +25,7 @@ from ._helpers import (
     _namespace_from_qualified,
     _select_non_overlapping_optimisations,
     _tokens_for_statement,
+    safe_string_constants,
 )
 from ._propagation import (
     optimise_constant_var_refs,
@@ -88,57 +89,6 @@ def _global_scope_names(cfg: CFGFunction, *, is_top_level: bool) -> set[str]:
                     if 0 <= i < len(args) and args[i]:
                         names.add(_NORMALISE(args[i]))
     return names
-
-
-def _safe_string_constants(
-    constants: dict[str, str],
-    block,
-    use_idx: int,
-) -> dict[str, str]:
-    """Return the subset of *constants* safe for string-interpolation propagation.
-
-    String interpolation was previously not propagated, so existing tests rely
-    on SCCP-unsound scenarios (upvar aliasing, catch exception paths) being
-    harmless.  To avoid regressions we only propagate a constant into a string
-    when the defining ``set`` (``IRAssignConst``) is in the **same basic block**
-    and there is no intervening ``IRCall`` or ``IRBarrier`` between the
-    definition and the use that could mutate the variable through ``upvar``
-    or exception side-effects.
-    """
-    if not constants:
-        return constants
-
-    # Scan statements [0 .. use_idx) in this block to find the most recent
-    # IRAssignConst for each constant and whether a call/barrier sits between
-    # the def and the use.
-    last_def_idx: dict[str, int] = {}
-    call_or_barrier_indices: list[int] = []
-
-    for si in range(use_idx):
-        if si >= len(block.statements):
-            break
-        s = block.statements[si]
-        if isinstance(s, IRAssignConst):
-            name = _NORMALISE(s.name)
-            if name in constants:
-                last_def_idx[name] = si
-        if isinstance(s, (IRCall, IRBarrier)):
-            call_or_barrier_indices.append(si)
-
-    if not last_def_idx:
-        return {}
-
-    safe: dict[str, str] = {}
-    for name, def_si in last_def_idx.items():
-        # Check that no call/barrier sits between the def and the use.
-        blocked = False
-        for ci in call_or_barrier_indices:
-            if ci > def_si:
-                blocked = True
-                break
-        if not blocked:
-            safe[name] = constants[name]
-    return safe
 
 
 def _augment_expr_subst_constants(
@@ -299,6 +249,7 @@ class _CompilerOptimiser:
         source = ctx.source
         ctx.propagated_branch_uses = set()
         ctx.propagated_expr_stmts = set()
+        ctx.propagated_use_sites = set()
 
         # Pattern recognition (pre-loop)
         _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa, analysis)
@@ -466,6 +417,9 @@ class _CompilerOptimiser:
                                 if ref in orig_span and ref not in opt.replacement:
                                     ctx.propagated_branch_uses.add((name, ver))
                                     ctx.propagated_use_groups[(name, ver)] = group_id
+                                    ctx.propagated_use_sites.add(
+                                        (block_name, idx, name, ver)
+                                    )
 
                 # Propagate constants into $var refs inside multi-token words
                 # (string interpolation), e.g. puts "$x is the value".
@@ -475,7 +429,7 @@ class _CompilerOptimiser:
                 # same block with no intervening calls or barriers.
                 ct = getattr(stmt, "tokens", None)
                 if ct is not None and ct.all_tokens and constants:
-                    safe_constants = _safe_string_constants(
+                    safe_constants = safe_string_constants(
                         constants,
                         block,
                         idx,
@@ -498,11 +452,27 @@ class _CompilerOptimiser:
                                     group=str_group,
                                 )
                             ctx.propagated_expr_stmts.add((block_name, idx))
-                            for name in safe_constants:
-                                ver = ssa_stmt.uses.get(name, 0)
-                                if ver > 0:
-                                    ctx.propagated_branch_uses.add((name, ver))
-                                    ctx.propagated_use_groups[(name, ver)] = str_group
+                            # Mark ONLY the variables whose ``$ref`` was actually
+                            # replaced as consumed — not every safe constant.  A
+                            # name can be a *safe constant* yet not appear in the
+                            # string (e.g. the ``append`` target, or a var only
+                            # read elsewhere); marking it consumed would let DCE
+                            # wrongly delete its still-needed assignment.  Each
+                            # O105 rewrite's range is exactly the ``$name`` /
+                            # ``${name}`` token, so an exact match identifies it.
+                            for i in range(n_str, len(ctx.optimisations)):
+                                opt = ctx.optimisations[i]
+                                orig_span = source[opt.range.start.offset : opt.range.end.offset + 1]
+                                for name in safe_constants:
+                                    ver = ssa_stmt.uses.get(name, 0)
+                                    if ver <= 0:
+                                        continue
+                                    if orig_span in (f"${name}", "${" + name + "}"):
+                                        ctx.propagated_branch_uses.add((name, ver))
+                                        ctx.propagated_use_groups[(name, ver)] = str_group
+                                        ctx.propagated_use_sites.add(
+                                            (block_name, idx, name, ver)
+                                        )
 
             optimise_return_terminator(ctx, source, block, ssa_block, analysis, namespace=namespace)
 

@@ -158,6 +158,34 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     return cmd.texts[0], args_text
 
 
+def _parse_cmd_subst_command(value: str):
+    """Like :func:`_parse_cmd_subst` but return the whole ``SegmentedCommand``.
+
+    The command's ``argv`` carries per-word *token types*, which is exactly what
+    distinguishes a genuine bare command substitution (``[list a b]`` → a ``CMD``
+    token) from a braced literal that merely *contains* brackets (``{[list a b]}``
+    → a ``STR`` token).  ``fold_cmd_subst_to_string`` needs that distinction to
+    safely fold nested command subs inside-out without misreading a literal.
+    """
+    v = value.strip()
+    if not (v.startswith("[") and v.endswith("]")):
+        return None
+    lexer = TclLexer(v)
+    tok = lexer.get_token()
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = lexer.get_token()
+    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
+        nxt = lexer.get_token()
+    if nxt is not None:
+        return None
+    inner = v[1:-1]
+    commands = segment_commands(inner)
+    if len(commands) != 1 or not commands[0].texts:
+        return None
+    return commands[0]
+
+
 def _parse_safe_unset_ref(cmd_text: str) -> str | None:
     """Parse a command substitution that *references* a variable but does NOT
     require it to be set, and return the raw target name (else ``None``).
@@ -708,11 +736,15 @@ def fold_cmd_subst_to_string(
     the callback's raw string (no numeric coercion), so the caller can render
     the command's output byte-for-byte.
     """
-    parsed = _parse_cmd_subst(value)
-    if parsed is None:
+    cmd = _parse_cmd_subst_command(value)
+    if cmd is None:
         return None
 
-    cmd_name, args_text = parsed
+    cmd_name = cmd.texts[0]
+    # Per-word value + token + single-token flag, sliced past the command name.
+    arg_texts = cmd.texts[1:]
+    arg_tokens = cmd.argv[1:]
+    arg_single = cmd.single_token_word[1:]
 
     # Look up fold callback — check subcommand hints first.
     fold_fn = FOLD_HINTS.get(cmd_name)
@@ -720,40 +752,45 @@ def fold_cmd_subst_to_string(
     if fold_fn is None and subcmd_folds is None:
         return None
 
-    # For subcommand-based commands, extract the subcommand name.
+    # For subcommand-based commands, the first arg word is the subcommand.
     if subcmd_folds is not None and fold_fn is None:
-        parts = args_text.split(None, 1)
-        if not parts:
+        if not arg_texts:
             return None
-        sub_name = parts[0]
+        sub_name = arg_texts[0]
         fold_fn = subcmd_folds.get(sub_name)
         if fold_fn is None:
             return None
-        args_text = parts[1] if len(parts) > 1 else ""
+        arg_texts = arg_texts[1:]
+        arg_tokens = arg_tokens[1:]
+        arg_single = arg_single[1:]
 
     # Narrow Optional for the type checker: every reachable path above
     # either returned or assigned a non-None fold_fn.
     assert fold_fn is not None
 
-    # Split into individual arguments first (respecting braces/quotes),
-    # then resolve variable references in each arg individually.
-    try:
-        arg_list = _split_tcl_list(args_text) if args_text.strip() else []
-    except Exception:
-        return None
-
-    # Resolve variable references in each argument.
+    # Resolve each argument to a literal value.  A word's *token type* tells us
+    # how to treat brackets: a bare ``[...]`` command substitution is a single
+    # ``CMD`` token (fold it inside-out via recursion), whereas a braced/quoted
+    # literal that merely contains ``[`` is a ``STR``/``ESC`` token and must be
+    # left alone — re-running it as a command would change semantics.  The
+    # ``single`` flag rejects multi-token words like ``[list a]x`` whose first
+    # token is a CMD but which carry trailing text the fold would drop.
     resolved_args: list[str] = []
-    for arg in arg_list:
-        if "[" in arg:
-            return None  # nested command substitution — can't fold
-        if "$" in arg:
-            folded = _fold_interpolation(arg, uses, values)
+    for text, tok, single in zip(arg_texts, arg_tokens, arg_single):
+        if single and tok.type is TokenType.CMD:
+            nested = fold_cmd_subst_to_string(f"[{tok.text}]", uses, values)
+            if nested is None:
+                return None  # inner sub isn't a constant-foldable builtin
+            resolved_args.append(nested)
+        elif "[" in text:
+            return None  # mixed text + command sub (or unrecognised) — bail
+        elif "$" in text:
+            folded = _fold_interpolation(text, uses, values)
             if folded.kind is not LatticeKind.CONST:
                 return None
             resolved_args.append(str(folded.value))
         else:
-            resolved_args.append(arg)
+            resolved_args.append(text)
 
     # Call the fold callback.
     try:

@@ -161,6 +161,18 @@ _CORRECTNESS: dict[str, str] = {
         "set l {}\nlappend l a\nputs $l\nlappend l b\nputs $l"
     ),
     "lappend_nested_elements": "set l {}\nlappend l {a b} {c d}\nputs $l",
+    # A braced literal that merely *contains* brackets must not be mistaken for
+    # a command substitution when folding a nested builtin (llength of the
+    # literal string "[list a b]" is 3, not the 2 a wrongly-folded sub gives).
+    "nested_cmdsub_braced_literal": "puts [llength {[list a b]}]",
+    "nested_cmdsub_quoted_literal": 'puts [string length "[x]"]',
+    # Return-value string interpolation must respect aliasing: ``v`` is an
+    # upvar alias of the caller's variable, so ``return "v=$v"`` must NOT bake in
+    # any stale same-block value.
+    "return_interp_upvar_alias": (
+        'proc setit {} {upvar 1 y v; set v 7; return "v=$v"}\n'
+        "proc caller {} {set y 1; return [setit]}\nputs [caller]"
+    ),
 }
 
 
@@ -277,6 +289,59 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
     "lindex_fold": (
         "puts [lindex {a b c} 1]",
         "puts b",
+    ),
+    # A *safe* string constant (no Tcl-special chars) folds into an
+    # interpolating string (O105), not just numeric constants.
+    "string_const_interp": (
+        'set greeting hello\nputs "$greeting world"',
+        'puts "hello world"',
+    ),
+    # Mixed string of a folded *and* an unfolded var: the folded var
+    # collapses while the live one survives (per-use-site DCE).  ``a`` is
+    # defined before a branch (different block → not a same-block constant
+    # here) but ``b`` is local, so only ``$b`` folds; ``set a`` must stay.
+    "mixed_interp_keeps_live_def": (
+        "set x 5\n"
+        "set a [expr {$x + $x}]\n"
+        "if {$a > 5} {puts hi}\n"
+        "set b 99\n"
+        'puts "$a $b"',
+        'puts "$a 99"',
+    ),
+    # Nested builtin command subs fold inside-out: the inner [list a b c]
+    # becomes the literal {a b c}, then [llength {a b c}] folds to 3.
+    "nested_cmdsub_fold": (
+        "puts [llength [list a b c]]",
+        "puts 3",
+    ),
+    "nested_cmdsub_fold_string": (
+        "puts [string length [string cat ab cd]]",
+        "puts 4",
+    ),
+    # A safe constant folds into an interpolating *return* value, too (the
+    # return terminator runs the same O105 propagation as ordinary statements).
+    "return_string_interp": (
+        'proc f {} {set x hi\nreturn "got $x"}\nputs [f]',
+        'return "got hi"',
+    ),
+    "return_numeric_interp": (
+        'proc f {} {set n 5\nreturn "n=$n"}\nputs [f]',
+        'return "n=5"',
+    ),
+    # A pure builtin command sub embedded *inside* an expr folds (the inner
+    # [string length abc] → 3, then 3 + 2 → 5).
+    "expr_embedded_cmdsub_arith": (
+        "puts [expr {[string length abc] + 2}]",
+        "puts 5",
+    ),
+    "expr_embedded_cmdsub_string": (
+        'puts [expr {[string toupper hi] eq "HI"}]',
+        "puts 1",
+    ),
+    # …including in a branch condition (folds the whole `if` away).
+    "expr_embedded_cmdsub_branch": (
+        "if {[llength {a b c}] == 3} {puts three}",
+        "puts three",
     ),
 }
 
