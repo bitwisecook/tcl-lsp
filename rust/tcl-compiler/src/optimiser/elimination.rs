@@ -303,6 +303,34 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             emit_dead_stores_and_unused(ctx, fu, false, &interproc_pure, &pure_methods, None);
         emit_adce(ctx, fu, &baseline);
     }
+
+    // SF-2 (#506): optimise TclOO method bodies as functions too,
+    // passing the owning class qname so the O126 `my <method>` purity
+    // gate can resolve same-class pure methods. Instance variables
+    // escape the method frame (they are object state), so they are fed
+    // through the same escaping channel iRules cross-event state uses —
+    // the dead-store / unused-assignment passes must not delete a
+    // state-mutating `set ivar ...` inside the method body. Mirrors the
+    // method-iteration loop in `optimiser/_manager.py`.
+    let saved_cross = std::mem::take(&mut ctx.cross_event_vars);
+    for (mqname, fu) in &cu.methods {
+        let ir_method = cu.ir_module.methods.get(mqname);
+        let enclosing_class = ir_method.map(|m| m.class_name.as_str());
+        ctx.cross_event_vars = ir_method
+            .map(|m| m.instance_vars.clone())
+            .unwrap_or_default();
+        emit_unreachable(ctx, fu);
+        let baseline = emit_dead_stores_and_unused(
+            ctx,
+            fu,
+            false,
+            &interproc_pure,
+            &pure_methods,
+            enclosing_class,
+        );
+        emit_adce(ctx, fu, &baseline);
+    }
+    ctx.cross_event_vars = saved_cross;
 }
 
 fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
@@ -1106,6 +1134,56 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == "O126"),
             "literal RHS should still fold, got {opts:?}",
+        );
+    }
+
+    // -- SF-2 method-body O126 (SYNC-JUN02-1 strip 4b) --------------------
+
+    #[test]
+    fn sf2_o126_folds_pure_my_dispatch_in_method_body() {
+        // The optimiser now runs over TclOO method bodies with the
+        // owning class as `enclosing_class`, so `set unused [my pure]`
+        // — a self-dispatch to a method proven pure — folds to O126.
+        // (FP-OPT-12 PARTIAL → FIXED.)
+        let src = "oo::class create C {\n\
+                   \x20   method pure {} { return 1 }\n\
+                   \x20   method uses {} { set unused [my pure]; return 2 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().any(|o| o.code == "O126"),
+            "pure `my` self-dispatch RHS should fold, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn sf2_o126_preserves_impure_my_dispatch_in_method_body() {
+        // An impure method (`puts`) must keep its self-dispatch — the
+        // assignment is preserved so the side effect still runs.
+        let src = "oo::class create C {\n\
+                   \x20   method noisy {} { puts hi }\n\
+                   \x20   method uses {} { set unused [my noisy]; return 2 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| o.code != "O126"),
+            "impure `my` self-dispatch RHS must be preserved, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn sf2_instance_var_write_in_method_not_deleted() {
+        // An instance-var write inside a method body is object state
+        // that escapes the frame — it must not be flagged O109/O126
+        // even when the method never reads it back.
+        let src = "oo::class create C {\n\
+                   \x20   variable n\n\
+                   \x20   method bump {} { set n 5 }\n\
+                   }";
+        let opts = crate::optimiser::optimise(src, &registry());
+        assert!(
+            opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
+            "instance-var write must be preserved, got {opts:?}",
         );
     }
 
