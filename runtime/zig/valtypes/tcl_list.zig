@@ -401,6 +401,44 @@ pub fn raise_bad_list_index(idx: i32) void {
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Raise Tcl 9's ``index "<word>" out of range`` for an ``lset`` index
+/// outside ``[0, length]``.  ``TclLsetFlat`` permits ``idx == length``
+/// (append a fresh element) but rejects ``idx < 0`` or ``idx > length``,
+/// reporting the user's *original* index word — not the resolved
+/// integer — so ``lset {{1 2} {3 4}} {1 5} 5`` says ``index "5" out of
+/// range`` (lsetComp-2.8 / 2.9 / 3.8 / 3.9).
+fn raise_lset_index_out_of_range(word_ptr: u32, word_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix = "index \"";
+    const suffix = "\" out of range";
+    const total: u32 = @intCast(prefix.len + word_len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (word_len > 0 and word_ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(word_ptr);
+        var k: usize = 0;
+        while (k < word_len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += word_len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 fn is_digit_for_base(c: u8, base: u32) bool {
     return switch (base) {
         2 => c == '0' or c == '1',
@@ -1215,14 +1253,19 @@ fn lset_recurse(
     const idx_obj = obj_new_string_copy(indices_ptr + idx_elem.start, idx_elem.len);
     const idx = resolve_list_index(idx_obj, n_src_i64);
     obj.tcl_obj_release(idx_obj);
-    if (idx < 0 or idx >= n_src_i64) {
-        // Out of range — return a copy of the source unchanged.
-        // The compiler-level caller is expected to treat the result
-        // as a no-op on error; a future change can thread an error
-        // message through ``tcl_cmd_error`` for closer Tcl parity.
-        return obj_new_string_copy(src_ptr, src_len);
+    // ``TclLsetFlat`` permits ``idx == n`` (append a fresh element /
+    // sublist) but rejects ``idx < 0`` or ``idx > n`` with
+    // ``index "<word>" out of range`` — using the user's original index
+    // word, not the resolved integer (lsetComp-2.8 / 2.9 / 3.8 / 3.9).
+    if (idx < 0 or idx > n_src_i64) {
+        raise_lset_index_out_of_range(indices_ptr + idx_elem.start, idx_elem.len);
+        return 0;
     }
     const uidx: u32 = @intCast(idx);
+    // ``idx == n`` appends a brand-new trailing element rather than
+    // overwriting an existing one (``lset {a b} 2 c`` → ``a b c``,
+    // ``lset {} 0 c`` → ``c``).
+    const appending: bool = (idx == n_src_i64);
 
     // Determine the replacement for the element at this depth:
     //   - At the deepest level, the replacement is *value* itself.
@@ -1234,10 +1277,19 @@ fn lset_recurse(
     var replacement: i32 = value;
     var owns_replacement: bool = false;
     if (depth + 1 < n_indices) {
-        const elem = list_element_at(src_ptr, src_len, idx);
+        // Descend into the sublist at ``idx`` — or an empty sublist when
+        // appending a brand-new element (``lset x {2 0} v`` grows ``x``
+        // by a fresh ``{v}`` sublist).
+        var sub_ptr: u32 = 0;
+        var sub_len: u32 = 0;
+        if (!appending) {
+            const elem = list_element_at(src_ptr, src_len, idx);
+            sub_ptr = src_ptr + elem.start;
+            sub_len = elem.len;
+        }
         replacement = lset_recurse(
-            src_ptr + elem.start,
-            elem.len,
+            sub_ptr,
+            sub_len,
             indices_ptr,
             indices_len,
             depth + 1,
@@ -1247,12 +1299,16 @@ fn lset_recurse(
         owns_replacement = true;
     }
     defer if (owns_replacement) obj.tcl_obj_release(replacement);
+    // A nested level raised (out-of-range): ``lset_recurse`` returns the
+    // 0 sentinel with the error flag set.  Propagate without building.
+    if (owns_replacement and replacement == 0) return 0;
     const s_rep = obj_ensure_string(replacement);
 
     // Build the result list by copying elements, substituting the
-    // replacement at ``uidx``.  Over-allocate to fit worst-case
-    // brace-wrapping on every element.
-    const buf_size: u32 = src_len + n_src * 3 + s_rep.len * 2 + 8;
+    // replacement at ``uidx`` (or appending it when ``idx == n``).
+    // Over-allocate to fit worst-case brace-wrapping on every element
+    // plus the (possibly appended) replacement and its separator.
+    const buf_size: u32 = src_len + (n_src + 1) * 3 + s_rep.len * 2 + 8;
     const buf = alloc(buf_size);
     if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
@@ -1274,6 +1330,18 @@ fn lset_recurse(
             const elem = list_element_at(src_ptr, src_len, @intCast(i));
             off = append_list_element(buf, off, src_ptr, elem, off == 0);
         }
+    }
+    // Append the new trailing element for the ``idx == n`` append case
+    // (the substitute loop above only covers existing slots ``0..n-1``).
+    if (appending) {
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const quoter: *const fn (u32, u32, u32, u32) u32 =
+            if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+        off = quoter(buf, off, s_rep.ptr, s_rep.len);
     }
     return obj.obj_new_string_take(buf, off, buf_size);
 }
