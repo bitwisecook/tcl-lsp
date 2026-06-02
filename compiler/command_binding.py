@@ -436,7 +436,14 @@ def scan_module_command_mutations(module: IRModule) -> ModuleCommandMutations:
 
     For top-level *flow-sensitive* reasoning (``call a; rename a b; call b``) use
     :func:`analyse_command_binding` directly; this whole-module union is the
-    conservative input to the builtin-fold gate.
+    conservative input to the builtin-fold / builtin-dispatch gate.
+
+    Only **core builtins that were tampered with** are reported — a name whose
+    *default* binding is ``BUILTIN`` and whose observed binding diverges from it
+    (renamed away → ``OPAQUE``; shadowed/redefined → ``PROC`` / ``UNKNOWN``).  A
+    freshly-defined user proc (default ``OPAQUE`` → ``PROC``) is deliberately
+    *excluded*: it doesn't untrust any builtin, and including it would wrongly
+    make every user-proc call route through the interpreter in codegen.
     """
     names: set[str] = set()
     dynamic = False
@@ -449,7 +456,10 @@ def scan_module_command_mutations(module: IRModule) -> ModuleCommandMutations:
         if _WILDCARD in state:
             dynamic = True
         for name, binding in state.items():
-            if name != _WILDCARD and binding != _default_binding(name):
+            if name == _WILDCARD:
+                continue
+            default = _default_binding(name)
+            if binding != default and default.kind is BindingKind.BUILTIN:
                 names.add(name)
 
     visit(module.top_level)
@@ -469,6 +479,9 @@ def scan_command_mutations_in_bodies(
     Driven off each body's *CFG* (not its raw statement stream) so renames buried
     in control flow inside the body are caught.  Reuses the same lattice as the
     flow-sensitive top-level analysis — one grammar, one gen function.
+
+    As with :func:`scan_module_command_mutations`, only *tampered-with core
+    builtins* are reported (a freshly-defined user proc is excluded).
     """
     names: set[str] = set()
     dynamic = False
@@ -477,6 +490,6 @@ def scan_command_mutations_in_bodies(
         if cb.has_wildcard():
             dynamic = True
         for name in cb.rebound_names():
-            if name != _WILDCARD:
+            if name != _WILDCARD and _default_binding(name).kind is BindingKind.BUILTIN:
                 names.add(name)
     return ModuleCommandMutations(names=frozenset(names), dynamic=dynamic)
