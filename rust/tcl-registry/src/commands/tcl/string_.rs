@@ -47,6 +47,85 @@ fn fold_length(args: &[&str]) -> Option<String> {
     }
 }
 
+/// `string cat ?string ...?` — pure concatenation (no transformation, so
+/// sound for any input; the O129 path quotes the result as one word).
+/// Always folds, but the `ConstFoldFn` signature is `-> Option<String>`.
+#[allow(clippy::unnecessary_wraps)]
+fn fold_cat(args: &[&str]) -> Option<String> {
+    Some(args.concat())
+}
+
+/// `string repeat string count` — repeat (bounded, matching Python's
+/// 10000 sanity cap).  No char transformation → sound for any input.
+/// A negative count fails the `usize` parse → bails (matches Python).
+fn fold_repeat(args: &[&str]) -> Option<String> {
+    let [s, count] = args else {
+        return None;
+    };
+    let n: usize = count.trim().parse().ok()?;
+    if n > 10_000 {
+        return None;
+    }
+    Some(s.repeat(n))
+}
+
+/// The Tcl default trim set (`string trim` with no explicit chars):
+/// space, tab, newline, CR, vertical tab, form feed.
+const TRIM_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
+
+/// `string trim` / `trimleft` / `trimright`.  ASCII-restricted so the
+/// default whitespace set and the explicit chars set match Tcl exactly.
+fn fold_trim_impl(args: &[&str], left: bool, right: bool) -> Option<String> {
+    let (s, chars): (&str, Vec<char>) = match args {
+        [s] => (s, TRIM_WS.to_vec()),
+        [s, chars] => (s, chars.chars().collect()),
+        _ => return None,
+    };
+    if !s.is_ascii() || !chars.iter().all(char::is_ascii) {
+        return None;
+    }
+    let pred = |c: char| chars.contains(&c);
+    let out = match (left, right) {
+        (true, true) => s.trim_matches(pred),
+        (true, false) => s.trim_start_matches(pred),
+        (false, true) => s.trim_end_matches(pred),
+        (false, false) => s,
+    };
+    Some(out.to_owned())
+}
+
+fn fold_trim(args: &[&str]) -> Option<String> {
+    fold_trim_impl(args, true, true)
+}
+
+fn fold_trimleft(args: &[&str]) -> Option<String> {
+    fold_trim_impl(args, true, false)
+}
+
+fn fold_trimright(args: &[&str]) -> Option<String> {
+    fold_trim_impl(args, false, true)
+}
+
+/// `string totitle string` — the no-index form only (first char upper,
+/// rest lower).  ASCII-restricted.
+fn fold_totitle(args: &[&str]) -> Option<String> {
+    let [s] = args else {
+        return None;
+    };
+    if !s.is_ascii() {
+        return None;
+    }
+    if s.is_empty() {
+        return Some(String::new());
+    }
+    let (first, rest) = s.split_at(1); // ASCII → first char is one byte
+    Some(format!(
+        "{}{}",
+        first.to_ascii_uppercase(),
+        rest.to_ascii_lowercase()
+    ))
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -162,6 +241,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string cat ?string1? ?string2 ...?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_cat),
         dialects: Some(DialectSet::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
@@ -388,6 +468,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string repeat string count",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_repeat),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -465,6 +546,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string totitle string ?first? ?last?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_totitle),
         arg_types: &[
             (
                 1,
@@ -516,6 +598,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string trim string ?chars?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_trim),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -525,6 +608,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string trimleft string ?chars?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_trimleft),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -534,6 +618,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string trimright string ?chars?",
         pure: true,
         return_type: Some(TclType::String),
+        const_fold: Some(fold_trimright),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -629,5 +714,27 @@ mod tests {
         assert_eq!(length(&["abcde"]).as_deref(), Some("5"));
         assert_eq!(length(&[""]).as_deref(), Some("0"));
         assert_eq!(length(&["caf\u{e9}"]), None, "non-ASCII bails");
+    }
+
+    #[test]
+    fn string_value_folds_match_tcl() {
+        // SYNC-JUN02d-1 (#525): the cat / repeat / trim* / totitle folds.
+        let reg = CommandRegistry::build_default();
+        let spec = reg.get("string").expect("string spec");
+        let f = |sub: &str| spec.subcommand(sub).and_then(|s| s.const_fold).unwrap();
+
+        assert_eq!(f("cat")(&["a", "b", "c"]).as_deref(), Some("abc"));
+        assert_eq!(f("cat")(&[]).as_deref(), Some(""));
+        assert_eq!(f("repeat")(&["ab", "3"]).as_deref(), Some("ababab"));
+        assert_eq!(f("repeat")(&["x", "0"]).as_deref(), Some(""));
+        assert_eq!(f("repeat")(&["x", "-1"]), None, "negative count bails");
+        assert_eq!(f("repeat")(&["x", "999999"]), None, "over-cap bails");
+        assert_eq!(f("trim")(&["  hi  "]).as_deref(), Some("hi"));
+        assert_eq!(f("trim")(&["xxhixx", "x"]).as_deref(), Some("hi"));
+        assert_eq!(f("trimleft")(&["  hi  "]).as_deref(), Some("hi  "));
+        assert_eq!(f("trimright")(&["  hi  "]).as_deref(), Some("  hi"));
+        assert_eq!(f("totitle")(&["hELLO"]).as_deref(), Some("Hello"));
+        assert_eq!(f("totitle")(&[""]).as_deref(), Some(""));
+        assert_eq!(f("totitle")(&["caf\u{e9}"]), None, "non-ASCII bails");
     }
 }

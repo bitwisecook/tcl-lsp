@@ -1427,6 +1427,16 @@ mod tests {
         assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
         // main's headline O129 example.
         assert_eq!(fold("puts [string length abcde]"), vec!["5".to_string()]);
+        // SYNC-JUN02d-1 (#525): the cat / repeat / trim folds.
+        assert_eq!(
+            fold("puts [string cat foo bar]"),
+            vec!["foobar".to_string()]
+        );
+        assert_eq!(
+            fold("puts [string repeat ab 3]"),
+            vec!["ababab".to_string()]
+        );
+        assert_eq!(fold("puts [string trim {  hi  }]"), vec!["hi".to_string()]);
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),
