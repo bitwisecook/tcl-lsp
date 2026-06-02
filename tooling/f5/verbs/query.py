@@ -39,7 +39,7 @@ from dialects.f5.query.errors import QueryError
 from dialects.f5.query.output import render
 
 from ._emit import add_format_arg, render_config
-from ._paths import read_path
+from ._paths import provider_from_args, read_path
 from ._registry import verb
 
 _DESCRIPTION = (
@@ -663,6 +663,45 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.set_defaults(handler=_run_query, output_mode="auto", render_name=None, input=[])
 
 
+def _make_ucs_cert_reader(args: argparse.Namespace):
+    """Build the ``ucs_cert`` reader the query engine calls.
+
+    Reading a cert out of a UCS means decrypting + un-tarring the file,
+    which lives in the ``tooling`` layer ``dialects`` must not import —
+    so the CLI injects this callable via the ``UCS_CERT_READER``
+    contextvar.  It maps a cert object's ``config_uri`` + filestore
+    ``cache-path`` to an ``x509_parse``-shaped dict, reusing the same
+    passphrase resolution every UCS-reading verb uses.
+    """
+    from urllib.parse import unquote, urlsplit
+
+    from dialects.f5.query._probes import x509_parse
+    from dialects.f5.query.errors import BuiltinError
+    from tooling.f5.f5_remote.ucs import read_ucs_member
+
+    def reader(config_uri: str, cache_path: str) -> dict:
+        parts = urlsplit(config_uri)
+        if parts.scheme not in ("file", ""):
+            raise BuiltinError(f"ucs_cert: source {config_uri} is not a local file-backed UCS")
+        path = unquote(parts.path) or config_uri
+        try:
+            raw = Path(path).read_bytes()
+        except OSError as exc:
+            raise BuiltinError(f"ucs_cert: cannot read UCS {path}: {exc}") from exc
+        try:
+            pem = read_ucs_member(raw, cache_path, passphrase_provider=provider_from_args(args))
+        except KeyError as exc:
+            raise BuiltinError(
+                f"ucs_cert: {cache_path} not found in {path} "
+                "(a plain bigip.conf has no filestore — read the UCS itself)"
+            ) from exc
+        except ValueError as exc:
+            raise BuiltinError(f"ucs_cert: {path}: {exc}") from exc
+        return x509_parse(pem.decode("utf-8", "replace"))
+
+    return reader
+
+
 def _run_query(args: argparse.Namespace) -> int:
     expression = _resolve_expression(args)
     if expression is None:
@@ -918,10 +957,11 @@ def _run_query(args: argparse.Namespace) -> int:
     # themselves on the ``PROBES_ENABLED`` contextvar.  Set it for
     # the duration of the run_query call so the default invocation
     # stays offline-safe.
-    from dialects.f5.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
+    from dialects.f5.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE, UCS_CERT_READER
 
     _probe_token = PROBES_ENABLED.set(bool(args.enable_probes))
     _ca_bundle_token = TLS_CA_BUNDLE.set(args.ca_bundle)
+    _ucs_reader_token = UCS_CERT_READER.set(_make_ucs_cert_reader(args))
     try:
         result = run_query(
             expression,
@@ -937,6 +977,7 @@ def _run_query(args: argparse.Namespace) -> int:
     finally:
         PROBES_ENABLED.reset(_probe_token)
         TLS_CA_BUNDLE.reset(_ca_bundle_token)
+        UCS_CERT_READER.reset(_ucs_reader_token)
 
     # ``--render NAME`` re-uses the same output dispatch path as the
     # built-in modes: ``output.render`` falls through to the renderer
