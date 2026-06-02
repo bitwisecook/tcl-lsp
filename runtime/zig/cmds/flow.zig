@@ -370,7 +370,18 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         // 3-arg form, passing the user's ``-errorinfo`` /
         // ``-errorcode`` so cmdMZ-return-2.15..17 see the expected
         // ``::errorCode {a b}`` after the apply unwinds.
-        catch_mod.tcl_cmd_error_full(result_obj, errorinfo_obj, errorcode_obj);
+        // ``return -code error`` with no message word yields an
+        // EMPTY-STRING result, not null — Tcl's ``catch`` then writes
+        // ``""`` into its message variable.  Passing the raw null
+        // ``result_obj`` here leaves ``state.error_msg`` at 0, so
+        // ``catch {return -code error} m`` never sets ``m`` and the
+        // following ``$m`` raises (proc-old-7.10).  Mirror the empty
+        // ``error ""`` path with a fresh empty-string obj.
+        const err_msg = if (result_obj != 0)
+            result_obj
+        else
+            @import("../valtypes/tcl_obj.zig").obj_new_string(0, 0);
+        catch_mod.tcl_cmd_error_full(err_msg, errorinfo_obj, errorcode_obj);
         // Tcl 9 distinguishes a body-level ``error msg`` (which
         // ``InterpProcNR2`` annotates with ``MakeProcError``) from
         // a ``return -code error msg`` (which goes through
