@@ -51,6 +51,23 @@ from .._ir import (
 )
 from .._ownership import Ownership
 
+# Scope-declaration commands (``global`` / ``variable`` / ``upvar``).
+# Their compiled hooks don't fold a value — they record the variable's
+# out-of-frame aliasing (``emitter._globals`` / ``emitter._aliases``),
+# the same fact the ``var_observability`` lattice marks *syntactically*
+# for ``::global`` / ``::variable`` / ``::upvar`` regardless of command
+# trust.  So they must NOT be skipped by the builtin-trust gate: an
+# unrelated dynamic ``rename`` distrusts every builtin (soundly, since
+# the rename *could* hit one), but routing a scope declaration to the
+# eval-fallback then leaves the codegen's var-model out of step with the
+# lattice — the variable is mistaken for a frame-local, its frame alias
+# is never set up, and a later compiled write lands in a local slot
+# instead of the global (observed as a dropped global write after a
+# ``{*}`` / distrusted statement; trace-20.8's ``traceDelete``).
+_SCOPE_DECL_COMMANDS = frozenset(
+    {"global", "variable", "upvar", "::global", "::variable", "::upvar"}
+)
+
 
 def _escape_dquote(text: str) -> str:
     """Escape a multi-token IR word for embedding inside a ``"…"`` literal.
@@ -1408,7 +1425,11 @@ class _WasmEmitterStmtMixin(_Base):
         # name through the live (rename-aware) runtime command table.  (Procs
         # already dispatch via the runtime table above, so this only guards the
         # builtin fast-path.)
-        hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
+        hook = (
+            _REGISTRY.get_wasm_hook(command)
+            if (builtin_is_trusted(command) or command in _SCOPE_DECL_COMMANDS)
+            else None
+        )
         if hook is not None:
             # Stash the current call's tokens on self so a hook that
             # routes to ``_emit_eval_fallback`` can recover the
@@ -1992,7 +2013,12 @@ class _WasmEmitterStmtMixin(_Base):
         try:
             # Skip the builtin fast-path for a command renamed/redefined in this
             # unit (see the statement-context dispatch for the rationale).
-            hook = _REGISTRY.get_wasm_hook(command) if builtin_is_trusted(command) else None
+            # Scope declarations are exempt — see ``_SCOPE_DECL_COMMANDS``.
+            hook = (
+                _REGISTRY.get_wasm_hook(command)
+                if (builtin_is_trusted(command) or command in _SCOPE_DECL_COMMANDS)
+                else None
+            )
             if hook is not None and hook(self, args, defs, EmitContext.VALUE):
                 return
         finally:
