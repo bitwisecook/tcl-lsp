@@ -1,17 +1,70 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
+
+function labelOf(item: vscode.CompletionItem): string {
+  return typeof item.label === "string" ? item.label : item.label.label;
+}
+
+/**
+ * Request completion at *position* and poll until every label in *expect*
+ * is present, or a deadline passes.
+ *
+ * ``applyEdit`` returns as soon as VS Code has buffered the change for the
+ * language server; it does **not** wait for the server to re-analyse the
+ * mutated document.  A completion request fired immediately afterwards can
+ * therefore race the re-index and return stale results that omit a
+ * newly-in-scope variable — the source of the intermittent failures these
+ * probes used to exhibit under parallel ``make test-slow`` load.
+ *
+ * Rather than sleep for a fixed interval, we re-request completion on a
+ * bounded poll (via the shared ``pollUntil`` helper) until the server has
+ * caught up and surfaces the expected items.  ``pollUntil`` throws on
+ * timeout with the last-seen item list, so a genuine regression still
+ * fails loudly — the wait only absorbs the re-index latency, it does not
+ * mask a missing variable.
+ */
+async function completionItemsAt(
+  uri: vscode.Uri,
+  position: vscode.Position,
+  expect: string[],
+): Promise<vscode.CompletionItem[]> {
+  return pollUntil(
+    async () => {
+      const result = (await vscode.commands.executeCommand(
+        "vscode.executeCompletionItemProvider",
+        uri,
+        position,
+      )) as vscode.CompletionList;
+      return result.items;
+    },
+    (items) => {
+      const labels = new Set(items.map(labelOf));
+      return expect.every((label) => labels.has(label));
+    },
+    {
+      timeout: 10_000,
+      label: `completion items [${expect.join(", ")}] at ${position.line}:${position.character}`,
+    },
+  );
+}
 
 /**
  * Marker-based completion probing: find ``# PROBE_X`` in the fixture,
  * insert the supplied probe text on the line after the marker, position
- * the cursor at the end of the inserted text, request completion, then
- * revert the in-memory edit so the next test sees the canonical fixture.
+ * the cursor at the end of the inserted text, request completion (waiting
+ * for the server to re-index — see ``completionItemsAt``), then revert the
+ * in-memory edit so the next test sees the canonical fixture.
+ *
+ * ``expect`` lists the labels the caller is about to assert on; the probe
+ * does not return until they are all present or the deadline passes, which
+ * is what makes it deterministic under load.
  */
 async function probeAt(
   uri: vscode.Uri,
   marker: string,
   insertion: string,
+  expect: string[],
 ): Promise<vscode.CompletionItem[]> {
   const doc = await activate(uri);
   const text = doc.getText();
@@ -27,19 +80,10 @@ async function probeAt(
   await vscode.workspace.applyEdit(edit);
   const completionPos = doc.positionAt(eolOffset + insertion.length);
   try {
-    const result = (await vscode.commands.executeCommand(
-      "vscode.executeCompletionItemProvider",
-      uri,
-      completionPos,
-    )) as vscode.CompletionList;
-    return result.items;
+    return await completionItemsAt(uri, completionPos, expect);
   } finally {
     await vscode.commands.executeCommand("workbench.action.files.revert", doc);
   }
-}
-
-function labelOf(item: vscode.CompletionItem): string {
-  return typeof item.label === "string" ? item.label : item.label.label;
 }
 
 function insertedText(item: vscode.CompletionItem): string | undefined {
@@ -65,7 +109,7 @@ suite("Variable Completion: command contexts", () => {
   // the surrounding proc body.
 
   test("variable: namespace var alias is in scope inside the proc", async () => {
-    const items = await probeAt(docUri, "# PROBE_VARIABLE", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_VARIABLE", "\n        puts $", ["$namespace_var"]);
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$namespace_var"),
@@ -74,7 +118,7 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("namespace upvar: local alias is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_NS_UPVAR", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_NS_UPVAR", "\n        puts $", ["$local_ns_var"]);
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$local_ns_var"),
@@ -83,7 +127,11 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("lassign: each destructured var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_LASSIGN", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_LASSIGN", "\n        puts $", [
+      "$la",
+      "$lb",
+      "$lc",
+    ]);
     const labels = items.map(labelOf);
     for (const v of ["$la", "$lb", "$lc"]) {
       assert.ok(
@@ -94,7 +142,11 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("regexp: capture-group vars are in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_REGEXP", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_REGEXP", "\n        puts $", [
+      "$rx_full",
+      "$rx_key",
+      "$rx_value",
+    ]);
     const labels = items.map(labelOf);
     for (const v of ["$rx_full", "$rx_key", "$rx_value"]) {
       assert.ok(
@@ -105,13 +157,13 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("regsub: output var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_REGSUB", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_REGSUB", "\n        puts $", ["$rs_out"]);
     const labels = items.map(labelOf);
     assert.ok(labels.includes("$rs_out"), `Expected $rs_out: ${labels.slice(0, 30).join(", ")}`);
   });
 
   test("scan: each output var is in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_SCAN", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_SCAN", "\n        puts $", ["$sx", "$sy", "$sz"]);
     const labels = items.map(labelOf);
     for (const v of ["$sx", "$sy", "$sz"]) {
       assert.ok(labels.includes(v), `Expected ${v} after scan: ${labels.slice(0, 30).join(", ")}`);
@@ -119,7 +171,10 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("catch: resultVar and optionsVar are in scope", async () => {
-    const items = await probeAt(docUri, "# PROBE_CATCH", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_CATCH", "\n        puts $", [
+      "$catch_result",
+      "$catch_opts",
+    ]);
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$catch_result"),
@@ -132,7 +187,10 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("try on error: handler binding-list vars are in scope inside body", async () => {
-    const items = await probeAt(docUri, "# PROBE_TRY", "\n            puts $");
+    const items = await probeAt(docUri, "# PROBE_TRY", "\n            puts $", [
+      "$try_msg",
+      "$try_opts",
+    ]);
     const labels = items.map(labelOf);
     for (const v of ["$try_msg", "$try_opts"]) {
       assert.ok(
@@ -143,7 +201,10 @@ suite("Variable Completion: command contexts", () => {
   });
 
   test("dict update: alias vars are in scope inside body", async () => {
-    const items = await probeAt(docUri, "# PROBE_DICT_UPDATE", "\n            puts $");
+    const items = await probeAt(docUri, "# PROBE_DICT_UPDATE", "\n            puts $", [
+      "$alias_a",
+      "$alias_b",
+    ]);
     const labels = items.map(labelOf);
     for (const v of ["$alias_a", "$alias_b"]) {
       assert.ok(
@@ -158,7 +219,9 @@ suite("Variable Completion: command contexts", () => {
     // we can't resolve statically.  We keep best-effort behaviour: the
     // calling proc's locals stay visible.  Just check that completion
     // works (returns at least one item) and includes the proc-local.
-    const items = await probeAt(docUri, "# PROBE_UPLEVEL_ONE", "\n            puts $");
+    const items = await probeAt(docUri, "# PROBE_UPLEVEL_ONE", "\n            puts $", [
+      "$up1_local",
+    ]);
     const labels = items.map(labelOf);
     assert.ok(
       labels.includes("$up1_local"),
@@ -175,7 +238,7 @@ suite("Variable Completion: TextEdit shape", () => {
     // is in scope.  Type a single ``$`` and check that selecting the
     // ``$greeting`` completion produces a TextEdit whose range starts
     // at the typed ``$``, and whose new text starts with ``$``.
-    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts $");
+    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts $", ["$greeting"]);
     const item = items.find((i) => labelOf(i) === "$greeting");
     assert.ok(item, "Expected $greeting in completion list");
     const te = textEditOf(item);
@@ -195,7 +258,7 @@ suite("Variable Completion: TextEdit shape", () => {
   });
 
   test("$gre partial -- TextEdit replaces the partial with $greeting", async () => {
-    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts $gre");
+    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts $gre", ["$greeting"]);
     const item = items.find((i) => labelOf(i) === "$greeting");
     assert.ok(item, "Expected $greeting in completion list");
     const te = textEditOf(item);
@@ -210,7 +273,7 @@ suite("Variable Completion: TextEdit shape", () => {
   });
 
   test("${gre partial -- TextEdit emits ${greeting} with closing brace", async () => {
-    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts ${gre");
+    const items = await probeAt(docUri, "# PROBE_PARTIAL", "\n        puts ${gre", ["$greeting"]);
     const item = items.find((i) => labelOf(i) === "$greeting");
     assert.ok(item, "Expected $greeting in completion list");
     const te = textEditOf(item);
@@ -234,12 +297,8 @@ suite("Variable Completion: TextEdit shape", () => {
     // Cursor between ``e`` and ``}`` -- one char before the end of insertion.
     const completionPos = doc.positionAt(eolOffset + insertion.length - 1);
     try {
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeCompletionItemProvider",
-        docUri,
-        completionPos,
-      )) as vscode.CompletionList;
-      const item = result.items.find((i) => labelOf(i) === "$greeting");
+      const items = await completionItemsAt(docUri, completionPos, ["$greeting"]);
+      const item = items.find((i) => labelOf(i) === "$greeting");
       assert.ok(item, "Expected $greeting");
       const te = textEditOf(item);
       assert.ok(te, "Expected TextEdit");
@@ -274,12 +333,8 @@ suite("Variable Completion: TextEdit shape", () => {
     const cursorOffset = eolOffset + 1 + 8 + 6 + 4; // \n + spaces + "puts $" + "gre"
     const completionPos = doc.positionAt(cursorOffset);
     try {
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeCompletionItemProvider",
-        docUri,
-        completionPos,
-      )) as vscode.CompletionList;
-      const item = result.items.find((i) => labelOf(i) === "$greeting");
+      const items = await completionItemsAt(docUri, completionPos, ["$greeting"]);
+      const item = items.find((i) => labelOf(i) === "$greeting");
       assert.ok(item, "Expected $greeting in completion list");
       const te = textEditOf(item);
       assert.ok(te, "Expected TextEdit");
@@ -312,12 +367,8 @@ suite("Variable Completion: TextEdit shape", () => {
     await vscode.workspace.applyEdit(edit);
     const completionPos = doc.positionAt(eolOffset + insertion.length);
     try {
-      const result = (await vscode.commands.executeCommand(
-        "vscode.executeCompletionItemProvider",
-        otherUri,
-        completionPos,
-      )) as vscode.CompletionList;
-      const item = result.items.find((i) => labelOf(i) === "$foo-bar");
+      const items = await completionItemsAt(otherUri, completionPos, ["$foo-bar"]);
+      const item = items.find((i) => labelOf(i) === "$foo-bar");
       assert.ok(item, "Expected $foo-bar in completion list");
       assert.strictEqual(
         insertedText(item),
