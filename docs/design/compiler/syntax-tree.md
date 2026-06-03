@@ -260,11 +260,14 @@ and the refactoring body splitters left to fold onto `descend_*`.
    Prereq (shipped): per-word `braced_word` / `quoted_word` on `SegmentedCommand`
    — and the incremental reparser's `_shift_command` now carries them too (a
    latent `de53e21` divergence test-slow surfaced once the stamp caught up).
-4. ~~**`var_refs`** (+ `proc_fingerprint`, `place_bridge`)~~ — *already shipped
-   (cycle 5).* The audit found these were migrated onto the shared
-   `green_tree.tokenise` memo at base 0 in earlier work; they emit only name-sets
-   / `Place`s (no offsets) and preserve the cross-document name-set LRU. No
-   further change needed.
+4. ~~**`var_refs`** (+ `proc_fingerprint`, `place_bridge`)~~ — *shipped (cycle 5).*
+   These collect name-sets / `Place`s (no offsets) through the shared
+   `green_tree.tokenise` memo at base 0, preserving the cross-document name-set
+   LRU. The `VAR_READ`-role scan additionally rebuilt its words from bare
+   `tok.text`, so a substitution-named read target was miscounted as a literal
+   read (`info exists [foo]` / `array get $name` reported `foo` / `name`); it now
+   reads words from the canonical `segment_commands` source and skips VAR/CMD-led
+   read targets, consistent with the CFG def-scan and the segmenter's spelling.
 5. ~~**Refactoring + lowering body re-lexes**~~ — *shipped (cycle 6).*
    `lowering._switch_body_elements` (the only raw `TclLexer` left in lowering)
    now lexes through the shared `tokenise` memo — verified byte-identical by
