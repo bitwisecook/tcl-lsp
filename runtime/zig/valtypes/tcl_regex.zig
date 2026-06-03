@@ -658,6 +658,108 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
 /// ``unsupported command: regexp <switch>`` via the stub
 /// dispatcher for now so callers see a clear error instead of a
 /// wrong answer.
+/// ``regexp -about pattern`` — mirror ``TclRegAbout``: compile
+/// *pattern* and return the two-element list ``{re_nsub {flag-name…}}``
+/// where the flags are the ``REG_U*`` bits the Spencer engine recorded
+/// in ``re_info``.  No subject is matched.
+fn regexp_about(pattern: i32, flags: c_int) i32 {
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
+    const pat_s = obj_ensure_string(pattern);
+    const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
+    const re_ptr: *anyopaque = @ptrFromInt(re_addr);
+    const comp_rc = TclReComp(
+        re_ptr,
+        @ptrFromInt(pat_u.ptr),
+        pat_u.len,
+        REG_ADVANCED | flags,
+    );
+    if (comp_rc != REG_OKAY) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(pat_u.alloc);
+        raise_compile_error(comp_rc);
+        return obj_new_int(0);
+    }
+    // regex_t layout: ``int re_magic; long re_info; size_t re_nsub;`` —
+    // ``re_info`` at +4, ``re_nsub`` at +8 (4-byte fields on wasm32).
+    const re_info: u32 = @bitCast(obj.read_i32(re_addr + 4));
+    const re_nsub: i64 = @intCast(obj.read_i32(re_addr + 8));
+    regfree_safe(re_ptr);
+    arena.arena_free(re_alloc);
+    arena.arena_free(pat_u.alloc);
+
+    // ``REG_U*`` bit → name table, in TclRegAbout's declaration order.
+    const Flag = struct { bit: u32, name: []const u8 };
+    const flag_table = [_]Flag{
+        .{ .bit = 0o00001, .name = "REG_UBACKREF" },
+        .{ .bit = 0o00002, .name = "REG_ULOOKAHEAD" },
+        .{ .bit = 0o00004, .name = "REG_UBOUNDS" },
+        .{ .bit = 0o00010, .name = "REG_UBRACES" },
+        .{ .bit = 0o00020, .name = "REG_UBSALNUM" },
+        .{ .bit = 0o00040, .name = "REG_UPBOTCH" },
+        .{ .bit = 0o00100, .name = "REG_UBBS" },
+        .{ .bit = 0o00200, .name = "REG_UNONPOSIX" },
+        .{ .bit = 0o00400, .name = "REG_UUNSPEC" },
+        .{ .bit = 0o01000, .name = "REG_UUNPORT" },
+        .{ .bit = 0o02000, .name = "REG_ULOCALE" },
+        .{ .bit = 0o04000, .name = "REG_UEMPTYMATCH" },
+        .{ .bit = 0o10000, .name = "REG_UIMPOSSIBLE" },
+        .{ .bit = 0o20000, .name = "REG_USHORTEST" },
+    };
+    var flag_buf: [320]u8 = undefined;
+    var flen: u32 = 0;
+    var nflags: u32 = 0;
+    for (flag_table) |f| {
+        if (re_info & f.bit != 0) {
+            if (flen > 0) {
+                flag_buf[flen] = ' ';
+                flen += 1;
+            }
+            for (f.name) |c| {
+                flag_buf[flen] = c;
+                flen += 1;
+            }
+            nflags += 1;
+        }
+    }
+
+    // Assemble ``<nsub> <flags-element>``.  The flags element is a Tcl
+    // list: empty → ``{}``; a single flag stands bare; two or more are
+    // brace-wrapped so they read back as one element.
+    var out_buf: [384]u8 = undefined;
+    var off: u32 = 0;
+    const ns = obj.itoa(re_nsub);
+    for (0..ns.len) |k| {
+        out_buf[off] = ns.ptr[k];
+        off += 1;
+    }
+    out_buf[off] = ' ';
+    off += 1;
+    if (nflags == 0) {
+        out_buf[off] = '{';
+        out_buf[off + 1] = '}';
+        off += 2;
+    } else {
+        const brace = nflags > 1;
+        if (brace) {
+            out_buf[off] = '{';
+            off += 1;
+        }
+        for (0..flen) |k| {
+            out_buf[off] = flag_buf[k];
+            off += 1;
+        }
+        if (brace) {
+            out_buf[off] = '}';
+            off += 1;
+        }
+    }
+    return obj.obj_new_string_copy(@intFromPtr(&out_buf), off);
+}
+
 pub fn eval_regexp_cmd(words: []const i32) i32 {
     if (words.len < 3) {
         // ``regexp`` (no args) and ``regexp foo`` are too short for
@@ -673,6 +775,7 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     var indices_mode = false;
     var all_mode = false;
     var inline_mode = false;
+    var about_mode = false;
     var start_offset_cp: u32 = 0;
     var i: usize = 1;
     while (i < words.len) : (i += 1) {
@@ -717,9 +820,10 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             continue;
         }
         if (str_eq(w, "-about")) {
-            // Not implemented — return empty list-as-info.
-            i += 1;
-            break;
+            // ``-about`` takes no value and consumes only the pattern
+            // operand (no subject string); handled after option parsing.
+            about_mode = true;
+            continue;
         }
         if (str_eq(w, "-start")) {
             i += 1;
@@ -759,6 +863,16 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             "-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --",
         );
         return obj_new_int(0);
+    }
+    if (about_mode) {
+        // ``regexp -about exp`` — compile ``exp`` and report
+        // ``TclRegAbout``'s ``{re_nsub {flags…}}`` without matching any
+        // subject (regexpComp-20.2).
+        if (i >= words.len) {
+            stubs.raise("wrong # args: should be \"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?\"");
+            return obj_new_int(0);
+        }
+        return regexp_about(words[i], flags);
     }
     if (i + 1 >= words.len) {
         // Missing the required ``exp`` and ``string`` operands —
