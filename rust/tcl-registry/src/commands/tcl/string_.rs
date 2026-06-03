@@ -347,6 +347,107 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
     Some(out)
 }
 
+/// `string is class ?-strict? ?-failindex var? string` (SYNC-JUN02d-1
+/// follow-up, #525 B-tail).  Constant-folds the **Tcl-faithful** classes
+/// the optimiser can decide soundly.
+///
+/// Deliberately *not* a transcription of Python's `str`-method fold,
+/// whose semantics diverge from Tcl: e.g. `str.islower("abc1")` is
+/// `True` but `string is lower abc1` is `0` (Tcl requires *every* char
+/// to be a lowercase letter; a digit fails).  The ASCII character
+/// classes here apply the predicate to every char and **bail on
+/// non-ASCII input** (Unicode class membership isn't modelled — a
+/// missed fold, never a wrong one).  `ascii` is the membership test
+/// itself, so it is defined for any input.  `boolean` / `true` /
+/// `false` use the exact `Tcl_GetBoolean` keyword + unique-prefix set
+/// (so `t` / `ye` / `of` resolve, `o` — ambiguous between on/off —
+/// does not).  The number (`integer` / `entier` / `wideinteger` /
+/// `double`) and `list` / `dict` classes are **deferred** (Tcl number /
+/// list syntax + range edges need differential pinning) — they bail.
+fn fold_is(args: &[&str]) -> Option<String> {
+    if args.len() < 2 {
+        return None;
+    }
+    let class = args[0];
+    let mut strict = false;
+    let mut i = 1;
+    while i < args.len() && args[i].starts_with('-') {
+        match args[i] {
+            "-strict" => {
+                strict = true;
+                i += 1;
+            }
+            // `-failindex var` writes a variable (never folded), and an
+            // unknown option / a `-`-leading string arg is ambiguous —
+            // bail in every case.
+            _ => return None,
+        }
+    }
+    // Exactly one positional must remain: the string under test.
+    if i + 1 != args.len() {
+        return None;
+    }
+    let s = args[i];
+
+    // The empty string is a member of every class in non-strict mode and
+    // a member of none in strict mode.
+    if s.is_empty() {
+        return Some(if strict { "0" } else { "1" }.to_owned());
+    }
+
+    let member = match class {
+        "alpha" => ascii_all(s, |c| c.is_ascii_alphabetic())?,
+        "alnum" => ascii_all(s, |c| c.is_ascii_alphanumeric())?,
+        "digit" => ascii_all(s, |c| c.is_ascii_digit())?,
+        "lower" => ascii_all(s, |c| c.is_ascii_lowercase())?,
+        "upper" => ascii_all(s, |c| c.is_ascii_uppercase())?,
+        "xdigit" => ascii_all(s, |c| c.is_ascii_hexdigit())?,
+        "space" => ascii_all(s, is_tcl_space)?,
+        "control" => ascii_all(s, |c| c.is_ascii_control())?,
+        "graph" => ascii_all(s, |c| c.is_ascii_graphic())?,
+        "print" => ascii_all(s, |c| c.is_ascii_graphic() || c == ' ')?,
+        "punct" => ascii_all(s, |c| c.is_ascii_punctuation())?,
+        "wordchar" => ascii_all(s, |c| c.is_ascii_alphanumeric() || c == '_')?,
+        // `ascii` is the test itself — defined for any input.
+        "ascii" => s.is_ascii(),
+        "boolean" => tcl_bool(s).is_some(),
+        "true" => tcl_bool(s) == Some(true),
+        "false" => tcl_bool(s) == Some(false),
+        // Number / list / dict classes — deferred (need differential
+        // pinning against tclsh9); leave the call unfolded.
+        _ => return None,
+    };
+    Some(if member { "1" } else { "0" }.to_owned())
+}
+
+/// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
+/// on any non-ASCII char — Unicode class membership isn't modelled here.
+fn ascii_all(s: &str, pred: impl Fn(char) -> bool) -> Option<bool> {
+    if !s.is_ascii() {
+        return None;
+    }
+    Some(s.chars().all(pred))
+}
+
+/// Tcl's whitespace set for `string is space` (`Tcl_UniCharIsSpace` on
+/// ASCII): space, tab, newline, CR, vertical tab, form feed.  (Rust's
+/// `char::is_ascii_whitespace` omits the vertical tab.)
+fn is_tcl_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}')
+}
+
+/// `Tcl_GetBoolean`: `0` / `1` plus the case-insensitive *unique*
+/// prefixes of `true` / `false` / `yes` / `no` / `on` / `off`.  Returns
+/// the boolean value, or `None` when the string is not a valid boolean.
+/// (`o` is ambiguous between `on` and `off`, so it is *not* a boolean.)
+fn tcl_bool(s: &str) -> Option<bool> {
+    match s.to_ascii_lowercase().as_str() {
+        "1" | "t" | "tr" | "tru" | "true" | "y" | "ye" | "yes" | "on" => Some(true),
+        "0" | "f" | "fa" | "fal" | "fals" | "false" | "n" | "no" | "of" | "off" => Some(false),
+        _ => None,
+    }
+}
+
 /// Character classes accepted by `string is <class>`.  Mirrors
 /// `_IS_CLASSES` in `core/commands/registry/tcl/string.py`.
 static IS_CLASSES: &[ArgValue] = &[
@@ -574,7 +675,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
+        pure: true,
         return_type: Some(TclType::Boolean),
+        const_fold: Some(fold_is),
         options: &[
             OptionSpec {
                 name: "-strict",
@@ -905,7 +1008,80 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use super::fold_is;
     use crate::CommandRegistry;
+
+    #[test]
+    fn string_is_folds_tcl_faithful_classes() {
+        // Helper: `string is <args...>`.
+        let is = |args: &[&str]| fold_is(args);
+
+        // ASCII char classes — all-chars-in-class.
+        assert_eq!(is(&["alpha", "abc"]).as_deref(), Some("1"));
+        assert_eq!(is(&["alpha", "abc1"]).as_deref(), Some("0"));
+        assert_eq!(is(&["alnum", "abc1"]).as_deref(), Some("1"));
+        assert_eq!(is(&["digit", "123"]).as_deref(), Some("1"));
+        assert_eq!(is(&["digit", "12a"]).as_deref(), Some("0"));
+        assert_eq!(is(&["xdigit", "1aF"]).as_deref(), Some("1"));
+        assert_eq!(is(&["space", "  \t"]).as_deref(), Some("1"));
+        assert_eq!(is(&["wordchar", "a_b9"]).as_deref(), Some("1"));
+        assert_eq!(is(&["wordchar", "a-b"]).as_deref(), Some("0"));
+
+        // The Tcl-vs-Python divergence the deferral called out:
+        // `str.islower("abc1")` is True, but Tcl `string is lower` is 0
+        // (a digit is not a lowercase *letter*).
+        assert_eq!(is(&["lower", "abc1"]).as_deref(), Some("0"));
+        assert_eq!(is(&["lower", "abc"]).as_deref(), Some("1"));
+        assert_eq!(is(&["upper", "ABC"]).as_deref(), Some("1"));
+        assert_eq!(is(&["upper", "ABc"]).as_deref(), Some("0"));
+
+        // `ascii` is the membership test itself (defined for any input).
+        assert_eq!(is(&["ascii", "abc"]).as_deref(), Some("1"));
+        assert_eq!(is(&["ascii", "caf\u{e9}"]).as_deref(), Some("0"));
+        // Other char classes bail on non-ASCII (membership not modelled).
+        assert_eq!(is(&["alpha", "caf\u{e9}"]), None);
+
+        // Boolean keyword + unique-prefix set.
+        assert_eq!(is(&["boolean", "yes"]).as_deref(), Some("1"));
+        assert_eq!(is(&["boolean", "t"]).as_deref(), Some("1"));
+        assert_eq!(is(&["boolean", "of"]).as_deref(), Some("1"));
+        assert_eq!(
+            is(&["boolean", "o"]).as_deref(),
+            Some("0"),
+            "ambiguous on/off"
+        );
+        assert_eq!(is(&["boolean", "maybe"]).as_deref(), Some("0"));
+        assert_eq!(is(&["true", "TRUE"]).as_deref(), Some("1"));
+        assert_eq!(is(&["true", "no"]).as_deref(), Some("0"));
+        assert_eq!(is(&["false", "off"]).as_deref(), Some("1"));
+
+        // Empty string: non-strict member of every class, strict member
+        // of none.
+        assert_eq!(is(&["alpha", ""]).as_deref(), Some("1"));
+        assert_eq!(is(&["alpha", "-strict", ""]).as_deref(), Some("0"));
+        assert_eq!(
+            is(&["integer", ""]).as_deref(),
+            Some("1"),
+            "even a deferred class"
+        );
+
+        // `-failindex` writes a var → never folds; deferred classes and
+        // unknown options bail.
+        assert_eq!(is(&["alpha", "-failindex", "v", "abc"]), None);
+        assert_eq!(is(&["integer", "42"]), None, "number classes deferred");
+        assert_eq!(is(&["double", "1.5"]), None, "double deferred");
+        assert_eq!(is(&["nonclass", "x"]), None, "unknown class bails");
+    }
+
+    #[test]
+    fn string_is_subcommand_carries_const_fold() {
+        let f = CommandRegistry::build_default()
+            .get("string")
+            .and_then(|s| s.subcommand("is"))
+            .and_then(|s| s.const_fold)
+            .expect("string is const_fold");
+        assert_eq!(f(&["alpha", "abc"]).as_deref(), Some("1"));
+    }
 
     #[test]
     fn pure_string_subcommands_carry_const_fold() {

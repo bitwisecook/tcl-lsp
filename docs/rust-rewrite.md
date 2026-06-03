@@ -3305,16 +3305,30 @@ landed — `subst` folds only a substitution-free string (bails on `$` /
 `[` / `\`), a *stricter* subset of Python's fold since the Rust O129
 path passes raw literal args with no upstream `$var` resolution (that is
 the deferred B2 work; folding `subst {$x}` verbatim would be unsound).
-**Remaining folds** (own follow-up strips): **`string is`** — deferred
-because Python's fold leans on Python `str` methods whose semantics
-diverge from Tcl's per-class definitions (e.g. `str.islower("abc1")` is
-`True` but Tcl's `string is lower abc1` is `0`), so a sound Rust port
-needs Tcl-faithful class predicates, not a `str`-method transcription;
-**`format`**, **`scan`** (printf / scanf semantics — need differential
-pinning).  (The duplicated `split_list` / `list_element` vs
-`tcl-compiler::codegen::helpers` is a deliberate trade-off — the
-canonical Tcl list-string codec should consolidate into a shared leaf
-like `tcl-lexer`; tracked.)
+**`string is` — LANDED** (`string_::fold_is`, registered on the `is`
+subcommand with `pure: true`).  Implemented as **Tcl-faithful class
+predicates**, deliberately *not* a transcription of Python's `str`-method
+fold (whose semantics diverge — e.g. `str.islower("abc1")` is `True` but
+Tcl's `string is lower abc1` is `0`).  Covers: the ASCII character
+classes `alpha` / `alnum` / `digit` / `lower` / `upper` / `xdigit` /
+`space` / `control` / `graph` / `print` / `punct` / `wordchar` (each
+applies the predicate to *every* char and **bails on non-ASCII** input —
+Unicode membership isn't modelled, a missed fold never a wrong one),
+`ascii` (the membership test itself, defined for any input), and
+`boolean` / `true` / `false` via the exact `Tcl_GetBoolean` keyword +
+unique-prefix set (`t` / `ye` / `of` resolve; `o` — ambiguous between
+`on`/`off` — does not).  `-strict` is honoured (only the empty-string
+result differs); `-failindex` and any unknown option bail.  Two registry
+tests (`string_is_folds_tcl_faithful_classes`,
+`string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
+**Still deferred** (own follow-up strips — Tcl number / list syntax +
+range edges need differential pinning, so they bail): the number classes
+**`integer`** / **`entier`** / **`wideinteger`** / **`double`** and the
+**`list`** / **`dict`** classes of `string is`; and the **`format`** /
+**`scan`** folds (printf / scanf semantics).  (The duplicated
+`split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
+deliberate trade-off — the canonical Tcl list-string codec should
+consolidate into a shared leaf like `tcl-lexer`; tracked.)
 
 ### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
 
