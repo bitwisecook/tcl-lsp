@@ -186,6 +186,13 @@ const FOLDABLE: &[Case] = &[
     ("string", Some("is"), &["integer", "abc"]),
     ("string", Some("is"), &["integer", "1.5"]),
     ("string", Some("is"), &["double", "3.14"]),
+    ("string", Some("is"), &["double", "5.e3"]),
+    ("string", Some("is"), &["double", "1E-10"]),
+    ("string", Some("is"), &["double", "inf"]),
+    ("string", Some("is"), &["double", "nan"]),
+    ("string", Some("is"), &["double", "1e"]),
+    ("string", Some("is"), &["double", "abc"]),
+    ("string", Some("is"), &["double", "-2.5"]),
     // dict ops
     ("dict", Some("get"), &["a 1 b 2", "b"]),
     ("dict", Some("size"), &["a 1 b 2"]),

@@ -362,11 +362,11 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// `false` use the exact `Tcl_GetBoolean` keyword + unique-prefix set
 /// (so `t` / `ye` / `of` resolve, `o` — ambiguous between on/off —
 /// does not).  `list` folds (a backslash-free string's well-formedness is
-/// unambiguous).  `integer` folds over its dialect-invariant subset (see
-/// [`string_is_integer`]); the remaining number classes (`entier` /
-/// `wideinteger` / `double`) and `dict` stay deferred — `wideinteger` /
-/// `entier` *raise* in old dialects (8.4 / 8.4 + 8.5) so no fold is sound,
-/// and `double` / `dict` await their own differential-pinned strips.
+/// unambiguous).  `integer` and `double` fold over their dialect-invariant
+/// subsets (see [`string_is_integer`] / [`string_is_double`]); `entier` /
+/// `wideinteger` / `dict` stay deferred — they *raise* in old dialects
+/// (8.4 / 8.4 + 8.5 / pre-9.0 respectively), so no dialect-agnostic fold can
+/// be sound (it would turn an error into a value).
 fn fold_is(args: &[&str]) -> Option<String> {
     if args.len() < 2 {
         return None;
@@ -432,13 +432,13 @@ fn fold_is(args: &[&str]) -> Option<String> {
         // 8.4 → 9.0 agrees on.  Folds 1/0 over its dialect-invariant subset,
         // bails otherwise — see [`string_is_integer`].
         "integer" => return string_is_integer(s),
-        // `entier` / `wideinteger` / `double` / `dict` stay deferred.
-        // `wideinteger` raises in Tcl 8.4 and `entier` in 8.4 + 8.5 (the
+        // `double`: folds over its dialect-invariant subset — see
+        // [`string_is_double`].
+        "double" => return string_is_double(s),
+        // `entier` / `wideinteger` / `dict` stay deferred: `wideinteger`
+        // raises in Tcl 8.4, `entier` in 8.4 + 8.5, and `dict` before 9.0 (the
         // classes postdate those releases), so no dialect-agnostic fold can be
-        // sound — a fold would turn an *error* into a value.  `double` agrees
-        // across versions but needs a float-grammar recogniser that also
-        // accepts the hex-float / Inf / NaN forms Rust's `f64` parser rejects;
-        // `dict` likewise awaits its own differential-pinned strip.  Bail.
+        // sound — a fold would turn an *error* into a value.  Bail.
         _ => return None,
     };
     Some(if member { "1" } else { "0" }.to_owned())
@@ -501,6 +501,42 @@ fn string_is_integer(s: &str) -> Option<String> {
     }
     // Not decimal, not a recognised prefix → no version reads it as an integer.
     Some("0".to_owned())
+}
+
+/// `string is double` over the **dialect-invariant** subset.  `s` is the
+/// non-empty value under test (the empty string is handled by [`fold_is`]).
+///
+/// `string is double` is remarkably consistent across Tcl 8.4 → 9.0, and on
+/// the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
+/// (after trimming) agrees with it **exactly** — verified differentially over
+/// a broad matrix against `tclsh8.4`/`8.5`/`8.6`/`9.0`, e.g. `5.e3`, `.5`,
+/// `1.`, `+.5`, `1E-10`, `inf`, `nan` → `1`; `1e`, `e5`, `.`, `1.2.3` → `0`.
+/// The few forms where they part ways are version-divergent anyway, so they
+/// **bail**:
+///
+/// * a `_` digit separator — accepted only by Tcl 9 (`1_000` → `0` on 8.x,
+///   `1` on 9.0), rejected by Rust;
+/// * a `0x` / `0o` / `0b` prefix — `0x…` is a valid double in every version
+///   but Rust's parser rejects it, `0o…` / `0b…` raise in 8.4, and a
+///   hex-float (`0x1.8p3`) flips 8.4 (`1`) ↔ 8.5+ (`0`);
+/// * a `(` — the `nan(payload)` form, which Tcl accepts but Rust rejects;
+/// * a non-ASCII value (so the `.trim()` whitespace set matches Tcl's).
+fn string_is_double(s: &str) -> Option<String> {
+    if !s.is_ascii() {
+        return None;
+    }
+    let t = s.trim();
+    if t.contains('_') || t.contains('(') {
+        return None;
+    }
+    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
+    let b = body.as_bytes();
+    if b.len() >= 2 && b[0] == b'0' && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
+        return None;
+    }
+    // For every remaining ASCII form, Rust's `f64` parser and Tcl's
+    // `string is double` agree across 8.4 → 9.0.
+    Some(if t.parse::<f64>().is_ok() { "1" } else { "0" }.to_owned())
 }
 
 /// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
@@ -1159,14 +1195,43 @@ mod tests {
         // `-failindex` writes a var → never folds; the still-deferred number
         // classes and unknown options bail.
         assert_eq!(is(&["alpha", "-failindex", "v", "abc"]), None);
-        assert_eq!(is(&["double", "1.5"]), None, "double deferred");
         assert_eq!(
             is(&["wideinteger", "42"]),
             None,
             "raises pre-8.6 → deferred"
         );
         assert_eq!(is(&["entier", "42"]), None, "raises pre-8.5 → deferred");
+        assert_eq!(is(&["dict", "a 1"]), None, "raises pre-9.0 → deferred");
         assert_eq!(is(&["nonclass", "x"]), None, "unknown class bails");
+    }
+
+    #[test]
+    fn string_is_double_folds_dialect_invariant_subset() {
+        let is_dbl = |v: &str| fold_is(&["double", v]);
+
+        // Decimal / scientific / Inf / NaN forms fold to "1" — Rust's f64
+        // parser agrees with Tcl 8.4 → 9.0 across this matrix.
+        for v in [
+            "3.14", "-2.5", "+.5", ".5", "5.", "5.e3", "42", "0", "1e10", "1E-10", "1e+5", "0.0",
+            "00.5", "inf", "Inf", "infinity", "nan", "NaN", "-inf", " 1.5 ", "-3.14",
+        ] {
+            assert_eq!(is_dbl(v).as_deref(), Some("1"), "{v:?} is a double");
+        }
+        // Clear non-doubles fold to "0".
+        for v in ["abc", "1e", "e5", "1.5e", ".", "1.2.3", "1d0", "1f", " "] {
+            assert_eq!(is_dbl(v).as_deref(), Some("0"), "{v:?} is not a double");
+        }
+        // Version-divergent / Rust-mismatching forms bail.
+        assert_eq!(is_dbl("1_000"), None, "Tcl 9 digit separator");
+        assert_eq!(is_dbl("0x1f"), None, "hex valid in Tcl, rejected by Rust");
+        assert_eq!(is_dbl("0o17"), None, "0o raises in 8.4");
+        assert_eq!(is_dbl("0x1.8p3"), None, "hex-float flips 8.4 ↔ 8.5+");
+        assert_eq!(
+            is_dbl("nan(0)"),
+            None,
+            "nan payload: Tcl accepts, Rust rejects"
+        );
+        assert_eq!(is_dbl("caf\u{e9}"), None, "non-ASCII bails");
     }
 
     #[test]

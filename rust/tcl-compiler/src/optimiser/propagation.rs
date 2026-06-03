@@ -1671,11 +1671,13 @@ mod tests {
         assert_eq!(fold("puts [format %.3d 5]"), vec!["005".to_string()]);
         // `%#d` stays unfolded (`0d5` on Tcl 9, `5` on 8.6 — divergent).
         assert!(fold("puts [format %#d 5]").is_empty());
-        // SYNC-JUN03 follow-up: `string is integer` folds over its
-        // dialect-invariant subset (a plain in-range decimal → 1).
+        // SYNC-JUN03 follow-up: `string is integer` / `double` fold over their
+        // dialect-invariant subsets.
         assert_eq!(fold("puts [string is integer 42]"), vec!["1".to_string()]);
-        // The still-deferred number classes leave the call unfolded.
-        assert!(fold("puts [string is double 1.5]").is_empty());
+        assert_eq!(fold("puts [string is double 1.5]"), vec!["1".to_string()]);
+        assert_eq!(fold("puts [string is double abc]"), vec!["0".to_string()]);
+        // `wideinteger` raises pre-8.6 → stays deferred (never folds).
+        assert!(fold("puts [string is wideinteger 42]").is_empty());
         // A braced literal with a space → result rendered as one word.
         assert_eq!(
             fold("puts [string toupper {a b}]"),

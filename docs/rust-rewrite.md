@@ -3337,12 +3337,18 @@ decimal in 9.0 — `08`/`019` diverge), a `0x`/`0o`/`0b` prefix (hex needs
 digit validation, oct/bin raise in 8.4), and a larger magnitude all bail.
 The same change corrected `fold_is`'s option parsing to Tcl's grammar
 (the **last** arg is the value, so `string is integer -7` folds to `1`).
-**Still deferred** (bail): **`wideinteger`** / **`entier`** — they *raise*
-in old dialects (8.4 / 8.4 + 8.5 respectively), so no dialect-agnostic
-fold is sound (a fold would turn an error into a value); **`double`** —
-agrees across versions but needs a float-grammar recogniser accepting the
-hex-float / `Inf` / `NaN` forms Rust's `f64` parser rejects; and **`dict`**
-(its own strip).  **`format`** — the **`%s` / `%d` / `%i` plus
+**`string is double` — LANDED** (`string_is_double`, same follow-up): on
+the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
+(after trimming) agrees with Tcl `string is double` **exactly** across
+8.4 → 9.0 (`5.e3` / `.5` / `1.` / `inf` / `nan` → 1; `1e` / `.` / `1.2.3`
+→ 0), so the fold defers to it, bailing only on the version-divergent /
+Rust-mismatching forms: a `_` digit separator (Tcl 9 only), a `0x`/`0o`/`0b`
+prefix (`0x…` is a valid double but Rust rejects it; `0o…`/`0b…` raise in
+8.4; a hex-float flips 8.4 ↔ 8.5+), a `(` (the `nan(payload)` form), and
+non-ASCII.  **Still deferred** (bail): **`wideinteger`** / **`entier`** /
+**`dict`** — they *raise* in old dialects (8.4 / 8.4 + 8.5 / pre-9.0
+respectively), so no dialect-agnostic fold is sound (it would turn an error
+into a value).  **`format`** — the **`%s` / `%d` / `%i` plus
 the flag / width / precision matrix LANDED** for the decimal-integer and
 string conversions (`format_::fold_format`, SYNC-JUN03 follow-up).  The
 flags `-` / `+` / space / `0`, an optional width, and a `.precision`
@@ -3702,13 +3708,14 @@ priority queue:
   `%i` decimal-integer + string conversions, the `%x` / `%X` / `%o` radix
   conversions, and `%c` — each with the flag / width / precision matrix on
   its dialect-invariant subset; landed in the SYNC-JUN03 follow-up and pinned
-  by the new differential-fold harness), and `string is integer` (its
-  dialect-invariant 32-bit-magnitude subset, verified against all four tclsh
-  8.4–9.0) — all in the new `tcl-registry/src/const_fold.rs` leaf +
+  by the new differential-fold harness), and `string is integer` + `double`
+  (their dialect-invariant subsets — the 32-bit-magnitude integer range and
+  the decimal/scientific/Inf/NaN double forms — verified against all four
+  tclsh 8.4–9.0) — all in the new `tcl-registry/src/const_fold.rs` leaf +
   per-command modules.  **Still deferred** (own strips, each pinned against
   tclsh via `tcl-registry/tests/differential_fold.rs` when it lands): `string
-  is wideinteger` / `entier` (they *raise* in old dialects, so no
-  dialect-agnostic fold is sound), `string is double` / `dict`, the `format`
+  is wideinteger` / `entier` / `dict` (they *raise* in old dialects — 8.4 /
+  8.4 + 8.5 / pre-9.0 — so no dialect-agnostic fold is sound), the `format`
   float (`%f`/`%e`/`%g`) + `%b` conversions, and `scan`.  **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
