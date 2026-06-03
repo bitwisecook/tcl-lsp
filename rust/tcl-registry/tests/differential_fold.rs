@@ -330,6 +330,9 @@ const FORMATS: &[Case] = &[
     ("format", None, &["%G", "1234567.0"]),
     ("format", None, &["%.3g", "0.000123456"]),
     ("format", None, &["%u", "42"]),
+    ("format", None, &["%u", "-1"]),         // 9.0: u32 -> 4294967295
+    ("format", None, &["%u", "4294967296"]), // 9.0: wrap -> 0
+    ("format", None, &["%u", "010"]),        // 9.0: decimal 10
     ("format", None, &["%05u", "42"]),
     ("format", None, &["%u", "2147483648"]),
     ("format", None, &["%b", "5"]),

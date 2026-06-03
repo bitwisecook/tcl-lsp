@@ -3433,11 +3433,16 @@ wrap semantics, and a negative renders as the dialect-width two's complement
 (`%x -1` → `ffffffff` on 9.0 but `ffffffffffffffff` on 8.6; `%x 010` → `8` on
 8.x but hex `a` on 9.0; `%x 5000000000` → `12a05f200` on 8.x, wrapped
 `2a05f200` on 9.0); an unversioned dialect keeps the non-negative i32 subset.
-**Still deferred**: **`%u`'s 9.0 wrap**, **`format` size modifiers / `*` /
-positional specs**, and — notably — **`scan`'s numeric bounds beyond i32**:
-its large-value semantics are *inconsistent across versions* (8.4 vs 9.0
-clamp-vs-wrap differently, 8.5 has conversion bugs), so it is soundly foldable
-only within the shared i32 range, as now.  (The duplicated
+**`%u` is version-aware too** (`render_unsigned`, sharing `parse_format_int`):
+the unsigned decimal of the bit pattern at the dialect width — `%u -1` →
+`4294967295` on 9.0 but `18446744073709551615` on 8.6, `%u 4294967296` → `0`
+vs `4294967296`.  So **every `format` integer conversion**
+(`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`) is now version-aware.  **Still deferred**:
+**`format` size modifiers (`%ld`) / `*` / positional specs**, and — notably —
+**`scan`'s numeric bounds beyond i32**: its large-value semantics are
+*inconsistent across versions* (8.4 vs 9.0 clamp-vs-wrap differently, 8.5 has
+conversion bugs), so it is soundly foldable only within the shared i32 range,
+as now.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3785,10 +3790,11 @@ priority queue:
   value interpretation is version-aware (octal leading-zero on 8.x vs decimal on
   9.0; 9.0's 32-bit wrap vs 8.x's full i64; radix negatives at the dialect's
   two's-complement width) — all via `const_fold_versioned`.  **Still deferred**:
-  `format %u`'s 9.0 wrap, `format` size modifiers / `*` / positional specs, and
-  `scan`'s numeric bounds beyond i32 — its large-value semantics are
-  *inconsistent* across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has
-  conversion bugs), so not soundly foldable even per-dialect.
+  `format` size modifiers (`%ld`) / `*` / positional specs, and `scan`'s
+  numeric bounds beyond i32 — its large-value semantics are *inconsistent*
+  across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has conversion bugs),
+  so not soundly foldable even per-dialect.  (Every `format` integer
+  conversion — `%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u` — is now version-aware.)
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**

@@ -194,7 +194,7 @@ impl Conversion {
             b'E' => self.render_float(value, FloatKind::Scientific, true),
             b'g' => self.render_float(value, FloatKind::General, false),
             b'G' => self.render_float(value, FloatKind::General, true),
-            b'u' => self.render_unsigned(value),
+            b'u' => self.render_unsigned(value, version),
             b'b' => self.render_radix(value, Radix::Binary, version),
             b's' => self.render_str(value),
             // Size modifiers (`%ld`) and positional `%n$` bail.
@@ -202,29 +202,25 @@ impl Conversion {
         }
     }
 
-    /// Render `%u` (unsigned decimal).  The argument must be a **plain
-    /// non-negative** decimal in the unsigned-32-bit range every release
-    /// shares (`[0, 2³²-1]`): a negative value (`%u -1` → `…615` on 8.x vs
-    /// `4294967295` on 9.0), a value past `2³²` (`%u 4294967296` → `0` on 9.0),
-    /// a sign, a leading zero (octal in 8.x), or a `0x`/etc. form all diverge
-    /// or differ and bail.  `%u` carries no sign, so the `+`/space flags don't
-    /// apply (Tcl ignores them); `#` bails.
-    fn render_unsigned(&self, value: &str) -> Option<String> {
+    /// Render `%u` (unsigned decimal) — the **decimal** of the integer
+    /// argument's unsigned bit pattern at the dialect's width (like
+    /// [`Self::render_radix`], sharing [`parse_format_int`]): 9.0 wraps to a
+    /// 32-bit unsigned (`%u -1` → `4294967295`, `%u 4294967296` → `0`), 8.x to
+    /// a 64-bit unsigned (`%u -1` → `18446744073709551615`).  An unversioned
+    /// dialect keeps the non-negative `[0, 2³²-1]` subset.  `%u` carries no
+    /// sign, so `+`/space don't apply; `#` bails.
+    fn render_unsigned(&self, value: &str, version: Option<TclVersion>) -> Option<String> {
         if self.flags.contains(FmtFlags::HASH) {
             return None;
         }
-        let t = value.trim();
-        let b = t.as_bytes();
-        if b.is_empty() || !b.iter().all(u8::is_ascii_digit) {
-            return None; // a sign / non-digit / empty bails
-        }
-        if b.len() > 1 && b[0] == b'0' {
-            return None; // leading zero → octal in 8.x
-        }
-        let n: u64 = t.parse().ok()?;
-        if n > 4_294_967_295 {
-            return None; // beyond the unsigned-32-bit range all versions share
-        }
+        let signed = parse_format_int(value, version)?;
+        let n: u64 = match version {
+            Some(TclVersion::V9_0) => u64::from(u32::from_ne_bytes(
+                i32::try_from(signed).ok()?.to_ne_bytes(),
+            )),
+            Some(_) => u64::from_ne_bytes(signed.to_ne_bytes()),
+            None => u64::try_from(signed).ok()?, // unversioned: non-negative only
+        };
         let mut digits = n.to_string();
         if let Some(p) = self.precision {
             if digits.len() < p {
@@ -680,16 +676,13 @@ mod tests {
         assert_eq!(f(&["%d", "-2147483648"]).as_deref(), Some("-2147483648"));
         // `0x`/`0o`/`0b` prefixes bail (a further follow-up).
         assert_eq!(f(&["%d", "0x10"]), None);
-        // %u folds for a non-negative in-range value; divergent forms bail.
+        // %u (the version-specific value-interp is in
+        // `format_unsigned_value_is_version_aware`; `f` runs under 9.0).
         assert_eq!(f(&["%u", "42"]).as_deref(), Some("42"));
         assert_eq!(f(&["%05u", "42"]).as_deref(), Some("00042"));
         assert_eq!(f(&["%.3u", "42"]).as_deref(), Some("042"));
-        assert_eq!(f(&["%u", "2147483648"]).as_deref(), Some("2147483648"));
-        assert_eq!(f(&["%u", "-1"]), None); // unsigned-wrap diverges
-        assert_eq!(f(&["%u", "4294967296"]), None); // past 2^32
-        assert_eq!(f(&["%u", "010"]), None); // leading zero (octal in 8.x)
-                                             // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
-                                             // the `#` alternate form bails (it changes %g trailing-zero stripping).
+        // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
+        // the `#` alternate form bails (it changes %g trailing-zero stripping).
         assert_eq!(f(&["%f", "inf"]), None);
         assert_eq!(f(&["%e", "nan"]), None);
         assert_eq!(f(&["%#f", "3.14"]), None);
@@ -732,6 +725,24 @@ mod tests {
         assert_eq!(f(&["%#x", "0"]), None);
         // `+` / space don't apply to a radix conversion → bail.
         assert_eq!(f(&["%+x", "255"]), None);
+    }
+
+    #[test]
+    fn format_unsigned_value_is_version_aware() {
+        use TclVersion::{V8_6, V9_0};
+        let u = |v: &str, ver| fold_format(&["%u", v], Some(ver));
+
+        // Unsigned bit pattern at the dialect width: 9.0 32-bit, 8.x 64-bit.
+        assert_eq!(u("-1", V9_0).as_deref(), Some("4294967295"));
+        assert_eq!(u("-1", V8_6).as_deref(), Some("18446744073709551615"));
+        assert_eq!(u("4294967296", V9_0).as_deref(), Some("0"));
+        assert_eq!(u("4294967296", V8_6).as_deref(), Some("4294967296"));
+        // Leading zero: octal on 8.x, decimal on 9.0.
+        assert_eq!(u("010", V8_6).as_deref(), Some("8"));
+        assert_eq!(u("010", V9_0).as_deref(), Some("10"));
+        // Unversioned keeps the non-negative i32 subset (a negative bails).
+        assert_eq!(fold_format(&["%u", "-1"], None), None);
+        assert_eq!(fold_format(&["%u", "42"], None).as_deref(), Some("42"));
     }
 
     #[test]
