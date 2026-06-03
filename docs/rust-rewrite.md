@@ -3398,6 +3398,43 @@ fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
   `[expr {…}]` routes through the expr path, not the const_fold path) —
   a further follow-up.
 
+## SYNC-JUN03 family — main audit (2026-06-03, PR #528)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`40278cc0` (SYNC-JUN02d).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`ca7bba21`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#528** (`ca7bba21`) — *Fix regexp/regsub empty-subject matching and
+  lset index bounds.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) `eval_regexp_cmd`'s `-all` loop tested
+  `offset >= stringLength` at the top of the loop, so an empty subject
+  (`offset == length == 0`) never attempted a single match and every
+  capture-bearing form returned 0 against `""` — now mirrors
+  `Tcl_RegexpObjCmd` (attempt the match first, break only after recording
+  it and advancing past the end); (2) `eval_regsub_cmd`'s metacharacter-free
+  `-all` + literal-`subSpec` string-map fast path uses the exclusive bound
+  so an empty pattern matches strictly between characters
+  (`regsub -all {} foo bar` → `barfbarobaro`, `regsub -all {} {} bar` → `""`),
+  while a `&` / `\` in the subSpec disqualifies the fast path; (3)
+  `lset_recurse` now raises on an out-of-range index and appends at length
+  (`lset {a b} 2 c`), mirroring `TclLsetFlat`; plus a `%`-bignum `format`
+  fix.  Touches only the **Zig VM**
+  (`runtime/zig/valtypes/{tcl_regex,tcl_list,tcl_format}.zig`,
+  `runtime/zig/cmds/list.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**`,
+  `tests/test_wasm_tcl9_core_baseline.py` harness-path fix +
+  refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_{regexp_empty_match,lset,regexp_about,format_bignum}.py`),
+  and `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter,
+  and the WASM test suite are all explicitly outside the rewrite scope; the
+  commit carries no analyser / compiler / lowering / CFG-SSA / registry /
+  optimiser surface, and no `rust/` change.
+
+No in-scope rows — the single commit is entirely VM / WASM runtime + tests.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3623,6 +3660,32 @@ priority queue:
   Out of scope: #523 (VS Code test de-flaking), #520 (F5 OpenPGP UCS
   decryption — `tooling/f5`), and the WASM-codegen / Zig-runtime / WASM-
   test bulk of #522.  See the `SYNC-JUN02c` family section.
+* **`SYNC-JUN02d` family** — opened 2026-06-02 (PR #525); advances the anchor
+  from `origin/main`@`e64aff29` to `origin/main`@`40278cc0` (+2 commits).  Two
+  in-scope rows, both reusing **O129** (no new codes).  **`SYNC-JUN02d-1`
+  (registry `const_fold` callback library) — LANDED**: the full
+  pure-`string`-subcommand family, the list ops (`list` / `concat` / `join` /
+  `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`), the
+  `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
+  `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
+  char-class / boolean / list predicates), and the `format` `%s` / `%d` /
+  `%%` subset — all in the new `tcl-registry/src/const_fold.rs` leaf +
+  per-command modules.  **Still deferred** (need differential pinning vs
+  tclsh, so they bail): the `string is` number classes (`integer` / `entier`
+  / `wideinteger` / `double`), `string is dict`, the full `format`
+  flag/width/precision matrix, and `scan`.  **`SYNC-JUN02d-2` (embedded /
+  nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
+  (interpolation-embedded cmd-sub fold; constant-var arg resolution from the
+  whole-function SCCP map; pure-proc multi-word string return).  Out of
+  scope: #524 (F5 query + KCS docs + UCS crypto) and #525 Part A (bytecode /
+  WASM codegen dispatch-gating).  See the `SYNC-JUN02d` family section.
+* **`SYNC-JUN03` family** — opened 2026-06-03 (PR #528); advances the anchor
+  from `origin/main`@`40278cc0` to `origin/main`@`ca7bba21` (+1 commit).
+  **No in-scope rows** — #528 is entirely Tcl 9 **WASM / Zig-VM** runtime
+  (regexp/regsub empty-subject matching, `lset` out-of-range bounds, a
+  `format` bignum fix) plus a WASM tcltest-gate refresh and new WASM
+  execution tests; no analyser / compiler / registry / optimiser surface and
+  no `rust/` change.  See the `SYNC-JUN03` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
