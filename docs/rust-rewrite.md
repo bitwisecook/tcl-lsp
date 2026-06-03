@@ -3426,13 +3426,18 @@ bail), and 9.0 wraps to a signed 32-bit int while 8.x keeps the full 64-bit
 value (`%d 2147483648` → that value on 8.x, `-2147483648` on 9.0;
 `%d 5000000000` → `705032704` on 9.0).  8.x bails beyond i64 (the >2⁶³
 behaviour diverges — 8.5 mis-converts 2⁶³); a `0x`/`0o`/`0b` prefix bails; an
-unversioned dialect keeps the invariant plain-decimal i32 subset.  **Still
-deferred** (further follow-ups, all wider under a known dialect): the radix
-(`%x`/`%X`/`%o`) value interpretation (negative two's-complement width, 9.0
-wrap), `%u`'s 9.0 wrap, `scan`'s numeric bounds (its large-value semantics are
-*inconsistent* across versions — 8.4 vs 9.0 clamp-vs-wrap differently, 8.5 has
-bugs — so soundly foldable only within the shared i32 range, as now), and
-`format` size modifiers / `*` / positional specs.  (The duplicated
+unversioned dialect keeps the invariant plain-decimal i32 subset.  The
+**radix (`%x` / `%X` / `%o` / `%b`) value interpretation is now version-aware
+too** (`render_radix` shares `parse_format_int`): the same leading-zero +
+wrap semantics, and a negative renders as the dialect-width two's complement
+(`%x -1` → `ffffffff` on 9.0 but `ffffffffffffffff` on 8.6; `%x 010` → `8` on
+8.x but hex `a` on 9.0; `%x 5000000000` → `12a05f200` on 8.x, wrapped
+`2a05f200` on 9.0); an unversioned dialect keeps the non-negative i32 subset.
+**Still deferred**: **`%u`'s 9.0 wrap**, **`format` size modifiers / `*` /
+positional specs**, and — notably — **`scan`'s numeric bounds beyond i32**:
+its large-value semantics are *inconsistent across versions* (8.4 vs 9.0
+clamp-vs-wrap differently, 8.5 has conversion bugs), so it is soundly foldable
+only within the shared i32 range, as now.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3776,15 +3781,14 @@ priority queue:
   new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
   and class-availability per release, verified against all four tclsh 8.4–9.0)
   — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
-  `format %b` is version-gated (8.6+) and `format %d`/`%i`'s value
-  interpretation is version-aware (octal leading-zero on 8.x vs decimal on 9.0;
-  9.0's 32-bit wrap vs 8.x's full i64) — both via `const_fold_versioned`.
-  **Still deferred** (further follow-ups): `format`'s radix (`%x`/`%X`/`%o`)
-  value interpretation (negative two's-complement width, 9.0 wrap) and `%u`'s
-  9.0 wrap; `format` size modifiers / `*` / positional specs; and `scan`'s
-  numeric bounds beyond i32 — its large-value semantics are *inconsistent*
-  across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has conversion bugs),
-  so not soundly foldable even per-dialect.
+  `format %b` is version-gated (8.6+), and `format` `%d`/`%i`/`%x`/`%X`/`%o`/`%b`
+  value interpretation is version-aware (octal leading-zero on 8.x vs decimal on
+  9.0; 9.0's 32-bit wrap vs 8.x's full i64; radix negatives at the dialect's
+  two's-complement width) — all via `const_fold_versioned`.  **Still deferred**:
+  `format %u`'s 9.0 wrap, `format` size modifiers / `*` / positional specs, and
+  `scan`'s numeric bounds beyond i32 — its large-value semantics are
+  *inconsistent* across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has
+  conversion bugs), so not soundly foldable even per-dialect.
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**

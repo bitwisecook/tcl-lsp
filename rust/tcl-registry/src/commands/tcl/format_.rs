@@ -18,15 +18,16 @@ use crate::prelude::*;
 /// wrong fold is a false-positive optimisation.  Each conversion's exact
 /// constraints live on its `render_*` helper; in summary:
 ///
-/// * `%d` / `%i` interpret the integer argument **per Tcl version**
-///   ([`parse_format_int`]): a leading zero is octal on 8.x but decimal on
-///   9.0, and 9.0 wraps to signed 32-bit while 8.x keeps the full 64-bit
-///   value; an unversioned dialect folds only the invariant plain-decimal
-///   i32 subset.  `%x` / `%X` / `%o` / `%c` still use the invariant
-///   [`parse_decimal_arg`] (`render_radix` requires non-negative, `render_char`
-///   a printable-ASCII codepoint — making them version-aware is a further
-///   follow-up).  The `#` alternate form is sound only as the lowercase `0x`
-///   on a non-zero `%x`.
+/// * `%d` / `%i` / `%x` / `%X` / `%o` / `%b` interpret the integer argument
+///   **per Tcl version** ([`parse_format_int`]): a leading zero is octal on
+///   8.x but decimal on 9.0, and 9.0 wraps to signed 32-bit while 8.x keeps the
+///   full 64-bit value — so a radix conversion also renders a negative as the
+///   dialect-width two's complement (`%x -1` → `ffffffff` on 9.0,
+///   `ffffffffffffffff` on 8.6).  An unversioned dialect folds only the
+///   invariant plain-decimal i32 subset (a radix negative bails).  `%c` uses
+///   the invariant [`parse_decimal_arg`] (a printable-ASCII codepoint).  The
+///   `#` alternate form is sound only as the lowercase `0x` / `0b` on a
+///   non-zero `%x` / `%b`.
 /// * `%s` honours `-` / width / precision; the numeric flags bail (Tcl
 ///   ignores them on strings), and width/precision over a non-ASCII value
 ///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
@@ -184,9 +185,9 @@ impl Conversion {
     fn render(&self, value: &str, version: Option<TclVersion>) -> Option<String> {
         match self.verb {
             b'd' | b'i' => self.render_int(value, version),
-            b'x' => self.render_radix(value, Radix::HexLower),
-            b'X' => self.render_radix(value, Radix::HexUpper),
-            b'o' => self.render_radix(value, Radix::Octal),
+            b'x' => self.render_radix(value, Radix::HexLower, version),
+            b'X' => self.render_radix(value, Radix::HexUpper, version),
+            b'o' => self.render_radix(value, Radix::Octal, version),
             b'c' => self.render_char(value),
             b'f' | b'F' => self.render_float(value, FloatKind::Fixed, false),
             b'e' => self.render_float(value, FloatKind::Scientific, false),
@@ -194,7 +195,7 @@ impl Conversion {
             b'g' => self.render_float(value, FloatKind::General, false),
             b'G' => self.render_float(value, FloatKind::General, true),
             b'u' => self.render_unsigned(value),
-            b'b' => self.render_radix(value, Radix::Binary),
+            b'b' => self.render_radix(value, Radix::Binary, version),
             b's' => self.render_str(value),
             // Size modifiers (`%ld`) and positional `%n$` bail.
             _ => None,
@@ -320,19 +321,34 @@ impl Conversion {
         Some(self.pad(sign, &digits, self.int_zero_pad()))
     }
 
-    /// Render `%x` / `%X` / `%o` for a **non-negative** dialect-invariant
-    /// argument.  Negative values bail (the two's-complement digit count is
-    /// 32-bit in 9.0 but 64-bit in 8.6).  `+` / space don't apply to a radix
-    /// conversion (bail).  The `#` alternate form is sound only as the
-    /// lowercase `0x` prefix on a non-zero `%x`: `%#X` is `0XFF` on 8.6 but
-    /// `0xFF` on 9.0, `%#o` is `010` vs `0o10`, and `%#x 0` is `0x0` vs `0`.
-    fn render_radix(&self, value: &str, radix: Radix) -> Option<String> {
+    /// Render `%x` / `%X` / `%o` / `%b`.  The integer *value* is version-aware
+    /// ([`parse_format_int`], like `%d`), and its two's-complement **bit width**
+    /// is the dialect's: 9.0 wraps to 32 bits, 8.x to 64 bits — so `%x -1` is
+    /// `ffffffff` on 9.0 but `ffffffffffffffff` on 8.6, and `%x 010` is `a`
+    /// (decimal 10) on 9.0 but `8` (octal) on 8.x.  An **unversioned** dialect
+    /// keeps the conservative non-negative i32 subset (a negative bails, its
+    /// width being divergent).  `+` / space don't apply to a radix conversion
+    /// (bail).  The `#` alternate form is sound only as the lowercase `0x` /
+    /// `0b` prefix on a non-zero value (`%#X` is `0XFF` on 8.6 but `0xFF` on
+    /// 9.0, `%#o` is `010` vs `0o10`, `%#x 0` / `%#b 0` are `0x0`/`0b0` vs `0`).
+    fn render_radix(
+        &self,
+        value: &str,
+        radix: Radix,
+        version: Option<TclVersion>,
+    ) -> Option<String> {
         if self.flags.intersects(FmtFlags::PLUS | FmtFlags::SPACE) {
             return None;
         }
-        // A negative value bails: its two's-complement digit count is 32-bit
-        // in 9.0 but 64-bit in 8.6 (`try_from` rejects the sign for us).
-        let n = u64::try_from(parse_decimal_arg(value)?).ok()?;
+        let signed = parse_format_int(value, version)?;
+        // The two's-complement bit pattern at the dialect's width.
+        let n: u64 = match version {
+            Some(TclVersion::V9_0) => u64::from(u32::from_ne_bytes(
+                i32::try_from(signed).ok()?.to_ne_bytes(),
+            )),
+            Some(_) => u64::from_ne_bytes(signed.to_ne_bytes()),
+            None => u64::try_from(signed).ok()?, // unversioned: non-negative only
+        };
         let mut digits = match radix {
             Radix::HexLower => format!("{n:x}"),
             Radix::HexUpper => format!("{n:X}"),
@@ -708,20 +724,50 @@ mod tests {
     }
 
     #[test]
-    fn format_bails_on_version_divergent_radix() {
-        // Negative → two's-complement digit count is 32-bit (9.0) vs 64-bit (8.6).
-        assert_eq!(f(&["%x", "-1"]), None);
-        assert_eq!(f(&["%o", "-1"]), None);
+    fn format_radix_flags_that_always_bail() {
         // `%#X` is `0XFF` (8.6) vs `0xFF` (9.0); `%#o` is `010` vs `0o10`;
-        // `%#x 0` is `0x0` vs `0` — all bail.
+        // `%#x 0` is `0x0` vs `0` — all bail on every version.
         assert_eq!(f(&["%#X", "255"]), None);
         assert_eq!(f(&["%#o", "8"]), None);
         assert_eq!(f(&["%#x", "0"]), None);
         // `+` / space don't apply to a radix conversion → bail.
         assert_eq!(f(&["%+x", "255"]), None);
-        // Leading-zero / over-range args bail just as for `%d`.
-        assert_eq!(f(&["%x", "010"]), None);
-        assert_eq!(f(&["%x", "4294967295"]), None);
+    }
+
+    #[test]
+    fn format_radix_value_is_version_aware() {
+        use TclVersion::{V8_6, V9_0};
+        let x = |v: &str, ver| fold_format(&["%x", v], Some(ver));
+
+        // Negative: two's-complement at the dialect width (32-bit on 9.0,
+        // 64-bit on 8.x) — verified vs all four tclsh.
+        assert_eq!(x("-1", V9_0).as_deref(), Some("ffffffff"));
+        assert_eq!(x("-1", V8_6).as_deref(), Some("ffffffffffffffff"));
+        assert_eq!(x("-255", V9_0).as_deref(), Some("ffffff01"));
+        assert_eq!(
+            fold_format(&["%o", "-1"], Some(V9_0)).as_deref(),
+            Some("37777777777")
+        );
+        assert_eq!(
+            fold_format(&["%b", "-1"], Some(V9_0)).as_deref(),
+            Some("11111111111111111111111111111111")
+        );
+        // Leading zero: octal on 8.x, decimal on 9.0 (`010` → 8 vs hex `a`).
+        assert_eq!(x("010", V8_6).as_deref(), Some("8"));
+        assert_eq!(x("010", V9_0).as_deref(), Some("a"));
+        // Over i32: 9.0 wraps to 32-bit, 8.x keeps 64-bit.
+        assert_eq!(x("4294967295", V9_0).as_deref(), Some("ffffffff"));
+        assert_eq!(x("5000000000", V9_0).as_deref(), Some("2a05f200"));
+        assert_eq!(x("5000000000", V8_6).as_deref(), Some("12a05f200"));
+        // `%#x` prefix at the dialect width.
+        assert_eq!(
+            fold_format(&["%#x", "-1"], Some(V9_0)).as_deref(),
+            Some("0xffffffff")
+        );
+        // Unversioned keeps the non-negative i32 subset (a negative bails).
+        assert_eq!(fold_format(&["%x", "-1"], None), None);
+        assert_eq!(fold_format(&["%x", "010"], None), None);
+        assert_eq!(fold_format(&["%x", "255"], None).as_deref(), Some("ff"));
     }
 
     #[test]
@@ -780,8 +826,9 @@ mod tests {
             fold_format(&["%#b", "5"], Some(V9_0)).as_deref(),
             Some("0b101")
         );
-        // Negative / `%#b 0` diverge → bail even on 9.0.
-        assert_eq!(fold_format(&["%b", "-1"], Some(V9_0)), None);
+        // `%#b 0` diverges (0b0 on 8.6 vs 0 on 9.0) → bail; a negative folds to
+        // the dialect-width two's complement (covered by
+        // `format_radix_value_is_version_aware`).
         assert_eq!(fold_format(&["%#b", "0"], Some(V9_0)), None);
     }
 

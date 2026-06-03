@@ -278,6 +278,11 @@ const FORMATS: &[Case] = &[
     ("format", None, &["%d", "2147483647"]),
     ("format", None, &["%d", "-2147483648"]),
     ("format", None, &["%x", "255"]),
+    ("format", None, &["%x", "-1"]), // 9.0: 32-bit two's complement
+    ("format", None, &["%x", "-255"]),
+    ("format", None, &["%x", "010"]), // 9.0: decimal 10 -> hex a
+    ("format", None, &["%x", "5000000000"]), // 9.0: wrap
+    ("format", None, &["%o", "-1"]),
     ("format", None, &["%x", "0"]),
     ("format", None, &["%#x", "255"]),
     ("format", None, &["%#08x", "255"]),
