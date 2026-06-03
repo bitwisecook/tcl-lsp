@@ -28,6 +28,10 @@ structure-elimination, code-sinking, and minifier — which strip or re-widen
 the delimiters themselves — working against a stable contract. Widening the
 range at the lowering layer breaks those consumers.
 
+An **empty** `{}` / `[]` / `""` is the exception: it has no inner character, so
+`end` already sits **on** the closer, and widening it instead overshoots by one
+(see the failure modes below).
+
 ## Decision rules / contracts
 
 1. Do **not** widen word-token ranges in lowering or the segmenter's word
@@ -38,7 +42,8 @@ range at the lowering layer breaks those consumers.
 3. A whole-command range built from a token span is widened with
    `range_from_word_token` (closer derived from the token *type*, no source
    needed — required because nested bodies have absolute offsets but a
-   substring source).
+   substring source). An empty `{}` / `[]` already covers its closer, so the
+   helper returns it unchanged rather than advancing one more byte.
 4. The compiler explorer front-end slices `src.substring(startOffset,
    endOffset)` with an **exclusive** end, so serialised ranges must convert
    the inclusive semantic-model end to exclusive (`+1`), matching
@@ -62,11 +67,17 @@ range at the lowering layer breaks those consumers.
 - Widening the range at lowering instead of the consumer corrupts optimiser
   passes that strip or re-widen the delimiters (string-compare detection,
   branch folding, and others).
+- Widening an **empty** `{}` / `[]` / `""` word whose `end` already sits on the
+  closer overshoots by one; a trailing empty argument then absorbs the
+  enclosing body's `}` and a phantom stray brace fires `E102` (issue #527).
 
 ## Triage checklist
 
 1. Slice the source with the emitted range and confirm whether the covered
-   text is a complete, balanced token.
+   text is a complete, balanced token. The `compiler-explorer` skill's
+   `slices` view prints every IR statement's range alongside the literal source
+   slice it covers, so an over- or under-shoot is visible at a glance
+   (`python .claude/skills/compiler-explorer/explore.py slices --source '...'`).
 2. Check whether the consumer widens for the closer; if not, that is the bug.
 3. For the explorer, confirm the serialised `endOffset` is the exclusive end
    (inclusive `+1`).

@@ -32,11 +32,20 @@ def range_from_word_token(tok: Token) -> Range:
     """Range covering a full word token, *including* its closing delimiter.
 
     A braced/bracketed word token starts on the opening ``{`` / ``[`` but its
-    ``end`` sits on the last *inner* character — the matching closer is exactly
-    one position past ``end`` and ``tok.text`` omits it.  For ``STR``
+    ``end`` normally sits on the last *inner* character — the matching closer is
+    exactly one position past ``end`` and ``tok.text`` omits it.  For ``STR``
     (``{...}``) and ``CMD`` (``[...]``) tokens, extend the range by that single
     closer character so a whole-word span covers the closer rather than
     stopping one short.
+
+    An *empty* ``{}`` / ``[]`` is the exception: it has no inner character, so
+    the lexer already places ``end`` *on* the closer.  Advancing again would
+    overshoot into whatever follows — for a trailing ``{}`` argument that is the
+    enclosing body's closing brace, which corrupts the command span and
+    produces a phantom stray ``}`` (issue #527).  ``span_extra`` — the bytes the
+    span carries beyond the opener and content — is ``0`` when the closer is
+    excluded and ``>= 1`` when it is already covered, so it distinguishes the
+    two cases without touching the source.
 
     The closer width comes from the token's *type*, so the span is derived
     straight from the token tree with no source slicing — which is what lets it
@@ -46,6 +55,10 @@ def range_from_word_token(tok: Token) -> Range:
     character is a newline), the line/column advance with the offset.
     """
     if tok.type in (TokenType.STR, TokenType.CMD):
+        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
+        if span_extra >= 1:
+            # Empty ``{}`` / ``[]``: ``end`` already sits on the closer.
+            return Range(start=tok.start, end=tok.end)
         last_inner = tok.text[-1] if tok.text else ""
         return Range(start=tok.start, end=_closer_position(tok.end, last_inner))
     return Range(start=tok.start, end=tok.end)
@@ -75,6 +88,19 @@ def widen_range_for_closer(source: str, range_: Range) -> Range:
         return range_
     closer = _RANGE_CLOSERS.get(source[start_off])
     end = range_.end
+    # An empty ``{}`` / ``[]`` / ``""`` already ends *on* its closer — the range
+    # spans exactly the opener and the closer — so there is nothing to widen.
+    # Advancing would overshoot into whatever follows; for a trailing ``{}`` that
+    # is the enclosing body's closing brace (issue #527).  This 2-character span
+    # is unambiguous: any non-empty word is longer, so a deeper nested closer
+    # (``{a {b}`` ending on an inner ``}``) never matches ``start_off + 1``.
+    if (
+        closer
+        and end.offset == start_off + 1
+        and end.offset < len(source)
+        and source[end.offset] == closer
+    ):
+        return range_
     if closer and end.offset + 1 < len(source) and source[end.offset + 1] == closer:
         last_inner = source[end.offset] if 0 <= end.offset < len(source) else ""
         return Range(start=range_.start, end=_closer_position(end, last_inner))

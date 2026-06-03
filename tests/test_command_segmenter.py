@@ -708,6 +708,26 @@ class TestE102StrayCloseBrace:
         e102 = [d for d in result.diagnostics if d.code == "E102"]
         assert len(e102) == 0
 
+    def test_e102_no_false_positive_on_trailing_empty_braces(self):
+        """Issue #527: a body ending in an empty `{}` argument is valid Tcl.
+
+        ``if {[llength $domain] != 2} {return {}}`` closes the body's brace right
+        after the empty ``{}``.  The empty word's token already ends on its own
+        closer, so the command span must not absorb the body's ``}`` and report
+        it as a stray brace.
+        """
+        source = "if {[llength $domain] != 2} {return {}}\n"
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert e102 == []
+
+    def test_e102_no_false_positive_on_trailing_empty_braces_in_proc(self):
+        """The same construct nested inside a proc body must also stay clean."""
+        source = "proc foo {domain} {\n    if {[llength $domain] != 2} {return {}}\n}\n"
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert e102 == []
+
     def test_e102_standalone_close_brace(self):
         """A standalone } line at top level emits E102."""
         source = "set x 1\n}\n"
