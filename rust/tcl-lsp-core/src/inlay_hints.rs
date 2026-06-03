@@ -69,6 +69,7 @@ pub struct InlayHint {
 #[must_use]
 pub fn inlay_hints(
     source: &str,
+    dialect: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
     registry: Option<&CommandRegistry>,
@@ -77,7 +78,11 @@ pub fn inlay_hints(
         return Vec::new();
     };
     let line_index = LineIndex::new(source);
-    let segments = tcl_compiler::segmenter::segment_commands(source);
+    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
     let mut out = Vec::new();
 
     for seg in &segments {
@@ -413,7 +418,13 @@ mod tests {
 
     #[test]
     fn empty_hints_when_analysis_is_none() {
-        let hints = inlay_hints("set x 1\n", whole_document_range("set x 1\n"), None, None);
+        let hints = inlay_hints(
+            "set x 1\n",
+            "tcl",
+            whole_document_range("set x 1\n"),
+            None,
+            None,
+        );
         assert!(hints.is_empty());
     }
 
@@ -421,7 +432,7 @@ mod tests {
     fn hints_emitted_for_user_proc_call() {
         let src = "proc greet {name greeting} {}\ngreet alice hello\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(
             labels.contains(&"name:"),
@@ -437,7 +448,7 @@ mod tests {
     fn hints_anchored_at_argument_start() {
         let src = "proc greet {name} {}\ngreet alice\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         assert_eq!(hints.len(), 1);
         let h = &hints[0];
         assert_eq!(h.position_line, 1);
@@ -450,7 +461,7 @@ mod tests {
     fn no_hints_for_unknown_command() {
         let src = "unknown_cmd a b c\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -460,7 +471,7 @@ mod tests {
         // because there's no individual name to surface.
         let src = "proc many {first args} {}\nmany 1 2 3 4\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         // Only the `first` arg gets a hint.
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
@@ -473,7 +484,7 @@ mod tests {
         // no hints (no name to attach).
         let src = "proc one {a} {}\none 1 2 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "a:");
     }
@@ -490,7 +501,7 @@ mod tests {
             end_line: 2,
             end_character: u32::MAX,
         };
-        let hints = inlay_hints(src, range, Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", range, Some(&analysis), None);
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
     }
@@ -586,7 +597,13 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert_eq!(labels, vec!["string:"], "{hints:?}");
     }
@@ -598,7 +615,13 @@ mod tests {
         let src = "puts stderr hello\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert_eq!(labels, vec!["channelId:", "string:"], "{hints:?}");
     }
@@ -610,7 +633,13 @@ mod tests {
         let src = "string index $s 3\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"string:"), "{hints:?}");
         assert!(labels.contains(&"charIndex:"), "{hints:?}");
@@ -623,7 +652,13 @@ mod tests {
         let src = "string compare -nocase $a $b\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         // The flag token shouldn't be labelled.
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"string1:"), "{hints:?}");
@@ -642,7 +677,13 @@ mod tests {
         let src = "string index $s -1\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"string:"), "{hints:?}");
         assert!(labels.contains(&"charIndex:"), "{hints:?}");
@@ -655,7 +696,13 @@ mod tests {
         let src = "string compare -length 3 $a $b\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         // Only the two positionals are labelled — `-length` and its
         // value `3` are both consumed.
@@ -667,7 +714,7 @@ mod tests {
         // Same source, no registry — no built-in hints.
         let src = "string index $s 3\n";
         let analysis = analyse(src);
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), None);
+        let hints = inlay_hints(src, "tcl", whole_document_range(src), Some(&analysis), None);
         assert!(hints.is_empty(), "{hints:?}");
     }
 
@@ -679,7 +726,13 @@ mod tests {
         let src = "proc greet {name} {}\ngreet alice\n";
         let analysis = analyse(src);
         let reg = registry();
-        let hints = inlay_hints(src, whole_document_range(src), Some(&analysis), Some(&reg));
+        let hints = inlay_hints(
+            src,
+            "tcl",
+            whole_document_range(src),
+            Some(&analysis),
+            Some(&reg),
+        );
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert!(labels.contains(&"name:"), "{hints:?}");
     }

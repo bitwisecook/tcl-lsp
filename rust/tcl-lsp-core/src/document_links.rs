@@ -30,7 +30,7 @@
 //!   path resolves against `workspace_root` like any other
 //!   relative arg.
 
-use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LineIndex;
 
 /// One link in a document — target URI plus the source range.
@@ -58,9 +58,13 @@ pub struct DocumentLink {
 /// the env var at call-time so server tests can stub it (see
 /// `document_links_with_home`).
 #[must_use]
-pub fn document_links(source: &str, workspace_root: Option<&str>) -> Vec<DocumentLink> {
+pub fn document_links(
+    source: &str,
+    dialect: &str,
+    workspace_root: Option<&str>,
+) -> Vec<DocumentLink> {
     let home = std::env::var("HOME").ok();
-    document_links_with_home(source, workspace_root, home.as_deref())
+    document_links_with_home(source, dialect, workspace_root, home.as_deref())
 }
 
 /// Same as [`document_links`] but lets callers pass an
@@ -71,13 +75,18 @@ pub fn document_links(source: &str, workspace_root: Option<&str>) -> Vec<Documen
 #[must_use]
 pub fn document_links_with_home(
     source: &str,
+    dialect: &str,
     workspace_root: Option<&str>,
     home: Option<&str>,
 ) -> Vec<DocumentLink> {
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
 
-    for seg in segment_commands(source) {
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
         if seg.texts.is_empty() {
             continue;
         }
@@ -319,14 +328,14 @@ mod tests {
 
     #[test]
     fn empty_links_for_non_source_commands() {
-        assert!(document_links("set x 1\n", None).is_empty());
-        assert!(document_links("puts hello\n", None).is_empty());
+        assert!(document_links("set x 1\n", "tcl", None).is_empty());
+        assert!(document_links("puts hello\n", "tcl", None).is_empty());
     }
 
     #[test]
     fn absolute_path_surfaces_as_link() {
         let src = "source /usr/lib/tcl/init.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     }
@@ -334,7 +343,7 @@ mod tests {
     #[test]
     fn relative_path_resolves_against_workspace_root() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, Some("/home/user/project"));
+        let links = document_links(src, "tcl", Some("/home/user/project"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/project/helper.tcl");
     }
@@ -342,14 +351,14 @@ mod tests {
     #[test]
     fn relative_path_without_root_produces_no_link() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn encoding_flag_skipped_before_path() {
         let src = "source -encoding utf-8 /tmp/foo.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///tmp/foo.tcl");
     }
@@ -358,7 +367,7 @@ mod tests {
     fn link_range_anchors_at_path_argument() {
         // `source ` is 7 chars; the path starts at col 7.
         let src = "source /tmp/foo.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].start_character, 7);
         // End col covers the path (12 chars: `/tmp/foo.tcl`).
@@ -370,14 +379,14 @@ mod tests {
         // `source $somevar` — variable substitution, not a
         // literal path.  Skipped.
         let src = "source $somevar\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn double_dash_terminator_skipped() {
         let src = "source -- /tmp/x.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///tmp/x.tcl");
     }
@@ -385,7 +394,7 @@ mod tests {
     #[test]
     fn trailing_slash_on_workspace_root_handled() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, Some("/home/user/"));
+        let links = document_links(src, "tcl", Some("/home/user/"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/helper.tcl");
     }
@@ -393,7 +402,7 @@ mod tests {
     #[test]
     fn tilde_expansion_uses_supplied_home() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, None, Some("/test-home"));
+        let links = document_links_with_home(src, "tcl", None, Some("/test-home"));
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
     }
@@ -401,14 +410,14 @@ mod tests {
     #[test]
     fn tilde_without_home_produces_no_link() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, None, None);
+        let links = document_links_with_home(src, "tcl", None, None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn bare_tilde_expands_to_home() {
         let src = "source ~\n";
-        let links = document_links_with_home(src, None, Some("/test-home"));
+        let links = document_links_with_home(src, "tcl", None, Some("/test-home"));
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
     }
@@ -485,7 +494,7 @@ mod tests {
         // hashes surfaces as a properly percent-encoded
         // `file://` URI rather than a raw concatenation.
         let src = "source /path/with spaces.tcl\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         // The literal-path arg may or may not parse cleanly
         // through the segmenter; if it does, the URI must be
         // escaped.  If not, the test is informational only.
@@ -542,7 +551,7 @@ mod tests {
     #[test]
     fn source_with_literal_file_join_surfaces_link() {
         let src = "source [file join lib helper.tcl]\n";
-        let links = document_links(src, Some("/home/user/project"));
+        let links = document_links(src, "tcl", Some("/home/user/project"));
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl",);
     }
@@ -550,7 +559,7 @@ mod tests {
     #[test]
     fn source_with_absolute_file_join_segment_surfaces_link() {
         let src = "source [file join /usr/local/lib tcl init.tcl]\n";
-        let links = document_links(src, None);
+        let links = document_links(src, "tcl", None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/local/lib/tcl/init.tcl");
     }

@@ -25,7 +25,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
-use tcl_compiler::segmenter::segment_commands_with_offset;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -118,6 +118,7 @@ pub fn folding_ranges(
         original_source: source,
         seen: &mut seen,
         ranges: &mut ranges,
+        config: tcl_lexer::LexerConfig::for_dialect(dialect),
     };
     collect_body_folds(
         source, 0, 0, false, // top-level body is not inside an OO definition
@@ -408,6 +409,9 @@ struct FoldCtx<'a> {
     original_source: &'a str,
     seen: &'a mut HashSet<(u32, u32)>,
     ranges: &'a mut Vec<FoldingRange>,
+    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`
+    /// (`SYNC-MAY19-dialect-contextvar`, strip 5).
+    config: tcl_lexer::LexerConfig,
 }
 
 /// Recursion depth is capped at 20 to mirror the Python guard.
@@ -421,7 +425,7 @@ fn collect_body_folds(
     if depth > 20 {
         return;
     }
-    let commands = segment_commands_with_offset(body_source, base_offset);
+    let commands = segment_commands_with_offset_and_config(body_source, base_offset, ctx.config);
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;

@@ -45,7 +45,7 @@
 //!   detection plus per-component classification.
 //! * `BigIP` URI segments / iRules-specific event names.
 
-use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
@@ -159,8 +159,8 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
 
 /// Compute semantic tokens for the entire document.
 #[must_use]
-pub fn full(source: &str, registry: &CommandRegistry) -> SemanticTokens {
-    let entries = collect_entries(source, registry);
+pub fn full(source: &str, dialect: &str, registry: &CommandRegistry) -> SemanticTokens {
+    let entries = collect_entries(source, dialect, registry);
     encode_entries(&entries)
 }
 
@@ -172,10 +172,11 @@ pub fn full(source: &str, registry: &CommandRegistry) -> SemanticTokens {
 #[must_use]
 pub fn range(
     source: &str,
+    dialect: &str,
     range: crate::definition::LspRange,
     registry: &CommandRegistry,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, registry);
+    let mut entries = collect_entries(source, dialect, registry);
     entries.retain(|(line, col, _, _)| {
         // Half-open interval per LSP `Range` semantics (PR #454
         // Copilot review): start is inclusive, end is exclusive.
@@ -190,12 +191,20 @@ pub fn range(
 /// Walk the segmenter + comment scan and return raw
 /// `(line, col, length, kind)` tuples sorted by position.
 /// Shared by `full` and `range`.
-fn collect_entries(source: &str, registry: &CommandRegistry) -> Vec<(u32, u32, u32, TokenKind)> {
+fn collect_entries(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> Vec<(u32, u32, u32, TokenKind)> {
     let mut entries: Vec<(u32, u32, u32, TokenKind)> = Vec::new();
     let line_index = LineIndex::new(source);
 
     // Walk every segmented command and classify each token.
-    for seg in segment_commands(source) {
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
         if seg.argv.is_empty() {
             continue;
         }
@@ -484,8 +493,29 @@ mod tests {
     }
 
     #[test]
+    fn semantic_tokens_are_dialect_aware_via_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar strip 5: the provider re-segments
+        // under the document dialect.  In `foo {*}$x`, on 8.5+ the `{*}`
+        // is the expansion operator (consumed — not a highlighted word),
+        // but on 8.4 it is a literal braced string `{*}`, which adds an
+        // extra `string` token.  So the packed token stream is longer on
+        // 8.4.  Before strip 5 the provider always lexed `{*}` as
+        // expansion regardless of dialect.
+        let src = "foo {*}$x\n";
+        let on_90 = full(src, "tcl9.0", &reg()).data;
+        let on_84 = full(src, "tcl8.4", &reg()).data;
+        assert!(
+            on_84.len() > on_90.len(),
+            "8.4 keeps `{{*}}` as a highlighted string token (longer stream): \
+             8.4={} 9.0={}",
+            on_84.len(),
+            on_90.len(),
+        );
+    }
+
+    #[test]
     fn full_returns_non_empty_data_for_simple_proc() {
-        let s = full("proc foo {} {}\n", &reg());
+        let s = full("proc foo {} {}\n", "tcl", &reg());
         // Should have at least: `proc` (keyword), `foo`
         // (function), `{}` (string), `{}` (string).
         assert!(!s.data.is_empty(), "{:?}", s.data);
@@ -551,7 +581,7 @@ mod tests {
 
     #[test]
     fn keywords_classified_as_keyword() {
-        let s = full("if {1} { puts hi }\n", &reg());
+        let s = full("if {1} { puts hi }\n", "tcl", &reg());
         // First token's type index should be 0 (Keyword) for `if`.
         // The encoded data: [deltaLine, deltaCol, length, type, modifiers].
         assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
@@ -559,14 +589,14 @@ mod tests {
 
     #[test]
     fn comments_classified_as_comment() {
-        let s = full("# this is a comment\nset x 1\n", &reg());
+        let s = full("# this is a comment\nset x 1\n", "tcl", &reg());
         // The first token should be the comment.
         assert_eq!(s.data[3], TokenKind::Comment as u32, "{:?}", s.data);
     }
 
     #[test]
     fn variables_classified_as_variable() {
-        let s = full("set $x 1\n", &reg());
+        let s = full("set $x 1\n", "tcl", &reg());
         // The `$x` token kind should be Variable.
         let kinds: Vec<u32> = s.data.chunks(5).map(|c| c[3]).collect();
         assert!(
@@ -589,7 +619,7 @@ mod tests {
 
     #[test]
     fn empty_source_returns_empty_data() {
-        assert!(full("", &reg()).data.is_empty());
+        assert!(full("", "tcl", &reg()).data.is_empty());
     }
 
     #[test]
@@ -609,9 +639,10 @@ mod tests {
         // Three commands on three lines.  Range covers only
         // line 1 — the line-0 and line-2 tokens should drop.
         let src = "set a 1\nset b 2\nset c 3\n";
-        let full_data = full(src, &reg());
+        let full_data = full(src, "tcl", &reg());
         let line1_only = range(
             src,
+            "tcl",
             crate::definition::LspRange {
                 start_line: 1,
                 start_character: 0,
@@ -631,9 +662,10 @@ mod tests {
     #[test]
     fn range_keeps_entire_document_when_range_covers_it() {
         let src = "proc foo {} { puts hi }\n";
-        let full_data = full(src, &reg());
+        let full_data = full(src, "tcl", &reg());
         let wide = range(
             src,
+            "tcl",
             crate::definition::LspRange {
                 start_line: 0,
                 start_character: 0,
@@ -656,6 +688,7 @@ mod tests {
         // not appear in the range result.
         let r = range(
             src,
+            "tcl",
             crate::definition::LspRange {
                 start_line: 0,
                 start_character: 0,
@@ -668,7 +701,7 @@ mod tests {
         // 0 (the `set` of `set b 2`).  The half-open range must
         // exclude it; the range data must therefore be strictly
         // shorter than the full data.
-        let full_data = full(src, &reg());
+        let full_data = full(src, "tcl", &reg());
         assert!(
             r.data.len() < full_data.data.len(),
             "range data {} should drop the line-1 token; full data {}",

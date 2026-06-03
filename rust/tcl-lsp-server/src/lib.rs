@@ -1827,7 +1827,7 @@ impl LanguageServer for Backend {
         // packed integer stream is 5 ints per token
         // `[deltaLine, deltaCol, length, type, modifiers]`.
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::full(&doc.text, &registry).data;
+        let core_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
         let result_id = next_semantic_tokens_id();
         self.semantic_tokens_cache.lock().await.insert(
             uri,
@@ -1852,7 +1852,7 @@ impl LanguageServer for Backend {
         };
         let previous_result_id = params.previous_result_id;
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let new_data = core_semantic_tokens::full(&doc.text, &registry).data;
+        let new_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
         let new_result_id = next_semantic_tokens_id();
 
         // Compare against the cached snapshot.  When the client's
@@ -1916,7 +1916,8 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::range(&doc.text, core_range, &registry).data;
+        let core_data =
+            core_semantic_tokens::range(&doc.text, &doc.dialect, core_range, &registry).data;
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),
@@ -1996,7 +1997,8 @@ impl LanguageServer for Backend {
             .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
-        let links = core_document_links::document_links(&doc.text, workspace_root.as_deref());
+        let links =
+            core_document_links::document_links(&doc.text, &doc.dialect, workspace_root.as_deref());
         if links.is_empty() {
             return Ok(None);
         }
@@ -2044,7 +2046,13 @@ impl LanguageServer for Backend {
         // the provider still returns built-in hints from the
         // registry.
         let hints = tokio::task::spawn_blocking(move || {
-            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis), Some(&registry))
+            core_inlay_hints::inlay_hints(
+                &doc.text,
+                &doc.dialect,
+                range,
+                Some(&analysis),
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
