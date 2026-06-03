@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.dialects import has_fixed_ensembles, is_irules_dialect
 from compiler.registry.runtime import (
     body_arg_indices,
@@ -801,15 +801,15 @@ def _scan_array_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        # Lex through the shared green-tree memo (anchored at 0, so offsets stay
+        # relative to cur_text) instead of a private TclLexer — the token stream
+        # is identical, and the work stack keeps descent iterative (the recursion
+        # cap on deeply nested iRules is why this is not descend_* recursion).
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         prev_type = TokenType.EOL
         in_quoted = False
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.SEP:
                 prev_type = tok.type
                 in_quoted = False
@@ -1114,15 +1114,13 @@ def _scan_argument_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        # Shared green-tree memo, anchored at 0 (offsets stay relative to
+        # cur_text) — identical token stream to the old private TclLexer.
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         is_command_word = True
         in_quoted = False
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.EOL:
                 is_command_word = True
                 in_quoted = False
@@ -1260,15 +1258,13 @@ def _collect_string_literals(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        # Shared green-tree memo, anchored at 0 (offsets stay relative to
+        # cur_text) — identical token stream to the old private TclLexer.
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         is_command_word = True
         in_quoted = False
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.EOL:
                 is_command_word = True
                 in_quoted = False
