@@ -96,6 +96,14 @@ enum Field {
     Size(usize),
 }
 
+/// The base / case of a radix conversion (`%x` / `%X` / `%o`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Radix {
+    HexLower,
+    HexUpper,
+    Octal,
+}
+
 impl Conversion {
     /// Parse flags / width / `.precision` / verb, starting just past the `%`
     /// and advancing `i` past the verb.  Bails on `*` width / precision, an
@@ -149,10 +157,13 @@ impl Conversion {
     fn render(&self, value: &str) -> Option<String> {
         match self.verb {
             b'd' | b'i' => self.render_int(value),
+            b'x' => self.render_radix(value, Radix::HexLower),
+            b'X' => self.render_radix(value, Radix::HexUpper),
+            b'o' => self.render_radix(value, Radix::Octal),
             b's' => self.render_str(value),
-            // Radix (`%x`/`%o`/…), float (`%f`/`%e`/`%g`), `%c`, `%u`, size
-            // modifiers (`%ld`) and positional `%n$` are differentially pinned
-            // in later strips — bail for now.
+            // Float (`%f`/`%e`/`%g`), `%c`, `%u`, `%b`, size modifiers (`%ld`)
+            // and positional `%n$` are differentially pinned in later strips —
+            // bail for now.
             _ => None,
         }
     }
@@ -177,7 +188,42 @@ impl Conversion {
         } else {
             ""
         };
-        Some(self.pad_int(sign, &digits))
+        Some(self.pad(sign, &digits))
+    }
+
+    /// Render `%x` / `%X` / `%o` for a **non-negative** dialect-invariant
+    /// argument.  Negative values bail (the two's-complement digit count is
+    /// 32-bit in 9.0 but 64-bit in 8.6).  `+` / space don't apply to a radix
+    /// conversion (bail).  The `#` alternate form is sound only as the
+    /// lowercase `0x` prefix on a non-zero `%x`: `%#X` is `0XFF` on 8.6 but
+    /// `0xFF` on 9.0, `%#o` is `010` vs `0o10`, and `%#x 0` is `0x0` vs `0`.
+    fn render_radix(&self, value: &str, radix: Radix) -> Option<String> {
+        if self.flags.intersects(FmtFlags::PLUS | FmtFlags::SPACE) {
+            return None;
+        }
+        // A negative value bails: its two's-complement digit count is 32-bit
+        // in 9.0 but 64-bit in 8.6 (`try_from` rejects the sign for us).
+        let n = u64::try_from(parse_decimal_arg(value)?).ok()?;
+        let mut digits = match radix {
+            Radix::HexLower => format!("{n:x}"),
+            Radix::HexUpper => format!("{n:X}"),
+            Radix::Octal => format!("{n:o}"),
+        };
+        let prefix = if self.flags.contains(FmtFlags::HASH) {
+            if radix == Radix::HexLower && n != 0 {
+                "0x"
+            } else {
+                return None; // `#X` / `#o` / `#x 0` diverge across versions
+            }
+        } else {
+            ""
+        };
+        if let Some(p) = self.precision {
+            if digits.len() < p {
+                digits = "0".repeat(p - digits.len()) + &digits;
+            }
+        }
+        Some(self.pad(prefix, &digits))
     }
 
     fn render_str(&self, value: &str) -> Option<String> {
@@ -211,23 +257,24 @@ impl Conversion {
         })
     }
 
-    /// Width-pad a `sign` + `digits` integer body: zero-pad between the sign
-    /// and digits (only with the `0` flag and no precision — precision
-    /// suppresses zero-padding, per C/Tcl), left-justify with spaces under
-    /// `-`, else right-justify with spaces.
-    fn pad_int(&self, sign: &str, digits: &str) -> String {
+    /// Width-pad a `prefix` + `digits` numeric body (the `prefix` is a sign
+    /// `-`/`+`/space for `%d`, or a `0x` radix marker for `%#x`): zero-pad
+    /// between the prefix and digits (only with the `0` flag and no precision —
+    /// precision suppresses zero-padding, per C/Tcl), left-justify with spaces
+    /// under `-`, else right-justify with spaces.
+    fn pad(&self, prefix: &str, digits: &str) -> String {
         let width = self.width.unwrap_or(0);
-        let body_len = sign.len() + digits.len();
+        let body_len = prefix.len() + digits.len();
         if body_len >= width {
-            return format!("{sign}{digits}");
+            return format!("{prefix}{digits}");
         }
         let fill = width - body_len;
         if self.flags.contains(FmtFlags::MINUS) {
-            format!("{sign}{digits}{}", " ".repeat(fill))
+            format!("{prefix}{digits}{}", " ".repeat(fill))
         } else if self.flags.contains(FmtFlags::ZERO) && self.precision.is_none() {
-            format!("{sign}{}{digits}", "0".repeat(fill))
+            format!("{prefix}{}{digits}", "0".repeat(fill))
         } else {
-            format!("{}{sign}{digits}", " ".repeat(fill))
+            format!("{}{prefix}{digits}", " ".repeat(fill))
         }
     }
 }
@@ -368,10 +415,10 @@ mod tests {
         );
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
         assert_eq!(fold_format(&["%d", "0x10"]), None);
-        // Radix / float / %c verbs are deferred to a later strip.
-        assert_eq!(fold_format(&["%x", "255"]), None);
+        // Float / %c / %b verbs are deferred to a later strip.
         assert_eq!(fold_format(&["%5.2f", "3.14159"]), None);
         assert_eq!(fold_format(&["%c", "65"]), None);
+        assert_eq!(fold_format(&["%b", "5"]), None);
         // Numeric flags don't apply to `%s` → bail.
         assert_eq!(fold_format(&["%05s", "hi"]), None);
         assert_eq!(fold_format(&["%+s", "hi"]), None);
@@ -382,5 +429,39 @@ mod tests {
         assert_eq!(fold_format(&["%99999d", "1"]), None);
         // A bare trailing `%` is an incomplete spec.
         assert_eq!(fold_format(&["abc%", "x"]), None);
+    }
+
+    #[test]
+    fn format_folds_radix() {
+        // Non-negative hex / octal with flags / width / precision — pinned
+        // against tclsh8.6 + 9.0.
+        assert_eq!(fold_format(&["%x", "255"]).as_deref(), Some("ff"));
+        assert_eq!(fold_format(&["%X", "255"]).as_deref(), Some("FF"));
+        assert_eq!(fold_format(&["%o", "8"]).as_deref(), Some("10"));
+        assert_eq!(fold_format(&["%x", "0"]).as_deref(), Some("0"));
+        assert_eq!(fold_format(&["%08x", "255"]).as_deref(), Some("000000ff"));
+        assert_eq!(fold_format(&["%-8x", "255"]).as_deref(), Some("ff      "));
+        assert_eq!(fold_format(&["%5x", "255"]).as_deref(), Some("   ff"));
+        assert_eq!(fold_format(&["%.4x", "255"]).as_deref(), Some("00ff"));
+        // `#` alternate form: sound only as the lowercase `0x` on a non-zero %x.
+        assert_eq!(fold_format(&["%#x", "255"]).as_deref(), Some("0xff"));
+        assert_eq!(fold_format(&["%#08x", "255"]).as_deref(), Some("0x0000ff"));
+    }
+
+    #[test]
+    fn format_bails_on_version_divergent_radix() {
+        // Negative → two's-complement digit count is 32-bit (9.0) vs 64-bit (8.6).
+        assert_eq!(fold_format(&["%x", "-1"]), None);
+        assert_eq!(fold_format(&["%o", "-1"]), None);
+        // `%#X` is `0XFF` (8.6) vs `0xFF` (9.0); `%#o` is `010` vs `0o10`;
+        // `%#x 0` is `0x0` vs `0` — all bail.
+        assert_eq!(fold_format(&["%#X", "255"]), None);
+        assert_eq!(fold_format(&["%#o", "8"]), None);
+        assert_eq!(fold_format(&["%#x", "0"]), None);
+        // `+` / space don't apply to a radix conversion → bail.
+        assert_eq!(fold_format(&["%+x", "255"]), None);
+        // Leading-zero / over-range args bail just as for `%d`.
+        assert_eq!(fold_format(&["%x", "010"]), None);
+        assert_eq!(fold_format(&["%x", "4294967295"]), None);
     }
 }
