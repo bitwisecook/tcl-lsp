@@ -1095,7 +1095,35 @@ def check_name_vs_value(
             continue
         if arg_tokens[idx].type is not TokenType.VAR:
             continue
-        var_name = args[idx]
+        # Show the substitution exactly as written — including ``$`` and any
+        # ``${…}`` braces — so the user can visualise it, then suggest the literal
+        # name with that syntax stripped.  The text is sliced from source because a
+        # namespaced or array name (``$ns::var``, ``$arr(i)``) lexes as multiple
+        # fragments: the VAR token's ``.text`` is only the first piece (``ns``) and
+        # ``args[idx]`` is the rendered ``${ns}::var`` form.
+        tok = arg_tokens[idx]
+        s, e = tok.start.offset, tok.end.offset
+        written = source[s : e + 1] if 0 <= s <= e < len(source) else "$" + tok.text
+        # A braced ``${…}`` ref ends on its inner char (the VAR token's end by the
+        # #527 convention), so pull in the closing brace too.
+        if written.startswith("${") and e + 1 < len(source) and source[e + 1] == "}":
+            written = source[s : e + 2]
+        # The literal name to suggest: strip only the *outer* substitution syntax
+        # — the leading ``$`` and a ``${…}`` wrapping the reference — which is the
+        # indirection W212 flags, while keeping a legitimate inner substitution
+        # such as a dynamic array index.  ``$v`` → ``v``, ``${v}`` → ``v``,
+        # ``$options($option)`` → ``options($option)``, ``${v}($k)`` → ``v($k)``.
+        name = written[1:] if written.startswith("$") else written
+        if name.startswith("{"):
+            depth = 0
+            for i, ch in enumerate(name):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        name = name[1:i] + name[i + 1 :]
+                        break
         # Build display command for the message.
         if cmd_name == "info" and args:
             display_cmd = f"info {args[0]}"
@@ -1106,8 +1134,8 @@ def check_name_vs_value(
                 range=range_from_token(arg_tokens[idx]),
                 message=(
                     f"'{display_cmd}' expects a variable name, "
-                    f"got substitution (${var_name}). "
-                    f"Did you mean '{var_name}'?"
+                    f"got substitution ({written}). "
+                    f"Did you mean '{name}'?"
                 ),
                 severity=Severity.WARNING,
                 code="W212",

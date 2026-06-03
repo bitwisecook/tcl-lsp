@@ -1,13 +1,16 @@
 # The canonical concrete syntax tree (red-green CST)
 
-> **Status:** Cycles 1–2 shipped. The position-independent green tree, the lazy
+> **Status:** Cycles 1–3 shipped. The position-independent green tree, the lazy
 > red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
-> byte-identically (cycle 1); and lazy descent into braced bodies and `[…]`
+> byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
 > substitutions is in `syntax/descend.py`, byte-identical to the analyser's
-> `green_tree` descent (cycle 2). Adoption by the formatter, minifier,
-> `var_refs`, `compiler_checks`, the per-command tooling, and direct AOT lowering
-> are the sequenced follow-ons (see [Roadmap](#roadmap)).
+> `green_tree` descent (cycle 2); and `analyser/compiler_checks.py` now descends
+> the shared tree and runs checks from its segments, retiring its duplicate
+> mini-segmenter so nested commands are analysed identically to top-level (cycle
+> 3 — a reviewed behaviour change, not byte-identical). Adoption by the formatter,
+> minifier, `var_refs`, the per-command tooling, and direct AOT lowering are the
+> sequenced follow-ons (see [Roadmap](#roadmap)).
 
 This document specifies the lossless, position-independent concrete syntax tree
 (CST) that is becoming the **single representation** the whole pipeline rides
@@ -189,16 +192,23 @@ other consumers drop their own re-lexing onto the one tree. The lexing itself
 
 ## Roadmap
 
-Cycle 1 (foundation + segmenter) and cycle 2 (descent) are shipped. The
-remaining follow-ons, each its own verified cycle:
+Cycles 1 (foundation + segmenter), 2 (descent), and 3 (`compiler_checks`) are
+shipped. The remaining follow-ons, each its own verified cycle:
 
 1. ~~**Descent**~~ — *shipped (cycle 2).* `syntax/descend.py` re-lexes braced
    bodies and `[…]` substitutions as child CSTs, so a delimited region is a node
    owning its full span with delimiter-excluding children — what the formatter
    and lowering need to recurse.
-2. **`compiler_checks`** descends the shared tree instead of `green_tree`,
-   retiring its duplicate `_process_node` mini-segmenter (the immediate next
-   cycle; byte-identical diagnostics gated by `test-py`).
+2. ~~**`compiler_checks`**~~ — *shipped (cycle 3).* Its `_process_node`
+   mini-segmenter (a duplicate that fed checks raw `tok.text` and mishandled
+   `{*}`) is retired: `_process_text` and the recursion descend the shared tree
+   and run checks from `segments_from_tree`, so nested commands are analysed
+   **identically to top-level**. This was deliberately *not* byte-identical —
+   nested commands now catch warnings they were missing (W306/W304/W103/W101/W100…),
+   one false positive (W104) is gone, and W105/W106 correctly escalate a var-subst
+   unbraced body to ERROR. Every change was reviewed against a 2000-file corpus
+   (tcllib, tklib, the Tcl trees, SpiceGenTcl). The fix also surfaced a latent
+   W212 message bug (`$${v}`) the raw-text path had hidden.
 3. **Formatter** and **minifier** onto the tree (they need exactly the lossless
    trivia model above), then **`var_refs`**.
 4. **Per-command `tcl` / `f5 irule` tooling** reads structured command/word/arg
