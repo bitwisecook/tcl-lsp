@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from compiler.parsing.command_segmenter import SegmentedCommand, segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_base
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
 from shared.diagnostic import Range
@@ -294,16 +294,10 @@ def _walk_irules_commands(
             if tok.type not in (TokenType.STR, TokenType.ESC):
                 continue
             base_offset, base_line, base_col = token_content_base(tok)
-            lexer = TclLexer(
-                tok.text,
-                base_offset=base_offset,
-                base_line=base_line,
-                base_col=base_col,
-            )
-            while True:
-                inner = lexer.get_token()
-                if inner is None:
-                    break
+            # Find command substitutions inside the EXPR arg through the shared
+            # green-tree memo (token-for-token identical to a private TclLexer).
+            inner_tokens, _ = tokenise(tok.text, base_offset, base_line, base_col)
+            for inner in inner_tokens:
                 if inner.type is not TokenType.CMD or not inner.text.strip():
                     continue
                 key = (inner.start.offset, inner.end.offset)
