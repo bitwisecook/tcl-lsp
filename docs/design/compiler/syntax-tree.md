@@ -1,6 +1,7 @@
 # The canonical concrete syntax tree (red-green CST)
 
-> **Status:** Cycles 1–3 and 9 (explorer) shipped. The position-independent green tree, the lazy
+> **Status:** Cycles 1–3, 9 (explorer), and most of 4 (formatter + minifier body)
+> shipped. The position-independent green tree, the lazy
 > red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
 > byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
@@ -8,9 +9,11 @@
 > `green_tree` descent (cycle 2); and `analyser/compiler_checks.py` now descends
 > the shared tree and runs checks from its segments, retiring its duplicate
 > mini-segmenter so nested commands are analysed identically to top-level (cycle
-> 3 — a reviewed behaviour change, not byte-identical). Adoption by the formatter,
-> minifier, `var_refs`, the per-command tooling, and direct AOT lowering are the
-> sequenced follow-ons (see [Roadmap](#roadmap)).
+> 3 — a reviewed behaviour change, not byte-identical). The formatter and the
+> minifier's body pass now segment on the tree too, byte-identical over the corpus
+> (cycle 4 — only the minifier's compact-mode descent scanners remain). Adoption by
+> `var_refs`, the server features, the iRule tooling, and direct AOT lowering are
+> the sequenced follow-ons (see [Roadmap](#roadmap)).
 
 This document specifies the lossless, position-independent concrete syntax tree
 (CST) that is becoming the **single representation** the whole pipeline rides
@@ -237,13 +240,23 @@ minifier (`_minify_body` + three work-stack descent scanners), semantic tokens
 (`segment_commands` / `tokenise`) with only the genuine re-lex sites in `lowering`
 and the refactoring body splitters left to fold onto `descend_*`.
 
-3. **Formatter + minifier** (cycle 4) — replace their `TclLexer` loops with
-   `build_document` + `segments_from_document`. The formatter gets faithful
-   reconstruction from `GreenToken.raw` (retiring the delimiter-rebuilding
-   heuristics); the minifier gets pre-separated trivia and its four bespoke
-   descent scanners collapse to `descend_*`. Prereq (shipped): per-word
-   `braced_word` / `quoted_word` on `SegmentedCommand`. Bar: byte-identical
-   formatted / minified output over the corpus + idempotency.
+3. **Formatter + minifier** (cycle 4) — *mostly shipped.* The formatter
+   (`engine.parse_commands` + `_format_switch_body`) and the minifier's body
+   pass (`_minify_body`) now group the tree's `COMMAND`→`WORD` structure instead
+   of a private `TclLexer` loop; `is_braced` / `is_quoted` come from each word's
+   first token's lossless `raw`, comments/blank-lines from attached trivia.
+   `_reconstruct_raw` is kept (it operates on the same lexer `Token`s, preserving
+   the CMD backslash-newline normalisation), so output is unchanged — verified
+   **byte-identical over 1126 corpus files** (formatter + default-path minifier)
+   and **277 compact-path files** (minifier, old vs new), plus the formatter /
+   minifier / semantics suites; `TclLexer` is retired from the formatter.
+   *Remaining:* the minifier's three **compact-mode** descent scanners
+   (`_scan_array_tokens` / `_scan_argument_tokens` / `_collect_string_literals`)
+   are offset-precise source-edit machinery still on `TclLexer`; folding them onto
+   `descend_*` is a follow-up with a compact-names byte-identical bar.
+   Prereq (shipped): per-word `braced_word` / `quoted_word` on `SegmentedCommand`
+   — and the incremental reparser's `_shift_command` now carries them too (a
+   latent `de53e21` divergence test-slow surfaced once the stamp caught up).
 4. **`var_refs`** (+ `proc_fingerprint`, `place_bridge`) (cycle 5) — base-0 CST
    scan + `descend_*`, *preserving* the cross-document name-set LRU (base 0 is
    load-bearing for sharing). Bar: identical name sets. Lowest risk — no offsets.
