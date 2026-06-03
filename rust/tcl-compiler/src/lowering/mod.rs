@@ -17,7 +17,9 @@ use crate::alias::{detect_interp_alias, resolve_alias, CommandAliasMap};
 use crate::ir::{CommandTokens, MethodDef, MethodKind, Module, Procedure, Script, Statement};
 use crate::lowering_hooks::{try_lower_hook, ArgTokenKind, LoweringCommand};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
-use crate::segmenter::{segment_commands, segment_commands_with_offset, SegmentedCommand};
+use crate::segmenter::{
+    segment_commands, segment_commands_with_offset_and_config, SegmentedCommand,
+};
 
 pub(crate) mod hooks;
 mod structured;
@@ -528,12 +530,27 @@ pub struct Lowerer<'r> {
     /// lowered for analysis; only the global registration is
     /// suppressed. Mirrors Python's `_suppress_proc_register`.
     suppress_proc_register: bool,
+    /// Lexer config for the document's dialect, threaded into every
+    /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
+    /// iRules) and the iRules `}{` ghost SEP are honoured rather than
+    /// always assuming the Tcl-8.5+ default
+    /// (`SYNC-MAY19-dialect-contextvar`, strip 3).  Defaults to
+    /// `LexerConfig::default()`; production callers thread the active
+    /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
+    config: tcl_lexer::LexerConfig,
 }
 
 impl<'r> Lowerer<'r> {
-    /// Create a new lowerer.
+    /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
     #[must_use]
     pub fn new(registry: &'r CommandRegistry) -> Self {
+        Self::with_config(registry, tcl_lexer::LexerConfig::default())
+    }
+
+    /// Create a lowerer with an explicit dialect [`tcl_lexer::LexerConfig`]
+    /// (see the `config` field).
+    #[must_use]
+    pub fn with_config(registry: &'r CommandRegistry, config: tcl_lexer::LexerConfig) -> Self {
         Self {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
@@ -546,6 +563,7 @@ impl<'r> Lowerer<'r> {
             namespace_exports: Vec::new(),
             dead_code_depth: 0,
             suppress_proc_register: false,
+            config,
         }
     }
 
@@ -571,7 +589,7 @@ impl<'r> Lowerer<'r> {
 
     /// Lower a source string to an IR script.
     fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
-        let commands = segment_commands(source);
+        let commands = segment_commands_with_offset_and_config(source, 0, self.config);
         self.const_map_stack.push(HashMap::new());
         let stmts = self.lower_segmented(&commands, namespace);
         self.const_map_stack.pop();
@@ -586,7 +604,7 @@ impl<'r> Lowerer<'r> {
     /// scope (`set body {literal}; catch {uplevel 1 $body}` is the
     /// canonical example).
     fn lower_body(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
-        let commands = segment_commands_with_offset(text, base_offset);
+        let commands = segment_commands_with_offset_and_config(text, base_offset, self.config);
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
         let stmts = self.lower_segmented(&commands, namespace);
@@ -1434,7 +1452,7 @@ impl<'r> Lowerer<'r> {
     /// `_eval_subst_nocommands_body`.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
-        let inner = segment_commands(cmd_text);
+        let inner = segment_commands_with_offset_and_config(cmd_text, 0, self.config);
         if inner.len() != 1 {
             return None;
         }
@@ -1768,7 +1786,11 @@ impl<'r> Lowerer<'r> {
                         // inside the namespace.
                         let child_ns = join_namespace(namespace, &ct.argv_texts[2]);
                         let body_off = ct.argv[3].start() + 1;
-                        let segments = segment_commands_with_offset(&ct.argv_texts[3], body_off);
+                        let segments = segment_commands_with_offset_and_config(
+                            &ct.argv_texts[3],
+                            body_off,
+                            self.config,
+                        );
                         self.walk_segments_for_oo(&segments, &child_ns);
                     }
                 }
@@ -1797,7 +1819,7 @@ impl<'r> Lowerer<'r> {
             } else if is_namespace_eval_shape(cmd, &seg.texts, &kinds, &seg.single_token_word) {
                 let child_ns = join_namespace(namespace, &seg.texts[2]);
                 let off = seg.argv[3].span.start() + u32::from(seg.argv[3].content_offset);
-                let sub = segment_commands_with_offset(&seg.texts[3], off);
+                let sub = segment_commands_with_offset_and_config(&seg.texts[3], off, self.config);
                 self.walk_segments_for_oo(&sub, &child_ns);
             }
         }
@@ -1829,7 +1851,8 @@ impl<'r> Lowerer<'r> {
             return;
         }
         let class_qname = qualify_proc_name(namespace, class_simple);
-        let segments = segment_commands_with_offset(body_text, body_content_offset);
+        let segments =
+            segment_commands_with_offset_and_config(body_text, body_content_offset, self.config);
 
         // Class-level instance-variable declarations (`variable a b
         // ...`) are auto-linked into every method. The TclOO
@@ -1949,10 +1972,25 @@ impl<'r> Lowerer<'r> {
 
 /// Lower Tcl source to an IR module.
 ///
-/// This is the main entry point for the lowering phase.
+/// This is the main entry point for the lowering phase.  Lexes with the
+/// default (Tcl-8.5+) config; use [`lower_to_ir_with_config`] to honour a
+/// document's dialect.
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
-    let mut lowerer = Lowerer::new(registry);
+    lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
+}
+
+/// Like [`lower_to_ir`] but with an explicit dialect
+/// [`tcl_lexer::LexerConfig`], threaded into every body re-segmentation
+/// so `{*}` expansion (off for Tcl 8.4 / iRules) and the iRules `}{`
+/// ghost SEP are honoured (`SYNC-MAY19-dialect-contextvar`, strip 3).
+#[must_use]
+pub fn lower_to_ir_with_config(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Module {
+    let mut lowerer = Lowerer::with_config(registry, config);
     lowerer.lower(source);
     // SF-2: extract TclOO method bodies from the fully-assembled
     // module (cache-independent — see `extract_oo_methods_pass`).
@@ -2070,6 +2108,37 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn lowering_is_dialect_aware_via_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar strip 3: lowering re-segments each
+        // body under the document dialect.  For `if {*}$cond { puts hi }`,
+        // on 8.5+ the `{*}` expands the condition, so the structured `if`
+        // trips the expand-barrier (an opaque `Statement::Barrier` — the
+        // structure can't be reasoned about); on 8.4 `{*}` is a literal
+        // word, so the `if` lowers normally (no barrier).  Before strip 3
+        // lowering always assumed expansion regardless of dialect.
+        let reg = reg();
+        let src = "if {*}$cond { puts hi }";
+        let m90 = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
+        let m84 = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::for_dialect("tcl8.4"));
+        let is_barrier = |m: &Module| {
+            matches!(
+                m.top_level.statements.first(),
+                Some(Statement::Barrier { .. })
+            )
+        };
+        assert!(
+            is_barrier(&m90),
+            "9.0 expands `{{*}}` → structured `if` becomes a barrier: {:?}",
+            m90.top_level.statements,
+        );
+        assert!(
+            !is_barrier(&m84),
+            "8.4 treats `{{*}}` as literal → `if` lowers without a barrier: {:?}",
+            m84.top_level.statements,
+        );
     }
 
     #[test]

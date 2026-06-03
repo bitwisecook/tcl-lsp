@@ -24,7 +24,7 @@ use tcl_registry::CommandRegistry;
 use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
-use crate::lowering::lower_to_ir;
+use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
 use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
@@ -459,7 +459,13 @@ fn scan_side_switch_body(
     state: &mut CollectFlowState,
     registry: &CommandRegistry,
 ) {
-    let module = lower_to_ir(body_text, registry);
+    // iRules side-switch flow — lower under the iRules dialect so `{*}` is
+    // literal and `}{` splits words (SYNC-MAY19-dialect-contextvar, strip 3).
+    let module = lower_to_ir_with_config(
+        body_text,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+    );
     let cfg_module = build_cfg(&module, false);
     for bn in cfg_order(&cfg_module.top_level) {
         let Some(block) = cfg_module.top_level.blocks.get(&bn) else {
