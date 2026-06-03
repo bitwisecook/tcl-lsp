@@ -34,25 +34,45 @@ An **empty** `{}` / `[]` / `""` is the exception: it has no inner character, so
 
 ## Decision rules / contracts
 
+The closer position is **derived once from the lexer's content geometry** and
+read through a single authoritative accessor — never re-computed as
+`tok.end.offset + 1` at the call site.  Re-deriving is what scattered the
+off-by-one across consumers: it overshoots an empty `{}`/`[]`/`""` (end already
+on the closer) and silently omits quoted `"..."` words.
+
 1. Do **not** widen word-token ranges in lowering or the segmenter's word
    tokens — many passes rely on the inner-end convention.
-2. A consumer that renders a highlight widens the range itself, the same way
-   the diagnostics pipeline does, via
-   [`widen_range_for_closer`](../../shared/ranges.py).
+2. To find a delimited word's closer, call
+   [`word_closer_offset`](../../shared/ranges.py) (offset) or
+   [`word_end_position`](../../shared/ranges.py) (position).  Both use
+   `tok.text` to detect emptiness, so they are correct for empty words and for
+   quoted words whose inner text contains backslash escapes.  Do not write
+   `tok.end.offset + 1` followed by a `source[...] == closer` check.
 3. A whole-command range built from a token span is widened with
-   `range_from_word_token` (closer derived from the token *type*, no source
-   needed — required because nested bodies have absolute offsets but a
-   substring source). An empty `{}` / `[]` already covers its closer, so the
-   helper returns it unchanged rather than advancing one more byte.
-4. The compiler explorer front-end slices `src.substring(startOffset,
+   `range_from_word_token`.  It is token-only (no source — required because
+   nested bodies have absolute offsets but a substring source) and covers the
+   closer for `STR`/`CMD` words, deriving it from the token *type*.  An empty
+   `{}`/`[]` (`span_extra = (end - start) - len(text) >= 1`) already has `end`
+   on the closer, so it is returned unchanged rather than advanced one more
+   byte.  Quoted `"..."` words (which lex as `ESC`) are **not** widened here —
+   the closer character is not derivable from the token type without source, and
+   `cmd.range` consumers (W105 unbraced-body detection, segmenter tiling) rely
+   on the inner-end for quoted bodies.  A consumer that needs a quoted word's
+   closing `"` uses the source-aware `word_closer_offset` / `word_end_position`.
+4. A consumer that renders a highlight widens via
+   [`widen_range_for_closer`](../../shared/ranges.py), which guards the empty
+   two-character span the same way.
+5. The compiler explorer front-end slices `src.substring(startOffset,
    endOffset)` with an **exclusive** end, so serialised ranges must convert
    the inclusive semantic-model end to exclusive (`+1`), matching
    [`to_lsp_range`](../../server/_lsp_conv.py).
 
 ## File-path anchors
 
-- `shared/ranges.py` — `widen_range_for_closer`, `range_from_word_token`, `widen_for_highlight`, `set_highlight_source`
+- `shared/ranges.py` — `word_closer_offset`, `word_end_position`, `range_from_word_token`, `widen_range_for_closer`, `widen_for_highlight`, `set_highlight_source`
 - `compiler/parsing/command_segmenter.py` — `_command_range`
+- `tooling/refactoring/_spans.py` — `token_end_offset`, `command_span_offsets`
+- `analyser/checks/_style.py`, `analyser/irules_checks.py` — fix-range widening
 - `tooling/cli/formatters.py` — `range_dict`
 - `tooling/cli/serialise.py` — `serialise_result` sets the highlight source
 - `compiler/codegen/wasm/_ir.py` — `_range_to_explorer_dict`

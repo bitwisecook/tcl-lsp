@@ -30,6 +30,8 @@ from shared.ranges import (
     range_from_token,
     range_from_tokens,
     widen_range_for_closer,
+    word_closer_offset,
+    word_end_position,
 )
 from shared.tokens import SourcePosition, Token, TokenType
 
@@ -72,6 +74,16 @@ def _widen_for_close_delim(
     raw_end = inclusive_end.offset + 1
     if 0 <= start_offset < len(source) and source[start_offset] in ('"', "{"):
         close = '"' if source[start_offset] == '"' else "}"
+        # An empty ``{}`` / ``""`` already ends *on* its closer (the span is
+        # exactly opener+closer), so there is nothing to widen — advancing would
+        # overshoot into whatever follows (issue #527 family).  This
+        # two-character span is unambiguous: any non-empty word is longer.
+        if (
+            inclusive_end.offset == start_offset + 1
+            and inclusive_end.offset < len(source)
+            and source[inclusive_end.offset] == close
+        ):
+            return raw_end, inclusive_end
         if raw_end < len(source) and source[raw_end] == close:
             new_inclusive = SourcePosition(
                 line=inclusive_end.line,
@@ -754,13 +766,10 @@ def check_missing_option_terminator(
     diag_end = tok.end
 
     if tok.type is TokenType.CMD:
-        close = tok.end.offset + 1
-        if close < len(source) and source[close] == "]":
-            fix_end = SourcePosition(
-                line=tok.end.line,
-                character=tok.end.character + 1,
-                offset=close,
-            )
+        # Locate the closing ``]`` authoritatively (correct for an empty ``[]``,
+        # whose end already sits on the closer) rather than re-deriving it.
+        if word_closer_offset(tok, source) is not None:
+            fix_end = word_end_position(tok, source)
             diag_end = fix_end
             tok_source = source[tok.start.offset : fix_end.offset + 1]
             fix = CodeFix(
