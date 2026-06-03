@@ -1,19 +1,22 @@
 # The canonical concrete syntax tree (red-green CST)
 
-> **Status:** Cycles 1–3, 9 (explorer), and most of 4 (formatter + minifier body)
-> shipped. The position-independent green tree, the lazy
-> red overlay, and the constructor are live in `compiler/parsing/syntax/`;
+> **Status:** Cycles 1–9 shipped; cycle 10 (a hot-path allocation micro-opt) is
+> deferred as not worth its codegen risk, and a final shared-memo cleanup of the
+> remaining value-lexers is under way. The position-independent green tree, the
+> lazy red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
 > byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
 > substitutions is in `syntax/descend.py`, byte-identical to the analyser's
 > `green_tree` descent (cycle 2); and `analyser/compiler_checks.py` now descends
 > the shared tree and runs checks from its segments, retiring its duplicate
 > mini-segmenter so nested commands are analysed identically to top-level (cycle
-> 3 — a reviewed behaviour change, not byte-identical). The formatter and the
-> minifier's body pass now segment on the tree too, byte-identical over the corpus
-> (cycle 4 — only the minifier's compact-mode descent scanners remain). Adoption by
-> `var_refs`, the server features, the iRule tooling, and direct AOT lowering are
-> the sequenced follow-ons (see [Roadmap](#roadmap)).
+> 3 — a reviewed behaviour change, not byte-identical). The formatter, the whole
+> minifier, switch-body lowering, the semantic-token collector (+ inlay hints /
+> code actions), and the iRule object-ref scanner now all segment / lex through
+> the tree and its shared `tokenise` memo — each verified byte-identical over the
+> corpus (cycles 4, 6, 7, 8); `var_refs` and friends were already there (cycle 5);
+> and the explorer gained `cst` / `segments` views across every surface (cycle 9).
+> See [Roadmap](#roadmap) for the per-cycle detail and what remains.
 
 This document specifies the lossless, position-independent concrete syntax tree
 (CST) that is becoming the **single representation** the whole pipeline rides
@@ -257,20 +260,29 @@ and the refactoring body splitters left to fold onto `descend_*`.
    Prereq (shipped): per-word `braced_word` / `quoted_word` on `SegmentedCommand`
    — and the incremental reparser's `_shift_command` now carries them too (a
    latent `de53e21` divergence test-slow surfaced once the stamp caught up).
-4. **`var_refs`** (+ `proc_fingerprint`, `place_bridge`) (cycle 5) — base-0 CST
-   scan + `descend_*`, *preserving* the cross-document name-set LRU (base 0 is
-   load-bearing for sharing). Bar: identical name sets. Lowest risk — no offsets.
-5. **Refactoring + lowering body re-lexes** (cycle 6) — replace the hand-rolled
-   switch-body / brace splitters (`refactoring/_switch_to_dict`,
-   `_extract_datagroup`, `lowering._switch_body_elements`, `_barrier_gate`, the
-   `[list …]` / `[subst …]` re-segments) with shared `descend_*`.
-6. **Semantic tokens + server features** (cycle 7) — `_semantic_tokens/_collect.py`
-   (a full segmenter+recovery+recursion clone), `inlay_hints`, `code_actions`,
-   `_format_args` onto `segments_from_document` + descent (threading
-   `virtual_insertions`). Bar: `SemanticTokensDelta` byte-identity.
-7. **iRule object refs** (cycle 8) — `dialects/f5/bigip/irules_refs.py`'s three
-   re-lex paths (recursive `segment_commands`, raw EXPR `TclLexer`, CMD walk)
-   onto one CST + `descend_command`.
+4. ~~**`var_refs`** (+ `proc_fingerprint`, `place_bridge`)~~ — *already shipped
+   (cycle 5).* The audit found these were migrated onto the shared
+   `green_tree.tokenise` memo at base 0 in earlier work; they emit only name-sets
+   / `Place`s (no offsets) and preserve the cross-document name-set LRU. No
+   further change needed.
+5. ~~**Refactoring + lowering body re-lexes**~~ — *shipped (cycle 6).*
+   `lowering._switch_body_elements` (the only raw `TclLexer` left in lowering)
+   now lexes through the shared `tokenise` memo — verified byte-identical by
+   comparing the new and old `(elements, element_tokens)` over 4362 corpus bodies.
+   The refactoring body splitters (`_switch_to_dict`, `_extract_datagroup`,
+   `_spans`) and `_barrier_gate` already ride the CST-backed `segment_commands`.
+6. ~~**Semantic tokens + server features**~~ — *shipped (cycle 7).*
+   `_semantic_tokens/_collect.py` (the full segmenter + `virtual_insertions`
+   recovery + recursion clone) and `_format_args._split_words` now lex through
+   the shared `tokenise` memo (the collector's shared line index via
+   `build_line_starts`, byte-identical to the lexer's); `inlay_hints` and
+   `code_actions`' profile-directive scan likewise. Verified byte-identical:
+   `semantic_tokens_full` output over 174 corpus files (separate-process compare)
+   plus the semantic-token / inlay / code-action suites.
+7. ~~**iRule object refs**~~ — *shipped (cycle 8).* `irules_refs` already
+   segmented through CST-backed `segment_commands` and recursed on
+   segment-provided tokens; its one remaining private `TclLexer` (the EXPR
+   command-substitution scan) now lexes through the shared `tokenise` memo.
 8. ~~**Compiler explorer**~~ — *shipped (cycle 9).* A structural `cst` view (each
    node's range vs its raw source slice, `text` vs `raw`, the inner-end convention,
    `{*}` markers, per-word `single`/`braced`/`quoted`/`expand` shape, and descent
@@ -282,13 +294,25 @@ and the refactoring body splitters left to fold onto `descend_*`.
    `_serialise_cst` / `_serialise_segments` (+ `_VIEW_META`) so the web GUI
    (`static/index.html`, `explorer-core.js`) and the in-browser pyodide worker
    show structural, expandable, source-linked trees.
-9. **Direct AOT lowering** (cycle 10) — make `_Command` a view over a `SyntaxNode`
-   COMMAND, retiring the `SegmentedCommand` allocation on the hot path; nested
-   body args via `descend_command`. Bar: byte-identical IR + bytecode + full
-   `test-py`. Highest risk (feeds codegen).
-10. **Cleanup** — delete `green_tree.descend_token` / `descend_command` (no
-    external callers once the above land); `node_for` survives only for the two
-    explorer debug dumps.
+9. **Direct AOT lowering** (cycle 10) — *deferred (perf-only).* Lowering already
+   rides the CST: it consumes `segment_commands` (CST-backed since cycle 1) and
+   copies the fields into `_Command`. Making `_Command` a *view* over a
+   `SyntaxNode` COMMAND would only retire the intermediate `SegmentedCommand`
+   allocation — a hot-path micro-optimisation that feeds codegen, so its
+   byte-identical IR + bytecode + `test-py` bar is not worth the risk for one
+   fewer allocation. The CST-adoption goal is already met here.
+10. **Shared-memo cleanup** (in progress) — the remaining private `TclLexer`
+    sites that lex a *value* to analyse it (the var_refs-style uses in
+    `core_analyses`, `cfg`, `gvn`, `taint`, the optimiser, `interprocedural`,
+    `irules_flow`, `proc_arg_traits`, `execution_intent`, the analyser checks,
+    `document_state`, …) are being switched to the shared `tokenise` memo. Not
+    duplicate segmenters — token-for-token-identical value lexes that gain memo
+    sharing within the analysis scope. The cursor-local prefix lexers (`hover`,
+    `symbol_resolution`) and the tokeniser foundation (`green_tree`, `lexer`)
+    stay. Then `green_tree.descend_token` / `descend_command` can be deleted —
+    they have no production callers (only the NEW-vs-OLD equivalence test), so
+    the cleanup is gated only on retiring that safety net; `node_for` survives
+    for the explorer debug dumps.
 
 ## Pointers
 
