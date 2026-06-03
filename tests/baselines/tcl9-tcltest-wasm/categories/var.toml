@@ -1,6 +1,6 @@
 # var.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '19 of 219 failed'
+# reason = '11 of 219 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 219
-observed_passed = 196
-observed_failed = 19
+observed_passed = 204
+observed_failed = 11
 observed_skipped = 4
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["var-1.14", "var-1.15", "var-1.16", "var-1.17", "var-5.2", "var-7.12", "var-12.1", "var-16.1", "var-24.2", "var-24.4", "var-24.6", "var-24.8", "var-24.10", "var-24.12", "var-24.14", "var-24.15", "var-25.3", "var-26.12", "var-27.12"]
+ids = ["var-1.14", "var-1.15", "var-1.16", "var-1.17", "var-7.12", "var-12.1", "var-24.6", "var-24.10", "var-25.3", "var-26.12", "var-27.12"]
