@@ -839,7 +839,9 @@ class TestVariableShapeTypePropagation:
         assert t.kind is TypeKind.KNOWN
         assert t.tcl_type is TclType.STRING
 
-    def test_braced_scalar_like_array_name_normalises_to_scalar_symbol(self):
+    def test_braced_array_like_name_flows_under_base_array_symbol(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); the
+        # type flows under the base array symbol "a".
         analysis = _analyse('set {a(1)} "alpha beta"\nset n [llength ${a(1)}]')
         t = _var_type(analysis, "a")
         assert t is not None

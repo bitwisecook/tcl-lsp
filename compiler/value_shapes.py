@@ -87,6 +87,25 @@ def is_pure_var_ref(text: str) -> bool:
     return end == len(text)
 
 
+def is_braced_whole_name_array_ref(text: str) -> bool:
+    """Return True if *text* is a braced array-shaped var ref ``${a(1)}``.
+
+    tclsh 9 loads such a reference by its WHOLE literal name (``a(1)``
+    resolved at runtime as array element ``a(1)``), so the value is a
+    *variable reference*, never a constant — analyses must treat it as
+    conservatively unknown (overdefined), the same as ``${ns::y}``.
+
+    Matches a braced ``${inner}`` whose *inner* is array-shaped
+    (contains ``(``, ends with ``)``, no ``}`` inside).  A plain braced
+    scalar ``${foo}`` (no parens) is NOT matched here — it flows through
+    the normal var-resolution path.
+    """
+    if not text.startswith("${") or not text.endswith("}"):
+        return False
+    inner = text[2:-1]
+    return "(" in inner and inner.endswith(")") and "}" not in inner
+
+
 def parse_command_substitution(text: str) -> tuple[str, tuple[str, ...]] | None:
     """Extract command name and args from ``[cmd ...]`` using the Tcl
     lexer.

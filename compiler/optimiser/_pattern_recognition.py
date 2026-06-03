@@ -883,7 +883,7 @@ def _apply_end_offset_to_argv(
     container_tok = argv_tokens[container_pos]
     if container_tok.type is not TokenType.VAR:
         return
-    # Compare full variable references (``${L}``, ``${a(1)}``, ``$={a(1)}``),
+    # Compare full variable references (``${L}``, ``${a(1)}``, ``$a(1)``),
     # not normalised base names — otherwise ``$a(1)`` and ``$a(2)`` would be
     # treated as the same container and the rewrite would change semantics.
     container_repr = argv_texts[container_pos].strip()

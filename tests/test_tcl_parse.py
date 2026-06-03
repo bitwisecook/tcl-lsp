@@ -622,8 +622,10 @@ class TestBracedVarByteSpans:
         assert "arr" in tok.text and "key" in tok.text
         assert not self._is_braced(tok)
 
-    def test_braced_scalar_array_like(self):
-        """${a(1)}: braced form treats parens as literal (scalar, not array)."""
+    def test_braced_array_like_name(self):
+        """${a(1)}: braced form loads the whole name a(1) (the runtime
+        resolves array element a(1)) — matches tcl 9, unlike bare $a(1)
+        which splits into array a element 1."""
         tokens = lex("${a(1)}")
         tok = tokens[0]
         assert tok.type == TokenType.VAR
@@ -1597,7 +1599,7 @@ class TestVariableShapeMalformedNestedSubstitutions:
         assert any(t.type == TokenType.CMD for t in tokens)
         assert any(t.type == TokenType.ESC and "value" in t.text for t in tokens)
 
-    def test_braced_word_keeps_scalar_like_array_name_literal(self):
+    def test_braced_word_keeps_braced_array_name_literal(self):
         tokens = lex("puts {${a(1)} [set x}")
         strs = [t for t in tokens if t.type == TokenType.STR]
         assert any("${a(1)}" in t.text for t in strs)

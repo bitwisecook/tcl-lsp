@@ -91,9 +91,21 @@ class _ValuesMixin:
         command substitutions (``[cmd ...]``).
         """
         if elem.startswith("${") and elem.endswith("}"):
-            # Braced variable reference: ${::a(1)} — use _emit_value
-            # which handles the ${...} form via _parse_simple_var_ref.
-            self._emit_value(elem)
+            # Braced variable reference used as an array key, e.g.
+            # ``socketMapping(${state(socketinfo)})``.  The segmenter
+            # normalises a *bare* nested ref ``$state(socketinfo)`` to the
+            # ``${...}`` spelling when it reconstructs the composite word,
+            # so an array-shaped key here is a SPLIT array read (``push
+            # "state"; push "socketinfo"; loadArrayStk``), not a whole-name
+            # load.  Resolve it directly via ``_load_var`` (a scalar key
+            # ``${foo}`` still loads the scalar) rather than ``_emit_value``,
+            # whose whole-name detection is reserved for genuinely braced
+            # top-level values.
+            inner = self._parse_simple_var_ref(elem)
+            if inner is not None:
+                self._load_var(inner)
+            else:
+                self._emit_value(elem)
         elif elem.startswith("$"):
             # Bare variable reference: $::a(1) — strip $ and load
             self._load_var(elem[1:])
@@ -322,7 +334,7 @@ class _ValuesMixin:
         inlines the substitution at runtime so the index byte string
         seen by ``LOAD_ARRAY_STK`` is the resolved value.
         """
-        if not value.startswith("$") or value.startswith("${") or value.startswith("$="):
+        if not value.startswith("$") or value.startswith("${"):
             return None
         if "(" not in value or not value.endswith(")"):
             return None
@@ -335,19 +347,54 @@ class _ValuesMixin:
         return value[1:]
 
     @staticmethod
-    def _parse_braced_scalar_ref(value: str) -> str | None:
-        """Extract variable name from a braced-scalar marker ``$={name}``.
+    def _parse_whole_name_array_ref(value: str) -> str | None:
+        """Extract the whole array-element name from a braced ``${a(1)}`` ref.
 
-        The compiler's ``word_piece`` produces ``$={a(1)}`` when the
-        source uses ``${a(1)}`` — a braced variable reference with an
-        array-like name.  In Tcl, braces prevent array interpretation,
-        so the name must be loaded as a scalar via ``push + loadStk``.
+        tclsh 9 compiles braced ``${a(1)}`` by loading the WHOLE literal
+        name ``a(1)`` — the runtime resolves it as array element ``a(1)``
+        — via ``push "a(1)"; loadStk``.  This is distinct from bare
+        ``$a(1)``, which SPLITS into array ``a`` element ``1``.
 
-        Returns the variable name, or ``None`` for non-markers.
+        Matches a braced reference ``${inner}`` whose *inner* name is
+        array-shaped (contains ``(``, ends with ``)``) and has no ``}``
+        inside it.  A plain braced scalar ``${foo}`` (inner has no
+        ``(...)``) does NOT match — it must continue through the normal
+        ``_parse_simple_var_ref`` → ``_load_var`` path (loadScalar in
+        procs).  Returns *inner* for a whole-name load, or ``None``.
         """
-        if value.startswith("$={") and value.endswith("}"):
-            return value[3:-1]
+        if not value.startswith("${") or not value.endswith("}"):
+            return None
+        inner = value[2:-1]
+        if "}" in inner:
+            return None
+        if "(" in inner and inner.endswith(")"):
+            return inner
         return None
+
+    @staticmethod
+    def _canonical_verbatim_ref(text: str) -> str:
+        """Canonicalise a var-ref *text* for VERBATIM literal/comment emission.
+
+        A few codegen sites (``dict set d k <val>``'s value push; the
+        ``{*}``-expansion ``startCommand`` / ``invokeExpanded`` comments)
+        surface the raw argument text rather than substituting it.  Bare
+        array-shaped refs now carry their natural ``$a(1)`` spelling, but
+        the canonical literal/comment form is the brace-wrapped
+        ``${a(1)}`` (the form a scalar ref ``$foo`` already normalises to).
+        Re-wrap a bare array ref so those verbatim sites stay stable;
+        leave every other text (scalars, already-braced, plain literals,
+        substituted-index refs) untouched.
+        """
+        if (
+            text.startswith("$")
+            and not text.startswith("${")
+            and "(" in text
+            and text.endswith(")")
+            and "$" not in text[1:]
+            and "[" not in text
+        ):
+            return "${" + text[1:] + "}"
+        return text
 
     @staticmethod
     def _fold_cmd_args(value: str, prefix: str) -> str | None:
@@ -470,11 +517,13 @@ class _ValuesMixin:
         if value.startswith(_BRACE_OPEN) and value.endswith(_BRACE_CLOSE):
             self._push_lit(value)
             return
-        # Braced scalar marker: ${a(1)} in source → $={a(1)} in pipeline.
-        # Push the name and use stack-based loadStk (scalar, not array).
-        braced_scalar = self._parse_braced_scalar_ref(value)
-        if braced_scalar is not None:
-            self._push_lit(braced_scalar)
+        # Braced array-shaped ref ${a(1)}: load the WHOLE name a(1) via
+        # push + loadStk (the runtime resolves the array element), NOT a
+        # split array load.  Must run before _parse_simple_var_ref, which
+        # would otherwise route ${a(1)} through the split _load_var path.
+        whole_name = self._parse_whole_name_array_ref(value)
+        if whole_name is not None:
+            self._push_lit(whole_name)
             self._emit(Op.LOAD_STK)
             return
         var_name = self._parse_simple_var_ref(value)
@@ -612,16 +661,25 @@ class _ValuesMixin:
         if value.startswith(_BRACE_OPEN) and value.endswith(_BRACE_CLOSE):
             self._push_lit(value)
             return
-        # Braced scalar marker: ${a(1)} → push name + loadStk.
-        braced_scalar = self._parse_braced_scalar_ref(value)
-        if braced_scalar is not None:
-            self._push_lit(braced_scalar)
+        # Braced array-shaped ref ${a(1)} → load WHOLE name a(1) via
+        # push + loadStk (runtime resolves the array element).
+        whole_name = self._parse_whole_name_array_ref(value)
+        if whole_name is not None:
+            self._push_lit(whole_name)
             self._emit(Op.LOAD_STK)
             return
         # Variable reference → load var.
         var_name = self._parse_simple_var_ref(value)
         if var_name is not None:
             self._load_var(var_name)
+            return
+        # Bare array reference ``$a(1)`` / ``$a($i)`` → split array load
+        # (loadArrayStk), the same as _emit_value.  Without this a bare array
+        # arg falls through to a literal push (it used to be normalised to
+        # ``${a(1)}`` and caught by _parse_simple_var_ref above).
+        bare_arr = self._parse_bare_array_ref(value)
+        if bare_arr is not None:
+            self._load_var(bare_arr)
             return
         # [cmd arg ...] command substitution → compile inline.
         # Require whitespace (like ``[array exists a]``); skip

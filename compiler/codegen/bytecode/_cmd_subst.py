@@ -268,12 +268,6 @@ class _CmdSubstMixin:
         """Emit a single arg from a parsed command substitution."""
         arg, braced, _expand = arg_pair
         if not braced and arg.startswith("$"):
-            # Braced scalar marker: $={name} → push + loadStk.
-            braced_scalar = self._parse_braced_scalar_ref(arg)
-            if braced_scalar is not None:
-                self._push_lit(braced_scalar)
-                self._emit(Op.LOAD_STK)
-                return
             var_name = self._parse_simple_var_ref(arg)
             if var_name is None and len(arg) > 1 and arg[1:].isidentifier():
                 # Bare $varname form (not normalised to ${var})
@@ -332,8 +326,12 @@ class _CmdSubstMixin:
         time.
         """
         any_expand = any(a[2] for a in args)
+        # Comments surface the command word verbatim; keep a bare array-ref
+        # head in its canonical ``${a(1)}`` form (the value emission below
+        # still substitutes it).
+        cmd_comment = self._canonical_verbatim_ref(cmd)
         if any_expand:
-            self._emit(Op.EXPAND_START, comment=f"{cmd} (expanded)")
+            self._emit(Op.EXPAND_START, comment=f"{cmd_comment} (expanded)")
         # Dynamic command word: ``[$var arg ...]`` or ``[[cmd] arg]``.
         # In both cases the command word resolves at runtime — for
         # ``\$var`` via variable substitution, for ``[…]`` via a
@@ -352,44 +350,39 @@ class _CmdSubstMixin:
                 self._emit_inline_cmd_subst(arg)
                 self._place_label(end_label)
             elif not braced and arg.startswith("$"):
-                braced_scalar = self._parse_braced_scalar_ref(arg)
-                if braced_scalar is not None:
-                    self._push_lit(braced_scalar)
-                    self._emit(Op.LOAD_STK)
-                else:
-                    var_name = self._parse_simple_var_ref(arg)
-                    if var_name is None and len(arg) > 1:
-                        # Bare ``\$varname`` form parsed verbatim
-                        # from the cmd-subst text.
-                        # ``_parse_simple_var_ref`` only matches the
-                        # lowering's normalised ``${var}`` shape;
-                        # recognise the unbraced scalar (``\$x``,
-                        # ``\$ns::var``) and array-element
-                        # (``\$arr(key)``, including dynamic
-                        # ``\$arr(\$i)`` indices) forms here so we
-                        # emit a real variable load through
-                        # ``_load_var`` instead of pushing the
-                        # literal ``\$…`` source bytes.
-                        rest = arg[1:]
-                        paren = rest.find("(")
-                        if paren != -1 and rest.endswith(")"):
-                            head = rest[:paren]
-                            if (
-                                head
-                                and (head[0].isalpha() or head[0] == "_")
-                                and all(ch.isalnum() or ch in "_:" for ch in head)
-                            ):
-                                var_name = rest
-                        elif (
-                            rest
-                            and (rest[0].isalpha() or rest[0] == "_")
-                            and all(ch.isalnum() or ch in "_:" for ch in rest)
+                var_name = self._parse_simple_var_ref(arg)
+                if var_name is None and len(arg) > 1:
+                    # Bare ``\$varname`` form parsed verbatim
+                    # from the cmd-subst text.
+                    # ``_parse_simple_var_ref`` only matches the
+                    # lowering's normalised ``${var}`` shape;
+                    # recognise the unbraced scalar (``\$x``,
+                    # ``\$ns::var``) and array-element
+                    # (``\$arr(key)``, including dynamic
+                    # ``\$arr(\$i)`` indices) forms here so we
+                    # emit a real variable load through
+                    # ``_load_var`` instead of pushing the
+                    # literal ``\$…`` source bytes.
+                    rest = arg[1:]
+                    paren = rest.find("(")
+                    if paren != -1 and rest.endswith(")"):
+                        head = rest[:paren]
+                        if (
+                            head
+                            and (head[0].isalpha() or head[0] == "_")
+                            and all(ch.isalnum() or ch in "_:" for ch in head)
                         ):
                             var_name = rest
-                    if var_name is not None:
-                        self._load_var(var_name)
-                    else:
-                        self._push_lit(arg)
+                    elif (
+                        rest
+                        and (rest[0].isalpha() or rest[0] == "_")
+                        and all(ch.isalnum() or ch in "_:" for ch in rest)
+                    ):
+                        var_name = rest
+                if var_name is not None:
+                    self._load_var(var_name)
+                else:
+                    self._push_lit(arg)
             elif braced and ("$" in arg or "[" in arg):
                 self._push_lit("{" + arg + "}")
             elif not braced and "\\" in arg:
@@ -404,7 +397,7 @@ class _CmdSubstMixin:
             if expand:
                 self._emit(Op.EXPAND_STKTOP, word_count)
         if any_expand:
-            self._emit(Op.INVOKE_EXPANDED, comment=cmd)
+            self._emit(Op.INVOKE_EXPANDED, comment=cmd_comment)
         else:
             argc = 1 + len(args)
             op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4

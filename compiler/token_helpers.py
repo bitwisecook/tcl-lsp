@@ -12,20 +12,6 @@ from shared.tokens import Token, TokenType
 
 from .eval_helpers import DECIMAL_INT_RE
 
-# Compiler-internal marker for a braced scalar whose name is array-shaped.
-# ``${a(1)}`` in source refers to a *scalar* named ``a(1)`` — braces suppress
-# array parsing — unlike bare ``$a(1)`` (array ``a`` element ``1``).
-# :func:`word_piece` reconstructs the braced-scalar word as ``$={name}`` so the
-# rest of the pipeline can tell the two apart (codegen emits push + loadStk for
-# the marked form rather than an array load).  It is a *variable reference*,
-# never a literal — analyses must decode it, not treat it as opaque text.
-BRACED_SCALAR_MARKER_PREFIX = "$={"
-
-
-def contains_braced_scalar_marker(text: str) -> bool:
-    """True if *text* embeds a ``$={name}`` braced-scalar variable marker."""
-    return BRACED_SCALAR_MARKER_PREFIX in text
-
 
 def word_piece(tok: Token) -> str:
     """Return the source-level text fragment for a single token.
@@ -33,13 +19,21 @@ def word_piece(tok: Token) -> str:
     Variables are prefixed with ``$`` and command substitutions are
     wrapped in ``[...]`` so that the result mirrors what the user wrote.
 
-    For VAR tokens with array-like names (containing ``(`` and ending
-    with ``)``) where the original source used braced ``${a(1)}`` form,
-    a ``$={name}`` marker is emitted.  In Tcl, braces prevent array
-    interpretation so ``${a(1)}`` refers to a scalar named ``a(1)``,
-    while bare ``$a(1)`` refers to array element ``a`` key ``1``.
-    Codegen uses this marker to emit ``push + loadStk`` instead of
-    ``loadArray1``.
+    The braced-vs-bare distinction is carried by *natural spelling* so
+    that codegen can resolve each form to the bytecode tclsh 9 emits:
+
+    * Braced ``${a(1)}`` loads the WHOLE literal name ``a(1)`` (the
+      runtime resolves it as array element ``a(1)``): ``push "a(1)";
+      loadStk``.  Reconstructed verbatim as ``${a(1)}``.
+    * Bare ``$a(1)`` SPLITS into array ``a`` element ``1``:
+      ``push "a"; push "1"; loadArrayStk``.  Kept bare as ``$a(1)`` so
+      codegen takes the split path.  ``$a($i)`` substitutes the index.
+    * Bare scalar ``$foo`` loads via the whole name; normalised to the
+      ``${foo}`` form (equivalent spelling) so the resolvable-reference
+      check recognises it.
+
+    Names containing ``}`` cannot use the ``${...}`` wrapper (the first
+    ``}`` would close it prematurely), so they fall back to ``$name``.
     """
     if tok.type is TokenType.VAR:
         # Detect braced ``${...}`` vs bare ``$name`` form from the
@@ -50,34 +44,30 @@ def word_piece(tok: Token) -> str:
         # ``${…}``.  Net delta is 0 for bare and 1 for braced
         # (the leading ``$`` and the closing ``}`` cancel against
         # the omitted ``${``+``}`` so only one source char is
-        # un-accounted-for in the braced form).  An earlier
-        # ``>= 2`` test never fired and silently flipped braced
-        # array-shaped names into bare array-element reads
-        # (Copilot review on PR #382).
+        # un-accounted-for in the braced form).
         span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
         is_braced = span_extra >= 1
-        if is_braced and "(" in tok.text and tok.text.endswith(")"):
-            # Braced form with array-like name: ${a(1)} is a scalar,
-            # NOT an array access.  Mark with $= prefix so codegen
-            # emits push + loadStk instead of array load.
-            return f"{BRACED_SCALAR_MARKER_PREFIX}{tok.text}}}"
-        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
-        # inside the parens) must round-trip verbatim — the ``${…}`` wrapper
-        # below would collapse the recursive substitution into a literal
-        # scalar lookup (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).  When
-        # the index is fully literal we can still normalise to ``${a(1)}``
-        # since no substitution is at risk.
-        if (
-            not is_braced
-            and "(" in tok.text
-            and tok.text.endswith(")")
-            and ("$" in tok.text or "[" in tok.text)
-        ):
+        if is_braced:
+            # Braced form: reconstruct ``${name}`` verbatim so codegen
+            # loads the whole literal name (``${a(1)}`` is the array
+            # element ``a(1)`` loaded by whole name via loadStk; ``${foo}``
+            # is a plain scalar).  A name containing ``}`` can't round-trip
+            # through the wrapper, so keep it bare.
+            if "}" in tok.text:
+                return "$" + tok.text
+            return f"${{{tok.text}}}"
+        # Bare array-shaped ``$arr(idx)`` must stay bare so codegen splits
+        # it into an array load (``push "arr"; push "idx"; loadArrayStk``).
+        # This covers literal indices (``$a(1)``) and substituted ones
+        # (``$a($i)`` / ``$numargErrors($cmd)`` — cmdAH-1.4 / 1.5) alike;
+        # the ``${…}`` wrapper below would collapse the recursive
+        # substitution into a single whole-name lookup.
+        if "(" in tok.text and tok.text.endswith(")"):
             return "$" + tok.text
-        # Use ${name} form only when the name doesn't contain '}'.
-        # Names with '}' (e.g. array indices with braced expressions
-        # like ``a(1[expr {3 - 1}])``) would cause the first '}' to
-        # prematurely close the ${...} form during runtime substitution.
+        # Bare scalar: normalise to ``${name}`` form.  Names with ``}``
+        # (e.g. ``a(1[expr {3 - 1}])``) would cause the first ``}`` to
+        # prematurely close the ``${...}`` form during runtime
+        # substitution, so keep those bare.
         if "}" in tok.text:
             return "$" + tok.text
         return f"${{{tok.text}}}"

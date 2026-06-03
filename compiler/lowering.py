@@ -619,11 +619,18 @@ class _Lowerer:
                     )
                 )
                 continue
-            # Fix braced-scalar array refs: the segmenter normalises
-            # both ${a(1)} and $a(1) to ${a(1)}, but in Tcl ${a(1)} is
-            # a scalar while $a(1) is an array.  Mark braced forms with
-            # $={name} so codegen emits push + loadStk (scalar) instead
-            # of loadArray1 (array).
+            # Disambiguate array-shaped var refs by *natural spelling*.
+            # The segmenter normalises both ``$a(1)`` and ``${a(1)}`` to
+            # ``${a(1)}``, but they need different bytecode: braced
+            # ``${a(1)}`` loads the WHOLE name ``a(1)`` (the runtime
+            # resolves it as array element ``a(1)``) via ``push "a(1)";
+            # loadStk``, while bare ``$a(1)`` SPLITS into array ``a``
+            # element ``1`` via ``push "a"; push "1"; loadArrayStk``.
+            # Braced forms keep the segmenter's ``${a(1)}`` text; bare
+            # literal-index forms are respelled back to ``$a(1)`` so
+            # codegen takes the split path.  (Bare substituted-index
+            # forms like ``$a($i)`` are already left bare by the
+            # segmenter, so they need no fix-up here.)
             fixed_texts = seg.texts
             for i, (tok, single) in enumerate(zip(seg.argv, seg.single_token_word)):
                 if (
@@ -631,11 +638,12 @@ class _Lowerer:
                     and tok.type is TokenType.VAR
                     and "(" in tok.text
                     and tok.text.endswith(")")
-                    and (tok.end.offset - tok.start.offset) > len(tok.text)
+                    and (tok.end.offset - tok.start.offset) == len(tok.text)
+                    and seg.texts[i].startswith("${")
                 ):
                     if fixed_texts is seg.texts:
                         fixed_texts = list(seg.texts)
-                    fixed_texts[i] = f"$={{{tok.text}}}"
+                    fixed_texts[i] = "$" + tok.text
             cmd = _Command(
                 range=seg.range,
                 argv=seg.argv,

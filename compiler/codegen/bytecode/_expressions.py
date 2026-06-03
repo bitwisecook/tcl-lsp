@@ -178,10 +178,11 @@ class _ExpressionsMixin:
                 return False  # ternary branches might be strings
 
             case ExprRaw(text=text):
-                # Simple ${var} reference: emit as variable load.
-                braced_scalar = self._parse_braced_scalar_ref(text)
-                if braced_scalar is not None:
-                    self._push_lit(braced_scalar)
+                # Braced array-shaped ref ${a(1)}: load the WHOLE name
+                # a(1) via push + loadStk (runtime resolves the element).
+                whole_name = self._parse_whole_name_array_ref(text)
+                if whole_name is not None:
+                    self._push_lit(whole_name)
                     self._emit(Op.LOAD_STK)
                 else:
                     var_name = self._parse_simple_var_ref(text)
