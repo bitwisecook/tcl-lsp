@@ -3332,13 +3332,24 @@ edges need differential pinning, so they bail): the number classes
 integer syntax is version-dependent — leading-zero octal differs 8.5 ↔
 9.0 — `integer`'s width is platform-dependent `long`, and `double`
 accepts `Inf` / `NaN` / hex-floats) and **`dict`** (Python's fold
-doesn't cover it either).  **`format`** — the plain **`%s` / `%d` /
-`%%` subset LANDED** (`format_::fold_format`, ASCII format string, `%d`
-parses the arg as `i64` else bails; mirrors the codegen-side
-`try_format_fold`'s differential-validated subset).  The flag / width /
-precision / other-verb printf matrix and **`scan`** (scanf semantics)
-stay deferred — they need differential pinning against tclsh.  (The
-duplicated
+doesn't cover it either).  **`format`** — the **`%s` / `%d` / `%i` plus
+the flag / width / precision matrix LANDED** for the decimal-integer and
+string conversions (`format_::fold_format`, SYNC-JUN03 follow-up).  The
+flags `-` / `+` / space / `0`, an optional width, and a `.precision`
+(minimum digits for ints, max chars for strings) all fold; pinned
+byte-identical to tclsh by the new Rust-side differential-fold harness
+(`tcl-registry/tests/differential_fold.rs`).  Soundness: `%d` / `%i`
+fold only the **dialect-invariant** decimal-arg subset — plain decimal,
+no leading zero (octal in 8.x, decimal in 9.0: `%d 010` → `8` vs `10`),
+in the signed 32-bit range (9.0 wraps `%d` to 32 bits, 8.6 doesn't:
+`%d 2147483648` → `-2147483648` vs `2147483648`); `%#d` bails (Tcl 9
+`0d42` vs 8.6 `42`); `%s` width/precision over a non-ASCII value bails
+(char-count diverges 8.x ↔ 9.0).  **Still deferred** (own strips, pinned
+when they land via the same harness): the **radix** conversions (`%x` /
+`%X` / `%o` / `%b` — negative values + `%#o` are version-divergent), the
+**float** conversions (`%f` / `%e` / `%g` — C-printf rounding parity),
+**`%c`**, **`%u`**, size modifiers (`%ld`), `*`/positional specs, and
+**`scan`** (scanf semantics).  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3668,12 +3679,16 @@ priority queue:
   `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`), the
   `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
-  char-class / boolean / list predicates), and the `format` `%s` / `%d` /
-  `%%` subset — all in the new `tcl-registry/src/const_fold.rs` leaf +
-  per-command modules.  **Still deferred** (need differential pinning vs
-  tclsh, so they bail): the `string is` number classes (`integer` / `entier`
-  / `wideinteger` / `double`), `string is dict`, the full `format`
-  flag/width/precision matrix, and `scan`.  **`SYNC-JUN02d-2` (embedded /
+  char-class / boolean / list predicates), and `format` (the `%s` / `%d` /
+  `%i` decimal-integer + string conversions with the full flag / width /
+  precision matrix — the dialect-invariant subset; landed in the SYNC-JUN03
+  follow-up and pinned by the new differential-fold harness) — all in the new
+  `tcl-registry/src/const_fold.rs` leaf + per-command modules.  **Still
+  deferred** (own strips, each pinned against tclsh via
+  `tcl-registry/tests/differential_fold.rs` when it lands): the `string is`
+  number classes (`integer` / `entier` / `wideinteger` / `double`), `string
+  is dict`, the `format` radix (`%x`/`%o`/…) + float (`%f`/`%e`/`%g`) + `%c`
+  conversions, and `scan`.  **`SYNC-JUN02d-2` (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
   (interpolation-embedded cmd-sub fold; constant-var arg resolution from the
   whole-function SCCP map; pure-proc multi-word string return).  Out of

@@ -1665,8 +1665,12 @@ mod tests {
         // SYNC-JUN02d: `format` %s / %d / %% subset.
         assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
         assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);
-        // Flag / width specifiers are deferred → unfolded.
-        assert!(fold("puts [format %05d 7]").is_empty());
+        // SYNC-JUN03 follow-up: `format` flag / width / precision now folds for
+        // the decimal-integer + string conversions (dialect-invariant).
+        assert_eq!(fold("puts [format %05d 7]"), vec!["00007".to_string()]);
+        assert_eq!(fold("puts [format %.3d 5]"), vec!["005".to_string()]);
+        // `%#d` stays unfolded (`0d5` on Tcl 9, `5` on 8.6 — divergent).
+        assert!(fold("puts [format %#d 5]").is_empty());
         // The deferred number classes leave the call unfolded.
         assert!(fold("puts [string is integer 42]").is_empty());
         // A braced literal with a space → result rendered as one word.
