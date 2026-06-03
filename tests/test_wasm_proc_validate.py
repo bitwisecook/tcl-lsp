@@ -85,7 +85,10 @@ def test_proc_arg_validation(source: str, expected: str) -> None:
     [
         # A command word that evaluates to the empty string is a genuine
         # invocation of a command literally named "" — NOT a no-op — so a
-        # proc defined with an empty name is reachable (proc-3.7).
+        # proc defined with an empty name is reachable (proc-3.7).  These
+        # cases wrap the body in ``eval`` to drive the interpreted
+        # ``eval_command_dispatch`` path; the static codegen path is
+        # covered separately in ``test_proc_empty_name_static_codegen``.
         (r"set s {proc {} {} {return ok-empty}; puts [{}]}; eval $s", "ok-empty"),
         (
             r"set s {proc {} {x} {return got-$x}; puts [{} 42]}; eval $s",
@@ -115,4 +118,27 @@ def test_proc_arg_validation(source: str, expected: str) -> None:
     ],
 )
 def test_proc_empty_and_quoted_command_name(source: str, expected: str) -> None:
+    assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # Ordinary (non-``eval``) source compiles the ``proc {}`` body
+        # statically and registers it via ``proc_register_compiled``.
+        # That path previously rejected an empty simple name, leaving the
+        # command undefined so a later ``{}`` call trapped ``invalid
+        # command name ""``.  It now registers (matching the interpreted
+        # ``proc_register``) and the compiled body is reachable (proc-3.7
+        # through the static codegen path, not just the eval-fallback).
+        ("proc {} {} {return ok-empty}\nputs [{}]", "ok-empty"),
+        ("proc {} {x} {return got-$x}\nputs [{} 7]", "got-7"),
+        # Redefining the empty-named command swaps the body in place.
+        (
+            "proc {} {} {return v1}\nputs [{}]\nproc {} {} {return v2}\nputs [{}]",
+            "v1\nv2",
+        ),
+    ],
+)
+def test_proc_empty_name_static_codegen(source: str, expected: str) -> None:
     assert _run(source) == expected
