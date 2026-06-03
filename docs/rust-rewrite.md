@@ -3548,6 +3548,74 @@ Out of scope (no Rust mirror — record and skip):
 
 No in-scope rows — the single commit is entirely VM / WASM runtime + tests.
 
+## SYNC-JUN04 family — main audit (2026-06-04, PR #530)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`ca7bba21` (SYNC-JUN03).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`43812a60`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#530** (`43812a60`) — *Fix concat trailing whitespace trimming and
+  empty proc names.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) **`concat` trailing backslash-space** — match
+  `Tcl_ConcatObj`'s rule: trim all trailing whitespace, then re-expose one
+  byte when the trim lands on a backslash, *regardless of backslash-run
+  parity*.  The old code stopped at the first odd-backslash-escaped space, so
+  it trimmed the exposed space away for even runs
+  (`concat a {b\\   } c` → `a b\\  c`, util-4.3).  (2) **empty command name**
+  — a single command word that evaluates to `""` is a genuine invocation of a
+  command literally named `""`: dispatch it to a user-defined `""` proc when
+  one exists, else fall through to the canonical `invalid command name ""`
+  (proc-3.7, proc-old-9.1); previously a silent no-op.  A follow-up sub-commit
+  dropped the `simple_len == 0` guard in `proc_register_compiled` so the static
+  codegen path registers empty-named procs too (matching the interpreted path).
+  (3) **proc wrong-args** — list-element-quote the invoked name in the
+  `wrong # args: should be "…"` message (`Tcl_WrongNumArgs` runs each word
+  through `TclScanElement` / `TclConvertElement`), so an empty proc name renders
+  as `{}` and a whitespaced name as `{a b}` (proc-3.7).  Touches only the
+  **Zig VM** (`runtime/zig/interp/{tcl_interp,tcl_procs}.zig`,
+  `runtime/zig/valtypes/tcl_string.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**` — util 2→1, proc 2→1, proc-old 13→12
+  failing; refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_concat_trim.py`, `tests/test_wasm_proc_validate.py`), and
+  `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter, and the
+  WASM test suite are all explicitly outside the rewrite scope; the commit
+  carries no analyser / compiler / lowering / CFG-SSA / registry / optimiser
+  surface, and no `rust/` change.
+
+In-scope follow-up (confirmation, no behaviour change):
+
+- **`fold_concat` differential confirmation — CONFIRMED SOUND, no change
+  needed.**  #530's VM fix raised the question of whether the registry
+  `const_fold` for `concat` (`const_fold::fold_concat`) needs the same
+  trailing-backslash re-expose rule.  It does not, because the Rust fold never
+  receives a backslash-bearing word.  `fold_concat` is a **faithful, byte-
+  identical port** of main's `dialects/tcl/const_fold.py::fold_concat`
+  (`" ".join(a.strip() for a in args if a.strip())`); neither models the
+  re-expose rule, so both are unsound *in isolation* for a
+  trailing-backslash-whitespace word (`concat a {b\ } c` would fold to the
+  6-byte `a b\ c`, but Tcl 9.0 gives the 7-byte `a b\  c`).  Soundness is
+  upheld upstream, at **different stages** in the two pipelines:
+  **Rust gates on the input word** — the optimiser's `literal_words`
+  (`tcl-compiler/src/optimiser/propagation.rs`) bails on **any**
+  backslash-bearing word (it does not decode escapes), so `fold_concat` never
+  sees one; **main gates on the fold result** —
+  `fold_cmd_subst_to_string` (`compiler/core_analyses.py`) rejects any result
+  containing `;\n[$"\\`.  For `concat` these are **outcome-equivalent**: a
+  backslash in any input word is non-whitespace, so it always survives the
+  trim into the result, and both pipelines decline the fold.  Pinned by a new
+  discriminating regression test
+  (`o129_concat_trailing_backslash_space_word_is_not_folded` in
+  `propagation.rs`) — it folds a clean `concat` for contrast and asserts the
+  backslash forms (incl. the exact #530 `concat a {b\\   } c` shape) are left
+  unfolded; deleting the `literal_words` backslash bail makes it fail (the
+  cmd-sub would fold to a wrong literal).  A note added beside the
+  `differential_fold.rs` `concat` cases records why that harness — which drives
+  the registry fold directly, bypassing `literal_words` — must not feed a
+  backslash word.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3819,6 +3887,19 @@ priority queue:
   `format` bignum fix) plus a WASM tcltest-gate refresh and new WASM
   execution tests; no analyser / compiler / registry / optimiser surface and
   no `rust/` change.  See the `SYNC-JUN03` family section.
+* **`SYNC-JUN04` family** — opened 2026-06-04 (PR #530); advances the anchor
+  from `origin/main`@`ca7bba21` to `origin/main`@`43812a60` (+1 commit).
+  #530 itself is entirely Tcl 9 **WASM / Zig-VM** runtime (`Tcl_ConcatObj`
+  trailing-backslash re-expose, empty-command-name dispatch, `Tcl_WrongNumArgs`
+  name-quoting) plus a WASM tcltest-gate refresh and new WASM execution tests —
+  **out of scope**, no `rust/` change.  It did prompt one **in-scope
+  confirmation**: the registry `fold_concat` const-fold is **already sound** for
+  the trailing-backslash-space edge and needs no change — it is a byte-identical
+  port of main's simple trim+join model, and the optimiser's `literal_words`
+  input gate bails on any backslash-bearing word before the fold runs (main
+  reaches the same outcome via a result-side guard; outcome-equivalent for
+  `concat`).  Pinned by a new regression test in `propagation.rs`.  See the
+  `SYNC-JUN04` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
