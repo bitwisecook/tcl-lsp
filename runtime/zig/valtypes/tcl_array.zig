@@ -940,6 +940,13 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
         // 8.38.3).  Pass key_ptr = 0 / key_len = 0 so the helper
         // selects the empty-list message.
         if (!array_check_or_create(arr, 0, 0)) return obj_new_string(0, 0);
+        // ``array_check_or_create`` only validated the scalar conflict;
+        // it does NOT create the table (the non-empty path relies on the
+        // first ``array_set`` for that).  Materialise an empty table so
+        // ``array set X {}`` makes ``info exists X`` / ``array exists X``
+        // true and a later scalar read of X reports ``variable is
+        // array`` rather than ``no such variable`` (set-old-8.38/8.38.2).
+        _ = find_or_create(arr);
         return obj_new_string(0, 0);
     }
     // Up-front scalar-conflict probe: ``array set arr ...`` on a

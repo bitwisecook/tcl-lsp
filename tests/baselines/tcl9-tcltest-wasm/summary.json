@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T16:12:49Z",
+  "generated_at": "2026-06-03T18:34:11Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -444,11 +444,11 @@
       "total": 257
     },
     "regexpComp": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 2,
-      "passed_min": 177,
+      "failed_max": 0,
+      "passed_min": 179,
       "skipped": 0,
       "total": 179
     },
@@ -492,8 +492,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 9,
-      "passed_min": 144,
+      "failed_max": 7,
+      "passed_min": 146,
       "skipped": 0,
       "total": 153
     },
