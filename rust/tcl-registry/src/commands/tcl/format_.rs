@@ -3,10 +3,10 @@ use crate::prelude::*;
 
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
 /// decimal-integer (`%d` / `%i`), radix (`%x` / `%X` / `%o`), character
-/// (`%c`), fixed-point float (`%f` / `%F`) and string (`%s`) conversions of
-/// `format`, with the printf flag / width / precision matrix that is
-/// **byte-identical across Tcl 8.4 → 9.0** (verified differentially against
-/// `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
+/// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
+/// conversions of `format`, with the printf flag / width / precision matrix
+/// that is **byte-identical across Tcl 8.4 → 9.0** (verified differentially
+/// against `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -23,14 +23,13 @@ use crate::prelude::*;
 /// * `%s` honours `-` / width / precision; the numeric flags bail (Tcl
 ///   ignores them on strings), and width/precision over a non-ASCII value
 ///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
-/// * `%f` / `%F` parse a double over the same subset as `string is double`
-///   ([`parse_float_arg`]) and render via Rust's `{:.prec$}` (round-half-to-
-///   even, byte-identical to C/Tcl `%f`); a non-finite value bails.  See
-///   [`Conversion::render_float`].
-/// * `%e` / `%g` (their exponent / shortest-form rendering differs from
-///   Rust's formatter), `%u`, `%b`, size modifiers (`%ld`), `*` (arg-driven)
-///   width / precision, positional `%n$`, and any field over [`MAX_FIELD`]
-///   all bail — `%e` / `%g` are differentially pinned in a later strip.
+/// * the float conversions parse a double over the same subset as `string is
+///   double` ([`parse_float_arg`]) and build on Rust's float formatter, with
+///   `%e`/`%g`'s exponent / shortest-form rendering reshaped to C's by
+///   [`fmt_sci`] / [`fmt_general`]; a non-finite value and the `#` form bail.
+///   See [`Conversion::render_float`].
+/// * `%u`, `%b`, size modifiers (`%ld`), `*` (arg-driven) width / precision,
+///   positional `%n$`, and any field over [`MAX_FIELD`] all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
 fn fold_format(args: &[&str]) -> Option<String> {
@@ -107,6 +106,15 @@ enum Radix {
     Octal,
 }
 
+/// The notation of a float conversion: `%f` (fixed), `%e` (scientific), `%g`
+/// (general — the shorter of the two with trailing zeros stripped).
+#[derive(Clone, Copy)]
+enum FloatKind {
+    Fixed,
+    Scientific,
+    General,
+}
+
 impl Conversion {
     /// Parse flags / width / `.precision` / verb, starting just past the `%`
     /// and advancing `i` past the verb.  Bails on `*` width / precision, an
@@ -164,23 +172,29 @@ impl Conversion {
             b'X' => self.render_radix(value, Radix::HexUpper),
             b'o' => self.render_radix(value, Radix::Octal),
             b'c' => self.render_char(value),
-            b'f' | b'F' => self.render_float(value),
+            b'f' | b'F' => self.render_float(value, FloatKind::Fixed, false),
+            b'e' => self.render_float(value, FloatKind::Scientific, false),
+            b'E' => self.render_float(value, FloatKind::Scientific, true),
+            b'g' => self.render_float(value, FloatKind::General, false),
+            b'G' => self.render_float(value, FloatKind::General, true),
             b's' => self.render_str(value),
-            // `%e`/`%g` (their exponent / shortest-form rendering differs from
-            // Rust's), `%u`, `%b`, size modifiers (`%ld`) and positional `%n$`
-            // are differentially pinned in later strips — bail for now.
+            // `%u`, `%b`, size modifiers (`%ld`) and positional `%n$` are
+            // differentially pinned in later strips — bail for now.
             _ => None,
         }
     }
 
-    /// Render `%f` / `%F` (fixed-point).  Rust's `{:.prec$}` formatter is
-    /// byte-identical to C/Tcl `%f` — the same round-half-to-even on the exact
-    /// binary value (verified differentially: `2.5`→`2`, `0.125`→`0.12`,
-    /// `2.675`→`2.67`, `99.995`→`100.00`).  Precision defaults to 6 (the C
-    /// default).  Unlike `%d`, the `0` flag zero-pads even with a precision.
-    /// A non-finite value (`Inf`/`NaN`) bails — its spelling is version- and
-    /// edge-dependent — as does the `#` alternate form.
-    fn render_float(&self, value: &str) -> Option<String> {
+    /// Render a float conversion — `%f`/`%F` (fixed), `%e`/`%E` (scientific),
+    /// or `%g`/`%G` (general).  All build on Rust's float formatter, which is
+    /// byte-identical to C/Tcl on the exact binary value — same
+    /// round-half-to-even (verified differentially: `2.5`→`2`, `0.125`→`0.12`,
+    /// `2.675`→`2.67`, `99.995`→`100.00`) — with the exponent / shortest-form
+    /// rendering reshaped to C's by [`fmt_sci`] / [`fmt_general`].  Precision
+    /// defaults to 6 (the C default).  Unlike `%d`, the `0` flag zero-pads
+    /// even with a precision.  A non-finite value (`Inf`/`NaN` — spelling is
+    /// version-edgy) and the `#` alternate form (it suppresses `%g`'s
+    /// trailing-zero stripping) both bail.
+    fn render_float(&self, value: &str, kind: FloatKind, upper: bool) -> Option<String> {
         if self.flags.contains(FmtFlags::HASH) {
             return None;
         }
@@ -189,7 +203,11 @@ impl Conversion {
             return None;
         }
         let prec = self.precision.unwrap_or(6);
-        let mag = format!("{:.*}", prec, v.abs());
+        let mag = match kind {
+            FloatKind::Fixed => format!("{:.*}", prec, v.abs()),
+            FloatKind::Scientific => fmt_sci(v.abs(), prec, upper),
+            FloatKind::General => fmt_general(v.abs(), prec, upper),
+        };
         let sign = if v.is_sign_negative() {
             "-"
         } else if self.flags.contains(FmtFlags::PLUS) {
@@ -404,6 +422,48 @@ fn parse_float_arg(value: &str) -> Option<f64> {
     value.trim().parse::<f64>().ok()
 }
 
+/// `%e` / `%E` magnitude: Rust's `{:.prec$e}`, with the exponent reshaped to
+/// C's form — a sign and at least two digits (`3.140000e+04`, not `3.14e4`).
+/// The mantissa matches C's rounding (same round-half-to-even).
+fn fmt_sci(v: f64, prec: usize, upper: bool) -> String {
+    let raw = format!("{v:.prec$e}");
+    let (mant, exp) = raw.split_once('e').unwrap_or((raw.as_str(), "0"));
+    let e: i32 = exp.parse().unwrap_or(0);
+    let marker = if upper { 'E' } else { 'e' };
+    let sign = if e < 0 { '-' } else { '+' };
+    format!("{mant}{marker}{sign}{:02}", e.abs())
+}
+
+/// `%g` / `%G` magnitude (C semantics): with effective precision `P = max(p,
+/// 1)`, pick `%f` when the decimal exponent `X` satisfies `-4 ≤ X < P` (with
+/// precision `P-1-X`) else `%e` (with precision `P-1`), then strip trailing
+/// zeros — and a trailing `.` — from the mantissa (the default, non-`#`,
+/// behaviour; `%#g` bails upstream).
+fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
+    let p = i32::try_from(prec.max(1)).unwrap_or(i32::MAX);
+    let exp: i32 = format!("{:.*e}", prec.max(1) - 1, v)
+        .split_once('e')
+        .and_then(|(_, e)| e.parse().ok())
+        .unwrap_or(0);
+    let mut body = if (-4..p).contains(&exp) {
+        let fprec = usize::try_from(p - 1 - exp).unwrap_or(0);
+        format!("{v:.fprec$}")
+    } else {
+        fmt_sci(v, prec.max(1) - 1, upper)
+    };
+    // Strip trailing zeros from the mantissa only, leaving any exponent intact.
+    let marker = if upper { 'E' } else { 'e' };
+    if let Some(epos) = body.find(marker) {
+        let (mant, exp) = body.split_at(epos);
+        if mant.contains('.') {
+            body = format!("{}{exp}", mant.trim_end_matches('0').trim_end_matches('.'));
+        }
+    } else if body.contains('.') {
+        body = body.trim_end_matches('0').trim_end_matches('.').to_owned();
+    }
+    body
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
@@ -492,13 +552,15 @@ mod tests {
         );
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
         assert_eq!(fold_format(&["%d", "0x10"]), None);
-        // %e / %g / %b verbs are deferred to a later strip.
-        assert_eq!(fold_format(&["%e", "31400.0"]), None);
-        assert_eq!(fold_format(&["%g", "3.14"]), None);
+        // %u / %b verbs are deferred to a later strip.
+        assert_eq!(fold_format(&["%u", "5"]), None);
         assert_eq!(fold_format(&["%b", "5"]), None);
-        // %f with a non-finite value bails (Inf/NaN spelling is version-edgy).
+        // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
+        // the `#` alternate form bails (it changes %g trailing-zero stripping).
         assert_eq!(fold_format(&["%f", "inf"]), None);
+        assert_eq!(fold_format(&["%e", "nan"]), None);
         assert_eq!(fold_format(&["%#f", "3.14"]), None);
+        assert_eq!(fold_format(&["%#g", "3.14"]), None);
         // Numeric flags don't apply to `%s` → bail.
         assert_eq!(fold_format(&["%05s", "hi"]), None);
         assert_eq!(fold_format(&["%+s", "hi"]), None);
@@ -597,5 +659,55 @@ mod tests {
         assert_eq!(fold_format(&["%f", "abc"]), None);
         assert_eq!(fold_format(&["%f", "0x1f"]), None);
         assert_eq!(fold_format(&["%f", "1_000"]), None);
+    }
+
+    #[test]
+    fn format_folds_scientific_and_general() {
+        // %e / %E: C-shaped exponent (sign + ≥2 digits), default precision 6.
+        assert_eq!(
+            fold_format(&["%e", "31400.0"]).as_deref(),
+            Some("3.140000e+04")
+        );
+        assert_eq!(
+            fold_format(&["%.3e", "31400.0"]).as_deref(),
+            Some("3.140e+04")
+        );
+        assert_eq!(
+            fold_format(&["%E", "31400.0"]).as_deref(),
+            Some("3.140000E+04")
+        );
+        assert_eq!(
+            fold_format(&["%e", "0.0314"]).as_deref(),
+            Some("3.140000e-02")
+        );
+        assert_eq!(fold_format(&["%.2e", "9.999"]).as_deref(), Some("1.00e+01"));
+        assert_eq!(
+            fold_format(&["%e", "1e100"]).as_deref(),
+            Some("1.000000e+100")
+        );
+        // %g / %G: shorter of %e/%f, trailing zeros stripped.
+        assert_eq!(fold_format(&["%g", "3.14"]).as_deref(), Some("3.14"));
+        assert_eq!(fold_format(&["%g", "100000.0"]).as_deref(), Some("100000"));
+        assert_eq!(fold_format(&["%g", "1000000.0"]).as_deref(), Some("1e+06"));
+        assert_eq!(fold_format(&["%g", "0.0001"]).as_deref(), Some("0.0001"));
+        assert_eq!(fold_format(&["%g", "0.00001"]).as_deref(), Some("1e-05"));
+        assert_eq!(fold_format(&["%g", "1.0"]).as_deref(), Some("1"));
+        assert_eq!(
+            fold_format(&["%.3g", "0.000123456"]).as_deref(),
+            Some("0.000123")
+        );
+        assert_eq!(
+            fold_format(&["%G", "1234567.0"]).as_deref(),
+            Some("1.23457E+06")
+        );
+        // Flags / width apply (the `0` flag zero-pads even with a precision).
+        assert_eq!(
+            fold_format(&["%+.2e", "31400.0"]).as_deref(),
+            Some("+3.14e+04")
+        );
+        assert_eq!(
+            fold_format(&["%015.3e", "31400.0"]).as_deref(),
+            Some("0000003.140e+04")
+        );
     }
 }
