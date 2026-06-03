@@ -240,6 +240,7 @@ pub fn prepare_rename(
 #[must_use]
 pub fn rename(
     source: &str,
+    dialect: &str,
     line: u32,
     character: u32,
     new_name: &str,
@@ -285,6 +286,7 @@ pub fn rename(
             if let Some(class_q) = analysis.instance_classes.get(&inst) {
                 if let Some(edits) = rename_method_in_class(
                     source,
+                    dialect,
                     class_q,
                     &method,
                     new_name,
@@ -301,6 +303,7 @@ pub fn rename(
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
     if let Some(edits) = rename_method(
         source,
+        dialect,
         &word,
         new_name,
         analysis,
@@ -320,6 +323,7 @@ pub fn rename(
 /// `$obj method` rename entry points.
 fn rename_method_in_class(
     source: &str,
+    dialect: &str,
     class_q: &str,
     method: &str,
     new_name: &str,
@@ -327,7 +331,7 @@ fn rename_method_in_class(
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
     let (decl_span, call_spans) =
-        crate::references::method_references_for_class(source, analysis, class_q, method)?;
+        crate::references::method_references_for_class(source, dialect, analysis, class_q, method)?;
     let mut edits = vec![TextEdit {
         range: span_to_range(line_index, decl_span),
         new_text: new_name.to_owned(),
@@ -498,6 +502,7 @@ fn rename_class(
 /// containment filtering.
 fn rename_method(
     source: &str,
+    dialect: &str,
     word: &str,
     new_name: &str,
     analysis: &AnalysisResult,
@@ -540,7 +545,7 @@ fn rename_method(
         }
         for span in body_spans {
             scan_body_for_method_calls(
-                source, span, word, new_name, name_span, line_index, &mut edits,
+                source, dialect, span, word, new_name, name_span, line_index, &mut edits,
             );
         }
         // Append external `$obj method` call sites for
@@ -548,6 +553,7 @@ fn rename_method(
         if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
             for span in crate::references::find_obj_method_call_sites(
                 source,
+                dialect,
                 analysis,
                 &class_def.qualified_name,
                 word,
@@ -569,8 +575,13 @@ fn rename_method(
 /// isn't the declaration site itself).  Uses
 /// [`tcl_compiler::segmenter::segment_commands_with_offset`]
 /// so the resulting token spans use absolute source offsets.
+// `too_many_arguments`: the OO-method-rename body scan threads its working
+// state by value; the added `dialect` (SYNC-MAY19-dialect-contextvar) tips
+// it to 8.  A context struct is a separate cleanup.
+#[allow(clippy::too_many_arguments)]
 fn scan_body_for_method_calls(
     source: &str,
+    dialect: &str,
     body_span: tcl_lexer::Span,
     word: &str,
     new_name: &str,
@@ -578,7 +589,7 @@ fn scan_body_for_method_calls(
     line_index: &LineIndex,
     edits: &mut Vec<TextEdit>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     if body_span.is_empty() {
         return;
     }
@@ -599,8 +610,11 @@ fn scan_body_for_method_calls(
         end -= 1;
     }
     let body_text = &source[start..end];
-    let commands =
-        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    let commands = segment_commands_with_offset_and_config(
+        body_text,
+        u32::try_from(start).unwrap_or(body_span.start()),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
     for cmd in &commands {
         let Some(head) = cmd.argv.first() else {
             continue;
@@ -845,7 +859,7 @@ mod tests {
     fn rename_proc_includes_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, 0, 6, "hi", &analysis, None);
+        let edits = rename(src, "tcl", 0, 6, "hi", &analysis, None);
         assert!(!edits.is_empty());
         assert!(edits.iter().all(|e| e.new_text == "hi"));
         // First edit is the declaration on line 0 col 5.
@@ -857,7 +871,7 @@ mod tests {
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(rename(src, 0, 6, "x", &analysis, None).is_empty());
+        assert!(rename(src, "tcl", 0, 6, "x", &analysis, None).is_empty());
     }
 
     #[test]
@@ -865,7 +879,7 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         // Cursor inside `$x`.
-        let edits = rename(src, 1, 7, "y", &analysis, None);
+        let edits = rename(src, "tcl", 1, 7, "y", &analysis, None);
         assert!(!edits.is_empty());
         // Declaration replaces just `x` → `y`; reference
         // replaces `$x` → `$y` so the `$` prefix is preserved.
@@ -881,7 +895,7 @@ mod tests {
         let src = "set x 1\nputs ${x}\n";
         let analysis = analyse(src);
         // Cursor inside `${x}` on the `x`.
-        let edits = rename(src, 1, 7, "y", &analysis, None);
+        let edits = rename(src, "tcl", 1, 7, "y", &analysis, None);
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"${y}"), "{texts:?}");
@@ -894,7 +908,7 @@ mod tests {
         let src = "set arr(0) 1\nputs $arr(0)\n";
         let analysis = analyse(src);
         // Cursor on `arr` in the `set` target (line 0, col 4).
-        let edits = rename(src, 1, 6, "data", &analysis, None);
+        let edits = rename(src, "tcl", 1, 6, "data", &analysis, None);
         assert!(!edits.is_empty(), "expected array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -910,7 +924,7 @@ mod tests {
         let src = "set arr(0) 1\nputs ${arr(0)}\n";
         let analysis = analyse(src);
         // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
-        let edits = rename(src, 1, 7, "data", &analysis, None);
+        let edits = rename(src, "tcl", 1, 7, "data", &analysis, None);
         assert!(!edits.is_empty(), "expected braced array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -1038,11 +1052,11 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         // Whitespace in the new name fails the shape gate.
-        assert!(rename(src, 0, 6, "bad name", &analysis, None).is_empty());
+        assert!(rename(src, "tcl", 0, 6, "bad name", &analysis, None).is_empty());
         // Leading digit fails.
-        assert!(rename(src, 0, 6, "1lead", &analysis, None).is_empty());
+        assert!(rename(src, "tcl", 0, 6, "1lead", &analysis, None).is_empty());
         // Dash fails.
-        assert!(rename(src, 0, 6, "with-dash", &analysis, None).is_empty());
+        assert!(rename(src, "tcl", 0, 6, "with-dash", &analysis, None).is_empty());
     }
 
     #[test]
@@ -1050,7 +1064,7 @@ mod tests {
         // The shape gate applies to variable renames too.
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
-        assert!(rename(src, 1, 7, "bad name", &analysis, None).is_empty());
+        assert!(rename(src, "tcl", 1, 7, "bad name", &analysis, None).is_empty());
     }
 
     #[test]
@@ -1061,7 +1075,7 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, 0, 6, "puts", &analysis, Some(&registry));
+        let edits = rename(src, "tcl", 0, 6, "puts", &analysis, Some(&registry));
         assert!(
             edits.is_empty(),
             "rename to built-in `puts` must produce no edits, got {edits:?}",
@@ -1075,7 +1089,7 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, 0, 6, "salut", &analysis, Some(&registry));
+        let edits = rename(src, "tcl", 0, 6, "salut", &analysis, Some(&registry));
         assert!(
             !edits.is_empty(),
             "rename to non-built-in `salut` should produce edits",
@@ -1091,7 +1105,7 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, 1, 7, "puts", &analysis, Some(&registry));
+        let edits = rename(src, "tcl", 1, 7, "puts", &analysis, Some(&registry));
         assert!(
             !edits.is_empty(),
             "variable rename to `puts` should succeed (different namespace)",
@@ -1116,7 +1130,7 @@ mod tests {
         // just `hello` (which would clobber the prefix).
         let src = "proc ::myns::greet {} {}\n";
         let analysis = analyse(src);
-        let edits = rename(src, 0, 14, "hello", &analysis, None);
+        let edits = rename(src, "tcl", 0, 14, "hello", &analysis, None);
         assert!(!edits.is_empty(), "{edits:?}");
         assert!(
             edits.iter().any(|e| e.new_text == "::myns::hello"),
@@ -1138,7 +1152,7 @@ mod tests {
                        greet\n\
                    }\n";
         let analysis = analyse(src);
-        let edits = rename(src, 0, 14, "hello", &analysis, None);
+        let edits = rename(src, "tcl", 0, 14, "hello", &analysis, None);
         let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         // Should include both `::myns::hello` (qualified) and
         // `hello` (short).
@@ -1160,7 +1174,7 @@ mod tests {
         // unqualified (`hello`, not `::hello`).
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, 0, 6, "hello", &analysis, None);
+        let edits = rename(src, "tcl", 0, 6, "hello", &analysis, None);
         assert!(
             edits.iter().any(|e| e.new_text == "hello"),
             "expected short `hello` at decl; got {:?}",
@@ -1187,7 +1201,7 @@ mod tests {
                    MyClass new\n";
         let analysis = analyse(src);
         // Cursor on the `MyClass` declaration name (column 17).
-        let edits = rename(src, 0, 17, "Renamed", &analysis, None);
+        let edits = rename(src, "tcl", 0, 17, "Renamed", &analysis, None);
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(!edits.is_empty(), "expected non-empty edits");
         assert!(
@@ -1206,7 +1220,7 @@ mod tests {
         let src = "oo::class create MyClass {\n}\nMyClass new\n";
         let analysis = analyse(src);
         // Cursor on the `MyClass` in `MyClass new` (line 2, col 3).
-        let edits = rename(src, 2, 3, "Renamed", &analysis, None);
+        let edits = rename(src, "tcl", 2, 3, "Renamed", &analysis, None);
         assert!(!edits.is_empty(), "{edits:?}");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -1219,7 +1233,7 @@ mod tests {
     fn rename_class_rejects_unsafe_new_name() {
         let src = "oo::class create MyClass {}\nMyClass new\n";
         let analysis = analyse(src);
-        let edits = rename(src, 0, 17, "1bad", &analysis, None);
+        let edits = rename(src, "tcl", 0, 17, "1bad", &analysis, None);
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -1229,7 +1243,7 @@ mod tests {
         let analysis = analyse(src);
         let mut r = tcl_registry::CommandRegistry::build_default();
         r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
-        let edits = rename(src, 0, 17, "if", &analysis, Some(&r));
+        let edits = rename(src, "tcl", 0, 17, "if", &analysis, Some(&r));
         assert!(
             edits.is_empty(),
             "renaming to a built-in should be blocked; got {edits:?}",
@@ -1258,7 +1272,7 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1 col 11).
-        let edits = rename(src, 1, 11, "salute", &analysis, None);
+        let edits = rename(src, "tcl", 1, 11, "salute", &analysis, None);
         assert!(!edits.is_empty(), "{edits:?}");
         // All three sites should be present.
         assert!(edits.len() >= 3, "{edits:?}");
@@ -1272,7 +1286,7 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` call site (line 2 col 22).
-        let edits = rename(src, 2, 22, "salute", &analysis, None);
+        let edits = rename(src, "tcl", 2, 22, "salute", &analysis, None);
         assert!(edits.len() >= 3, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "salute");
@@ -1286,7 +1300,7 @@ mod tests {
         // returns empty.
         let src = "oo::class create C {\n    method greet {} {}\n}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, 3, 2, "salute", &analysis, None);
+        let edits = rename(src, "tcl", 3, 2, "salute", &analysis, None);
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -1294,7 +1308,7 @@ mod tests {
     fn rename_method_rejects_unsafe_new_name() {
         let src = "oo::class create C {\n    method greet {} {}\n}\n";
         let analysis = analyse(src);
-        let edits = rename(src, 1, 11, "1bad", &analysis, None);
+        let edits = rename(src, "tcl", 1, 11, "1bad", &analysis, None);
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -1314,7 +1328,7 @@ mod tests {
         // external `$d bark` / `[$d bark]` call sites.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
-        let edits = rename(src, 1, 11, "yip", &analysis, None);
+        let edits = rename(src, "tcl", 1, 11, "yip", &analysis, None);
         // Declaration + 2 external sites = 3 edits, all "yip".
         assert!(edits.len() >= 3, "{edits:?}");
         for e in &edits {
@@ -1333,7 +1347,7 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
         let analysis = analyse(src);
         // Cursor on `bark` in `$d bark` (line 4, col 3).
-        let edits = rename(src, 4, 3, "yip", &analysis, None);
+        let edits = rename(src, "tcl", 4, 3, "yip", &analysis, None);
         assert!(edits.len() >= 2, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "yip");
@@ -1347,7 +1361,7 @@ mod tests {
     fn rename_method_external_rewrites_proc_body_sites() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
         let analysis = analyse(src);
-        let edits = rename(src, 1, 11, "yip", &analysis, None);
+        let edits = rename(src, "tcl", 1, 11, "yip", &analysis, None);
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         // Declaration (1) + proc-body call (4).
         assert!(lines.contains(&1) && lines.contains(&4), "{edits:?}");

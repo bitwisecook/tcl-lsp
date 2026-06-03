@@ -161,8 +161,12 @@ fn resolve_method_item<'a>(
 /// for every command invocation in it.  Surrounding braces are
 /// stripped so the segmenter descends into the body rather than
 /// treating the leading `{` as a braced literal.
-fn segment_body_calls(source: &str, body_span: tcl_lexer::Span) -> Vec<(String, tcl_lexer::Span)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+fn segment_body_calls(
+    source: &str,
+    dialect: &str,
+    body_span: tcl_lexer::Span,
+) -> Vec<(String, tcl_lexer::Span)> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     if body_span.is_empty() {
         return Vec::new();
     }
@@ -178,8 +182,11 @@ fn segment_body_calls(source: &str, body_span: tcl_lexer::Span) -> Vec<(String, 
         end -= 1;
     }
     let body_text = &source[start..end];
-    let commands =
-        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    let commands = segment_commands_with_offset_and_config(
+        body_text,
+        u32::try_from(start).unwrap_or(body_span.start()),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
     let mut out = Vec::new();
     for cmd in &commands {
         let Some(head) = cmd.argv.first() else {
@@ -325,6 +332,7 @@ pub struct UnresolvedOutgoingCall {
 #[must_use]
 pub fn unresolved_outgoing_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<UnresolvedOutgoingCall> {
@@ -361,7 +369,7 @@ pub fn unresolved_outgoing_calls(
             )
             .collect();
     }
-    unresolved_method_outgoing_calls(source, item, analysis, &line_index)
+    unresolved_method_outgoing_calls(source, dialect, item, analysis, &line_index)
 }
 
 /// Method-body variant of [`unresolved_outgoing_calls`]: keeps
@@ -369,6 +377,7 @@ pub fn unresolved_outgoing_calls(
 /// sibling method nor a local top-level proc.
 fn unresolved_method_outgoing_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
@@ -378,7 +387,7 @@ fn unresolved_method_outgoing_calls(
     };
     let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
         std::collections::BTreeMap::new();
-    for (head, span) in segment_body_calls(source, source_method.body_span) {
+    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
         // Sibling method?
         if class_def.methods.contains_key(&head) || class_def.class_methods.contains_key(&head) {
             continue;
@@ -417,6 +426,7 @@ fn unresolved_method_outgoing_calls(
 #[must_use]
 pub fn incoming_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<IncomingCall> {
@@ -425,7 +435,7 @@ pub fn incoming_calls(
         analysis.all_procs.iter().find(|(qn, _)| **qn == item.name)
     else {
         // Not a proc — try a class method.
-        return method_incoming_calls(source, item, analysis, &line_index);
+        return method_incoming_calls(source, dialect, item, analysis, &line_index);
     };
     incoming_calls_for_target(
         source,
@@ -518,13 +528,14 @@ pub fn incoming_calls_for_target(
 #[must_use]
 pub fn outgoing_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
 ) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
     let Some((_, source_proc)) = analysis.all_procs.iter().find(|(qn, _)| **qn == item.name) else {
         // Not a proc — try a class method.
-        return method_outgoing_calls(source, item, analysis, &line_index);
+        return method_outgoing_calls(source, dialect, item, analysis, &line_index);
     };
     // Map target qname → (target item, list of ranges).
     let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
@@ -557,6 +568,7 @@ pub fn outgoing_calls(
 /// method name.
 fn method_incoming_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
@@ -567,7 +579,7 @@ fn method_incoming_calls(
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for caller in class_methods_iter(class_def) {
-        for (head, span) in segment_body_calls(source, caller.body_span) {
+        for (head, span) in segment_body_calls(source, dialect, caller.body_span) {
             if head != target_method.name {
                 continue;
             }
@@ -593,6 +605,7 @@ fn method_incoming_calls(
 /// item) or a top-level user proc (→ proc item).
 fn method_outgoing_calls(
     source: &str,
+    dialect: &str,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
@@ -602,7 +615,7 @@ fn method_outgoing_calls(
     };
     let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
-    for (head, span) in segment_body_calls(source, source_method.body_span) {
+    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
         let range = span_to_range(line_index, span);
         // Sibling method?
         if let Some(callee) = class_def
@@ -693,7 +706,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, target, &analysis);
+        let incoming = incoming_calls(src, "tcl", target, &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::caller");
         assert_eq!(incoming[0].from_ranges.len(), 1);
@@ -707,7 +720,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, target, &analysis);
+        let incoming = incoming_calls(src, "tcl", target, &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from_ranges.len(), 2);
     }
@@ -718,7 +731,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, target, &analysis);
+        let incoming = incoming_calls(src, "tcl", target, &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "<top-level>");
     }
@@ -731,7 +744,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 2, 6, &analysis);
         assert_eq!(items[0].name, "::caller");
-        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let target_names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert!(target_names.contains(&"::target"), "{outgoing:?}");
         assert!(target_names.contains(&"::other"), "{outgoing:?}");
@@ -746,7 +759,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
         assert_eq!(items[0].name, "::caller");
-        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::target"], "{outgoing:?}");
     }
@@ -771,7 +784,7 @@ mod tests {
                 end_character: 0,
             },
         };
-        assert!(outgoing_calls(src, &bogus, &analysis).is_empty());
+        assert!(outgoing_calls(src, "tcl", &bogus, &analysis).is_empty());
     }
 
     #[test]
@@ -784,7 +797,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
         assert_eq!(items[0].name, "::caller");
-        let unresolved = unresolved_outgoing_calls(src, &items[0], &analysis);
+        let unresolved = unresolved_outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = unresolved.iter().map(|u| u.name.as_str()).collect();
         assert!(names.contains(&"sibling"), "{unresolved:?}");
         assert!(names.contains(&"puts"), "{unresolved:?}");
@@ -800,7 +813,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         assert_eq!(items[0].name, "::caller");
-        let unresolved = unresolved_outgoing_calls(src, &items[0], &analysis);
+        let unresolved = unresolved_outgoing_calls(src, "tcl", &items[0], &analysis);
         let sibling = unresolved
             .iter()
             .find(|u| u.name == "sibling")
@@ -825,7 +838,7 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
-        let incoming = incoming_calls(src, &items[0], &analysis);
+        let incoming = incoming_calls(src, "tcl", &items[0], &analysis);
         // One caller method (`twice`) with two call ranges.
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::twice");
@@ -839,7 +852,7 @@ mod tests {
         // Resolve the `twice` method (line 2, col 11).
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
-        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
         // Two call sites collapse into one target entry.
@@ -853,7 +866,7 @@ mod tests {
         // Resolve the `use` method (line 2, col 11).
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::use");
-        let outgoing = outgoing_calls(src, &items[0], &analysis);
+        let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::helper"], "{outgoing:?}");
     }

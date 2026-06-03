@@ -68,6 +68,7 @@ use crate::hover::{find_var_at_position, find_word_span_at_position};
 #[must_use]
 pub fn references(
     source: &str,
+    dialect: &str,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -153,7 +154,7 @@ pub fn references(
     {
         if let Some(class_q) = analysis.instance_classes.get(&inst) {
             if let Some((decl_span, call_spans)) =
-                method_references_for_class(source, analysis, class_q, &method)
+                method_references_for_class(source, dialect, analysis, class_q, &method)
             {
                 let mut out = Vec::new();
                 if include_declaration {
@@ -175,7 +176,9 @@ pub fn references(
     // external `$obj method` call sites.  Mirrors the
     // `rename_method` walk in `crate::rename`.
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
-    if let Some(spans) = find_class_member_references(source, &word, analysis, cursor_offset) {
+    if let Some(spans) =
+        find_class_member_references(source, dialect, &word, analysis, cursor_offset)
+    {
         let (decl_span, call_spans) = spans;
         let mut out = Vec::new();
         if include_declaration {
@@ -198,11 +201,12 @@ pub fn references(
 /// `method`.
 pub(crate) fn method_references_for_class(
     source: &str,
+    dialect: &str,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::Span;
     let class_def = analysis.all_classes.get(class_q)?;
     let decl_span = class_def
@@ -240,7 +244,11 @@ pub(crate) fn method_references_for_class(
             end -= 1;
         }
         let body_text = &source[start..end];
-        let commands = segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(0));
+        let commands = segment_commands_with_offset_and_config(
+            body_text,
+            u32::try_from(start).unwrap_or(0),
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
         for cmd in &commands {
             let Some(head) = cmd.argv.first() else {
                 continue;
@@ -257,7 +265,7 @@ pub(crate) fn method_references_for_class(
     }
     // External `$obj method` sites.
     call_spans.extend(find_obj_method_call_sites(
-        source, analysis, class_q, method,
+        source, dialect, analysis, class_q, method,
     ));
     Some((decl_span, call_spans))
 }
@@ -269,11 +277,12 @@ pub(crate) fn method_references_for_class(
 /// class's members.
 fn find_class_member_references(
     source: &str,
+    dialect: &str,
     word: &str,
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::Span;
 
     for class_def in analysis.all_classes.values() {
@@ -318,9 +327,10 @@ fn find_class_member_references(
                 end -= 1;
             }
             let body_text = &source[start..end];
-            let commands = segment_commands_with_offset(
+            let commands = segment_commands_with_offset_and_config(
                 body_text,
                 u32::try_from(start).unwrap_or(body_span.start()),
+                tcl_lexer::LexerConfig::for_dialect(dialect),
             );
             for cmd in &commands {
                 let Some(head) = cmd.argv.first() else {
@@ -349,6 +359,7 @@ fn find_class_member_references(
         if class_def.methods.contains_key(word) || class_def.class_methods.contains_key(word) {
             call_spans.extend(find_obj_method_call_sites(
                 source,
+                dialect,
                 analysis,
                 &class_def.qualified_name,
                 word,
@@ -374,6 +385,7 @@ fn find_class_member_references(
 /// (`"prefix[$d bark]"`) are not descended — a rare form.
 pub(crate) fn find_obj_method_call_sites(
     source: &str,
+    dialect: &str,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -395,6 +407,7 @@ pub(crate) fn find_obj_method_call_sites(
     // Region 1: the whole document.
     scan_obj_method_region(
         source,
+        dialect,
         0,
         source.len(),
         &var_set,
@@ -407,6 +420,7 @@ pub(crate) fn find_obj_method_call_sites(
     for proc_def in analysis.all_procs.values() {
         scan_obj_method_body(
             source,
+            dialect,
             proc_def.body_span,
             &var_set,
             method,
@@ -422,7 +436,15 @@ pub(crate) fn find_obj_method_call_sites(
             .chain(class_def.constructors.iter())
             .chain(class_def.destructor.iter())
         {
-            scan_obj_method_body(source, m.body_span, &var_set, method, &mut out, &mut seen);
+            scan_obj_method_body(
+                source,
+                dialect,
+                m.body_span,
+                &var_set,
+                method,
+                &mut out,
+                &mut seen,
+            );
         }
     }
     out
@@ -432,6 +454,7 @@ pub(crate) fn find_obj_method_call_sites(
 /// (stripping the surrounding braces first).
 fn scan_obj_method_body(
     source: &str,
+    dialect: &str,
     body_span: tcl_lexer::Span,
     var_set: &std::collections::HashSet<&str>,
     method: &str,
@@ -452,15 +475,20 @@ fn scan_obj_method_body(
     if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
         end -= 1;
     }
-    scan_obj_method_region(source, start, end, var_set, method, out, seen);
+    scan_obj_method_region(source, dialect, start, end, var_set, method, out, seen);
 }
 
 /// Segment `source[start..end]` and record every `$v method`
 /// call site, recursing into command-substitution (`[...]`)
 /// args.  `var_set` holds the bare names of in-scope instance
 /// variables.
+// `too_many_arguments`: the recursive OO-method scan threads its working
+// state by value; the added `dialect` (SYNC-MAY19-dialect-contextvar)
+// tips it to 8.  A context struct is a separate cleanup.
+#[allow(clippy::too_many_arguments)]
 fn scan_obj_method_region(
     source: &str,
+    dialect: &str,
     start: usize,
     end: usize,
     var_set: &std::collections::HashSet<&str>,
@@ -468,13 +496,17 @@ fn scan_obj_method_region(
     out: &mut Vec<tcl_lexer::Span>,
     seen: &mut std::collections::HashSet<(u32, u32)>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
     if start >= end || end > source.len() {
         return;
     }
     let region = &source[start..end];
-    let commands = segment_commands_with_offset(region, u32::try_from(start).unwrap_or(0));
+    let commands = segment_commands_with_offset_and_config(
+        region,
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
     for cmd in &commands {
         // Head `$v` + method at argv[1].
         if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
@@ -523,7 +555,16 @@ fn scan_obj_method_region(
                 } else {
                     a_end
                 };
-            scan_obj_method_region(source, inner_start, inner_end, var_set, method, out, seen);
+            scan_obj_method_region(
+                source,
+                dialect,
+                inner_start,
+                inner_end,
+                var_set,
+                method,
+                out,
+                seen,
+            );
         }
     }
 }
@@ -572,6 +613,7 @@ pub enum HighlightKind {
 #[must_use]
 pub fn document_highlights(
     source: &str,
+    dialect: &str,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -650,7 +692,7 @@ pub fn document_highlights(
     // declaration as Write, every call site as Text.
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
     if let Some((decl_span, call_spans)) =
-        find_class_member_references(source, &word, analysis, cursor_offset)
+        find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
         let mut out = Vec::new();
         out.push((span_to_range(&line_index, decl_span), HighlightKind::Write));
@@ -749,7 +791,7 @@ mod tests {
         let src = "proc greet {} {}\ngreet\ngreet\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` reference (line 1).
-        let refs = references(src, 1, 2, &analysis, true);
+        let refs = references(src, "tcl", 1, 2, &analysis, true);
         assert!(refs.len() >= 2, "expected decl + call sites: {refs:?}");
         // First entry is the declaration on line 0.
         assert_eq!(refs[0].start_line, 0);
@@ -759,8 +801,8 @@ mod tests {
     fn references_exclude_decl_when_flag_false() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let with_decl = references(src, 1, 2, &analysis, true);
-        let without_decl = references(src, 1, 2, &analysis, false);
+        let with_decl = references(src, "tcl", 1, 2, &analysis, true);
+        let without_decl = references(src, "tcl", 1, 2, &analysis, false);
         assert!(with_decl.len() > without_decl.len());
     }
 
@@ -768,7 +810,7 @@ mod tests {
     fn references_to_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(references(src, 0, 6, &analysis, true).is_empty());
+        assert!(references(src, "tcl", 0, 6, &analysis, true).is_empty());
     }
 
     #[test]
@@ -776,7 +818,7 @@ mod tests {
         let src = "set x 1\nputs $x\nputs $x\n";
         let analysis = analyse(src);
         // Cursor on `$x` first reference.
-        let refs = references(src, 1, 7, &analysis, true);
+        let refs = references(src, "tcl", 1, 7, &analysis, true);
         // The analyser may or may not record the literal `$x`
         // as a reference depending on lowering; at minimum the
         // declaration should land in the result list.
@@ -791,7 +833,7 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         // Cursor inside `$x`.
-        let highlights = document_highlights(src, 1, 7, &analysis);
+        let highlights = document_highlights(src, "tcl", 1, 7, &analysis);
         // The defining `set x` span should be tagged Write.
         let writes: Vec<_> = highlights
             .iter()
@@ -839,7 +881,7 @@ mod tests {
         // Source matches the spans we injected so
         // line/character translation works.
         let src = "set x 1\nputs $x\n";
-        let highlights = document_highlights(src, 1, 6, &a);
+        let highlights = document_highlights(src, "tcl", 1, 6, &a);
         // Write at definition.
         assert!(
             highlights
@@ -860,7 +902,7 @@ mod tests {
     fn document_highlights_proc_decl_is_write() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let highlights = document_highlights(src, 0, 6, &analysis);
+        let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
         // Declaration on line 0 should be Write.
         let line0_write = highlights
             .iter()
@@ -883,7 +925,7 @@ mod tests {
     fn document_highlights_empty_for_unknown_symbol() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(document_highlights(src, 0, 6, &analysis).is_empty());
+        assert!(document_highlights(src, "tcl", 0, 6, &analysis).is_empty());
     }
 
     // -- S-references-rich: resolved-qualified-name matching ---------
@@ -898,7 +940,7 @@ mod tests {
         let src = "proc ::greet {} {}\nnamespace eval ::myns {\n    greet\n}\n";
         let analysis = analyse(src);
         // Cursor on the proc declaration.
-        let refs = references(src, 0, 8, &analysis, true);
+        let refs = references(src, "tcl", 0, 8, &analysis, true);
         // Should include the declaration and the call site.
         assert!(
             refs.len() >= 2,
@@ -914,7 +956,7 @@ mod tests {
         // the document-highlight provider.
         let src = "set x 1\nputs $x\nputs $x\n";
         let analysis = analyse(src);
-        let highlights = document_highlights(src, 1, 6, &analysis);
+        let highlights = document_highlights(src, "tcl", 1, 6, &analysis);
         let reads: Vec<_> = highlights
             .iter()
             .filter(|(_, k)| *k == HighlightKind::Read)
@@ -959,7 +1001,7 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 11).
-        let refs = references(src, 1, 11, &analysis, true);
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
     }
 
@@ -967,7 +1009,7 @@ mod tests {
     fn references_for_method_excludes_decl_when_requested() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, 1, 11, &analysis, false);
+        let refs = references(src, "tcl", 1, 11, &analysis, false);
         // Only the two call sites — the declaration is
         // excluded when include_declaration=false.
         assert_eq!(refs.len(), 2, "{refs:?}");
@@ -977,7 +1019,7 @@ mod tests {
     fn document_highlights_for_method_marks_decl_write_calls_text() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
-        let h = document_highlights(src, 1, 11, &analysis);
+        let h = document_highlights(src, "tcl", 1, 11, &analysis);
         let writes: Vec<_> = h
             .iter()
             .filter(|(_, k)| *k == HighlightKind::Write)
@@ -999,7 +1041,7 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
         // Cursor on `bark` in `$d bark` (line 4, col 3).
-        let refs = references(src, 4, 3, &analysis, true);
+        let refs = references(src, "tcl", 4, 3, &analysis, true);
         // Declaration (line 1) + two external sites (lines 4, 5).
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
@@ -1013,7 +1055,7 @@ mod tests {
         // `$d bark` site as well as the declaration.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
         let analysis = analyse(src);
-        let refs = references(src, 1, 11, &analysis, true);
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(lines.contains(&4), "external call missing: {refs:?}");
@@ -1023,7 +1065,7 @@ mod tests {
     fn find_obj_method_call_sites_covers_top_level_and_subst() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
         // Two external sites: `$d bark` and `[$d bark]`.
         assert_eq!(sites.len(), 2, "{sites:?}");
     }
@@ -1032,7 +1074,7 @@ mod tests {
     fn find_obj_method_call_sites_finds_calls_in_proc_body() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, &analysis, "::Dog", "bark");
+        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark");
         assert_eq!(sites.len(), 1, "{sites:?}");
     }
 }
