@@ -664,6 +664,103 @@ def optimise_string_interpolation_var_refs(
         )
 
 
+def _fold_embedded_cmd_subst(
+    cmd_text: str,
+    constants: dict[str, str],
+    ssa_uses: dict[str, int] | None,
+    values: dict | None,
+) -> str | None:
+    """Fold a builtin or ``[expr {…}]`` substitution to its **raw** string value.
+
+    For a substitution embedded *inside an interpolation string* the replacement
+    is spliced straight into the surrounding ``"…"`` (or bare word), so the raw
+    command output is wanted — not the single-word ``tcl_list_quote`` rendering
+    that :func:`_fold_builtin_cmd_subst` produces for free-standing argument
+    positions.  Returns ``None`` when the sub isn't a constant-foldable builtin
+    or pure ``expr``.
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    # Pure builtin command substitution: [string length abc], [list a b c], …
+    folded = fold_cmd_subst_to_string(f"[{cmd_text}]", ssa_uses or {}, values or {})
+    if folded is not None:
+        return folded
+
+    # [expr {E}] — propagate constants, fold any nested builtin subs, then fold.
+    expr_arg = _expr_arg_from_expr_command(cmd_text)
+    if expr_arg is None:
+        return None
+    substituted, _changed, _ = _substitute_expr_constants(expr_arg, constants)
+    substituted, _ = _substitute_expr_builtin_cmd_subs(
+        substituted, ssa_uses=ssa_uses, values=values
+    )
+    return _try_fold_expr(substituted)
+
+
+def optimise_string_interpolation_cmd_subs(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    all_tokens: tuple[Token, ...],
+    constants: dict[str, str],
+    *,
+    ssa_uses: dict[str, int] | None = None,
+    values: dict | None = None,
+) -> None:
+    """Fold a pure ``[cmd …]`` embedded *inside an interpolation string* (O129).
+
+    The optimiser already folds a command substitution that is a whole argument
+    word (``puts [string length abc]`` → ``puts 5``) and propagates ``$var``
+    refs inside a quoted string (``puts "x is $x"``).  This closes the remaining
+    gap — a substitution embedded *within* a multi-token string word::
+
+        puts "v=[string length abc]"   ;# -> puts "v=5"
+        set x 3; puts "sq=[expr {$x*$x}]"  ;# -> puts "sq=9"
+
+    Only substitutions that aren't a whole-word single argument are handled here
+    (those go through :func:`optimise_expr_substitutions`).  Command subs inside
+    a *braced* expr/body word never reach ``all_tokens`` — braces suppress them
+    — so EXPR/BODY positions are untouched.
+
+    The folded value is spliced raw into the surrounding word, so it must be
+    safe in *any* word position: ``fold_cmd_subst_to_string`` already rejects
+    ``; \\n [ $ " \\``; we additionally reject a result containing whitespace,
+    which would split a *bare* (unquoted) interpolation word into extra
+    arguments.  (A space is harmless inside ``"…"`` but the token stream doesn't
+    distinguish the two cheaply, so the conservative rule keeps the rewrite
+    correct in both.)
+    """
+    if not all_tokens:
+        return
+
+    # Whole-word CMD args are folded by optimise_expr_substitutions — skip them
+    # here so the same substitution isn't optimised twice.
+    single_cmd_offsets: set[int] = set()
+    for idx, tok in enumerate(arg_tokens):
+        if idx < len(arg_single) and arg_single[idx] and tok.type is TokenType.CMD:
+            single_cmd_offsets.add(tok.start.offset)
+
+    for atk in all_tokens:
+        if atk.type is not TokenType.CMD or not atk.text:
+            continue
+        if atk.start.offset in single_cmd_offsets:
+            continue
+        folded = _fold_embedded_cmd_subst(atk.text, constants, ssa_uses, values)
+        if folded is None:
+            continue
+        # Whitespace in the result would re-split a bare interpolation word.
+        if any(ch.isspace() for ch in folded):
+            continue
+        ctx.optimisations.append(
+            Optimisation(
+                code="O129",
+                message="Fold constant command substitution",
+                range=_command_subst_range(atk),
+                replacement=folded,
+            )
+        )
+
+
 def optimise_return_terminator(
     ctx: PassContext, source: str, block, ssa_block, analysis, *, namespace: str = "::"
 ) -> None:

@@ -1,5 +1,15 @@
 """S5.3 — Loop-invariant code motion for retain/release wraps.
 
+TODO(opt, stretch): constant-bound loop *unrolling* is a known, unimplemented
+missed-optimisation — ``for {set i 0} {$i < 3} {incr i} {body}`` with a literal
+trip count and a body free of ``break`` / ``continue`` / early ``return`` and of
+captures of ``$i``'s identity could be unrolled into three straight-line copies
+(then the per-iteration const-fold + LICM apply to each).  Deferred as a stretch
+goal: it needs a trip-count proof from the SCCP/interval lattice, a body-purity
+gate (no loop-carried side effects beyond the induction var, no command-table
+mutation), and a code-size guard so large bounds aren't expanded.  Until then the
+loop bodies still benefit from LICM (below) and per-statement folding.
+
 In the current emitter, a literal assignment inside a loop body
 allocates a fresh ``TclObj`` and runs the full retain/release wrap
 on every iteration::

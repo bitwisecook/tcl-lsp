@@ -741,15 +741,20 @@ class _WasmEmitterExprMixin(_Base):
         # builtin semantics — route it through the interpreter (live runtime
         # command table) rather than any builtin fast-path below.  Common case
         # (empty untrusted set) is unaffected.
-        # TODO(command-binding): renamed-*to-a-proc* still traps here — the
-        # interpreter fallback can't dispatch to a compiled proc body; needs
-        # interp→compiled-proc dispatch in the Zig runtime.  See _values.py.
-        # A *known compiled proc* gets a rename-aware, trace-aware guarded
-        # dispatch instead of a blind eval-fallback — see
-        # ``_emit_distrust_proc_subst``.  Without it, every recursive
-        # ``[proc …]`` under distrust pushes ~10 interpreter wasm frames
-        # per level, overflowing the recursion gate for a deep
-        # ``expr``-bodied recursion (compExpr-old-3.8's ``12days``).
+        #
+        # A builtin renamed/redefined *to a user proc* now dispatches correctly:
+        # the eval-fallback's ``tcl_eval`` resolves the name and
+        # ``eval_proc_call_bucket`` routes a compiled (``func_idx != 0``) proc
+        # through the host bridge, and a *known compiled proc* additionally takes
+        # the rename-aware, trace-aware guarded direct dispatch below (also the
+        # recursion-footprint win that lets a deep ``expr``-bodied recursion —
+        # compExpr-old-3.8's ``12days`` — survive the wasm recursion gate).
+        # Known narrow gap: a *variadic* ``{args}`` proc that shadows a *renamed*
+        # builtin (``rename string ::s; proc string {args} …``) binds ``args``
+        # short because the AOT prologue pre-registers every proc before
+        # ``::top`` runs, so the rename reorders against tclsh's lazy define —
+        # see ``tests/test_wasm_real_tcl.py`` (xfail).  Fixed-arity shadows are
+        # correct.
         if not builtin_is_trusted(cmd_name):
             proc_info = self._resolve_proc(cmd_name, self._full_proc_index)
             if (

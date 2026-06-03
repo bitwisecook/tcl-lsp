@@ -173,6 +173,50 @@ _CORRECTNESS: dict[str, str] = {
         'proc setit {} {upvar 1 y v; set v 7; return "v=$v"}\n'
         "proc caller {} {set y 1; return [setit]}\nputs [caller]"
     ),
+    # --- Gap-B reaching-version soundness: a variable read *inside* a hidden
+    #     expr / nested command substitution is absent from ``stmt.uses``, so the
+    #     semi-pruned SSA inserts no φ for it.  ``entry_versions`` then names a
+    #     *pre-join* version after a conditional reassignment — folding the
+    #     hidden read against that stale constant would change behaviour.  Only a
+    #     def earlier in the *same* straight-line block may be pinned. ---
+    "gapb_branch_join_expr_var": (
+        "set x 5\nif {[string length q]==1} {set x 9}\nputs [expr {$x + 1}]"
+    ),
+    "gapb_branch_join_nested_cmdsub": (
+        "set s abc\nif {[string length x]==1} {set s qrst}\nputs [expr {[string length $s]}]"
+    ),
+    "gapb_loop_carried_mutation": (
+        "set s abc\nset n 0\nwhile {$n<2} {puts [expr {[string length $s]}]\nset s xyzw\nincr n}"
+    ),
+    "gapb_unset_then_reset": ("set s abc\nunset s\nset s wxyz\nputs [expr {[string length $s]}]"),
+    # --- command subs embedded in interpolation strings must stay equivalent
+    #     whether or not they fold (raw splice must not introduce substitutions
+    #     or, in a *bare* word, extra word boundaries) ---
+    "string_cmdsub_bare_space_result": "puts pre[list a b c]post",
+    "string_cmdsub_seq_reassign": ('set x 3\nputs "a=[expr {$x}]"\nset x 99\nputs "b=[expr {$x}]"'),
+    # --- subst folds only the literal form; backslash / command / option forms
+    #     must be left to run ---
+    "subst_backslash_runs": "puts [subst {a\\tb}]",
+    "subst_command_runs": "puts [subst {x[set y 5]z}]",
+    # --- pure proc returning a string with substitution chars must NOT bake in
+    #     the raw (un-evaluated) return text ---
+    "proc_string_escaped_dollar": 'proc f {} {return "a\\$b"}\nputs [f]',
+    # --- CONSTSET soundness: a branch-merged variable (provably one of a finite
+    #     set of constants, but not a *single* one) must NOT resolve to a single
+    #     value when folding a command sub that reads it.  ``[clock seconds] > 0``
+    #     is always true at run time but opaque to the optimiser, so ``s`` is the
+    #     CONSTSET ``{abcde, xy}``; folding ``[string length $s]`` would splice
+    #     the literal ``"None"`` (the CONSTSET's empty ``value`` field) and bake
+    #     in a wrong length.  Both the whole-word and the in-string forms. ---
+    "constset_cmdsub_wholeword": (
+        "set s abcde\nif {[clock seconds] > 0} {set s xy}\nputs [string length $s]"
+    ),
+    "constset_cmdsub_in_string": (
+        'set s abcde\nif {[clock seconds] > 0} {set s xy}\nputs "L=[string length $s]"'
+    ),
+    "constset_interpolation_assign": (
+        'set s abcde\nif {[clock seconds] > 0} {set s xy}\nset y "v=$s"\nputs $y'
+    ),
 }
 
 
@@ -345,6 +389,46 @@ _SHOULD_OPTIMISE: dict[str, tuple[str, str]] = {
     "unrelated_builtin_still_folds_after_rename": (
         "rename incr ::orig_incr\nputs [string length hello]\n",
         "puts 5",
+    ),
+    # Part B1: a pure builtin command sub embedded *inside an interpolation
+    # string* folds (the optimiser already folds whole-word subs + ``$var`` in
+    # strings; this closes the embedded-sub gap).
+    "string_interp_builtin_cmdsub": (
+        'puts "v=[string length abc]"',
+        'puts "v=3"',
+    ),
+    "string_interp_expr_cmdsub": (
+        'set x 3\nputs "sq=[expr {$x*$x}]"',
+        'puts "sq=9"',
+    ),
+    "string_interp_multi_cmdsub": (
+        'puts "a[string length xy]b[string toupper hi]"',
+        'puts "a2bHI"',
+    ),
+    # Part B2 (Gap-B): a constant read inside a *nested* ``[expr {[cmd $v]}]``
+    # folds via the threaded reaching-version constant (same-block def only).
+    "gapb_nested_cmdsub_folds": (
+        "set s abcd\nputs [expr {[string length $s]}]",
+        "puts 4",
+    ),
+    "gapb_nested_cmdsub_arith": (
+        "set s abc\nputs [expr {[string length $s] * 2}]",
+        "puts 6",
+    ),
+    # Part B3: a pure proc returning a *multi-word* string folds (previously only
+    # numeric / bare-word results folded).
+    "pure_proc_multiword_string": (
+        'proc f {} {return "hi there"}\nputs [f]',
+        "puts {hi there}",
+    ),
+    # Part B4: a literal ``[subst {...}]`` folds via the registry const_fold.
+    "subst_literal_fold": (
+        "puts [subst {hello world}]",
+        "puts {hello world}",
+    ),
+    "subst_in_interp_string": (
+        'puts "x=[subst {hi}]"',
+        'puts "x=hi"',
     ),
 }
 

@@ -112,6 +112,8 @@ _FOLDABLE = [
     "expr {2 + 3 * 4}",
     "expr {10 % 3}",
     "expr {2 ** 10}",
+    "subst {hello world}",
+    "subst plain",
 ]
 
 
@@ -213,6 +215,21 @@ _E2E = [
     "set n [expr {[llength {a b c}] * 2}]\nputs $n",
     'puts [expr {[string toupper hi] eq "HI"}]',
     "if {[llength {a b c}] == 3} {puts three}",
+    # literal subst folds; option / backslash / command forms must be left to
+    # run unchanged (behaviour-preserving either way)
+    "puts [subst {hello world}]",
+    "puts [subst plain]",
+    "puts [subst {a\\tb}]",
+    "puts [subst {x[set y 5]z}]",
+    "puts [subst -nocommands {literal}]",
+    # command subs embedded inside an interpolation string fold (Part B1)
+    'puts "v=[string length abc]"',
+    'puts "a[string length xy]b[string toupper hi]"',
+    'set x 3\nputs "sq=[expr {$x*$x}]"',
+    # nested var read inside [expr {[cmd $v]}] folds via reaching constant (B2)
+    "set s abcd\nputs [expr {[string length $s]}]",
+    # pure proc returning a multi-word string folds (B3)
+    'proc f {} {return "hi there"}\nputs [f]',
 ]
 
 
@@ -260,6 +277,36 @@ class TestScanBails:
         assert fold_scan(("42", "%d")) == "42"
         assert fold_scan(("ff", "%x")) == "255"
         assert fold_scan(("A", "%c")) == "65"
+
+
+class TestSubstFold:
+    """``subst`` folds only the literal single-argument form: any unmodelled
+    substitution (backslash) or option / command sub must bail so the optimiser
+    never bakes in a wrong literal."""
+
+    def test_literal_folds(self):
+        from dialects.tcl.const_fold import fold_subst
+
+        assert fold_subst(("hello",)) == "hello"
+        assert fold_subst(("a b c",)) == "a b c"
+
+    def test_backslash_bails(self):
+        from dialects.tcl.const_fold import fold_subst
+
+        # ``subst {a\tb}`` performs backslash substitution → a tab; the raw
+        # ``a\tb`` text is not the value, so don't fold.
+        assert fold_subst(("a\\tb",)) is None
+
+    def test_option_form_bails(self):
+        from dialects.tcl.const_fold import fold_subst
+
+        assert fold_subst(("-nocommands", "literal")) is None
+
+    def test_subst_in_fold_hints(self):
+        from compiler.registry.runtime import FOLD_HINTS, configure_signatures
+
+        configure_signatures(dialect="tcl9.0")
+        assert "subst" in FOLD_HINTS
 
 
 class TestConstFoldIsRegistrySourced:

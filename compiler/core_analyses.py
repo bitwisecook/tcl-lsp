@@ -556,6 +556,13 @@ def _fold_interpolation(
                 return OVERDEFINED
             if lv.kind is LatticeKind.UNKNOWN:
                 return UNKNOWN
+            # A CONSTSET var (branch-merged ``{ab, qrst}``) is *not* a single
+            # constant string — its ``value`` field is ``None``, so a naive
+            # ``str(lv.value)`` would splice the literal ``"None"`` into the
+            # word.  Only a singular CONST may be concatenated here; callers
+            # that want the multi-valued result use ``_fold_interpolation_set``.
+            if lv.kind is not LatticeKind.CONST:
+                return OVERDEFINED
             pieces.append(str(lv.value))
         elif tok.type is TokenType.CMD:
             # Try folding the nested command substitution.

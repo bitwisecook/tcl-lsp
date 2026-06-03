@@ -2708,6 +2708,87 @@ class TestVariadicArgs:
         assert stdout.strip() == "2"
 
 
+class TestRenamedToProcDispatch:
+    """A builtin renamed/redefined *to a user proc* must dispatch to the proc
+    at run time (matching tclsh), not the original builtin and not a trap.
+
+    The optimiser/codegen gate routes a tampered builtin through the
+    interpreter (``builtin_is_trusted`` is False); the runtime's
+    ``eval_proc_call_bucket`` then sees the proc bucket's ``func_idx != 0``
+    marker and dispatches the compiled body through the host bridge.  These
+    pin that end-to-end behaviour so the gate + dispatch stay wired.
+    """
+
+    def test_redef_builtin_to_proc_statement(self):
+        # ``rename string ::s; proc string {...}; [string length hi]`` — the
+        # task's canonical case.  Must run the proc (prints its result).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {args} {return PROC}\nputs [string length hi]"
+        )
+        assert ok, err
+        assert out.strip() == "PROC"
+
+    def test_redef_builtin_to_proc_uses_args(self):
+        # Fixed-arity shadow binds its parameters correctly.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {sub arg} {return redef:$arg}\nputs [string length hi]"
+        )
+        assert ok, err
+        assert out.strip() == "redef:hi"
+
+    def test_redef_builtin_to_proc_in_expr(self):
+        # Reached as an operand inside ``[expr {…}]`` (value/expr gate).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {a b} {return 9}\nputs [expr {[string length hi] + 1}]"
+        )
+        assert ok, err
+        assert out.strip() == "10"
+
+    def test_redef_incr_to_proc_value_position(self):
+        # The value/tail-position IRIncr gate routes a renamed ``incr`` to the
+        # proc; the proc's return value is used.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename incr ::oi\nproc incr {v} {return 42}\n"
+            "proc f {} {set c 0\nreturn [incr c]}\nputs [f]"
+        )
+        assert ok, err
+        assert out.strip() == "42"
+
+    def test_redef_incr_to_proc_in_catch_body(self):
+        # The catch-body (value-position) IRIncr gate.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename incr ::oi\nproc incr {v} {return 77}\nset c 0\ncatch {incr c} m\nputs $m"
+        )
+        assert ok, err
+        assert out.strip() == "77"
+
+    def test_renamed_away_still_errors(self):
+        # Renamed away with no replacement → the interpreter errors (caught).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\ncatch {string length hi} e\nputs caught"
+        )
+        assert ok, err
+        assert out.strip() == "caught"
+
+    @pytest.mark.xfail(
+        reason=(
+            "Known narrow gap: a *variadic* {args} proc that shadows a *renamed* "
+            "builtin binds args short. The AOT prologue pre-registers every proc "
+            "before ::top runs, so `rename string ::s` reorders against tclsh's "
+            "lazy define. Fixed-arity shadows (above) are correct; redefining "
+            "without a prior rename is correct too. Documented in _values.py."
+        ),
+        strict=True,
+    )
+    def test_variadic_shadow_of_renamed_builtin(self):
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {args} {return [llength $args]}\n"
+            "puts [string length abcde]"
+        )
+        assert ok, err
+        assert out.strip() == "2"
+
+
 class TestRegexp:
     """Tcl regex engine (Henry Spencer) linked via ``tcl_regex.zig``.
 

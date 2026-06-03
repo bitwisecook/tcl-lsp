@@ -415,3 +415,96 @@ def test_s2k_matches_gpg_with_passphrase_longer_than_count():
     payload = ucs.make_test_ucs({"config/bigip.conf": "ltm pool /Common/edge { }\n"})
     ciphertext = _gpg_encrypt(payload, "P" * 3000, "--s2k-mode", "3", "--cipher-algo", "AES128")
     assert _openpgp.decrypt_symmetric(ciphertext, "P" * 3000) == payload
+
+
+# ---------------------------------------------------------------------------
+# Reading the actual cert out of the UCS filestore (read_ucs_member / ucs_cert)
+# ---------------------------------------------------------------------------
+
+# A throwaway P-256 cert (expiry 2045) and its SHA-256 fingerprint, used to
+# prove ucs_cert reads and parses the *real* PEM from the filestore — not the
+# stanza metadata, which a real archive often omits entirely.
+_CERT_PEM = """\
+-----BEGIN CERTIFICATE-----
+MIIBuDCCAV2gAwIBAgIUIAV98mGN6JZjEa9q+53ZtrSJoFUwCgYIKoZIzj0EAwIw
+IDEeMBwGA1UEAwwVdWNzLWNlcnQtdGVzdC5leGFtcGxlMB4XDTI2MDYwMjE3MTMx
+MloXDTQ1MDgwMTE3MTMxMlowIDEeMBwGA1UEAwwVdWNzLWNlcnQtdGVzdC5leGFt
+cGxlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAESigoLBNorVpMZNvBXbO9Zezv
+6rrDghiRJtfR2ihLugoUD81lXaXoeF+zIpR77GQ5OOV1gnWlt4p/tGd1dc6+TqN1
+MHMwHQYDVR0OBBYEFANEWJnOp0IYbjzwOformPDAa5/+MB8GA1UdIwQYMBaAFANE
+WJnOp0IYbjzwOformPDAa5/+MA8GA1UdEwEB/wQFMAMBAf8wIAYDVR0RBBkwF4IV
+dWNzLWNlcnQtdGVzdC5leGFtcGxlMAoGCCqGSM49BAMCA0kAMEYCIQC+S6CCUT6b
+QsGj5dXew9aHuEhehcPxWjykl/yqGuSH7AIhAPj0y97jo8THP2WEn6tTydhGyU/G
+RtT5gpUDxSXfDbZv
+-----END CERTIFICATE-----
+"""
+_CERT_FP = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD"
+_MEMBER = "config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1"
+_STANZA_CACHE_PATH = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1"
+
+
+def _cert_ucs_members(*, cache_path: str = _STANZA_CACHE_PATH) -> dict[str, str]:
+    """A realistic UCS: a metadata-free ssl-cert stanza + the real PEM."""
+    conf = (
+        "sys file ssl-cert /Common/t.crt {\n"
+        f"    cache-path {cache_path}\n"
+        "    revision 1\n"
+        "    source-path file:///config/ssl/ssl.crt/t.crt\n"
+        "}\n"
+    )
+    return {"config/bigip.conf": conf, _MEMBER: _CERT_PEM}
+
+
+def test_read_ucs_member_exact_path():
+    raw = ucs.make_test_ucs(_cert_ucs_members())
+    assert ucs.read_ucs_member(raw, _STANZA_CACHE_PATH).decode() == _CERT_PEM
+
+
+def test_read_ucs_member_tolerates_partition_prefix_mismatch():
+    # Stanza cache-path without the ``:Common:`` prefix the on-disk file
+    # carries — read_ucs_member must still resolve it by the bare leaf.
+    raw = ucs.make_test_ucs(_cert_ucs_members())
+    bare = "/config/filestore/files_d/Common_d/certificate_d/t.crt_1"
+    assert ucs.read_ucs_member(raw, bare).decode() == _CERT_PEM
+
+
+def test_read_ucs_member_missing_raises_keyerror():
+    raw = ucs.make_test_ucs(_cert_ucs_members())
+    with pytest.raises(KeyError):
+        ucs.read_ucs_member(raw, "/config/filestore/files_d/Common_d/certificate_d/nope_1")
+
+
+def test_ucs_cert_builtin_reads_real_cert(tmp_path, capsys):
+    """ucs_cert parses the filestore PEM even though the stanza records
+    no fingerprint/serial/subject."""
+    ucs_path = tmp_path / "prod.ucs"
+    ucs_path.write_bytes(ucs.make_test_ucs(_cert_ucs_members()))
+    code, out, err = _run(
+        [
+            "query",
+            "--raw",
+            '.sys["file-ssl-cert"]["/Common/t.crt"] | ucs_cert(.) | .fingerprint_sha256',
+            str(ucs_path),
+        ],
+        capsys,
+    )
+    assert code == 0, err
+    assert _CERT_FP in out
+
+
+@requires_gpg
+def test_ucs_cert_builtin_reads_from_encrypted_ucs(tmp_path, capsys, monkeypatch):
+    ucs_path = tmp_path / "prod.ucs"
+    ucs_path.write_bytes(_gpg_encrypt(ucs.make_test_ucs(_cert_ucs_members()), "s3cret!"))
+    monkeypatch.setenv("F5_UCS_PASSPHRASE", "s3cret!")
+    code, out, err = _run(
+        [
+            "query",
+            "--raw",
+            '.sys["file-ssl-cert"][] | ucs_cert(.) | .fingerprint_sha256',
+            str(ucs_path),
+        ],
+        capsys,
+    )
+    assert code == 0, err
+    assert _CERT_FP in out
