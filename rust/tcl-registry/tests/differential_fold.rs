@@ -255,6 +255,11 @@ fn registry_folds_match_tcl9() {
 /// sound for them across 8.x ↔ 9.0.)
 const FORMATS: &[Case] = &[
     ("format", None, &["%d", "42"]),
+    ("format", None, &["%d", "010"]), // 9.0: leading-zero decimal -> 10
+    ("format", None, &["%d", "08"]),  // 9.0: decimal 8 (octal-invalid on 8.x)
+    ("format", None, &["%d", "2147483648"]), // 9.0: 32-bit wrap -> -2147483648
+    ("format", None, &["%d", "5000000000"]), // 9.0: wrap -> 705032704
+    ("format", None, &["%d", "-2147483649"]),
     ("format", None, &["%d", "-7"]),
     ("format", None, &["%5d", "42"]),
     ("format", None, &["%-5d", "42"]),

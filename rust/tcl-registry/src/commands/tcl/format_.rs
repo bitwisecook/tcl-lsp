@@ -18,11 +18,15 @@ use crate::prelude::*;
 /// wrong fold is a false-positive optimisation.  Each conversion's exact
 /// constraints live on its `render_*` helper; in summary:
 ///
-/// * `%d` / `%i` / `%x` / `%X` / `%o` / `%c` accept only a plain decimal
-///   argument the whole 8.4 → 9.0 range agrees on — see [`parse_decimal_arg`]
-///   ([`Conversion::render_radix`] additionally requires non-negative,
-///   [`Conversion::render_char`] a printable-ASCII codepoint).  The `#`
-///   alternate form is sound only as the lowercase `0x` on a non-zero `%x`.
+/// * `%d` / `%i` interpret the integer argument **per Tcl version**
+///   ([`parse_format_int`]): a leading zero is octal on 8.x but decimal on
+///   9.0, and 9.0 wraps to signed 32-bit while 8.x keeps the full 64-bit
+///   value; an unversioned dialect folds only the invariant plain-decimal
+///   i32 subset.  `%x` / `%X` / `%o` / `%c` still use the invariant
+///   [`parse_decimal_arg`] (`render_radix` requires non-negative, `render_char`
+///   a printable-ASCII codepoint — making them version-aware is a further
+///   follow-up).  The `#` alternate form is sound only as the lowercase `0x`
+///   on a non-zero `%x`.
 /// * `%s` honours `-` / width / precision; the numeric flags bail (Tcl
 ///   ignores them on strings), and width/precision over a non-ASCII value
 ///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
@@ -72,7 +76,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
         }
         let value = vals.get(ai)?;
         ai += 1;
-        out.push_str(&conv.render(value)?);
+        out.push_str(&conv.render(value, version)?);
     }
     Some(out)
 }
@@ -177,9 +181,9 @@ impl Conversion {
 
     /// Render this conversion for `value`, or bail (`None`) for an unmodelled
     /// verb or an out-of-subset argument.
-    fn render(&self, value: &str) -> Option<String> {
+    fn render(&self, value: &str, version: Option<TclVersion>) -> Option<String> {
         match self.verb {
-            b'd' | b'i' => self.render_int(value),
+            b'd' | b'i' => self.render_int(value, version),
             b'x' => self.render_radix(value, Radix::HexLower),
             b'X' => self.render_radix(value, Radix::HexUpper),
             b'o' => self.render_radix(value, Radix::Octal),
@@ -287,11 +291,17 @@ impl Conversion {
         Some(self.pad("", &ch.to_string(), false))
     }
 
-    fn render_int(&self, value: &str) -> Option<String> {
+    /// Render `%d` / `%i`.  The integer *value* is version-aware
+    /// ([`parse_format_int`]): a leading-zero argument is octal on 8.x but
+    /// decimal on 9.0, and 9.0 wraps to a signed 32-bit int while 8.x keeps the
+    /// full 64-bit value — so `%d 010` → `8` on 8.6 but `10` on 9.0, and
+    /// `%d 2147483648` → that value on 8.x but `-2147483648` on 9.0.  An
+    /// unversioned dialect folds only the invariant plain-decimal i32 subset.
+    fn render_int(&self, value: &str, version: Option<TclVersion>) -> Option<String> {
         if self.flags.contains(FmtFlags::HASH) {
             return None; // `%#d` diverges 8.6 (`42`) ↔ 9.0 (`0d42`)
         }
-        let n = parse_decimal_arg(value)?;
+        let n = parse_format_int(value, version)?;
         let mut digits = n.unsigned_abs().to_string();
         if let Some(p) = self.precision {
             if digits.len() < p {
@@ -456,6 +466,66 @@ fn parse_decimal_arg(value: &str) -> Option<i64> {
     Some(n)
 }
 
+/// Parse a `%d`/`%i` argument as the **version-specific** signed value to
+/// format (as an `i64`).  Restricted to a plain decimal / leading-zero form
+/// (no `0x`/`0o`/`0b` prefix — those bail), but the leading-zero and
+/// out-of-range semantics follow the dialect:
+///
+/// * `None` (unversioned): the invariant subset — plain decimal, no leading
+///   zero, signed 32-bit ([`parse_decimal_arg`]).
+/// * `9.0`: a leading zero is decimal, and any magnitude wraps to a signed
+///   32-bit int (`010` → 10, `2147483648` → -2147483648, `5000000000` →
+///   705032704).
+/// * `8.4`/`8.5`/`8.6`: a leading zero is octal (a digit ≥ 8 raises → bail),
+///   and the value must fit a signed 64-bit int — beyond it the releases
+///   diverge (8.5 mis-converts 2⁶³), so bail.
+fn parse_format_int(value: &str, version: Option<TclVersion>) -> Option<i64> {
+    match version {
+        None => parse_decimal_arg(value),
+        Some(TclVersion::V9_0) => {
+            let big = parse_int_i128(value, false)?;
+            // Reduce mod 2³² then reinterpret as a signed 32-bit int (the wrap).
+            let wrapped = u32::try_from(big.rem_euclid(4_294_967_296)).ok()?;
+            Some(i64::from(i32::from_ne_bytes(wrapped.to_ne_bytes())))
+        }
+        Some(_) => i64::try_from(parse_int_i128(value, true)?).ok(),
+    }
+}
+
+/// Parse a plain decimal / leading-zero integer argument to `i128`.  With
+/// `octal_leading_zero` (8.x) a leading-zero number is octal (a digit ≥ 8 →
+/// `None`, as Tcl raises); otherwise (9.0) it is decimal.  A `0x`/`0o`/`0b`
+/// prefix or any non-decimal-digit form bails.
+fn parse_int_i128(value: &str, octal_leading_zero: bool) -> Option<i128> {
+    if !value.is_ascii() {
+        return None;
+    }
+    let t = value.trim();
+    let (neg, body) = match t.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, t.strip_prefix('+').unwrap_or(t)),
+    };
+    let b = body.as_bytes();
+    if b.is_empty() {
+        return None;
+    }
+    if b[0] == b'0' && b.len() >= 2 && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
+        return None; // a prefixed form — a further follow-up
+    }
+    if !b.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let mag: i128 = if b.len() > 1 && b[0] == b'0' && octal_leading_zero {
+        if b.iter().any(|&d| d > b'7') {
+            return None; // invalid octal (an 8 or 9) — Tcl raises
+        }
+        i128::from_str_radix(body, 8).ok()?
+    } else {
+        body.parse::<i128>().ok()?
+    };
+    Some(if neg { -mag } else { mag })
+}
+
 /// Parse a `%f` argument as a double.  ASCII-gated (so the `.trim()`
 /// whitespace set matches Tcl's `Tcl_GetDouble`), then `f64::from_str` —
 /// which agrees with Tcl's parse on the decimal / scientific forms (verified
@@ -587,16 +657,12 @@ mod tests {
     fn format_bails_on_version_divergent_and_unmodelled() {
         // `%#d` is `0d42` on Tcl 9 but `42` on 8.6 — no sound fold.
         assert_eq!(f(&["%#d", "42"]), None);
-        // Leading zero is octal in 8.x but decimal in 9.0 (`%d 010` → 8 vs 10).
-        assert_eq!(f(&["%d", "010"]), None);
-        assert_eq!(f(&["%05d", "010"]), None);
-        // Past 2^31 `%d` wraps to 32 bits in 9.0 but not 8.6.
-        assert_eq!(f(&["%d", "2147483648"]), None);
-        assert_eq!(f(&["%d", "-2147483649"]), None);
-        // …but the 32-bit boundary itself folds.
+        // The 32-bit boundary folds; the version-specific value-interpretation
+        // (`f` runs under 9.0: leading-zero decimal, 32-bit wrap) is covered by
+        // `format_d_value_is_version_aware`.
         assert_eq!(f(&["%d", "2147483647"]).as_deref(), Some("2147483647"));
         assert_eq!(f(&["%d", "-2147483648"]).as_deref(), Some("-2147483648"));
-        // Hex / octal / binary prefixes bail (Rust's parser declines them).
+        // `0x`/`0o`/`0b` prefixes bail (a further follow-up).
         assert_eq!(f(&["%d", "0x10"]), None);
         // %u folds for a non-negative in-range value; divergent forms bail.
         assert_eq!(f(&["%u", "42"]).as_deref(), Some("42"));
@@ -656,6 +722,39 @@ mod tests {
         // Leading-zero / over-range args bail just as for `%d`.
         assert_eq!(f(&["%x", "010"]), None);
         assert_eq!(f(&["%x", "4294967295"]), None);
+    }
+
+    #[test]
+    fn format_d_value_is_version_aware() {
+        use TclVersion::{V8_4, V8_6, V9_0};
+        let d = |v: &str, ver| fold_format(&["%d", v], Some(ver));
+
+        // Leading zero: octal on 8.x, decimal on 9.0 (verified vs all four tclsh).
+        assert_eq!(d("010", V8_6).as_deref(), Some("8"));
+        assert_eq!(d("010", V9_0).as_deref(), Some("10"));
+        assert_eq!(d("-010", V8_6).as_deref(), Some("-8"));
+        assert_eq!(d("-010", V9_0).as_deref(), Some("-10"));
+        // An invalid octal digit (8/9) raises on 8.x → bail; decimal on 9.0.
+        assert_eq!(d("08", V8_6), None);
+        assert_eq!(d("08", V9_0).as_deref(), Some("8"));
+        // Out of i32: 9.0 wraps to signed-32-bit, 8.x keeps the full 64-bit value.
+        assert_eq!(d("2147483648", V8_6).as_deref(), Some("2147483648"));
+        assert_eq!(d("2147483648", V9_0).as_deref(), Some("-2147483648"));
+        assert_eq!(d("5000000000", V8_6).as_deref(), Some("5000000000"));
+        assert_eq!(d("5000000000", V9_0).as_deref(), Some("705032704"));
+        assert_eq!(d("-2147483649", V9_0).as_deref(), Some("2147483647"));
+        assert_eq!(d("4294967296", V9_0).as_deref(), Some("0"));
+        // 8.x keeps i64 but bails beyond it (the >2^63 behaviour diverges, 8.5
+        // mis-converts); 9.0 wraps any magnitude.
+        assert_eq!(
+            d("9223372036854775807", V8_6).as_deref(),
+            Some("9223372036854775807")
+        );
+        assert_eq!(d("9223372036854775808", V8_6), None, "2^63 diverges on 8.x");
+        // An unversioned dialect keeps the conservative i32 / no-leading-zero subset.
+        assert_eq!(fold_format(&["%d", "010"], None), None);
+        assert_eq!(fold_format(&["%d", "2147483648"], None), None);
+        assert_eq!(d("8", V8_4).as_deref(), Some("8"), "plain decimal on 8.4");
     }
 
     #[test]
