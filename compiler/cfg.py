@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import arg_indices_for_role
 from compiler.registry.signatures import ArgRole
@@ -84,7 +84,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
     ``x`` even though ``x`` is not a direct argument of ``catch``.
     """
     defs: list[str] = []
-    lexer = TclLexer(body_text)
+    lex_tokens, _ = tokenise(body_text, 0, 0, 0)
     words: list[str] = []
     prev_type = TokenType.EOL
 
@@ -99,7 +99,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
                 if name:
                     defs.append(name)
 
-    for tok in lexer.tokenise_all():
+    for tok in lex_tokens:
         if tok.type in (TokenType.EOL, TokenType.EOF):
             _flush()
             words = []
@@ -359,10 +359,9 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
         if text.startswith("[") and text.endswith("]"):
             text = text[1:-1]
         # Tokenise the command to get the command name and plain-word args.
-        lexer = TclLexer(text)
         words: list[str] = []
         prev_type = TokenType.EOL
-        for tok in lexer.tokenise_all():
+        for tok in tokenise(text, 0, 0, 0)[0]:
             if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
                 prev_type = tok.type
                 continue
@@ -396,14 +395,12 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
         # Recursively scan command substitutions in arguments so that
         # ``[lsearch $tags [set full_tag [string tolower $x]]]``
         # correctly reports ``full_tag`` as defined.
-        lexer2 = TclLexer(text)
-        for tok in lexer2.tokenise_all():
+        for tok in tokenise(text, 0, 0, 0)[0]:
             if tok.type is TokenType.CMD and tok.text:
                 nested_text = tok.text
-                nested_lexer = TclLexer(nested_text)
                 nested_words: list[str] = []
                 np = TokenType.EOL
-                for nt in nested_lexer.tokenise_all():
+                for nt in tokenise(nested_text, 0, 0, 0)[0]:
                     if nt.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
                         np = nt.type
                         continue
@@ -651,32 +648,26 @@ class _CFGBuilder:
     def _upvar_defs_from_text(self, text: str) -> list[str]:
         """Extract caller-side variable names invalidated by upvar procs in *text*.
 
-        Uses TclLexer to find command substitutions (``[step 1]``) in the
-        text.  If the command is a known upvar proc, its literal targets and
-        resolved param targets are returned.
+        Uses the tokeniser to find command substitutions (``[step 1]``) in
+        the text.  If the command is a known upvar proc, its literal targets
+        and resolved param targets are returned.
 
-        Using TclLexer (instead of a regex) correctly handles nested brackets,
+        Using the tokeniser (instead of a regex) correctly handles nested brackets,
         namespace-qualified command names, and quoted arguments.
         """
         if not self._upvar_procs or "[" not in text:
             return []
         defs: list[str] = []
-        lexer = TclLexer(text)
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
+        outer_tokens, _ = tokenise(text, 0, 0, 0)
+        for tok in outer_tokens:
             if tok.type is not TokenType.CMD:
                 continue
             # tok.text is the inner text of [...]; lex it for words.
-            inner = TclLexer(tok.text)
+            inner_tokens, _ = tokenise(tok.text, 0, 0, 0)
             words: list[str] = []
             parts: list[str] = []
             prev_sep = True
-            while True:
-                t = inner.get_token()
-                if t is None:
-                    break
+            for t in inner_tokens:
                 if t.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
                     if parts:
                         words.append("".join(parts))

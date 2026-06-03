@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from shared.tokens import TokenType
 
@@ -133,13 +133,10 @@ def _parse_command_substitution(value: str) -> CommandSubstitutionIntent | None:
     argv: list[str] = []
     prev_type = TokenType.EOL
 
-    lexer = TclLexer(inner)
+    lex_tokens, _ = tokenise(inner, 0, 0, 0)
     saw_command_terminator = False
     has_expansion = False
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.EXPAND:
             # ``{*}`` prefix: the following word expands at runtime, so the arg
             # count no longer reflects the element count.  Only flag it — fall

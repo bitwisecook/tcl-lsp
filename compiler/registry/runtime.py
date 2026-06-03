@@ -1067,14 +1067,14 @@ def iter_switch_case_list(
     list (i.e. the ``Token.text`` of the STR token, not including the
     surrounding ``{`` ``}``).
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
     from shared.tokens import TokenType
 
-    lexer = TclLexer(
+    lex_tokens, _ = tokenise(
         case_list_text,
-        base_offset=base_offset,
-        base_line=base_line,
-        base_col=base_col,
+        base_offset,
+        base_line,
+        base_col,
     )
     # Collect words with their raw source spans so we preserve
     # original quoting/bracing (e.g. $var keeps its $, braced
@@ -1088,10 +1088,7 @@ def iter_switch_case_list(
     word_braced: list[bool] = []
     prev_type = TokenType.EOL
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
             prev_type = tok.type
             continue

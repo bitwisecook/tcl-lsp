@@ -17,7 +17,7 @@ from typing import Any
 from analyser.packages import PackageResolver
 from analyser.semantic_model import Diagnostic
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from shared.tokens import TokenType
 from tooling.explorer.pipeline import AVAILABLE_DIALECTS
@@ -661,8 +661,7 @@ def _highlight_source_ansi(source: str, *, use_colour: bool, _depth: int = 0) ->
     if _depth > 8:
         return source
 
-    lexer = TclLexer(source)
-    tokens = lexer.tokenise_all()
+    tokens = tokenise(source, 0, 0, 0)[0]
     command_spans, subcommand_spans = _collect_command_spans(source)
 
     chunks: list[str] = []
@@ -713,8 +712,7 @@ def _highlight_source_html(source: str) -> str:
     if not source:
         return "<pre></pre>\n"
 
-    lexer = TclLexer(source)
-    tokens = lexer.tokenise_all()
+    tokens = tokenise(source, 0, 0, 0)[0]
     command_spans, subcommand_spans = _collect_command_spans(source)
 
     chunks: list[str] = []

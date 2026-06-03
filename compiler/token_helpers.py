@@ -7,7 +7,7 @@ compiler modules that walk raw token streams.
 
 from __future__ import annotations
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from shared.tokens import Token, TokenType
 
 from .eval_helpers import DECIMAL_INT_RE
@@ -95,7 +95,7 @@ def parse_command_words(
     Each word's text is reconstructed via :func:`word_piece`, so variable
     references are normalised to ``${name}`` form.
     """
-    lexer = TclLexer(text)
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
     commands: list[tuple[list[str], list[Token], list[bool]]] = []
     argv_texts: list[str] = []
     argv_tokens: list[Token] = []
@@ -110,10 +110,7 @@ def parse_command_words(
         argv_tokens = []
         argv_single = []
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.COMMENT:
             continue
         if tok.type is TokenType.SEP:

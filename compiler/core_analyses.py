@@ -39,7 +39,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import (
     FOLD_HINTS,
     FOLD_SUBCOMMAND_HINTS,
@@ -141,13 +141,11 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     v = value.strip()
     if not (v.startswith("[") and v.endswith("]")):
         return None
-    lexer = TclLexer(v)
-    tok = lexer.get_token()
+    lex_tokens, _ = tokenise(v, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
     if tok is None or tok.type is not TokenType.CMD:
         return None
-    nxt = lexer.get_token()
-    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
-        nxt = lexer.get_token()
+    nxt = next((t for t in lex_tokens[1:] if t.type not in (TokenType.EOL, TokenType.SEP)), None)
     if nxt is not None:
         return None
     inner = v[1:-1]
@@ -171,13 +169,11 @@ def _parse_cmd_subst_command(value: str):
     v = value.strip()
     if not (v.startswith("[") and v.endswith("]")):
         return None
-    lexer = TclLexer(v)
-    tok = lexer.get_token()
+    lex_tokens, _ = tokenise(v, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
     if tok is None or tok.type is not TokenType.CMD:
         return None
-    nxt = lexer.get_token()
-    while nxt is not None and nxt.type in (TokenType.EOL, TokenType.SEP):
-        nxt = lexer.get_token()
+    nxt = next((t for t in lex_tokens[1:] if t.type not in (TokenType.EOL, TokenType.SEP)), None)
     if nxt is not None:
         return None
     inner = v[1:-1]
@@ -537,17 +533,14 @@ def _fold_interpolation(
 ) -> LatticeValue:
     """Constant-fold a Tcl word containing variable substitutions.
 
-    Tokenises *value* with ``TclLexer``.  If every ``$var`` resolves to a
+    Tokenises *value* with ``tokenise``.  If every ``$var`` resolves to a
     known constant and there are no command substitutions, the pieces are
     concatenated and returned as a **string** constant — matching the Tcl
     runtime representation after interpolation.
     """
     pieces: list[str] = []
-    lexer = TclLexer(value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             ver = uses.get(name, 0)
@@ -592,11 +585,8 @@ def _fold_interpolation_set(
     """
     # Each element is either a literal string or a set of possible values.
     segments: list[list[str]] = []
-    lexer = TclLexer(value)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             ver = uses.get(name, 0)
@@ -1142,7 +1132,7 @@ def _word_mutation_free(text: str) -> bool:
     if "[" not in text:
         return True
     try:
-        tokens = TclLexer(text).tokenise_all()
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return False
     for tok in tokens:
@@ -2463,7 +2453,7 @@ def _collect_existence_in_word(text: str, out: set[str]) -> None:
     if "[" not in text:
         return
     try:
-        tokens = TclLexer(text).tokenise_all()
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return
     for tok in tokens:
@@ -2608,7 +2598,7 @@ def _split_command_args(args_text: str) -> list[str]:
     words: list[str] = []
     prev_sep = True
     try:
-        tokens = TclLexer(args_text).tokenise_all()
+        tokens = tokenise(args_text, 0, 0, 0)[0]
     except Exception:
         return []
     for tok in tokens:

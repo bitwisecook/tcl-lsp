@@ -37,7 +37,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -198,7 +198,7 @@ class IrulesFlowWarning:
 
 def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_col: int):
     """Yield (cmd_name, cmd_token, all_tokens) for each top-level command in body_text."""
-    lexer = TclLexer(body_text, base_offset=base_offset, base_line=base_line, base_col=base_col)
+    lex_tokens, _ = tokenise(body_text, base_offset, base_line, base_col)
     argv: list[Token] = []
     argv_texts: list[str] = []
     all_tokens: list[Token] = []
@@ -211,10 +211,7 @@ def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_c
         argv_texts.clear()
         all_tokens.clear()
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         match tok.type:
             case TokenType.COMMENT | TokenType.SEP:
                 prev_type = tok.type
@@ -247,7 +244,7 @@ def _find_when_bodies(source: str):
     Base priority is extracted from ``when EVENT priority N { body }``; defaults
     to 500.
     """
-    lexer = TclLexer(source)
+    lex_tokens, _ = tokenise(source, 0, 0, 0)
     argv: list[Token] = []
     argv_texts: list[str] = []
     prev_type = TokenType.EOL
@@ -268,10 +265,7 @@ def _find_when_bodies(source: str):
         argv.clear()
         argv_texts.clear()
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         match tok.type:
             case TokenType.COMMENT | TokenType.SEP:
                 prev_type = tok.type
@@ -1105,14 +1099,14 @@ def _scan_namespaced_cmds_in_text(text: str) -> set[str]:
     also caught here, plus the cases the regex missed).
     """
     from compiler.parsing.command_segmenter import segment_commands
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
     from shared.tokens import TokenType
 
     found: set[str] = set()
     if "[" not in text and "::" not in text:
         return found
     try:
-        tokens = TclLexer(text).tokenise_all()
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         # Unparseable -- fall back to the regex match (sound: caller
         # will refuse to hoist if any cmd looks unavailable).

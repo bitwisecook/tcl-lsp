@@ -7,7 +7,7 @@ import re
 
 from compiler.interprocedural import InterproceduralAnalysis
 from compiler.parsing.command_shapes import extract_single_expr_argument
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_shift
 from compiler.registry import REGISTRY
 from shared.diagnostic import Range
@@ -220,11 +220,11 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
     if start < 0 or start >= len(source):
         return None
 
-    lexer = TclLexer(
+    lex_tokens, _ = tokenise(
         source[start:],
-        base_offset=start,
-        base_line=command_range.start.line,
-        base_col=command_range.start.character,
+        start,
+        command_range.start.line,
+        command_range.start.character,
     )
 
     saw_word = False
@@ -247,13 +247,7 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
                     return i
         return None
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            if not saw_word:
-                return None
-            end_offset = len(source) - 1
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.COMMENT:
             continue
         if tok.type is TokenType.SEP:
@@ -285,6 +279,11 @@ def _full_command_range(source: str, command_range: Range) -> Range | None:
             brace_balance += tok.text.count("{") - tok.text.count("}")
         saw_word = True
         prev_in_quote = tok.in_quote
+    else:
+        # Token stream exhausted without an enclosing-close terminator.
+        if not saw_word:
+            return None
+        end_offset = len(source) - 1
 
     if end_offset < start:
         return None
@@ -481,11 +480,11 @@ def _parse_single_command_from_range(
     if start < 0 or end < start or end >= len(source):
         return None
 
-    lexer = TclLexer(
+    lex_tokens, _ = tokenise(
         source[start : end + 1],
-        base_offset=start,
-        base_line=command_range.start.line,
-        base_col=command_range.start.character,
+        start,
+        command_range.start.line,
+        command_range.start.character,
     )
 
     argv_texts: list[str] = []
@@ -494,10 +493,7 @@ def _parse_single_command_from_range(
     prev_type = TokenType.EOL
     saw_eol = False
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.COMMENT:
             continue
         if tok.type is TokenType.SEP:
@@ -540,12 +536,11 @@ def _parse_string_length_arg(cmd_text: str) -> str | None:
     inner = inner.strip()
     if not inner.startswith("string"):
         return None
-    lexer = TclLexer(inner)
+    lex_tokens, _ = tokenise(inner, 0, 0, 0)
     argv: list[str] = []
     prev_type = TokenType.EOL
-    while True:
-        tok = lexer.get_token()
-        if tok is None or tok.type is TokenType.EOL:
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL:
             break
         if tok.type in (TokenType.SEP, TokenType.COMMENT):
             prev_type = tok.type

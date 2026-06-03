@@ -18,7 +18,7 @@ from compiler.expr_ast import (
     ExprUnary,
 )
 from compiler.parsing.expr_parser import parse_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     ArgRole,
@@ -1561,16 +1561,14 @@ def _find_nested_expr_subst(text: str) -> tuple[int, int] | None:
     is ``expr``; the lexer handles bracket nesting, so a deeper ``[expr ...]``
     inside another command is not mistaken for a redundant nested expr.
     """
-    lexer = TclLexer(text)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            return None
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.CMD:
             inner = tok.text.lstrip()
             first = inner.split(None, 1)[0] if inner else ""
             if first == "expr":
                 return tok.start.offset, tok.end.offset + 1
+    return None
 
 
 @diag("W114", "Redundant nested `[expr {...}]` — already in expression context.", section="warning")
