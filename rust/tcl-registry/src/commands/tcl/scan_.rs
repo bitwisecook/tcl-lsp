@@ -7,8 +7,9 @@ use crate::prelude::*;
 /// The scanf semantics are modelled **directly on tclsh**, *not* transcribed
 /// from main's `dialects/tcl/const_fold.py::_tcl_scan`, which is unsound: it
 /// reads no `0x` prefix and so folds `scan 0xff %x` to `0` where every tclsh
-/// gives `255`.  Only the dialect-invariant subset folds — verified
-/// differentially against `tclsh8.4`/`8.5`/`8.6`/`9.0`:
+/// gives `255`.  Only the dialect-invariant subset folds — verified against
+/// `tclsh8.4`/`8.5`/`8.6`/`9.0` during development (the differential harness
+/// pins these against the live `tclsh9.0`):
 ///
 /// * conversions `%d` / `%o` / `%x` / `%X` / `%s` / `%c` / `%%` only.  A width,
 ///   `*` suppression, a `%[set]`, a size modifier (`%ld`), a positional `%n$`,

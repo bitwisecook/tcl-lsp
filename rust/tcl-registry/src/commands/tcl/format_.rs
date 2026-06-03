@@ -4,9 +4,11 @@ use crate::prelude::*;
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
-/// conversions of `format`, with the printf flag / width / precision matrix
-/// that is **byte-identical across Tcl 8.4 → 9.0** (verified differentially
-/// against `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
+/// conversions of `format`, with the printf flag / width / precision matrix.
+/// The per-version behaviour was verified against `tclsh8.4`/`8.5`/`8.6`/`9.0`
+/// during development and is pinned in this module's unit tests; the
+/// differential harness (`tests/differential_fold.rs`) runs folds against the
+/// live `tclsh9.0` reference.
 /// `%b` (binary) *raises* before Tcl 8.6, so it is version-gated: the registry
 /// passes the dialect's `version`, and `%b` folds only on 8.6+ (else bail).
 /// Only size modifiers and `*`/positional specs remain unfolded.

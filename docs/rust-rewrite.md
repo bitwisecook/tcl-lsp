@@ -3338,8 +3338,17 @@ the Tcl-version interpretation lives in the registry.
 
 **`string is integer` / `wideinteger` / `entier` / `double` / `dict` — all
 LANDED, version-aware** (`fold_is`, registered on `const_fold_versioned`),
-differentially verified against `tclsh8.4`/`8.5`/`8.6`/`9.0` (all four built
-from `tmp/`).  The number-class form is restricted to plain decimals
+verified against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **Verification methodology**
+(applies to every "verified against the four tclsh" claim below): the
+per-version caps / availability / value-interpretation were determined and
+checked against all four interpreters during development — the older three
+built from `tmp/` — and are pinned as hard-coded expectations in the Rust
+*unit* tests (`string_is_number_classes_are_version_aware`,
+`format_d_value_is_version_aware`, …).  The committed **differential harness**
+(`tcl-registry/tests/differential_fold.rs`) runs folds against the live
+`tclsh9.0` reference only (the older releases aren't on `PATH` in CI; the Python
+`tests/test_const_fold_vs_tcl.py` on `main` carries the multi-version matrix).
+The number-class form is restricted to plain decimals
 (no leading zero / `0x`/`0o`/`0b` — those bail, the form being
 version-sensitive), so only the *magnitude cap* and *class availability*
 vary by version:
@@ -3394,8 +3403,8 @@ bounded to the signed-32-bit range every release shares (`[-2³¹, 2³¹-1]` —
 `%x` input (the case main mis-folds; its sign handling also diverges in
 8.4), a `%s` run needing list-quoting, `%i` / `%u`, the float conversions,
 a width / `*` / `%[set]` / size modifier / positional spec, a literal
-mismatch, and a partial / failed / empty match all bail.  Verified
-differentially against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **The `format` float
+mismatch, and a partial / failed / empty match all bail.  Verified across
+`tclsh8.4`/`8.5`/`8.6`/`9.0` (see the verification methodology above).  **The `format` float
 conversions `%f` / `%F` / `%e` / `%E` / `%g` / `%G` — all LANDED**
 (`render_float` + `fmt_sci` / `fmt_general`, same follow-up): Rust's float
 formatter is byte-identical to C/Tcl on the exact binary value — the same
@@ -3418,7 +3427,7 @@ follow-up): `format` was made version-aware via the same registry mechanism
 as `string is` (`fold_format` registered on `const_fold_versioned`).  `%b`
 routes through `render_radix` like `%x` (non-negative, `0b` for `%#b`), but
 only on **8.6+** — it raises in 8.4/8.5, so the fold bails there (and for an
-unversioned dialect), differentially verified vs the four tclsh.
+unversioned dialect), verified across the four tclsh (per the methodology above).
 **`%d` / `%i` value interpretation — now version-aware too**
 ([`parse_format_int`]): a leading zero is octal on 8.x but decimal on 9.0
 (`%d 010` → `8` on 8.6, `10` on 9.0; an octal-invalid `08` raises on 8.x →
@@ -3784,7 +3793,8 @@ priority queue:
   `scan 0xff %x`), and the **version-aware** `string is` number classes
   (`integer` / `wideinteger` / `entier` / `double` / `dict`, via the registry's
   new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
-  and class-availability per release, verified against all four tclsh 8.4–9.0)
+  and class-availability per release, verified across tclsh 8.4–9.0 — dev-time
+  + pinned in unit tests; the committed harness runs the 9.0 reference)
   — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
   `format %b` is version-gated (8.6+), and `format` `%d`/`%i`/`%x`/`%X`/`%o`/`%b`
   value interpretation is version-aware (octal leading-zero on 8.x vs decimal on

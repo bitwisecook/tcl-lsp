@@ -589,8 +589,8 @@ fn is_dict_class(s: &str) -> Option<String> {
 ///
 /// `string is double` is remarkably consistent across Tcl 8.4 → 9.0, and on
 /// the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
-/// (after trimming) agrees with it **exactly** — verified differentially over
-/// a broad matrix against `tclsh8.4`/`8.5`/`8.6`/`9.0`, e.g. `5.e3`, `.5`,
+/// (after trimming) agrees with it **exactly** — verified over a broad matrix
+/// against `tclsh8.4`/`8.5`/`8.6`/`9.0` during development, e.g. `5.e3`, `.5`,
 /// `1.`, `+.5`, `1E-10`, `inf`, `nan` → `1`; `1e`, `e5`, `.`, `1.2.3` → `0`.
 /// The few forms where they part ways are version-divergent anyway, so they
 /// **bail**:
