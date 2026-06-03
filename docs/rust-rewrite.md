@@ -3383,11 +3383,19 @@ bounded to the signed-32-bit range every release shares (`[-2³¹, 2³¹-1]` —
 8.4), a `%s` run needing list-quoting, `%i` / `%u`, the float conversions,
 a width / `*` / `%[set]` / size modifier / positional spec, a literal
 mismatch, and a partial / failed / empty match all bail.  Verified
-differentially against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **Still deferred**
-(own strips, pinned via the same harness): the `format` **float**
-conversions (`%f` / `%e` / `%g` — C-printf rounding parity), **`%u`**,
-**`%b`** (absent before 8.6), size modifiers (`%ld`), and `*`/positional
-specs.  (The duplicated
+differentially against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **`format %f` / `%F`
+— LANDED** (`render_float`, same follow-up): Rust's `{:.prec$}` formatter is
+byte-identical to C/Tcl `%f` — the same round-half-to-even on the exact
+binary value (verified across a rounding-heavy matrix: `2.5`→`2`,
+`0.125`→`0.12`, `2.675`→`2.67`, `99.995`→`100.00`).  The argument is parsed
+as a double over the `string is double` subset; precision defaults to 6, and
+unlike `%d` the `0` flag zero-pads even with a precision.  A non-finite value
+(`Inf`/`NaN` — spelling is version-edgy) and the `#` alternate form bail.
+**Still deferred** (own strips, pinned via the same harness): the `format`
+**`%e` / `%g`** conversions (Rust's exponential / shortest-form rendering
+differs from C printf — exponent sign/width, trailing-zero stripping — so
+they need a custom renderer), **`%u`**, **`%b`** (absent before 8.6), size
+modifiers (`%ld`), and `*`/positional specs.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3719,20 +3727,21 @@ priority queue:
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
   char-class / boolean / list predicates), and `format` (the `%s` / `%d` /
   `%i` decimal-integer + string conversions, the `%x` / `%X` / `%o` radix
-  conversions, and `%c` — each with the flag / width / precision matrix on
-  its dialect-invariant subset; landed in the SYNC-JUN03 follow-up and pinned
-  by the new differential-fold harness), and `string is integer` + `double`
-  (their dialect-invariant subsets — the 32-bit-magnitude integer range and
-  the decimal/scientific/Inf/NaN double forms — verified against all four
-  tclsh 8.4–9.0), and `scan` (the inline form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`,
-  modelled on tclsh with 32-bit result bounds — *not* main's `_tcl_scan`,
-  which mis-folds `scan 0xff %x`) — all in the new
-  `tcl-registry/src/const_fold.rs` leaf + per-command modules.  **Still
-  deferred** (own strips, each pinned against tclsh via
+  conversions, `%c`, and the `%f` / `%F` fixed-point float — each with the
+  flag / width / precision matrix on its dialect-invariant subset; landed in
+  the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
+  and `string is integer` + `double` (their dialect-invariant subsets — the
+  32-bit-magnitude integer range and the decimal/scientific/Inf/NaN double
+  forms — verified against all four tclsh 8.4–9.0), and `scan` (the inline
+  form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`, modelled on tclsh with 32-bit result
+  bounds — *not* main's `_tcl_scan`, which mis-folds `scan 0xff %x`) — all in
+  the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
+  **Still deferred** (own strips, each pinned against tclsh via
   `tcl-registry/tests/differential_fold.rs` when it lands): `string is
   wideinteger` / `entier` / `dict` (they *raise* in old dialects — 8.4 /
   8.4 + 8.5 / pre-9.0 — so no dialect-agnostic fold is sound), and the
-  `format` float (`%f`/`%e`/`%g`) + `%u` + `%b` conversions.
+  `format` `%e` / `%g` (custom exponent / shortest-form renderer needed) +
+  `%u` + `%b` conversions.
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**

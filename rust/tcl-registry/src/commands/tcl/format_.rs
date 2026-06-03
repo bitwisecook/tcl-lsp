@@ -3,10 +3,10 @@ use crate::prelude::*;
 
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
 /// decimal-integer (`%d` / `%i`), radix (`%x` / `%X` / `%o`), character
-/// (`%c`) and string (`%s`) conversions of `format`, with the printf flag /
-/// width / precision matrix that is **byte-identical across Tcl 8.4 → 9.0**
-/// (verified differentially against `tclsh8.6` + `tclsh9.0` — see
-/// `tests/differential_fold.rs`).
+/// (`%c`), fixed-point float (`%f` / `%F`) and string (`%s`) conversions of
+/// `format`, with the printf flag / width / precision matrix that is
+/// **byte-identical across Tcl 8.4 → 9.0** (verified differentially against
+/// `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -23,10 +23,14 @@ use crate::prelude::*;
 /// * `%s` honours `-` / width / precision; the numeric flags bail (Tcl
 ///   ignores them on strings), and width/precision over a non-ASCII value
 ///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
-/// * The float conversions (`%f` / `%e` / `%g`), `%u`, `%b`, size modifiers
-///   (`%ld`), `*` (arg-driven) width / precision, positional `%n$`, and any
-///   field over [`MAX_FIELD`] all bail — the float folds are differentially
-///   pinned in a later strip.
+/// * `%f` / `%F` parse a double over the same subset as `string is double`
+///   ([`parse_float_arg`]) and render via Rust's `{:.prec$}` (round-half-to-
+///   even, byte-identical to C/Tcl `%f`); a non-finite value bails.  See
+///   [`Conversion::render_float`].
+/// * `%e` / `%g` (their exponent / shortest-form rendering differs from
+///   Rust's formatter), `%u`, `%b`, size modifiers (`%ld`), `*` (arg-driven)
+///   width / precision, positional `%n$`, and any field over [`MAX_FIELD`]
+///   all bail — `%e` / `%g` are differentially pinned in a later strip.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
 fn fold_format(args: &[&str]) -> Option<String> {
@@ -160,12 +164,42 @@ impl Conversion {
             b'X' => self.render_radix(value, Radix::HexUpper),
             b'o' => self.render_radix(value, Radix::Octal),
             b'c' => self.render_char(value),
+            b'f' | b'F' => self.render_float(value),
             b's' => self.render_str(value),
-            // Float (`%f`/`%e`/`%g`), `%u`, `%b`, size modifiers (`%ld`) and
-            // positional `%n$` are differentially pinned in later strips —
-            // bail for now.
+            // `%e`/`%g` (their exponent / shortest-form rendering differs from
+            // Rust's), `%u`, `%b`, size modifiers (`%ld`) and positional `%n$`
+            // are differentially pinned in later strips — bail for now.
             _ => None,
         }
+    }
+
+    /// Render `%f` / `%F` (fixed-point).  Rust's `{:.prec$}` formatter is
+    /// byte-identical to C/Tcl `%f` — the same round-half-to-even on the exact
+    /// binary value (verified differentially: `2.5`→`2`, `0.125`→`0.12`,
+    /// `2.675`→`2.67`, `99.995`→`100.00`).  Precision defaults to 6 (the C
+    /// default).  Unlike `%d`, the `0` flag zero-pads even with a precision.
+    /// A non-finite value (`Inf`/`NaN`) bails — its spelling is version- and
+    /// edge-dependent — as does the `#` alternate form.
+    fn render_float(&self, value: &str) -> Option<String> {
+        if self.flags.contains(FmtFlags::HASH) {
+            return None;
+        }
+        let v = parse_float_arg(value)?;
+        if !v.is_finite() {
+            return None;
+        }
+        let prec = self.precision.unwrap_or(6);
+        let mag = format!("{:.*}", prec, v.abs());
+        let sign = if v.is_sign_negative() {
+            "-"
+        } else if self.flags.contains(FmtFlags::PLUS) {
+            "+"
+        } else if self.flags.contains(FmtFlags::SPACE) {
+            " "
+        } else {
+            ""
+        };
+        Some(self.pad(sign, &mag, self.flags.contains(FmtFlags::ZERO)))
     }
 
     /// Render `%c` (codepoint → character) for a printable-ASCII codepoint
@@ -187,7 +221,7 @@ impl Conversion {
             return None;
         }
         let ch = char::from(u8::try_from(n).ok()?);
-        Some(self.pad("", &ch.to_string()))
+        Some(self.pad("", &ch.to_string(), false))
     }
 
     fn render_int(&self, value: &str) -> Option<String> {
@@ -210,7 +244,7 @@ impl Conversion {
         } else {
             ""
         };
-        Some(self.pad(sign, &digits))
+        Some(self.pad(sign, &digits, self.int_zero_pad()))
     }
 
     /// Render `%x` / `%X` / `%o` for a **non-negative** dialect-invariant
@@ -245,7 +279,7 @@ impl Conversion {
                 digits = "0".repeat(p - digits.len()) + &digits;
             }
         }
-        Some(self.pad(prefix, &digits))
+        Some(self.pad(prefix, &digits, self.int_zero_pad()))
     }
 
     fn render_str(&self, value: &str) -> Option<String> {
@@ -280,11 +314,12 @@ impl Conversion {
     }
 
     /// Width-pad a `prefix` + `digits` numeric body (the `prefix` is a sign
-    /// `-`/`+`/space for `%d`, or a `0x` radix marker for `%#x`): zero-pad
-    /// between the prefix and digits (only with the `0` flag and no precision —
-    /// precision suppresses zero-padding, per C/Tcl), left-justify with spaces
-    /// under `-`, else right-justify with spaces.
-    fn pad(&self, prefix: &str, digits: &str) -> String {
+    /// `-`/`+`/space for `%d`/`%f`, or a `0x` radix marker for `%#x`):
+    /// zero-pad between the prefix and digits when `zero_pad` is set,
+    /// left-justify with spaces under `-`, else right-justify with spaces.
+    /// (The caller decides `zero_pad`: for the integer conversions a
+    /// precision suppresses the `0` flag, per C/Tcl, but for `%f` it does not.)
+    fn pad(&self, prefix: &str, digits: &str, zero_pad: bool) -> String {
         let width = self.width.unwrap_or(0);
         let body_len = prefix.len() + digits.len();
         if body_len >= width {
@@ -293,11 +328,17 @@ impl Conversion {
         let fill = width - body_len;
         if self.flags.contains(FmtFlags::MINUS) {
             format!("{prefix}{digits}{}", " ".repeat(fill))
-        } else if self.flags.contains(FmtFlags::ZERO) && self.precision.is_none() {
+        } else if zero_pad {
             format!("{prefix}{}{digits}", "0".repeat(fill))
         } else {
             format!("{}{prefix}{digits}", " ".repeat(fill))
         }
+    }
+
+    /// Whether the `0` flag should zero-pad for an *integer* conversion: set,
+    /// but suppressed by a precision (C/Tcl rule for `%d`/`%x`/`%o`).
+    fn int_zero_pad(&self) -> bool {
+        self.flags.contains(FmtFlags::ZERO) && self.precision.is_none()
     }
 }
 
@@ -347,6 +388,20 @@ fn parse_decimal_arg(value: &str) -> Option<i64> {
         return None; // outside the 32-bit range 8.x ↔ 9.0 agree on
     }
     Some(n)
+}
+
+/// Parse a `%f` argument as a double.  ASCII-gated (so the `.trim()`
+/// whitespace set matches Tcl's `Tcl_GetDouble`), then `f64::from_str` —
+/// which agrees with Tcl's parse on the decimal / scientific forms (verified
+/// in `string is double`).  The version-divergent / Rust-rejected forms
+/// (a `0x`/`0o`/`0b` prefix, a `_` separator, a `nan(payload)`) all fail
+/// `from_str` and bail here; the caller additionally bails on a non-finite
+/// result.
+fn parse_float_arg(value: &str) -> Option<f64> {
+    if !value.is_ascii() {
+        return None;
+    }
+    value.trim().parse::<f64>().ok()
 }
 
 pub fn spec() -> CommandSpec {
@@ -437,9 +492,13 @@ mod tests {
         );
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
         assert_eq!(fold_format(&["%d", "0x10"]), None);
-        // Float / %b verbs are deferred to a later strip.
-        assert_eq!(fold_format(&["%5.2f", "3.14159"]), None);
+        // %e / %g / %b verbs are deferred to a later strip.
+        assert_eq!(fold_format(&["%e", "31400.0"]), None);
+        assert_eq!(fold_format(&["%g", "3.14"]), None);
         assert_eq!(fold_format(&["%b", "5"]), None);
+        // %f with a non-finite value bails (Inf/NaN spelling is version-edgy).
+        assert_eq!(fold_format(&["%f", "inf"]), None);
+        assert_eq!(fold_format(&["%#f", "3.14"]), None);
         // Numeric flags don't apply to `%s` → bail.
         assert_eq!(fold_format(&["%05s", "hi"]), None);
         assert_eq!(fold_format(&["%+s", "hi"]), None);
@@ -505,5 +564,38 @@ mod tests {
         // Numeric flags / precision don't apply to `%c` → bail.
         assert_eq!(fold_format(&["%#c", "65"]), None);
         assert_eq!(fold_format(&["%.2c", "65"]), None);
+    }
+
+    #[test]
+    fn format_folds_fixed_float() {
+        // Default precision is 6; rounding is round-half-to-even (matches C/Tcl).
+        assert_eq!(fold_format(&["%f", "3.14"]).as_deref(), Some("3.140000"));
+        assert_eq!(fold_format(&["%.2f", "3.14159"]).as_deref(), Some("3.14"));
+        assert_eq!(fold_format(&["%.0f", "2.5"]).as_deref(), Some("2"));
+        assert_eq!(fold_format(&["%.0f", "3.5"]).as_deref(), Some("4"));
+        assert_eq!(fold_format(&["%.2f", "0.125"]).as_deref(), Some("0.12"));
+        assert_eq!(fold_format(&["%f", "42"]).as_deref(), Some("42.000000"));
+        // Integer args fold; the value is parsed as a double.
+        assert_eq!(fold_format(&["%.2f", "-2.5"]).as_deref(), Some("-2.50"));
+        // Flags / width / precision — the `0` flag zero-pads even with a
+        // precision (unlike `%d`).
+        assert_eq!(
+            fold_format(&["%8.2f", "3.14159"]).as_deref(),
+            Some("    3.14")
+        );
+        assert_eq!(
+            fold_format(&["%-8.2f", "3.14159"]).as_deref(),
+            Some("3.14    ")
+        );
+        assert_eq!(fold_format(&["%08.3f", "2.5"]).as_deref(), Some("0002.500"));
+        assert_eq!(fold_format(&["%+.2f", "3.14"]).as_deref(), Some("+3.14"));
+        assert_eq!(fold_format(&["% .2f", "3.14"]).as_deref(), Some(" 3.14"));
+        // Non-finite, the `#` alternate form, and non-double args bail.
+        assert_eq!(fold_format(&["%f", "inf"]), None);
+        assert_eq!(fold_format(&["%f", "nan"]), None);
+        assert_eq!(fold_format(&["%#f", "3.14"]), None);
+        assert_eq!(fold_format(&["%f", "abc"]), None);
+        assert_eq!(fold_format(&["%f", "0x1f"]), None);
+        assert_eq!(fold_format(&["%f", "1_000"]), None);
     }
 }
