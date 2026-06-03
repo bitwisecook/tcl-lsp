@@ -4743,6 +4743,39 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         }
     }
 
+    // Too-many-arguments check.  A proc whose last parameter is not the
+    // variadic ``args`` collector rejects extra arguments with
+    // ``wrong # args`` (proc-old-30.3) — the binding loop above only
+    // handles the too-FEW case.  Mirrors ProcWrongNumArgs in tclProc.c,
+    // which fires when objc-1 exceeds the declared parameter count.
+    if (words.len > n_params + 1) {
+        var last_is_args = false;
+        if (n_params > 0 and params_obj != 0) {
+            const ps2 = obj_ensure_string(params_obj);
+            const le = list_element_at(ps2.ptr, ps2.len, @intCast(n_params - 1));
+            const lptr = ps2.ptr + le.start;
+            const llen = le.len;
+            // Strip a ``{name default}`` wrapper to the bare name, the
+            // same way the binding loop detects the ``args`` collector.
+            var nptr = lptr;
+            var nlen = llen;
+            if (list_count_elements(lptr, llen) == 2) {
+                const ne = list_element_at(lptr, llen, 0);
+                nptr = lptr + ne.start;
+                nlen = ne.len;
+            }
+            if (nlen == 4) {
+                const np: [*]const u8 = @ptrFromInt(nptr);
+                last_is_args = np[0] == 'a' and np[1] == 'r' and np[2] == 'g' and np[3] == 's';
+            }
+        }
+        if (!last_is_args) {
+            raise_proc_wrong_args(words[0], params_obj, n_params);
+            frames.frame_pop();
+            return 0;
+        }
+    }
+
     // Evaluate body
     const body_s = obj_ensure_string(body_obj);
     const result = eval_script(body_s.ptr, body_s.len);
