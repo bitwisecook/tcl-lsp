@@ -32,6 +32,19 @@ An **empty** `{}` / `[]` / `""` is the exception: it has no inner character, so
 `end` already sits **on** the closer, and widening it instead overshoots by one
 (see the failure modes below).
 
+**Quoted `"..."` words are doubly awkward and cannot be widened from a token
+alone.** They lex as `ESC` (not a distinct type), and the closing `"` is
+represented *inconsistently*: a word ending in literal text (`"world"`) leaves
+the closer one past the last `ESC`, but a word ending in a substitution
+(`"$x"`) emits a trailing **zero-width empty `ESC` fragment** sitting on the
+closing `"` — and that fragment is geometrically indistinguishable from a real
+quoted word. So no token-only rule finds a quoted word's closer reliably; only
+**source verification** does. That is why the segmenter widens `cmd.range` with
+the source-aware `word_end_position` (on the grouped word, since an interior
+substitution like `"a$y b"` splits the word into fragments), and why a
+token-only attempt to make `cmd.range` quoted-authoritative both over-widened
+the fragment and dropped the literal case.
+
 ## Decision rules / contracts
 
 The closer position is **derived once from the lexer's content geometry** and
@@ -48,17 +61,15 @@ on the closer) and silently omits quoted `"..."` words.
    `tok.text` to detect emptiness, so they are correct for empty words and for
    quoted words whose inner text contains backslash escapes.  Do not write
    `tok.end.offset + 1` followed by a `source[...] == closer` check.
-3. A whole-command range built from a token span is widened with
-   `range_from_word_token`.  It is token-only (no source — required because
-   nested bodies have absolute offsets but a substring source) and covers the
-   closer for `STR`/`CMD` words, deriving it from the token *type*.  An empty
-   `{}`/`[]` (`span_extra = (end - start) - len(text) >= 1`) already has `end`
-   on the closer, so it is returned unchanged rather than advanced one more
-   byte.  Quoted `"..."` words (which lex as `ESC`) are **not** widened here —
-   the closer character is not derivable from the token type without source, and
-   `cmd.range` consumers (W105 unbraced-body detection, segmenter tiling) rely
-   on the inner-end for quoted bodies.  A consumer that needs a quoted word's
-   closing `"` uses the source-aware `word_closer_offset` / `word_end_position`.
+3. The segmenter's `cmd.range` is **authoritative** — it covers the final
+   word's closing `}` / `]` / `"`, for braces, brackets, *and* quoted words, and
+   never overshoots an empty `{}` / `""`.  `_command_range` widens the final
+   *word* (`argv[-1]`, not the last raw fragment — a quoted word with an interior
+   substitution such as `"a$y b"` lexes into fragments whose last one starts
+   mid-word) via `word_end_position`, passing the segmenter's `base_offset` so a
+   nested body (absolute token offsets, substring source) resolves the closer at
+   the right local index.  Consumers should **trust `cmd.range`** rather than
+   re-deriving a command's span from its tokens.
 4. A consumer that renders a highlight widens via
    [`widen_range_for_closer`](../../shared/ranges.py), which guards the empty
    two-character span the same way.

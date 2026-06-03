@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
 from shared.hashing import stable_text_hash
-from shared.ranges import range_from_tokens, range_from_word_token
+from shared.ranges import word_end_position
 
 from .known_commands import known_command_names
 
@@ -79,19 +79,31 @@ def _word_piece(tok: Token) -> str:
     return tok.text
 
 
-def _command_range(tokens: list[Token]) -> Range:
-    """Span *tokens*, extending the last word to cover its closing delimiter.
+def _command_range(
+    argv: list[Token], all_tokens: list[Token], source: str, base_offset: int
+) -> Range:
+    """Span a command, extending the final word to cover its closing delimiter.
 
-    ``range_from_tokens`` stops on the last token's inner end, so a command
-    whose final word is braced (``if {...} {body}``) would drop the closing
-    ``}``.  Widen the end via :func:`range_from_word_token`, which derives the
-    closer from the token's type — no source needed, so it stays correct for
-    nested bodies whose token offsets are absolute but whose source string is a
-    substring.
+    The raw token stream stops on the last token's inner end, so a command whose
+    final word is braced (``if {...} {body}``) or quoted (``... "body"``) would
+    drop the closing ``}`` / ``"``.  :func:`word_end_position` covers it,
+    source-verifying the closer so it is correct for braces, brackets, *and*
+    quoted words (whose closer the token type alone cannot name), and so it never
+    overshoots an empty ``{}`` / ``""`` or a zero-width closing-quote fragment.
+
+    The widen runs on the final *word* (``argv[-1]``), not the final raw token:
+    a quoted word with an interior substitution (``"a$y b"``) lexes into several
+    fragments whose last one starts mid-word, so only the grouped word token
+    carries the opening ``"`` needed to find the closer.
+
+    *source* is the (possibly substring) text the tokens were lexed from and
+    *base_offset* its absolute anchor, so a nested body — absolute token offsets,
+    substring source — resolves the closer at the right local index.
     """
-    span = range_from_tokens(tokens)
-    last = range_from_word_token(tokens[-1])
-    return Range(start=span.start, end=last.end)
+    return Range(
+        start=all_tokens[0].start,
+        end=word_end_position(argv[-1], source, base_offset),
+    )
 
 
 # Minimum number of lines a suspicious STR token must span to trigger
@@ -282,7 +294,7 @@ def _segment_raw(
             if argv:
                 commands.append(
                     SegmentedCommand(
-                        range=_command_range(all_tokens),
+                        range=_command_range(argv, all_tokens, source, base_offset),
                         argv=argv,
                         texts=texts,
                         single_token_word=single,
@@ -341,7 +353,7 @@ def _segment_raw(
     if argv:
         commands.append(
             SegmentedCommand(
-                range=_command_range(all_tokens),
+                range=_command_range(argv, all_tokens, source, base_offset),
                 argv=argv,
                 texts=texts,
                 single_token_word=single,

@@ -32,17 +32,13 @@ def token_end_offset(source: str, token: Token) -> int:
 def command_span_offsets(source: str, cmd: SegmentedCommand) -> tuple[int, int]:
     """Return ``(start, end)`` offsets that cover the full command text.
 
-    The end comes from :func:`token_end_offset` on the final word, which locates
-    the closer via :func:`shared.ranges.word_closer_offset` — correct for an
-    empty trailing ``{}`` / ``[]`` (whose end already sits on the closer, so
-    re-deriving as ``end + 1`` overshoots by one, issue #527) and for a quoted
-    ``"..."`` final argument (which ``cmd.range`` does not yet cover).
+    Trusts the segmenter's authoritative ``cmd.range`` — which now covers the
+    final word's closing delimiter for braces, brackets, *and* quoted words, and
+    never overshoots an empty ``{}`` / ``""`` (the segmenter source-verifies the
+    closer).  The exclusive end is the inclusive range end plus one.
     """
-    if not cmd.all_tokens:
-        return (0, 0)
-    start = cmd.all_tokens[0].start.offset
-    end = token_end_offset(source, cmd.all_tokens[-1])
-    return (max(0, start), max(0, end))
+    r = cmd.range
+    return (max(0, r.start.offset), min(r.end.offset + 1, len(source)))
 
 
 def offsets_to_position(

@@ -179,6 +179,56 @@ def test_refactor_command_spans_do_not_overshoot(src):
             )
 
 
+class TestCommandRangeCoversClosers:
+    """``cmd.range`` is source-verified: it covers the final word's closing
+    delimiter for braces, brackets, AND quoted words, and never overshoots."""
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            'set x "world"',  # quoted, literal-ending — previously dropped the "
+            'set x "$y"',  # quoted, substitution-ending (closing-quote fragment)
+            'set x "a$y b"',  # quoted, mixed
+            "set x {body}",
+            "set x {}",  # empty brace
+            'set x ""',  # empty quote
+            "set x [f]",
+            "set x plain",
+        ],
+    )
+    def test_command_range_covers_full_command(self, src):
+        from compiler.parsing.command_segmenter import segment_commands
+
+        (cmd,) = segment_commands(src)
+        covered = src[cmd.range.start.offset : cmd.range.end.offset + 1]
+        assert covered == src
+
+    def test_nested_body_command_range_uses_base_offset(self):
+        # Absolute token offsets, substring source: the closer must resolve at
+        # the right local index (the literal-ending `"world"` is the trap).
+        from compiler.parsing.command_segmenter import segment_commands
+
+        full = 'proc f {} {set x "world"}'
+        body = [t for t in TclLexer(full).tokenise_all() if t.type is TokenType.STR][-1]
+        (cmd,) = segment_commands(body.text, body_token=body)
+        assert full[cmd.range.start.offset : cmd.range.end.offset + 1] == 'set x "world"'
+
+
+class TestAccessorBaseOffset:
+    def test_word_closer_offset_with_base_offset(self):
+        # A token anchored absolutely against a substring source.
+        full = 'proc f {} {set x "world"}'
+        body = [t for t in TclLexer(full).tokenise_all() if t.type is TokenType.STR][-1]
+        # the quoted word "world" inside the body
+        word = next(
+            t
+            for t in TclLexer(body.text, base_offset=body.start.offset + 1).tokenise_all()
+            if t.type is TokenType.ESC and t.text == "world"
+        )
+        # absolute closer offset, resolved against the substring via base_offset
+        assert word_closer_offset(word, body.text, body.start.offset + 1) == full.rindex('"')
+
+
 class TestMigratedWideners:
     """Lock the empty-delimiter behaviour of the migrated raw-source helpers."""
 

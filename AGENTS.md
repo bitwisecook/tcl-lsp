@@ -798,13 +798,17 @@ sits *on* the closer. Never re-derive the closer as `tok.end.offset + 1` (it
 overshoots the empty case by one — issue #527). Use the single authoritative
 accessor:
 
-- `word_closer_offset(tok, source)` (`shared/ranges.py`) — the closer's offset,
-  or `None` when the word is not delimited or is unterminated.
-- `word_end_position(tok, source)` — the same as a `SourcePosition` (covers the
-  closer, advancing line/column for a multi-line body).
+- `word_closer_offset(tok, source, base_offset=0)` (`shared/ranges.py`) — the
+  closer's offset, or `None` when the word is not delimited or is unterminated.
+- `word_end_position(tok, source, base_offset=0)` — the same as a
+  `SourcePosition` (covers the closer, advancing line/column for a multi-line
+  body). `base_offset` anchors absolute token offsets to a substring source
+  (nested bodies).
+- The segmenter's `cmd.range` is built from these and is **authoritative** —
+  it covers the final word's closer for braces, brackets, and quoted words.
+  Trust it rather than re-deriving a command's span.
 - `range_from_word_token(tok)` — token-only full-word `Range` for `STR`/`CMD`
-  words (used by the segmenter for `cmd.range`); quoted words use the
-  source-aware accessors above.
+  words, for the rare caller with no source; prefer the source-aware accessors.
 
 See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
 for the contract, and `docs/design/contracts/shared-utility-contracts.md`.

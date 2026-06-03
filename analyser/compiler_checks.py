@@ -185,7 +185,24 @@ class _CompilerCheckRunner:
             r = stmt.range
             start = r.start.offset
             end = r.end.offset
-            if start < 0 or end < start or end >= len(self._source):
+            if start < 0 or end < start:
+                return
+            if end >= len(self._source):
+                # A statement whose range reaches past the source end is an
+                # upstream range overshoot (e.g. a word-token closer widened one
+                # byte too far).  Dropping it silently turns the bug into a
+                # missing diagnostic — the failure mode that hid a broken change
+                # behind a single test in the issue #527 work.  Log so future
+                # overshoots surface instead of vanishing.
+                log.warning(
+                    "compiler_checks: dropping %s with out-of-range end "
+                    "(start=%d, end=%d, source_len=%d) — likely an upstream "
+                    "range overshoot",
+                    type(stmt).__name__,
+                    start,
+                    end,
+                    len(self._source),
+                )
                 return
             self._process_text(
                 self._source[start : end + 1],
