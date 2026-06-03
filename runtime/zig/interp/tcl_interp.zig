@@ -1525,7 +1525,22 @@ fn build_invocation_string(words: []const i32) i32 {
 fn eval_command_dispatch(words: []const i32) i32 {
     cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);
-    if (cmd_s.len == 0) return 0;
+    if (cmd_s.len == 0) {
+        // A single command word that evaluates to the empty string is a
+        // genuine invocation of a command literally named "" — NOT a
+        // no-op.  (Zero-word commands never reach dispatch: eval_script
+        // skips them via ``n_words == 0``.)  Dispatch to a user-defined
+        // "" proc when one exists (proc-3.7: ``proc {} {x} {}``);
+        // otherwise fall through to the unknown path so it raises the
+        // canonical ``invalid command name ""`` (proc-old-9.1).  The
+        // builtin / ``::``-prefix / namespace-path probes below are all
+        // gated on a non-empty name, so there is nothing else to try.
+        if (procs.proc_buf_nonzero()) {
+            const bucket = procs.proc_lookup(words[0]);
+            if (bucket != 0) return eval_proc_call_bucket(words, bucket);
+        }
+        return eval_proc_call(words);
+    }
 
     // Fast path: probe the proc registry first.  Tcl semantics say a
     // user-defined proc shadows a built-in, and for dispatch-heavy
@@ -4259,6 +4274,7 @@ fn build_invocation_list(words: []const i32) i32 {
 /// so the message echoes the spelling at the call site.
 fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void {
     const catch_mod = @import("tcl_catch.zig");
+    const quote = @import("../valtypes/tcl_list_quote.zig");
     const inv = obj_ensure_string(invoked_name);
     const ps = obj_ensure_string(params_obj);
     const prefix = "wrong # args: should be \"";
@@ -4268,7 +4284,13 @@ fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void
         const pe = list_element_at(ps.ptr, ps.len, @intCast(i));
         pcap += pe.len + 12;
     }
-    const total: u32 = @as(u32, @intCast(prefix.len)) + inv.len + pcap + 1;
+    // The invoked name is list-element-quoted (Tcl_WrongNumArgs runs
+    // each word through TclScanElement / TclConvertElement), so an
+    // empty proc name renders as ``{}`` rather than a bare space
+    // (proc-3.7: ``proc {} {x} {}`` → ``should be "{} x"``).  Worst-
+    // case list-quoting is ``2*len + 2`` bytes; over-reserve for it.
+    const inv_cap: u32 = inv.len * 2 + 2;
+    const total: u32 = @as(u32, @intCast(prefix.len)) + inv_cap + pcap + 1;
     const buf = alloc(total);
     if (buf == 0) {
         catch_mod.tcl_cmd_error(0);
@@ -4279,10 +4301,7 @@ fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void
         @as([*]u8, @ptrFromInt(buf + off))[0] = c;
         off += 1;
     }
-    if (inv.len > 0) {
-        memcpy(buf + off, inv.ptr, inv.len);
-        off += inv.len;
-    }
+    off = quote.list_elem_quote(buf, off, inv.ptr, inv.len);
     i = 0;
     while (i < n_params) : (i += 1) {
         @as([*]u8, @ptrFromInt(buf + off))[0] = ' ';

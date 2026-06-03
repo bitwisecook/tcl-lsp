@@ -558,7 +558,14 @@ pub export fn proc_register_compiled(
     const hash = fnv1a(sn.ptr, sn.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
-    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return obj_new_int(0);
+    // Reject only an unresolvable namespace — an empty *simple* name is
+    // legal (a command literally named ""), and the interpreted
+    // ``proc_register`` above accepts it.  Rejecting ``simple_len == 0``
+    // here left ``proc {} {} {…}`` undefined in ordinary (non-``eval``)
+    // source, so a later ``{}`` call trapped ``invalid command name ""``
+    // instead of dispatching the compiled body (proc-3.7 via the static
+    // codegen path, not just the eval-fallback path).
+    if (ctx.r.target_ns == 0) return obj_new_int(0);
 
     var cmd: u32 = ctx.existing;
     if (cmd == 0) {
