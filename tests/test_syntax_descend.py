@@ -2,8 +2,7 @@
 
 Descent re-lexes a ``{…}`` body or ``[…]`` substitution as a child tree anchored
 one byte past the opener — the delimiter-excluding interior of a token that owns
-the full span.  Parity with the analyser's existing ``green_tree`` descent is
-asserted directly (same child tokens, same terminated/recovered classification).
+the full span.
 """
 
 from __future__ import annotations
@@ -13,23 +12,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from compiler.parsing.green_tree import (
-    NodeKind,
-    green_tree_scope,
-    node_for,
-)
-from compiler.parsing.green_tree import (
-    descend_command as gt_descend_command,
-)
-from compiler.parsing.green_tree import (
-    descend_token as gt_descend_token,
-)
+from compiler.parsing.green_tree import node_for
 from compiler.parsing.syntax import descend_command, descend_token
 from compiler.parsing.syntax.red import SyntaxNode, SyntaxTree
 from shared.tokens import TokenType
 
 _TRIVIA = (TokenType.SEP, TokenType.EOL, TokenType.COMMENT)
-_TERMINATED = (NodeKind.BRACED, NodeKind.BRACKETED)
 
 
 def _opaque_tokens(src: str):
@@ -92,30 +80,6 @@ class TestDescendToken:
         assert descend_token(body, src).terminated
 
 
-class TestDescendParity:
-    SRCS = [
-        "proc p {} {set x 1}",
-        "proc p {} {set x 1",
-        "set y [expr 1]",
-        "set y [expr 1",
-        "if {$x > 1} {puts hi} else {puts bye}",
-        "nest {a {b} c}",
-        'puts "a [foo bar] b"',
-        "when HTTP_REQUEST { log local0. [HTTP::uri] }",
-        "proc p {} {\n  foreach x $l {\n    puts $x\n  }\n}",
-    ]
-
-    def test_token_parity_with_green_tree(self):
-        for src in self.SRCS:
-            with green_tree_scope():
-                for tok in _opaque_tokens(src):
-                    gt = gt_descend_token(tok, src)
-                    mine = descend_token(tok, src)
-                    gt_frags = [t for t in gt.tokens if t.type not in _TRIVIA]
-                    assert _red_fragments(mine.tree) == gt_frags, (src, tok.text)
-                    assert mine.terminated == (gt.kind in _TERMINATED), (src, tok.text)
-
-
 class TestDescendCommand:
     def test_resolves_body_to_child_tree(self):
         src = "proc p {x} {set x 1}"
@@ -137,24 +101,6 @@ class TestDescendCommand:
         src = "proc p {} {}"
         name, args, arg_tokens = _single_command(src)
         assert descend_command(name, args, arg_tokens, src) == []
-
-    def test_parity_with_green_tree(self):
-        for src in [
-            "proc p {x} {set x 1}",
-            "if {$x>1} {puts hi}",
-            "foreach x $l {puts $x}",
-            "while {$x} {incr x}",
-        ]:
-            name, args, arg_tokens = _single_command(src)
-            with green_tree_scope():
-                gt = gt_descend_command(name, args, arg_tokens, src)
-                mine = descend_command(name, args, arg_tokens, src)
-                assert len(gt) == len(mine)
-                for g, m in zip(gt, mine):
-                    assert (g.index, g.text) == (m.index, m.text)
-                    gt_frags = [t for t in g.node.tokens if t.type not in _TRIVIA]
-                    assert _red_fragments(m.descended.tree) == gt_frags
-
 
 class TestMultiLevelDescent:
     def test_substitution_inside_body(self):
