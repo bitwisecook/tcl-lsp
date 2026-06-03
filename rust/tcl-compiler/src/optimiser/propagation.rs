@@ -1662,6 +1662,11 @@ mod tests {
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_string()]);
+        // SYNC-JUN02d: `format` %s / %d / %% subset.
+        assert_eq!(fold("puts [format %d 42]"), vec!["42".to_string()]);
+        assert_eq!(fold("puts [format {v=%s} hi]"), vec!["v=hi".to_string()]);
+        // Flag / width specifiers are deferred → unfolded.
+        assert!(fold("puts [format %05d 7]").is_empty());
         // The deferred number classes leave the call unfolded.
         assert!(fold("puts [string is integer 42]").is_empty());
         // A braced literal with a space → result rendered as one word.

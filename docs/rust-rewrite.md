@@ -3332,8 +3332,13 @@ edges need differential pinning, so they bail): the number classes
 integer syntax is version-dependent — leading-zero octal differs 8.5 ↔
 9.0 — `integer`'s width is platform-dependent `long`, and `double`
 accepts `Inf` / `NaN` / hex-floats) and **`dict`** (Python's fold
-doesn't cover it either); and the **`format`** /
-**`scan`** folds (printf / scanf semantics).  (The duplicated
+doesn't cover it either).  **`format`** — the plain **`%s` / `%d` /
+`%%` subset LANDED** (`format_::fold_format`, ASCII format string, `%d`
+parses the arg as `i64` else bails; mirrors the codegen-side
+`try_format_fold`'s differential-validated subset).  The flag / width /
+precision / other-verb printf matrix and **`scan`** (scanf semantics)
+stay deferred — they need differential pinning against tclsh.  (The
+duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
