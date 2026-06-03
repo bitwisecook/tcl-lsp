@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.known_commands import known_command_names
-from compiler.parsing.lexer import TclLexer
 from compiler.parsing.recovery import compute_virtual_insertions
+from compiler.parsing.syntax.red import build_line_starts
 from compiler.parsing.token_positions import token_content_base, token_content_shift
 from compiler.registry.command_registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -548,26 +549,31 @@ def _collect_tokens(
     # unterminated CMD tokens are properly terminated and downstream
     # token classification sees the correct argument structure.
     vi = compute_virtual_insertions(source, body_token) or None
+    # Share line_starts across recursive calls to avoid O(n) newline scanning
+    # per call, and capture the full document length so position_from_offset
+    # clamps correctly even when ``source`` is a body substring.  build_line_starts
+    # is byte-identical to the lexer's own index.
+    if _line_starts is None and body_token is None:
+        _line_starts = build_line_starts(source)
+        _source_len = len(source)
     if body_token is not None:
         # Token start points to the delimiter ({ or [); the content
         # starts one character later, so add 1 to offset and col.
-        lexer = TclLexer(
-            source,
-            base_offset=body_token.start.offset + 1,
-            base_line=body_token.start.line,
-            base_col=body_token.start.character + 1,
-            virtual_insertions=vi,
-            line_starts=_line_starts,
-        )
+        base_offset = body_token.start.offset + 1
+        base_line = body_token.start.line
+        base_col = body_token.start.character + 1
     else:
-        lexer = TclLexer(source, virtual_insertions=vi, line_starts=_line_starts)
-    # Share line_starts across recursive calls to avoid O(n) newline
-    # scanning per lexer instance.  Also capture the full document
-    # source length so that position_from_offset clamps correctly
-    # even when ``source`` is a body substring.
-    if _line_starts is None and body_token is None:
-        _line_starts = lexer._line_starts
-        _source_len = len(source)
+        base_offset = base_line = base_col = 0
+    # Shared green-tree memo (token-for-token identical to a private TclLexer),
+    # threading the recovery virtual insertions and the shared line index.
+    lex_tokens, _ = tokenise(
+        source,
+        base_offset,
+        base_line,
+        base_col,
+        virtual_insertions=vi,
+        line_starts=list(_line_starts) if _line_starts is not None else None,
+    )
 
     # We need to track commands so we can identify BODY arguments.
     # Collect tokens per command, then emit them.
@@ -969,11 +975,7 @@ def _collect_tokens(
                 modifiers=modifiers,
             )
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-
+    for tok in lex_tokens:
         match tok.type:
             case TokenType.SEP:
                 all_tokens_buf.append(tok)
