@@ -102,6 +102,7 @@ class TestDescendCommand:
         name, args, arg_tokens = _single_command(src)
         assert descend_command(name, args, arg_tokens, src) == []
 
+
 class TestMultiLevelDescent:
     def test_substitution_inside_body(self):
         # Descend a body, then descend a [..] inside it against the full source.
