@@ -1,7 +1,7 @@
 # regexp.test — auto-generated WASM baseline.
-# bucket = 'W0-runtime-error'
-# reason = 'error while executing at wasm backtrace:'
-trap_allowed = true
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
+trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
 skip = []
@@ -10,15 +10,7 @@ skip = []
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
-observed_total = 0
-observed_passed = 0
+observed_total = 257
+observed_passed = 253
 observed_failed = 0
-observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["regexp-1.5"]
-
-[crash]
-type = "Trap"
-msg = "error while executing at wasm backtrace:"
+observed_skipped = 4

@@ -219,6 +219,12 @@ fn eval_lset(words: []const i32) result_mod.InterpResult {
     };
     const result = rt.tcl_cmd_list_set(current, indices, newval);
     if (owns_indices) obj_mod.tcl_obj_release(indices);
+    // An out-of-range index makes ``tcl_cmd_list_set`` raise and return
+    // the 0 sentinel; leave the variable untouched and propagate the
+    // error rather than clobbering it with a null value (lsetComp-2.8).
+    if (result_mod.snapshot(0).code != .OK) {
+        return result_mod.from_globals(0);
+    }
     _ = frames.var_set(words[1], result);
     return result_mod.from_globals(result);
 }
