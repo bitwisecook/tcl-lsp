@@ -707,6 +707,18 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
 
     rt.catch_enter();
+    // Hygiene: drop any ``during_options`` leaked from a prior ``try``
+    // whose finally raised but whose options dict was never read
+    // (``eval_catch`` only consumes the slot for the 4-arg
+    // ``catch BODY result opts`` form, so a 2-/3-arg catch leaves it
+    // set).  Clearing here keeps this try's body/handler options
+    // snapshot from inheriting an unrelated chain — the body's own
+    // nested ``try ... finally`` re-arms the slot if it needs to.
+    if (catch_mod.state.during_options != 0) {
+        const obj_mod_entry = @import("../valtypes/tcl_obj.zig");
+        obj_mod_entry.tcl_obj_release(catch_mod.state.during_options);
+        catch_mod.state.during_options = 0;
+    }
     const body_s = obj_ensure_string(words[1]);
     const body_res = interp.eval_script(body_s.ptr, body_s.len);
     rt.catch_set_ok_result(body_res);
@@ -851,19 +863,91 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
                     pending_chain = true;
                     continue;
                 }
+                // Snapshot the body's (or prior chain's) effective
+                // options BEFORE the handler runs — a throwing handler
+                // clobbers ::errorInfo/::errorCode, so the body's error
+                // metadata must be captured now.  C Tcl's TryPostHandler
+                // (tclCmdMZ.c) chains these under ``-during`` when the
+                // handler itself raises (error-16.8/.9, -18.10), and
+                // discards them — the handler's options replace the
+                // body's wholesale — when the handler completes without
+                // raising (error-16.10, -18.9).  ``catch_options`` also
+                // folds in (and clears) any pending ``during_options``.
+                const obj_mod_h = @import("../valtypes/tcl_obj.zig");
+                const body_opts = catch_mod.catch_options();
                 final_result = interp.eval_script(hb_s.ptr, hb_s.len);
                 error_raised = false;
                 handled = true;
                 pending_chain = false;
-                // If the handler raised an error itself (or re-raised
-                // the body's error via ``return -options $y $x``),
-                // the outer ``eval_script`` will add an ``invoked
-                // from within "try ..."`` frame.  Tcl 9 bytecode-
-                // compiles ``try``, so the try command never appears
-                // in the traceback — set ``transparent_error`` to
-                // suppress that frame (error-15.10.x.1.x check this).
                 if (catch_mod.state.error_flag != 0) {
+                    // Tcl 9 bytecode-compiles ``try``, so it never appears
+                    // in the traceback — suppress the outer ``invoked from
+                    // within "try ..."`` frame (error-15.10.x check this).
                     catch_mod.state.transparent_error = 1;
+                    if (catch_mod.state.return_via_error_code == 0) {
+                        // Handler raised a *direct* error (``throw`` /
+                        // ``error``): C Tcl's TryPostHandler sees TCL_ERROR
+                        // and calls During(), chaining the body's options
+                        // under ``-during``.  Force the option slots to an
+                        // ERROR outcome so ``catch_options`` emits
+                        // -errorcode / -errorinfo / -code 1 even when the
+                        // body was OK (error-16.8's ``on ok`` handler that
+                        // throws) — then attach the captured body options.
+                        catch_mod.state.last_catch_had_error = 1;
+                        catch_mod.state.last_return_code = 1;
+                        catch_mod.state.last_return_level = 0;
+                        if (catch_mod.state.last_return_extras != 0) {
+                            obj_mod_h.tcl_obj_release(catch_mod.state.last_return_extras);
+                            catch_mod.state.last_return_extras = 0;
+                        }
+                        // ``catch_options`` consumes this slot exactly once
+                        // — the finally's during_snap below, or the
+                        // enclosing catch when there is no finally
+                        // (error-16.8/.9, -18.10).  Release any chain the
+                        // handler body itself left pending (a nested
+                        // ``try ... finally {throw}``): C Tcl's During
+                        // overwrites the ``-during`` key with the outer
+                        // body's options, so the inner chain is dropped.
+                        if (catch_mod.state.during_options != 0) {
+                            obj_mod_h.tcl_obj_release(catch_mod.state.during_options);
+                        }
+                        catch_mod.state.during_options = body_opts;
+                    } else {
+                        // Handler re-raised via ``return -code error`` /
+                        // ``return -options $opts $msg``: C Tcl evaluates
+                        // this as TCL_RETURN (the level decrement happens
+                        // at the eval boundary), so TryPostHandler takes
+                        // the no-During branch and the handler's return
+                        // options replace the body's verbatim — error-15.10
+                        // checks ``catch {try …}`` ≡ ``catch $script``.
+                        // ``eval_return`` already armed pending_return_* with
+                        // the re-raised dict; let the enclosing catch_leave
+                        // snapshot them.  Drop the body snapshot, no chain.
+                        if (body_opts != 0) obj_mod_h.tcl_obj_release(body_opts);
+                    }
+                } else {
+                    // Handler completed without raising.  Its options
+                    // replace the body's (no ``-during``); drop the
+                    // snapshot.  For a clean OK completion reset the option
+                    // slots so ``catch_options`` reports the handler's
+                    // code 0 — not the body's sticky error (error-18.9
+                    // checks ``-during -code 0`` after an ``on error``
+                    // handler swallowed the body error).  A return / break
+                    // / continue handler keeps its flow signal and pending
+                    // option slots untouched so it still propagates.
+                    if (body_opts != 0) obj_mod_h.tcl_obj_release(body_opts);
+                    if (catch_mod.state.return_flag == 0 and
+                        catch_mod.state.break_flag == 0 and
+                        catch_mod.state.continue_flag == 0)
+                    {
+                        catch_mod.state.last_catch_had_error = 0;
+                        catch_mod.state.last_return_code = 0;
+                        catch_mod.state.last_return_level = 0;
+                        if (catch_mod.state.last_return_extras != 0) {
+                            obj_mod_h.tcl_obj_release(catch_mod.state.last_return_extras);
+                            catch_mod.state.last_return_extras = 0;
+                        }
+                    }
                 }
             }
             continue;

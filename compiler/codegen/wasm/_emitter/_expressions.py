@@ -877,6 +877,14 @@ class _WasmEmitterExprMixin(_Base):
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = cmd_args[1:]
+                # ``dict get/exists DICT KEY ?KEY...?`` in a condition
+                # (``if {[dict exists $d a b]}``) — the 2-param fast path
+                # only walks the first key.  Route the multi-key form
+                # through eval so the runtime descends the chain.
+                if subcmd in ("get", "exists") and len(sub_args) > 2:
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                    self._emit_unbox_int()
+                    return
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
