@@ -795,20 +795,21 @@ A braced/bracketed/quoted word token follows the *inner-end* convention:
 `Token.end.offset` is the last **inner** character and the closing `}` / `]` /
 `"` is one past it — **except** an empty `{}` / `[]` / `""`, whose `end` already
 sits *on* the closer. Never re-derive the closer as `tok.end.offset + 1` (it
-overshoots the empty case by one — issue #527). Use the single authoritative
-accessor:
+overshoots the empty case by one — issue #527).
 
-- `word_closer_offset(tok, source, base_offset=0)` (`shared/ranges.py`) — the
-  closer's offset, or `None` when the word is not delimited or is unterminated.
-- `word_end_position(tok, source, base_offset=0)` — the same as a
-  `SourcePosition` (covers the closer, advancing line/column for a multi-line
-  body). `base_offset` anchors absolute token offsets to a substring source
-  (nested bodies).
-- The segmenter's `cmd.range` is built from these and is **authoritative** —
-  it covers the final word's closer for braces, brackets, and quoted words.
-  Trust it rather than re-deriving a command's span.
+- **Command/word ranges are derived token-only by the segmenter.** The
+  authoritative command span is `SegmentedCommand.range` / the IR statement
+  `.range`: its end is the *boundary* (the `SEP`/`EOL` the lexer emits after the
+  last word) minus one — covering the closer for braces, brackets, quoted, empty
+  `{}`/`""`, and compound (`{a}b`) words, with no source re-scan and no
+  `base_offset`. **Trust it** rather than re-deriving a command's span.
+- To *slice raw source text* for a single delimited word (raw-arg extraction in
+  refactors/quick-fixes), use `word_closer_offset(tok, source)` (offset) or
+  `word_end_position(tok, source)` (position) in `shared/ranges.py` — they
+  handle the empty-word exception and quoted words via `tok.text` emptiness.
 - `range_from_word_token(tok)` — token-only full-word `Range` for `STR`/`CMD`
-  words, for the rare caller with no source; prefer the source-aware accessors.
+  words, for a caller with no source; quoted words need the source-aware
+  accessors above.
 
 See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
 for the contract, and `docs/design/contracts/shared-utility-contracts.md`.

@@ -180,8 +180,10 @@ def test_refactor_command_spans_do_not_overshoot(src):
 
 
 class TestCommandRangeCoversClosers:
-    """``cmd.range`` is source-verified: it covers the final word's closing
-    delimiter for braces, brackets, AND quoted words, and never overshoots."""
+    """``cmd.range`` is derived token-only (the next SEP/EOL boundary − 1): it
+    covers the final word's closing delimiter for braces, brackets, AND quoted
+    words, never overshoots an empty `{}`/`""`, and extends to the true end of a
+    compound word — with no source re-scan and no base_offset."""
 
     @pytest.mark.parametrize(
         "src",
@@ -194,6 +196,8 @@ class TestCommandRangeCoversClosers:
             'set x ""',  # empty quote
             "set x [f]",
             "set x plain",
+            "set x {a}b",  # compound word — covers the trailing `b`, not just `}`
+            "if {1} {return {}}",  # the issue #527 shape
         ],
     )
     def test_command_range_covers_full_command(self, src):
@@ -203,30 +207,24 @@ class TestCommandRangeCoversClosers:
         covered = src[cmd.range.start.offset : cmd.range.end.offset + 1]
         assert covered == src
 
-    def test_nested_body_command_range_uses_base_offset(self):
-        # Absolute token offsets, substring source: the closer must resolve at
-        # the right local index (the literal-ending `"world"` is the trap).
+    def test_command_range_excludes_trailing_whitespace(self):
+        # `set x {a} ;` — the command ends at `}`, not the trailing space.
+        from compiler.parsing.command_segmenter import segment_commands
+
+        src = "set x {a} ;"
+        (cmd,) = segment_commands(src)
+        assert src[cmd.range.start.offset : cmd.range.end.offset + 1] == "set x {a}"
+
+    def test_nested_body_command_range_is_token_only(self):
+        # Nested body: absolute token offsets, substring source — the command
+        # range is now derived token-only (boundary rule), no source/base_offset,
+        # and must still cover the literal-ending `"world"` closer.
         from compiler.parsing.command_segmenter import segment_commands
 
         full = 'proc f {} {set x "world"}'
         body = [t for t in TclLexer(full).tokenise_all() if t.type is TokenType.STR][-1]
         (cmd,) = segment_commands(body.text, body_token=body)
         assert full[cmd.range.start.offset : cmd.range.end.offset + 1] == 'set x "world"'
-
-
-class TestAccessorBaseOffset:
-    def test_word_closer_offset_with_base_offset(self):
-        # A token anchored absolutely against a substring source.
-        full = 'proc f {} {set x "world"}'
-        body = [t for t in TclLexer(full).tokenise_all() if t.type is TokenType.STR][-1]
-        # the quoted word "world" inside the body
-        word = next(
-            t
-            for t in TclLexer(body.text, base_offset=body.start.offset + 1).tokenise_all()
-            if t.type is TokenType.ESC and t.text == "world"
-        )
-        # absolute closer offset, resolved against the substring via base_offset
-        assert word_closer_offset(word, body.text, body.start.offset + 1) == full.rindex('"')
 
 
 class TestMigratedWideners:

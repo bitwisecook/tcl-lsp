@@ -87,11 +87,12 @@ def range_from_tokens(tokens: list[Token]) -> Range:
 _RANGE_CLOSERS = {'"': '"', "{": "}", "[": "]"}
 
 
-def word_closer_offset(tok: Token, source: str, base_offset: int = 0) -> int | None:
+def word_closer_offset(tok: Token, source: str) -> int | None:
     """Offset of *tok*'s closing ``}`` / ``]`` / ``"`` in *source*, or ``None``.
 
-    The single authoritative way to locate a delimited word's closing
-    delimiter.  Consumers must call this rather than re-deriving the position as
+    The authoritative way to locate a delimited word's closing delimiter for a
+    caller that needs to *slice source* (e.g. extracting the raw argument text of
+    a refactor edit).  It must be called rather than re-deriving the position as
     ``tok.end.offset + 1``: the lexer stores word ends in the *inner-end*
     convention (``end`` is the last inner character, closer one past it) **except**
     for an empty ``{}`` / ``[]`` / ``""``, whose ``end`` already sits *on* the
@@ -103,26 +104,23 @@ def word_closer_offset(tok: Token, source: str, base_offset: int = 0) -> int | N
 
     Returns ``None`` when *tok* does not begin with an opening delimiter, or when
     the word is unterminated (the computed position is not the matching closer).
-
-    *base_offset* anchors *tok*'s absolute offsets to *source* when *source* is a
-    substring whose first byte is at absolute offset *base_offset* (e.g. a nested
-    body lexed with absolute token offsets but a substring source — see the
-    segmenter).  The returned offset is absolute.  Top-level callers leave it 0.
+    *tok* and *source* must share a coordinate frame (top-level: pass the
+    document).  Command/word *ranges* are derived token-only by the segmenter and
+    do not use this — see ``command_segmenter._command_range``.
     """
-    start = tok.start.offset - base_offset
+    start = tok.start.offset
     if not (0 <= start < len(source)):
         return None
     closer = _RANGE_CLOSERS.get(source[start])
     if closer is None:
         return None
-    end = tok.end.offset - base_offset
-    closer_local = end if not tok.text else end + 1
-    if 0 <= closer_local < len(source) and source[closer_local] == closer:
-        return closer_local + base_offset
+    closer_off = tok.end.offset if not tok.text else tok.end.offset + 1
+    if 0 <= closer_off < len(source) and source[closer_off] == closer:
+        return closer_off
     return None
 
 
-def word_end_position(tok: Token, source: str, base_offset: int = 0) -> SourcePosition:
+def word_end_position(tok: Token, source: str) -> SourcePosition:
     """Inclusive end :class:`SourcePosition` covering *tok*'s closing delimiter.
 
     The position-returning sibling of :func:`word_closer_offset`, for callers
@@ -133,15 +131,11 @@ def word_end_position(tok: Token, source: str, base_offset: int = 0) -> SourcePo
     ``tok.end`` is returned unchanged.  For any non-delimited or unterminated
     token it returns ``tok.end`` unchanged.  Unlike :func:`range_from_word_token`
     this also covers quoted ``"..."`` words, whose opener lives only in *source*.
-
-    *base_offset* anchors absolute token offsets to a substring *source* (see
-    :func:`word_closer_offset`).
     """
-    closer_off = word_closer_offset(tok, source, base_offset)
+    closer_off = word_closer_offset(tok, source)
     if closer_off is None or closer_off == tok.end.offset:
         return tok.end
-    end_local = tok.end.offset - base_offset
-    last_inner = source[end_local] if 0 <= end_local < len(source) else ""
+    last_inner = source[tok.end.offset] if 0 <= tok.end.offset < len(source) else ""
     return _closer_position(tok.end, last_inner)
 
 

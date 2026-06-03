@@ -32,18 +32,18 @@ An **empty** `{}` / `[]` / `""` is the exception: it has no inner character, so
 `end` already sits **on** the closer, and widening it instead overshoots by one
 (see the failure modes below).
 
-**Quoted `"..."` words are doubly awkward and cannot be widened from a token
-alone.** They lex as `ESC` (not a distinct type), and the closing `"` is
-represented *inconsistently*: a word ending in literal text (`"world"`) leaves
-the closer one past the last `ESC`, but a word ending in a substitution
-(`"$x"`) emits a trailing **zero-width empty `ESC` fragment** sitting on the
-closing `"` — and that fragment is geometrically indistinguishable from a real
-quoted word. So no token-only rule finds a quoted word's closer reliably; only
-**source verification** does. That is why the segmenter widens `cmd.range` with
-the source-aware `word_end_position` (on the grouped word, since an interior
-substitution like `"a$y b"` splits the word into fragments), and why a
-token-only attempt to make `cmd.range` quoted-authoritative both over-widened
-the fragment and dropped the literal case.
+**Quoted `"..."` words are awkward to widen from a single token.** They lex as
+`ESC` (not a distinct type), and the closing `"` is represented *inconsistently*
+across fragments: a word ending in literal text (`"world"`) leaves the closer
+one past the last `ESC`, but a word ending in a substitution (`"$x"`) emits a
+trailing **zero-width empty `ESC` fragment** on the closing `"` — geometrically
+indistinguishable from a real quoted word. So no rule based on a single word
+token's geometry finds a quoted word's closer reliably (an early attempt to
+widen the grouped word both over-widened the fragment and dropped the literal
+case). The robust token-only signal is **not** the word's geometry but the
+*command's boundary*: the lexer emits a `SEP`/`EOL` immediately after the last
+word, one byte past its closer, so `cmd.range` ends at `boundary − 1` — correct
+for every word shape, with no source verification.
 
 ## Decision rules / contracts
 
@@ -61,15 +61,19 @@ on the closer) and silently omits quoted `"..."` words.
    `tok.text` to detect emptiness, so they are correct for empty words and for
    quoted words whose inner text contains backslash escapes.  Do not write
    `tok.end.offset + 1` followed by a `source[...] == closer` check.
-3. The segmenter's `cmd.range` is **authoritative** — it covers the final
-   word's closing `}` / `]` / `"`, for braces, brackets, *and* quoted words, and
-   never overshoots an empty `{}` / `""`.  `_command_range` widens the final
-   *word* (`argv[-1]`, not the last raw fragment — a quoted word with an interior
-   substitution such as `"a$y b"` lexes into fragments whose last one starts
-   mid-word) via `word_end_position`, passing the segmenter's `base_offset` so a
-   nested body (absolute token offsets, substring source) resolves the closer at
-   the right local index.  Consumers should **trust `cmd.range`** rather than
-   re-deriving a command's span from its tokens.
+3. The segmenter's `cmd.range` is **authoritative and derived token-only** — it
+   covers the final word's closing `}` / `]` / `"` for braces, brackets, *and*
+   quoted words, never overshoots an empty `{}` / `""`, and extends to the true
+   end of a compound word (`{a}b`). `_command_range` does **not** re-scan source
+   or use `base_offset`: the faithful end is the *boundary* — the start of the
+   `SEP`/`EOL` token the lexer emits immediately after the last word — minus one.
+   The lexer always places that boundary one byte past the word's last char (the
+   closer), so `boundary − 1` is the closer, on the same line, for every word
+   shape including the multi-fragment quoted case. Consumers should **trust
+   `cmd.range`** rather than re-deriving a command's span from its tokens. (The
+   source-aware accessors above are for callers that must *slice source text* —
+   raw-argument extraction in refactors and quick-fixes — not for range
+   construction.)
 4. A consumer that renders a highlight widens via
    [`widen_range_for_closer`](../../shared/ranges.py), which guards the empty
    two-character span the same way.

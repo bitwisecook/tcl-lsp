@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING
 from shared.diagnostic import Range
 from shared.document_buffer import DocumentBuffer
 from shared.hashing import stable_text_hash
-from shared.ranges import word_end_position
 
 from .known_commands import known_command_names
 
@@ -79,31 +78,30 @@ def _word_piece(tok: Token) -> str:
     return tok.text
 
 
-def _command_range(
-    argv: list[Token], all_tokens: list[Token], source: str, base_offset: int
-) -> Range:
-    """Span a command, extending the final word to cover its closing delimiter.
+def _command_range(all_tokens: list[Token], boundary: SourcePosition | None) -> Range:
+    """Span a command from its first token to its last word's closer.
 
-    The raw token stream stops on the last token's inner end, so a command whose
-    final word is braced (``if {...} {body}``) or quoted (``... "body"``) would
-    drop the closing ``}`` / ``"``.  :func:`word_end_position` covers it,
-    source-verifying the closer so it is correct for braces, brackets, *and*
-    quoted words (whose closer the token type alone cannot name), and so it never
-    overshoots an empty ``{}`` / ``""`` or a zero-width closing-quote fragment.
-
-    The widen runs on the final *word* (``argv[-1]``), not the final raw token:
-    a quoted word with an interior substitution (``"a$y b"``) lexes into several
-    fragments whose last one starts mid-word, so only the grouped word token
-    carries the opening ``"`` needed to find the closer.
-
-    *source* is the (possibly substring) text the tokens were lexed from and
-    *base_offset* its absolute anchor, so a nested body — absolute token offsets,
-    substring source — resolves the closer at the right local index.
+    The faithful end is derived **token-only** from the command's *boundary* —
+    the start of the ``SEP``/``EOL`` token immediately following the last word —
+    minus one.  That position is the last character of the final word, closer
+    included, for braces, brackets, quotes, empty ``{}``/``""``, and compound
+    words (``{a}b``) alike, with **no source re-scan and no base_offset**: the
+    lexer already placed the boundary one byte past the word's last char, so
+    ``boundary - 1`` is the closer and sits on the same line (``character >= 1``
+    after a word).  When no boundary is available — a token stream that does not
+    end in ``EOL``, only reachable via recovery — fall back to the last token's
+    inner end.
     """
-    return Range(
-        start=all_tokens[0].start,
-        end=word_end_position(argv[-1], source, base_offset),
-    )
+    start = all_tokens[0].start
+    if boundary is not None and boundary.offset - 1 >= start.offset:
+        end = SourcePosition(
+            line=boundary.line,
+            character=boundary.character - 1,
+            offset=boundary.offset - 1,
+        )
+    else:
+        end = all_tokens[-1].end
+    return Range(start=start, end=end)
 
 
 # Minimum number of lines a suspicious STR token must span to trigger
@@ -266,6 +264,11 @@ def _segment_raw(
     last_comment: str | None = None
     next_expand = False
     has_expand = False
+    # Start of the SEP/EOL that follows the most recent word — the command's
+    # faithful end is one byte before it (see _command_range).  Captured when a
+    # SEP/continuation follows a word so trailing whitespace before the EOL does
+    # not extend the command span.
+    word_boundary: SourcePosition | None = None
 
     for tok in tokens:
         if tok.type is TokenType.COMMENT:
@@ -276,10 +279,14 @@ def _segment_raw(
                 last_comment = line
             continue
         if tok.type is TokenType.SEP:
+            if prev_type not in (TokenType.SEP, TokenType.EOL):
+                word_boundary = tok.start
             prev_type = tok.type
             continue
         # Backslash-newline continuation between words is whitespace.
         if tok.type is TokenType.ESC and tok.text == "\\\n":
+            if prev_type not in (TokenType.SEP, TokenType.EOL):
+                word_boundary = tok.start
             prev_type = TokenType.SEP
             continue
         if tok.type is TokenType.EXPAND:
@@ -292,9 +299,15 @@ def _segment_raw(
             continue
         if tok.type is TokenType.EOL:
             if argv:
+                # The EOL directly follows the last word (no trailing whitespace)
+                # ⇒ its start is the boundary; otherwise a SEP intervened and
+                # word_boundary holds the position right after the last word.
+                boundary = (
+                    tok.start if prev_type not in (TokenType.SEP, TokenType.EOL) else word_boundary
+                )
                 commands.append(
                     SegmentedCommand(
-                        range=_command_range(argv, all_tokens, source, base_offset),
+                        range=_command_range(all_tokens, boundary),
                         argv=argv,
                         texts=texts,
                         single_token_word=single,
@@ -316,6 +329,7 @@ def _segment_raw(
             all_tokens = []
             has_expand = False
             next_expand = False
+            word_boundary = None
             prev_type = tok.type
             continue
 
@@ -349,11 +363,13 @@ def _segment_raw(
 
         prev_type = tok.type
 
-    # Trailing command without final EOL.
+    # Trailing command without final EOL (only via recovery — the lexer always
+    # emits a trailing EOL, so word_boundary is the last post-word boundary or
+    # None, and _command_range falls back to the last token's inner end).
     if argv:
         commands.append(
             SegmentedCommand(
-                range=_command_range(argv, all_tokens, source, base_offset),
+                range=_command_range(all_tokens, word_boundary),
                 argv=argv,
                 texts=texts,
                 single_token_word=single,
