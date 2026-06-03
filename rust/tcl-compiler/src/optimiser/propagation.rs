@@ -1684,7 +1684,9 @@ mod tests {
         assert_eq!(fold("puts [string is integer 42]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double 1.5]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is double abc]"), vec!["0".to_string()]);
-        // `wideinteger` raises pre-8.6 → stays deferred (never folds).
+        // This optimiser run uses `dialect=None`, so the version-aware folder
+        // bails on `wideinteger` (it raises on some supported versions, hence is
+        // unsafe to fold without a known dialect).
         assert!(fold("puts [string is wideinteger 42]").is_empty());
         // A braced literal with a space → result rendered as one word.
         assert_eq!(

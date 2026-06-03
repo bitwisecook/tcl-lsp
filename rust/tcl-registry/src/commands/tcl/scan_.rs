@@ -167,7 +167,12 @@ pub fn spec() -> CommandSpec {
             (4, ArgRole::VarWrite),
             (5, ArgRole::VarWrite),
         ],
-        return_type: Some(TclType::Int),
+        // Arity-dependent return: `scan str fmt var ...` returns the int count,
+        // but the inline `scan str fmt` (which `fold_scan` folds) returns the
+        // *list* of converted values.  The registry can't express that yet, so
+        // leave the type overdefined (`None`) rather than wrongly claim `Int`
+        // for the inline form.
+        return_type: None,
         const_fold: Some(fold_scan),
         hover: Some(HoverSnippet::brief(
             "Parse a string using scanf-style conversion.",

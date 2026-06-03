@@ -447,10 +447,10 @@ fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 }
 
 /// Whether `string is class` is a *defined* operation in the target version
-/// (it doesn't *raise*).  `wideinteger` postdates 8.4, `entier` 8.5, and `dict`
-/// 8.6; an unknown version (`None`) treats those as unavailable, since one of
-/// the dialects it could stand for raises.  Every other class exists in every
-/// release.
+/// (it doesn't *raise*).  `wideinteger` requires 8.5+, `entier` 8.6+, and
+/// `dict` is **9.0-only** (matching the gating below); an unknown version
+/// (`None`) treats all three as unavailable, since one of the dialects it
+/// could stand for raises.  Every other class exists in every release.
 fn class_available(class: &str, version: Option<TclVersion>) -> bool {
     match class {
         "wideinteger" => version.is_some_and(|v| v >= TclVersion::V8_5),

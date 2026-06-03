@@ -134,9 +134,9 @@ fn check_matrix(tclsh: &str, reg: &CommandRegistry, cases: &[Case]) -> usize {
 }
 
 /// The broad list / string / dict / subst fold matrix, ported from the
-/// `_FOLDABLE` set in `tests/test_const_fold_vs_tcl.py`. `string is` number
-/// classes are included even though they currently bail — they are pinned
-/// here the moment a fold lands.
+/// `_FOLDABLE` set in `tests/test_const_fold_vs_tcl.py`. The `string is` number
+/// classes (integer / wideinteger / entier / double / dict) fold via the
+/// version-aware folder and are pinned here under the `tcl9.0` dialect.
 const FOLDABLE: &[Case] = &[
     // list ops
     ("list", None, &["a", "b", "c"]),
@@ -247,12 +247,12 @@ fn registry_folds_match_tcl9() {
     );
 }
 
-/// The `format` flag / width / precision matrix, ported from `_FORMATS`. The
-/// landed fold covers the plain `%s` / `%d` / `%%` subset; the richer
-/// conversions currently bail and are differentially pinned here for the
-/// follow-up strips. (Cases tclsh-divergent across versions — `%#o`, negative
-/// radix conversions — are deliberately excluded, since no single fold can be
-/// sound for them across 8.x ↔ 9.0.)
+/// The `format` matrix, ported from `_FORMATS`. The fold now covers the whole
+/// conversion set — every integer verb (`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`,
+/// version-aware: leading-zero octal/decimal, 8.x↔9.0 width/wrap), `%c`, the
+/// float family (`%f`/`%e`/`%g`), and `%s` — with the full flag/width/precision
+/// grid.  Pinned here under `tcl9.0`; the genuinely version-divergent forms a
+/// single fold can't be sound for (`%#o`, `%#X`) simply bail (a miss).
 const FORMATS: &[Case] = &[
     ("format", None, &["%d", "42"]),
     ("format", None, &["%d", "010"]), // 9.0: leading-zero decimal -> 10
@@ -351,8 +351,8 @@ fn format_folds_match_tcl9() {
         return;
     };
     let reg = CommandRegistry::build_default();
-    // No `folded > 0` floor here: until the flag/width/precision strip lands
-    // most of this matrix bails, and that is correct. The plain `%d`/`%s`/`%%`
-    // subset still fires, so the harness is exercised.
+    // No `folded > 0` floor here: the matrix mixes folds with a few cases that
+    // intentionally bail (e.g. `%#o`). Most fire, so the harness is exercised;
+    // `check_matrix` asserts every fold that fires matches tclsh9.0.
     check_matrix(&tclsh, &reg, FORMATS);
 }
