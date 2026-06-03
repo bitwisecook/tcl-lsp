@@ -1,12 +1,13 @@
 # The canonical concrete syntax tree (red-green CST)
 
-> **Status:** Cycle 1 shipped — the position-independent green tree, the lazy
-> red overlay, and the constructor are live in `compiler/parsing/syntax/`, and
+> **Status:** Cycles 1–2 shipped. The position-independent green tree, the lazy
+> red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
-> byte-identically. Descent into braced/bracketed bodies and adoption by the
-> formatter, minifier, `var_refs`, `compiler_checks`, the per-command tooling,
-> and direct AOT lowering are the sequenced follow-ons (see
-> [Roadmap](#roadmap)).
+> byte-identically (cycle 1); and lazy descent into braced bodies and `[…]`
+> substitutions is in `syntax/descend.py`, byte-identical to the analyser's
+> `green_tree` descent (cycle 2). Adoption by the formatter, minifier,
+> `var_refs`, `compiler_checks`, the per-command tooling, and direct AOT lowering
+> are the sequenced follow-ons (see [Roadmap](#roadmap)).
 
 This document specifies the lossless, position-independent concrete syntax tree
 (CST) that is becoming the **single representation** the whole pipeline rides
@@ -131,6 +132,33 @@ marker's leading trivia for losslessness — so the constructor computes
 reset rule) and stores it on the command. This doubles as the natural
 "leading doc-comment" an AST wants.
 
+## Descent into bodies (`syntax/descend.py`)
+
+At its own level a `{…}` body or `[…]` command substitution is a single `STR` /
+`CMD` token whose `raw` owns the full span — delimiters included. *Descending*
+re-lexes its inner text (`token.text`) as a child tree anchored **one byte past
+the opener** (`start.offset + 1`, `character + 1`), so the child owns the
+delimiter-excluding interior with absolute positions matching where it sits in
+the document — the "node owns its span, children exclude delimiters" shape,
+realised for nested bodies. Descent is lazy and shares the lex memo (the child's
+`build_document` tokenises through the same `green_tree.tokenise`).
+
+- `descend_token(token, source)` descends an absolutely-positioned `STR`/`CMD`
+  token; an unterminated region (closer absent — decided by `_terminated`, from
+  the inner *length* so empty `{}`/`[]` classify correctly) yields a **recovered**
+  child that still carries its inner tokens, the lossless representation of
+  malformed input.
+- `descend_command(cmd_name, args, arg_tokens, source)` descends each
+  registry-resolved `ArgRole.BODY` argument (via `iter_body_arguments`); `EXPR`
+  arguments stay with `expr_lexer` and data words are left opaque.
+
+Because both this descent and the analyser's `green_tree.descend_token` /
+`descend_command` tokenise the same inner text at the same anchor through the
+shared memo, the descended token stream is **identical by construction** — the
+parity is asserted directly (same child fragments, same terminated/recovered
+classification) over the corpus, 8 000 randomised nested cases, and multi-level
+descent (a substitution inside a descended body).
+
 ## Verification
 
 The bar is byte-identity with the prior segmenter, established before wiring and
@@ -161,17 +189,18 @@ other consumers drop their own re-lexing onto the one tree. The lexing itself
 
 ## Roadmap
 
-Cycle 1 (shipped) is the foundation + the segmenter. The sequenced follow-ons,
-each its own verified cycle:
+Cycle 1 (foundation + segmenter) and cycle 2 (descent) are shipped. The
+remaining follow-ons, each its own verified cycle:
 
-1. **Descent** — re-lex braced *bodies* and `[…]` substitutions as child CSTs in
-   their mode (script/expr/raw), so a delimited region becomes a node owning its
-   full span with delimiter-excluding children. This is what the formatter and
-   lowering need to recurse.
-2. **Formatter** and **minifier** onto the tree (they need exactly the lossless
-   trivia model above).
-3. **`var_refs`** / **`compiler_checks`** descend the shared tree instead of
-   re-lexing.
+1. ~~**Descent**~~ — *shipped (cycle 2).* `syntax/descend.py` re-lexes braced
+   bodies and `[…]` substitutions as child CSTs, so a delimited region is a node
+   owning its full span with delimiter-excluding children — what the formatter
+   and lowering need to recurse.
+2. **`compiler_checks`** descends the shared tree instead of `green_tree`,
+   retiring its duplicate `_process_node` mini-segmenter (the immediate next
+   cycle; byte-identical diagnostics gated by `test-py`).
+3. **Formatter** and **minifier** onto the tree (they need exactly the lossless
+   trivia model above), then **`var_refs`**.
 4. **Per-command `tcl` / `f5 irule` tooling** reads structured command/word/arg
    nodes (registry-aware) rather than walking tokens.
 5. **Direct AOT lowering** from an AST that points into the CST, retiring the
@@ -181,6 +210,7 @@ each its own verified cycle:
 
 - Green layer: [`compiler/parsing/syntax/green.py`](../../../compiler/parsing/syntax/green.py)
 - Red layer: [`compiler/parsing/syntax/red.py`](../../../compiler/parsing/syntax/red.py)
+- Descent: [`compiler/parsing/syntax/descend.py`](../../../compiler/parsing/syntax/descend.py)
 - Constructor: [`compiler/parsing/syntax/build.py`](../../../compiler/parsing/syntax/build.py)
 - Segment derivation: [`compiler/parsing/syntax/segment.py`](../../../compiler/parsing/syntax/segment.py)
 - Segmenter (consumer): [`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py)

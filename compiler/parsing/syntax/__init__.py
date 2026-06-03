@@ -11,6 +11,7 @@ See ``docs/design/compiler/syntax-tree.md``.
 from __future__ import annotations
 
 from .build import build_document
+from .descend import CommandBody, Descended, descend_command, descend_token
 from .green import (
     GreenNode,
     GreenToken,
@@ -22,6 +23,8 @@ from .red import SyntaxNode, SyntaxToken, SyntaxTree
 from .segment import segments_from_document, segments_from_tree
 
 __all__ = [
+    "CommandBody",
+    "Descended",
     "GreenNode",
     "GreenToken",
     "GreenTrivia",
@@ -31,6 +34,8 @@ __all__ = [
     "SyntaxTree",
     "TriviaKind",
     "build_document",
+    "descend_command",
+    "descend_token",
     "segments_from_document",
     "segments_from_tree",
 ]
