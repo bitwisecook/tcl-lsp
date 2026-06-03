@@ -1,6 +1,6 @@
 # info.test — WASM baseline (manually triaged).
 # bucket = 'W-mixed-fail'
-# reason = '58 of 287 failed'
+# reason = '57 of 287 failed'
 trap_allowed = false
 good_to_have = []
 
@@ -27,8 +27,8 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 50
 skip_failing = 0
 observed_total = 287
-observed_passed = 228
-observed_failed = 58
+observed_passed = 229
+observed_failed = 57
 observed_skipped = 1
 
 [failing]
@@ -37,10 +37,8 @@ observed_skipped = 1
 #   info-16.2/16.3/16.4/16.5/16.8  `info script` — needs the source
 #       filename threaded to the runtime; 16.3/16.4/16.5 also need
 #       runtime `source` (we inline `source` at compile time).
-#   info-19.3                       `info vars` == `info globals` at the
-#       top level — bundle-global-set discrepancy.
 #   info-20.2                       `info functions` list is now correct;
 #       blocked by an orthogonal catch+expr fold bug that makes
 #       `catch {expr {T1()}}` return rc=0 instead of raising.
 #   info-7.6                        `info exists` of an unset local.
-ids = ["info-7.6", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-19.3", "info-20.2"]
+ids = ["info-7.6", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-20.2"]

@@ -1,6 +1,6 @@
 # uplevel.test — auto-generated WASM baseline.
-# bucket = 'W-clean'
-# reason = 'all 57 passed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -14,7 +14,3 @@ observed_total = 57
 observed_passed = 57
 observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = []

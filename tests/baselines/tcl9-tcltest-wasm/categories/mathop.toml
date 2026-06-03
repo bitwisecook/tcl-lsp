@@ -1,6 +1,6 @@
 # mathop.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '29 of 385 failed'
+# reason = '2 of 385 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 385
-observed_passed = 356
-observed_failed = 29
+observed_passed = 383
+observed_failed = 2
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["mathop-20.2", "mathop-20.5", "mathop-20.6", "mathop-21.5", "mathop-21.6", "mathop-22.2", "mathop-22.4", "mathop-24.1", "mathop-24.3", "mathop-24.5", "mathop-24.8", "mathop-25.15", "mathop-25.16", "mathop-25.17", "mathop-25.18", "mathop-25.26", "mathop-25.27", "mathop-25.28", "mathop-25.29", "mathop-25.30", "mathop-25.31", "mathop-25.32", "mathop-25.33", "mathop-25.34", "mathop-25.35", "mathop-25.36", "mathop-25.38", "mathop-25.41", "mathop-26.1"]
+ids = ["mathop-22.2", "mathop-25.30"]

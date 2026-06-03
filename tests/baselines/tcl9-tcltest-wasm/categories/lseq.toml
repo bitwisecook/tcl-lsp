@@ -1,6 +1,6 @@
 # lseq.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '23 of 134 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 134
-observed_passed = 111
-observed_failed = 23
+observed_passed = 134
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["lseq-1.7", "lseq-1.8", "lseq-1.9", "lseq-1.12", "lseq-1.23", "lseq-1.24", "lseq-1.25", "lseq-1.26", "lseq-1.27", "lseq-2.7", "lseq-2.8", "lseq-2.9", "lseq-2.12", "lseq-2.14", "lseq-2.15", "lseq-2.16", "lseq-2.17", "lseq-2.19", "lseq-2.20", "lseq-3.31", "lseq-4.14", "lseq-4.15", "lseq-4.16"]
