@@ -413,8 +413,25 @@ fn fold_is(args: &[&str]) -> Option<String> {
         "boolean" => tcl_bool(s).is_some(),
         "true" => tcl_bool(s) == Some(true),
         "false" => tcl_bool(s) == Some(false),
-        // Number / list / dict classes — deferred (need differential
-        // pinning against tclsh9); leave the call unfolded.
+        // `list`: well-formed Tcl list.  `split_list` returns `Some`
+        // only for a valid (backslash-free) list and `None` for a
+        // malformed one — but it conservatively rejects *any* backslash,
+        // and a backslash-bearing string can still be a valid list
+        // (`a\ b`), so a `None` there is ambiguous.  Sound resolution:
+        // a backslash-free string folds (`Some` → 1, `None` → 0); a
+        // backslash-bearing one bails.
+        "list" => {
+            if s.contains('\\') {
+                return None;
+            }
+            crate::const_fold::split_list(s).is_some()
+        }
+        // Number classes (`integer` / `entier` / `wideinteger` /
+        // `double`) and `dict` are deferred: Tcl's integer syntax is
+        // version-dependent (leading-zero octal differs 8.5 ↔ 9.0),
+        // `integer`'s width is platform-dependent (`long`), and `double`
+        // accepts `Inf` / `NaN` / hex-floats — all need differential
+        // pinning against tclsh.  Bail (leave the call unfolded).
         _ => return None,
     };
     Some(if member { "1" } else { "0" }.to_owned())
@@ -1054,6 +1071,14 @@ mod tests {
         assert_eq!(is(&["true", "TRUE"]).as_deref(), Some("1"));
         assert_eq!(is(&["true", "no"]).as_deref(), Some("0"));
         assert_eq!(is(&["false", "off"]).as_deref(), Some("1"));
+
+        // `list`: a well-formed list folds; a malformed one is `0`; a
+        // backslash-bearing string bails (split_list rejects backslash,
+        // but it can still be a valid list).
+        assert_eq!(is(&["list", "a b c"]).as_deref(), Some("1"));
+        assert_eq!(is(&["list", "{a b} c"]).as_deref(), Some("1"));
+        assert_eq!(is(&["list", "a {b"]).as_deref(), Some("0"), "unbalanced");
+        assert_eq!(is(&["list", "a\\ b"]), None, "backslash bails");
 
         // Empty string: non-strict member of every class, strict member
         // of none.

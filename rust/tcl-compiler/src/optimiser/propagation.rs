@@ -1661,6 +1661,7 @@ mod tests {
         assert_eq!(fold("puts [string is alpha abc]"), vec!["1".to_string()]);
         assert_eq!(fold("puts [string is lower abc1]"), vec!["0".to_string()]);
         assert_eq!(fold("puts [string is boolean yes]"), vec!["1".to_string()]);
+        assert_eq!(fold("puts [string is list {a b c}]"), vec!["1".to_string()]);
         // The deferred number classes leave the call unfolded.
         assert!(fold("puts [string is integer 42]").is_empty());
         // A braced literal with a space → result rendered as one word.

@@ -3317,14 +3317,22 @@ Unicode membership isn't modelled, a missed fold never a wrong one),
 `ascii` (the membership test itself, defined for any input), and
 `boolean` / `true` / `false` via the exact `Tcl_GetBoolean` keyword +
 unique-prefix set (`t` / `ye` / `of` resolve; `o` — ambiguous between
-`on`/`off` — does not).  `-strict` is honoured (only the empty-string
-result differs); `-failindex` and any unknown option bail.  Two registry
-tests (`string_is_folds_tcl_faithful_classes`,
+`on`/`off` — does not).  `list` also folds: `split_list` returns `Some`
+only for a valid (backslash-free) list and `None` for a malformed one,
+so a backslash-free string folds (`Some` → 1, `None` → 0) and a
+backslash-bearing one bails (split_list conservatively rejects any
+backslash, but `a\ b` is still a valid list).  `-strict` is honoured
+(only the empty-string result differs); `-failindex` and any unknown
+option bail.  Two registry tests
+(`string_is_folds_tcl_faithful_classes`,
 `string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
-**Still deferred** (own follow-up strips — Tcl number / list syntax +
-range edges need differential pinning, so they bail): the number classes
-**`integer`** / **`entier`** / **`wideinteger`** / **`double`** and the
-**`list`** / **`dict`** classes of `string is`; and the **`format`** /
+**Still deferred** (own follow-up strips — Tcl number syntax + range
+edges need differential pinning, so they bail): the number classes
+**`integer`** / **`entier`** / **`wideinteger`** / **`double`** (Tcl
+integer syntax is version-dependent — leading-zero octal differs 8.5 ↔
+9.0 — `integer`'s width is platform-dependent `long`, and `double`
+accepts `Inf` / `NaN` / hex-floats) and **`dict`** (Python's fold
+doesn't cover it either); and the **`format`** /
 **`scan`** folds (printf / scanf semantics).  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
