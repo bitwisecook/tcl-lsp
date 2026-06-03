@@ -760,6 +760,59 @@ fn regexp_about(pattern: i32, flags: c_int) i32 {
     return obj.obj_new_string_copy(@intFromPtr(&out_buf), off);
 }
 
+/// Canonical ``regexp`` option names, indexed by :func:`match_regexp_opt`.
+const REGEXP_OPT_NAMES = [_][]const u8{
+    "-nocase", // 0
+    "-line", // 1
+    "-linestop", // 2
+    "-lineanchor", // 3
+    "-expanded", // 4
+    "-indices", // 5
+    "-all", // 6
+    "-inline", // 7
+    "-about", // 8
+    "-start", // 9
+};
+
+/// Resolve a ``regexp`` option word to a :data:`REGEXP_OPT_NAMES` index,
+/// or ``-1`` if unrecognised.  Mirrors C Tcl exactly: ``-nocase`` is the
+/// only option matched by prefix (any abbreviation ``-n`` .. ``-nocase``,
+/// per ``TclCompileRegexpCmd``'s ``strncmp(str,"-nocase",len)`` special
+/// case — regexpComp-21.6/.7, 24.6/.7); every *other* option requires an
+/// exact match, matching the interpreted ``Tcl_RegexpObjCmd``'s
+/// ``TCL_EXACT`` lookup (so ``-al`` / ``-li`` / ``-l`` are plain "bad
+/// option", not abbreviations).
+fn match_regexp_opt(span: anytype) i32 {
+    const sp: [*]const u8 = @ptrFromInt(span.ptr);
+    // Prefix match for -nocase (length >= 2 so a bare "-" never matches).
+    const nocase = "-nocase";
+    if (span.len >= 2 and span.len <= nocase.len) {
+        var is_prefix = true;
+        var k: u32 = 0;
+        while (k < span.len) : (k += 1) {
+            if (sp[k] != nocase[k]) {
+                is_prefix = false;
+                break;
+            }
+        }
+        if (is_prefix) return 0; // -nocase (index 0)
+    }
+    // Exact match for every other option (indices 1..N-1).
+    for (REGEXP_OPT_NAMES[1..], 1..) |name, idx| {
+        if (span.len != name.len) continue;
+        var eq = true;
+        var k: u32 = 0;
+        while (k < span.len) : (k += 1) {
+            if (sp[k] != name[k]) {
+                eq = false;
+                break;
+            }
+        }
+        if (eq) return @intCast(idx);
+    }
+    return -1;
+}
+
 pub fn eval_regexp_cmd(words: []const i32) i32 {
     if (words.len < 3) {
         // ``regexp`` (no args) and ``regexp foo`` are too short for
@@ -788,88 +841,94 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        if (str_eq(w, "-nocase")) {
-            flags |= REG_ICASE;
-            continue;
-        }
-        if (str_eq(w, "-line")) {
-            flags |= REG_NLSTOP | REG_NLANCH;
-            continue;
-        }
-        if (str_eq(w, "-linestop")) {
-            flags |= REG_NLSTOP;
-            continue;
-        }
-        if (str_eq(w, "-lineanchor")) {
-            flags |= REG_NLANCH;
-            continue;
-        }
-        if (str_eq(w, "-expanded")) {
-            // Expanded syntax: ignore unescaped whitespace and ``#``
-            // comments in the pattern.  Mirrors ``eval_regsub_cmd``,
-            // which already ORs in ``REG_EXPANDED``; without it
-            // ``regexp -expanded {a b} ab`` failed to match (the space
-            // stayed literal) and ``regexp -about -expanded {a b}``
-            // reported no flags instead of ``REG_UNONPOSIX``.
-            flags |= REG_EXPANDED;
-            continue;
-        }
-        if (str_eq(w, "-indices")) {
-            indices_mode = true;
-            continue;
-        }
-        if (str_eq(w, "-all")) {
-            all_mode = true;
-            continue;
-        }
-        if (str_eq(w, "-inline")) {
-            inline_mode = true;
-            continue;
-        }
-        if (str_eq(w, "-about")) {
-            // ``-about`` takes no value and consumes only the pattern
-            // operand (no subject string); handled after option parsing.
-            about_mode = true;
-            continue;
-        }
-        if (str_eq(w, "-start")) {
-            i += 1;
-            if (i < words.len) {
-                const idx_s = obj_ensure_string(words[i]);
-                if (idx_s.len > 0) {
-                    const ip: [*]const u8 = @ptrFromInt(idx_s.ptr);
-                    var is_int = true;
-                    var k: u32 = 0;
-                    if (ip[0] == '-' or ip[0] == '+') k = 1;
-                    if (k >= idx_s.len) is_int = false;
-                    while (k < idx_s.len) : (k += 1) {
-                        if (ip[k] < '0' or ip[k] > '9') {
-                            is_int = false;
-                            break;
+        // Resolve the option by unique-prefix match (Tcl accepts
+        // ``-n`` / ``-no`` for ``-nocase`` etc. — regexpComp-21.6/.7,
+        // 24.6/.7).  An exact match wins over a longer prefix.
+        const opt = match_regexp_opt(w);
+        switch (opt) {
+            0 => { // -nocase
+                flags |= REG_ICASE;
+                continue;
+            },
+            1 => { // -line
+                flags |= REG_NLSTOP | REG_NLANCH;
+                continue;
+            },
+            2 => { // -linestop
+                flags |= REG_NLSTOP;
+                continue;
+            },
+            3 => { // -lineanchor
+                flags |= REG_NLANCH;
+                continue;
+            },
+            4 => { // -expanded
+                // Expanded syntax: ignore unescaped whitespace and ``#``
+                // comments in the pattern.  Mirrors ``eval_regsub_cmd``,
+                // which already ORs in ``REG_EXPANDED``; without it
+                // ``regexp -expanded {a b} ab`` failed to match (the space
+                // stayed literal) and ``regexp -about -expanded {a b}``
+                // reported no flags instead of ``REG_UNONPOSIX``.
+                flags |= REG_EXPANDED;
+                continue;
+            },
+            5 => { // -indices
+                indices_mode = true;
+                continue;
+            },
+            6 => { // -all
+                all_mode = true;
+                continue;
+            },
+            7 => { // -inline
+                inline_mode = true;
+                continue;
+            },
+            8 => { // -about — takes no value and consumes only the
+                // pattern operand (no subject string); handled after
+                // option parsing.
+                about_mode = true;
+                continue;
+            },
+            9 => { // -start <index>
+                i += 1;
+                if (i < words.len) {
+                    const idx_s = obj_ensure_string(words[i]);
+                    if (idx_s.len > 0) {
+                        const ip: [*]const u8 = @ptrFromInt(idx_s.ptr);
+                        var is_int = true;
+                        var k: u32 = 0;
+                        if (ip[0] == '-' or ip[0] == '+') k = 1;
+                        if (k >= idx_s.len) is_int = false;
+                        while (k < idx_s.len) : (k += 1) {
+                            if (ip[k] < '0' or ip[k] > '9') {
+                                is_int = false;
+                                break;
+                            }
+                        }
+                        if (!is_int) {
+                            if (!(idx_s.len >= 3 and ip[0] == 'e' and ip[1] == 'n' and ip[2] == 'd')) {
+                                raise_bad_index(@ptrFromInt(idx_s.ptr), idx_s.len);
+                                return obj_new_int(0);
+                            }
                         }
                     }
-                    if (!is_int) {
-                        if (!(idx_s.len >= 3 and ip[0] == 'e' and ip[1] == 'n' and ip[2] == 'd')) {
-                            raise_bad_index(@ptrFromInt(idx_s.ptr), idx_s.len);
-                            return obj_new_int(0);
-                        }
-                    }
+                    start_offset_cp = @intCast(obj.obj_get_int(words[i]));
                 }
-                start_offset_cp = @intCast(obj.obj_get_int(words[i]));
-            }
-            continue;
+                continue;
+            },
+            else => {
+                // Unknown option (index -1) — emit Tcl 9's reference
+                // message so regexp.test 6.3 catches the exact wording.
+                raise_bad_option(
+                    "regexp",
+                    @ptrFromInt(w.ptr),
+                    w.len,
+                    "-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --",
+                );
+                return obj_new_int(0);
+            },
         }
-        // Unknown option — emit Tcl 9's reference message
-        // ``bad option "<opt>": must be -all, -about, -indices,
-        // -inline, -expanded, -line, -linestop, -lineanchor, -nocase,
-        // -start, or --`` so regexp.test 6.3 catches the exact wording.
-        raise_bad_option(
-            "regexp",
-            @ptrFromInt(w.ptr),
-            w.len,
-            "-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --",
-        );
-        return obj_new_int(0);
     }
     if (about_mode) {
         // ``regexp -about exp`` — compile ``exp`` and report

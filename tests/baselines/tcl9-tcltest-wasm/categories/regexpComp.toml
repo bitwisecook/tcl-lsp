@@ -1,6 +1,6 @@
 # regexpComp.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '6 of 179 failed'
+# reason = '2 of 179 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 179
-observed_passed = 173
-observed_failed = 6
+observed_passed = 177
+observed_failed = 2
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["regexpComp-6.8", "regexpComp-11.7", "regexpComp-21.6", "regexpComp-21.7", "regexpComp-24.6", "regexpComp-24.7"]
+ids = ["regexpComp-6.8", "regexpComp-11.7"]
