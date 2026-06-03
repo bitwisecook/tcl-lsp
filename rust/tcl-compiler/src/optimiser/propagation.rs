@@ -608,7 +608,9 @@ fn visit_call_cmd_subst_folds(
         // needed). Checked before the O103 interproc bail so it fires
         // even when no interprocedural summary is available.
         if let Some(reg) = ctx.registry {
-            if let Some(folded) = try_o129_fold(reg, &ctx.command_mutations, constants, inner) {
+            if let Some(folded) =
+                try_o129_fold(reg, &ctx.command_mutations, constants, inner, ctx.dialect)
+            {
                 ctx.report(Optimisation::new(
                     "O129",
                     "Fold constant builtin command substitution",
@@ -699,23 +701,27 @@ fn try_o129_fold(
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
+    dialect: Option<&str>,
 ) -> Option<String> {
-    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner)?;
+    let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect)?;
     Some(render_propagation_word(&folded))
 }
 
 /// The shared core of the O129 fold: resolve the cmd-sub head to its
 /// spec (or subcommand), check all args are clean literals, and run the
-/// registry `const_fold`, returning the **raw** result (no
-/// single-word quoting).  [`try_o129_fold`] wraps this with
-/// [`render_propagation_word`] for free-standing argument positions; the
-/// embedded-interpolation path splices the raw result directly into the
-/// surrounding string.
+/// registry fold via [`CommandSpec::run_const_fold`], returning the **raw**
+/// result (no single-word quoting).  The `dialect` is forwarded to the
+/// registry, which owns all the Tcl-version interpretation (a versioned fold
+/// like `string is` / `format` / `scan` reads it; an invariant fold ignores
+/// it).  [`try_o129_fold`] wraps this with [`render_propagation_word`] for
+/// free-standing argument positions; the embedded-interpolation path splices
+/// the raw result directly into the surrounding string.
 fn fold_builtin_cmd_subst_raw(
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
+    dialect: Option<&str>,
 ) -> Option<String> {
     let words = literal_words(inner, constants)?;
     let (head, rest) = words.split_first()?;
@@ -724,16 +730,14 @@ fn fold_builtin_cmd_subst_raw(
     }
     let spec = registry.get(head)?;
     if spec.subcommands.is_empty() {
-        let fold = spec.const_fold?;
         let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
-        fold(&arg_refs)
+        spec.run_const_fold(&arg_refs, dialect)
     } else {
         // Subcommand-dispatched builtin (`string`, `dict`, …): the fold
         // lives on the matching subcommand and sees the args after it.
         let (sub, sub_rest) = rest.split_first()?;
-        let fold = spec.subcommand(sub)?.const_fold?;
         let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-        fold(&arg_refs)
+        spec.subcommand(sub)?.run_const_fold(&arg_refs, dialect)
     }
 }
 
@@ -918,9 +922,13 @@ fn visit_string_interpolation_cmd_subs(
                     break; // unbalanced — leave the rest in `[last..]`
                 };
                 let cmd = &inside[start + 1..close];
-                if let Some(result) =
-                    fold_builtin_cmd_subst_raw(registry, &ctx.command_mutations, constants, cmd)
-                {
+                if let Some(result) = fold_builtin_cmd_subst_raw(
+                    registry,
+                    &ctx.command_mutations,
+                    constants,
+                    cmd,
+                    ctx.dialect,
+                ) {
                     // Reject a result that would re-introduce a
                     // substitution into the `"…"` context.
                     if !result

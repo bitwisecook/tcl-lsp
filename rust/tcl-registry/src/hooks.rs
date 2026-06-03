@@ -141,6 +141,47 @@ pub enum WasmCodegenHookId {}
 /// arguments are not constant, or the operation is not supported).
 pub type ConstFoldFn = fn(args: &[&str]) -> Option<String>;
 
+/// A specific Tcl release whose **compile-time** semantics a constant fold may
+/// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
+/// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
+/// `format %b` don't exist (they *raise*) before a given release.  Ordered, so
+/// a fold can test `version >= TclVersion::V8_5`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TclVersion {
+    /// Tcl 8.4.
+    V8_4,
+    /// Tcl 8.5.
+    V8_5,
+    /// Tcl 8.6.
+    V8_6,
+    /// Tcl 9.0.
+    V9_0,
+}
+
+impl TclVersion {
+    /// Map an optimiser dialect string (`"tcl8.4"` … `"tcl9.0"`) to a version,
+    /// or `None` for an unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or
+    /// unknown dialect — in which case a versioned fold must return only the
+    /// dialect-invariant subset every release shares.
+    #[must_use]
+    pub fn from_dialect(dialect: Option<&str>) -> Option<Self> {
+        match dialect {
+            Some("tcl8.4") => Some(Self::V8_4),
+            Some("tcl8.5") => Some(Self::V8_5),
+            Some("tcl8.6") => Some(Self::V8_6),
+            Some("tcl9.0") => Some(Self::V9_0),
+            _ => None,
+        }
+    }
+}
+
+/// A Tcl-version-aware constant folder.  `version` is `None` when the target
+/// dialect doesn't name a specific Tcl release, in which case the fold must
+/// return only the dialect-invariant result every version agrees on (or
+/// `None`).  Used for commands whose compile-time value depends on the Tcl
+/// version (`string is`, `format`, `scan`).
+pub type VersionedConstFoldFn = fn(args: &[&str], version: Option<TclVersion>) -> Option<String>;
+
 /// Argument type hint for a specific argument position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArgTypeHint {

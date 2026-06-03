@@ -9,7 +9,10 @@ use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
-use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, WasmCodegenHookId};
+use crate::hooks::{
+    ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, TclVersion, VersionedConstFoldFn,
+    WasmCodegenHookId,
+};
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::side_effects::{SideEffect, StorageType};
 use crate::traits::Traits;
@@ -94,6 +97,11 @@ pub struct CommandSpec {
     /// Compile-time constant folder.
     pub const_fold: Option<ConstFoldFn>,
 
+    /// Tcl-version-aware constant folder, for commands whose compile-time value
+    /// depends on the dialect's Tcl release (`format`, `scan`).  Takes priority
+    /// over [`Self::const_fold`] when set; see [`Self::run_const_fold`].
+    pub const_fold_versioned: Option<VersionedConstFoldFn>,
+
     /// Lowering hook ID (index into compiler's dispatch table).
     pub lowering_hook: Option<LoweringHookId>,
 
@@ -168,6 +176,7 @@ impl CommandSpec {
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
+        const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
         wasm_codegen_hook: None,
@@ -179,6 +188,22 @@ impl CommandSpec {
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
     };
+
+    /// Run this command's constant folder for `args` under the optimiser's
+    /// `dialect` (`"tcl8.4"` … `"tcl9.0"`, or `None`/unversioned).  All the
+    /// dialect interpretation lives here in the registry layer: the
+    /// version-aware [`Self::const_fold_versioned`] is tried first (the dialect
+    /// is mapped to a [`TclVersion`] for it), falling back to the
+    /// version-invariant [`Self::const_fold`].  Downstream consumers just pass
+    /// the dialect they already have.
+    #[must_use]
+    pub fn run_const_fold(&self, args: &[&str], dialect: Option<&str>) -> Option<String> {
+        if let Some(vf) = self.const_fold_versioned {
+            vf(args, TclVersion::from_dialect(dialect))
+        } else {
+            self.const_fold?(args)
+        }
+    }
 
     /// Look up a subcommand by name.
     #[must_use]
@@ -300,6 +325,10 @@ pub struct SubCommand {
     /// Compile-time constant folder.
     pub const_fold: Option<ConstFoldFn>,
 
+    /// Tcl-version-aware constant folder (`string is`), taking priority over
+    /// [`Self::const_fold`]; see [`SubCommand::run_const_fold`].
+    pub const_fold_versioned: Option<VersionedConstFoldFn>,
+
     /// Lowering hook ID.
     pub lowering_hook: Option<LoweringHookId>,
 
@@ -371,6 +400,7 @@ impl SubCommand {
         pure: false,
         mutator: false,
         const_fold: None,
+        const_fold_versioned: None,
         lowering_hook: None,
         codegen_hook: None,
         wasm_codegen_hook: None,
@@ -385,6 +415,19 @@ impl SubCommand {
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
     };
+
+    /// Run this subcommand's constant folder for `args` under `dialect` —
+    /// version-aware [`Self::const_fold_versioned`] first (mapping the dialect
+    /// to a [`TclVersion`]), else the invariant [`Self::const_fold`].  See
+    /// [`CommandSpec::run_const_fold`].
+    #[must_use]
+    pub fn run_const_fold(&self, args: &[&str], dialect: Option<&str>) -> Option<String> {
+        if let Some(vf) = self.const_fold_versioned {
+            vf(args, TclVersion::from_dialect(dialect))
+        } else {
+            self.const_fold?(args)
+        }
+    }
 
     /// Look up a static arg role by index.
     #[must_use]

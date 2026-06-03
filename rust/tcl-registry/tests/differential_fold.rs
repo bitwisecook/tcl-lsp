@@ -8,17 +8,18 @@
 //! false-positive "optimisation" (a behaviour change disguised as a fold).
 //!
 //! This harness mirrors `tcl-compiler`'s `fold_builtin_cmd_subst_raw`: it
-//! resolves a command through the registry (head → `spec.const_fold`, or
-//! head + subcommand → `subcommand.const_fold`), runs the *same* command on a
-//! real `tclsh9.0`, and asserts the fold — **when it fires** — matches. A miss
-//! (`None`) is always acceptable: the optimiser simply leaves the call
-//! unfolded, so a missed fold is never wrong. Only a fold that produces the
-//! *wrong* value fails the test.
+//! resolves a command through the registry and runs its fold via
+//! `run_const_fold` (with the `tcl9.0` dialect, so version-aware folds resolve
+//! against the 9.0 reference), runs the *same* command on a real `tclsh9.0`,
+//! and asserts the fold — **when it fires** — matches. A miss (`None`) is
+//! always acceptable: the optimiser simply leaves the call unfolded, so a
+//! missed fold is never wrong. Only a fold that produces the *wrong* value
+//! fails the test.
 //!
 //! It is the Rust-side counterpart of `tests/test_const_fold_vs_tcl.py` on
-//! `main`, and the differential-pinning tool the deferred O129 long-tail
-//! (the `string is` number classes, the full `format` flag/width/precision
-//! matrix, `scan`) is landed against — one verb/class per strip.
+//! `main`. The whole O129 long-tail it was built to pin — the `string is`
+//! number classes, the full `format` flag/width/precision matrix, and `scan`
+//! — now folds and is verified here.
 //!
 //! Skips cleanly (the test passes trivially) when no `tclsh9.0` is on `PATH`,
 //! the same contract as the Python harness's `skipif`.
@@ -89,8 +90,10 @@ fn tcl_command(head: &str, sub: Option<&str>, args: &[&str]) -> String {
 }
 
 /// Resolve a command through the registry exactly as the optimiser does and
-/// run its `const_fold`, returning the **raw** folded value (the same string
-/// `tcl_value` compares against — no propagation-word quoting).
+/// run its fold via `run_const_fold`, returning the **raw** folded value (the
+/// same string `tcl_value` compares against — no propagation-word quoting).
+/// The dialect is `tcl9.0`, so version-aware folds are validated against the
+/// `tclsh9.0` reference.
 fn registry_fold(
     reg: &CommandRegistry,
     head: &str,
@@ -98,11 +101,10 @@ fn registry_fold(
     args: &[&str],
 ) -> Option<String> {
     let spec = reg.get(head)?;
-    let fold = match sub {
-        None => spec.const_fold?,
-        Some(s) => spec.subcommand(s)?.const_fold?,
-    };
-    fold(args)
+    match sub {
+        None => spec.run_const_fold(args, Some("tcl9.0")),
+        Some(s) => spec.subcommand(s)?.run_const_fold(args, Some("tcl9.0")),
+    }
 }
 
 /// `(head, subcommand, fold-args)` — the tclsh command is derived from these
@@ -176,7 +178,8 @@ const FOLDABLE: &[Case] = &[
     ("string", Some("equal"), &["abc", "abc"]),
     ("string", Some("equal"), &["abc", "abd"]),
     ("string", Some("compare"), &["a", "b"]),
-    // string is — char classes + integer fold today; double pins for when it lands
+    // string is — char / boolean / list classes + the version-aware number
+    // classes (integer / wideinteger / entier / double / dict, here under 9.0)
     ("string", Some("is"), &["alpha", "abc"]),
     ("string", Some("is"), &["digit", "123"]),
     ("string", Some("is"), &["space", "   "]),
@@ -185,6 +188,20 @@ const FOLDABLE: &[Case] = &[
     ("string", Some("is"), &["integer", "4294967295"]),
     ("string", Some("is"), &["integer", "abc"]),
     ("string", Some("is"), &["integer", "1.5"]),
+    ("string", Some("is"), &["integer", "9999999999"]), // 9.0 unbounded → 1
+    ("string", Some("is"), &["wideinteger", "42"]),
+    (
+        "string",
+        Some("is"),
+        &["wideinteger", "9223372036854775808"],
+    ), // > 2^63-1 → 0 on 9.0
+    (
+        "string",
+        Some("is"),
+        &["entier", "99999999999999999999999999"],
+    ),
+    ("string", Some("is"), &["dict", "a 1 b 2"]),
+    ("string", Some("is"), &["dict", "a 1 b"]),
     ("string", Some("is"), &["double", "3.14"]),
     ("string", Some("is"), &["double", "5.e3"]),
     ("string", Some("is"), &["double", "1E-10"]),

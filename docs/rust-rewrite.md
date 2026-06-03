@@ -3326,29 +3326,41 @@ backslash, but `a\ b` is still a valid list).  `-strict` is honoured
 option bail.  Two registry tests
 (`string_is_folds_tcl_faithful_classes`,
 `string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
-**`string is integer` — LANDED** (`string_is_integer`, SYNC-JUN03
-follow-up) over its **dialect-invariant subset**, differentially verified
-against `tclsh8.4`/`8.5`/`8.6`/`9.0` (all four built from `tmp/`): a
-non-leading-zero decimal (optional sign, surrounding whitespace) whose
-magnitude is ≤ `2³²-1` folds to `1` (the bound every release through 9.0
-shares — `4294967295`→1, `4294967296`→8.x reject / 9.0 accept); a clearly
-non-integer value folds to `0`; a leading-zero number (octal in 8.x,
-decimal in 9.0 — `08`/`019` diverge), a `0x`/`0o`/`0b` prefix (hex needs
-digit validation, oct/bin raise in 8.4), and a larger magnitude all bail.
-The same change corrected `fold_is`'s option parsing to Tcl's grammar
-(the **last** arg is the value, so `string is integer -7` folds to `1`).
-**`string is double` — LANDED** (`string_is_double`, same follow-up): on
-the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
-(after trimming) agrees with Tcl `string is double` **exactly** across
-8.4 → 9.0 (`5.e3` / `.5` / `1.` / `inf` / `nan` → 1; `1e` / `.` / `1.2.3`
-→ 0), so the fold defers to it, bailing only on the version-divergent /
-Rust-mismatching forms: a `_` digit separator (Tcl 9 only), a `0x`/`0o`/`0b`
-prefix (`0x…` is a valid double but Rust rejects it; `0o…`/`0b…` raise in
-8.4; a hex-float flips 8.4 ↔ 8.5+), a `(` (the `nan(payload)` form), and
-non-ASCII.  **Still deferred** (bail): **`wideinteger`** / **`entier`** /
-**`dict`** — they *raise* in old dialects (8.4 / 8.4 + 8.5 / pre-9.0
-respectively), so no dialect-agnostic fold is sound (it would turn an error
-into a value).  **`format`** — the **`%s` / `%d` / `%i` plus
+**Version-aware const-fold mechanism — LANDED** (SYNC-JUN03 follow-up).  The
+registry is the single source of truth for dialect-dependence: a new
+`hooks::TclVersion` (`V8_4`…`V9_0`, with `from_dialect`), a
+`VersionedConstFoldFn(args, version)` type, and a `const_fold_versioned`
+field on `CommandSpec`/`SubCommand`, dispatched by
+`{CommandSpec,SubCommand}::run_const_fold(args, dialect)` (versioned first,
+mapping the dialect → version internally; else the invariant `const_fold`).
+The optimiser's `fold_builtin_cmd_subst_raw` just forwards `ctx.dialect`; all
+the Tcl-version interpretation lives in the registry.
+
+**`string is integer` / `wideinteger` / `entier` / `double` / `dict` — all
+LANDED, version-aware** (`fold_is`, registered on `const_fold_versioned`),
+differentially verified against `tclsh8.4`/`8.5`/`8.6`/`9.0` (all four built
+from `tmp/`).  The number-class form is restricted to plain decimals
+(no leading zero / `0x`/`0o`/`0b` — those bail, the form being
+version-sensitive), so only the *magnitude cap* and *class availability*
+vary by version:
+* `integer` caps at `2³²-1` on 8.x (above → `0`) but is unbounded on 9.0;
+  with no known version the divergent range bails.  `fold_is`'s option
+  parsing was also corrected to Tcl's grammar (the **last** arg is the
+  value, so `string is integer -7` → `1`).
+* `wideinteger` *raises* on 8.4 (bail), accepts the unsigned-64-bit range on
+  8.5/8.6 and the signed-64-bit range on 9.0 (`2⁶³` → `1` on 8.6 but `0` on
+  9.0; `2⁶⁴` → `0`); `entier` raises on 8.4/8.5, unbounded on 8.6/9.0;
+  `dict` is 9.0-only, an even-length well-formed list.  A class that raises
+  in the target version bails — even the empty-string shortcut is gated, and
+  `version == None` (unversioned dialect) treats them all as unavailable.
+* `double` defers to Rust's `f64::from_str` (after trimming), which agrees
+  with Tcl exactly on the decimal / scientific / `Inf` / `NaN` forms across
+  8.4 → 9.0 (`5.e3` / `.5` / `inf` → 1; `1e` / `.` / `1.2.3` → 0); a `_`
+  separator, a `0x`/`0o`/`0b` prefix, a `nan(payload)`, and non-ASCII bail
+  (version-divergent or Rust-rejected — a future version-aware extension can
+  fold the 9.0-only `_` separator).
+
+**`format`** — the **`%s` / `%d` / `%i` plus
 the flag / width / precision matrix LANDED** for the decimal-integer and
 string conversions (`format_::fold_format`, SYNC-JUN03 follow-up).  The
 flags `-` / `+` / space / `0`, an optional width, and a `.precision`
@@ -3735,23 +3747,24 @@ priority queue:
   `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`), the
   `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
-  char-class / boolean / list predicates), and `format` (the `%s` / `%d` /
+  char-class / boolean / list predicates), `format` (the `%s` / `%d` /
   `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` radix
   conversions, `%c`, and the full float family (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
   — the complete foldable matrix, each with the
   flag / width / precision matrix on its dialect-invariant subset; landed in
   the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
-  and `string is integer` + `double` (their dialect-invariant subsets — the
-  32-bit-magnitude integer range and the decimal/scientific/Inf/NaN double
-  forms — verified against all four tclsh 8.4–9.0), and `scan` (the inline
-  form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`, modelled on tclsh with 32-bit result
-  bounds — *not* main's `_tcl_scan`, which mis-folds `scan 0xff %x`) — all in
-  the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
-  **Still deferred** (own strips, each pinned against tclsh via
-  `tcl-registry/tests/differential_fold.rs` when it lands): `string is
-  wideinteger` / `entier` / `dict` and `format %b` (they *raise* in old
-  dialects — 8.4 / 8.4 + 8.5 / pre-9.0 / pre-8.6 — so no dialect-agnostic
-  fold is sound).
+  `scan` (the inline form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`, modelled on tclsh
+  with 32-bit result bounds — *not* main's `_tcl_scan`, which mis-folds
+  `scan 0xff %x`), and the **version-aware** `string is` number classes
+  (`integer` / `wideinteger` / `entier` / `double` / `dict`, via the registry's
+  new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
+  and class-availability per release, verified against all four tclsh 8.4–9.0)
+  — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
+  **Still deferred**: `format %b` is permanently unsound to fold *invariantly*
+  (it raises before 8.6) — it folds once `format` is made version-aware like
+  `string is` (the next strip); `format`'s `%d` value-interpretation (octal
+  leading-zero, 32-bit wrap) and `scan`'s numeric bounds likewise widen under a
+  known dialect.
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
