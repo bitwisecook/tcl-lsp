@@ -3370,19 +3370,24 @@ character) **LANDED** too, restricted to a **printable-ASCII** codepoint
 (space..=`~`) with width / `-` justify — that range is byte-identical
 across versions; a codepoint ≥ 128 diverges (8.6 emits a byte, 9.0
 raises), control chars / DEL are unsafe to splice into source, and a
-negative codepoint raises — all bail.  **Still deferred** (own strips,
-pinned when they land via the same harness): the **float** conversions
-(`%f` / `%e` / `%g` — C-printf rounding parity), **`%u`**, **`%b`**
-(absent before 8.6), size modifiers (`%ld`), `*`/positional specs, and
-**`scan`** (scanf semantics).  **`scan` note** — its numeric-conversion
-*values* diverge across versions exactly like `format`/`integer` (8.4 wraps
-at 32 bits, 8.5/8.6 widen, 9.0 clamps/bignums — even `scan 2147483648 %d`
-is three-way-divergent), so a sound fold must bound each result to the
-shared signed-32-bit range (`%d` ∈ `[-2³¹, 2³¹-1]`, `%x`/`%o`/`%u` ∈
-`[0, 2³¹-1]`); **and** main's reference `_tcl_scan` is itself *unsound* —
-it mis-folds `scan 0xff %x` to `0` (it reads no `0x` prefix) where tclsh
-gives `255`, so the Rust port must model tclsh's scanf directly and be
-differentially verified, **not** transcribe main.  (The duplicated
+negative codepoint raises — all bail.  **`scan` — LANDED**
+(`scan_::fold_scan`, same follow-up): the *inline* (no-`varName`) form, with
+scanf semantics modelled **directly on tclsh** — deliberately **not**
+transcribed from main's `_tcl_scan`, which is itself *unsound* (it reads no
+`0x` prefix and folds `scan 0xff %x` to `0` where every tclsh gives `255`).
+Folds `%d` / `%o` / `%x` / `%X` / `%s` / `%c` / `%%`, each numeric result
+bounded to the signed-32-bit range every release shares (`[-2³¹, 2³¹-1]` —
+8.4 wraps, 8.5/8.6 widen, 9.0 clamps/bignums above it, so even
+`scan 2147483648 %d` is three-way-divergent and bails).  A `0x`-prefixed
+`%x` input (the case main mis-folds; its sign handling also diverges in
+8.4), a `%s` run needing list-quoting, `%i` / `%u`, the float conversions,
+a width / `*` / `%[set]` / size modifier / positional spec, a literal
+mismatch, and a partial / failed / empty match all bail.  Verified
+differentially against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **Still deferred**
+(own strips, pinned via the same harness): the `format` **float**
+conversions (`%f` / `%e` / `%g` — C-printf rounding parity), **`%u`**,
+**`%b`** (absent before 8.6), size modifiers (`%ld`), and `*`/positional
+specs.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3719,12 +3724,16 @@ priority queue:
   by the new differential-fold harness), and `string is integer` + `double`
   (their dialect-invariant subsets — the 32-bit-magnitude integer range and
   the decimal/scientific/Inf/NaN double forms — verified against all four
-  tclsh 8.4–9.0) — all in the new `tcl-registry/src/const_fold.rs` leaf +
-  per-command modules.  **Still deferred** (own strips, each pinned against
-  tclsh via `tcl-registry/tests/differential_fold.rs` when it lands): `string
-  is wideinteger` / `entier` / `dict` (they *raise* in old dialects — 8.4 /
-  8.4 + 8.5 / pre-9.0 — so no dialect-agnostic fold is sound), the `format`
-  float (`%f`/`%e`/`%g`) + `%b` conversions, and `scan`.  **`SYNC-JUN02d-2`
+  tclsh 8.4–9.0), and `scan` (the inline form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`,
+  modelled on tclsh with 32-bit result bounds — *not* main's `_tcl_scan`,
+  which mis-folds `scan 0xff %x`) — all in the new
+  `tcl-registry/src/const_fold.rs` leaf + per-command modules.  **Still
+  deferred** (own strips, each pinned against tclsh via
+  `tcl-registry/tests/differential_fold.rs` when it lands): `string is
+  wideinteger` / `entier` / `dict` (they *raise* in old dialects — 8.4 /
+  8.4 + 8.5 / pre-9.0 — so no dialect-agnostic fold is sound), and the
+  `format` float (`%f`/`%e`/`%g`) + `%u` + `%b` conversions.
+  **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
   (interpolation-embedded cmd-sub fold; constant-var arg resolution from the

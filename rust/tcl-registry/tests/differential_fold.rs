@@ -202,6 +202,18 @@ const FOLDABLE: &[Case] = &[
     // subst (literal single-arg form only)
     ("subst", None, &["hello world"]),
     ("subst", None, &["plain"]),
+    // scan — inline form, integer / hex / octal / char / string conversions
+    ("scan", None, &["42", "%d"]),
+    ("scan", None, &["-5", "%d"]),
+    ("scan", None, &["ff", "%x"]),
+    ("scan", None, &["-ff", "%x"]),
+    ("scan", None, &["7fffffff", "%x"]),
+    ("scan", None, &["17", "%o"]),
+    ("scan", None, &["A", "%c"]),
+    ("scan", None, &["abc", "%s"]),
+    ("scan", None, &["1 2 3", "%d %d %d"]),
+    ("scan", None, &["x42", "x%d"]),
+    ("scan", None, &["a(b)", "%s"]),
 ];
 
 #[test]
