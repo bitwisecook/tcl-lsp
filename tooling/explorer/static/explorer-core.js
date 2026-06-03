@@ -671,6 +671,143 @@ function gtTokens(tokens) {
   return html;
 }
 
+// Canonical red-green CST: DOCUMENT -> COMMAND -> WORD -> fragment, the
+// structural tree the whole pipeline rides on (counterpart to the green tree).
+function renderCst() {
+  var pane = $('#pane-cst');
+  var root = data.cst;
+  if (!root) { pane.innerHTML = '<div class="empty-state">No CST</div>'; return; }
+  var html = '<div class="section-header">cst <span style="color:var(--text-dim);font-weight:normal">' +
+             esc(root.kind.toLowerCase()) + ' &middot; ' + Math.max(0, root.endOffset - root.startOffset) + ' bytes</span></div>';
+  html += '<div class="gt-tree">' + (cstChildren(root.children) || '<div class="gt-empty">(no commands)</div>') + '</div>';
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+  setupExpandable(pane);
+}
+function cstChildren(children) {
+  if (!children || !children.length) return '';
+  var html = '';
+  for (var n of children) {
+    html += (n.children !== undefined) ? cstNode(n) : cstLeaf(n);
+  }
+  return html;
+}
+function cstNode(n) {
+  var kind = n.kind.toLowerCase();
+  var label = (n.label || '').replace(/\n/g, '⏎');
+  var preview = label.length > 48 ? label.slice(0, 48) + '…' : label;
+  var tags = (n.tags && n.tags.length) ? '{' + n.tags.join(',') + '}' : '';
+  var html = '<div class="gt-node xpand" tabindex="0" data-start="' + n.startOffset + '" data-end="' + n.endOffset + '">';
+  html += '<div class="xpand-head gt-head">';
+  html += '<span class="gt-toggle">▸</span>';
+  html += '<span class="gt-type">' + esc(kind) + '</span>';
+  html += '<span class="gt-text">' + esc(preview) + '</span>';
+  if (tags) html += '<span class="gt-tags">' + esc(tags) + '</span>';
+  html += '<span class="gt-range">[' + n.startOffset + ':' + n.endOffset + ']</span>';
+  html += '</div>';
+  html += '<div class="xpand-detail">';
+  html += detailRow('kind', n.kind);
+  html += detailRow('byte range', n.startOffset + '…' + n.endOffset + ' (' + Math.max(0, n.endOffset - n.startOffset) + ' bytes)');
+  if (n.tags && n.tags.length) html += detailRow('shape', n.tags.join(', '));
+  if (n.label) {
+    html += '<div class="xpand-detail-row"><span class="xpand-detail-k">text</span></div>';
+    html += '<pre class="gt-text-full">' + esc(n.label) + '</pre>';
+  }
+  html += '</div>';
+  html += '<div class="xpand-children">' + cstChildren(n.children) + '</div>';
+  html += '</div>';
+  return html;
+}
+function cstLeaf(t) {
+  var opaque = t.kind === 'STR' || t.kind === 'CMD';
+  var hasChild = !!t.child;
+  var recovered = hasChild && t.terminated === false;
+  var cls = recovered ? 'gt-error' : (opaque ? 'gt-opaque' : '');
+  var displayText = (t.isMarker ? t.raw : t.text) || '';
+  var oneLine = displayText.replace(/\n/g, '⏎');
+  var preview = oneLine.length > 48 ? oneLine.slice(0, 48) + '…' : oneLine;
+  var html = '<div class="gt-node xpand ' + cls + '" tabindex="0" data-start="' + t.startOffset + '" data-end="' + t.endOffset + '">';
+  html += '<div class="xpand-head gt-head">';
+  html += '<span class="gt-toggle">' + (hasChild ? '▸' : '·') + '</span>';
+  html += '<span class="gt-type">' + esc(t.kind) + '</span>';
+  html += '<span class="gt-text">' + esc(preview) + '</span>';
+  html += '<span class="gt-range">[' + t.startOffset + ':' + t.endOffset + ']</span>';
+  html += '</div>';
+  html += '<div class="xpand-detail">';
+  html += detailRow('token type', t.kind + (t.isMarker ? ' (expansion marker)' : ''));
+  html += detailRow('byte range', t.startOffset + '…' + t.endOffset + ' (' + Math.max(0, t.endOffset - t.startOffset) + ' bytes)');
+  if (t.inQuote) html += detailRow('in quote', 'yes');
+  if (t.raw !== t.text) {
+    html += '<div class="xpand-detail-row"><span class="xpand-detail-k">raw</span></div>';
+    html += '<pre class="gt-text-full">' + esc(t.raw) + '</pre>';
+  }
+  if (hasChild) html += detailRow('region', t.terminated ? 'terminated' : 'recovered (unterminated)');
+  html += '<div class="xpand-detail-row"><span class="xpand-detail-k">text</span></div>';
+  html += '<pre class="gt-text-full">' + esc(t.text || '') + '</pre>';
+  html += '</div>';
+  if (hasChild) {
+    var c = t.child;
+    html += '<div class="xpand-children">';
+    html += '<div class="gt-region">body &middot; ' + Math.max(0, c.endOffset - c.startOffset) + ' bytes' +
+            (t.terminated ? '' : ' &middot; <span style="color:var(--red)">RECOVERED</span>') + '</div>';
+    html += cstChildren(c.children);
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// SegmentedCommand list: the public segmenter contract every command consumer
+// reads, derived from the CST (byte-identical to the analyser's view).
+function renderSegments() {
+  var pane = $('#pane-segments');
+  var segs = data.segments;
+  if (!segs || !segs.length) { pane.innerHTML = '<div class="empty-state">No commands</div>'; return; }
+  var html = '<div class="section-header">segments <span style="color:var(--text-dim);font-weight:normal">' +
+             segs.length + ' command' + (segs.length === 1 ? '' : 's') + '</span></div>';
+  html += '<div class="gt-tree">';
+  for (var seg of segs) {
+    var slice = (seg.slice || '').replace(/\n/g, '⏎');
+    var preview = slice.length > 48 ? slice.slice(0, 48) + '…' : slice;
+    html += '<div class="gt-node xpand" tabindex="0" data-start="' + seg.startOffset + '" data-end="' + seg.endOffset + '">';
+    html += '<div class="xpand-head gt-head">';
+    html += '<span class="gt-toggle">▸</span>';
+    html += '<span class="gt-type">' + esc(seg.name || '<anon>') + '</span>';
+    html += '<span class="gt-text">' + esc(preview) + '</span>';
+    html += '<span class="gt-range">[' + seg.startOffset + ':' + seg.endOffset + ']</span>';
+    html += '</div>';
+    html += '<div class="xpand-detail">';
+    html += detailRow('byte range', seg.startOffset + '…' + seg.endOffset + ' (' + Math.max(0, seg.endOffset - seg.startOffset) + ' bytes)');
+    if (seg.precedingComment) html += detailRow('comment', seg.precedingComment.replace(/\n/g, ' '));
+    if (seg.subcommand) html += detailRow('subcommand', seg.subcommand);
+    html += detailRow('words', String(seg.words.length));
+    html += '</div>';
+    html += '<div class="xpand-children">';
+    for (var w of seg.words) {
+      var flags = [];
+      if (w.single) flags.push('single');
+      if (w.braced) flags.push('braced');
+      if (w.quoted) flags.push('quoted');
+      if (w.expand) flags.push('{*}');
+      var wt = (w.text || '').replace(/\n/g, '⏎');
+      var wp = wt.length > 48 ? wt.slice(0, 48) + '…' : wt;
+      html += '<div class="gt-node" data-start="' + w.startOffset + '" data-end="' + w.endOffset + '">';
+      html += '<div class="gt-head">';
+      html += '<span class="gt-toggle">·</span>';
+      html += '<span class="gt-text">' + esc(wp || "''") + '</span>';
+      if (flags.length) html += '<span class="gt-tags">{' + flags.join(',') + '}</span>';
+      html += '<span class="gt-range">[' + w.startOffset + ':' + w.endOffset + ']</span>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+  setupExpandable(pane);
+}
+
 function fmtBound(v, pos) { return v === null || v === undefined ? (pos ? '+∞' : '−∞') : String(v); }
 
 // Natural-loop forest

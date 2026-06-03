@@ -1,6 +1,6 @@
 # The canonical concrete syntax tree (red-green CST)
 
-> **Status:** Cycles 1–3 shipped. The position-independent green tree, the lazy
+> **Status:** Cycles 1–3 and 9 (explorer) shipped. The position-independent green tree, the lazy
 > red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
 > byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
@@ -192,8 +192,10 @@ other consumers drop their own re-lexing onto the one tree. The lexing itself
 
 ## Roadmap
 
-Cycles 1 (foundation + segmenter), 2 (descent), and 3 (`compiler_checks`) are
-shipped. The remaining follow-ons, each its own verified cycle:
+Cycles 1 (foundation + segmenter), 2 (descent), 3 (`compiler_checks`), and 9
+(the compiler explorer's `cst` / `segments` views, pulled forward as low-risk
+read-only tooling) are shipped. The remaining follow-ons, each its own verified
+cycle:
 
 1. ~~**Descent**~~ — *shipped (cycle 2).* `syntax/descend.py` re-lexes braced
    bodies and `[…]` substitutions as child CSTs, so a delimited region is a node
@@ -237,11 +239,17 @@ tokenisers; line/prefix lexers (hover, completion) are cursor-local.
 7. **iRule object refs** (cycle 8) — `dialects/f5/bigip/irules_refs.py`'s three
    re-lex paths (recursive `segment_commands`, raw EXPR `TclLexer`, CMD walk)
    onto one CST + `descend_command`.
-8. **Compiler explorer** (cycle 9) — add a structural `cst` view (each node's
-   range vs its raw source slice, attached trivia, `text` vs `raw`, the inner-end
-   convention, `{*}` markers, and descent with the `terminated` flag) plus a
-   `segments` view (none exists today); keep `greentree` as the oracle; mirror
-   into the JSON / TUI / web surfaces.
+8. ~~**Compiler explorer**~~ — *shipped (cycle 9).* A structural `cst` view (each
+   node's range vs its raw source slice, `text` vs `raw`, the inner-end convention,
+   `{*}` markers, per-word `single`/`braced`/`quoted`/`expand` shape, and descent
+   with the `terminated`/`recovered` flag) and a `segments` view (the public
+   `SegmentedCommand` contract — range, word pieces, flags, preceding comment)
+   are live in `tooling/explorer/cli.py`, registered in `_VIEW_ORDER` /
+   `ALL_VIEWS`. `greentree` stays the oracle. Mirrored into every surface: the
+   TUI renders both as captured-ANSI text views; `tooling/cli/serialise.py` gains
+   `_serialise_cst` / `_serialise_segments` (+ `_VIEW_META`) so the web GUI
+   (`static/index.html`, `explorer-core.js`) and the in-browser pyodide worker
+   show structural, expandable, source-linked trees.
 9. **Direct AOT lowering** (cycle 10) — make `_Command` a view over a `SyntaxNode`
    COMMAND, retiring the `SegmentedCommand` allocation on the hot path; nested
    body args via `descend_command`. Bar: byte-identical IR + bytecode + full

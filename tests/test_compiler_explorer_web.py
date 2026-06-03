@@ -130,6 +130,56 @@ class TestExtraViews:
             "child" in t for t in data["greentree"]["tokens"]
         )
 
+    def test_cst_segments_keys_present(self, client):
+        data = _compile(client, "set x 1")
+        assert "cst" in data
+        assert "segments" in data
+
+    def test_cst_structural_shape(self, client):
+        data = _compile(client, "proc f {} { set y 2 }")
+        cst = data["cst"]
+        assert cst["kind"] == "DOCUMENT"
+        cmd = cst["children"][0]
+        assert cmd["kind"] == "COMMAND"
+        assert "proc" in cmd["label"]
+        # the proc body word descends into a child document (terminated)
+        body_word = cmd["children"][-1]
+        assert body_word["kind"] == "WORD"
+        assert "braced" in body_word["tags"]
+        body_tok = body_word["children"][0]
+        assert body_tok["child"]["kind"] == "DOCUMENT"
+        assert body_tok["terminated"] is True
+
+    def test_cst_marks_unterminated_recovered(self, client):
+        data = _compile(client, "set y [foo {bar")
+
+        def find_recovered(node):
+            if node.get("terminated") is False:
+                return True
+            for c in node.get("children", []):
+                if find_recovered(c):
+                    return True
+            child = node.get("child")
+            return bool(child and find_recovered(child))
+
+        assert find_recovered(data["cst"])
+
+    def test_segments_words_and_flags(self, client):
+        data = _compile(client, 'foo {*}$args "hi $x" {}')
+        segs = data["segments"]
+        assert len(segs) == 1
+        seg = segs[0]
+        assert seg["name"] == "foo"
+        flags = {w["text"]: w for w in seg["words"]}
+        assert flags["${args}"]["expand"] is True
+        assert flags["hi ${x}"]["quoted"] is True
+        assert any(w["braced"] for w in seg["words"])  # the {} word
+
+    def test_segments_preceding_comment(self, client):
+        data = _compile(client, "# hello\nputs hi")
+        seg = data["segments"][0]
+        assert seg["precedingComment"] == "hello"
+
     def test_loops_reports_natural_loop(self, client):
         data = _compile(client, "for {set i 0} {$i < 5} {incr i} { puts $i }")
         loops = [lp for f in data["loops"] for lp in f["loops"]]

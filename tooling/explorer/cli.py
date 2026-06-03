@@ -772,6 +772,248 @@ def print_greentree(source: str, *, use_colour: bool) -> None:
         _render_green_tokens(root, prefix="", use_colour=use_colour, depth=0, max_depth=16)
 
 
+def _cst_command_span(cmd) -> tuple[int, int]:
+    """Absolute ``[start:end]`` (closer-inclusive) of a ``COMMAND`` red node.
+
+    Reconstructs the segmenter's word-boundary range from the node's
+    ``range_end_rel``, exactly as :func:`compiler.parsing.syntax.segment` does —
+    so the explorer shows the same command span the analyser and lowering see.
+    """
+    first = next(cmd.tokens())
+    start = first.start_position.offset
+    end = cmd.tree.position_at(first.raw_start + (cmd.green.range_end_rel or 0)).offset
+    return start, end
+
+
+def _render_cst_fragment(
+    tok,
+    source: str,
+    *,
+    connector: str,
+    child_prefix: str,
+    use_colour: bool,
+    is_marker: bool,
+    depth: int,
+    max_depth: int,
+) -> None:
+    """Draw one word-fragment leaf, descending opaque ``{…}`` / ``[…]`` bodies.
+
+    Shows the fragment's type, inner ``text`` and (when it differs) the lossless
+    ``raw`` slice, plus the absolute ``[start:end]`` inner-end range (#527).  An
+    opaque body re-lexes into a child CST flagged ``terminated`` / ``recovered``.
+    """
+    from compiler.parsing.syntax.descend import descend_token
+    from shared.tokens import TokenType
+
+    opaque = tok.token_type in (TokenType.STR, TokenType.CMD) and bool(tok.text)
+    s, e = tok.start_position.offset, tok.end_position.offset
+    colour = Ansi.YELLOW if is_marker else (Ansi.CYAN if opaque else Ansi.GRAY)
+    parts = [style(tok.token_type.name, colour, use_colour)]
+    if tok.text:
+        parts.append(repr(preview(tok.text.replace("\n", "⏎"), 32)))
+    if tok.raw != tok.text:
+        parts.append(
+            style(f"raw={preview(tok.raw.replace(chr(10), '⏎'), 24)!r}", Ansi.DIM, use_colour)
+        )
+    if tok.in_quote:
+        parts.append(style("in_quote", Ansi.MAGENTA, use_colour))
+    parts.append(style(f"[{s}:{e}]", Ansi.DIM, use_colour))
+    print(connector + " ".join(parts))
+    if opaque and depth < max_depth:
+        descended = descend_token(tok.to_token(), source)
+        status = "terminated" if descended.terminated else "recovered"
+        print(
+            style(
+                f"{child_prefix}body [{status}] w={descended.document.full_width}",
+                Ansi.DIM if descended.terminated else Ansi.RED,
+                use_colour,
+            )
+        )
+        _render_cst_node(
+            descended.tree.root,
+            source,
+            prefix=child_prefix,
+            use_colour=use_colour,
+            depth=depth + 1,
+            max_depth=max_depth,
+        )
+
+
+def _render_cst_subnode(
+    node,
+    source: str,
+    *,
+    connector: str,
+    child_prefix: str,
+    use_colour: bool,
+    depth: int,
+    max_depth: int,
+) -> None:
+    """Draw a ``COMMAND`` or ``WORD`` interior node header, then recurse."""
+    from compiler.parsing.syntax import SyntaxKind, SyntaxToken
+    from shared.tokens import TokenType
+
+    if node.kind is SyntaxKind.COMMAND:
+        s, e = _cst_command_span(node)
+        sliced = source[s : e + 1].replace("\n", "⏎") if 0 <= s <= e < len(source) else ""
+        header = (
+            f"{style('command', Ansi.BOLD, use_colour)} "
+            f"{style(f'[{s}:{e}]', Ansi.DIM, use_colour)} {preview(sliced, 48)!r}"
+        )
+    elif node.kind is SyntaxKind.WORD:
+        frags = [c for c in node.children() if isinstance(c, SyntaxToken)]
+        markers = node.expand_markers()
+        first = (markers or frags)[0]
+        s = first.start_position.offset
+        e = frags[-1].end_position.offset if frags else s
+        tags: list[str] = []
+        if markers:
+            tags.append("expand")
+        if len(frags) == 1:
+            tags.append("single")
+        if frags and frags[0].token_type is TokenType.STR:
+            tags.append("braced")
+        if frags and frags[0].raw.startswith('"'):
+            tags.append("quoted")
+        suffix = f" {style('{' + ','.join(tags) + '}', Ansi.DIM, use_colour)}" if tags else ""
+        header = (
+            f"{style('word', Ansi.GREEN, use_colour)} "
+            f"{style(f'[{s}:{e}]', Ansi.DIM, use_colour)}{suffix}"
+        )
+    else:
+        header = style(node.kind.name.lower(), Ansi.CYAN, use_colour)
+    print(connector + header)
+    _render_cst_node(
+        node, source, prefix=child_prefix, use_colour=use_colour, depth=depth, max_depth=max_depth
+    )
+
+
+def _render_cst_node(
+    node, source: str, *, prefix: str, use_colour: bool, depth: int, max_depth: int
+) -> None:
+    """Draw the structural children (``{*}`` markers, words, fragments) of *node*."""
+    from compiler.parsing.syntax import SyntaxToken
+
+    markers = node.expand_markers()
+    children = list(node.children())
+    entries: list[tuple[bool, object]] = [(True, m) for m in markers] + [
+        (False, c) for c in children
+    ]
+    for idx, (is_marker, element) in enumerate(entries):
+        is_last = idx == len(entries) - 1
+        connector = prefix + (_TREE_LAST if is_last else _TREE_BRANCH)
+        child_prefix = prefix + (_TREE_GAP if is_last else _TREE_VBAR)
+        if isinstance(element, SyntaxToken):
+            _render_cst_fragment(
+                element,
+                source,
+                connector=connector,
+                child_prefix=child_prefix,
+                use_colour=use_colour,
+                is_marker=is_marker,
+                depth=depth,
+                max_depth=max_depth,
+            )
+        else:
+            _render_cst_subnode(
+                element,
+                source,
+                connector=connector,
+                child_prefix=child_prefix,
+                use_colour=use_colour,
+                depth=depth,
+                max_depth=max_depth,
+            )
+
+
+def print_cst(source: str, *, use_colour: bool) -> None:
+    """Render the canonical red-green CST: ``DOCUMENT`` → ``COMMAND`` → ``WORD``.
+
+    The structural view the whole pipeline now rides on — each interior node's
+    absolute range, each word's shape (``single`` / ``braced`` / ``quoted`` /
+    ``expand``), each fragment's inner ``text`` versus lossless ``raw``, and the
+    lazy descent of opaque ``{…}`` / ``[…]`` bodies into child trees (flagged
+    ``terminated`` / ``recovered``) — built from the same ``build_document`` the
+    segmenter, analyser, and lowering consume.
+    """
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import SyntaxTree, build_document
+
+    print()
+    print(style("cst", Ansi.BOLD, use_colour))
+    with green_tree_scope():
+        document, _ = build_document(source)
+        tree = SyntaxTree(document, text=source)
+        end = len(source) - 1
+        print(
+            style(
+                f"document [0:{end}] w={document.full_width}" if source else "document (empty)",
+                Ansi.CYAN,
+                use_colour,
+            )
+        )
+        _render_cst_node(tree.root, source, prefix="", use_colour=use_colour, depth=0, max_depth=16)
+
+
+def print_segments(source: str, *, use_colour: bool) -> None:
+    """Render the ``SegmentedCommand`` list derived from the CST.
+
+    The public segmenter contract every command consumer reads: each command's
+    closer-inclusive range and source slice, its words in canonical ``_word_piece``
+    form with their per-word shape flags, plus the resolved subcommand and the
+    forward-attached preceding comment.  Derived through ``segments_from_document``
+    — the byte-identical CST bridge — so it shows exactly what the analyser sees.
+    """
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import build_document, segments_from_document
+
+    print()
+    print(style("segments", Ansi.BOLD, use_colour))
+    with green_tree_scope():
+        document, _ = build_document(source)
+        segments = segments_from_document(document, text=source)
+        if not segments:
+            print(style("  (no commands)", Ansi.DIM, use_colour))
+            return
+        for idx, seg in enumerate(segments):
+            is_last = idx == len(segments) - 1
+            connector = _TREE_LAST if is_last else _TREE_BRANCH
+            child_prefix = _TREE_GAP if is_last else _TREE_VBAR
+            s, e = seg.range.start.offset, seg.range.end.offset
+            sliced = source[s : e + 1].replace("\n", "⏎") if 0 <= s <= e < len(source) else ""
+            print(
+                f"{connector}{style(seg.name or '<anon>', Ansi.BOLD, use_colour)} "
+                f"{style(f'[{s}:{e}]', Ansi.DIM, use_colour)} {preview(sliced, 48)!r}"
+            )
+            rows: list[str] = []
+            if seg.preceding_comment:
+                comment = seg.preceding_comment.replace("\n", " ")
+                rows.append(style(f"comment: {preview(comment, 56)}", Ansi.DIM, use_colour))
+            for widx, text in enumerate(seg.texts):
+                tags = []
+                if seg.single_token_word[widx]:
+                    tags.append("single")
+                if seg.braced_word and seg.braced_word[widx]:
+                    tags.append("braced")
+                if seg.quoted_word and seg.quoted_word[widx]:
+                    tags.append("quoted")
+                if seg.expand_word and seg.expand_word[widx]:
+                    tags.append("{*}")
+                tok = seg.argv[widx]
+                suffix = (
+                    f" {style('{' + ','.join(tags) + '}', Ansi.DIM, use_colour)}" if tags else ""
+                )
+                rows.append(
+                    f"{preview(text.replace(chr(10), '⏎'), 36)!r} "
+                    f"{style(f'[{tok.start.offset}:{tok.end.offset}]', Ansi.DIM, use_colour)}{suffix}"
+                )
+            if seg.subcommand:
+                rows.append(style(f"subcommand: {seg.subcommand}", Ansi.DIM, use_colour))
+            for ridx, row in enumerate(rows):
+                row_conn = _TREE_LAST if ridx == len(rows) - 1 else _TREE_BRANCH
+                print(f"{child_prefix}{row_conn}{row}")
+
+
 def print_loops(snapshots: list[FunctionSnapshot], *, use_colour: bool) -> None:
     """Render the natural-loop forest per function (Phase 1 ``LoopForest``).
 
@@ -1370,9 +1612,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="all",
         help=(
             "Comma-separated list of views to display. "
-            "Individual: ir, cfg, ssa, interproc, types, opt, gvn, shimmer, taint, irules, callouts. "
+            "Individual: greentree, cst, segments, ir, cfg, ssa, interproc, types, opt, gvn, "
+            "shimmer, taint, irules, callouts. "
             "Groups: all (default), compiler, optimiser. "
-            "Example: --show ir,types,opt"
+            "Example: --show cst,segments,ir"
         ),
     )
     parser.add_argument(
@@ -1455,6 +1698,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 # in the TUI sidebar.
 _VIEW_ORDER: tuple[str, ...] = (
     "greentree",
+    "cst",
+    "segments",
     "ir",
     "cfg",
     "ssa",
@@ -1504,6 +1749,10 @@ def render_view(
         print_cfg_post_ssa(result.snapshots, line_index=line_index, use_colour=use_colour)
     elif view == "greentree":
         print_greentree(source, use_colour=use_colour)
+    elif view == "cst":
+        print_cst(source, use_colour=use_colour)
+    elif view == "segments":
+        print_segments(source, use_colour=use_colour)
     elif view == "loops":
         print_loops(result.snapshots, use_colour=use_colour)
     elif view == "intervals":
