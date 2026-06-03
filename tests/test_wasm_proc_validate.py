@@ -78,3 +78,41 @@ _WRONG_ARGS = 'wrong # args: should be "proc name args body"'
 )
 def test_proc_arg_validation(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # A command word that evaluates to the empty string is a genuine
+        # invocation of a command literally named "" — NOT a no-op — so a
+        # proc defined with an empty name is reachable (proc-3.7).
+        (r"set s {proc {} {} {return ok-empty}; puts [{}]}; eval $s", "ok-empty"),
+        (
+            r"set s {proc {} {x} {return got-$x}; puts [{} 42]}; eval $s",
+            "got-42",
+        ),
+        # Calling the empty-named proc with the wrong arity reports the
+        # name list-element-quoted as ``{}`` (Tcl_WrongNumArgs runs every
+        # word through TclScanElement / TclConvertElement), not a bare
+        # leading space (proc-3.7).
+        (
+            r"set s {proc {} {x} {}; puts [catch {{}} m]:$m}; eval $s",
+            '1:wrong # args: should be "{} x"',
+        ),
+        # An undefined empty command name falls through to the canonical
+        # ``invalid command name ""`` rather than silently succeeding
+        # (proc-old-9.1: ``set v [t1]; catch {$v}`` where t1 returns "").
+        (
+            r'set s {puts [catch {$e} m]:$m}; set e ""; eval $s',
+            '1:invalid command name ""',
+        ),
+        # The quoting generalises: a proc whose name contains whitespace
+        # is wrapped in braces in the wrong-args message too.
+        (
+            r"set s {proc {a b} {x y} {}; puts [catch {{a b} 1} m]:$m}; eval $s",
+            '1:wrong # args: should be "{a b} x y"',
+        ),
+    ],
+)
+def test_proc_empty_and_quoted_command_name(source: str, expected: str) -> None:
+    assert _run(source) == expected

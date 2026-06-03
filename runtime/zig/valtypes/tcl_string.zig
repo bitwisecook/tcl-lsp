@@ -1689,29 +1689,25 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
 // Exported: concat — concatenate two TclObj string representations with space.
 // Each argument has leading/trailing whitespace trimmed before joining.
 // If both are empty after trimming, returns an empty string object.
-/// Strip trailing whitespace bytes from ``p[start..end]`` but stop
-/// when a whitespace byte is preceded by an UNESCAPED backslash
-/// (odd-count run of ``\``).  Tcl's ``concat`` uses this so that
-/// ``\}\ `` round-trips with its trailing escaped space intact —
-/// otherwise the visible space is treated as an end-of-arg
-/// separator and the result loses one byte (ledit-1.25).
+/// Strip trailing whitespace bytes from ``p[start..end]``, then — if
+/// the trim exposed a final backslash — re-expose exactly one of the
+/// trimmed whitespace bytes.  Mirrors ``Tcl_ConcatObj`` (tclUtil.c):
+/// ``TclTrimRight`` removes *all* trailing whitespace with no
+/// backslash awareness, after which ``elemLength += trimr &&
+/// (element[elemLength - 1] == '\\')`` keeps one byte back so a
+/// trailing escaped space survives the concat.  Both an odd run
+/// (``b\ `` → ``b\ ``) and an even run (``b\\   `` → ``b\\ ``) leave
+/// the same single trailing space, since the rule keys off the bare
+/// final ``\`` rather than the backslash parity (util-4.1/4.2/4.3,
+/// ledit-1.25).
 fn trim_trailing_ws_respecting_backslash(p: [*]const u8, start: u32, end_in: u32) u32 {
     var end = end_in;
-    while (end > start and is_space(p[end - 1])) {
-        // Count consecutive backslashes immediately before the
-        // candidate space.  An ODD count means the space is
-        // escaped — leave it (and the trailing backslash) in
-        // place.  EVEN count means each ``\`` pairs with another,
-        // so the trailing whitespace is plain and gets trimmed.
-        var bs: u32 = 0;
-        var j: u32 = end - 1;
-        while (j > start and p[j - 1] == '\\') {
-            bs += 1;
-            j -= 1;
-        }
-        if ((bs & 1) == 1) break;
-        end -= 1;
-    }
+    while (end > start and is_space(p[end - 1])) end -= 1;
+    // Did the trim land on a backslash?  Re-expose one whitespace byte
+    // only when something was actually trimmed and a non-empty element
+    // remains — matching C's ``trimr && element[elemLength - 1] ==
+    // '\\'`` guard (an all-whitespace element trims to nothing here).
+    if (end < end_in and end > start and p[end - 1] == '\\') end += 1;
     return end;
 }
 
