@@ -218,6 +218,25 @@ and `green_tree_scope` are the shared lex memo `build_document` itself rides —
 parsing methods to retire; `expr_lexer` and the `f5/query` lexer are separate
 tokenisers; line/prefix lexers (hover, completion) are cursor-local.
 
+**Audit findings (re-verified after cycle 9).** The repo is further along than a
+raw `TclLexer` grep suggests: the public `segment_commands` API (≈30 call sites —
+core analyses, optimiser, taint, PGO, refactoring spans, server `declaration` /
+`folding` / `document_links` / `code_actions`, AI) has been **CST-backed since
+cycle 1**, so those consumers already ride the tree. `var_refs`,
+`proc_fingerprint`, and `place_bridge` already lex through the kept
+`green_tree.tokenise` memo at base 0 and emit only name-sets / `Place`s (no
+offsets). And no production code calls the old `green_tree.descend_*` any more
+(only `tests/test_syntax_descend.py`'s NEW-vs-OLD equivalence harness and
+`test_green_tree.py`), so the cleanup is gated only on keeping that safety net
+until the last consumer lands. The **genuine** remaining work is the small set of
+hand-rolled mini-segmenters that re-implement word-grouping + recovery on a raw
+`TclLexer`: the formatter (`engine.parse_commands`, `_format_switch_body`), the
+minifier (`_minify_body` + three work-stack descent scanners), semantic tokens
+(`_semantic_tokens/_collect.py`, `_format_args.py`), `inlay_hints`, `hover`, and
+`irules_refs` — i.e. cycles 4, 7, 8. Cycles 5–6 are mostly already-on-CST
+(`segment_commands` / `tokenise`) with only the genuine re-lex sites in `lowering`
+and the refactoring body splitters left to fold onto `descend_*`.
+
 3. **Formatter + minifier** (cycle 4) — replace their `TclLexer` loops with
    `build_document` + `segments_from_document`. The formatter gets faithful
    reconstruction from `GreenToken.raw` (retiring the delimiter-rebuilding
