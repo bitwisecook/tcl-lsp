@@ -2,14 +2,14 @@
 use crate::prelude::*;
 
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
-/// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o`), character
+/// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
 /// conversions of `format`, with the printf flag / width / precision matrix
 /// that is **byte-identical across Tcl 8.4 → 9.0** (verified differentially
 /// against `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
-/// Only `%b` (raises before 8.6), size modifiers, and `*`/positional specs
-/// remain unfolded — `%b` is permanently unsound (a fold would turn an old-
-/// dialect error into a value).
+/// `%b` (binary) *raises* before Tcl 8.6, so it is version-gated: the registry
+/// passes the dialect's `version`, and `%b` folds only on 8.6+ (else bail).
+/// Only size modifiers and `*`/positional specs remain unfolded.
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -31,12 +31,14 @@ use crate::prelude::*;
 ///   `%e`/`%g`'s exponent / shortest-form rendering reshaped to C's by
 ///   [`fmt_sci`] / [`fmt_general`]; a non-finite value and the `#` form bail.
 ///   See [`Conversion::render_float`].
-/// * `%b` (raises before 8.6), size modifiers (`%ld`), `*` (arg-driven)
-///   width / precision, positional `%n$`, and any field over [`MAX_FIELD`]
-///   all bail.
+/// * `%b` (binary) routes through [`Conversion::render_radix`] like `%x`
+///   (non-negative, `0b` for `%#b`), but only on Tcl 8.6+ — it raises in
+///   8.4/8.5, so `fold_format` bails there.  Size modifiers (`%ld`), `*`
+///   (arg-driven) width / precision, positional `%n$`, and any field over
+///   [`MAX_FIELD`] all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
-fn fold_format(args: &[&str]) -> Option<String> {
+fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let (fmt, vals) = args.split_first()?;
     if !fmt.is_ascii() {
         return None;
@@ -63,6 +65,11 @@ fn fold_format(args: &[&str]) -> Option<String> {
             _ => {}
         }
         let conv = Conversion::parse(fmt, &mut i)?;
+        // `%b` (binary) *raises* before Tcl 8.6 — fold it only when the dialect
+        // is 8.6+; every other conversion here is version-invariant.
+        if conv.verb == b'b' && !version.is_some_and(|v| v >= TclVersion::V8_6) {
+            return None;
+        }
         let value = vals.get(ai)?;
         ai += 1;
         out.push_str(&conv.render(value)?);
@@ -102,12 +109,13 @@ enum Field {
     Size(usize),
 }
 
-/// The base / case of a radix conversion (`%x` / `%X` / `%o`).
+/// The base / case of a radix conversion (`%x` / `%X` / `%o` / `%b`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Radix {
     HexLower,
     HexUpper,
     Octal,
+    Binary,
 }
 
 /// The notation of a float conversion: `%f` (fixed), `%e` (scientific), `%g`
@@ -182,10 +190,9 @@ impl Conversion {
             b'g' => self.render_float(value, FloatKind::General, false),
             b'G' => self.render_float(value, FloatKind::General, true),
             b'u' => self.render_unsigned(value),
+            b'b' => self.render_radix(value, Radix::Binary),
             b's' => self.render_str(value),
-            // `%b` (raises before 8.6), size modifiers (`%ld`) and positional
-            // `%n$` bail — `%b` is permanently unsound (a fold would turn an
-            // 8.4/8.5 error into a value).
+            // Size modifiers (`%ld`) and positional `%n$` bail.
             _ => None,
         }
     }
@@ -320,12 +327,15 @@ impl Conversion {
             Radix::HexLower => format!("{n:x}"),
             Radix::HexUpper => format!("{n:X}"),
             Radix::Octal => format!("{n:o}"),
+            Radix::Binary => format!("{n:b}"),
         };
         let prefix = if self.flags.contains(FmtFlags::HASH) {
-            if radix == Radix::HexLower && n != 0 {
-                "0x"
-            } else {
-                return None; // `#X` / `#o` / `#x 0` diverge across versions
+            // The `#` prefix is sound only as a lowercase `0x` / `0b` on a
+            // non-zero value; `#X` / `#o` / `#x 0` / `#b 0` diverge.
+            match radix {
+                Radix::HexLower if n != 0 => "0x",
+                Radix::Binary if n != 0 => "0b",
+                _ => return None,
             }
         } else {
             ""
@@ -508,7 +518,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::PURE | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        const_fold: Some(fold_format),
+        const_fold_versioned: Some(fold_format),
         hover: Some(HoverSnippet::brief(
             "Format a string.",
             &["format formatString ?arg ...?"],
@@ -521,240 +531,231 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::fold_format;
+    use crate::hooks::TclVersion;
+
+    /// The version-invariant conversions behave the same on every dialect;
+    /// drive them under 9.0 (the version-gated `%b` has its own test).
+    fn f(args: &[&str]) -> Option<String> {
+        fold_format(args, Some(TclVersion::V9_0))
+    }
 
     #[test]
     fn format_folds_plain_s_d_percent_subset() {
-        assert_eq!(fold_format(&["hello"]).as_deref(), Some("hello"));
-        assert_eq!(fold_format(&["%s", "world"]).as_deref(), Some("world"));
-        assert_eq!(fold_format(&["%d", "42"]).as_deref(), Some("42"));
-        assert_eq!(fold_format(&["%d", " -7 "]).as_deref(), Some("-7"));
-        assert_eq!(
-            fold_format(&["v=%s n=%d", "x", "3"]).as_deref(),
-            Some("v=x n=3")
-        );
-        assert_eq!(fold_format(&["100%%"]).as_deref(), Some("100%"));
+        assert_eq!(f(&["hello"]).as_deref(), Some("hello"));
+        assert_eq!(f(&["%s", "world"]).as_deref(), Some("world"));
+        assert_eq!(f(&["%d", "42"]).as_deref(), Some("42"));
+        assert_eq!(f(&["%d", " -7 "]).as_deref(), Some("-7"));
+        assert_eq!(f(&["v=%s n=%d", "x", "3"]).as_deref(), Some("v=x n=3"));
+        assert_eq!(f(&["100%%"]).as_deref(), Some("100%"));
         // `%d` with a non-integer arg bails (Tcl errors at runtime).
-        assert_eq!(fold_format(&["%d", "hi"]), None);
+        assert_eq!(f(&["%d", "hi"]), None);
         // Too few args bails.
-        assert_eq!(fold_format(&["%s %s", "only"]), None);
+        assert_eq!(f(&["%s %s", "only"]), None);
     }
 
     #[test]
     fn format_folds_integer_flag_width_precision() {
         // width / justify / zero-pad / sign — pinned against tclsh8.6 + 9.0.
-        assert_eq!(fold_format(&["%5d", "42"]).as_deref(), Some("   42"));
-        assert_eq!(fold_format(&["%-5d", "42"]).as_deref(), Some("42   "));
-        assert_eq!(fold_format(&["%05d", "7"]).as_deref(), Some("00007"));
-        assert_eq!(fold_format(&["%05d", "-7"]).as_deref(), Some("-0007"));
-        assert_eq!(fold_format(&["%+d", "42"]).as_deref(), Some("+42"));
-        assert_eq!(fold_format(&["% d", "42"]).as_deref(), Some(" 42"));
-        assert_eq!(fold_format(&["% d", "-7"]).as_deref(), Some("-7"));
-        assert_eq!(fold_format(&["%+05d", "42"]).as_deref(), Some("+0042"));
-        assert_eq!(fold_format(&["%5d", "-42"]).as_deref(), Some("  -42"));
-        assert_eq!(fold_format(&["%i", "42"]).as_deref(), Some("42")); // %i alias
-                                                                       // precision = minimum digits; the `0` flag is suppressed by precision.
-        assert_eq!(fold_format(&["%.5d", "42"]).as_deref(), Some("00042"));
-        assert_eq!(fold_format(&["%.3d", "-4"]).as_deref(), Some("-004"));
-        assert_eq!(fold_format(&["%5.3d", "42"]).as_deref(), Some("  042"));
-        assert_eq!(fold_format(&["%05.3d", "42"]).as_deref(), Some("  042"));
-        assert_eq!(fold_format(&["%.0d", "0"]).as_deref(), Some("0"));
+        assert_eq!(f(&["%5d", "42"]).as_deref(), Some("   42"));
+        assert_eq!(f(&["%-5d", "42"]).as_deref(), Some("42   "));
+        assert_eq!(f(&["%05d", "7"]).as_deref(), Some("00007"));
+        assert_eq!(f(&["%05d", "-7"]).as_deref(), Some("-0007"));
+        assert_eq!(f(&["%+d", "42"]).as_deref(), Some("+42"));
+        assert_eq!(f(&["% d", "42"]).as_deref(), Some(" 42"));
+        assert_eq!(f(&["% d", "-7"]).as_deref(), Some("-7"));
+        assert_eq!(f(&["%+05d", "42"]).as_deref(), Some("+0042"));
+        assert_eq!(f(&["%5d", "-42"]).as_deref(), Some("  -42"));
+        assert_eq!(f(&["%i", "42"]).as_deref(), Some("42")); // %i alias
+                                                             // precision = minimum digits; the `0` flag is suppressed by precision.
+        assert_eq!(f(&["%.5d", "42"]).as_deref(), Some("00042"));
+        assert_eq!(f(&["%.3d", "-4"]).as_deref(), Some("-004"));
+        assert_eq!(f(&["%5.3d", "42"]).as_deref(), Some("  042"));
+        assert_eq!(f(&["%05.3d", "42"]).as_deref(), Some("  042"));
+        assert_eq!(f(&["%.0d", "0"]).as_deref(), Some("0"));
     }
 
     #[test]
     fn format_folds_string_width_precision() {
-        assert_eq!(fold_format(&["%10s", "hi"]).as_deref(), Some("        hi"));
-        assert_eq!(fold_format(&["%-10s", "hi"]).as_deref(), Some("hi        "));
-        assert_eq!(fold_format(&["%.3s", "hello"]).as_deref(), Some("hel"));
-        assert_eq!(fold_format(&["%5.3s", "hello"]).as_deref(), Some("  hel"));
-        assert_eq!(fold_format(&["%.0s", "hi"]).as_deref(), Some(""));
+        assert_eq!(f(&["%10s", "hi"]).as_deref(), Some("        hi"));
+        assert_eq!(f(&["%-10s", "hi"]).as_deref(), Some("hi        "));
+        assert_eq!(f(&["%.3s", "hello"]).as_deref(), Some("hel"));
+        assert_eq!(f(&["%5.3s", "hello"]).as_deref(), Some("  hel"));
+        assert_eq!(f(&["%.0s", "hi"]).as_deref(), Some(""));
     }
 
     #[test]
     fn format_bails_on_version_divergent_and_unmodelled() {
         // `%#d` is `0d42` on Tcl 9 but `42` on 8.6 — no sound fold.
-        assert_eq!(fold_format(&["%#d", "42"]), None);
+        assert_eq!(f(&["%#d", "42"]), None);
         // Leading zero is octal in 8.x but decimal in 9.0 (`%d 010` → 8 vs 10).
-        assert_eq!(fold_format(&["%d", "010"]), None);
-        assert_eq!(fold_format(&["%05d", "010"]), None);
+        assert_eq!(f(&["%d", "010"]), None);
+        assert_eq!(f(&["%05d", "010"]), None);
         // Past 2^31 `%d` wraps to 32 bits in 9.0 but not 8.6.
-        assert_eq!(fold_format(&["%d", "2147483648"]), None);
-        assert_eq!(fold_format(&["%d", "-2147483649"]), None);
+        assert_eq!(f(&["%d", "2147483648"]), None);
+        assert_eq!(f(&["%d", "-2147483649"]), None);
         // …but the 32-bit boundary itself folds.
-        assert_eq!(
-            fold_format(&["%d", "2147483647"]).as_deref(),
-            Some("2147483647")
-        );
-        assert_eq!(
-            fold_format(&["%d", "-2147483648"]).as_deref(),
-            Some("-2147483648")
-        );
+        assert_eq!(f(&["%d", "2147483647"]).as_deref(), Some("2147483647"));
+        assert_eq!(f(&["%d", "-2147483648"]).as_deref(), Some("-2147483648"));
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
-        assert_eq!(fold_format(&["%d", "0x10"]), None);
+        assert_eq!(f(&["%d", "0x10"]), None);
         // %u folds for a non-negative in-range value; divergent forms bail.
-        assert_eq!(fold_format(&["%u", "42"]).as_deref(), Some("42"));
-        assert_eq!(fold_format(&["%05u", "42"]).as_deref(), Some("00042"));
-        assert_eq!(fold_format(&["%.3u", "42"]).as_deref(), Some("042"));
-        assert_eq!(
-            fold_format(&["%u", "2147483648"]).as_deref(),
-            Some("2147483648")
-        );
-        assert_eq!(fold_format(&["%u", "-1"]), None); // unsigned-wrap diverges
-        assert_eq!(fold_format(&["%u", "4294967296"]), None); // past 2^32
-        assert_eq!(fold_format(&["%u", "010"]), None); // leading zero (octal in 8.x)
-                                                       // %b raises before Tcl 8.6 → permanently unsound to fold.
-        assert_eq!(fold_format(&["%b", "5"]), None);
-        // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
-        // the `#` alternate form bails (it changes %g trailing-zero stripping).
-        assert_eq!(fold_format(&["%f", "inf"]), None);
-        assert_eq!(fold_format(&["%e", "nan"]), None);
-        assert_eq!(fold_format(&["%#f", "3.14"]), None);
-        assert_eq!(fold_format(&["%#g", "3.14"]), None);
+        assert_eq!(f(&["%u", "42"]).as_deref(), Some("42"));
+        assert_eq!(f(&["%05u", "42"]).as_deref(), Some("00042"));
+        assert_eq!(f(&["%.3u", "42"]).as_deref(), Some("042"));
+        assert_eq!(f(&["%u", "2147483648"]).as_deref(), Some("2147483648"));
+        assert_eq!(f(&["%u", "-1"]), None); // unsigned-wrap diverges
+        assert_eq!(f(&["%u", "4294967296"]), None); // past 2^32
+        assert_eq!(f(&["%u", "010"]), None); // leading zero (octal in 8.x)
+                                             // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
+                                             // the `#` alternate form bails (it changes %g trailing-zero stripping).
+        assert_eq!(f(&["%f", "inf"]), None);
+        assert_eq!(f(&["%e", "nan"]), None);
+        assert_eq!(f(&["%#f", "3.14"]), None);
+        assert_eq!(f(&["%#g", "3.14"]), None);
         // Numeric flags don't apply to `%s` → bail.
-        assert_eq!(fold_format(&["%05s", "hi"]), None);
-        assert_eq!(fold_format(&["%+s", "hi"]), None);
+        assert_eq!(f(&["%05s", "hi"]), None);
+        assert_eq!(f(&["%+s", "hi"]), None);
         // Non-ASCII value under a width/precision bails (char-count diverges).
-        assert_eq!(fold_format(&["%5s", "café"]), None);
+        assert_eq!(f(&["%5s", "café"]), None);
         // Arg-driven width / precision and over-cap fields bail.
-        assert_eq!(fold_format(&["%*d", "5", "42"]), None);
-        assert_eq!(fold_format(&["%99999d", "1"]), None);
+        assert_eq!(f(&["%*d", "5", "42"]), None);
+        assert_eq!(f(&["%99999d", "1"]), None);
         // A bare trailing `%` is an incomplete spec.
-        assert_eq!(fold_format(&["abc%", "x"]), None);
+        assert_eq!(f(&["abc%", "x"]), None);
     }
 
     #[test]
     fn format_folds_radix() {
         // Non-negative hex / octal with flags / width / precision — pinned
         // against tclsh8.6 + 9.0.
-        assert_eq!(fold_format(&["%x", "255"]).as_deref(), Some("ff"));
-        assert_eq!(fold_format(&["%X", "255"]).as_deref(), Some("FF"));
-        assert_eq!(fold_format(&["%o", "8"]).as_deref(), Some("10"));
-        assert_eq!(fold_format(&["%x", "0"]).as_deref(), Some("0"));
-        assert_eq!(fold_format(&["%08x", "255"]).as_deref(), Some("000000ff"));
-        assert_eq!(fold_format(&["%-8x", "255"]).as_deref(), Some("ff      "));
-        assert_eq!(fold_format(&["%5x", "255"]).as_deref(), Some("   ff"));
-        assert_eq!(fold_format(&["%.4x", "255"]).as_deref(), Some("00ff"));
+        assert_eq!(f(&["%x", "255"]).as_deref(), Some("ff"));
+        assert_eq!(f(&["%X", "255"]).as_deref(), Some("FF"));
+        assert_eq!(f(&["%o", "8"]).as_deref(), Some("10"));
+        assert_eq!(f(&["%x", "0"]).as_deref(), Some("0"));
+        assert_eq!(f(&["%08x", "255"]).as_deref(), Some("000000ff"));
+        assert_eq!(f(&["%-8x", "255"]).as_deref(), Some("ff      "));
+        assert_eq!(f(&["%5x", "255"]).as_deref(), Some("   ff"));
+        assert_eq!(f(&["%.4x", "255"]).as_deref(), Some("00ff"));
         // `#` alternate form: sound only as the lowercase `0x` on a non-zero %x.
-        assert_eq!(fold_format(&["%#x", "255"]).as_deref(), Some("0xff"));
-        assert_eq!(fold_format(&["%#08x", "255"]).as_deref(), Some("0x0000ff"));
+        assert_eq!(f(&["%#x", "255"]).as_deref(), Some("0xff"));
+        assert_eq!(f(&["%#08x", "255"]).as_deref(), Some("0x0000ff"));
     }
 
     #[test]
     fn format_bails_on_version_divergent_radix() {
         // Negative → two's-complement digit count is 32-bit (9.0) vs 64-bit (8.6).
-        assert_eq!(fold_format(&["%x", "-1"]), None);
-        assert_eq!(fold_format(&["%o", "-1"]), None);
+        assert_eq!(f(&["%x", "-1"]), None);
+        assert_eq!(f(&["%o", "-1"]), None);
         // `%#X` is `0XFF` (8.6) vs `0xFF` (9.0); `%#o` is `010` vs `0o10`;
         // `%#x 0` is `0x0` vs `0` — all bail.
-        assert_eq!(fold_format(&["%#X", "255"]), None);
-        assert_eq!(fold_format(&["%#o", "8"]), None);
-        assert_eq!(fold_format(&["%#x", "0"]), None);
+        assert_eq!(f(&["%#X", "255"]), None);
+        assert_eq!(f(&["%#o", "8"]), None);
+        assert_eq!(f(&["%#x", "0"]), None);
         // `+` / space don't apply to a radix conversion → bail.
-        assert_eq!(fold_format(&["%+x", "255"]), None);
+        assert_eq!(f(&["%+x", "255"]), None);
         // Leading-zero / over-range args bail just as for `%d`.
-        assert_eq!(fold_format(&["%x", "010"]), None);
-        assert_eq!(fold_format(&["%x", "4294967295"]), None);
+        assert_eq!(f(&["%x", "010"]), None);
+        assert_eq!(f(&["%x", "4294967295"]), None);
+    }
+
+    #[test]
+    fn format_binary_is_version_gated() {
+        use TclVersion::{V8_4, V8_5, V8_6, V9_0};
+        // `%b` raises before 8.6 → bail; folds (like `%x`) on 8.6+.
+        assert_eq!(fold_format(&["%b", "5"], Some(V8_4)), None);
+        assert_eq!(fold_format(&["%b", "5"], Some(V8_5)), None);
+        assert_eq!(fold_format(&["%b", "5"], None), None, "unknown version");
+        assert_eq!(
+            fold_format(&["%b", "5"], Some(V8_6)).as_deref(),
+            Some("101")
+        );
+        assert_eq!(
+            fold_format(&["%b", "255"], Some(V9_0)).as_deref(),
+            Some("11111111")
+        );
+        assert_eq!(
+            fold_format(&["%08b", "5"], Some(V9_0)).as_deref(),
+            Some("00000101")
+        );
+        assert_eq!(
+            fold_format(&["%#b", "5"], Some(V9_0)).as_deref(),
+            Some("0b101")
+        );
+        // Negative / `%#b 0` diverge → bail even on 9.0.
+        assert_eq!(fold_format(&["%b", "-1"], Some(V9_0)), None);
+        assert_eq!(fold_format(&["%#b", "0"], Some(V9_0)), None);
     }
 
     #[test]
     fn format_folds_char() {
         // Printable-ASCII codepoints fold; width / `-` justify apply.
-        assert_eq!(fold_format(&["%c", "65"]).as_deref(), Some("A"));
-        assert_eq!(fold_format(&["%c", "97"]).as_deref(), Some("a"));
-        assert_eq!(fold_format(&["%c", "126"]).as_deref(), Some("~"));
-        assert_eq!(fold_format(&["%5c", "65"]).as_deref(), Some("    A"));
-        assert_eq!(fold_format(&["%-5c", "65"]).as_deref(), Some("A    "));
+        assert_eq!(f(&["%c", "65"]).as_deref(), Some("A"));
+        assert_eq!(f(&["%c", "97"]).as_deref(), Some("a"));
+        assert_eq!(f(&["%c", "126"]).as_deref(), Some("~"));
+        assert_eq!(f(&["%5c", "65"]).as_deref(), Some("    A"));
+        assert_eq!(f(&["%-5c", "65"]).as_deref(), Some("A    "));
         // Non-printable / out-of-range / divergent codepoints bail: NUL and
         // control chars (< 32), DEL (127), codepoint >= 128 (8.6 emits a byte,
         // 9.0 raises), and negatives.
-        assert_eq!(fold_format(&["%c", "0"]), None);
-        assert_eq!(fold_format(&["%c", "10"]), None);
-        assert_eq!(fold_format(&["%c", "127"]), None);
-        assert_eq!(fold_format(&["%c", "256"]), None);
-        assert_eq!(fold_format(&["%c", "-1"]), None);
+        assert_eq!(f(&["%c", "0"]), None);
+        assert_eq!(f(&["%c", "10"]), None);
+        assert_eq!(f(&["%c", "127"]), None);
+        assert_eq!(f(&["%c", "256"]), None);
+        assert_eq!(f(&["%c", "-1"]), None);
         // Numeric flags / precision don't apply to `%c` → bail.
-        assert_eq!(fold_format(&["%#c", "65"]), None);
-        assert_eq!(fold_format(&["%.2c", "65"]), None);
+        assert_eq!(f(&["%#c", "65"]), None);
+        assert_eq!(f(&["%.2c", "65"]), None);
     }
 
     #[test]
     fn format_folds_fixed_float() {
         // Default precision is 6; rounding is round-half-to-even (matches C/Tcl).
-        assert_eq!(fold_format(&["%f", "3.14"]).as_deref(), Some("3.140000"));
-        assert_eq!(fold_format(&["%.2f", "3.14159"]).as_deref(), Some("3.14"));
-        assert_eq!(fold_format(&["%.0f", "2.5"]).as_deref(), Some("2"));
-        assert_eq!(fold_format(&["%.0f", "3.5"]).as_deref(), Some("4"));
-        assert_eq!(fold_format(&["%.2f", "0.125"]).as_deref(), Some("0.12"));
-        assert_eq!(fold_format(&["%f", "42"]).as_deref(), Some("42.000000"));
+        assert_eq!(f(&["%f", "3.14"]).as_deref(), Some("3.140000"));
+        assert_eq!(f(&["%.2f", "3.14159"]).as_deref(), Some("3.14"));
+        assert_eq!(f(&["%.0f", "2.5"]).as_deref(), Some("2"));
+        assert_eq!(f(&["%.0f", "3.5"]).as_deref(), Some("4"));
+        assert_eq!(f(&["%.2f", "0.125"]).as_deref(), Some("0.12"));
+        assert_eq!(f(&["%f", "42"]).as_deref(), Some("42.000000"));
         // Integer args fold; the value is parsed as a double.
-        assert_eq!(fold_format(&["%.2f", "-2.5"]).as_deref(), Some("-2.50"));
+        assert_eq!(f(&["%.2f", "-2.5"]).as_deref(), Some("-2.50"));
         // Flags / width / precision — the `0` flag zero-pads even with a
         // precision (unlike `%d`).
-        assert_eq!(
-            fold_format(&["%8.2f", "3.14159"]).as_deref(),
-            Some("    3.14")
-        );
-        assert_eq!(
-            fold_format(&["%-8.2f", "3.14159"]).as_deref(),
-            Some("3.14    ")
-        );
-        assert_eq!(fold_format(&["%08.3f", "2.5"]).as_deref(), Some("0002.500"));
-        assert_eq!(fold_format(&["%+.2f", "3.14"]).as_deref(), Some("+3.14"));
-        assert_eq!(fold_format(&["% .2f", "3.14"]).as_deref(), Some(" 3.14"));
+        assert_eq!(f(&["%8.2f", "3.14159"]).as_deref(), Some("    3.14"));
+        assert_eq!(f(&["%-8.2f", "3.14159"]).as_deref(), Some("3.14    "));
+        assert_eq!(f(&["%08.3f", "2.5"]).as_deref(), Some("0002.500"));
+        assert_eq!(f(&["%+.2f", "3.14"]).as_deref(), Some("+3.14"));
+        assert_eq!(f(&["% .2f", "3.14"]).as_deref(), Some(" 3.14"));
         // Non-finite, the `#` alternate form, and non-double args bail.
-        assert_eq!(fold_format(&["%f", "inf"]), None);
-        assert_eq!(fold_format(&["%f", "nan"]), None);
-        assert_eq!(fold_format(&["%#f", "3.14"]), None);
-        assert_eq!(fold_format(&["%f", "abc"]), None);
-        assert_eq!(fold_format(&["%f", "0x1f"]), None);
-        assert_eq!(fold_format(&["%f", "1_000"]), None);
+        assert_eq!(f(&["%f", "inf"]), None);
+        assert_eq!(f(&["%f", "nan"]), None);
+        assert_eq!(f(&["%#f", "3.14"]), None);
+        assert_eq!(f(&["%f", "abc"]), None);
+        assert_eq!(f(&["%f", "0x1f"]), None);
+        assert_eq!(f(&["%f", "1_000"]), None);
     }
 
     #[test]
     fn format_folds_scientific_and_general() {
         // %e / %E: C-shaped exponent (sign + ≥2 digits), default precision 6.
-        assert_eq!(
-            fold_format(&["%e", "31400.0"]).as_deref(),
-            Some("3.140000e+04")
-        );
-        assert_eq!(
-            fold_format(&["%.3e", "31400.0"]).as_deref(),
-            Some("3.140e+04")
-        );
-        assert_eq!(
-            fold_format(&["%E", "31400.0"]).as_deref(),
-            Some("3.140000E+04")
-        );
-        assert_eq!(
-            fold_format(&["%e", "0.0314"]).as_deref(),
-            Some("3.140000e-02")
-        );
-        assert_eq!(fold_format(&["%.2e", "9.999"]).as_deref(), Some("1.00e+01"));
-        assert_eq!(
-            fold_format(&["%e", "1e100"]).as_deref(),
-            Some("1.000000e+100")
-        );
+        assert_eq!(f(&["%e", "31400.0"]).as_deref(), Some("3.140000e+04"));
+        assert_eq!(f(&["%.3e", "31400.0"]).as_deref(), Some("3.140e+04"));
+        assert_eq!(f(&["%E", "31400.0"]).as_deref(), Some("3.140000E+04"));
+        assert_eq!(f(&["%e", "0.0314"]).as_deref(), Some("3.140000e-02"));
+        assert_eq!(f(&["%.2e", "9.999"]).as_deref(), Some("1.00e+01"));
+        assert_eq!(f(&["%e", "1e100"]).as_deref(), Some("1.000000e+100"));
         // %g / %G: shorter of %e/%f, trailing zeros stripped.
-        assert_eq!(fold_format(&["%g", "3.14"]).as_deref(), Some("3.14"));
-        assert_eq!(fold_format(&["%g", "100000.0"]).as_deref(), Some("100000"));
-        assert_eq!(fold_format(&["%g", "1000000.0"]).as_deref(), Some("1e+06"));
-        assert_eq!(fold_format(&["%g", "0.0001"]).as_deref(), Some("0.0001"));
-        assert_eq!(fold_format(&["%g", "0.00001"]).as_deref(), Some("1e-05"));
-        assert_eq!(fold_format(&["%g", "1.0"]).as_deref(), Some("1"));
-        assert_eq!(
-            fold_format(&["%.3g", "0.000123456"]).as_deref(),
-            Some("0.000123")
-        );
-        assert_eq!(
-            fold_format(&["%G", "1234567.0"]).as_deref(),
-            Some("1.23457E+06")
-        );
+        assert_eq!(f(&["%g", "3.14"]).as_deref(), Some("3.14"));
+        assert_eq!(f(&["%g", "100000.0"]).as_deref(), Some("100000"));
+        assert_eq!(f(&["%g", "1000000.0"]).as_deref(), Some("1e+06"));
+        assert_eq!(f(&["%g", "0.0001"]).as_deref(), Some("0.0001"));
+        assert_eq!(f(&["%g", "0.00001"]).as_deref(), Some("1e-05"));
+        assert_eq!(f(&["%g", "1.0"]).as_deref(), Some("1"));
+        assert_eq!(f(&["%.3g", "0.000123456"]).as_deref(), Some("0.000123"));
+        assert_eq!(f(&["%G", "1234567.0"]).as_deref(), Some("1.23457E+06"));
         // Flags / width apply (the `0` flag zero-pads even with a precision).
+        assert_eq!(f(&["%+.2e", "31400.0"]).as_deref(), Some("+3.14e+04"));
         assert_eq!(
-            fold_format(&["%+.2e", "31400.0"]).as_deref(),
-            Some("+3.14e+04")
-        );
-        assert_eq!(
-            fold_format(&["%015.3e", "31400.0"]).as_deref(),
+            f(&["%015.3e", "31400.0"]).as_deref(),
             Some("0000003.140e+04")
         );
     }

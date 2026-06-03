@@ -3413,11 +3413,16 @@ trailing-zero stripping) both bail.  **`format %u` — LANDED** too
 range every release shares (`[0, 2³²-1]` — `2147483648` agrees, `%u -1`
 and `4294967296` diverge), with flag / width / precision (the `+`/space
 flags don't apply to an unsigned value).  This completes the foldable
-`format` conversion matrix.  **Permanently deferred**: **`%b`** — it
-*raises* before Tcl 8.6, so a fold would turn an 8.4/8.5 error into a value
-(it joins `string is wideinteger`/`entier`/`dict`).  Size modifiers (`%ld`)
-and `*`/positional specs stay unfolded (rare, version-edgy).  (The
-duplicated
+`format` conversion matrix.  **`%b` — LANDED, version-gated** (SYNC-JUN03
+follow-up): `format` was made version-aware via the same registry mechanism
+as `string is` (`fold_format` registered on `const_fold_versioned`).  `%b`
+routes through `render_radix` like `%x` (non-negative, `0b` for `%#b`), but
+only on **8.6+** — it raises in 8.4/8.5, so the fold bails there (and for an
+unversioned dialect), differentially verified vs the four tclsh.  Only size
+modifiers (`%ld`) and `*`/positional specs stay unfolded (rare, version-edgy);
+`%d`'s version-specific value interpretation (octal leading-zero, 9.0's 32-bit
+wrap) and `scan`'s numeric bounds could likewise widen under a known dialect —
+a further follow-up.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3748,8 +3753,9 @@ priority queue:
   `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
   char-class / boolean / list predicates), `format` (the `%s` / `%d` /
-  `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` radix
-  conversions, `%c`, and the full float family (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
+  `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` / `%b`
+  (8.6+) radix conversions, `%c`, and the full float family
+  (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
   — the complete foldable matrix, each with the
   flag / width / precision matrix on its dialect-invariant subset; landed in
   the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
@@ -3760,11 +3766,10 @@ priority queue:
   new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
   and class-availability per release, verified against all four tclsh 8.4–9.0)
   — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
-  **Still deferred**: `format %b` is permanently unsound to fold *invariantly*
-  (it raises before 8.6) — it folds once `format` is made version-aware like
-  `string is` (the next strip); `format`'s `%d` value-interpretation (octal
-  leading-zero, 32-bit wrap) and `scan`'s numeric bounds likewise widen under a
-  known dialect.
+  `format %b` is also version-gated (folds on 8.6+, via `const_fold_versioned`).
+  **Still deferred** (a further follow-up, all wider under a known dialect):
+  `format`'s `%d` value-interpretation (octal leading-zero, 9.0's 32-bit wrap),
+  `scan`'s numeric bounds, and `format` size modifiers / `*` / positional specs.
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
