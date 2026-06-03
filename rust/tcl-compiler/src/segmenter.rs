@@ -631,6 +631,35 @@ mod tests {
     }
 
     #[test]
+    fn config_variant_threads_irules_brace_separator() {
+        // SYNC-MAY19-dialect-contextvar: the other dialect flag carried by
+        // `LexerConfig::for_dialect` — iRules injects a zero-width SEP at a
+        // `}{` brace boundary, so `cmd {a}{b}` is three words under
+        // `f5-irules` but a two-word command (`{a}{b}` is one composite
+        // word) under the vanilla default.
+        let irules = segment_commands_with_offset_and_config(
+            "cmd {a}{b}",
+            0,
+            LexerConfig::for_dialect("f5-irules"),
+        );
+        assert_eq!(irules.len(), 1);
+        assert_eq!(
+            irules[0].argv.len(),
+            3,
+            "iRules `}}{{` splits into two words: {:?}",
+            irules[0].texts,
+        );
+        let vanilla =
+            segment_commands_with_offset_and_config("cmd {a}{b}", 0, LexerConfig::default());
+        assert_eq!(
+            vanilla[0].argv.len(),
+            2,
+            "vanilla keeps `{{a}}{{b}}` as one composite word: {:?}",
+            vanilla[0].texts,
+        );
+    }
+
+    #[test]
     fn single_command() {
         let cmds = segment_commands("puts hello");
         assert_eq!(cmds.len(), 1);
