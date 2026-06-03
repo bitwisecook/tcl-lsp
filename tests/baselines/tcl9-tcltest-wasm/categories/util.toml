@@ -1,6 +1,6 @@
 # util.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '2 of 462 failed'
+# reason = '1 of 462 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 462
-observed_passed = 431
-observed_failed = 2
+observed_passed = 432
+observed_failed = 1
 observed_skipped = 29
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["util-3.6", "util-4.3"]
+ids = ["util-3.6"]
