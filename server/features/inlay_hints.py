@@ -11,7 +11,7 @@ from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ProcDef
 from compiler.core_analyses import analyse_source
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_shift
 from compiler.registry import REGISTRY
 from compiler.registry.models import OptionSpec
@@ -225,14 +225,14 @@ def _collect_format_string_hints(
             continue
 
         # Parse the line to find commands and their arguments
-        lexer = TclLexer(line_text, base_line=line_no)
+        # Shared green-tree memo (token-for-token identical to a private TclLexer).
+        tokens, _ = tokenise(line_text, 0, line_no, 0)
         argv_texts: list[str] = []
         argv_tokens: list = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None or tok.type is TokenType.EOL:
+        for tok in tokens:
+            if tok.type is TokenType.EOL:
                 break
             if tok.type in (TokenType.SEP, TokenType.COMMENT):
                 prev_type = tok.type
