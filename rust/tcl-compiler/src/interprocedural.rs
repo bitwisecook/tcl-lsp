@@ -1482,7 +1482,14 @@ fn scan_source_for_calls(
     facts: &mut LocalFacts,
     params: &HashSet<String>,
 ) {
-    let commands = crate::segmenter::segment_commands(source);
+    // SYNC-MAY19-dialect-contextvar strip 4: scan the call graph under the
+    // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
+    // the same way the rest of the analyser/lowering now does.
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+    );
     for cmd in commands {
         // Skip empty / non-literal command names — they're not
         // call-graph edges we can resolve at compile time.
