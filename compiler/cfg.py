@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from compiler.parsing.command_segmenter import SegmentedCommand, segment_commands
 from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import arg_indices_for_role
@@ -75,6 +76,31 @@ def _terminating_commands() -> frozenset[str]:
 _TERMINATING_COMMANDS = _terminating_commands()
 
 
+def _static_var_write_defs(seg: SegmentedCommand) -> list[str]:
+    """Literal ``ArgRole.VAR_WRITE`` def names from one segmented command.
+
+    Reads the command's words from the canonical segment source rather than
+    rebuilding them from bare ``tok.text``, and skips write targets whose
+    *name* is itself a substitution: ``set $name 1`` writes the variable named
+    by the value of ``name`` (not literal ``name``), and ``[cmd]`` is dynamic
+    too.  A literal name with a substituted *index* (``set arr($i) 1``) still
+    defines the array ``arr``, so only ``VAR`` / ``CMD``-led words are dropped.
+    """
+    defs: list[str] = []
+    cmd_name = seg.name
+    args = seg.args
+    arg_tokens = seg.arg_tokens
+    for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
+        if idx >= len(args) or idx >= len(arg_tokens):
+            continue
+        if arg_tokens[idx].type in (TokenType.VAR, TokenType.CMD):
+            continue
+        name = _normalise_var_name(args[idx])
+        if name:
+            defs.append(name)
+    return defs
+
+
 def _defs_from_body_script(body_text: str) -> list[str]:
     """Extract variable names defined by commands in a body script.
 
@@ -84,39 +110,8 @@ def _defs_from_body_script(body_text: str) -> list[str]:
     ``x`` even though ``x`` is not a direct argument of ``catch``.
     """
     defs: list[str] = []
-    lex_tokens, _ = tokenise(body_text, 0, 0, 0)
-    words: list[str] = []
-    prev_type = TokenType.EOL
-
-    def _flush() -> None:
-        if not words:
-            return
-        cmd_name = words[0]
-        args = words[1:]
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
-            if idx < len(args):
-                name = _normalise_var_name(args[idx])
-                if name:
-                    defs.append(name)
-
-    for tok in lex_tokens:
-        if tok.type in (TokenType.EOL, TokenType.EOF):
-            _flush()
-            words = []
-            prev_type = tok.type
-            continue
-        if tok.type is TokenType.SEP:
-            prev_type = tok.type
-            continue
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            words.append(tok.text)
-        else:
-            if words:
-                words[-1] += tok.text
-            else:
-                words.append(tok.text)
-        prev_type = tok.type
-    _flush()
+    for seg in segment_commands(body_text):
+        defs.extend(_static_var_write_defs(seg))
     return defs
 
 
@@ -358,68 +353,24 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
         # Strip outer [ ... ] if present.
         if text.startswith("[") and text.endswith("]"):
             text = text[1:-1]
-        # Tokenise the command to get the command name and plain-word args.
-        words: list[str] = []
-        prev_type = TokenType.EOL
-        for tok in tokenise(text, 0, 0, 0)[0]:
-            if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
-                prev_type = tok.type
-                continue
-            if prev_type in (TokenType.SEP, TokenType.EOL):
-                words.append(tok.text)
-            else:
-                # Multi-token word — append to current word.
-                if words:
-                    words[-1] += tok.text
-                else:
-                    words.append(tok.text)
-            prev_type = tok.type
-        if not words:
-            continue
-        cmd_name = words[0]
-        args = words[1:]
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
-            if idx < len(args):
-                name = _normalise_var_name(args[idx])
-                if name:
-                    defs.append(name)
-        # Scan BODY arguments for variable definitions so that
-        # ``[catch {set x [foo]}]`` in a condition defines ``x``.
-        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
-            if idx < len(args):
-                body = args[idx]
-                if body.startswith("{") and body.endswith("}"):
-                    body = body[1:-1]
-                defs.extend(_defs_from_body_script(body))
-
-        # Recursively scan command substitutions in arguments so that
-        # ``[lsearch $tags [set full_tag [string tolower $x]]]``
-        # correctly reports ``full_tag`` as defined.
-        for tok in tokenise(text, 0, 0, 0)[0]:
-            if tok.type is TokenType.CMD and tok.text:
-                nested_text = tok.text
-                nested_words: list[str] = []
-                np = TokenType.EOL
-                for nt in tokenise(nested_text, 0, 0, 0)[0]:
-                    if nt.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
-                        np = nt.type
-                        continue
-                    if np in (TokenType.SEP, TokenType.EOL):
-                        nested_words.append(nt.text)
-                    elif nested_words:
-                        nested_words[-1] += nt.text
-                    else:
-                        nested_words.append(nt.text)
-                    np = nt.type
-                if not nested_words:
-                    continue
-                ncmd = nested_words[0]
-                nargs = nested_words[1:]
-                for idx in sorted(arg_indices_for_role(ncmd, nargs, ArgRole.VAR_WRITE)):
-                    if idx < len(nargs):
-                        name = _normalise_var_name(nargs[idx])
-                        if name:
-                            defs.append(name)
+        for seg in segment_commands(text):
+            defs.extend(_static_var_write_defs(seg))
+            # Scan BODY arguments for variable definitions so that
+            # ``[catch {set x [foo]}]`` in a condition defines ``x``.  A body is
+            # a script only when it is a braced (``STR``) word; a dynamic body
+            # (``[build]`` / ``$body``) defines nothing statically.
+            for idx in sorted(arg_indices_for_role(seg.name, seg.args, ArgRole.BODY)):
+                if idx < len(seg.arg_tokens):
+                    btok = seg.arg_tokens[idx]
+                    if btok.type is TokenType.STR and btok.text:
+                        defs.extend(_defs_from_body_script(btok.text))
+            # Recursively scan command substitutions in arguments so that
+            # ``[lsearch $tags [set full_tag [string tolower $x]]]``
+            # correctly reports ``full_tag`` as defined.
+            for tok in seg.all_tokens:
+                if tok.type is TokenType.CMD and tok.text:
+                    for nseg in segment_commands(tok.text):
+                        defs.extend(_static_var_write_defs(nseg))
     return defs
 
 
