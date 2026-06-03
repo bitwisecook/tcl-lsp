@@ -558,6 +558,7 @@ fn last_literal_set_value_for_var(
     source: &str,
     var_name: &str,
     before_offset: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, tcl_lexer::Span, String)> {
     if var_name.is_empty() || before_offset == 0 {
         return None;
@@ -567,7 +568,7 @@ fn last_literal_set_value_for_var(
         return None;
     }
     let prefix = &source[..head];
-    let segments = crate::segmenter::segment_commands(prefix);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(prefix, 0, config);
 
     for cmd in segments.iter().rev() {
         if cmd.texts.first().map(String::as_str) != Some("set") {
@@ -1622,7 +1623,12 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
             if matches!(tok.kind, tcl_lexer::TokenType::Var) {
                 let var_name = self.var_name_from_token(tok);
                 let resolved = var_name.and_then(|name| {
-                    last_literal_set_value_for_var(&self.source, &name, tok.span.start())
+                    last_literal_set_value_for_var(
+                        &self.source,
+                        &name,
+                        tok.span.start(),
+                        self.lexer_config(),
+                    )
                 });
                 if let Some((resolved_text, resolved_span, var_text)) = resolved {
                     if resolved_text.starts_with('-') {

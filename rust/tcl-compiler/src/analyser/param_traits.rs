@@ -40,7 +40,8 @@ use tcl_registry::stub_overlay::StubOverlay;
 use tcl_registry::CommandRegistry;
 
 use super::types::ProcArgTrait;
-use crate::segmenter::segment_commands;
+use crate::segmenter::segment_commands_with_offset_and_config;
+use tcl_lexer::LexerConfig;
 
 /// Top-level shallow trait inference.  Returns a map from
 /// parameter name to a set of inferred traits.  Empty entries
@@ -69,6 +70,33 @@ pub fn infer_param_traits(
     registry: &CommandRegistry,
     stub_overlay: Option<&StubOverlay>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
+    infer_param_traits_with_config(
+        params,
+        body_source,
+        registry,
+        stub_overlay,
+        LexerConfig::default(),
+    )
+}
+
+/// Like [`infer_param_traits`] but with an explicit dialect
+/// [`LexerConfig`] for the body's re-segmentation.
+///
+/// `{*}` expansion (off for Tcl 8.4 / iRules) and the iRules `}{`
+/// ghost SEP change how the body splits into commands and words, which
+/// in turn changes which arguments resolve to a clean `$param` and thus
+/// which traits are inferred.  The analyser threads
+/// `Analyser::lexer_config()` here so trait inference honours the
+/// document's dialect rather than always assuming the Tcl-8.5+ default
+/// (`SYNC-MAY19-dialect-contextvar`, strip 2).
+#[must_use]
+pub fn infer_param_traits_with_config(
+    params: &[&str],
+    body_source: &str,
+    registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
     }
@@ -84,6 +112,7 @@ pub fn infer_param_traits(
         &mut upvar_aliases,
         registry,
         stub_overlay,
+        config,
     );
 
     finalise_traits(traits)
@@ -117,6 +146,27 @@ pub fn infer_param_traits_deep(
     registry: &CommandRegistry,
     stub_overlay: Option<&StubOverlay>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
+    infer_param_traits_deep_with_config(
+        params,
+        body_source,
+        registry,
+        stub_overlay,
+        LexerConfig::default(),
+    )
+}
+
+/// Like [`infer_param_traits_deep`] but with an explicit dialect
+/// [`LexerConfig`] (see [`infer_param_traits_with_config`]).  The config
+/// is threaded into both the top-level scan and every recursive descent
+/// into a braced body argument.
+#[must_use]
+pub fn infer_param_traits_deep_with_config(
+    params: &[&str],
+    body_source: &str,
+    registry: &CommandRegistry,
+    stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
     }
@@ -133,6 +183,7 @@ pub fn infer_param_traits_deep(
         0,
         registry,
         stub_overlay,
+        config,
     );
 
     finalise_traits(traits)
@@ -191,8 +242,9 @@ fn scan_commands<'p>(
     upvar_aliases: &mut HashMap<String, &'p str>,
     registry: &CommandRegistry,
     stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
 ) {
-    let commands = extract_commands(source);
+    let commands = extract_commands(source, config);
     for (cmd_name, cmd_args) in &commands {
         scan_command(
             cmd_name,
@@ -215,6 +267,14 @@ fn scan_commands<'p>(
 /// `$var` / `[cmd]` body args are skipped — they aren't
 /// braced bodies, and any `Eval` trait they carry is recorded
 /// at the top level by the same call-site's role scan.
+//
+// `too_many_arguments` allowed: the recursion threads the same
+// read-only inference state (`param_set` / `traits` / `upvar_aliases`
+// / `registry` / `stub_overlay` / `config`) that the sibling
+// `scan_commands` / `scan_command` / `handle_*` helpers also take by
+// value.  Bundling them into a context struct would ripple through that
+// whole family — a separate cleanup, out of scope for this strip.
+#[allow(clippy::too_many_arguments)]
 fn scan_deep<'p>(
     source: &str,
     param_set: &HashSet<&'p str>,
@@ -223,6 +283,7 @@ fn scan_deep<'p>(
     depth: u8,
     registry: &CommandRegistry,
     stub_overlay: Option<&StubOverlay>,
+    config: LexerConfig,
 ) {
     if depth > MAX_DEPTH {
         return;
@@ -235,13 +296,14 @@ fn scan_deep<'p>(
         upvar_aliases,
         registry,
         stub_overlay,
+        config,
     );
 
     // The recursion only walks braced bodies, so we re-segment
     // here rather than threading the segmented commands through
     // `scan_commands`.  The segmented slices have a lifetime
     // tied to this stack frame; each recursion needs its own.
-    let segments = segment_commands(source);
+    let segments = segment_commands_with_offset_and_config(source, 0, config);
     for seg in segments {
         if seg.texts.is_empty() {
             continue;
@@ -287,6 +349,7 @@ fn scan_deep<'p>(
                 depth + 1,
                 registry,
                 stub_overlay,
+                config,
             );
         }
     }
@@ -295,9 +358,9 @@ fn scan_deep<'p>(
 /// Extract `(command, args)` pairs from `source` via the
 /// segmenter.  Mirrors ``_extract_commands`` in
 /// ``core/analysis/proc_arg_traits.py:78-95``.
-fn extract_commands(source: &str) -> Vec<(String, Vec<String>)> {
+fn extract_commands(source: &str, config: LexerConfig) -> Vec<(String, Vec<String>)> {
     let mut commands = Vec::new();
-    let segments = segment_commands(source);
+    let segments = segment_commands_with_offset_and_config(source, 0, config);
     for seg in segments {
         if seg.texts.is_empty() {
             continue;
@@ -786,6 +849,41 @@ mod tests {
     fn eval_param_records_eval_trait() {
         let traits = infer(&["body"], "eval $body");
         assert_trait(&traits, "body", ProcArgTrait::Eval);
+    }
+
+    #[test]
+    fn trait_inference_is_dialect_aware_via_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar strip 2: `extract_commands` /
+        // `scan_deep` now re-segment under the document dialect, so the
+        // body's `{*}` is the expansion operator on 8.5+ but a literal
+        // brace word on 8.4.  `eval {*}$p` is therefore `eval $p`
+        // (→ `p` is Eval) on 9.0 but `eval` of the single composite word
+        // `{*}$p` (no clean `$p`, no trait) on 8.4.  Before strip 2 the
+        // helper always lexed `{*}` as expansion regardless of dialect.
+        let registry = CommandRegistry::build_default();
+        let on = infer_param_traits_with_config(
+            &["p"],
+            "eval {*}$p",
+            &registry,
+            None,
+            LexerConfig::default(),
+        );
+        assert!(
+            on.get("p").is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
+            "9.0 expands `{{*}}` → eval $p → Eval: {on:?}",
+        );
+        let off = infer_param_traits_with_config(
+            &["p"],
+            "eval {*}$p",
+            &registry,
+            None,
+            LexerConfig::for_dialect("tcl8.4"),
+        );
+        assert!(
+            off.get("p")
+                .is_none_or(|s| !s.contains(&ProcArgTrait::Eval)),
+            "8.4 treats `{{*}}` as literal → no clean $p → no Eval: {off:?}",
+        );
     }
 
     #[test]
