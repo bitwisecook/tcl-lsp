@@ -3349,11 +3349,16 @@ SYNC-JUN03 follow-up) for a **non-negative** dialect-invariant arg, with
 flags / width / precision; the version-divergent edges bail — a negative
 value (two's-complement digit count is 32-bit in 9.0, 64-bit in 8.6:
 `%x -1` → `ffffffff` vs `ffffffffffffffff`), `%#X` (`0xFF` vs `0XFF`),
-`%#o` (`0o10` vs `010`), and `%#x 0` (`0` vs `0x0`).  **Still deferred**
-(own strips, pinned when they land via the same harness): the **float**
-conversions (`%f` / `%e` / `%g` — C-printf rounding parity), **`%c`**,
-**`%u`**, **`%b`** (absent before 8.6), size modifiers (`%ld`),
-`*`/positional specs, and **`scan`** (scanf semantics).  (The duplicated
+`%#o` (`0o10` vs `010`), and `%#x 0` (`0` vs `0x0`).  **`%c`** (codepoint →
+character) **LANDED** too, restricted to a **printable-ASCII** codepoint
+(space..=`~`) with width / `-` justify — that range is byte-identical
+across versions; a codepoint ≥ 128 diverges (8.6 emits a byte, 9.0
+raises), control chars / DEL are unsafe to splice into source, and a
+negative codepoint raises — all bail.  **Still deferred** (own strips,
+pinned when they land via the same harness): the **float** conversions
+(`%f` / `%e` / `%g` — C-printf rounding parity), **`%u`**, **`%b`**
+(absent before 8.6), size modifiers (`%ld`), `*`/positional specs, and
+**`scan`** (scanf semantics).  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3684,16 +3689,16 @@ priority queue:
   `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
   char-class / boolean / list predicates), and `format` (the `%s` / `%d` /
-  `%i` decimal-integer + string conversions and the `%x` / `%X` / `%o` radix
-  conversions, each with the full flag / width / precision matrix — the
-  dialect-invariant subset; landed in the SYNC-JUN03 follow-up and pinned by
-  the new differential-fold harness) — all in the new
+  `%i` decimal-integer + string conversions, the `%x` / `%X` / `%o` radix
+  conversions, and `%c` — each with the flag / width / precision matrix on
+  its dialect-invariant subset; landed in the SYNC-JUN03 follow-up and pinned
+  by the new differential-fold harness) — all in the new
   `tcl-registry/src/const_fold.rs` leaf + per-command modules.  **Still
   deferred** (own strips, each pinned against tclsh via
   `tcl-registry/tests/differential_fold.rs` when it lands): the `string is`
   number classes (`integer` / `entier` / `wideinteger` / `double`), `string
-  is dict`, the `format` float (`%f`/`%e`/`%g`) + `%c` + `%b` conversions,
-  and `scan`.  **`SYNC-JUN02d-2` (embedded /
+  is dict`, the `format` float (`%f`/`%e`/`%g`) + `%b` conversions, and
+  `scan`.  **`SYNC-JUN02d-2` (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
   (interpolation-embedded cmd-sub fold; constant-var arg resolution from the
   whole-function SCCP map; pure-proc multi-word string return).  Out of

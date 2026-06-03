@@ -250,6 +250,9 @@ const FORMATS: &[Case] = &[
     ("format", None, &["%.0s", "hi"]),
     ("format", None, &["%c", "65"]),
     ("format", None, &["%5c", "65"]),
+    ("format", None, &["%-5c", "65"]),
+    ("format", None, &["%c", "65"]),
+    ("format", None, &["%5c", "65"]),
     ("format", None, &["%%"]),
 ];
 

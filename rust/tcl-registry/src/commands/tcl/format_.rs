@@ -2,32 +2,31 @@
 use crate::prelude::*;
 
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
-/// decimal-integer (`%d` / `%i`) and string (`%s`) conversions of `format`,
-/// with the full flag / width / precision matrix that is **byte-identical
-/// across Tcl 8.4 → 9.0** (verified differentially against `tclsh8.6` +
-/// `tclsh9.0` — see `tests/differential_fold.rs`).  This extends the original
-/// plain `%s` / `%d` / `%%` subset with the printf flags `-` (left-justify),
-/// `+` (always sign), space (sign placeholder) and `0` (zero-pad), an
-/// optional width, and an optional `.precision` (minimum digits for integers,
-/// maximum characters for strings).
+/// decimal-integer (`%d` / `%i`), radix (`%x` / `%X` / `%o`), character
+/// (`%c`) and string (`%s`) conversions of `format`, with the printf flag /
+/// width / precision matrix that is **byte-identical across Tcl 8.4 → 9.0**
+/// (verified differentially against `tclsh8.6` + `tclsh9.0` — see
+/// `tests/differential_fold.rs`).
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
 /// the values.  Soundness first — fold only the dialect-invariant subset and
 /// bail (return `None`, leaving the call unfolded) on everything else, since a
-/// wrong fold is a false-positive optimisation:
+/// wrong fold is a false-positive optimisation.  Each conversion's exact
+/// constraints live on its `render_*` helper; in summary:
 ///
-/// * `%d` / `%i` accept only a plain decimal argument the whole 8.4 → 9.0
-///   range agrees on — see [`parse_decimal_arg`].  The `#` flag bails (Tcl 9
-///   renders `%#d 42` as `0d42`, Tcl 8.6 as `42`).
-/// * `%s` honours `-`, width and precision; the numeric flags (`+`, space,
-///   `0`, `#`) bail (Tcl ignores them on strings, so bailing is never wrong),
-///   and a width/precision on a non-ASCII value bails (the character count
-///   diverges across Tcl 8.x UTF-16 units and 9.0 codepoints).
-/// * The radix conversions (`%x` / `%X` / `%o` / `%b`), float conversions
-///   (`%f` / `%e` / `%g`), `%c`, `%u`, size modifiers (`%ld`), `*` (arg-driven)
-///   width / precision, positional `%n$`, and any field over [`MAX_FIELD`] all
-///   bail — radix and float folds are differentially pinned in later strips.
+/// * `%d` / `%i` / `%x` / `%X` / `%o` / `%c` accept only a plain decimal
+///   argument the whole 8.4 → 9.0 range agrees on — see [`parse_decimal_arg`]
+///   ([`Conversion::render_radix`] additionally requires non-negative,
+///   [`Conversion::render_char`] a printable-ASCII codepoint).  The `#`
+///   alternate form is sound only as the lowercase `0x` on a non-zero `%x`.
+/// * `%s` honours `-` / width / precision; the numeric flags bail (Tcl
+///   ignores them on strings), and width/precision over a non-ASCII value
+///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
+/// * The float conversions (`%f` / `%e` / `%g`), `%u`, `%b`, size modifiers
+///   (`%ld`), `*` (arg-driven) width / precision, positional `%n$`, and any
+///   field over [`MAX_FIELD`] all bail — the float folds are differentially
+///   pinned in a later strip.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
 fn fold_format(args: &[&str]) -> Option<String> {
@@ -160,12 +159,35 @@ impl Conversion {
             b'x' => self.render_radix(value, Radix::HexLower),
             b'X' => self.render_radix(value, Radix::HexUpper),
             b'o' => self.render_radix(value, Radix::Octal),
+            b'c' => self.render_char(value),
             b's' => self.render_str(value),
-            // Float (`%f`/`%e`/`%g`), `%c`, `%u`, `%b`, size modifiers (`%ld`)
-            // and positional `%n$` are differentially pinned in later strips —
+            // Float (`%f`/`%e`/`%g`), `%u`, `%b`, size modifiers (`%ld`) and
+            // positional `%n$` are differentially pinned in later strips —
             // bail for now.
             _ => None,
         }
+    }
+
+    /// Render `%c` (codepoint → character) for a printable-ASCII codepoint
+    /// (space..=`~`).  That range is byte-identical across every Tcl version;
+    /// a codepoint ≥ 128 diverges (8.6 emits a byte, 9.0 raises), control
+    /// chars / DEL are unsafe to splice into source, and a negative codepoint
+    /// raises — all bail.  Only the `-` flag + width apply; precision and the
+    /// numeric flags bail.
+    fn render_char(&self, value: &str) -> Option<String> {
+        if self.precision.is_some()
+            || self
+                .flags
+                .intersects(FmtFlags::PLUS | FmtFlags::SPACE | FmtFlags::ZERO | FmtFlags::HASH)
+        {
+            return None;
+        }
+        let n = parse_decimal_arg(value)?;
+        if !(32..=126).contains(&n) {
+            return None;
+        }
+        let ch = char::from(u8::try_from(n).ok()?);
+        Some(self.pad("", &ch.to_string()))
     }
 
     fn render_int(&self, value: &str) -> Option<String> {
@@ -415,9 +437,8 @@ mod tests {
         );
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
         assert_eq!(fold_format(&["%d", "0x10"]), None);
-        // Float / %c / %b verbs are deferred to a later strip.
+        // Float / %b verbs are deferred to a later strip.
         assert_eq!(fold_format(&["%5.2f", "3.14159"]), None);
-        assert_eq!(fold_format(&["%c", "65"]), None);
         assert_eq!(fold_format(&["%b", "5"]), None);
         // Numeric flags don't apply to `%s` → bail.
         assert_eq!(fold_format(&["%05s", "hi"]), None);
@@ -463,5 +484,26 @@ mod tests {
         // Leading-zero / over-range args bail just as for `%d`.
         assert_eq!(fold_format(&["%x", "010"]), None);
         assert_eq!(fold_format(&["%x", "4294967295"]), None);
+    }
+
+    #[test]
+    fn format_folds_char() {
+        // Printable-ASCII codepoints fold; width / `-` justify apply.
+        assert_eq!(fold_format(&["%c", "65"]).as_deref(), Some("A"));
+        assert_eq!(fold_format(&["%c", "97"]).as_deref(), Some("a"));
+        assert_eq!(fold_format(&["%c", "126"]).as_deref(), Some("~"));
+        assert_eq!(fold_format(&["%5c", "65"]).as_deref(), Some("    A"));
+        assert_eq!(fold_format(&["%-5c", "65"]).as_deref(), Some("A    "));
+        // Non-printable / out-of-range / divergent codepoints bail: NUL and
+        // control chars (< 32), DEL (127), codepoint >= 128 (8.6 emits a byte,
+        // 9.0 raises), and negatives.
+        assert_eq!(fold_format(&["%c", "0"]), None);
+        assert_eq!(fold_format(&["%c", "10"]), None);
+        assert_eq!(fold_format(&["%c", "127"]), None);
+        assert_eq!(fold_format(&["%c", "256"]), None);
+        assert_eq!(fold_format(&["%c", "-1"]), None);
+        // Numeric flags / precision don't apply to `%c` → bail.
+        assert_eq!(fold_format(&["%#c", "65"]), None);
+        assert_eq!(fold_format(&["%.2c", "65"]), None);
     }
 }
