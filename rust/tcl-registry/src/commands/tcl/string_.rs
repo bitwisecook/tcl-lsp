@@ -361,33 +361,35 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// itself, so it is defined for any input.  `boolean` / `true` /
 /// `false` use the exact `Tcl_GetBoolean` keyword + unique-prefix set
 /// (so `t` / `ye` / `of` resolve, `o` — ambiguous between on/off —
-/// does not).  The number (`integer` / `entier` / `wideinteger` /
-/// `double`) and `list` / `dict` classes are **deferred** (Tcl number /
-/// list syntax + range edges need differential pinning) — they bail.
+/// does not).  `list` folds (a backslash-free string's well-formedness is
+/// unambiguous).  `integer` folds over its dialect-invariant subset (see
+/// [`string_is_integer`]); the remaining number classes (`entier` /
+/// `wideinteger` / `double`) and `dict` stay deferred — `wideinteger` /
+/// `entier` *raise* in old dialects (8.4 / 8.4 + 8.5) so no fold is sound,
+/// and `double` / `dict` await their own differential-pinned strips.
 fn fold_is(args: &[&str]) -> Option<String> {
     if args.len() < 2 {
         return None;
     }
     let class = args[0];
+    // Tcl grammar: `string is class ?-strict? ?-failindex var? str` — the
+    // **last** argument is always the value under test; the args between the
+    // class and it are options.  Verified against tclsh 8.4 → 9.0:
+    // `string is integer -7` reads `-7` as the *value* (→ 1), and a lone
+    // `string is integer -strict` reads `-strict` as the value (→ 0), not an
+    // option.  Taking the last arg as the value (rather than treating every
+    // `-`-leading arg as an option, as a naive scan would) lets a negative
+    // value fold and matches real Tcl.
+    let s = *args.last()?;
     let mut strict = false;
-    let mut i = 1;
-    while i < args.len() && args[i].starts_with('-') {
-        match args[i] {
-            "-strict" => {
-                strict = true;
-                i += 1;
-            }
-            // `-failindex var` writes a variable (never folded), and an
-            // unknown option / a `-`-leading string arg is ambiguous —
-            // bail in every case.
+    for opt in &args[1..args.len() - 1] {
+        match *opt {
+            "-strict" => strict = true,
+            // `-failindex var` writes a variable (never folded); an unknown
+            // option is ambiguous — bail in both cases.
             _ => return None,
         }
     }
-    // Exactly one positional must remain: the string under test.
-    if i + 1 != args.len() {
-        return None;
-    }
-    let s = args[i];
 
     // The empty string is a member of every class in non-strict mode and
     // a member of none in strict mode.
@@ -426,15 +428,79 @@ fn fold_is(args: &[&str]) -> Option<String> {
             }
             crate::const_fold::split_list(s).is_some()
         }
-        // Number classes (`integer` / `entier` / `wideinteger` /
-        // `double`) and `dict` are deferred: Tcl's integer syntax is
-        // version-dependent (leading-zero octal differs 8.5 ↔ 9.0),
-        // `integer`'s width is platform-dependent (`long`), and `double`
-        // accepts `Inf` / `NaN` / hex-floats — all need differential
-        // pinning against tclsh.  Bail (leave the call unfolded).
+        // `integer`: a valid Tcl integer in the magnitude range every Tcl
+        // 8.4 → 9.0 agrees on.  Folds 1/0 over its dialect-invariant subset,
+        // bails otherwise — see [`string_is_integer`].
+        "integer" => return string_is_integer(s),
+        // `entier` / `wideinteger` / `double` / `dict` stay deferred.
+        // `wideinteger` raises in Tcl 8.4 and `entier` in 8.4 + 8.5 (the
+        // classes postdate those releases), so no dialect-agnostic fold can be
+        // sound — a fold would turn an *error* into a value.  `double` agrees
+        // across versions but needs a float-grammar recogniser that also
+        // accepts the hex-float / Inf / NaN forms Rust's `f64` parser rejects;
+        // `dict` likewise awaits its own differential-pinned strip.  Bail.
         _ => return None,
     };
     Some(if member { "1" } else { "0" }.to_owned())
+}
+
+/// `string is integer` over the **dialect-invariant** subset.  `s` is the
+/// non-empty value under test (the empty string is handled by [`fold_is`]).
+///
+/// `string is integer` agrees across Tcl 8.4 → 9.0 except at large magnitudes:
+/// every release through 9.0 caps the accepted value at the unsigned-32-bit
+/// boundary (`4294967295` is valid, `4294967296` is not), while 9.0 also
+/// accepts arbitrary precision.  Verified differentially against
+/// `tclsh8.4`/`8.5`/`8.6`/`9.0`.  So:
+///
+/// * a **non-leading-zero** decimal (optional sign, optional surrounding ASCII
+///   whitespace) whose value fits `[-(2³²-1), 2³²-1]` folds to `"1"`; a larger
+///   magnitude bails (8.x reject it, 9.0 accepts);
+/// * a non-empty value that is neither all-decimal-digits nor a `0x` / `0o` /
+///   `0b` prefix folds to `"0"` — no Tcl version reads it as an integer
+///   (`abc`, `1.5`, `1e5`, `12x`, `1 2`, a lone sign, whitespace-only);
+/// * a **leading-zero** number bails: it is octal in 8.x but decimal in 9.0,
+///   so `08` / `019` diverge (invalid octal vs valid decimal) and the octal
+///   value also shifts the magnitude — only a lone `0` is unambiguous;
+/// * a `0x` / `0o` / `0b` prefix bails (`0x…` hex needs digit validation;
+///   `0o…` / `0b…` raise in 8.4); a non-ASCII value bails (conservative).
+fn string_is_integer(s: &str) -> Option<String> {
+    if !s.is_ascii() {
+        return None;
+    }
+    let t = s.trim();
+    // Whitespace-only (the truly-empty case never reaches here): no version
+    // reads it as an integer.
+    if t.is_empty() {
+        return Some("0".to_owned());
+    }
+    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
+    let b = body.as_bytes();
+    if b.is_empty() {
+        return Some("0".to_owned()); // a lone sign
+    }
+    // A `0x` / `0o` / `0b` prefix is ambiguous (hex) or version-divergent
+    // (oct / bin raise in 8.4) — bail.
+    if b[0] == b'0' && b.len() >= 2 && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
+        return None;
+    }
+    if b.iter().all(u8::is_ascii_digit) {
+        // Leading-zero decimals are octal in 8.x — `08` / `09` are *invalid*
+        // there yet valid in 9.0, and the octal value shifts the magnitude —
+        // so bail on them; only a lone `0` is unambiguous.
+        if b.len() > 1 && b[0] == b'0' {
+            return None;
+        }
+        // Plain decimal: every version agrees it is valid iff the magnitude is
+        // within the unsigned-32-bit bound they all share.
+        let v: i64 = t.parse().ok()?;
+        if (-4_294_967_295..=4_294_967_295).contains(&v) {
+            return Some("1".to_owned());
+        }
+        return None; // magnitude in the 8.x ↔ 9.0 divergence zone
+    }
+    // Not decimal, not a recognised prefix → no version reads it as an integer.
+    Some("0".to_owned())
 }
 
 /// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
@@ -1090,12 +1156,89 @@ mod tests {
             "even a deferred class"
         );
 
-        // `-failindex` writes a var → never folds; deferred classes and
-        // unknown options bail.
+        // `-failindex` writes a var → never folds; the still-deferred number
+        // classes and unknown options bail.
         assert_eq!(is(&["alpha", "-failindex", "v", "abc"]), None);
-        assert_eq!(is(&["integer", "42"]), None, "number classes deferred");
         assert_eq!(is(&["double", "1.5"]), None, "double deferred");
+        assert_eq!(
+            is(&["wideinteger", "42"]),
+            None,
+            "raises pre-8.6 → deferred"
+        );
+        assert_eq!(is(&["entier", "42"]), None, "raises pre-8.5 → deferred");
         assert_eq!(is(&["nonclass", "x"]), None, "unknown class bails");
+    }
+
+    #[test]
+    fn string_is_integer_folds_dialect_invariant_subset() {
+        let is_int = |v: &str| fold_is(&["integer", v]);
+
+        // Non-leading-zero decimals within the 32-bit-unsigned bound every
+        // 8.4 → 9.0 shares fold to "1" (verified against all four tclsh).
+        assert_eq!(is_int("42").as_deref(), Some("1"));
+        assert_eq!(is_int("-7").as_deref(), Some("1"));
+        assert_eq!(is_int("+5").as_deref(), Some("1"));
+        assert_eq!(is_int("0").as_deref(), Some("1"));
+        assert_eq!(
+            is_int(" 42 ").as_deref(),
+            Some("1"),
+            "surrounding ws trimmed"
+        );
+        assert_eq!(is_int("2147483648").as_deref(), Some("1"), "past 2^31");
+        assert_eq!(
+            is_int("4294967295").as_deref(),
+            Some("1"),
+            "2^32-1 boundary"
+        );
+        assert_eq!(is_int("-4294967295").as_deref(), Some("1"));
+
+        // Clear non-integers fold to "0" — no Tcl version reads them as one.
+        assert_eq!(is_int("abc").as_deref(), Some("0"));
+        assert_eq!(is_int("1.5").as_deref(), Some("0"));
+        assert_eq!(is_int("1e5").as_deref(), Some("0"));
+        assert_eq!(is_int("12x").as_deref(), Some("0"));
+        assert_eq!(is_int("1 2").as_deref(), Some("0"), "internal space");
+        assert_eq!(is_int(".5").as_deref(), Some("0"));
+        assert_eq!(is_int("-").as_deref(), Some("0"), "lone sign");
+        assert_eq!(is_int("0abc").as_deref(), Some("0"));
+        assert_eq!(is_int(" ").as_deref(), Some("0"), "whitespace-only");
+
+        // Divergence / ambiguity bails (a miss is never wrong).
+        assert_eq!(
+            is_int("4294967296"),
+            None,
+            "past the 32-bit cap (8.x reject)"
+        );
+        assert_eq!(is_int("9999999999999999999999"), None, "overflows i64");
+        assert_eq!(is_int("010"), None, "leading zero: octal in 8.x");
+        assert_eq!(is_int("08"), None, "leading zero, invalid octal in 8.x");
+        assert_eq!(is_int("0x1f"), None, "hex needs digit validation");
+        assert_eq!(is_int("0o17"), None, "0o raises in 8.4");
+        assert_eq!(is_int("0b101"), None, "0b raises in 8.4");
+        assert_eq!(is_int("caf\u{e9}"), None, "non-ASCII bails");
+
+        // Option grammar: the last arg is the value, the rest are options
+        // (verified against tclsh 8.4 → 9.0).
+        assert_eq!(
+            fold_is(&["integer", "-strict", "42"]).as_deref(),
+            Some("1"),
+            "-strict option, value 42"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-strict", "-7"]).as_deref(),
+            Some("1"),
+            "-strict option, negative value"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-strict"]).as_deref(),
+            Some("0"),
+            "lone `-strict` is the value, not an option"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-failindex", "v", "42"]),
+            None,
+            "-failindex writes a var → bail"
+        );
     }
 
     #[test]

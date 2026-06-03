@@ -176,11 +176,15 @@ const FOLDABLE: &[Case] = &[
     ("string", Some("equal"), &["abc", "abc"]),
     ("string", Some("equal"), &["abc", "abd"]),
     ("string", Some("compare"), &["a", "b"]),
-    // string is — char classes fold today; number classes are pinned for when they land
+    // string is — char classes + integer fold today; double pins for when it lands
     ("string", Some("is"), &["alpha", "abc"]),
     ("string", Some("is"), &["digit", "123"]),
     ("string", Some("is"), &["space", "   "]),
     ("string", Some("is"), &["integer", "42"]),
+    ("string", Some("is"), &["integer", "-7"]),
+    ("string", Some("is"), &["integer", "4294967295"]),
+    ("string", Some("is"), &["integer", "abc"]),
+    ("string", Some("is"), &["integer", "1.5"]),
     ("string", Some("is"), &["double", "3.14"]),
     // dict ops
     ("dict", Some("get"), &["a 1 b 2", "b"]),
