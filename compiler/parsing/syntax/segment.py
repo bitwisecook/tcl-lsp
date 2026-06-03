@@ -28,6 +28,8 @@ def _command_segment(cmd: SyntaxNode, words: list[SyntaxNode]) -> SegmentedComma
     texts: list[str] = []
     single: list[bool] = []
     expand: list[bool] = []
+    braced: list[bool] = []
+    quoted: list[bool] = []
 
     for word in words:
         frags = [c for c in word.children() if isinstance(c, SyntaxToken)]
@@ -45,6 +47,11 @@ def _command_segment(cmd: SyntaxNode, words: list[SyntaxNode]) -> SegmentedComma
         texts.append("".join(_word_piece(f.to_token()) for f in frags))
         single.append(len(frags) == 1)
         expand.append(bool(word.green.expand_markers))
+        # Per-word shape for the formatter / minifier: a braced word's first
+        # fragment is a STR ({…}); a quoted word's first fragment's raw begins
+        # with the opening double-quote.
+        braced.append(first.token_type is TokenType.STR)
+        quoted.append(first.green.raw.startswith('"'))
 
     syntax_tokens = list(cmd.tokens())
     all_tokens = [st.to_token() for st in syntax_tokens]
@@ -66,6 +73,8 @@ def _command_segment(cmd: SyntaxNode, words: list[SyntaxNode]) -> SegmentedComma
         all_tokens=all_tokens,
         preceding_comment=cmd.green.preceding_comment,
         expand_word=expand if has_expand else None,
+        braced_word=braced,
+        quoted_word=quoted,
     )
 
 

@@ -209,12 +209,46 @@ shipped. The remaining follow-ons, each its own verified cycle:
    unbraced body to ERROR. Every change was reviewed against a 2000-file corpus
    (tcllib, tklib, the Tcl trees, SpiceGenTcl). The fix also surfaced a latent
    W212 message bug (`$${v}`) the raw-text path had hidden.
-3. **Formatter** and **minifier** onto the tree (they need exactly the lossless
-   trivia model above), then **`var_refs`**.
-4. **Per-command `tcl` / `f5 irule` tooling** reads structured command/word/arg
-   nodes (registry-aware) rather than walking tokens.
-5. **Direct AOT lowering** from an AST that points into the CST, retiring the
-   `SegmentedCommand` intermediary on the hot path.
+The sequence below is driven by a full audit of every remaining consumer of the
+old parsing methods (direct `TclLexer`, hand-rolled `prev_type` mini-segmenters,
+and the dead-to-callers `green_tree.descend_*`). What stays: `green_tree.tokenise`
+and `green_tree_scope` are the shared lex memo `build_document` itself rides — not
+parsing methods to retire; `expr_lexer` and the `f5/query` lexer are separate
+tokenisers; line/prefix lexers (hover, completion) are cursor-local.
+
+3. **Formatter + minifier** (cycle 4) — replace their `TclLexer` loops with
+   `build_document` + `segments_from_document`. The formatter gets faithful
+   reconstruction from `GreenToken.raw` (retiring the delimiter-rebuilding
+   heuristics); the minifier gets pre-separated trivia and its four bespoke
+   descent scanners collapse to `descend_*`. Prereq (shipped): per-word
+   `braced_word` / `quoted_word` on `SegmentedCommand`. Bar: byte-identical
+   formatted / minified output over the corpus + idempotency.
+4. **`var_refs`** (+ `proc_fingerprint`, `place_bridge`) (cycle 5) — base-0 CST
+   scan + `descend_*`, *preserving* the cross-document name-set LRU (base 0 is
+   load-bearing for sharing). Bar: identical name sets. Lowest risk — no offsets.
+5. **Refactoring + lowering body re-lexes** (cycle 6) — replace the hand-rolled
+   switch-body / brace splitters (`refactoring/_switch_to_dict`,
+   `_extract_datagroup`, `lowering._switch_body_elements`, `_barrier_gate`, the
+   `[list …]` / `[subst …]` re-segments) with shared `descend_*`.
+6. **Semantic tokens + server features** (cycle 7) — `_semantic_tokens/_collect.py`
+   (a full segmenter+recovery+recursion clone), `inlay_hints`, `code_actions`,
+   `_format_args` onto `segments_from_document` + descent (threading
+   `virtual_insertions`). Bar: `SemanticTokensDelta` byte-identity.
+7. **iRule object refs** (cycle 8) — `dialects/f5/bigip/irules_refs.py`'s three
+   re-lex paths (recursive `segment_commands`, raw EXPR `TclLexer`, CMD walk)
+   onto one CST + `descend_command`.
+8. **Compiler explorer** (cycle 9) — add a structural `cst` view (each node's
+   range vs its raw source slice, attached trivia, `text` vs `raw`, the inner-end
+   convention, `{*}` markers, and descent with the `terminated` flag) plus a
+   `segments` view (none exists today); keep `greentree` as the oracle; mirror
+   into the JSON / TUI / web surfaces.
+9. **Direct AOT lowering** (cycle 10) — make `_Command` a view over a `SyntaxNode`
+   COMMAND, retiring the `SegmentedCommand` allocation on the hot path; nested
+   body args via `descend_command`. Bar: byte-identical IR + bytecode + full
+   `test-py`. Highest risk (feeds codegen).
+10. **Cleanup** — delete `green_tree.descend_token` / `descend_command` (no
+    external callers once the above land); `node_for` survives only for the two
+    explorer debug dumps.
 
 ## Pointers
 

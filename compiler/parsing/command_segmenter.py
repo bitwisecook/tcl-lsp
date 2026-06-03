@@ -96,6 +96,12 @@ class SegmentedCommand:
     partial_delimiter: UnclosedDelimiter | None = None
     expand_word: list[bool] | None = None  # {*} expansion on each word
     subcommand: str | None = None  # resolved subcommand name when known
+    # Per-word shape, parallel to ``texts``: whether each word's first fragment is
+    # a braced ``{…}`` (STR) word, and whether the word is a ``"…"`` quoted word.
+    # The formatter and minifier key brace/quote decisions off these; derived by
+    # the CST (a word's first fragment), ``None`` only on recovery-built commands.
+    braced_word: list[bool] | None = None
+    quoted_word: list[bool] | None = None
 
     @property
     def name(self) -> str:
