@@ -841,9 +841,12 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        // Resolve the option by unique-prefix match (Tcl accepts
-        // ``-n`` / ``-no`` for ``-nocase`` etc. — regexpComp-21.6/.7,
-        // 24.6/.7).  An exact match wins over a longer prefix.
+        // Resolve the option.  Only ``-nocase`` is matched by prefix
+        // (so ``-n`` / ``-no`` / ``-noc`` resolve to it — regexpComp-
+        // 21.6/.7, 24.6/.7); every other option requires an exact match,
+        // mirroring C Tcl (TclCompileRegexpCmd's ``strncmp(…,"-nocase",
+        // len)`` special case plus the interpreted ``Tcl_RegexpObjCmd``'s
+        // ``TCL_EXACT`` lookup).  See ``match_regexp_opt``.
         const opt = match_regexp_opt(w);
         switch (opt) {
             0 => { // -nocase
