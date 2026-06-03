@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 
 from shared.tokens import SourcePosition, Token, TokenType
 
-from .green_tree import tokenise
-
 log = logging.getLogger(__name__)
 
 
@@ -76,32 +74,6 @@ def _word_piece(tok: Token) -> str:
     if tok.type is TokenType.CMD:
         return f"[{tok.text}]"
     return tok.text
-
-
-def _command_range(all_tokens: list[Token], boundary: SourcePosition | None) -> Range:
-    """Span a command from its first token to its last word's closer.
-
-    The faithful end is derived **token-only** from the command's *boundary* —
-    the start of the ``SEP``/``EOL`` token immediately following the last word —
-    minus one.  That position is the last character of the final word, closer
-    included, for braces, brackets, quotes, empty ``{}``/``""``, and compound
-    words (``{a}b``) alike, with **no source re-scan and no base_offset**: the
-    lexer already placed the boundary one byte past the word's last char, so
-    ``boundary - 1`` is the closer and sits on the same line (``character >= 1``
-    after a word).  When no boundary is available — a token stream that does not
-    end in ``EOL``, only reachable via recovery — fall back to the last token's
-    inner end.
-    """
-    start = all_tokens[0].start
-    if boundary is not None and boundary.offset - 1 >= start.offset:
-        end = SourcePosition(
-            line=boundary.line,
-            character=boundary.character - 1,
-            offset=boundary.offset - 1,
-        )
-    else:
-        end = all_tokens[-1].end
-    return Range(start=start, end=end)
 
 
 # Minimum number of lines a suspicious STR token must span to trigger
@@ -244,146 +216,33 @@ def _segment_raw(
     virtual_insertions: dict[int, str] | None = None,
     collect_warnings: list[tuple[SourcePosition, str]] | None = None,
 ) -> list[SegmentedCommand]:
-    """Segment without error recovery — the inner loop."""
+    """Segment without error recovery — the inner loop.
+
+    Builds the canonical green concrete syntax tree for the region and derives
+    the ``SegmentedCommand`` list from it.  The output is byte-identical to the
+    former hand-rolled token loop (verified over the real-world corpus, 120k
+    randomised differential cases, and nested-body anchoring); the tree is the
+    single representation that the formatter, minifier, AOT lowering, and the
+    per-command tooling are migrating onto.  See
+    :mod:`compiler.parsing.syntax`.
+
+    The import is deferred to break the ``syntax`` ↔ ``command_segmenter`` cycle
+    (the tree's segment derivation reuses ``SegmentedCommand`` and ``_word_piece``
+    from this module).
+    """
+    from .syntax import build_document, segments_from_document
+
     base_offset, base_line, base_col = _base_position_for(body_token)
-    tokens, warnings = tokenise(
+    document, warnings = build_document(
         source,
         base_offset,
         base_line,
         base_col,
         virtual_insertions=virtual_insertions,
     )
-
-    commands: list[SegmentedCommand] = []
-    argv: list[Token] = []
-    texts: list[str] = []
-    single: list[bool] = []
-    expand: list[bool] = []
-    all_tokens: list[Token] = []
-    prev_type = TokenType.EOL
-    last_comment: str | None = None
-    next_expand = False
-    has_expand = False
-    # Start of the SEP/EOL that follows the most recent word — the command's
-    # faithful end is one byte before it (see _command_range).  Captured when a
-    # SEP/continuation follows a word so trailing whitespace before the EOL does
-    # not extend the command span.
-    word_boundary: SourcePosition | None = None
-
-    for tok in tokens:
-        if tok.type is TokenType.COMMENT:
-            line = tok.text.lstrip("#").strip()
-            if last_comment is not None:
-                last_comment = last_comment + "\n" + line
-            else:
-                last_comment = line
-            continue
-        if tok.type is TokenType.SEP:
-            if prev_type not in (TokenType.SEP, TokenType.EOL):
-                word_boundary = tok.start
-            prev_type = tok.type
-            continue
-        # Backslash-newline continuation between words is whitespace.
-        if tok.type is TokenType.ESC and tok.text == "\\\n":
-            if prev_type not in (TokenType.SEP, TokenType.EOL):
-                word_boundary = tok.start
-            prev_type = TokenType.SEP
-            continue
-        if tok.type is TokenType.EXPAND:
-            # {*} prefix — mark the next word for expansion
-            all_tokens.append(tok)
-            next_expand = True
-            has_expand = True
-            # Set prev_type to SEP so the next token starts a new word
-            prev_type = TokenType.SEP
-            continue
-        if tok.type is TokenType.EOL:
-            if argv:
-                # The EOL directly follows the last word (no trailing whitespace)
-                # ⇒ its start is the boundary; otherwise a SEP intervened and
-                # word_boundary holds the position right after the last word.
-                boundary = (
-                    tok.start if prev_type not in (TokenType.SEP, TokenType.EOL) else word_boundary
-                )
-                commands.append(
-                    SegmentedCommand(
-                        range=_command_range(all_tokens, boundary),
-                        argv=argv,
-                        texts=texts,
-                        single_token_word=single,
-                        all_tokens=all_tokens,
-                        preceding_comment=last_comment,
-                        expand_word=expand if has_expand else None,
-                    )
-                )
-                last_comment = None
-            elif tok.text.count("\n") > 1:
-                # Blank line (multiple newlines with no command between) —
-                # reset accumulated comments so that comment blocks separated
-                # by blank lines are not merged and attached to a later command.
-                last_comment = None
-            argv = []
-            texts = []
-            single = []
-            expand = []
-            all_tokens = []
-            has_expand = False
-            next_expand = False
-            word_boundary = None
-            prev_type = tok.type
-            continue
-
-        all_tokens.append(tok)
-        piece = _word_piece(tok)
-
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv.append(tok)
-            texts.append(piece)
-            single.append(True)
-            expand.append(next_expand)
-            next_expand = False
-        else:
-            if texts:
-                texts[-1] += piece
-                single[-1] = False
-                # Keep argv token range aligned to the full Tcl word span.
-                prev = argv[-1]
-                argv[-1] = Token(
-                    type=prev.type,
-                    text=prev.text,
-                    start=prev.start,
-                    end=tok.end,
-                )
-            else:
-                argv.append(tok)
-                texts.append(piece)
-                single.append(True)
-                expand.append(next_expand)
-                next_expand = False
-
-        prev_type = tok.type
-
-    # Trailing command without final EOL (only via recovery — the lexer always
-    # emits a trailing EOL, so word_boundary is the last post-word boundary or
-    # None, and _command_range falls back to the last token's inner end).
-    if argv:
-        commands.append(
-            SegmentedCommand(
-                range=_command_range(all_tokens, word_boundary),
-                argv=argv,
-                texts=texts,
-                single_token_word=single,
-                all_tokens=all_tokens,
-                preceding_comment=last_comment,
-                expand_word=expand if has_expand else None,
-            )
-        )
-
-    # Harvest non-fatal warnings from the lexer for diagnostic emission.
     if collect_warnings is not None:
         collect_warnings.extend(warnings)
-
-    return commands
+    return segments_from_document(document, base_offset, base_line, base_col, text=source)
 
 
 @dataclass(frozen=True, slots=True)

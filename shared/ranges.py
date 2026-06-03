@@ -105,8 +105,8 @@ def word_closer_offset(tok: Token, source: str) -> int | None:
     Returns ``None`` when *tok* does not begin with an opening delimiter, or when
     the word is unterminated (the computed position is not the matching closer).
     *tok* and *source* must share a coordinate frame (top-level: pass the
-    document).  Command/word *ranges* are derived token-only by the segmenter and
-    do not use this — see ``command_segmenter._command_range``.
+    document).  Command/word *ranges* are owned by the concrete syntax tree the
+    segmenter builds and do not use this — see :mod:`compiler.parsing.syntax`.
     """
     start = tok.start.offset
     if not (0 <= start < len(source)):

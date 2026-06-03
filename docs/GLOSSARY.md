@@ -101,6 +101,27 @@ flowchart LR
     P2 --> DIAG["E201–E206 diagnostics"]
 ```
 
+### Concrete syntax tree (CST) / red-green tree
+
+The lossless, position-independent syntax tree the segmenter builds, and the
+representation the formatter, minifier, AOT lowering, and per-command tooling
+are migrating onto. It follows the Roslyn / rust-analyzer **red-green** split:
+the *green* tree stores only *widths* and children (so identical subtrees are
+shareable and an edit shifts a subtree for free), and a *red* overlay resolves
+absolute positions lazily, reproducing the exact `Token` offsets the lexer
+emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
+adjacent token rather than living as sibling tokens, so a command is pure
+syntax while every byte still round-trips. `SegmentedCommand`s are derived from
+it byte-identically. Implemented in
+[`compiler/parsing/syntax/`](../compiler/parsing/syntax/).
+
+> Distinct from the [green token tree](design/compiler/green-token-tree.md), a
+> context-aware tokenisation *memo* whose tokens carry absolute positions
+> (despite also naming its node `GreenNode`).
+
+See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
+KCS tag: `lexing`.
+
 ---
 
 ## Phase 3 — IR lowering
