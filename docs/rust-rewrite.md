@@ -3396,9 +3396,16 @@ exponential / shortest-form to C's: `%e` rewrites the exponent as a sign +
 double` subset; precision defaults to 6, and unlike `%d` the `0` flag
 zero-pads even with a precision.  A non-finite value (`Inf`/`NaN` — spelling
 is version-edgy) and the `#` alternate form (it suppresses `%g`'s
-trailing-zero stripping) both bail.  **Still deferred** (own strips, pinned
-via the same harness): **`%u`**, **`%b`** (absent before 8.6), size
-modifiers (`%ld`), and `*`/positional specs.  (The duplicated
+trailing-zero stripping) both bail.  **`format %u` — LANDED** too
+(`render_unsigned`): a plain non-negative decimal in the unsigned-32-bit
+range every release shares (`[0, 2³²-1]` — `2147483648` agrees, `%u -1`
+and `4294967296` diverge), with flag / width / precision (the `+`/space
+flags don't apply to an unsigned value).  This completes the foldable
+`format` conversion matrix.  **Permanently deferred**: **`%b`** — it
+*raises* before Tcl 8.6, so a fold would turn an 8.4/8.5 error into a value
+(it joins `string is wideinteger`/`entier`/`dict`).  Size modifiers (`%ld`)
+and `*`/positional specs stay unfolded (rare, version-edgy).  (The
+duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3729,9 +3736,9 @@ priority queue:
   `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
   `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
   char-class / boolean / list predicates), and `format` (the `%s` / `%d` /
-  `%i` decimal-integer + string conversions, the `%x` / `%X` / `%o` radix
+  `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` radix
   conversions, `%c`, and the full float family (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
-  — each with the
+  — the complete foldable matrix, each with the
   flag / width / precision matrix on its dialect-invariant subset; landed in
   the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
   and `string is integer` + `double` (their dialect-invariant subsets — the
@@ -3742,9 +3749,9 @@ priority queue:
   the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
   **Still deferred** (own strips, each pinned against tclsh via
   `tcl-registry/tests/differential_fold.rs` when it lands): `string is
-  wideinteger` / `entier` / `dict` (they *raise* in old dialects — 8.4 /
-  8.4 + 8.5 / pre-9.0 — so no dialect-agnostic fold is sound), and the
-  `format` `%u` + `%b` conversions.
+  wideinteger` / `entier` / `dict` and `format %b` (they *raise* in old
+  dialects — 8.4 / 8.4 + 8.5 / pre-9.0 / pre-8.6 — so no dialect-agnostic
+  fold is sound).
   **`SYNC-JUN02d-2`
   (embedded /
   nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**

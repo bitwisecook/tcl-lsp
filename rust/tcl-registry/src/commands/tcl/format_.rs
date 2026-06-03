@@ -2,11 +2,14 @@
 use crate::prelude::*;
 
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
-/// decimal-integer (`%d` / `%i`), radix (`%x` / `%X` / `%o`), character
+/// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
 /// conversions of `format`, with the printf flag / width / precision matrix
 /// that is **byte-identical across Tcl 8.4 → 9.0** (verified differentially
 /// against `tclsh8.4`/`8.5`/`8.6`/`9.0` — see `tests/differential_fold.rs`).
+/// Only `%b` (raises before 8.6), size modifiers, and `*`/positional specs
+/// remain unfolded — `%b` is permanently unsound (a fold would turn an old-
+/// dialect error into a value).
 ///
 /// `args[0]` is the format string (ASCII-restricted — we byte-index it for
 /// the `%` scan, so a multi-byte char would be mis-sliced); `args[1..]` are
@@ -28,8 +31,9 @@ use crate::prelude::*;
 ///   `%e`/`%g`'s exponent / shortest-form rendering reshaped to C's by
 ///   [`fmt_sci`] / [`fmt_general`]; a non-finite value and the `#` form bail.
 ///   See [`Conversion::render_float`].
-/// * `%u`, `%b`, size modifiers (`%ld`), `*` (arg-driven) width / precision,
-///   positional `%n$`, and any field over [`MAX_FIELD`] all bail.
+/// * `%b` (raises before 8.6), size modifiers (`%ld`), `*` (arg-driven)
+///   width / precision, positional `%n$`, and any field over [`MAX_FIELD`]
+///   all bail.
 /// * A bare trailing `%` (an incomplete conversion, which Tcl raises on) and
 ///   too few arguments both bail; extra arguments are ignored (matching Tcl).
 fn fold_format(args: &[&str]) -> Option<String> {
@@ -177,11 +181,45 @@ impl Conversion {
             b'E' => self.render_float(value, FloatKind::Scientific, true),
             b'g' => self.render_float(value, FloatKind::General, false),
             b'G' => self.render_float(value, FloatKind::General, true),
+            b'u' => self.render_unsigned(value),
             b's' => self.render_str(value),
-            // `%u`, `%b`, size modifiers (`%ld`) and positional `%n$` are
-            // differentially pinned in later strips — bail for now.
+            // `%b` (raises before 8.6), size modifiers (`%ld`) and positional
+            // `%n$` bail — `%b` is permanently unsound (a fold would turn an
+            // 8.4/8.5 error into a value).
             _ => None,
         }
+    }
+
+    /// Render `%u` (unsigned decimal).  The argument must be a **plain
+    /// non-negative** decimal in the unsigned-32-bit range every release
+    /// shares (`[0, 2³²-1]`): a negative value (`%u -1` → `…615` on 8.x vs
+    /// `4294967295` on 9.0), a value past `2³²` (`%u 4294967296` → `0` on 9.0),
+    /// a sign, a leading zero (octal in 8.x), or a `0x`/etc. form all diverge
+    /// or differ and bail.  `%u` carries no sign, so the `+`/space flags don't
+    /// apply (Tcl ignores them); `#` bails.
+    fn render_unsigned(&self, value: &str) -> Option<String> {
+        if self.flags.contains(FmtFlags::HASH) {
+            return None;
+        }
+        let t = value.trim();
+        let b = t.as_bytes();
+        if b.is_empty() || !b.iter().all(u8::is_ascii_digit) {
+            return None; // a sign / non-digit / empty bails
+        }
+        if b.len() > 1 && b[0] == b'0' {
+            return None; // leading zero → octal in 8.x
+        }
+        let n: u64 = t.parse().ok()?;
+        if n > 4_294_967_295 {
+            return None; // beyond the unsigned-32-bit range all versions share
+        }
+        let mut digits = n.to_string();
+        if let Some(p) = self.precision {
+            if digits.len() < p {
+                digits = "0".repeat(p - digits.len()) + &digits;
+            }
+        }
+        Some(self.pad("", &digits, self.int_zero_pad()))
     }
 
     /// Render a float conversion — `%f`/`%F` (fixed), `%e`/`%E` (scientific),
@@ -552,8 +590,18 @@ mod tests {
         );
         // Hex / octal / binary prefixes bail (Rust's parser declines them).
         assert_eq!(fold_format(&["%d", "0x10"]), None);
-        // %u / %b verbs are deferred to a later strip.
-        assert_eq!(fold_format(&["%u", "5"]), None);
+        // %u folds for a non-negative in-range value; divergent forms bail.
+        assert_eq!(fold_format(&["%u", "42"]).as_deref(), Some("42"));
+        assert_eq!(fold_format(&["%05u", "42"]).as_deref(), Some("00042"));
+        assert_eq!(fold_format(&["%.3u", "42"]).as_deref(), Some("042"));
+        assert_eq!(
+            fold_format(&["%u", "2147483648"]).as_deref(),
+            Some("2147483648")
+        );
+        assert_eq!(fold_format(&["%u", "-1"]), None); // unsigned-wrap diverges
+        assert_eq!(fold_format(&["%u", "4294967296"]), None); // past 2^32
+        assert_eq!(fold_format(&["%u", "010"]), None); // leading zero (octal in 8.x)
+                                                       // %b raises before Tcl 8.6 → permanently unsound to fold.
         assert_eq!(fold_format(&["%b", "5"]), None);
         // Float verbs with a non-finite value bail (Inf/NaN spelling is edgy);
         // the `#` alternate form bails (it changes %g trailing-zero stripping).
