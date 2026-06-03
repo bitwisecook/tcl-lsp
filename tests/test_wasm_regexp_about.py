@@ -44,6 +44,10 @@ def _run(source: str) -> str:
         # ``-about`` honours preceding option flags (e.g. -nocase compiles
         # but adds no REG_U bits for a plain pattern).
         ("puts [regexp -nocase -about abc]", "0 {}"),
+        # ``-expanded`` is wired into the compile flags, so expanded mode
+        # (a non-POSIX feature) shows up in the about flags even though
+        # the whitespace itself is ignored.
+        ("puts [regexp -about -expanded {a b}]", "0 REG_UNONPOSIX"),
     ],
 )
 def test_regexp_about(source: str, expected: str) -> None:
@@ -54,3 +58,20 @@ def test_regexp_about_requires_pattern() -> None:
     # ``regexp -about`` with no pattern is a wrong-# args error.
     out = _run("puts [catch {regexp -about} m]")
     assert out == "1"
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        # ``-expanded`` makes the matcher ignore unescaped whitespace and
+        # ``#`` comments in the pattern (it was previously a no-op, so the
+        # space stayed literal and these failed to match).
+        ("puts [regexp -expanded {a b} ab]", "1"),
+        ('puts [regexp -expanded "a b  # comment" ab]', "1"),
+        # The pattern still has to match the rest of the literal text.
+        ("puts [regexp -expanded {a b} ax]", "0"),
+        ("puts [regexp -expanded {a b c} abc]", "1"),
+    ],
+)
+def test_regexp_expanded_matching(source: str, expected: str) -> None:
+    assert _run(source) == expected

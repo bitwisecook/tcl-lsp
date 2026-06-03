@@ -611,17 +611,22 @@ fn emit_int(
         if (obj.obj_get_bignum_managed(arg)) |m| {
             return emit_int_bignum(out, off_in, cap, m, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, base, upper, unsigned_conv);
         }
-        // A non-bignum-typed operand whose integer value still overflows
-        // i64 — e.g. a bignum argument that lost its TYPE_BIGNUM rep
-        // going through ``tcl_cmd_format_list`` (a ``format`` with more
-        // than three args builds a Tcl list, and list elements are plain
-        // strings).  Without this 2**100 truncated to its low 64 bits
-        // and rendered as ``0`` (format-1.12).  ``try_parse_int`` fails
-        // only when the value doesn't fit i64; ``alloc_from_string``
-        // then confirms it is a well-formed integer (not a ``%s``-style
-        // word).  The fresh BigInt renders this conversion only — the
-        // arg obj is never mutated, so a later ``%s`` of the same
-        // operand keeps its original spelling.
+        // A non-bignum-typed integer operand the i64 fast path can't read
+        // faithfully — e.g. a bignum argument that lost its TYPE_BIGNUM
+        // rep going through ``tcl_cmd_format_list`` (a ``format`` with
+        // more than three args builds a Tcl list, and list elements are
+        // plain strings).  Without this 2**100 truncated to its low 64
+        // bits and rendered as ``0`` (format-1.12).  ``try_parse_int``
+        // accepts ONLY a plain decimal integer that fits i64 — it returns
+        // null for an oversized decimal, for the ``0x`` / ``0o`` / ``0b``
+        // forms, and for non-numeric junk.  ``alloc_from_string`` then
+        // accepts every well-formed integer spelling (decimal / hex /
+        // octal / binary, with sign and surrounding space) and rejects a
+        // ``%s``-style word, so the BigInt path faithfully renders both
+        // the oversized and the non-decimal cases; small plain decimals
+        // stay on the i64 path below.  The fresh BigInt renders this
+        // conversion only — the arg obj is never mutated, so a later
+        // ``%s`` of the same operand keeps its original spelling.
         const ot = obj.obj_type(arg);
         if (ot == obj.TYPE_STRING or ot == obj.TYPE_INLINE_STRING) {
             const s = obj_ensure_string(arg);

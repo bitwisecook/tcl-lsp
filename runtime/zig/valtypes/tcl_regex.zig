@@ -805,6 +805,13 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             continue;
         }
         if (str_eq(w, "-expanded")) {
+            // Expanded syntax: ignore unescaped whitespace and ``#``
+            // comments in the pattern.  Mirrors ``eval_regsub_cmd``,
+            // which already ORs in ``REG_EXPANDED``; without it
+            // ``regexp -expanded {a b} ab`` failed to match (the space
+            // stayed literal) and ``regexp -about -expanded {a b}``
+            // reported no flags instead of ``REG_UNONPOSIX``.
+            flags |= REG_EXPANDED;
             continue;
         }
         if (str_eq(w, "-indices")) {
