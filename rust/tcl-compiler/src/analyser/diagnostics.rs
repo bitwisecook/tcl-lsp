@@ -4545,6 +4545,40 @@ mod tests {
     }
 
     #[test]
+    fn e003_arity_is_dialect_aware_via_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar: end-to-end proof that the
+        // document dialect reaches the analyser's segmenter (and thus the
+        // lexer's `expand_syntax` flag).  `{*}` is the expansion operator
+        // on 8.5+ but a literal brace word on 8.4, so for
+        // `regsub a b c d {*}$rest`:
+        //   * tcl8.4 — `{*}$rest` is a 5th literal positional word; 5 > max
+        //     4 → E003 fires.
+        //   * tcl9.0 — `{*}$rest` expands, contributing an unbounded count;
+        //     the 4 non-expanded words are ≤ max 4 → E003 is suppressed.
+        // Before the dialect → `LexerConfig` wiring the analyser always
+        // lexed with `expand_syntax` on, so 8.4 wrongly behaved like 9.0
+        // (no E003) — this asserts the two now diverge.
+        let codes = |dialect: &str| -> Vec<String> {
+            let mut a = Analyser::new();
+            a.analyse("regsub a b c d {*}$rest", dialect)
+                .diagnostics
+                .iter()
+                .map(|d| d.code.clone())
+                .collect()
+        };
+        let on_84 = codes("tcl8.4");
+        assert!(
+            on_84.iter().any(|c| c == "E003"),
+            "8.4 treats `{{*}}` as a literal word → 5 positional args → E003: {on_84:?}",
+        );
+        let on_90 = codes("tcl9.0");
+        assert!(
+            !on_90.iter().any(|c| c == "E003"),
+            "9.0 expands `{{*}}` → 4 positional words ≤ max → no E003: {on_90:?}",
+        );
+    }
+
+    #[test]
     fn e002_fires_on_too_few_args() {
         // `regsub` requires at least 3 args (exp string subSpec).
         let mut a = Analyser::new();
