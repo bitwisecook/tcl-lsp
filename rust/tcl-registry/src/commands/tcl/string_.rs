@@ -361,36 +361,44 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// itself, so it is defined for any input.  `boolean` / `true` /
 /// `false` use the exact `Tcl_GetBoolean` keyword + unique-prefix set
 /// (so `t` / `ye` / `of` resolve, `o` — ambiguous between on/off —
-/// does not).  The number (`integer` / `entier` / `wideinteger` /
-/// `double`) and `list` / `dict` classes are **deferred** (Tcl number /
-/// list syntax + range edges need differential pinning) — they bail.
-fn fold_is(args: &[&str]) -> Option<String> {
+/// does not).  `list` folds (a backslash-free string's well-formedness is
+/// unambiguous).  `integer` and `double` fold over their dialect-invariant
+/// subsets (see [`string_is_integer`] / [`string_is_double`]); `entier` /
+/// `wideinteger` / `dict` stay deferred — they *raise* in old dialects
+/// (8.4 / 8.4 + 8.5 / pre-9.0 respectively), so no dialect-agnostic fold can
+/// be sound (it would turn an error into a value).
+fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     if args.len() < 2 {
         return None;
     }
     let class = args[0];
+    // Tcl grammar: `string is class ?-strict? ?-failindex var? str` — the
+    // **last** argument is always the value under test; the args between the
+    // class and it are options.  Verified against tclsh 8.4 → 9.0:
+    // `string is integer -7` reads `-7` as the *value* (→ 1), and a lone
+    // `string is integer -strict` reads `-strict` as the value (→ 0), not an
+    // option.  Taking the last arg as the value (rather than treating every
+    // `-`-leading arg as an option, as a naive scan would) lets a negative
+    // value fold and matches real Tcl.
+    let s = *args.last()?;
     let mut strict = false;
-    let mut i = 1;
-    while i < args.len() && args[i].starts_with('-') {
-        match args[i] {
-            "-strict" => {
-                strict = true;
-                i += 1;
-            }
-            // `-failindex var` writes a variable (never folded), and an
-            // unknown option / a `-`-leading string arg is ambiguous —
-            // bail in every case.
+    for opt in &args[1..args.len() - 1] {
+        match *opt {
+            "-strict" => strict = true,
+            // `-failindex var` writes a variable (never folded); an unknown
+            // option is ambiguous — bail in both cases.
             _ => return None,
         }
     }
-    // Exactly one positional must remain: the string under test.
-    if i + 1 != args.len() {
+
+    // A class that *raises* in this dialect can't fold to any value — not even
+    // the empty-string shortcut below (`string is dict ""` raises before 9.0).
+    if !class_available(class, version) {
         return None;
     }
-    let s = args[i];
 
-    // The empty string is a member of every class in non-strict mode and
-    // a member of none in strict mode.
+    // The empty string is a member of every available class in non-strict mode
+    // and a member of none in strict mode.
     if s.is_empty() {
         return Some(if strict { "0" } else { "1" }.to_owned());
     }
@@ -426,15 +434,190 @@ fn fold_is(args: &[&str]) -> Option<String> {
             }
             crate::const_fold::split_list(s).is_some()
         }
-        // Number classes (`integer` / `entier` / `wideinteger` /
-        // `double`) and `dict` are deferred: Tcl's integer syntax is
-        // version-dependent (leading-zero octal differs 8.5 ↔ 9.0),
-        // `integer`'s width is platform-dependent (`long`), and `double`
-        // accepts `Inf` / `NaN` / hex-floats — all need differential
-        // pinning against tclsh.  Bail (leave the call unfolded).
-        _ => return None,
+        // Version-aware number classes (availability gated by
+        // `class_available` above); each decides 1/0/bail for `version`.
+        "integer" => return is_integer_class(s, version),
+        "wideinteger" => return is_wide_class(s, version),
+        "entier" => return is_entier_class(s),
+        "dict" => return is_dict_class(s),
+        "double" => return string_is_double(s),
+        _ => return None, // unknown class
     };
     Some(if member { "1" } else { "0" }.to_owned())
+}
+
+/// Whether `string is class` is a *defined* operation in the target version
+/// (it doesn't *raise*).  `wideinteger` requires 8.5+, `entier` 8.6+, and
+/// `dict` is **9.0-only** (matching the gating below); an unknown version
+/// (`None`) treats all three as unavailable, since one of the dialects it
+/// could stand for raises.  Every other class exists in every release.
+fn class_available(class: &str, version: Option<TclVersion>) -> bool {
+    match class {
+        "wideinteger" => version.is_some_and(|v| v >= TclVersion::V8_5),
+        "entier" => version.is_some_and(|v| v >= TclVersion::V8_6),
+        "dict" => version == Some(TclVersion::V9_0),
+        _ => true,
+    }
+}
+
+/// The magnitude bounds the `string is` integer classes use across releases.
+const U32_MAX: u128 = 4_294_967_295;
+const I64_MAX: u128 = 9_223_372_036_854_775_807;
+const U64_MAX: u128 = 18_446_744_073_709_551_615;
+
+/// Classification of a `string is <intclass>` value as a plain decimal.
+enum IntForm {
+    /// Definitely not an integer in any form (→ `"0"` for an available class).
+    NotInteger,
+    /// A leading-zero / `0x` / `0o` / `0b` / non-ASCII form whose validity or
+    /// magnitude is version-dependent — bail.
+    Ambiguous,
+    /// A plain decimal: `mag` is its absolute value, or `None` when it exceeds
+    /// `u128` (astronomically large).
+    Decimal { neg: bool, mag: Option<u128> },
+}
+
+/// Classify `s` as a plain decimal integer.  Restricting to plain decimals
+/// (no leading zero, no `0x`/`0o`/`0b`) makes the *form* validity
+/// version-independent — only the magnitude cap varies — so the per-class
+/// handlers compare `mag` against their version's bound.
+fn classify_int_form(s: &str) -> IntForm {
+    if !s.is_ascii() {
+        return IntForm::Ambiguous;
+    }
+    let t = s.trim();
+    if t.is_empty() {
+        return IntForm::NotInteger; // whitespace-only
+    }
+    let (neg, body) = if let Some(rest) = t.strip_prefix('-') {
+        (true, rest)
+    } else {
+        (false, t.strip_prefix('+').unwrap_or(t))
+    };
+    let b = body.as_bytes();
+    if b.is_empty() {
+        return IntForm::NotInteger; // a lone sign
+    }
+    if b[0] == b'0' && b.len() >= 2 && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
+        return IntForm::Ambiguous; // hex / octal / binary prefix
+    }
+    if !b.iter().all(u8::is_ascii_digit) {
+        return IntForm::NotInteger; // a non-digit with no recognised prefix
+    }
+    if b.len() > 1 && b[0] == b'0' {
+        return IntForm::Ambiguous; // leading zero → octal interpretation in 8.x
+    }
+    IntForm::Decimal {
+        neg,
+        mag: body.parse::<u128>().ok(),
+    }
+}
+
+/// `string is integer`: a plain decimal of magnitude ≤ `2³²-1` is valid in
+/// every release (→ `1`); a larger one is valid only on 9.0 (unbounded) and
+/// rejected (→ `0`) on 8.x; with no known version the divergent range bails.
+fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
+    match classify_int_form(s) {
+        IntForm::Ambiguous => None,
+        IntForm::NotInteger => Some("0".to_owned()),
+        IntForm::Decimal { mag, .. } => {
+            let within_32 = mag.is_some_and(|m| m <= U32_MAX);
+            match version {
+                Some(TclVersion::V9_0) => Some("1".to_owned()),
+                Some(_) => Some(if within_32 { "1" } else { "0" }.to_owned()),
+                None => within_32.then(|| "1".to_owned()),
+            }
+        }
+    }
+}
+
+/// `string is wideinteger` (available 8.5+, gated by [`class_available`]):
+/// 8.5/8.6 accept the unsigned-64-bit range, 9.0 the signed-64-bit range.  A
+/// negative value bails (that signed/unsigned bound differs).
+fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
+    match classify_int_form(s) {
+        IntForm::Ambiguous => None,
+        IntForm::NotInteger => Some("0".to_owned()),
+        IntForm::Decimal { neg, mag } => {
+            if neg {
+                return None;
+            }
+            let cap = if version == Some(TclVersion::V9_0) {
+                I64_MAX
+            } else {
+                U64_MAX
+            };
+            Some(
+                if mag.is_some_and(|m| m <= cap) {
+                    "1"
+                } else {
+                    "0"
+                }
+                .to_owned(),
+            )
+        }
+    }
+}
+
+/// `string is entier` (available 8.6+, gated by [`class_available`]):
+/// arbitrary precision, so any plain decimal is valid.
+fn is_entier_class(s: &str) -> Option<String> {
+    match classify_int_form(s) {
+        IntForm::Ambiguous => None,
+        IntForm::NotInteger => Some("0".to_owned()),
+        IntForm::Decimal { .. } => Some("1".to_owned()),
+    }
+}
+
+/// `string is dict` (9.0 only, gated by [`class_available`]): an even-length
+/// well-formed list.  A backslash bails (the same ambiguity as `list`).
+fn is_dict_class(s: &str) -> Option<String> {
+    if s.contains('\\') {
+        return None;
+    }
+    Some(
+        match crate::const_fold::split_list(s) {
+            Some(elems) if elems.len() % 2 == 0 => "1",
+            _ => "0", // odd length, or malformed → not a dict
+        }
+        .to_owned(),
+    )
+}
+
+/// `string is double` over the **dialect-invariant** subset.  `s` is the
+/// non-empty value under test (the empty string is handled by [`fold_is`]).
+///
+/// `string is double` is remarkably consistent across Tcl 8.4 → 9.0, and on
+/// the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
+/// (after trimming) agrees with it **exactly** — verified over a broad matrix
+/// against `tclsh8.4`/`8.5`/`8.6`/`9.0` during development, e.g. `5.e3`, `.5`,
+/// `1.`, `+.5`, `1E-10`, `inf`, `nan` → `1`; `1e`, `e5`, `.`, `1.2.3` → `0`.
+/// The few forms where they part ways are version-divergent anyway, so they
+/// **bail**:
+///
+/// * a `_` digit separator — accepted only by Tcl 9 (`1_000` → `0` on 8.x,
+///   `1` on 9.0), rejected by Rust;
+/// * a `0x` / `0o` / `0b` prefix — `0x…` is a valid double in every version
+///   but Rust's parser rejects it, `0o…` / `0b…` raise in 8.4, and a
+///   hex-float (`0x1.8p3`) flips 8.4 (`1`) ↔ 8.5+ (`0`);
+/// * a `(` — the `nan(payload)` form, which Tcl accepts but Rust rejects;
+/// * a non-ASCII value (so the `.trim()` whitespace set matches Tcl's).
+fn string_is_double(s: &str) -> Option<String> {
+    if !s.is_ascii() {
+        return None;
+    }
+    let t = s.trim();
+    if t.contains('_') || t.contains('(') {
+        return None;
+    }
+    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
+    let b = body.as_bytes();
+    if b.len() >= 2 && b[0] == b'0' && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
+        return None;
+    }
+    // For every remaining ASCII form, Rust's `f64` parser and Tcl's
+    // `string is double` agree across 8.4 → 9.0.
+    Some(if t.parse::<f64>().is_ok() { "1" } else { "0" }.to_owned())
 }
 
 /// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
@@ -694,7 +877,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string is class ?-strict? ?-failindex varname? string",
         pure: true,
         return_type: Some(TclType::Boolean),
-        const_fold: Some(fold_is),
+        const_fold_versioned: Some(fold_is),
         options: &[
             OptionSpec {
                 name: "-strict",
@@ -1026,12 +1209,15 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::fold_is;
+    use crate::hooks::TclVersion;
     use crate::CommandRegistry;
 
     #[test]
     fn string_is_folds_tcl_faithful_classes() {
         // Helper: `string is <args...>`.
-        let is = |args: &[&str]| fold_is(args);
+        // The char / boolean / list classes are version-invariant; pin them
+        // under 9.0 (the number classes have their own version-aware tests).
+        let is = |args: &[&str]| fold_is(args, Some(TclVersion::V9_0));
 
         // ASCII char classes — all-chars-in-class.
         assert_eq!(is(&["alpha", "abc"]).as_deref(), Some("1"));
@@ -1090,22 +1276,190 @@ mod tests {
             "even a deferred class"
         );
 
-        // `-failindex` writes a var → never folds; deferred classes and
-        // unknown options bail.
+        // `-failindex` writes a var → never folds; an unknown class bails.
         assert_eq!(is(&["alpha", "-failindex", "v", "abc"]), None);
-        assert_eq!(is(&["integer", "42"]), None, "number classes deferred");
-        assert_eq!(is(&["double", "1.5"]), None, "double deferred");
         assert_eq!(is(&["nonclass", "x"]), None, "unknown class bails");
+        // Under 9.0 the formerly-deferred classes fold (their version-gating
+        // and caps are covered by `string_is_number_classes_are_version_aware`).
+        assert_eq!(is(&["wideinteger", "42"]).as_deref(), Some("1"));
+        assert_eq!(is(&["entier", "42"]).as_deref(), Some("1"));
+        assert_eq!(is(&["dict", "a 1"]).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn string_is_double_folds_dialect_invariant_subset() {
+        // `double` is version-invariant today; pin under 9.0.
+        let is_dbl = |v: &str| fold_is(&["double", v], Some(TclVersion::V9_0));
+
+        // Decimal / scientific / Inf / NaN forms fold to "1" — Rust's f64
+        // parser agrees with Tcl 8.4 → 9.0 across this matrix.
+        for v in [
+            "3.14", "-2.5", "+.5", ".5", "5.", "5.e3", "42", "0", "1e10", "1E-10", "1e+5", "0.0",
+            "00.5", "inf", "Inf", "infinity", "nan", "NaN", "-inf", " 1.5 ", "-3.14",
+        ] {
+            assert_eq!(is_dbl(v).as_deref(), Some("1"), "{v:?} is a double");
+        }
+        // Clear non-doubles fold to "0".
+        for v in ["abc", "1e", "e5", "1.5e", ".", "1.2.3", "1d0", "1f", " "] {
+            assert_eq!(is_dbl(v).as_deref(), Some("0"), "{v:?} is not a double");
+        }
+        // Version-divergent / Rust-mismatching forms bail.
+        assert_eq!(is_dbl("1_000"), None, "Tcl 9 digit separator");
+        assert_eq!(is_dbl("0x1f"), None, "hex valid in Tcl, rejected by Rust");
+        assert_eq!(is_dbl("0o17"), None, "0o raises in 8.4");
+        assert_eq!(is_dbl("0x1.8p3"), None, "hex-float flips 8.4 ↔ 8.5+");
+        assert_eq!(
+            is_dbl("nan(0)"),
+            None,
+            "nan payload: Tcl accepts, Rust rejects"
+        );
+        assert_eq!(is_dbl("caf\u{e9}"), None, "non-ASCII bails");
+    }
+
+    #[test]
+    fn string_is_integer_folds_dialect_invariant_subset() {
+        // `None` version → the dialect-invariant subset every release shares.
+        let is_int = |v: &str| fold_is(&["integer", v], None);
+
+        // Non-leading-zero decimals within the 32-bit-unsigned bound every
+        // 8.4 → 9.0 shares fold to "1" (verified against all four tclsh).
+        assert_eq!(is_int("42").as_deref(), Some("1"));
+        assert_eq!(is_int("-7").as_deref(), Some("1"));
+        assert_eq!(is_int("+5").as_deref(), Some("1"));
+        assert_eq!(is_int("0").as_deref(), Some("1"));
+        assert_eq!(
+            is_int(" 42 ").as_deref(),
+            Some("1"),
+            "surrounding ws trimmed"
+        );
+        assert_eq!(is_int("2147483648").as_deref(), Some("1"), "past 2^31");
+        assert_eq!(
+            is_int("4294967295").as_deref(),
+            Some("1"),
+            "2^32-1 boundary"
+        );
+        assert_eq!(is_int("-4294967295").as_deref(), Some("1"));
+
+        // Clear non-integers fold to "0" — no Tcl version reads them as one.
+        assert_eq!(is_int("abc").as_deref(), Some("0"));
+        assert_eq!(is_int("1.5").as_deref(), Some("0"));
+        assert_eq!(is_int("1e5").as_deref(), Some("0"));
+        assert_eq!(is_int("12x").as_deref(), Some("0"));
+        assert_eq!(is_int("1 2").as_deref(), Some("0"), "internal space");
+        assert_eq!(is_int(".5").as_deref(), Some("0"));
+        assert_eq!(is_int("-").as_deref(), Some("0"), "lone sign");
+        assert_eq!(is_int("0abc").as_deref(), Some("0"));
+        assert_eq!(is_int(" ").as_deref(), Some("0"), "whitespace-only");
+
+        // Divergence / ambiguity bails (a miss is never wrong).
+        assert_eq!(
+            is_int("4294967296"),
+            None,
+            "past the 32-bit cap (8.x reject)"
+        );
+        assert_eq!(is_int("9999999999999999999999"), None, "huge → diverges");
+        assert_eq!(is_int("010"), None, "leading zero: octal in 8.x");
+        assert_eq!(is_int("08"), None, "leading zero, invalid octal in 8.x");
+        assert_eq!(is_int("0x1f"), None, "hex needs digit validation");
+        assert_eq!(is_int("0o17"), None, "0o raises in 8.4");
+        assert_eq!(is_int("0b101"), None, "0b raises in 8.4");
+        assert_eq!(is_int("caf\u{e9}"), None, "non-ASCII bails");
+
+        // Option grammar: the last arg is the value, the rest are options
+        // (verified against tclsh 8.4 → 9.0).
+        assert_eq!(
+            fold_is(&["integer", "-strict", "42"], None).as_deref(),
+            Some("1"),
+            "-strict option, value 42"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-strict", "-7"], None).as_deref(),
+            Some("1"),
+            "-strict option, negative value"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-strict"], None).as_deref(),
+            Some("0"),
+            "lone `-strict` is the value, not an option"
+        );
+        assert_eq!(
+            fold_is(&["integer", "-failindex", "v", "42"], None),
+            None,
+            "-failindex writes a var → bail"
+        );
+    }
+
+    #[test]
+    fn string_is_number_classes_are_version_aware() {
+        use TclVersion::{V8_4, V8_5, V8_6, V9_0};
+        let is = |class: &str, v: &str, ver| fold_is(&[class, v], ver);
+
+        // `integer`: 8.x cap at 2^32-1, 9.0 unbounded.  All verified vs the
+        // four tclsh.
+        assert_eq!(
+            is("integer", "4294967296", Some(V8_6)).as_deref(),
+            Some("0")
+        );
+        assert_eq!(
+            is("integer", "4294967296", Some(V9_0)).as_deref(),
+            Some("1")
+        );
+        assert_eq!(is("integer", "42", Some(V8_4)).as_deref(), Some("1"));
+        assert_eq!(is("integer", "abc", Some(V9_0)).as_deref(), Some("0"));
+
+        // `wideinteger`: raises on 8.4 (bail), unsigned-64 on 8.5/8.6,
+        // signed-64 on 9.0.
+        assert_eq!(is("wideinteger", "42", Some(V8_4)), None, "raises in 8.4");
+        assert_eq!(is("wideinteger", "42", None), None, "unknown version");
+        assert_eq!(
+            is("wideinteger", "9223372036854775808", Some(V8_6)).as_deref(),
+            Some("1"),
+            "2^63 fits unsigned-64 on 8.6"
+        );
+        assert_eq!(
+            is("wideinteger", "9223372036854775808", Some(V9_0)).as_deref(),
+            Some("0"),
+            "2^63 overflows signed-64 on 9.0"
+        );
+        assert_eq!(
+            is("wideinteger", "18446744073709551616", Some(V8_6)).as_deref(),
+            Some("0"),
+            "2^64 overflows unsigned-64"
+        );
+
+        // `entier`: raises on 8.4/8.5, unbounded on 8.6/9.0.
+        assert_eq!(is("entier", "42", Some(V8_5)), None, "raises in 8.5");
+        assert_eq!(
+            is("entier", "99999999999999999999999999", Some(V8_6)).as_deref(),
+            Some("1"),
+            "arbitrary precision"
+        );
+        assert_eq!(is("entier", "abc", Some(V9_0)).as_deref(), Some("0"));
+
+        // `dict`: 9.0 only — even-length valid list.
+        assert_eq!(is("dict", "a 1 b 2", Some(V8_6)), None, "raises before 9.0");
+        assert_eq!(is("dict", "a 1 b 2", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("dict", "a 1 b", Some(V9_0)).as_deref(), Some("0"), "odd");
+        assert_eq!(is("dict", "a b c", Some(V9_0)).as_deref(), Some("0"));
+        // The empty-string shortcut is also version-gated.
+        assert_eq!(is("dict", "", Some(V8_6)), None, "dict \"\" raises pre-9.0");
+        assert_eq!(is("dict", "", Some(V9_0)).as_deref(), Some("1"));
     }
 
     #[test]
     fn string_is_subcommand_carries_const_fold() {
-        let f = CommandRegistry::build_default()
+        // `string is` is version-aware, so it registers a `const_fold_versioned`.
+        let reg = CommandRegistry::build_default();
+        let sub = reg
             .get("string")
             .and_then(|s| s.subcommand("is"))
-            .and_then(|s| s.const_fold)
-            .expect("string is const_fold");
-        assert_eq!(f(&["alpha", "abc"]).as_deref(), Some("1"));
+            .expect("string is subcommand");
+        assert!(sub.const_fold_versioned.is_some());
+        assert_eq!(
+            sub.run_const_fold(&["alpha", "abc"], Some("tcl9.0"))
+                .as_deref(),
+            Some("1")
+        );
     }
 
     #[test]

@@ -59,7 +59,10 @@ pub mod prelude {
     pub use crate::body_kind::BodyKind;
     pub use crate::dialects::DialectSet;
     pub use crate::forms::{CommandForm, SubCommandForm};
-    pub use crate::hooks::{ArgTypeHint, CodegenHookId, LoweringHookId, WasmCodegenHookId};
+    pub use crate::hooks::{
+        ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,
+        WasmCodegenHookId,
+    };
     pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};

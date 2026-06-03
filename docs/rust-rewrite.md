@@ -3326,19 +3326,132 @@ backslash, but `a\ b` is still a valid list).  `-strict` is honoured
 option bail.  Two registry tests
 (`string_is_folds_tcl_faithful_classes`,
 `string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
-**Still deferred** (own follow-up strips — Tcl number syntax + range
-edges need differential pinning, so they bail): the number classes
-**`integer`** / **`entier`** / **`wideinteger`** / **`double`** (Tcl
-integer syntax is version-dependent — leading-zero octal differs 8.5 ↔
-9.0 — `integer`'s width is platform-dependent `long`, and `double`
-accepts `Inf` / `NaN` / hex-floats) and **`dict`** (Python's fold
-doesn't cover it either).  **`format`** — the plain **`%s` / `%d` /
-`%%` subset LANDED** (`format_::fold_format`, ASCII format string, `%d`
-parses the arg as `i64` else bails; mirrors the codegen-side
-`try_format_fold`'s differential-validated subset).  The flag / width /
-precision / other-verb printf matrix and **`scan`** (scanf semantics)
-stay deferred — they need differential pinning against tclsh.  (The
-duplicated
+**Version-aware const-fold mechanism — LANDED** (SYNC-JUN03 follow-up).  The
+registry is the single source of truth for dialect-dependence: a new
+`hooks::TclVersion` (`V8_4`…`V9_0`, with `from_dialect`), a
+`VersionedConstFoldFn(args, version)` type, and a `const_fold_versioned`
+field on `CommandSpec`/`SubCommand`, dispatched by
+`{CommandSpec,SubCommand}::run_const_fold(args, dialect)` (versioned first,
+mapping the dialect → version internally; else the invariant `const_fold`).
+The optimiser's `fold_builtin_cmd_subst_raw` just forwards `ctx.dialect`; all
+the Tcl-version interpretation lives in the registry.
+
+**`string is integer` / `wideinteger` / `entier` / `double` / `dict` — all
+LANDED, version-aware** (`fold_is`, registered on `const_fold_versioned`),
+verified against `tclsh8.4`/`8.5`/`8.6`/`9.0`.  **Verification methodology**
+(applies to every "verified against the four tclsh" claim below): the
+per-version caps / availability / value-interpretation were determined and
+checked against all four interpreters during development — the older three
+built from `tmp/` — and are pinned as hard-coded expectations in the Rust
+*unit* tests (`string_is_number_classes_are_version_aware`,
+`format_d_value_is_version_aware`, …).  The committed **differential harness**
+(`tcl-registry/tests/differential_fold.rs`) runs folds against the live
+`tclsh9.0` reference only (the older releases aren't on `PATH` in CI; the Python
+`tests/test_const_fold_vs_tcl.py` on `main` carries the multi-version matrix).
+The number-class form is restricted to plain decimals
+(no leading zero / `0x`/`0o`/`0b` — those bail, the form being
+version-sensitive), so only the *magnitude cap* and *class availability*
+vary by version:
+* `integer` caps at `2³²-1` on 8.x (above → `0`) but is unbounded on 9.0;
+  with no known version the divergent range bails.  `fold_is`'s option
+  parsing was also corrected to Tcl's grammar (the **last** arg is the
+  value, so `string is integer -7` → `1`).
+* `wideinteger` *raises* on 8.4 (bail), accepts the unsigned-64-bit range on
+  8.5/8.6 and the signed-64-bit range on 9.0 (`2⁶³` → `1` on 8.6 but `0` on
+  9.0; `2⁶⁴` → `0`); `entier` raises on 8.4/8.5, unbounded on 8.6/9.0;
+  `dict` is 9.0-only, an even-length well-formed list.  A class that raises
+  in the target version bails — even the empty-string shortcut is gated, and
+  `version == None` (unversioned dialect) treats them all as unavailable.
+* `double` defers to Rust's `f64::from_str` (after trimming), which agrees
+  with Tcl exactly on the decimal / scientific / `Inf` / `NaN` forms across
+  8.4 → 9.0 (`5.e3` / `.5` / `inf` → 1; `1e` / `.` / `1.2.3` → 0); a `_`
+  separator, a `0x`/`0o`/`0b` prefix, a `nan(payload)`, and non-ASCII bail
+  (version-divergent or Rust-rejected — a future version-aware extension can
+  fold the 9.0-only `_` separator).
+
+**`format`** — the **`%s` / `%d` / `%i` plus
+the flag / width / precision matrix LANDED** for the decimal-integer and
+string conversions (`format_::fold_format`, SYNC-JUN03 follow-up).  The
+flags `-` / `+` / space / `0`, an optional width, and a `.precision`
+(minimum digits for ints, max chars for strings) all fold; pinned
+byte-identical to tclsh by the new Rust-side differential-fold harness
+(`tcl-registry/tests/differential_fold.rs`).  Soundness: `%d` / `%i`
+fold only the **dialect-invariant** decimal-arg subset — plain decimal,
+no leading zero (octal in 8.x, decimal in 9.0: `%d 010` → `8` vs `10`),
+in the signed 32-bit range (9.0 wraps `%d` to 32 bits, 8.6 doesn't:
+`%d 2147483648` → `-2147483648` vs `2147483648`); `%#d` bails (Tcl 9
+`0d42` vs 8.6 `42`); `%s` width/precision over a non-ASCII value bails
+(char-count diverges 8.x ↔ 9.0).  The **radix** conversions **`%x` / `%X` / `%o`** also **LANDED** (same
+SYNC-JUN03 follow-up) for a **non-negative** dialect-invariant arg, with
+flags / width / precision; the version-divergent edges bail — a negative
+value (two's-complement digit count is 32-bit in 9.0, 64-bit in 8.6:
+`%x -1` → `ffffffff` vs `ffffffffffffffff`), `%#X` (`0xFF` vs `0XFF`),
+`%#o` (`0o10` vs `010`), and `%#x 0` (`0` vs `0x0`).  **`%c`** (codepoint →
+character) **LANDED** too, restricted to a **printable-ASCII** codepoint
+(space..=`~`) with width / `-` justify — that range is byte-identical
+across versions; a codepoint ≥ 128 diverges (8.6 emits a byte, 9.0
+raises), control chars / DEL are unsafe to splice into source, and a
+negative codepoint raises — all bail.  **`scan` — LANDED**
+(`scan_::fold_scan`, same follow-up): the *inline* (no-`varName`) form, with
+scanf semantics modelled **directly on tclsh** — deliberately **not**
+transcribed from main's `_tcl_scan`, which is itself *unsound* (it reads no
+`0x` prefix and folds `scan 0xff %x` to `0` where every tclsh gives `255`).
+Folds `%d` / `%o` / `%x` / `%X` / `%s` / `%c` / `%%`, each numeric result
+bounded to the signed-32-bit range every release shares (`[-2³¹, 2³¹-1]` —
+8.4 wraps, 8.5/8.6 widen, 9.0 clamps/bignums above it, so even
+`scan 2147483648 %d` is three-way-divergent and bails).  A `0x`-prefixed
+`%x` input (the case main mis-folds; its sign handling also diverges in
+8.4), a `%s` run needing list-quoting, `%i` / `%u`, the float conversions,
+a width / `*` / `%[set]` / size modifier / positional spec, a literal
+mismatch, and a partial / failed / empty match all bail.  Verified across
+`tclsh8.4`/`8.5`/`8.6`/`9.0` (see the verification methodology above).  **The `format` float
+conversions `%f` / `%F` / `%e` / `%E` / `%g` / `%G` — all LANDED**
+(`render_float` + `fmt_sci` / `fmt_general`, same follow-up): Rust's float
+formatter is byte-identical to C/Tcl on the exact binary value — the same
+round-half-to-even (verified across a rounding-heavy matrix: `2.5`→`2`,
+`0.125`→`0.12`, `2.675`→`2.67`, `99.995`→`100.00`).  `%e`/`%g` reshape Rust's
+exponential / shortest-form to C's: `%e` rewrites the exponent as a sign +
+≥2 digits (`3.140000e+04`); `%g` picks `%f` or `%e` by the decimal exponent
+(`-4 ≤ X < P`) and strips trailing zeros (`1000000`→`1e+06`, `100000`→`100000`,
+`9999999`→`1e+07`).  The argument is parsed as a double over the `string is
+double` subset; precision defaults to 6, and unlike `%d` the `0` flag
+zero-pads even with a precision.  A non-finite value (`Inf`/`NaN` — spelling
+is version-edgy) and the `#` alternate form (it suppresses `%g`'s
+trailing-zero stripping) both bail.  **`format %u` — LANDED** too
+(`render_unsigned`): a plain non-negative decimal in the unsigned-32-bit
+range every release shares (`[0, 2³²-1]` — `2147483648` agrees, `%u -1`
+and `4294967296` diverge), with flag / width / precision (the `+`/space
+flags don't apply to an unsigned value).  This completes the foldable
+`format` conversion matrix.  **`%b` — LANDED, version-gated** (SYNC-JUN03
+follow-up): `format` was made version-aware via the same registry mechanism
+as `string is` (`fold_format` registered on `const_fold_versioned`).  `%b`
+routes through `render_radix` like `%x` (non-negative, `0b` for `%#b`), but
+only on **8.6+** — it raises in 8.4/8.5, so the fold bails there (and for an
+unversioned dialect), verified across the four tclsh (per the methodology above).
+**`%d` / `%i` value interpretation — now version-aware too**
+([`parse_format_int`]): a leading zero is octal on 8.x but decimal on 9.0
+(`%d 010` → `8` on 8.6, `10` on 9.0; an octal-invalid `08` raises on 8.x →
+bail), and 9.0 wraps to a signed 32-bit int while 8.x keeps the full 64-bit
+value (`%d 2147483648` → that value on 8.x, `-2147483648` on 9.0;
+`%d 5000000000` → `705032704` on 9.0).  8.x bails beyond i64 (the >2⁶³
+behaviour diverges — 8.5 mis-converts 2⁶³); a `0x`/`0o`/`0b` prefix bails; an
+unversioned dialect keeps the invariant plain-decimal i32 subset.  The
+**radix (`%x` / `%X` / `%o` / `%b`) value interpretation is now version-aware
+too** (`render_radix` shares `parse_format_int`): the same leading-zero +
+wrap semantics, and a negative renders as the dialect-width two's complement
+(`%x -1` → `ffffffff` on 9.0 but `ffffffffffffffff` on 8.6; `%x 010` → `8` on
+8.x but hex `a` on 9.0; `%x 5000000000` → `12a05f200` on 8.x, wrapped
+`2a05f200` on 9.0); an unversioned dialect keeps the non-negative i32 subset.
+**`%u` is version-aware too** (`render_unsigned`, sharing `parse_format_int`):
+the unsigned decimal of the bit pattern at the dialect width — `%u -1` →
+`4294967295` on 9.0 but `18446744073709551615` on 8.6, `%u 4294967296` → `0`
+vs `4294967296`.  So **every `format` integer conversion**
+(`%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u`) is now version-aware.  **Still deferred**:
+**`format` size modifiers (`%ld`) / `*` / positional specs**, and — notably —
+**`scan`'s numeric bounds beyond i32**: its large-value semantics are
+*inconsistent across versions* (8.4 vs 9.0 clamp-vs-wrap differently, 8.5 has
+conversion bugs), so it is soundly foldable only within the shared i32 range,
+as now.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
@@ -3397,6 +3510,43 @@ fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
   `[expr {[string length $s]}]` *expr-wrapper* nesting (the outer
   `[expr {…}]` routes through the expr path, not the const_fold path) —
   a further follow-up.
+
+## SYNC-JUN03 family — main audit (2026-06-03, PR #528)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`40278cc0` (SYNC-JUN02d).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`ca7bba21`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#528** (`ca7bba21`) — *Fix regexp/regsub empty-subject matching and
+  lset index bounds.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) `eval_regexp_cmd`'s `-all` loop tested
+  `offset >= stringLength` at the top of the loop, so an empty subject
+  (`offset == length == 0`) never attempted a single match and every
+  capture-bearing form returned 0 against `""` — now mirrors
+  `Tcl_RegexpObjCmd` (attempt the match first, break only after recording
+  it and advancing past the end); (2) `eval_regsub_cmd`'s metacharacter-free
+  `-all` + literal-`subSpec` string-map fast path uses the exclusive bound
+  so an empty pattern matches strictly between characters
+  (`regsub -all {} foo bar` → `barfbarobaro`, `regsub -all {} {} bar` → `""`),
+  while a `&` / `\` in the subSpec disqualifies the fast path; (3)
+  `lset_recurse` now raises on an out-of-range index and appends at length
+  (`lset {a b} 2 c`), mirroring `TclLsetFlat`; plus a `%`-bignum `format`
+  fix.  Touches only the **Zig VM**
+  (`runtime/zig/valtypes/{tcl_regex,tcl_list,tcl_format}.zig`,
+  `runtime/zig/cmds/list.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**`,
+  `tests/test_wasm_tcl9_core_baseline.py` harness-path fix +
+  refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_{regexp_empty_match,lset,regexp_about,format_bignum}.py`),
+  and `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter,
+  and the WASM test suite are all explicitly outside the rewrite scope; the
+  commit carries no analyser / compiler / lowering / CFG-SSA / registry /
+  optimiser surface, and no `rust/` change.
+
+No in-scope rows — the single commit is entirely VM / WASM runtime + tests.
 
 ## Next-up priority queue
 
@@ -3623,6 +3773,52 @@ priority queue:
   Out of scope: #523 (VS Code test de-flaking), #520 (F5 OpenPGP UCS
   decryption — `tooling/f5`), and the WASM-codegen / Zig-runtime / WASM-
   test bulk of #522.  See the `SYNC-JUN02c` family section.
+* **`SYNC-JUN02d` family** — opened 2026-06-02 (PR #525); advances the anchor
+  from `origin/main`@`e64aff29` to `origin/main`@`40278cc0` (+2 commits).  Two
+  in-scope rows, both reusing **O129** (no new codes).  **`SYNC-JUN02d-1`
+  (registry `const_fold` callback library) — LANDED**: the full
+  pure-`string`-subcommand family, the list ops (`list` / `concat` / `join` /
+  `split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`), the
+  `dict` ops (`get` / `exists` / `keys` / `merge` / `size` / `values` /
+  `create`), `string map`, `subst` (B4), `string is` (Tcl-faithful
+  char-class / boolean / list predicates), `format` (the `%s` / `%d` /
+  `%i` / `%u` integer + string conversions, the `%x` / `%X` / `%o` / `%b`
+  (8.6+) radix conversions, `%c`, and the full float family
+  (`%f`/`%F`/`%e`/`%E`/`%g`/`%G`)
+  — the complete foldable matrix, each with the
+  flag / width / precision matrix on its dialect-invariant subset; landed in
+  the SYNC-JUN03 follow-up and pinned by the new differential-fold harness),
+  `scan` (the inline form, `%d`/`%o`/`%x`/`%X`/`%s`/`%c`, modelled on tclsh
+  with 32-bit result bounds — *not* main's `_tcl_scan`, which mis-folds
+  `scan 0xff %x`), and the **version-aware** `string is` number classes
+  (`integer` / `wideinteger` / `entier` / `double` / `dict`, via the registry's
+  new `const_fold_versioned` + `TclVersion` threaded from the dialect — caps
+  and class-availability per release, verified across tclsh 8.4–9.0 — dev-time
+  + pinned in unit tests; the committed harness runs the 9.0 reference)
+  — all in the new `tcl-registry/src/const_fold.rs` leaf + per-command modules.
+  `format %b` is version-gated (8.6+), and `format` `%d`/`%i`/`%x`/`%X`/`%o`/`%b`
+  value interpretation is version-aware (octal leading-zero on 8.x vs decimal on
+  9.0; 9.0's 32-bit wrap vs 8.x's full i64; radix negatives at the dialect's
+  two's-complement width) — all via `const_fold_versioned`.  **Still deferred**:
+  `format` size modifiers (`%ld`) / `*` / positional specs, and `scan`'s
+  numeric bounds beyond i32 — its large-value semantics are *inconsistent*
+  across versions (8.4/9.0 clamp-vs-wrap differently, 8.5 has conversion bugs),
+  so not soundly foldable even per-dialect.  (Every `format` integer
+  conversion — `%d`/`%i`/`%x`/`%X`/`%o`/`%b`/`%u` — is now version-aware.)
+  **`SYNC-JUN02d-2`
+  (embedded /
+  nested cmd-sub fold gaps, #525 B1/B2/B3) — B1 / B2 / B3 all LANDED**
+  (interpolation-embedded cmd-sub fold; constant-var arg resolution from the
+  whole-function SCCP map; pure-proc multi-word string return).  Out of
+  scope: #524 (F5 query + KCS docs + UCS crypto) and #525 Part A (bytecode /
+  WASM codegen dispatch-gating).  See the `SYNC-JUN02d` family section.
+* **`SYNC-JUN03` family** — opened 2026-06-03 (PR #528); advances the anchor
+  from `origin/main`@`40278cc0` to `origin/main`@`ca7bba21` (+1 commit).
+  **No in-scope rows** — #528 is entirely Tcl 9 **WASM / Zig-VM** runtime
+  (regexp/regsub empty-subject matching, `lset` out-of-range bounds, a
+  `format` bignum fix) plus a WASM tcltest-gate refresh and new WASM
+  execution tests; no analyser / compiler / registry / optimiser surface and
+  no `rust/` change.  See the `SYNC-JUN03` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
