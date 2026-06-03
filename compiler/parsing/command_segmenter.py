@@ -231,18 +231,25 @@ def _segment_raw(
     from this module).
     """
     from .syntax import build_document, segments_from_document
+    from .syntax.red import build_line_starts
 
     base_offset, base_line, base_col = _base_position_for(body_token)
+    # Build the line index once and share it with both the lexer and the red
+    # layer — the second build was ~30% of segmentation time on large sources.
+    line_starts = build_line_starts(source)
     document, warnings = build_document(
         source,
         base_offset,
         base_line,
         base_col,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     if collect_warnings is not None:
         collect_warnings.extend(warnings)
-    return segments_from_document(document, base_offset, base_line, base_col, text=source)
+    return segments_from_document(
+        document, base_offset, base_line, base_col, text=source, line_starts=line_starts
+    )
 
 
 @dataclass(frozen=True, slots=True)

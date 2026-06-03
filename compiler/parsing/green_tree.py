@@ -264,6 +264,7 @@ def _lex(
     base_col: int,
     insidequote: bool,
     virtual_insertions: dict[int, str] | None,
+    line_starts: list[int] | None = None,
 ) -> tuple[list[Token], list[tuple[SourcePosition, str]]]:
     lexer = TclLexer(
         text,
@@ -271,6 +272,7 @@ def _lex(
         base_line=base_line,
         base_col=base_col,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     if insidequote:
         lexer.insidequote = True
@@ -285,9 +287,10 @@ def _build_node(
     base_col: int,
     mode: Mode,
     kind: NodeKind,
+    line_starts: list[int] | None = None,
 ) -> GreenNode:
     insidequote = mode is Mode.QUOTED
-    tokens, warnings = _lex(text, base_offset, base_line, base_col, insidequote, None)
+    tokens, warnings = _lex(text, base_offset, base_line, base_col, insidequote, None, line_starts)
     return GreenNode(
         kind=kind,
         mode=mode,
@@ -371,6 +374,7 @@ def node_for(
     mode: Mode = Mode.SCRIPT,
     kind: NodeKind = NodeKind.ROOT,
     virtual_insertions: dict[int, str] | None = None,
+    line_starts: list[int] | None = None,
 ) -> GreenNode:
     """Return the :class:`GreenNode` for *text* at the given anchoring.
 
@@ -378,13 +382,17 @@ def node_for(
     pays the tokenisation cost and every later caller of the *same* region
     reuses the node.  Regions lexed with *virtual_insertions* are never
     interned (the insertions are request-specific).
+
+    *line_starts* is an optional pre-built line index for *text*; it is a pure
+    optimisation hint (the lexer would build an identical one) and is not part of
+    the intern key.
     """
     scope = _active_scope.get()
     if scope is None or virtual_insertions:
         if virtual_insertions:
             insidequote = mode is Mode.QUOTED
             tokens, warnings = _lex(
-                text, base_offset, base_line, base_col, insidequote, virtual_insertions
+                text, base_offset, base_line, base_col, insidequote, virtual_insertions, line_starts
             )
             return GreenNode(
                 kind=kind,
@@ -398,13 +406,13 @@ def node_for(
                 tokens=tuple(tokens),
                 warnings=tuple(warnings),
             )
-        return _build_node(text, base_offset, base_line, base_col, mode, kind)
+        return _build_node(text, base_offset, base_line, base_col, mode, kind, line_starts)
 
     key: _Key = (base_offset, base_line, base_col, mode, text)
     hit = scope.get(key)
     if hit is not None:
         return hit
-    node = _build_node(text, base_offset, base_line, base_col, mode, kind)
+    node = _build_node(text, base_offset, base_line, base_col, mode, kind, line_starts)
     scope.intern(key, node)
     return node
 
@@ -417,13 +425,15 @@ def tokenise(
     *,
     insidequote: bool = False,
     virtual_insertions: dict[int, str] | None = None,
+    line_starts: list[int] | None = None,
 ) -> tuple[tuple[Token, ...], _Warnings]:
     """Tokenise *text* at the given anchoring, consulting the green-tree scope.
 
     Returns ``(tokens, warnings)`` for the region.  This is the leaf primitive
     consumers use when they want the token stream directly rather than a node;
     it shares the same intern index as :func:`node_for`, so a region tokenised
-    here and descended elsewhere is lexed once.
+    here and descended elsewhere is lexed once.  *line_starts* is an optional
+    pre-built line index for *text* (a pure optimisation hint).
     """
     mode = Mode.QUOTED if insidequote else Mode.SCRIPT
     node = node_for(
@@ -433,5 +443,6 @@ def tokenise(
         base_col,
         mode=mode,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     return node.tokens, node.warnings

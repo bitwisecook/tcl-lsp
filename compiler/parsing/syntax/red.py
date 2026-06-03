@@ -26,7 +26,13 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
-def _line_starts(text: str) -> list[int]:
+def build_line_starts(text: str) -> list[int]:
+    """Byte offsets at which each line begins (line 0 at offset 0).
+
+    Identical to the lexer's own index, so a caller that has already built one
+    (the segmenter) passes it to both the lexer and the red layer to avoid the
+    O(n) rebuild.
+    """
     starts = [0]
     for i, ch in enumerate(text):
         if ch == "\n":
@@ -52,15 +58,17 @@ class SyntaxTree:
         base_col: int = 0,
         *,
         text: str | None = None,
+        line_starts: list[int] | None = None,
     ) -> None:
         self.green = green
         self.base_offset = base_offset
         self.base_line = base_line
         self.base_col = base_col
         # The region text equals the green tree's reconstruction (losslessness);
-        # callers that already hold it pass it to skip the O(n) rebuild.
+        # callers that already hold it (and its line index) pass them to skip the
+        # O(n) rebuilds.
         self._text = green.full_text if text is None else text
-        self._line_starts = _line_starts(self._text)
+        self._line_starts = build_line_starts(self._text) if line_starts is None else line_starts
 
     @property
     def text(self) -> str:

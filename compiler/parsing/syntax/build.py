@@ -40,11 +40,14 @@ def build_document(
     *,
     insidequote: bool = False,
     virtual_insertions: dict[int, str] | None = None,
+    line_starts: list[int] | None = None,
 ) -> tuple[GreenNode, _Warnings]:
     """Tokenise *source* and build its green ``DOCUMENT`` node.
 
     Returns ``(document, warnings)``; *warnings* is the lexer's non-fatal
-    warning tuple, passed through unchanged for diagnostic emission.
+    warning tuple, passed through unchanged for diagnostic emission.  *line_starts*
+    is an optional pre-built line index for *source*, shared with the lexer to
+    avoid an O(n) rebuild.
     """
     tokens, warnings = tokenise(
         source,
@@ -53,6 +56,7 @@ def build_document(
         base_col,
         insidequote=insidequote,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     n = len(tokens)
 

@@ -90,10 +90,14 @@ def segments_from_document(
     base_col: int = 0,
     *,
     text: str | None = None,
+    line_starts: list[int] | None = None,
 ) -> list[SegmentedCommand]:
     """Anchor *document* and produce its ``SegmentedCommand`` list.
 
-    *text* is the region's source; passing it lets the red layer skip rebuilding
-    the text from the green tree (it is identical by losslessness).
+    *text* is the region's source and *line_starts* its line index; passing them
+    lets the red layer skip rebuilding the text (identical by losslessness) and
+    the line index (identical to the lexer's).
     """
-    return segments_from_tree(SyntaxTree(document, base_offset, base_line, base_col, text=text))
+    return segments_from_tree(
+        SyntaxTree(document, base_offset, base_line, base_col, text=text, line_starts=line_starts)
+    )
