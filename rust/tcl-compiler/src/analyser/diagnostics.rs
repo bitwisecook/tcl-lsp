@@ -1706,6 +1706,83 @@ before this value so it is treated as data, not an option."
         (tcl_lexer::Span::new(span_start, span_end), span_end)
     }
 
+    /// **W128 (SYNC-JUN02b-4, #519).** Flag a call to a command that was
+    /// renamed or deleted earlier in the same file — it falls through to
+    /// the `unknown` handler.
+    ///
+    /// Backed by the flow-sensitive command-binding lattice
+    /// ([`crate::command_binding`]).  The lattice is seeded with every
+    /// module procedure (canonically qualified) as `Proc` so a proc
+    /// defined inside a `namespace eval` block — whose top-level CFG never
+    /// sees the full qname — is still known, matching the optimiser's
+    /// gating view.  A call fires W128 only when its resolved binding is
+    /// `Opaque` *and* its name was actually perturbed somewhere in this
+    /// file (`rebound_names`); a merely-undefined external command (always
+    /// opaque, never rebound) does not.  A dynamic mutation collapses the
+    /// lattice to the wildcard ⊤, under which every binding resolves to
+    /// `Unknown` (not `Opaque`), so W128 conservatively goes quiet.
+    pub(super) fn emit_w128_renamed_command(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        use crate::command_binding::{analyse_command_binding, Binding, BindingKind};
+        use crate::ir::Statement;
+        use crate::naming::normalise_qualified_name as nqn;
+
+        let cfg = &cu.top_level.cfg;
+        let seed: Vec<(String, Binding)> = cu
+            .ir_module
+            .procedures
+            .keys()
+            .map(|q| {
+                (
+                    q.clone(),
+                    Binding {
+                        kind: BindingKind::Proc,
+                        target: Some(q.clone()),
+                    },
+                )
+            })
+            .collect();
+        let binding = analyse_command_binding(cfg, registry, &seed);
+        let rebound = binding.rebound_names();
+        if rebound.is_empty() {
+            return;
+        }
+        // Reverse-postorder for deterministic diagnostic ordering.
+        for block_name in cfg.reverse_postorder() {
+            let Some(block) = cfg.blocks.get(&block_name) else {
+                continue;
+            };
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                let Statement::Call { command, span, .. } = stmt else {
+                    continue;
+                };
+                // The mutating commands themselves are not flagged.
+                if command.is_empty() || matches!(command.as_str(), "rename" | "interp" | "proc") {
+                    continue;
+                }
+                if binding.binding_at(&block_name, idx, command).kind != BindingKind::Opaque {
+                    continue;
+                }
+                if !rebound.contains(&nqn(command)) {
+                    continue; // never bound here → an ordinary external command
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W128".to_string(),
+                    span: *span,
+                    message: format!(
+                        "Command '{command}' was renamed or deleted earlier in this \
+file; this call falls through to the 'unknown' handler."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in
@@ -1729,6 +1806,12 @@ before this value so it is treated as data, not an option."
         }
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
 
+        // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
+        // deleted earlier in the file via the flow-sensitive
+        // command-binding lattice.  Independent of the CFG/SSA dead-store
+        // machinery below, so run it up front against the same `cu`.
+        self.emit_w128_renamed_command(&cu, &registry);
+
         // **C41e3 follow-up.** Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
@@ -1737,12 +1820,27 @@ before this value so it is treated as data, not an option."
         // `_diag_commands.py:264-296`.
         let globals_written = globals_written_by_procs(&cu);
 
+        // **W220 call-by-name suppression (SYNC-JUN02d-2).** Build the
+        // interprocedural proc-index once so a caller-local passed *by
+        // name* to a proc that consumes it via `upvar` (`set tag "";
+        // asnPeekTag data tag type dummy`) is not flagged as a dead
+        // store.  `collect_call_by_name_reads` then yields the suppressed
+        // names per function, merged into the dead-store `cross_event_vars`.
+        let cbn_proc_index = {
+            let ia = crate::interprocedural::build_interprocedural_analysis(
+                &cu.ir_module,
+                &registry,
+                Some(self.dialect.as_str()),
+            );
+            crate::interprocedural::build_proc_index_from_summaries(&ia)
+        };
+
         // **C41-default-on-followups-postpass W220-IR-paths.**
         // pkgIndex.tcl files have ``$dir`` set by the package
         // loader before the script body runs — suppress dead-
         // store / unused-variable diagnostics for it at the
         // top-level.  Mirrors `_diagnostics.py:147-149`.
-        let top_level_cross_event_vars: HashSet<String> = if self
+        let mut top_level_cross_event_vars: HashSet<String> = if self
             .file_path
             .as_deref()
             .is_some_and(|p| p.ends_with("pkgIndex.tcl"))
@@ -1751,6 +1849,10 @@ before this value so it is treated as data, not an option."
         } else {
             HashSet::new()
         };
+        top_level_cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+            &cu.top_level.cfg,
+            &cbn_proc_index,
+        ));
 
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
@@ -1772,7 +1874,7 @@ before this value so it is treated as data, not an option."
             // diagnostics suppress vars that may be read in a
             // different iRule event.  Mirrors
             // `_diagnostics.py:165-167`.
-            let cross_event_vars: HashSet<String> =
+            let mut cross_event_vars: HashSet<String> =
                 if let Some(scope) = cu.connection_scope.as_ref() {
                     if qname.starts_with("::when::") {
                         scope
@@ -1787,6 +1889,12 @@ before this value so it is treated as data, not an option."
                 } else {
                     HashSet::new()
                 };
+            // SYNC-JUN02d-2: suppress dead-store on caller-locals this
+            // proc passes by name to an upvar callee.
+            cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
+                &fu.cfg,
+                &cbn_proc_index,
+            ));
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 &cu.ir_module,
@@ -1897,10 +2005,17 @@ before this value so it is treated as data, not an option."
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
-        let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
-            &self.source,
-            &function_unit.cfg,
-        );
+        let mut textually_referenced =
+            crate::optimiser::elimination::collect_textual_var_references(
+                &self.source,
+                &function_unit.cfg,
+            );
+        // A var read in another iRule event, or consumed *by name* via a
+        // call-by-name upvar callee (SYNC-JUN02d-2), is "used" — suppress
+        // the unused-variable (W211) hint too, not just the dead store
+        // (W220).  Mirrors Python threading `cross_event_vars` through
+        // both `_dead_stores` and `_unused_variables`.
+        textually_referenced.extend(cross_event_vars.iter().cloned());
         let ir_proc = ir_module.procedures.get(&function_unit.name);
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(

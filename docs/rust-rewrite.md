@@ -1928,19 +1928,98 @@ structural sub-chunks:
 - **A6 — shimmer per-name index pre-pass.**  Compute empty-literal
   versions + loop-body def types once per function instead of per
   phi.
+  **Rust state for A0 / A11 / A19 / A6: deferred as performance
+  chunks.**  These are *output-preserving* algorithmic speedups (O(1)
+  dominance, fewer phis, hoisted shimmer pre-pass) — they do not change
+  any diagnostic or optimisation output, so they are a poor fit for the
+  rewrite's "one discriminating test per strip that FAILS without the
+  change" discipline (there is no observable behaviour to assert) and
+  they carry real regression risk in the dominator / SSA-construction /
+  shimmer cores.  They want their own perf-focused chunk gated by a
+  benchmark + a full output-equivalence sweep, not a feature strip.
 - **W211 / W220 / O109 / O126 call-by-name suppression.**  Port
   `collect_call_by_name_reads` + `build_proc_index_from_summaries`
-  to `rust/tcl-compiler/src/interprocedural.rs` (the `param_traits`
-  infrastructure is already there per ProcSummary at line 146);
-  consume from the four emitters in `analyser/diagnostics.rs` (W211
-  / W220) and `optimiser/{elimination,unused_procs}.rs` (O109 /
-  O126).
+  to `rust/tcl-compiler/src/interprocedural.rs`; consume from the four
+  emitters in `analyser/diagnostics.rs` (W211 / W220) and
+  `optimiser/{elimination,unused_procs}.rs` (O109 / O126).
+  **Rust state: (a) trait inference LANDED; (b) / (c) pending.**
+  - **(a) — LANDED.**  `ProcArgTrait` gained `VarRead` / `VarWrite`
+    variants, and `interprocedural::scan_statement` now ports
+    `proc_arg_traits.py::_handle_upvar`: `upvar ?level? $param local`
+    marks the source `$param` `VarRead`, and — only for the default
+    level 1, which writes back to the caller's frame — records a
+    `local → param` alias (`LocalFacts.upvar_aliases`) so a later `set`
+    / `incr` / `append` / `lappend` (Assign / Incr `name` or a Call
+    `def`, excluding `upvar`'s own defining `defs`) upgrades the param to
+    `VarWrite`.  `upvar #0` / `0` / level ≥ 2 stay `VarRead` (a non-caller
+    frame — no write-back).  A `$param` *local*-name binding is itself a
+    `VarWrite`.  The `DYNAMIC_NAME_LOCAL` refinement is intentionally
+    *not* ported: it exists to *exclude* `set $param` (dynamic
+    callee-local name) params from suppression, but the Rust inference
+    simply doesn't detect those as `VarRead`/`VarWrite` in the first
+    place (only the `upvar`-alias path marks them), so the same — correct
+    — "no suppression" result falls out without the extra trait.  3-case
+    discriminating test `call_by_name_param_traits_inferred`.
+  - **(b) — LANDED.**  `interprocedural::build_proc_index_from_summaries`
+    (a `command → (params, param_traits)` lookup keyed by both qualified
+    and bare names) + `collect_call_by_name_reads(cfg, index)`, which
+    scans direct `Call` / `Barrier` statements *and* a whole-value
+    `[cmd …]` substitution of an `AssignValue` / `AssignExpr` / `Return`
+    (the dominant tcllib shape `set len [asnPeekTag data tag type
+    dummy]`), recording each literal-name arg that lands on a callee
+    param carrying `VarRead` / `VarWrite`.
+  - **(c) — W211 + W220 LANDED.**  The analyser's `emit_cfg_ssa_
+    diagnostics` builds the proc-index once (from a fresh interproc
+    summary), and per function merges `collect_call_by_name_reads` into
+    the dead-store suppression set.  `emit_cfg_ssa_diagnostics_for_
+    function_full` then folds that set into *both* the W220 dead-store
+    path (`cross_event_vars`) and — newly — the W211 unused-variable
+    path (`textually_referenced`), which also closes a pre-existing gap
+    where iRules `cross_event_vars` didn't suppress W211 (Python threads
+    it through both).  `set tag init; set tag x; fill tag` no longer
+    flags `tag` W211/W220; a genuinely-unused local still does.
+    Discriminating tests `call_by_name_var_not_flagged_unused_or_dead`
+    (analyser) + `collect`/`build` coverage via the trait test.
+  - **(c) — O109 / O126 LANDED.**  `optimiser::elimination::run` builds
+    the proc-index once (from `ctx.interproc`) and threads it into
+    `emit_dead_stores_and_unused`, which computes the per-function
+    `collect_call_by_name_reads` and skips a dead-store (O109) / unused
+    (O126) verdict for any suppressed name — the same loop covers both.
+    Discriminating test `o109_o126_suppressed_for_call_by_name_var`
+    (a call-by-name `upvar` callee suppresses a dead store a plain
+    callee leaves intact).  **All four consumers (W211 / W220 / O109 /
+    O126) now honour call-by-name.**  Long tail (own follow-ups): the
+    full `proc_arg_traits.py` handler set the trait inference still skips
+    — `foreach`/`while`/`for`/`after` body-var writes, `scan`/`lassign`/
+    `regexp`/`regsub` variadic var-writes, and the `DYNAMIC_NAME_LOCAL`
+    refinement (only needed if `set $param` dynamic-name detection is
+    ever added).
 - **O110 InstCombine whitespace guard.**  Add the
   `strip_ws(combined) != strip_ws(input)` guard to
   `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::instcombine_expr`
   (currently `rendered != trimmed` — character-level structural).
   Also add the mixed-bitwise/shift paren preservation in
   `render_expr` and the commutative-no-op reassoc skip.
+  **Landed (rust):** the whitespace guard — `instcombine_expr` now
+  computes `changed = strip_ws(&rendered) != strip_ws(trimmed)` via a
+  new module-local `strip_ws` (port of Python's `_propagation._strip_ws`,
+  all-whitespace removal), so a spacing-only re-render (`$x<0` →
+  `$x < 0`) no longer fires O110 in either the standalone-`expr` path
+  (`expr_simplify.rs`) or the branch-condition path (`branch_folding.rs`
+  consumes the same `changed` flag); structural rewrites still fire
+  because they alter non-whitespace characters.  Two discriminating
+  tests (`instcombine_whitespace_only_rerender_is_not_a_change`,
+  `strip_ws_removes_all_whitespace`).  The other two halves of this
+  bullet are **N/A in Rust** (investigated, no bug shape): (a) the mixed
+  bitwise/shift paren preservation — Rust's
+  `expr_ast::needs_parens_for_binary_child` + its precedence table are
+  byte-identical to `main`'s `_needs_parens_for_binary_child` /
+  `_PRECEDENCE`, so `render_expr` is already at paren parity; (b) the
+  commutative-no-op reassoc skip — the Rust instcombine
+  (`simplify_node_once`) performs **no** commutative reassociation (only
+  identity folds, strength-reduction, strlen / streq promotion, and
+  DeMorgan reductions), so there is no no-op reassoc to skip.  The O110
+  `-1e` bullet is therefore fully addressed.
 - **O106 LICM purity recursion into command substitutions.**  Extend
   `gvn::is_pure_command` to lex its `args` for nested `[…]` tokens
   and verify each is also pure — an outer pure call wrapping
@@ -1962,6 +2041,23 @@ structural sub-chunks:
   detection on `foreach a { set x "str" }; foreach b { set x [list] }`.
   Also: destructure-foreach (`foreach VARS LIST break`) is excluded
   from the loop_body_types contribution.
+  **Rust state: bug present, but not a body_types port — promote to its
+  own chunk.**  The Rust S102 (`shimmer/thunking.rs`) does **not** use a
+  `body_types` map; it flags a loop-header phi whose `TypeLattice` is
+  `Shimmered`.  A probe confirms the sibling-loop case *does*
+  false-positive (`foreach a {…} { set x "str" }; foreach b {…} { set x
+  [list 1 2] }` reports `x` oscillating String/List at loop b's header).
+  The root cause differs from Python's: loop b's header phi merges the
+  *entry* value (`"str"`, carried from loop a) with the *back-edge*
+  value (`[list]`), and the detector treats any entry-vs-back-edge type
+  difference as oscillation.  This is structurally identical to the
+  *passing* `thunking_detected_for_int_string_oscillation` case
+  (`set x 0; while {…} { set x "hello" }` — Int entry, String back-edge),
+  so the fix is **not** the per-loop `body_types` rework but an
+  architecture-specific refinement: distinguish a one-time entry→body
+  conversion (back-edge type uniform across iterations) from genuine
+  per-iteration oscillation.  Risky precision rework that could change
+  the existing passing case — own chunk, not a quick win.
 - **Hex / binary literal INT typing** in the shimmer type lattice.
   `_literal_type` matches `0x...` / `0b...` patterns as INT (matches
   Tcl 9's `Tcl_GetIntFromObj` semantics).  Avoids spurious S101 on
@@ -2818,12 +2914,24 @@ verified against Tcl's `list`), so a non-escaping local like `set msg
 `TclConvertElement`) as a shared leaf, then (b) the O100
 single-token-whole-word re-render in the propagation pass.  Classify
 in-scope, **low-touch feature** (the quoter is ~80 LOC; the O100 hook is
-small).  **Rust state: deferred** — the O100 bail lives at
-`optimiser/propagation.rs::is_value_safe_bare_word` (the exact
-metacharacter conservatism #519 removes), but the fix needs the
-`tcl_list_quote` leaf, which has **no Rust counterpart**
-(`render_static_string_word` only handles a balanced `{value}`).  Land
-the quoter first (its own row), then the O100 re-render is a one-liner.
+small).  **Rust state: LANDED.**  The canonical quoter already existed as
+`codegen::helpers::tcl_list_element` — a faithful `TclConvertElement`
+port (its special-char set `[ \t\n\r{}"\\;$[]]` matches the reference
+`tclUtil.c::TclScanElement` TYPE_SUBS / TYPE_BRACE / TYPE_SPACE switch,
+and it is already validated by the C20 codegen differential harness), so
+no new leaf was needed (`render_static_string_word` bailed on unbalanced
+braces / backslash; `tcl_list_element` brace-quotes when balanced and
+backslash-escapes otherwise).  The O100 re-render is a new
+`propagation.rs::render_propagation_word` helper — a safe bare word
+(int / `[A-Za-z0-9_./:+-]`) is emitted verbatim (preserving the existing
+parity-tested fast path), everything else routes through
+`tcl_list_element`.  Wired into both O100 sites:
+`visit_simple_var_word` (command-argument position) and
+`try_fold_return_terminator` (`return` value position), each of which
+previously bailed at `is_value_safe_bare_word`.  `set msg {Hello World};
+return $msg` → `return {Hello World}`; `set m {a$b}; puts $m` →
+`puts {a$b}` (literal — braces suppress the would-be substitution).
+Discriminating test `o100_multi_word_constant_renders_via_quoter`.
 
 ### SYNC-JUN02b-2 — optimiser variable-aliasing & trace soundness fixes (#519)
 
@@ -2867,11 +2975,30 @@ union; O104 consults it point-wise.  Classify in-scope, **structural** —
 a multi-strip new subsystem (foundation for flow-sensitive alias/trace
 in memory-SSA + SCCP/GVN).  Defer to its own chunk; the SYNC-JUN02b-2
 soundness fixes are the conservative whole-function approximation that
-this later refines.  **Rust state: deferred** — Rust *does* have a
-flow-sensitive var-escape analysis (`var_escape/cfg_propagation/`), but
-it answers the *codegen slot-resolution* question (`Local` vs `Frame`),
-has **no `TRACED` flag** and **no `observability` artifact** on
-`FunctionUnit`; this optimiser-soundness lattice is genuinely new.
+this later refines.  **Rust state: lattice LANDED** as
+`rust/tcl-compiler/src/var_observability.rs` (genuinely new — the
+existing `var_escape/cfg_propagation/` answers the *codegen
+slot-resolution* question `Local` vs `Frame` and has no `TRACED` flag).
+`EscapeFlag` is a `bitflags` set-union lattice (GLOBAL / NAMESPACE /
+UPVAR / TRACED; `empty()` = ⊥, join = bitwise OR) with `aliased` /
+`writes_outer_scope` / `is_traced` accessors.  `stmt_gen` reuses the
+shared `var_scoping` grammar (`global_declaration_indices` →
+GLOBAL, `variable_declaration_indices` → NAMESPACE,
+`upvar_local_declaration_indices` → UPVAR / GLOBAL (`#0`/`0`) /
+NAMESPACE (`namespace upvar`), `trace add variable` → TRACED).
+`analyse_var_observability` is a monotonic RPO forward fixpoint with
+union merge; `VarObservability` borrows the cfg and answers `flag_at` /
+`is_escaping_at` / `is_traced_at` point-wise plus `escaping_var_names`
+(the whole-function union that replaces the old flow-insensitive
+`_escaping_var_names`).  5 unit tests pin global-marks-following /
+variable-namespace / trace-observable / upvar-level-0-vs-N /
+private-local-empty.  **No optimiser consumer yet** — the Rust O104 is
+hint-only (SYNC-JUN02b-2), so this is landed as the foundation an
+applicable O104 (and memory-SSA / SCCP / GVN alias-trace reasoning)
+will consume.  Minor precision gap: the Rust
+`upvar_local_declaration_indices` rejects a `$`-dynamic caller *or*
+local var (Python's `allow_dynamic_target=True` tolerates a dynamic
+caller); harmless while O104 stays hint-only.
 
 ### SYNC-JUN02b-4 — `command_binding` lattice + `command_trust` + W128 (#519)
 
@@ -2886,12 +3013,58 @@ diagnostic **W128** (call to a command renamed/deleted earlier in the
 file) is backed by the same lattice.  Classify in-scope, **structural**
 — a large new subsystem + a new W-code.  Defer to its own chunk(s); the
 WASM/bytecode dispatch-gating half is out of scope.  **Rust state:
-deferred** — **no Rust counterpart** (`alias.rs` tracks `interp alias`
-and the analyser flips `has_dynamic_providers` on `load`/`rename`, but
-there is no per-program-point command-resolution lattice and the Rust
-SCCP / registry folds have **no trust gate** — they unconditionally
-assume builtins keep their semantics, which is the current Rust
-behaviour everywhere).
+lattice LANDED; W128 + trust-gating pending.**
+- **`command_binding` lattice — LANDED** as
+  `rust/tcl-compiler/src/command_binding.rs`: `BindingKind`
+  (Bottom / Builtin / Proc / Alias / Opaque / Unknown), `Binding`,
+  a sparse per-name `State` with a `wildcard` flag, the `stmt_gen`
+  transfer (`proc` (re)def → Proc; `rename OLD NEW` → OLD Opaque, NEW
+  inherits; `rename OLD {}` deletion → Opaque; `interp alias` → Alias;
+  dynamic `$`/`[` forms → wildcard ⊤), `join_binding` / `merge_preds`
+  (per-name join over predecessors, default-vs-⊥ sparsity), and the RPO
+  `analyse_command_binding` fixpoint seeded by a caller-supplied
+  `&[(String, Binding)]` (the W128 seed = module procs).  `CommandBinding`
+  borrows the cfg + registry and answers `binding_at` /
+  `is_original_builtin_at` / `rebound_names` / `has_wildcard` by replaying
+  gen from each block entry.  Predecessors come from terminator
+  successors only — the Rust CFG has no explicit exception edges (catch
+  is opaque), which can only *miss* a rebinding at a handler, never
+  invent one (sound for a warning).  6 unit tests pin the
+  builtin-default / rename-deletion-flow-sensitive / rename-redirect /
+  proc-redef / dynamic-wildcard / seed cases.
+- **W128 emitter — LANDED** (`analyser/diagnostics.rs::
+  emit_w128_renamed_command`, dispatched from the
+  `emit_cfg_ssa_diagnostics` orchestrator).  Seeds the lattice with
+  `cu.ir_module.procedures` as `Proc`, runs it over `cu.top_level.cfg`,
+  and flags each `Call` (in reverse-postorder, for deterministic
+  output) whose resolved binding is `Opaque` *and* whose name is in
+  `rebound_names()` — skipping the mutating commands themselves
+  (`rename` / `interp` / `proc`).  A merely-undefined external command
+  (always opaque, never rebound) does not fire; a dynamic mutation
+  collapses the lattice to the wildcard ⊤ (every binding `Unknown`, not
+  `Opaque`), so W128 conservatively goes quiet.  `rename string {};
+  string toupper x` → W128 on the `string` call.  3-case discriminating
+  test `analyse_w128_fires_on_call_to_renamed_command`.
+- **`command_trust` + fold gating — LANDED** (initial gate: O129).
+  `ModuleCommandMutations { names, dynamic }` + `trusts()` +
+  `scan_module_command_mutations` (a CFG-free recursive IR walk over the
+  top-level + every proc / method body, applying the shared `stmt_gen`
+  and collecting *tampered-with core builtins* — a freshly-defined user
+  proc, default `Opaque` → `Proc`, is excluded) ported into
+  `command_binding.rs`.  `PassContext` gained a `command_mutations`
+  field (Default = trust everything, so the bare `PassContext::new` test
+  path is unaffected); `optimise_raw` fills it via
+  `scan_module_command_mutations`.  The **O129** fold now gates on
+  `mutations.trusts(head)` — a command renamed / redefined anywhere in
+  the module (top-level *or* a proc body, flow-insensitively) is no
+  longer folded with its builtin semantics (`rename string {}; puts
+  [string toupper foo]` no longer folds).  3-case discriminating test
+  `o129_trust_gate_suppresses_fold_for_rebound_builtin` +
+  `module_mutations_distrust_rebound_builtins_only`.  **Follow-up:**
+  extend the gate to the SCCP hand-rolled cmd-sub folds
+  (`sccp::try_fold_cmd_subst`, which would need the mutations threaded
+  into SCCP) and the incr-idiom; the WASM/bytecode dispatch-gating half
+  stays out of scope.
 
 ### SYNC-JUN02b-5 — string-comparison folding in the constant expr evaluator (#519)
 
@@ -2932,21 +3105,54 @@ than fixes:
   hides expr-cmd-sub reads, so `puts [expr {$x + 1}]` folds via a
   reaching-version augmentation).
 Classify in-scope, **features** — each its own incremental strip.
-**Rust state: deferred.**  The Rust optimiser has **no registry
-`const_fold` / `FOLD_HINTS` mechanism** — builtin folding lives only in
-SCCP's hand-rolled `try_fold_cmd_subst` (list / format / llength /
-string-length / expr) and the value-position cmd-sub fold path
-(`propagation::visit_call_cmd_subst_folds`) handles **proc calls only**.
-So O129 / O130 / scan / the registry-routed list-lindex all need the
-fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
+**Rust state: FOLD_HINTS mechanism + O129 LANDED (initial folds);
+O130 / scan / registry-routed list-lindex deferred.**  The registry
+`const_fold` mechanism is now wired: pure builtins expose a
+`ConstFoldFn` (already a field on `CommandSpec` / `SubCommand`), and the
+optimiser's `propagation::try_o129_fold` resolves a cmd-sub head to its
+spec (or subcommand), checks every arg is a clean literal via
+`literal_words`, calls the `const_fold`, and renders the result through
+`render_propagation_word` (so a multi-word fold result is brace-quoted).
+Emitted as **O129** from `visit_call_cmd_subst_folds`, before the O103
+interproc bail (so it fires with no interproc summary).  This is the
+optimiser-side diagnostic only — it consults `ctx.registry` and does
+**not** thread the registry into SCCP, so the SCCP lattice fold
+(`try_fold_cmd_subst`) is untouched (the two are complementary: O129 is
+the user-facing rewrite, SCCP feeds the constant lattice).  **Folds
+landed:** `string toupper` / `tolower` / `reverse` / `length` (all
+ASCII-restricted for exact Tcl parity — non-ASCII case-maps and the
+UTF-16-vs-USV length divergence make them bail).  `string length` is
+main's headline O129 example (`puts [string length abcde]` → `5`); it
+coexists with SCCP's hand-rolled `string length` lattice fold (different
+positions, complementary — verified the full suite stays green).
+**Deferred follow-ups** (same mechanism, add a `const_fold` per
+command): `join`, `format`, `concat`, `dict get`, `string map`,
+`string repeat`; and the list-returning folds (`split`, `lrange`,
+`lreverse`) which render their result list through the
+`tcl_list_element` quoter.  O130 (`lappend` chain → single `set`) and
+the inline `scan` fold are still their own strips.  Per-fold notes:
 - **O115 value-position unwrap** — **LANDED.**  A redundant double-expr
   cmd-sub `[expr {[expr {E}]}]` now collapses to `[expr {E}]` in
   command-argument positions (`propagation::visit_call_cmd_subst_folds`)
   and `return` positions (`try_fold_return_terminator`), via a shared
   `o115_redundant_nested_expr` helper that double-unwraps to confirm the
   inner is itself an `[expr {…}]` (sound — a plain `[expr {$x+1}]` or an
-  `[expr {[other]}]` is left untouched).  `set x [expr {…}]` (lowered to
-  `AssignValue`, not walked for cmd-sub folds) remains a follow-up.
+  `[expr {[other]}]` is left untouched).  **`set` value-position
+  cmd-sub folds now wired** — `walk_statement` grew a `Statement::
+  AssignValue` arm that runs `visit_call_cmd_subst_folds` over the
+  set's value words, so `set y [::answer]` folds the pure-proc cmd-sub
+  to its constant return (O103) just like `puts [::answer]` does
+  (discriminating test `o103_cmd_subst_fires_on_set_value_target`).
+  **Finding:** the *canonical* `set x [expr {[expr {E}]}]` does **not**
+  reach this arm — `extract_single_expr_arg` strips the outer `expr` at
+  lowering time, so it becomes an `AssignExpr` whose `ExprCommand` holds
+  the inner `[expr {E}]`; the AssignValue arm therefore unlocks O103 (and
+  O100 / O115 for the rarer AssignValue forms that retain a nested-expr
+  cmd-sub word), while the user-visible O115 *source suggestion* for the
+  pre-collapsed `set x [expr {[expr {E}]}]` would need a separate
+  AssignExpr-side check (deferred — not the documented quick win).  Only
+  the cmd-sub fold path is wired (not bare-`$var` `visit_call_tokens`): a
+  `set y $c` RHS is SCCP / load-forwarding territory.
 - **O105 string-constant interpolation** — **already present** in Rust
   (`propagation::visit_string_interpolation`, emitted as O100); only a
   minor `return "…$x…"` completeness gap remains.
@@ -2978,6 +3184,219 @@ fold-hints plumbing + the `-1` quoter first.  Per-fold notes:
   does **not** mis-fold the braced scalar: a probe confirms `set x
   ${a(1)}; return $x` produces *no* O100 / O102 / O103 fold on `x` (it is
   treated as a var-read → overdefined), so there is nothing to patch.
+
+## SYNC-JUN02c family — main audit (2026-06-02)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`31d3aac8`.  `main` landed **3** commits; advances the
+anchor to `origin/main`@`e64aff29`.  Histories still diverge fully (no
+merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#523** (`80bc2b0e`) — *test(vscode): de-flake variable-context
+  completion probes and deep-diagnostics waits.*  Touches only
+  `editors/vscode/src/test/*` + `.test-slow.stamp`.  Pure VS Code
+  extension test hardening (poll-until instead of fixed sleeps).
+  **Out of scope** (editors / tests).
+- **#520** (`b2ef4480`) — *Support encrypted (OpenPGP) UCS archives
+  with passphrase decryption.*  F5 tooling: `tooling/f5/f5_remote/*`
+  (new `_aes.py` / `_openpgp.py` symmetric-decrypt + `ucs.py` rework)
+  and `tooling/f5/verbs/*`.  **Out of scope** (F5 / BigIP tooling — the
+  `BIG*` / `F*` Python-retirement chunks, not analyser / compiler /
+  registry / optimiser).
+- **#522** (`e64aff29`) — *Tcl 9 compatibility: scan / format / string
+  / regex / proc / flow fixes.*  The bulk is **out of scope**: WASM
+  codegen (`compiler/codegen/wasm/{_imports,_scan,api,proc_scan}.py`),
+  the **Zig VM / WASM runtime** (`runtime/zig/cmds/{flow,list,proc,scan,
+  tcl_cmd_interp,tcl_mathfunc}.zig`, `runtime/zig/interp/*`,
+  `runtime/zig/parse/tcl_parse.zig`, `runtime/zig/valtypes/{tcl_format,
+  tcl_regex,tcl_string}.zig`), the WASM execution test suite
+  (`tests/test_wasm_*.py`), the parity baseline
+  (`tests/baselines/wasm_command_parity.json`), generated editor
+  catalogues, and the `tooling/irule_test` registry-data regen.
+
+In-scope rows:
+
+### SYNC-JUN02c-1 — `timerate` command spec (#522)
+
+`main` #522 added `dialects/tcl/timerate.py` — a command spec for the
+`timerate` debugging command (measure the rate of execution of a
+script; `timerate ?-direct? ?-calibrate? ?-overhead double? command
+?time ?max-count??`).  It is a sibling of `time`: `arg_roles={0: BODY}`,
+`arg_types={1: INT shimmers}`, unbounded arity (`Arity(1)`), a
+`STRING` return, an `UNKNOWN`-target read+write side-effect (the body
+runs arbitrary code), and `dialects=DIALECTS_EXCEPT_IRULES`.  Classify
+in-scope, **low-touch feature** (a single new registry command spec).
+**Rust state: LANDED** — ported as
+`rust/tcl-registry/src/commands/tcl/timerate.rs` and registered in the
+tcl pack `mod.rs` (`mod timerate;` + `timerate::spec()`).  Mirrors the
+Python fields exactly except the dialect set: the Rust tcl pack uses
+`dialects: None` for vanilla commands (its sibling `time` does too) and
+mirrors iRules exclusion via the separate iRules pack rather than
+per-command, so the `DIALECTS_EXCEPT_IRULES` restriction is a
+pack-wide, pre-existing fidelity property — not specific to this strip.
+One discriminating registry test pins the BODY role / INT hint /
+unbounded arity / STRING return / UNKNOWN read+write effect
+(`timerate_registered_with_body_and_int_hint`).
+
+## SYNC-JUN02d family — main audit (2026-06-02, PR #525)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`e64aff29`.  `main` landed **2** commits; advances the
+anchor to `origin/main`@`40278cc0`.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#524** (`da16799b`) — *Add KCS guides for migration verification and
+  encrypted UCS handling.*  F5 query builtins + KCS docs + UCS crypto
+  (`dialects/f5/query/*`, `docs/kcs/*`, `tooling/f5/*`).  **Out of
+  scope** (F5 tooling / docs).
+- **#525 Part A** (`40278cc0`) — the command-binding codegen follow-ups
+  (bytecode rename-gate on `_try_bytecoded` / inline cmd-subst dispatch;
+  WASM value/tail-position `IRIncr` rename-gate; interp→compiled-proc
+  dispatch).  **Out of scope** — `compiler/codegen/bytecode/*`,
+  `compiler/codegen/wasm/*`; the Rust port emits neither backend.
+
+In-scope rows (#525 Part B — "missed optimisations", all reuse **O129**;
+no new codes):
+
+### SYNC-JUN02d-1 — registry `const_fold` callback library (#525)
+
+`main` added `dialects/tcl/const_fold.py` — the canonical FOLD_HINTS
+data: ~40 `const_fold` callbacks (`fold_list` / `concat` / `join` /
+`split` / `lindex` / `lrange` / `llength` / `lreverse` / `lrepeat`; the
+`string` subcommand family `cat` / `compare` / `equal` / `first` /
+`index` / `is` / `last` / `length` / `map` / `range` / `repeat` /
+`replace` / `reverse` / `tolower` / `totitle` / `toupper` / `trim` /
+`trimleft` / `trimright`; the `dict` family `create` / `exists` / `get`
+/ `keys` / `merge` / `size` / `values`; plus `format`, `subst`, `scan`)
+wired onto the `const_fold` field of the matching `CommandSpec` /
+`SubCommand`.  Consumed by SCCP + the O129 fold.  Classify in-scope,
+**features** — each its own incremental strip on top of the FOLD_HINTS
+mechanism already landed (SYNC-JUN02b-6).  **Rust state: partial.**  The
+mechanism + `string toupper` / `tolower` / `reverse` / `length` landed
+under SYNC-JUN02b-6.  The Rust folds reuse `render_propagation_word`
+(quote-via-`tcl_list_element`) so a special-char result is brace-quoted
+as a single word rather than rejected (sound — Rust folds *more* than
+main's reject-on-special-char guard, both correct; the analyser is not
+byte-gated against Python).  String folds are ASCII-restricted for exact
+Tcl parity (Rust/Tcl case-map + length agree on ASCII; non-ASCII bails —
+conservative).  **Landed so far:** the full pure-`string`-subcommand family — `toupper`
+/ `tolower` / `reverse` / `length` (SYNC-JUN02b-6); `cat` / `repeat` /
+`trim` / `trimleft` / `trimright` / `totitle`; and the index/comparison
+ops `index` / `range` / `replace` / `first` / `last` / `compare` /
+`equal` (via a `parse_index` + `clamp_range` port, ASCII-restricted).
+The **list ops** (`list` / `concat` / `join` / `split` / `lindex` /
+`lrange` / `llength` / `lreverse` / `lrepeat`) and **`dict` ops**
+(`get` / `exists` / `keys` / `merge` / `size` / `values` / `create`)
+also landed, in a new registry-leaf `tcl-registry/src/const_fold.rs`
+module carrying a self-contained validating `split_list` (bails on
+unbalanced braces / unterminated quote / trailing junk / backslash), a
+`list_element` / `list_join` quoter (mirrors
+`tcl-compiler::codegen::helpers::tcl_list_element`), and the canonical
+`parse_index` / `clamp_range` shared with the `string` folds.  List
+results are re-quoted element-wise (`lreverse {a b} c` → `c {a b}`),
+then the O129 path wraps the whole result as one word.  `dict create` /
+`merge` de-dup keys last-wins with position preserved (Tcl 9
+`Tcl_DictObjPut`).  **`string map`** (greedy left-to-right replace,
+`-nocase`, ASCII-restricted, byte-exact) and **`subst`** (B4) also
+landed — `subst` folds only a substitution-free string (bails on `$` /
+`[` / `\`), a *stricter* subset of Python's fold since the Rust O129
+path passes raw literal args with no upstream `$var` resolution (that is
+the deferred B2 work; folding `subst {$x}` verbatim would be unsound).
+**`string is` — LANDED** (`string_::fold_is`, registered on the `is`
+subcommand with `pure: true`).  Implemented as **Tcl-faithful class
+predicates**, deliberately *not* a transcription of Python's `str`-method
+fold (whose semantics diverge — e.g. `str.islower("abc1")` is `True` but
+Tcl's `string is lower abc1` is `0`).  Covers: the ASCII character
+classes `alpha` / `alnum` / `digit` / `lower` / `upper` / `xdigit` /
+`space` / `control` / `graph` / `print` / `punct` / `wordchar` (each
+applies the predicate to *every* char and **bails on non-ASCII** input —
+Unicode membership isn't modelled, a missed fold never a wrong one),
+`ascii` (the membership test itself, defined for any input), and
+`boolean` / `true` / `false` via the exact `Tcl_GetBoolean` keyword +
+unique-prefix set (`t` / `ye` / `of` resolve; `o` — ambiguous between
+`on`/`off` — does not).  `list` also folds: `split_list` returns `Some`
+only for a valid (backslash-free) list and `None` for a malformed one,
+so a backslash-free string folds (`Some` → 1, `None` → 0) and a
+backslash-bearing one bails (split_list conservatively rejects any
+backslash, but `a\ b` is still a valid list).  `-strict` is honoured
+(only the empty-string result differs); `-failindex` and any unknown
+option bail.  Two registry tests
+(`string_is_folds_tcl_faithful_classes`,
+`string_is_subcommand_carries_const_fold`) + O129 optimiser cases.
+**Still deferred** (own follow-up strips — Tcl number syntax + range
+edges need differential pinning, so they bail): the number classes
+**`integer`** / **`entier`** / **`wideinteger`** / **`double`** (Tcl
+integer syntax is version-dependent — leading-zero octal differs 8.5 ↔
+9.0 — `integer`'s width is platform-dependent `long`, and `double`
+accepts `Inf` / `NaN` / hex-floats) and **`dict`** (Python's fold
+doesn't cover it either).  **`format`** — the plain **`%s` / `%d` /
+`%%` subset LANDED** (`format_::fold_format`, ASCII format string, `%d`
+parses the arg as `i64` else bails; mirrors the codegen-side
+`try_format_fold`'s differential-validated subset).  The flag / width /
+precision / other-verb printf matrix and **`scan`** (scanf semantics)
+stay deferred — they need differential pinning against tclsh.  (The
+duplicated
+`split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
+deliberate trade-off — the canonical Tcl list-string codec should
+consolidate into a shared leaf like `tcl-lexer`; tracked.)
+
+### SYNC-JUN02d-2 — embedded / nested cmd-sub fold gaps (#525 B1/B2/B3)
+
+The consumer-side optimisation gaps #525 closes:
+- **B1** — fold a pure builtin / `[expr {…}]` substitution embedded
+  *inside* an interpolation string (`puts "v=[string length abc]"` →
+  `puts "v=5"`); the replacement is spliced raw (not list-quoted) since
+  it lands inside the `"…"`.
+- **B2** — thread the reaching-version SCCP constants into the registry
+  cmd-sub folder so a nested read folds (`puts [expr {[string length
+  $s]}]` → `puts 3`), gated to same-block straight-line defs for
+  soundness (semi-pruned SSA omits a phi for hidden join reads).
+- **B3** — a pure proc returning a multi-word string folds, list-quoted
+  (the O103 fold + the canonical quoter).
+Classify in-scope, **features** — consumer-logic ports on top of the
+fold library.  **Rust state: B1 LANDED; B2 / B3 deferred.**
+- **B1 — LANDED** (`propagation::visit_string_interpolation_cmd_subs`,
+  dispatched from `visit_call_tokens`).  Scans an interpolation string
+  for embedded `[cmd …]` subs (UTF-8-safe byte scan with bracket
+  nesting + `\[` escape handling), folds each pure-builtin sub via the
+  shared `fold_builtin_cmd_subst_raw` (the raw, *un*-quoted O129 core),
+  and splices the result into the surrounding `"…"` — `puts
+  "v=[string length abc]"` → `puts "v=5"`.  Guards: a whole-word `[…]`
+  is skipped (handled by `visit_call_cmd_subst_folds` — avoids a
+  duplicate O129); a fold result that would re-introduce a substitution
+  into the `"…"` (`$` / `[` / `]` / `\` / `"`) is left unfolded; at
+  least one successful fold is required to emit.  Discriminating test
+  `o129_folds_embedded_cmd_subst_in_interpolation`.
+- **B3 — LANDED.**  Two pieces: (a) `interprocedural::classify_return`
+  now treats a substitution-free return value (no `$` / `[` / `\`) as a
+  `Literal` — `return {a b c}` / `return "a b c"` both lower to the
+  value `a b c` (delimiters stripped), which previously fell through to
+  `Other` and blocked the fold; (b) the cmd-sub O103 `Str` arm renders
+  the constant return via `render_propagation_word` (the canonical
+  quoter) instead of bailing on a non-bare-word, so `proc ::greet {} {
+  return "a b c" }; puts [::greet]` folds to `puts {a b c}`.
+  Discriminating test `o103_folds_multi_word_string_return_list_quoted`.
+- **B2 — LANDED.**  `literal_words` now resolves a single-token `$var`
+  argument to its constant value (via the SCCP `constants` map threaded
+  through `visit_call_cmd_subst_folds` → `try_o129_fold` →
+  `fold_builtin_cmd_subst_raw`, and through the B1 interpolation path),
+  keeping a multi-word value as **one** argument so it isn't re-split.
+  `set s abcde; puts [string length $s]` → `puts 5`; `set s {a b}; puts
+  [llength $s]` → `puts 2`; combined with B1, `set s abc; puts
+  "len=[string length $s]"` → `puts "len=3"`.  **Soundness:** Python
+  needed same-block straight-line def gating because its reaching-version
+  is per-point (semi-pruned SSA omits a phi for hidden join reads); the
+  Rust SCCP `constants` map is *whole-function* (a var is present only if
+  every reaching def agrees), so substituting from it is sound
+  everywhere with no gating.  A composite word (`foo$bar`), an array
+  element (`$a(1)`), or a non-constant var bails.  Discriminating test
+  `o129_resolves_constant_var_args_b2`.  **Still deferred:** the
+  `[expr {[string length $s]}]` *expr-wrapper* nesting (the outer
+  `[expr {…}]` routes through the expr path, not the const_fold path) —
+  a further follow-up.
 
 ## Next-up priority queue
 
@@ -3163,17 +3582,33 @@ priority queue:
   #519 optimiser mega-PR).  Seven in-scope rows.  **Applied now** (the
   two clean soundness/correctness fixes to existing Rust):
   **`-5` — LANDED** (string comparisons `eq`/`ne`/`lt`/`gt`/`le`/`ge`
-  fold as strings in `tcl_expr_eval`) and **`-2` — LANDED** (interproc
-  `writes_global` recognises `global`/`variable`/`upvar #0` aliases).
-  **Deferred** (large new subsystems / missing mechanisms): **`-1`** (O100
-  multi-word constant — needs a `tcl_list_quote` leaf), **`-3`**
-  (`var_observability` optimiser lattice — Rust's `var_escape` is
-  codegen-only, no `TRACED`), **`-4`** (`command_binding` +
-  `command_trust` + W128 — no Rust counterpart), **`-6`** (new
-  const-folds — no registry `FOLD_HINTS` mechanism in the Rust optimiser
-  yet; the O115 value-position unwrap from `-6` is **LANDED** (cmd-arg +
-  `return`), O105 already present, the rest deferred behind `FOLD_HINTS`
-  + the `-1` quoter).
+  fold as strings in `tcl_expr_eval`), **`-2` — LANDED** (interproc
+  `writes_global` recognises `global`/`variable`/`upvar #0` aliases),
+  and **`-1` — LANDED** (O100 multi-word constant re-renders via the
+  existing `codegen::helpers::tcl_list_element` `TclConvertElement`
+  quoter — no new leaf needed — wired into both O100 propagation sites
+  via `render_propagation_word`).
+  **`-6` — FOLD_HINTS mechanism + O129 LANDED (initial folds).**  The
+  registry `const_fold` mechanism is wired: `propagation::try_o129_fold`
+  resolves a cmd-sub head to its spec/subcommand, checks all args are
+  clean literals, calls the `const_fold`, and emits **O129** with the
+  result rendered as a single word.  Folds landed: `string toupper` /
+  `tolower` / `reverse` (ASCII-restricted).  Also from `-6`: the O115
+  value-position unwrap is **LANDED** (cmd-arg + `return` + the `set`
+  AssignValue follow-up — caveat: the canonical `set x [expr {[expr
+  {E}]}]` lowers to `AssignExpr`, pre-collapsing the outer `expr`, so
+  O115's *suggestion* for that exact shape is a separate AssignExpr-side
+  follow-up), and O105 is already present.  Deferred follow-ups (same
+  mechanism): more `const_fold`s (`string length`, `join`, `format`,
+  `concat`, `dict get`, `string map`, the list-returning folds), O130
+  (`lappend` chain fold), and the inline `scan` fold.
+  **`-3` — lattice LANDED** (`var_observability.rs`: the
+  `EscapeFlag` GLOBAL/NAMESPACE/UPVAR/TRACED set-union lattice +
+  `analyse_var_observability` fixpoint + `escaping_var_names` union;
+  no optimiser consumer yet since the Rust O104 is hint-only — landed
+  as the foundation).  **`-4` — LANDED** (`command_binding` lattice +
+  W128 diagnostic + `command_trust` `ModuleCommandMutations` gate on
+  O129; SCCP-fold gating + incr-idiom are follow-ups).
   **N/A** (Rust architecture differs, bug shape absent): `-2`'s call-site
   constant-kill (whole-function SCCP) + O104 guard (Rust O104 is
   hint-only), and **`-7`** (per-use-site DCE; braced-scalar `$=` marker —
@@ -3181,6 +3616,13 @@ priority queue:
   scope: the WASM/bytecode dispatch-gating + canonical-quoting migration
   and the `shared/tcl_list` Python consolidation.  See the `SYNC-JUN02b`
   family section.
+* **`SYNC-JUN02c` family** — opened 2026-06-02; advances the anchor from
+  `origin/main`@`31d3aac8` to `origin/main`@`e64aff29` (+3 commits).  One
+  in-scope row.  **`SYNC-JUN02c-1` — LANDED**: the `timerate` command
+  spec (#522) ported to `rust/tcl-registry/src/commands/tcl/timerate.rs`.
+  Out of scope: #523 (VS Code test de-flaking), #520 (F5 OpenPGP UCS
+  decryption — `tooling/f5`), and the WASM-codegen / Zig-runtime / WASM-
+  test bulk of #522.  See the `SYNC-JUN02c` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
@@ -3262,12 +3704,12 @@ on the `tcl-lsp-server` bootstrap.
 | C41-default-on-followups-postpass | **`run_compiler_checks` post-pass integration (W110 / W220 / W304).** The Python `Analyser._emit_cfg_ssa_diagnostics` integrates `run_compiler_checks` to add style + SSA-based diagnostics on top of the analyser's own emission set: W110 (style — `==` / `!=` vs `eq` / `ne` for strings), W220 (SSA-based dead-store hint), W304 (style — unused-global declaration), plus W101 / W105 from the param-trait paths and W116 / W117 from stub-shadow detection. The Rust analyser doesn't run any post-pass equivalent. Port: this is the largest remaining chunk because it depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser. Either (a) expose a Rust-side `compiler_checks::run_all_checks(cu, registry, dialect)` entry point and call it from `analyser::state::analyse` after the main walk, or (b) keep `run_compiler_checks` Python-side but make it consume a Rust-built `CompilationUnit` so the dispatcher only runs the post-pass instead of the full Python `Analyser.analyse`. Either approach lets `rust.diagnostics = python.diagnostics` retire. | partial — empirical probe surfaced the post-pass W codes Python uniquely emits (W110 / W101 / W105 / W220 / E004) and the strategy: each code ports as an analyser-side emitter; once Rust covers the full set, `rust.diagnostics = python.diagnostics` retires.  **W105 ported** as the first concrete emitter (`emit_w105_unbraced_body` in `analyser/diagnostics.rs`, dispatched from the registry-driven body iteration in `commands.rs::process_command`); 3 cargo tests pin the substitution-bearing-error / braced-skip / dynamic-var-skip cases.  A naive dedup-by-(code,span) merge of `python.diagnostics ∪ rust.diagnostics` was tested and **rejected** — it re-surfaces records Python's main pass had already suppressed via context the Rust path doesn't see yet (~41 test failures across the W123 / regexp-var / unused-param suppression paths).  Suppression-context parity is its own follow-up gate.  The override stays as wholesale-replace until each post-pass W code lands as a Rust emitter AND Rust mirrors Python's suppression context — at that point the override flips to no-op and retires.  **W110 ported** (`emit_w110_string_eq_ne` in `analyser/diagnostics.rs`, dispatched via a new registry-driven `dispatch_expr_arguments` over `ArgRole::Expr` indices in `commands.rs::process_command`); helper functions `find_string_eq_ne_ops` / `count_eq_ne_ops` walk the C1 `ExprNode` tree (collecting `==`/`!=` ops with at least one `ExprString` operand), plus `rewrite_string_compare_ops` ports the Python regex-based code-fix manually (negative look-around for `==`, plain `!=`, run-of-2+-ws collapse).  `expr ARG ARG ...` multi-arg form uses the source slice (post-substitution arg values lose `"…"` quote delimiters); single-braced-arg form uses `args[idx]` directly.  14 cargo tests in `analyser::state::tests` cover string-eq / string-ne / numeric-clean / eq-operator-clean / has-fix / variable-only-clean / numeric-string / boolean-string / unary-negation / mixed-no-fix / while-condition / expr-top-level / expr-multi-arg / for-clean.  **W302 ported** (`emit_w302_catch_no_result_var` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning `handle_catch_command` — same dispatch placement rationale as W110); fires `Severity::Hint` when `catch BODY` is invoked with only the body argument (no `RESULTVAR`), mirroring the IRCatch arm of `_check_statement` in `core/compiler/compiler_checks.py:491-504`.  Gates on `arg_single[0] == true` to mirror Python's `_lower_catch` IRBarrier "catch with dynamic body" suppression — multi-token-word bodies (e.g. `catch pre$x`) drop to IRBarrier in Python and never reach the W302 check.  Diagnostic anchors at the catch keyword through the body argument's end (mirrors `stmt.range`).  5 cargo tests pin the no-result-var-fires / has-result-var-suppresses / has-options-var-suppresses / multi-token-body-suppresses / span-anchors-at-command-range cases.  **W001 ported** (`emit_w001_unknown_subcommand` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning handlers — same dispatch placement rationale as W110 / W302); fires `Severity::Warning` for registry-known SubcommandSig commands (`string` / `dict` / `info` / `namespace` / …) whose first arg isn't a member of the dialect's subcommand set, gated by `!sig.allow_unknown` and a literal-text gate skipping `$` / `[`-bearing values; "did you mean…?" suggestion via `crate::text::suggest_similar` (max 1 suggestion within edit distance 3) plus a code-fix that rewrites the subcommand token; diagnostic span anchors at the command-head through the subcommand-arg end.  Known minor parity gap: Python additionally skips when the subcommand position is `{*}`-expanded (`arg_expand[0]`) — Rust `process_command` doesn't currently thread the expansion flag, so `{*}LITERAL` for an unknown literal name will fire on the Rust side; documented inline as deferred until expand-flag plumbing lands as its own chunk.  9 cargo tests in `analyser::state::tests` cover string-bogus-fires / typo-suggestion-with-fix / known-subcommand-clean / dynamic-subcommand-skip / command-substitution-skip / simple-command-skip / unknown-command-skip / span-anchors-at-cmd-plus-subcommand / dict-also-fires.  **E004 ported** (`emit_e004_malformed_if` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` when `cmd_name == "if"` — same dispatch placement rationale as W110 / W302 / W001, though `if` has no early-returning handler so dispatch ordering is consistency-only); fires `Severity::Error` on the structural shapes that produce an `IRBarrier` from Python's `_lower_if` (`core/compiler/lowering.py:645-753`): empty arg list (`"Malformed 'if' command"`), bare `else` keyword without a following body (`"Malformed 'if' command"`), `else BODY <extra...>` (`'Extra words after "else" clause in "if" command'`), condition (with or without `then`) without a following body (`"Malformed 'if' command"`), and post-walk no-clauses cases like `if else BODY` where the else-only walk produces no condition+body clause (`"Malformed 'if' command"`).  Detection re-implements the structural shape parse rather than walking lowered IR — matches the W302 / W001 dispatch-site pattern; the analyser layer doesn't lower.  Side effect: closes a latent parity gap in `lowering/structured.rs::lower_if`, which currently doesn't produce an "extra words after else" barrier at all (Python `lowering.py:686-693` vs Rust `structured.rs:147-162`); the analyser-side check covers that shape independently of whether the lowerer is fixed.  Span anchors at the command-head token through the last arg-token end (mirrors Python's `cmd.range`).  No code fixes (Python emits none).  10 cargo tests cover extra-words-after-else / bare-else-without-body / condition-without-body / then-keyword-without-body / if-with-only-else / valid-if / valid-if-else / valid-if-elseif-chain / if-with-then-keyword / span-anchors-at-full-command-range.  **W304 ported** (corrected from the chunk-log's wrong "unused-global declaration" description — the real W304 is "missing option terminator (`--`) on option-bearing commands", per `core/analysis/checks/_style.py:506-679`).  Lands in two pieces: (a) registry plumbing in `tcl-registry/src/registry.rs` — new `ResolvedTerminator` value type, `CommandRegistry::resolve_option_terminator(name, args, dialect) -> Option<ResolvedTerminator>` which looks up subcommand-scoped `OptionSpec(name="--")` first then falls back to form-level options, and a `collect_options_with_values` helper that lifts `OptionSpec.takes_value`; ``Traits::WARN_WITHOUT_TERMINATOR`` was already present pre-chunk, set on `regexp` only.  Per-command spec extensions: `exec` and `load` gained `options: &[…, "--", …]` to match the Python registry (the analyser-side test surface needs them); other `--`-bearing commands (`regexp` / `regsub` / `switch` / `unset` / `glob` / `file` / `interp`) already had the option declared.  6 cargo tests in `tcl-registry::registry::tests` pin the resolver's unknown-command / no-`--` / form-level-regexp / subcommand-scoped-file-delete / subcommand-without-`--` / warn-flag-off-for-non-regexp cases.  (b) Analyser-side emitter `emit_w304_missing_option_terminator` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` before the early-returning handlers (so option-bearing commands with their own handler — e.g. `switch` — still get checked); two module-level helpers `first_positional_without_terminator` (option-skip scan, advances past option-value pairs via `profile.options_with_values`) and `last_literal_set_value_for_var` (port of Python's helper using the existing `crate::segmenter::segment_commands`).  Tristate severity matches Python's `_style.py:565-627` shape: OFF (no diagnostic) for non-dynamic non-`-`-prefixed values, INFO (`Severity::Suggestion`) for dynamic values without proof of leading `-`, WARNING for literals starting with `-` and for variables whose constant-propagated `set …` value starts with `-`.  Constant-prop INFO path emits a second "origin" diagnostic anchored at the resolved literal's range.  Code fix: prepends `"-- "` to the positional arg's span; `Cmd` (`[…]`) tokens get a one-byte span extension so the closing `]` is included.  17 cargo tests pin regexp-pattern-variable / safe-literal-pattern-skip / literal-dash-pattern / regexp-with-`--`-clean / regexp-with-option-value-then-variable / regsub-variable / subst-not-checked / exec-variable / exec-with-`--`-clean / glob-safe-literal-clean / string-match-not-checked / lsearch-not-checked / file-delete-variable / file-delete-with-`--`-clean / load-variable / constant-prop-INFO-with-origin / constant-prop-dash-WARN / code-fix-inserts-terminator.  Note: `warn_without_terminator` is plumbed onto `ResolvedTerminator` for API parity with Python but Python's `_style.py` doesn't actually consume the flag — the OFF gate fires uniformly regardless of trait.  Documented inline.  **W101 ported** (`emit_w101_eval_string_concat` in `analyser/diagnostics.rs`, dispatched from `commands.rs::process_command` for `cmd_name == "eval"` — same dispatch placement rationale as the other postpass emitters); fires `Severity::Warning` on `eval` invocations whose arguments could carry substitution-driven injection, mirroring `core/analysis/checks/_security.py:19-73::check_eval_string_concat`.  Suppression for the `eval {script}` / `eval {a} {b}` braced-script form (every arg's representative token is `Str`); suppression for the `eval [list ...]` / `eval [linsert ...]` / `eval [split ...]` canonical-list-idiom form via a new registry-side `CommandRegistry::is_canonical_list_command(name) -> bool` mirroring Python's runtime.py-level `canonical_list_commands()` (derived from `return_type == TclType::List`, with `concat` explicitly excluded); 2 cargo tests in `tcl-registry::registry::tests` pin the resolver including the compound `cmd subcmd` key shape.  Substitution detection on the analyser side is a sound approximation of Python's `all_tokens[1:]` walk: any `Var` / `Cmd` representative token plus any multi-token-word (single_token_word == false) implies inner substitution — `process_command` doesn't currently thread the full token stream, but the per-arg representative token kind plus the multi-token-word flag together cover every shape the Python check fires on.  Documented inline.  12 cargo tests pin eval-with-variable / braced-script-clean / multiple-braced-clean / command-subst-fires / literal-no-subst-clean / list-idiom-clean / linsert-idiom-clean / split-idiom-clean / concat-idiom-still-warns / non-eval-commands-skip / first-arg-anchor / multi-command-subscript-rejected.  **W220-IR-paths ported** (extends the C41d2 `emit_dead_store_diagnostics` in `analyser/diagnostics.rs` with the IR-path filters Python's `_dead_stores` (`core/compiler/core_analyses.py:1105-1156`) bakes in plus the dispatcher-level `cross_event_vars` thread Python's `_diagnostics.py:147-167` carries).  Four new filters layered onto the existing `is_dead` / `scope_aliases` / `any_other_live` set: (1) `::`-prefixed globals skipped (externally consumed); (2) SCCP-unreachable blocks skipped via `fu.sccp.executable_blocks` (O107 already reports the whole block as dead); (3) `cross_event_vars` skipped — for `pkgIndex.tcl` files the top-level dispatcher passes `{"dir"}` (the package loader assigns `$dir` before the script runs), and for `::when::*` procs the dispatcher passes `cu.connection_scope.cross_event_defs ∪ cross_event_imports`; (4) IR-statement type filter — only `AssignConst`, `AssignValue` whose value doesn't contain `[`, and `AssignExpr` whose tree has no command call qualify, mirroring Python's `_dead_stores:1149-1155`; `Call.defs` (e.g. `lassign`), `Incr`, and other side-effecting writes drop because removing the assignment would also drop the side effect.  Dispatcher API: `emit_cfg_ssa_diagnostics_for_function_full(fu, ir_module, extra_known_defined, cross_event_vars)` is the new full-context entry point; the existing `..._with_extra` and the simple two-arg `..._for_function` call through with `cross_event_vars=&HashSet::new()` to preserve API.  10 new cargo tests added (`emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var` / `_skips_command_substitution_value` / `_skips_expr_with_command_call` / `_skips_incr_writes` / `_skips_call_defs` / `_pkgindex_dir_var_suppressed` / `_dir_var_not_suppressed_outside_pkgindex` / `_irules_cross_event_var_suppressed` / `_irules_proc_local_still_flagged` / `_skips_unreachable_block`) plus the existing positive control `emit_cfg_ssa_diagnostics_w220_dead_store_overwritten`.  All `cargo fmt` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace` (1962+ tests) green.  This is the last post-pass W code; the C41-default-on-followups graduation point (flipping `rust.diagnostics = python.diagnostics` from wholesale-replace to no-op + retiring the override) is now unblocked and tracked as a separate follow-up chunk. |
 | C41-default-on-followups-tcllib-imports | **tcllib-style `X::import` wrapper detection.** Python's namespace-import recorder also recognises tcllib-style wrapper calls (`term::ansi::send::import …` and similar) and records them as conjectured imports (`NamespaceImport.conjectured = True`). The Rust port handles direct `namespace import` only. Port: extend `handle_namespace_import_command` (or a sibling `handle_tcllib_import_call`) to consult a tcllib wrapper allow-list (lifted from `core/analysis/namespace_imports.py`'s `_TCLLIB_WRAPPER_RE`) and emit conjectured imports for matching calls. Unblocks moving `namespace_imports` from "Python if Rust empty" to "no override". Landed: `handle_tcllib_import_wrapper` added in `analyser/handlers.rs` and dispatched from `process_command`; mirrors the `cmd_name.endswith("::import") and len(args) == 1` branch of `_record_command_invocation` (and `_maybe_handle_import_wrapper` in `signature_scan.py`); strips the trailing `::import`, prepends `::` if missing, qualifies the alias against the current namespace (`::outer::vt` not `::vt` inside `namespace eval outer`); rejects substituted aliases (`$var` / `[cmd]`) and multi-arg calls; the `if not rust.namespace_imports` supplement guard retired; 7 new cargo tests in `state.rs` covering conjectured-emission, relative / absolute alias qualification, substituted-alias drop, single-arg shape, source-namespace prefixing, and the `namespace import` non-trip case. | landed |
 | C41-default-on-followups-alias-chains | **Cross-namespace `interp alias` chain resolution.** Python's `interp alias` recorder follows multi-step alias chains across namespace boundaries (`A` aliases to `B`, `B` aliases to `C`; references-to-`C` should also find references-to-`A`). The Rust port records each `interp alias` call independently. Port: after the main walk, run a fixpoint pass that resolves each `command_aliases[name].target` through the same map until a fixed point or a cycle is detected; record the resolved chain on the alias entry. Mirrors `core/analysis/_analyser/_handlers.py::_resolve_alias_chain`. Unblocks moving `command_aliases` from "Python if Rust empty" to "no override". Landed: investigation surfaced that the chunk-log description was overstated — Python's `_handle_interp_alias` records each `interp alias {} NAME {} TARGET ?ARGS?` declaration independently, with no fixpoint or chain resolution, and `tests/test_analyser.py::test_alias_chain_not_resolved` explicitly pins the no-transitive-chain behaviour (`a -> b -> expr` stays recorded as two independent entries, not one collapsed `a -> expr`).  `core/analysis/_analyser/_handlers.py::_resolve_alias` is a single-step lookup at use-site for arg-role propagation; it doesn't update `command_aliases`. The Rust port already matches this shape exactly. Action taken: retired the `for qname, alias in python.command_aliases.items(): rust.command_aliases[qname] = alias` unconditional merge in `_merge_rust_with_python_supplement` and added five cargo tests in `analyser::state::tests` pinning the no-chain / redefinition-overwrites / dynamic-name-skip / qualified-name / prepended-args cases that mirror `tests/test_analyser.py`. | landed |
-| C41-default-on-followups-param-traits | **`infer_param_traits` port — partial.** The user-visible W214 over-emit on ``[expr {$param}]`` patterns was fixed in commit ``b9620ad`` via a contained textual fallback ``body_references_param(body, name)`` in ``analyser/diagnostics.rs`` — the W214 emitter now consults the proc's body source for ``$name`` / ``${name}`` substitutions when the def-use scan finds no live use.  Eight cargo unit tests pin the helper's boundary semantics (bare-dollar / braced-dollar / non-identifier boundary / backslash-escape skip / multi-use / unused / braced-with-punct-after / namespace-qualified).  **Still planned**: the full free-standing port of ``core/analysis/proc_arg_traits.py::infer_param_traits`` (~525 LOC).  Adds ``param_traits: HashMap<String, HashSet<ProcArgTrait>>`` to ``analyser::types::ProcDef``; populates it in ``handle_proc_command`` from a body walk that records each parameter's role (``EVAL`` / ``BODY`` / ``VAR_WRITE`` / ``VAR_READ`` / ``EXPR`` / ``LOOP_LIST``).  Unblocks downstream optimisations that consult ``param_traits`` (``_branch_folding``, ``_propagation``, taint inter-procedural).  Threading: ``ProcDef.param_traits`` field already exists Python-side; the PyO3 binding emits an empty dict today; the materialiser plumbs it through. | landed (shallow `infer_param_traits` — the most-tested top-level command scan — ported as `analyser/param_traits.rs`; new `ProcArgTrait` enum mirrors Python's `ProcArgTrait`; `ProcDef.param_traits` populated in `handle_proc_command`; PyO3 binding emits the dict; materialiser plumbs through with name → enum mapping; 11 new cargo tests in `analyser::param_traits::tests` covering eval / uplevel / foreach / while / for / upvar / lassign / after / regsub / empty-body / extract_var_name boundary cases.  Cargo workspace: 1824 → 1835 lib tests, all green.  The deep `infer_param_traits_deep` recursive descent stays Python-only — covered by the structural override which retires together with the `S*` LSP-server / `structural` chunk.) |
+| C41-default-on-followups-param-traits | **`infer_param_traits` port — LANDED (shallow + deep).** Ports `core/analysis/proc_arg_traits.py::infer_param_traits` to `analyser/param_traits.rs` (1099 LOC): the shallow top-level command scan (`infer_param_traits`), the recursive `infer_param_traits_deep` descent, and `merge_traits` (shallow ∪ deep union).  `ProcArgTrait` mirrors Python's enum; `ProcDef.param_traits` is populated in `handle_proc_command` (`infer_proc_param_traits`, gated `deep_param_traits` for the recursive pass) and threaded through the PyO3 binding + materialiser.  Per-command handlers cover `upvar` (alias → `VarWrite`/`VarRead`), `foreach` / `lmap` loop vars, `while` / `for` bodies, `after`, `scan` / `lassign` variadic var-writes, `regexp` / `regsub` match vars, plus the registry `ArgRole`-driven `Body` / `Expr` / `VarWrite` / `VarRead` marking and the stub-overlay union (`SYNC-MAY19-stub-overlay`).  The earlier W214 `[expr {$param}]` over-emit fix (`b9620ad`, `body_references_param`) stays.  24 cargo tests in `analyser::param_traits::tests`. | landed (shallow + deep + merge; `analyser/param_traits.rs`) |
 | C41-default-on-followups-structural | **Structural-triple supplement retirement** (``global_scope`` / ``all_variables`` / ``all_procs`` / ``unknown_proc_info``).  These four fields are still copied wholesale from Python in ``_merge_rust_with_python_supplement``.  ``global_scope`` / ``all_procs`` form a consistent triple (the same ``ProcDef`` instances are referenced from both) that consumers (declaration / references / rename / hover) cross-look-up between by object identity.  Rust populates both with structural parity per the differential corpus, but the Python objects identity-compare; switching consumers to qualified-name lookup retires the triple.  ``unknown_proc_info`` is patched in some Python tests via ``lower_to_ir`` mocking; the Rust extractor uses a separate IR pipeline that doesn't honour those patches.  Two paths to retirement: (a) audit Python consumers for object-identity dependencies and convert to qname lookup; (b) the LSP-server port (``S*``) replaces every consumer with a Rust equivalent that uses the native struct, eliminating identity questions entirely.  Path (b) is the right end-state.  Closes the four remaining unconditional ``rust.X = python.X`` lines in the supplement once the LSP server lands. | planned (closes naturally with the ``S*`` LSP server port) |
 | C41-default-on-followups-noop-guards | **Conservative-fallback supplement guards** (``stub_commands`` / ``stub_expr_defs`` / ``auto_path_entries`` / ``namespace_imports`` / ``source_targets`` / ``command_aliases``).  These six fields use the ``if not rust.X: rust.X = python.X`` shape — a conservative fallback when Rust's scanner returns an empty list.  Verify with a coverage probe whether the fallback actually fires on any tracked corpus / sample fixture; if it never does, the guards can be deleted unconditionally.  Each guard either retires (when the corresponding emitter port is verified complete — ``stub-args`` / ``tcllib-imports`` / ``alias-chains`` cover three) or stays as documented insurance until the LSP server port replaces the consumers. | landed (the four ports above already retired ``stub_commands`` / ``stub_expr_defs`` / ``namespace_imports`` / ``command_aliases`` / ``regex_patterns``; this chunk audited the remaining two — ``auto_path_entries`` and ``source_targets`` — by deleting them and running the full pytest suite (12,519 tests + 206 skipped + 2 xfailed) which passed unchanged.  The guards were dead code on the tracked corpus; deleted unconditionally.  ``_merge_rust_with_python_supplement`` no longer carries any conservative-fallback guards — only the structural-triple wholesale copies remain (waiting on `S*` / `structural`).) |
 | Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
 | Seg2  | **Segmenter error recovery.** Port the Python `_has_suspicious_token` + `_find_recovery_offset` heuristics from `core/parsing/command_segmenter.py` to the Rust segmenter as `segment_commands_with_recovery(source, &known_commands)`. After raw segmentation, the last command is inspected for an unclosed `{` (`Str` token reaching EOF, line span ≥ 3), `[` (any `Cmd` token reaching EOF), or `"` (`Esc` token reaching EOF, line span ≥ 3); on a hit the suspicious token's inner text is scanned line-by-line for the next known-command name and the slice from there is re-segmented and appended (with absolute spans). The signature_scan walker threads the registry's `command_names()` set through to the top-level call only — body recursion never recovers, mirroring Python. Prerequisite for C40-default-on: without recovery, flipping the dispatcher to Rust would silently regress workspace indexing for any file mid-edit with an unclosed brace. | landed |
-| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,074 LOC across 17 files (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 `_diag_*.py` sub-files, `_oo.py`, `_handlers.py`, `_recovery.py`, `_scope.py`, `_snapshot.py`, `_utils.py`). Six sub-strip families: **C41a** (skeleton + types + utils, 5 strips) — **landed**; **C41b** (per-command handlers, 8 strips) — **landed**; **C41c** (proc-body analysis, 4 strips) — **landed**; **C41d** (diagnostic emitters, 7 strips) — **landed** (d7 closed alongside the `ConnectionScope` port to `rust/tcl-compiler/src/connection_scope.rs` + `EventRegistry::variable_scope_note`); **C41e** (OO + recovery, 5 strips) — **landed** (e0 class_hierarchy + mro pure-Rust port; e1-e2 class-body walker + oo::define extension; e3 property defs + `UnknownProcInfo` + the W123 unknown-proc gate + package-require recording + top-level RBS via `globals_written_by_procs`; e4 stray-close-bracket recovery + switch-case helper; e5 missing-open-brace recovery + stolen-close-brace detection + generic E200 emitter); **C41f** (public entry + PyO3 + harness, 6 strips) — **landed** (f1-f4, f6 from earlier; f5 differential-fuzzer corpus + 4 dispatcher gating tests landed in `tests/test_rust_analyser_differential.py`). Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`); `C41-default-on` flips polarity in a separate chunk after the differential corpus has baked. **Carry-overs landed alongside the C41 close-out:** `CodeFix` payload on `Diagnostic` + populated for E101/E103/W123; `suggest_similar` (Levenshtein) port + W123 "did you mean…?" suggestions; `stub_commands` name extraction (used by W123 candidate set + suppression); `unknown_proc_info.dispatch_targets` added to W123 candidate / suppression sets; `_fold_interpolation_set` + `_resolve_interpolated_commands` (CONSTSET-driven W123 suppression for partial-interpolation heads like `foo$suffix`); W307 `cmd_command_sites` suppression via return-type analysis (`my` / `self` self-dispatch suppress; in_method suppress; Object return type triggers W308 method-validation against the class hierarchy; otherwise W307 fires). **Outstanding (own chunk):** `infer_param_traits` port — 525 LOC, free-standing per the original handoff (now tracked as `C41-default-on-followups-param-traits`).  **Post-#241 reality (audited 2026-05-07):** the `TCL_LSP_RUST_ANALYSER` env var and the dispatch shim were silently removed at `cd7a8441`; the `_AnalyserBase` mixin set still exists. The Rust analyser library is intact (`rust/tcl-compiler/src/analyser/`) but the production `analyse()` is the pure Python mixin chain. Final cleanup (deleting the mixins) is now sequenced behind the `S*` LSP-server port — when `S*` lands, the consumers move off `analyse()` and the mixin set has no callers left. | landed (Rust analyser library complete; Python dispatch retired at #241; mixin retirement waits on `S*`) |
+| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,074 LOC across 17 files (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 `_diag_*.py` sub-files, `_oo.py`, `_handlers.py`, `_recovery.py`, `_scope.py`, `_snapshot.py`, `_utils.py`). Six sub-strip families: **C41a** (skeleton + types + utils, 5 strips) — **landed**; **C41b** (per-command handlers, 8 strips) — **landed**; **C41c** (proc-body analysis, 4 strips) — **landed**; **C41d** (diagnostic emitters, 7 strips) — **landed** (d7 closed alongside the `ConnectionScope` port to `rust/tcl-compiler/src/connection_scope.rs` + `EventRegistry::variable_scope_note`); **C41e** (OO + recovery, 5 strips) — **landed** (e0 class_hierarchy + mro pure-Rust port; e1-e2 class-body walker + oo::define extension; e3 property defs + `UnknownProcInfo` + the W123 unknown-proc gate + package-require recording + top-level RBS via `globals_written_by_procs`; e4 stray-close-bracket recovery + switch-case helper; e5 missing-open-brace recovery + stolen-close-brace detection + generic E200 emitter); **C41f** (public entry + PyO3 + harness, 6 strips) — **landed** (f1-f4, f6 from earlier; f5 differential-fuzzer corpus + 4 dispatcher gating tests landed in `tests/test_rust_analyser_differential.py`). Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`); `C41-default-on` flips polarity in a separate chunk after the differential corpus has baked. **Carry-overs landed alongside the C41 close-out:** `CodeFix` payload on `Diagnostic` + populated for E101/E103/W123; `suggest_similar` (Levenshtein) port + W123 "did you mean…?" suggestions; `stub_commands` name extraction (used by W123 candidate set + suppression); `unknown_proc_info.dispatch_targets` added to W123 candidate / suppression sets; `_fold_interpolation_set` + `_resolve_interpolated_commands` (CONSTSET-driven W123 suppression for partial-interpolation heads like `foo$suffix`); W307 `cmd_command_sites` suppression via return-type analysis (`my` / `self` self-dispatch suppress; in_method suppress; Object return type triggers W308 method-validation against the class hierarchy; otherwise W307 fires). **Outstanding (own chunk):** `infer_param_traits` port — **LANDED** (shallow + deep + `merge_traits`) as `analyser/param_traits.rs`; see the `C41-default-on-followups-param-traits` row.  **Post-#241 reality (audited 2026-05-07):** the `TCL_LSP_RUST_ANALYSER` env var and the dispatch shim were silently removed at `cd7a8441`; the `_AnalyserBase` mixin set still exists. The Rust analyser library is intact (`rust/tcl-compiler/src/analyser/`) but the production `analyse()` is the pure Python mixin chain. Final cleanup (deleting the mixins) is now sequenced behind the `S*` LSP-server port — when `S*` lands, the consumers move off `analyse()` and the mixin set has no callers left. | landed (Rust analyser library complete; Python dispatch retired at #241; mixin retirement waits on `S*`) |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |

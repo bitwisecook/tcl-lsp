@@ -59,6 +59,14 @@ pub enum ProcArgTrait {
     UsedInCondition,
     /// Parameter is forwarded to another procedure.
     ForwardedToCallee,
+    /// Parameter names a variable the proc reads via `upvar` (a
+    /// read-only caller-frame alias, or a name source). SYNC-JUN02d-2
+    /// (call-by-name).
+    VarRead,
+    /// Parameter names a variable the proc writes via `upvar` +
+    /// `set` / `incr` / `append` (a caller-frame write-back).
+    /// SYNC-JUN02d-2 (call-by-name).
+    VarWrite,
     /// Parameter is never read.
     Unused,
 }
@@ -66,15 +74,18 @@ pub enum ProcArgTrait {
 impl ProcArgTrait {
     /// Stable lower-case wire form
     /// (`"passthrough"`, `"used_in_condition"`,
-    /// `"forwarded_to_callee"`, `"unused"`). Consumers (`PyO3`
-    /// bindings, native LSP server) materialise traits using this
-    /// form rather than re-implementing the mapping.
+    /// `"forwarded_to_callee"`, `"var_read"`, `"var_write"`,
+    /// `"unused"`). Consumers (`PyO3` bindings, native LSP server)
+    /// materialise traits using this form rather than re-implementing
+    /// the mapping.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Passthrough => "passthrough",
             Self::UsedInCondition => "used_in_condition",
             Self::ForwardedToCallee => "forwarded_to_callee",
+            Self::VarRead => "var_read",
+            Self::VarWrite => "var_write",
             Self::Unused => "unused",
         }
     }
@@ -199,6 +210,126 @@ pub struct InterproceduralAnalysis {
     pub procedures: HashMap<String, ProcSummary>,
     /// Per-method summaries keyed by qualified name.
     pub methods: HashMap<String, MethodSummary>,
+}
+
+/// A command-name → `(params, param_traits)` lookup, keyed by both the
+/// qualified (`::setvar`) and bare (`setvar`) name.  Input to
+/// [`collect_call_by_name_reads`].  SYNC-JUN02d-2.
+pub type ProcIndex = HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)>;
+
+/// Build a [`ProcIndex`] from interprocedural summaries.  Mirrors
+/// Python's `build_proc_index_from_summaries`.  SYNC-JUN02d-2.
+#[must_use]
+pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
+    let mut index = ProcIndex::new();
+    for (qname, summary) in &ia.procedures {
+        let entry = (summary.params.clone(), summary.param_traits.clone());
+        let bare = qname.trim_start_matches(':');
+        index.insert(qname.clone(), entry.clone());
+        if bare != qname.as_str() {
+            index.insert(bare.to_owned(), entry);
+        }
+    }
+    index
+}
+
+/// Record any literal-name argument landing on a callee param that
+/// carries `VarRead` / `VarWrite` (a call-by-name read/write).
+fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
+    if cmd.is_empty() || cmd.contains(['$', '[']) {
+        return;
+    }
+    let Some((params, traits_map)) = index
+        .get(cmd)
+        .or_else(|| index.get(&format!("::{cmd}")))
+        .or_else(|| index.get(cmd.trim_start_matches(':')))
+    else {
+        return;
+    };
+    for (i, arg) in args.iter().enumerate() {
+        let Some(pname) = params.get(i) else {
+            break;
+        };
+        let is_var = traits_map.get(pname).is_some_and(|t| {
+            t.contains(&ProcArgTrait::VarRead) || t.contains(&ProcArgTrait::VarWrite)
+        });
+        // A substituted (`$x`) / array / non-name arg names a runtime
+        // variable we can't identify — skip (preserve genuine FPs where
+        // the caller passed a literal string, not a name).
+        if is_var
+            && !arg.is_empty()
+            && !arg.contains(['$', '['])
+            && arg
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+        {
+            out.insert(arg.clone());
+        }
+    }
+}
+
+/// Scan a whole-value `[cmd …]` command substitution (the dominant
+/// tcllib call-by-name shape, `set len [asnPeekTag data tag type
+/// dummy]`).  A simple whitespace split suffices — the call-by-name
+/// args are literal names, and [`add_call_by_name`] rejects anything
+/// that isn't.
+fn scan_value_cmd_subst(text: &str, index: &ProcIndex, out: &mut HashSet<String>) {
+    let Some(inner) = text
+        .trim()
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+    else {
+        return;
+    };
+    let mut words = inner.split_whitespace();
+    if let Some(cmd) = words.next() {
+        let args: Vec<String> = words.map(str::to_owned).collect();
+        add_call_by_name(cmd, &args, index, out);
+    }
+}
+
+/// Caller-local variable names passed *by name* to a user proc that
+/// consumes them via `upvar` (call-by-name) — these must NOT be flagged
+/// dead / unused (W211 / W220 / O109 / O126).  Mirrors Python's
+/// `collect_call_by_name_reads`.  SYNC-JUN02d-2.
+///
+/// Scans direct `Call` / `Barrier` statements plus a `[cmd …]`
+/// substitution that is the whole value of an `AssignValue` /
+/// `AssignExpr` / `Return`.
+#[must_use]
+pub fn collect_call_by_name_reads(
+    cfg: &crate::cfg::Function,
+    index: &ProcIndex,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut out = HashSet::new();
+    if index.is_empty() {
+        return out;
+    }
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { command, args, .. }
+                | Statement::Barrier { command, args, .. } => {
+                    add_call_by_name(command, args, index, &mut out);
+                }
+                Statement::AssignValue { value, .. } => {
+                    scan_value_cmd_subst(value, index, &mut out);
+                }
+                Statement::Return { value: Some(v), .. } => {
+                    scan_value_cmd_subst(v, index, &mut out);
+                }
+                Statement::AssignExpr {
+                    expr: crate::expr_ast::ExprNode::Command { text, .. },
+                    ..
+                } => {
+                    scan_value_cmd_subst(text, index, &mut out);
+                }
+                _ => {}
+            }
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -796,6 +927,14 @@ struct LocalFacts {
     /// `writes_global` even though the written name is bare. Mirrors
     /// Python's `_LocalFacts.global_aliases` (#519).
     global_aliases: HashSet<String>,
+    /// Call-by-name upvar aliases: a local variable name (text) → the
+    /// parameter whose value named the *caller-frame* variable it
+    /// aliases (`upvar 1 $param local` → `local` → `param`).  A later
+    /// `set local …` upgrades that param to [`ProcArgTrait::VarWrite`].
+    /// Only level-1 upvars populate this (other levels don't write back
+    /// to the caller).  Mirrors Python's `_handle_upvar` `upvar_aliases`.
+    /// SYNC-JUN02d-2.
+    upvar_aliases: HashMap<String, String>,
 }
 
 /// Classification of a single return statement's shape.
@@ -826,6 +965,7 @@ impl Default for LocalFacts {
             returns: Vec::new(),
             param_trait_flags: HashMap::new(),
             global_aliases: HashSet::new(),
+            upvar_aliases: HashMap::new(),
         }
     }
 }
@@ -933,6 +1073,91 @@ fn scan_call_facts(
     }
 }
 
+/// Extract a bare scalar variable name from a `$var` / `${var}` word —
+/// the whole word must be exactly one scalar variable substitution (no
+/// array index, conventional name shape).  Mirrors Python's
+/// `_extract_var_name` (`proc_arg_traits`).
+fn extract_var_name(text: &str) -> Option<&str> {
+    let name = text
+        .strip_prefix("${")
+        .and_then(|s| s.strip_suffix('}'))
+        .or_else(|| text.strip_prefix('$'))?;
+    let first = name.chars().next()?;
+    if !(first.is_alphabetic() || first == '_') {
+        return None;
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    {
+        return None;
+    }
+    Some(name)
+}
+
+/// Call-by-name `upvar` handling (SYNC-JUN02d-2): port of Python's
+/// `_handle_upvar`.  For `upvar ?level? other local …`, mark a `$param`
+/// *other* (caller-var-name source) as [`ProcArgTrait::VarRead`] and —
+/// only for the default level 1, which writes back to the caller's frame
+/// — record `local → param` so a later `set local …` upgrades it to
+/// [`ProcArgTrait::VarWrite`].  A `$param` *local* name (the binding
+/// target) is itself a write of that param's value.
+fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut LocalFacts) {
+    let mut start = 0;
+    let mut level = "1";
+    if let Some(first) = args.first() {
+        if first.starts_with('#')
+            || (!first.is_empty() && first.bytes().all(|b| b.is_ascii_digit()))
+        {
+            level = first;
+            start = 1;
+        }
+    }
+    let caller_frame = level == "1";
+    let mut i = start;
+    while i + 1 < args.len() {
+        let other_var = &args[i];
+        let my_var = &args[i + 1];
+        i += 2;
+        if let Some(other_vn) = extract_var_name(other_var) {
+            if params.contains(other_vn) {
+                facts
+                    .param_trait_flags
+                    .entry(other_vn.to_owned())
+                    .or_default()
+                    .insert(ProcArgTrait::VarRead);
+                if caller_frame {
+                    facts
+                        .upvar_aliases
+                        .insert(my_var.clone(), other_vn.to_owned());
+                }
+            }
+        }
+        if let Some(my_vn) = extract_var_name(my_var) {
+            if params.contains(my_vn) {
+                facts
+                    .param_trait_flags
+                    .entry(my_vn.to_owned())
+                    .or_default()
+                    .insert(ProcArgTrait::VarWrite);
+            }
+        }
+    }
+}
+
+/// Upgrade the param aliased by `name` (if any) to
+/// [`ProcArgTrait::VarWrite`] — a write through a level-1 upvar alias is
+/// a write-back to the caller's variable.
+fn mark_upvar_alias_write(name: &str, facts: &mut LocalFacts) {
+    if let Some(param) = facts.upvar_aliases.get(name).cloned() {
+        facts
+            .param_trait_flags
+            .entry(param)
+            .or_default()
+            .insert(ProcArgTrait::VarWrite);
+    }
+}
+
 #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn scan_statement(
     stmt: &crate::ir::Statement,
@@ -984,6 +1209,9 @@ fn scan_statement(
                 facts.local_pure = false;
                 facts.effect_writes |= EffectRegion::GLOBAL_STATE;
             }
+            // SYNC-JUN02d-2: a `set`/`incr` to a level-1 upvar alias is a
+            // write-back to the caller's variable → mark the param VarWrite.
+            mark_upvar_alias_write(name, facts);
         }
         Statement::Return { value, expr, .. } => {
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
@@ -1019,6 +1247,21 @@ fn scan_statement(
                     }) {
                         facts.writes_global = true;
                     }
+                }
+            }
+            // SYNC-JUN02d-2 (call-by-name): record `upvar` aliases, and
+            // treat any command writing a level-1 upvar alias (`append`
+            // / `lappend` / `lassign` … via `defs`) as a write-back to
+            // the caller's variable.
+            if command == "upvar" {
+                handle_upvar_aliases(args, params, facts);
+            } else {
+                // A command writing a level-1 upvar alias (`append` /
+                // `lappend` / `lassign` … via `defs`) is a write-back.
+                // `upvar` itself is excluded — its `defs` are the locals
+                // it *defines* (aliases), not writes.
+                for d in defs {
+                    mark_upvar_alias_write(d, facts);
                 }
             }
             scan_call_facts(
@@ -1410,6 +1653,15 @@ fn classify_return(
     }
     if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
         return ReturnKind::Literal(inside.to_owned());
+    }
+    // B3 (SYNC-JUN02d-2, #525): a substitution-free value — including a
+    // multi-word string whose delimiters the lowerer already stripped
+    // (`return {a b c}` / `return "a b c"` both lower to the value
+    // `a b c`) — is a literal constant return.  Gated on no `$` / `[` /
+    // `\` so a `$param` passthrough or a command substitution still
+    // falls through to its own classification below.
+    if !v.contains(['$', '[', '\\']) {
+        return ReturnKind::Literal(v.to_owned());
     }
     // Passthrough of `$param`.
     if let Some(name) = v.strip_prefix('$') {
@@ -2003,6 +2255,37 @@ mod tests {
         assert!(
             y_traits.contains(&ProcArgTrait::Unused),
             "expected Unused for y, got {y_traits:?}",
+        );
+    }
+
+    #[test]
+    fn call_by_name_param_traits_inferred() {
+        // SYNC-JUN02d-2: `upvar 1 $n x; set x ...` → n is VarWrite;
+        // `upvar 1 $n x; return $x` (read only) → n is VarRead.
+        let w = build("proc ::setvar {n v} { upvar 1 $n x\nset x $v }");
+        let s = w.procedures.get("::setvar").unwrap();
+        let nt = s.param_traits.get("n").expect("n traits");
+        assert!(
+            nt.contains(&ProcArgTrait::VarWrite),
+            "expected VarWrite for n (write through upvar alias), got {nt:?}",
+        );
+
+        let r = build("proc ::getvar {n} { upvar 1 $n x\nreturn $x }");
+        let s2 = r.procedures.get("::getvar").unwrap();
+        let nt2 = s2.param_traits.get("n").expect("n traits");
+        assert!(
+            nt2.contains(&ProcArgTrait::VarRead) && !nt2.contains(&ProcArgTrait::VarWrite),
+            "expected VarRead (not VarWrite) for read-only upvar alias, got {nt2:?}",
+        );
+
+        // upvar #0 (global frame, not the caller) → VarRead only, no
+        // write-back to the caller's passed variable.
+        let g = build("proc ::gw {p} { upvar #0 $p x\nset x 1 }");
+        let s3 = g.procedures.get("::gw").unwrap();
+        let pt = s3.param_traits.get("p").expect("p traits");
+        assert!(
+            pt.contains(&ProcArgTrait::VarRead) && !pt.contains(&ProcArgTrait::VarWrite),
+            "upvar #0 is not a caller-frame write-back, got {pt:?}",
         );
     }
 

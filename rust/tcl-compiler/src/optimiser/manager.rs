@@ -75,6 +75,9 @@ pub fn optimise_raw(
     let ia = build_interprocedural_analysis(&cu.ir_module, registry, dialect);
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
+    // SYNC-JUN02b-4: the whole-module builtin-fold trust gate (O129).
+    ctx.command_mutations =
+        crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
     run_passes(&mut ctx, &cu, &PassId::all());
     ctx.optimisations
 }

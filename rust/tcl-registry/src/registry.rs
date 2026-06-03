@@ -605,6 +605,40 @@ mod tests {
     }
 
     #[test]
+    fn timerate_registered_with_body_and_int_hint() {
+        // SYNC-JUN02c (main #522): `timerate` ported from
+        // dialects/tcl/timerate.py — measures the rate of execution
+        // of a script.
+        use crate::arg_role::ArgRole;
+        use crate::side_effects::SideEffectTarget;
+        use crate::types::TclType;
+        let reg = CommandRegistry::build_default();
+        let spec = reg.get("timerate").expect("timerate registered");
+        assert_eq!(spec.name, "timerate");
+        // BODY role on arg 0, INT type hint (shimmers) on arg 1.
+        assert_eq!(spec.arg_role_at(0), Some(ArgRole::Body));
+        assert_eq!(
+            spec.arg_types
+                .iter()
+                .find(|(i, _)| *i == 1)
+                .map(|(_, h)| h.expected),
+            Some(Some(TclType::Int)),
+        );
+        // Unbounded arity: at least the command word, no upper bound.
+        assert!(!spec.arity.accepts(0));
+        assert!(spec.arity.accepts(1));
+        assert!(spec.arity.accepts(6));
+        assert_eq!(spec.return_type, Some(TclType::String));
+        // The body runs arbitrary code → an UNKNOWN-target read+write effect.
+        assert!(
+            spec.side_effects
+                .iter()
+                .any(|e| e.target == SideEffectTarget::Unknown && e.reads && e.writes),
+            "timerate should declare an UNKNOWN read+write side effect",
+        );
+    }
+
+    #[test]
     fn lookup_for_command() {
         let reg = CommandRegistry::build_default();
         let spec = reg.get("for").unwrap();

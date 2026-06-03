@@ -58,6 +58,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "create",
+        const_fold: Some(crate::const_fold::fold_dict_create),
         arity: Arity::any(),
         detail: "Create a new dictionary from key/value pairs.",
         synopsis: "dict create ?key value ...?",
@@ -67,6 +68,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        const_fold: Some(crate::const_fold::fold_dict_exists),
         arity: Arity::at_least(2),
         detail: "Test whether a key exists in a dictionary.",
         synopsis: "dict exists dictionaryValue key ?key ...?",
@@ -101,6 +103,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        const_fold: Some(crate::const_fold::fold_dict_get),
         arity: Arity::at_least(1),
         detail: "Get a value from a dictionary.",
         synopsis: "dict get dictionaryValue ?key ...?",
@@ -134,6 +137,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "keys",
+        const_fold: Some(crate::const_fold::fold_dict_keys),
         arity: Arity::new(1, 2),
         detail: "Return the keys of a dictionary.",
         synopsis: "dict keys dictionaryValue ?globPattern?",
@@ -178,6 +182,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "merge",
+        const_fold: Some(crate::const_fold::fold_dict_merge),
         arity: Arity::any(),
         detail: "Merge one or more dictionaries.",
         synopsis: "dict merge ?dictionaryValue ...?",
@@ -222,6 +227,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "size",
+        const_fold: Some(crate::const_fold::fold_dict_size),
         arity: Arity::exact(1),
         detail: "Return the number of key/value pairs.",
         synopsis: "dict size dictionaryValue",
@@ -262,6 +268,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "values",
+        const_fold: Some(crate::const_fold::fold_dict_values),
         arity: Arity::new(1, 2),
         detail: "Return the values of a dictionary.",
         synopsis: "dict values dictionaryValue ?globPattern?",
