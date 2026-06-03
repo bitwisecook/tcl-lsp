@@ -1526,10 +1526,13 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
         ar_set_count(t, ar_count(t) - 1);
         if (old != 0) obj.tcl_obj_release(old);
         if (kp != 0 and kl > 0) obj.free_sized(kp, kl);
+        // Phase 6: fire UNSET trace AFTER the unset so the callback sees
+        // the variable in its final (gone) state.  Only fire when an
+        // element was actually removed — ``unset -nocomplain arr(k)``
+        // against a missing key (or ``array unset`` of an absent
+        // element) must NOT trigger the trace (trace-4.7).
+        fire_var_trace_unset(arr, sk.ptr, sk.len);
     }
-    // Phase 6: fire UNSET trace AFTER the unset so the callback sees
-    // the variable in its final (gone) state.
-    fire_var_trace_unset(arr, sk.ptr, sk.len);
     return obj_new_int(0);
 }
 

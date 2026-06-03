@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T15:41:57Z",
+  "generated_at": "2026-06-03T16:12:49Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -429,8 +429,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 11,
-      "passed_min": 63,
+      "failed_max": 9,
+      "passed_min": 65,
       "skipped": 0,
       "total": 74
     },
@@ -492,8 +492,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 12,
-      "passed_min": 141,
+      "failed_max": 9,
+      "passed_min": 144,
       "skipped": 0,
       "total": 153
     },
@@ -537,8 +537,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 72,
-      "passed_min": 204,
+      "failed_max": 65,
+      "passed_min": 211,
       "skipped": 14,
       "total": 290
     },

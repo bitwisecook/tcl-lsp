@@ -1,6 +1,6 @@
 # proc-old.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '11 of 74 failed'
+# reason = '9 of 74 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 74
-observed_passed = 63
-observed_failed = 11
+observed_passed = 65
+observed_failed = 9
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["proc-old-3.3", "proc-old-3.5", "proc-old-5.10", "proc-old-5.13", "proc-old-5.14", "proc-old-5.15", "proc-old-5.16", "proc-old-7.11", "proc-old-7.12", "proc-old-7.13", "proc-old-7.14"]
+ids = ["proc-old-5.10", "proc-old-5.13", "proc-old-5.14", "proc-old-5.15", "proc-old-5.16", "proc-old-7.11", "proc-old-7.12", "proc-old-7.13", "proc-old-7.14"]
