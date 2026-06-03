@@ -3374,7 +3374,15 @@ negative codepoint raises — all bail.  **Still deferred** (own strips,
 pinned when they land via the same harness): the **float** conversions
 (`%f` / `%e` / `%g` — C-printf rounding parity), **`%u`**, **`%b`**
 (absent before 8.6), size modifiers (`%ld`), `*`/positional specs, and
-**`scan`** (scanf semantics).  (The duplicated
+**`scan`** (scanf semantics).  **`scan` note** — its numeric-conversion
+*values* diverge across versions exactly like `format`/`integer` (8.4 wraps
+at 32 bits, 8.5/8.6 widen, 9.0 clamps/bignums — even `scan 2147483648 %d`
+is three-way-divergent), so a sound fold must bound each result to the
+shared signed-32-bit range (`%d` ∈ `[-2³¹, 2³¹-1]`, `%x`/`%o`/`%u` ∈
+`[0, 2³¹-1]`); **and** main's reference `_tcl_scan` is itself *unsound* —
+it mis-folds `scan 0xff %x` to `0` (it reads no `0x` prefix) where tclsh
+gives `255`, so the Rust port must model tclsh's scanf directly and be
+differentially verified, **not** transcribe main.  (The duplicated
 `split_list` / `list_element` vs `tcl-compiler::codegen::helpers` is a
 deliberate trade-off — the canonical Tcl list-string codec should
 consolidate into a shared leaf like `tcl-lexer`; tracked.)
