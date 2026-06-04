@@ -22,12 +22,7 @@ def _parse_array_ref(name: str) -> tuple[str, str] | None:
     properly nested parens with the final ``)`` matching the first
     unescaped ``(``.
     """
-    # Strip Tcl's ``$=`` scalar-disambiguator prefix that the lowerer
-    # sometimes applies to braced ``${x(1)}`` scalars so we don't
-    # misidentify those as array refs.
     if not name or "(" not in name or not name.endswith(")"):
-        return None
-    if name.startswith("$={"):
         return None
     # Find the first '(' that isn't escaped.
     i = 0

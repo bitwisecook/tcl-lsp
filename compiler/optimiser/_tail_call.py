@@ -266,15 +266,13 @@ def _count_self_calls_in_command_range(
     if start < 0 or end < start or end >= len(source):
         return count
 
-    _it = iter(
-        tokenise(
-            source[start : end + 1], start, command_range.start.line, command_range.start.character
-        )[0]
+    lex_tokens, _ = tokenise(
+        source[start : end + 1],
+        start,
+        command_range.start.line,
+        command_range.start.character,
     )
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is not TokenType.CMD:
             continue
         inner = tok.text.strip()

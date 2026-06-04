@@ -319,6 +319,21 @@ class TestRangeFromWordToken:
         assert _offset_of(source, r.end.line, r.end.character) == r.end.offset
         assert (r.end.line, r.end.character) == (2, 0)
 
+    def test_empty_braces_do_not_overshoot_closer(self):
+        # Issue #527: an empty `{}` token already ends *on* its closer, so the
+        # span must not be widened past it.  In `if {1} {return {}}` the inner
+        # `{}` spans offsets 15..16; widening to 17 would swallow the body's
+        # closing brace and produce a phantom stray `}`.
+        tok = _word_token(TokenType.STR, "", start=15, end=16)
+        r = range_from_word_token(tok)
+        assert (r.start.offset, r.end.offset) == (15, 16)
+
+    def test_empty_brackets_do_not_overshoot_closer(self):
+        # The same convention holds for an empty command substitution `[]`.
+        tok = _word_token(TokenType.CMD, "", start=4, end=5)
+        r = range_from_word_token(tok)
+        assert (r.start.offset, r.end.offset) == (4, 5)
+
 
 class TestWidenForHighlight:
     def test_no_op_without_source(self):
@@ -344,6 +359,34 @@ class TestWidenForHighlight:
             assert widen_for_highlight(r).end.offset == 2
         finally:
             reset_highlight_source(token)
+
+    def test_empty_braces_before_closer_not_widened(self):
+        # Issue #527: an empty `{}` whose range already covers both braces must
+        # not be widened, even when the next character is also a `}` (a trailing
+        # `{}` argument inside a braced body: `... {return {}}`).
+        source = "if {1} {return {}}\n"
+        r = Range(start=_pos(15), end=_pos(16))  # the inner `{}`
+        token = set_highlight_source(source)
+        try:
+            widened = widen_for_highlight(r)
+        finally:
+            reset_highlight_source(token)
+        assert widened.end.offset == 16
+        assert source[r.start.offset : widened.end.offset + 1] == "{}"
+
+    def test_nested_braced_word_still_widens_to_outer_closer(self):
+        # The empty-word guard is a 2-character special case; a longer nested
+        # word `{a {b}}` whose inner end lands on an inner `}` must still widen
+        # to the outer closer.
+        source = "set x {a {b}}\n"
+        r = Range(start=_pos(6), end=_pos(11))  # `{a {b}` (outer closer at 12)
+        token = set_highlight_source(source)
+        try:
+            widened = widen_for_highlight(r)
+        finally:
+            reset_highlight_source(token)
+        assert widened.end.offset == 12
+        assert source[r.start.offset : widened.end.offset + 1] == "{a {b}}"
 
     def test_multiline_closer_keeps_line_column_consistent(self):
         # Closer on the next line: offset and line/column must agree.

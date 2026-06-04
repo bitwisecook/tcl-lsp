@@ -801,15 +801,15 @@ def _scan_array_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
+        # Lex through the shared green-tree memo (anchored at 0, so offsets stay
+        # relative to cur_text) instead of a private TclLexer — the token stream
+        # is identical, and the work stack keeps descent iterative (the recursion
+        # cap on deeply nested iRules is why this is not descend_* recursion).
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         prev_type = TokenType.EOL
         in_quoted = False
 
-        while True:
-            tok = next(_it, None)
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.SEP:
                 prev_type = tok.type
                 in_quoted = False
@@ -1114,15 +1114,13 @@ def _scan_argument_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
+        # Shared green-tree memo, anchored at 0 (offsets stay relative to
+        # cur_text) — identical token stream to the old private TclLexer.
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         is_command_word = True
         in_quoted = False
 
-        while True:
-            tok = next(_it, None)
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.EOL:
                 is_command_word = True
                 in_quoted = False
@@ -1260,15 +1258,13 @@ def _collect_string_literals(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
+        # Shared green-tree memo, anchored at 0 (offsets stay relative to
+        # cur_text) — identical token stream to the old private TclLexer.
+        tokens, _ = tokenise(cur_text, 0, 0, 0)
         is_command_word = True
         in_quoted = False
 
-        while True:
-            tok = next(_it, None)
-            if tok is None:
-                break
-
+        for tok in tokens:
             if tok.type == TokenType.EOL:
                 is_command_word = True
                 in_quoted = False
@@ -1601,63 +1597,49 @@ _apply_edits = apply_edits
 
 def _minify_body(source: str, *, dialect: str | None = None) -> str:
     """Minify a Tcl script body (top-level or inside braces)."""
-    _it = iter(tokenise(source, 0, 0, 0)[0])
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import (
+        SyntaxKind,
+        SyntaxNode,
+        SyntaxToken,
+        SyntaxTree,
+        build_document,
+    )
+
+    # Group the canonical syntax tree's words into commands, so the minifier
+    # rides the shared segmentation (and recovery) rather than a private
+    # TclLexer loop.  Comments are trivia (dropped, as the old ``COMMENT:
+    # continue`` did); is_braced/is_quoted come from each word's first token
+    # (its lossless ``raw`` — raw[0] is the source byte the old check read).
     commands: list[list[_Arg]] = []
-    current_args: list[_Arg] = []
-    prev_type = TokenType.EOL
-
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
-
-        match tok.type:
-            case TokenType.COMMENT:
+    with green_tree_scope():
+        document, _ = build_document(source)
+        tree = SyntaxTree(document, text=source)
+        for node in tree.root.children():
+            if not (isinstance(node, SyntaxNode) and node.kind is SyntaxKind.COMMAND):
                 continue
-            case TokenType.SEP:
-                prev_type = tok.type
-                continue
-            case TokenType.EOL:
-                if current_args:
-                    commands.append(current_args)
-                    current_args = []
-                prev_type = tok.type
-                continue
-            case _:
-                pass
-
-        is_start_of_new_arg = prev_type in (TokenType.SEP, TokenType.EOL)
-
-        # Detect quoted context from source.
-        detected_quoted = False
-        if is_start_of_new_arg and tok.start.offset < len(source):
-            if source[tok.start.offset] == '"':
-                detected_quoted = True
-
-        if is_start_of_new_arg:
-            current_args.append(
-                _Arg(
-                    tokens=[tok],
-                    is_braced=tok.type == TokenType.STR,
-                    is_quoted=detected_quoted,
-                )
-            )
-        else:
-            if current_args:
-                current_args[-1].tokens.append(tok)
-            else:
+            current_args: list[_Arg] = []
+            for child in node.children():
+                if isinstance(child, SyntaxNode) and child.kind is SyntaxKind.WORD:
+                    markers = child.expand_markers()
+                    frags = [c for c in child.children() if isinstance(c, SyntaxToken)]
+                    word_tokens = [m.to_token() for m in markers] + [f.to_token() for f in frags]
+                    first: SyntaxToken = markers[0] if markers else frags[0]
+                elif isinstance(child, SyntaxToken):
+                    # A dangling ``{*}`` marker forms its own argument.
+                    word_tokens = [child.to_token()]
+                    first = child
+                else:
+                    continue
                 current_args.append(
                     _Arg(
-                        tokens=[tok],
-                        is_braced=tok.type == TokenType.STR,
-                        is_quoted=detected_quoted,
+                        tokens=word_tokens,
+                        is_braced=first.token_type is TokenType.STR,
+                        is_quoted=first.raw.startswith('"'),
                     )
                 )
-
-        prev_type = tok.type
-
-    if current_args:
-        commands.append(current_args)
+            if current_args:
+                commands.append(current_args)
 
     if not commands:
         return ""

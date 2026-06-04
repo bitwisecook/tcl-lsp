@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from shared.ranges import word_closer_offset
+
 from . import RefactoringEdit, RefactoringResult
 from ._spans import find_command_at
 
@@ -30,14 +32,13 @@ def _brace_expr_command(source: str, cmd) -> RefactoringResult | None:
     first_arg = cmd.argv[1]
     last_arg = cmd.argv[-1]
 
-    # Get the raw source span of all arguments after "expr".
+    # Get the raw source span of all arguments after "expr".  The closing
+    # delimiter belongs to the final argument; locate it via the authoritative
+    # ``word_closer_offset`` so an empty trailing ``{}`` / ``[]`` / ``""`` is not
+    # overshot (issue #527 family).
     raw_start = first_arg.start.offset
-    raw_end = last_arg.end.offset + 1
-    # Widen to include closing delimiter (quote/brace) if present.
-    if raw_end < len(source) and source[raw_start] in ('"', "{"):
-        close = '"' if source[raw_start] == '"' else "}"
-        if source[raw_end] == close:
-            raw_end += 1
+    closer = word_closer_offset(last_arg, source)
+    raw_end = (closer + 1) if closer is not None else last_arg.end.offset + 1
     raw = source[raw_start:raw_end]
 
     # Already braced.

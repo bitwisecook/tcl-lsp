@@ -127,12 +127,9 @@ def _collect_rename_edits(source: str, names_seen: dict[str, str]) -> list[tuple
         return short
 
     # 1. ``$``/``${}`` references — VAR tokens (rename the scalar/array base).
-    _it = iter(tokenise(source, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL and tok.text == "":
-            if tok is None:
-                break
+    lex_tokens, _ = tokenise(source, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL and tok.text == "":
             continue
         if tok.type is TokenType.VAR:
             base = tok.text.split("(", 1)[0]

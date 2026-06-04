@@ -479,15 +479,15 @@ def _find_token_at_position(
     *arg_index* is the 0-based index of the argument containing the cursor.
     *token_text* is the full text of the Tcl token at the cursor, or None.
     """
-    _it = iter(tokenise(line_text, 0, 0, 0)[0])
+    # Shared green-tree memo (token-for-token identical to a private TclLexer).
+    tokens, _ = tokenise(line_text, 0, 0, 0)
     argv_texts: list[str] = []
     token_list: list = []  # (arg_idx, token)
     prev_type = TokenType.EOL
     arg_idx = -1
 
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL:
+    for tok in tokens:
+        if tok.type is TokenType.EOL:
             break
         if tok.type is TokenType.SEP:
             prev_type = tok.type

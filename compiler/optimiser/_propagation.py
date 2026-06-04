@@ -803,19 +803,14 @@ def optimise_return_terminator(
     # re-lex the return command to recover the nested VAR tokens inside strings.
     safe_constants = safe_string_constants(constants, block, len(block.statements))
     if safe_constants:
-        all_tokens: list[Token] = []
-        _it = iter(
-            tokenise(
-                source[start : end + 1], start, ret_range.start.line, ret_range.start.character
-            )[0]
+        all_tokens, _ = tokenise(
+            source[start : end + 1],
+            start,
+            ret_range.start.line,
+            ret_range.start.character,
         )
-        while True:
-            t = next(_it, None)
-            if t is None:
-                break
-            all_tokens.append(t)
         optimise_string_interpolation_var_refs(
-            ctx, arg_tokens_slice, arg_single_slice, safe_constants, tuple(all_tokens)
+            ctx, arg_tokens_slice, arg_single_slice, safe_constants, all_tokens
         )
 
 

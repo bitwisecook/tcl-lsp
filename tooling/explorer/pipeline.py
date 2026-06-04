@@ -69,6 +69,8 @@ class CompilerExplorerResult:
 ALL_VIEWS = frozenset(
     {
         "greentree",
+        "cst",
+        "segments",
         "ir",
         "cfg",
         "ssa",

@@ -1026,12 +1026,13 @@ class TestConstantVarRefPropagation:
         # The intermediate local must be gone — no surviving ``set msg``.
         assert "set msg" not in optimised
 
-    def test_braced_scalar_array_name_not_folded_as_literal(self):
-        """``set x ${a(1)}`` reads scalar ``a(1)`` — never a literal constant.
+    def test_braced_whole_name_array_ref_not_folded_as_literal(self):
+        """``set x ${a(1)}`` reads array element ``a(1)`` — never a literal.
 
-        The lowerer reconstructs the braced-scalar reference with an internal
-        ``$={a(1)}`` marker; SCCP must treat that as a (conservatively unknown)
-        variable read, not fold the marker text in as a constant value.
+        Braced ``${a(1)}`` is a whole-name array load (the natural spelling
+        is preserved through lowering); SCCP must treat it as a
+        (conservatively unknown) variable read, not fold its text in as a
+        constant value.
         """
         source = "set x ${a(1)}\nputs $x"
         optimised, rewrites = optimise_source(source)
@@ -1660,10 +1661,11 @@ class TestEndOffsetIndexRewrite:
         assert optimised == "set x [lindex $a(1) end]"
         assert any(r.code == "O128" for r in rewrites)
 
-    def test_no_rewrite_braced_scalar_vs_array_element(self):
-        # ``${a(1)}`` refers to a scalar variable literally named ``a(1)``;
-        # ``$a(1)`` (bare) is an array-element access.  They must not be
-        # conflated even though both texts include ``a(1)``.
+    def test_no_rewrite_braced_whole_name_vs_array_element(self):
+        # ``${a(1)}`` is a whole-name load of array element ``a(1)``;
+        # ``$a(1)`` (bare) SPLITS into array ``a`` element ``1``.  These
+        # compile to different loads and must not be conflated even though
+        # both texts include ``a(1)``.
         source = "set x [lindex ${a(1)} [expr {[llength $a(1)] - 1}]]"
         _optimised, rewrites = optimise_source(source)
         assert not any(r.code == "O128" for r in rewrites)
@@ -1799,13 +1801,13 @@ class TestEndOffsetIndexRewrite:
 class TestVariableShapeOptimisationGuardrails:
     """Variable-shape forms should not be conflated by optimiser rewrites."""
 
-    def test_braced_scalar_like_array_name_not_rewritten_as_array_ref(self):
+    def test_braced_whole_name_array_ref_not_rewritten_as_array_ref(self):
         source = "set x ${a(1)}\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert optimised == source
         assert rewrites == []
 
-    def test_unbraced_array_ref_not_rewritten_as_braced_scalar_name(self):
+    def test_unbraced_array_ref_not_rewritten_as_braced_whole_name(self):
         source = "set x $a(1)\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert optimised == source

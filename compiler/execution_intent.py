@@ -133,10 +133,10 @@ def _parse_command_substitution(value: str) -> CommandSubstitutionIntent | None:
     argv: list[str] = []
     prev_type = TokenType.EOL
 
-    tokens, _ = tokenise(inner, 0, 0, 0)
+    lex_tokens, _ = tokenise(inner, 0, 0, 0)
     saw_command_terminator = False
     has_expansion = False
-    for tok in tokens:
+    for tok in lex_tokens:
         if tok.type is TokenType.EXPAND:
             # ``{*}`` prefix: the following word expands at runtime, so the arg
             # count no longer reflects the element count.  Only flag it — fall

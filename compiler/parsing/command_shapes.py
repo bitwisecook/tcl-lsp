@@ -1,6 +1,6 @@
 """Shared command text shape matchers.
 
-``extract_single_expr_argument`` now lives canonically in
+``extract_single_expr_argument`` lives canonically in
 :mod:`compiler.parsing.token_scanning` (routed through the green-tree tokeniser
 memo); re-exported here so existing import paths stay stable.
 """

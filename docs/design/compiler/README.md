@@ -46,6 +46,10 @@ User-facing compiler troubleshooting and how-tos live in
   segmentation.
 - [green-token-tree.md](green-token-tree.md) — lossless token tree, error
   nodes, and incremental reparse (issue #477; phases 1–5 shipped).
+- [syntax-tree.md](syntax-tree.md) — the canonical red-green concrete syntax
+  tree (lossless, position-independent); the segmenter's byte-identical
+  backing and the foundation the formatter, minifier, AOT lowering, and
+  per-command tooling are migrating onto.
 - [expression-parsing.md](expression-parsing.md) — Pratt parser, braced
   and unbraced expressions.
 - [cfg-construction.md](cfg-construction.md) — basic block

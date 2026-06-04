@@ -10,7 +10,6 @@ import re
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import (
     SIGNATURES,
@@ -154,104 +153,102 @@ def _count_newlines(text: str) -> int:
 def parse_commands(source: str) -> tuple[list[ParsedCommand], list[str]]:
     """Parse Tcl source into a list of structured commands.
 
-    Walks the TclLexer token stream, groups tokens into commands
-    (same pattern as Analyser._analyse_body), and tracks preceding
-    comments and blank lines.
+    Groups the canonical concrete syntax tree's words into commands — so the
+    formatter rides the same segmentation (and recovery) as the analyser and
+    lowering instead of a private ``TclLexer`` loop — and reads preceding
+    comments and blank lines off the tree's attached trivia.
 
     Returns (commands, trailing_comments) where trailing_comments are
     any comments after the last command.
     """
-    _it = iter(tokenise(source, 0, 0, 0)[0])
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import (
+        SyntaxKind,
+        SyntaxNode,
+        SyntaxToken,
+        SyntaxTree,
+        TriviaKind,
+        build_document,
+    )
+
     commands: list[ParsedCommand] = []
-    pending_comments: list[str] = []
-    pending_blank_lines = 0
+    with green_tree_scope():
+        document, _ = build_document(source)
+        tree = SyntaxTree(document, text=source)
 
-    # Per-argument accumulation
-    argv_tokens: list[list[Token]] = []  # tokens per argument
-    argv_texts: list[str] = []  # concatenated text per argument
-    argv_braced: list[bool] = []  # whether first token was STR
-    argv_quoted: list[bool] = []  # whether argument was quoted
-    prev_type = TokenType.EOL
+        # Blank lines preceding a command are the EOL trivia between it and the
+        # previous command: that command's terminator EOL (trailing on its last
+        # token) plus this command's own leading EOLs.  Each EOL token adds
+        # ``max(0, newlines - 1)`` blank lines — exactly the old loop's
+        # per-EOL ``_count_newlines`` accumulation.
+        prev_terminator_blanks = 0
 
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
-
-        match tok.type:
-            case TokenType.COMMENT:
-                pending_comments.append(tok.text)
+        for node in tree.root.children():
+            if not (isinstance(node, SyntaxNode) and node.kind is SyntaxKind.COMMAND):
                 continue
-            case TokenType.SEP:
-                prev_type = tok.type
+            node_tokens = list(node.tokens())
+            if not node_tokens:
                 continue
-            case TokenType.EOL:
-                if argv_texts:
-                    cmd = _build_command(
-                        argv_tokens,
-                        argv_texts,
-                        argv_braced,
-                        argv_quoted,
-                        pending_comments,
-                        pending_blank_lines,
-                    )
-                    commands.append(cmd)
-                    pending_comments = []
-                    # Count blank lines in this EOL for the next command
-                    pending_blank_lines = _count_newlines(tok.text)
+
+            # Comments and blank lines attach to the next command's first token
+            # as leading trivia, matching the old loop's pending accumulation
+            # (which, unlike the segmenter's preceding_comment, never resets on a
+            # blank line — so every comment since the last command is kept).
+            preceding_comments: list[str] = []
+            blank_lines = prev_terminator_blanks
+            for triv in node_tokens[0].green.leading:
+                if triv.kind is TriviaKind.COMMENT:
+                    preceding_comments.append(triv.text)
+                elif triv.kind is TriviaKind.EOL:
+                    blank_lines += _count_newlines(triv.text)
+
+            argv_tokens: list[list[Token]] = []
+            argv_texts: list[str] = []
+            argv_braced: list[bool] = []
+            argv_quoted: list[bool] = []
+            for child in node.children():
+                if isinstance(child, SyntaxNode) and child.kind is SyntaxKind.WORD:
+                    markers = child.expand_markers()
+                    frags = [c for c in child.children() if isinstance(c, SyntaxToken)]
+                    word_tokens = [m.to_token() for m in markers] + [f.to_token() for f in frags]
+                    first: SyntaxToken = markers[0] if markers else frags[0]
+                elif isinstance(child, SyntaxToken):
+                    # A dangling ``{*}`` marker that expands no following word
+                    # still forms its own argument, as the old token grouping did.
+                    word_tokens = [child.to_token()]
+                    first = child
                 else:
-                    pending_blank_lines += _count_newlines(tok.text)
-                argv_tokens = []
-                argv_texts = []
-                argv_braced = []
-                argv_quoted = []
-                prev_type = tok.type
-                continue
-            case _:
-                pass
+                    continue
+                argv_tokens.append(word_tokens)
+                argv_texts.append("".join(t.text for t in word_tokens))
+                # is_braced: the word's first token is a braced ``{…}`` (STR);
+                # is_quoted: it begins with a double quote — read off the lossless
+                # ``raw`` (raw[0] is the source byte the old check inspected).
+                argv_braced.append(first.token_type is TokenType.STR)
+                argv_quoted.append(first.raw.startswith('"'))
 
-        # Detect quoted context: if this is the start of a new arg and the
-        # source character at the token start is a quote mark.
-        # The lexer captures start_pos before advancing past the opening quote,
-        # so the start offset points at the '"' character itself.
-        is_start_of_new_arg = prev_type in (TokenType.SEP, TokenType.EOL)
-        detected_quoted = False
-        if is_start_of_new_arg and tok.start.offset < len(source):
-            if source[tok.start.offset] == '"':
-                detected_quoted = True
+            commands.append(
+                _build_command(
+                    argv_tokens,
+                    argv_texts,
+                    argv_braced,
+                    argv_quoted,
+                    preceding_comments,
+                    blank_lines,
+                )
+            )
 
-        if is_start_of_new_arg:
-            argv_tokens.append([tok])
-            argv_texts.append(tok.text)
-            argv_braced.append(tok.type == TokenType.STR)
-            argv_quoted.append(detected_quoted)
-        else:
-            # Concatenation within same argument (e.g. "hello $name")
-            if argv_texts:
-                argv_tokens[-1].append(tok)
-                argv_texts[-1] += tok.text
-            else:
-                argv_tokens.append([tok])
-                argv_texts.append(tok.text)
-                argv_braced.append(tok.type == TokenType.STR)
-                argv_quoted.append(detected_quoted)
+            prev_terminator_blanks = sum(
+                _count_newlines(triv.text)
+                for triv in node_tokens[-1].green.trailing
+                if triv.kind is TriviaKind.EOL
+            )
 
-        prev_type = tok.type
+        trailing_comments = [
+            triv.text for triv in tree.root.green.trailing if triv.kind is TriviaKind.COMMENT
+        ]
 
-    # Handle trailing command without final EOL
-    if argv_texts:
-        cmd = _build_command(
-            argv_tokens,
-            argv_texts,
-            argv_braced,
-            argv_quoted,
-            pending_comments,
-            pending_blank_lines,
-        )
-        commands.append(cmd)
-        pending_comments = []
-
-    return commands, pending_comments
+    return commands, trailing_comments
 
 
 def _build_command(
@@ -453,43 +450,44 @@ def _format_switch_body(
     The body contains pattern/body pairs. Parse them and format each body
     recursively.
     """
-    _it = iter(tokenise(body_text, 0, 0, 0)[0])
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import (
+        SyntaxKind,
+        SyntaxNode,
+        SyntaxToken,
+        SyntaxTree,
+        build_document,
+    )
+
+    # A switch list body is a flat sequence of pattern/body *words*; the old
+    # loop treated SEP and EOL alike, so flattening every word across the tree's
+    # command boundaries reproduces its element list (comments are trivia, so
+    # they fall away exactly as the old ``COMMENT: continue`` dropped them).
     elements: list[tuple[list[Token], str, bool]] = []  # (tokens, text, is_braced)
-    prev_type = TokenType.EOL
-
-    current_tokens: list[Token] = []
-    current_text = ""
-    current_braced = False
-
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
-        if tok.type in (TokenType.SEP, TokenType.EOL):
-            if current_text:
-                elements.append((current_tokens, current_text, current_braced))
-                current_tokens = []
-                current_text = ""
-                current_braced = False
-            prev_type = tok.type
-            continue
-        if tok.type == TokenType.COMMENT:
-            continue
-
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            if current_text:
-                elements.append((current_tokens, current_text, current_braced))
-            current_tokens = [tok]
-            current_text = tok.text
-            current_braced = tok.type == TokenType.STR
-        else:
-            current_tokens.append(tok)
-            current_text += tok.text
-
-        prev_type = tok.type
-
-    if current_text:
-        elements.append((current_tokens, current_text, current_braced))
+    with green_tree_scope():
+        document, _ = build_document(body_text)
+        tree = SyntaxTree(document, text=body_text)
+        for node in tree.root.children():
+            if not (isinstance(node, SyntaxNode) and node.kind is SyntaxKind.COMMAND):
+                continue
+            for child in node.children():
+                if isinstance(child, SyntaxNode) and child.kind is SyntaxKind.WORD:
+                    markers = child.expand_markers()
+                    frags = [c for c in child.children() if isinstance(c, SyntaxToken)]
+                    toks = [m.to_token() for m in markers] + [f.to_token() for f in frags]
+                    first: SyntaxToken = markers[0] if markers else frags[0]
+                elif isinstance(child, SyntaxToken):
+                    toks = [child.to_token()]
+                    first = child
+                else:
+                    continue
+                text = "".join(t.text for t in toks)
+                # The old loop only flushed an element when its accumulated text
+                # was truthy, so an empty word (``{}`` / ``""``) was dropped — keep
+                # that, since it shifts the pattern/body pairing otherwise.
+                if not text:
+                    continue
+                elements.append((toks, text, first.token_type is TokenType.STR))
 
     # elements should be alternating pattern/body pairs
     indent = _make_indent(config, indent_level)

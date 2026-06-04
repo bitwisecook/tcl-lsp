@@ -188,75 +188,6 @@ def _descend(token: Token, mode: Mode, context_text: str, context_base: int) -> 
     return replace(shared, kind=kind)
 
 
-def descend_token(token: Token, source: str, mode: Mode = Mode.SCRIPT) -> GreenNode:
-    """Descend an *absolutely-positioned* ``token`` against the full *source*.
-
-    Equivalent to :meth:`GreenNode.descend` but for callers that hold a token
-    anchored into the whole document rather than a parent :class:`GreenNode`
-    (e.g. ``compiler_checks`` recursing into command substitutions and bodies
-    from either segmented text or IR-carried tokens).  Shares the intern index
-    and applies the same ERROR-kind resolution.
-    """
-    return _descend(token, mode, source, 0)
-
-
-@dataclass(frozen=True, slots=True)
-class CommandChild:
-    """A descendable body region of a command, with its arg-role resolved once.
-
-    ``index`` is the (real) argument index, ``text`` the body word's text,
-    ``token`` the owning ``STR`` word token, and ``node`` the descended
-    :attr:`Mode.SCRIPT` green node for the body.
-    """
-
-    index: int
-    text: str
-    token: Token
-    node: GreenNode
-
-
-def descend_command(
-    cmd_name: str,
-    args: list[str],
-    arg_tokens: list[Token],
-    source: str,
-) -> list[CommandChild]:
-    """Resolve a command's ``ArgRole.BODY`` args once and descend each body.
-
-    The single registry-aware descent entry point: consumers call this instead
-    of independently resolving arg roles and then descending bodies.  Each
-    returned :class:`CommandChild` carries a :attr:`Mode.SCRIPT` :class:`GreenNode`
-    for a body word that is a non-empty ``STR`` token.
-
-    Registry access is a deferred import (mirroring ``known_commands`` and
-    ``registry.runtime``'s own deferred ``parsing`` imports) so importing this
-    module never triggers the registry<->parsing load cycle and
-    :class:`GreenNode` stays a registry-free structural primitive.
-
-    ``ArgRole.EXPR`` args are deliberately **not** routed through the tree: the
-    green tree lexes in *script* mode, which treats ``[`` inside an expr string
-    literal as a command substitution and mis-tokenises expr operator syntax,
-    so it finds a different set of embedded commands than the expr lexer.
-    Consumers keep using ``tokenise_expr`` for EXPR args
-    (see ``bench/phase0_descend.py --expr-divergence``).
-    """
-    from compiler.registry.runtime import iter_body_arguments
-
-    children: list[CommandChild] = []
-    for body in iter_body_arguments(cmd_name, args, arg_tokens):
-        if body.token.type is not TokenType.STR or not body.text.strip():
-            continue
-        children.append(
-            CommandChild(
-                index=body.index,
-                text=body.text,
-                token=body.token,
-                node=descend_token(body.token, source),
-            )
-        )
-    return children
-
-
 def _lex(
     text: str,
     base_offset: int,
@@ -264,6 +195,7 @@ def _lex(
     base_col: int,
     insidequote: bool,
     virtual_insertions: dict[int, str] | None,
+    line_starts: list[int] | None = None,
 ) -> tuple[list[Token], list[tuple[SourcePosition, str]]]:
     lexer = TclLexer(
         text,
@@ -271,6 +203,7 @@ def _lex(
         base_line=base_line,
         base_col=base_col,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     if insidequote:
         lexer.insidequote = True
@@ -285,9 +218,10 @@ def _build_node(
     base_col: int,
     mode: Mode,
     kind: NodeKind,
+    line_starts: list[int] | None = None,
 ) -> GreenNode:
     insidequote = mode is Mode.QUOTED
-    tokens, warnings = _lex(text, base_offset, base_line, base_col, insidequote, None)
+    tokens, warnings = _lex(text, base_offset, base_line, base_col, insidequote, None, line_starts)
     return GreenNode(
         kind=kind,
         mode=mode,
@@ -322,30 +256,16 @@ class GreenTreeScope:
     single analysis pass.
     """
 
-    __slots__ = ("_index", "_segmentation_cache")
+    __slots__ = ("_index",)
 
     def __init__(self) -> None:
         self._index: dict[_Key, GreenNode] = {}
-        # Per-scope segmentation memo: maps an opaque segmentation key
-        # (owned by ``command_segmenter``) to ``(commands, warnings)``.  Held
-        # here so ``command_segmenter`` reuses the same scope lifetime as the
-        # token memo, while ``green_tree`` stays free of a ``SegmentedCommand``
-        # import (the key and value are deliberately untyped here).
-        self._segmentation_cache: dict[tuple, tuple] = {}
 
     def intern(self, key: _Key, node: GreenNode) -> None:
         self._index[key] = node
 
     def get(self, key: _Key) -> GreenNode | None:
         return self._index.get(key)
-
-    def seg_get(self, key: tuple) -> tuple | None:
-        """Return the cached ``(commands, warnings)`` for *key*, or ``None``."""
-        return self._segmentation_cache.get(key)
-
-    def seg_put(self, key: tuple, commands: object, warnings: object) -> None:
-        """Cache ``(commands, warnings)`` under the segmentation *key*."""
-        self._segmentation_cache[key] = (commands, warnings)
 
 
 _active_scope: ContextVar[GreenTreeScope | None] = ContextVar("tcl_green_tree_scope", default=None)
@@ -385,6 +305,7 @@ def node_for(
     mode: Mode = Mode.SCRIPT,
     kind: NodeKind = NodeKind.ROOT,
     virtual_insertions: dict[int, str] | None = None,
+    line_starts: list[int] | None = None,
 ) -> GreenNode:
     """Return the :class:`GreenNode` for *text* at the given anchoring.
 
@@ -392,13 +313,17 @@ def node_for(
     pays the tokenisation cost and every later caller of the *same* region
     reuses the node.  Regions lexed with *virtual_insertions* are never
     interned (the insertions are request-specific).
+
+    *line_starts* is an optional pre-built line index for *text*; it is a pure
+    optimisation hint (the lexer would build an identical one) and is not part of
+    the intern key.
     """
     scope = _active_scope.get()
     if scope is None or virtual_insertions:
         if virtual_insertions:
             insidequote = mode is Mode.QUOTED
             tokens, warnings = _lex(
-                text, base_offset, base_line, base_col, insidequote, virtual_insertions
+                text, base_offset, base_line, base_col, insidequote, virtual_insertions, line_starts
             )
             return GreenNode(
                 kind=kind,
@@ -412,13 +337,13 @@ def node_for(
                 tokens=tuple(tokens),
                 warnings=tuple(warnings),
             )
-        return _build_node(text, base_offset, base_line, base_col, mode, kind)
+        return _build_node(text, base_offset, base_line, base_col, mode, kind, line_starts)
 
     key: _Key = (base_offset, base_line, base_col, mode, text)
     hit = scope.get(key)
     if hit is not None:
         return hit
-    node = _build_node(text, base_offset, base_line, base_col, mode, kind)
+    node = _build_node(text, base_offset, base_line, base_col, mode, kind, line_starts)
     scope.intern(key, node)
     return node
 
@@ -431,13 +356,15 @@ def tokenise(
     *,
     insidequote: bool = False,
     virtual_insertions: dict[int, str] | None = None,
+    line_starts: list[int] | None = None,
 ) -> tuple[tuple[Token, ...], _Warnings]:
     """Tokenise *text* at the given anchoring, consulting the green-tree scope.
 
     Returns ``(tokens, warnings)`` for the region.  This is the leaf primitive
     consumers use when they want the token stream directly rather than a node;
     it shares the same intern index as :func:`node_for`, so a region tokenised
-    here and descended elsewhere is lexed once.
+    here and descended elsewhere is lexed once.  *line_starts* is an optional
+    pre-built line index for *text* (a pure optimisation hint).
     """
     mode = Mode.QUOTED if insidequote else Mode.SCRIPT
     node = node_for(
@@ -447,5 +374,6 @@ def tokenise(
         base_col,
         mode=mode,
         virtual_insertions=virtual_insertions,
+        line_starts=line_starts,
     )
     return node.tokens, node.warnings

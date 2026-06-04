@@ -225,14 +225,14 @@ def _collect_format_string_hints(
             continue
 
         # Parse the line to find commands and their arguments
-        _it = iter(tokenise(line_text, 0, line_no, 0)[0])
+        # Shared green-tree memo (token-for-token identical to a private TclLexer).
+        tokens, _ = tokenise(line_text, 0, line_no, 0)
         argv_texts: list[str] = []
         argv_tokens: list = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = next(_it, None)
-            if tok is None or tok.type is TokenType.EOL:
+        for tok in tokens:
+            if tok.type is TokenType.EOL:
                 break
             if tok.type in (TokenType.SEP, TokenType.COMMENT):
                 prev_type = tok.type

@@ -27,47 +27,33 @@ from .green_tree import tokenise
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-# Compiler-internal marker for a braced scalar whose name is array-shaped.
-# ``${a(1)}`` in source refers to a *scalar* named ``a(1)`` — braces suppress
-# array parsing — unlike bare ``$a(1)`` (array ``a`` element ``1``).
-# :func:`word_piece` reconstructs the braced-scalar word as ``$={name}`` so the
-# rest of the pipeline can tell the two apart (codegen emits push + loadStk for
-# the marked form rather than an array load).  It is a *variable reference*,
-# never a literal — analyses must decode it, not treat it as opaque text.
-BRACED_SCALAR_MARKER_PREFIX = "$={"
-
-
-def contains_braced_scalar_marker(text: str) -> bool:
-    """True if *text* embeds a ``$={name}`` braced-scalar variable marker."""
-    return BRACED_SCALAR_MARKER_PREFIX in text
-
 
 def word_piece(
     tok: Token,
     *,
-    array_codegen_marker: bool = True,
+    bare_arrays_split: bool = True,
     normalise_var_braces: bool = True,
 ) -> str:
     """Return the source-level text fragment for a single token.
 
-    Variables are prefixed with ``$`` and command substitutions are wrapped in
-    ``[...]`` so that the result mirrors what the user wrote.  Two flags select
-    the three historically-divergent reconstructions this subsumes:
+    Variables are prefixed with ``$`` and command substitutions wrapped in
+    ``[...]`` so the result mirrors what the user wrote.  The braced-vs-bare
+    distinction is carried by *natural spelling* (no ``$={}`` marker): tclsh 9
+    resolves a braced ``${a(1)}`` by its whole literal name, while a bare
+    ``$a(1)`` splits into an array load.  Two flags reproduce the three
+    historically divergent reconstructions this subsumes:
 
-    * ``array_codegen_marker`` (default ``True``) — emit the ``$={name}`` marker
-      for a *braced* array-shaped name (``${a(1)}``), which is a scalar, not an
-      array access.  Codegen/lowering/optimiser want this; the parsing-layer
-      reconstructions pass ``False``.
-    * ``normalise_var_braces`` (default ``True``) — normalise a bare,
-      non-substituted ``$name`` / ``$a(1)`` to the equivalent ``${name}`` form.
-      Pass ``False`` for *verbatim* round-tripping (the expr-argument matcher
-      wants exactly what the user typed).
+    * ``bare_arrays_split`` (default ``True``) — keep a bare array-shaped name
+      ``$a(1)`` / ``$a($i)`` bare so codegen splits it into an array load.  With
+      ``False`` only a *substituted*-index bare array stays bare; a literal
+      ``$a(1)`` normalises to ``${a(1)}`` (the segmenter's reconstruction).
+    * ``normalise_var_braces`` (default ``True``) — normalise a bare scalar
+      ``$foo`` to the equivalent ``${foo}``.  Pass ``False`` for verbatim
+      round-tripping (the expr-argument matcher wants exactly what the user
+      typed); then every bare word stays ``$name``.
 
-    A bare ``$arr(idx)`` whose index is *substituted* (``$x`` / ``[cmd]`` inside
-    the parens) always round-trips verbatim regardless of the flags — wrapping
-    it in ``${…}`` would collapse the recursive substitution into a literal
-    scalar lookup (cmdAH-1.4 / 1.5).  A name containing ``}`` is also emitted as
-    ``$name`` so the first ``}`` cannot prematurely close a ``${…}`` form.
+    A name containing ``}`` is always emitted as ``$name`` so the first ``}``
+    cannot prematurely close a ``${…}`` wrapper.
     """
     if tok.type is TokenType.VAR:
         # ``Token.end.offset`` is the last source byte (inclusive); ``tok.text``
@@ -75,18 +61,19 @@ def word_piece(
         # delta is 0 for bare and 1 for braced.
         span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
         is_braced = span_extra >= 1
-        if array_codegen_marker and is_braced and "(" in tok.text and tok.text.endswith(")"):
-            return f"{BRACED_SCALAR_MARKER_PREFIX}{tok.text}}}"
-        if (
-            not is_braced
-            and "(" in tok.text
-            and tok.text.endswith(")")
-            and ("$" in tok.text or "[" in tok.text)
-        ):
+        if is_braced:
+            if "}" in tok.text:
+                return "$" + tok.text
+            return f"${{{tok.text}}}"
+        if not normalise_var_braces:
             return "$" + tok.text
+        is_array = "(" in tok.text and tok.text.endswith(")")
+        if is_array:
+            if bare_arrays_split:
+                return "$" + tok.text
+            if "$" in tok.text or "[" in tok.text:
+                return "$" + tok.text
         if "}" in tok.text:
-            return "$" + tok.text
-        if not normalise_var_braces and not is_braced:
             return "$" + tok.text
         return f"${{{tok.text}}}"
     if tok.type is TokenType.CMD:
@@ -164,8 +151,8 @@ def parse_single_command(
     """Parse a single Tcl command into ``(argv_texts, argv_tokens, argv_single)``.
 
     Returns ``None`` if *text* contains zero commands or more than one.  Each
-    word's text is reconstructed via :func:`word_piece` (codegen-marker form),
-    so variable references are normalised to ``${name}``.
+    word's text is reconstructed via :func:`word_piece` (natural-spelling
+    defaults: bare scalars normalise to ``${name}``, bare arrays stay bare).
     """
     tokens, _ = tokenise(text, 0, 0, 0)
     commands: list[tuple[list[str], list[Token], list[bool]]] = []
@@ -242,7 +229,7 @@ def extract_single_expr_argument(
             continue
         if saw_eol:
             return None
-        piece = word_piece(tok, array_codegen_marker=False, normalise_var_braces=False)
+        piece = word_piece(tok, normalise_var_braces=False)
         if prev_type in (TokenType.SEP, TokenType.EOL):
             argv_texts.append(piece)
             argv_single.append(True)
@@ -292,7 +279,7 @@ def iter_region_words(
             word_start = True
             prev_type = tok.type
             continue
-        piece = word_piece(tok, array_codegen_marker=False)
+        piece = word_piece(tok, bare_arrays_split=False)
         if first_tok is None:
             first_tok = tok
             word = piece

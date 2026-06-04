@@ -198,7 +198,7 @@ class IrulesFlowWarning:
 
 def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_col: int):
     """Yield (cmd_name, cmd_token, all_tokens) for each top-level command in body_text."""
-    _it = iter(tokenise(body_text, base_offset, base_line, base_col)[0])
+    lex_tokens, _ = tokenise(body_text, base_offset, base_line, base_col)
     argv: list[Token] = []
     argv_texts: list[str] = []
     all_tokens: list[Token] = []
@@ -211,10 +211,7 @@ def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_c
         argv_texts.clear()
         all_tokens.clear()
 
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    for tok in lex_tokens:
         match tok.type:
             case TokenType.COMMENT | TokenType.SEP:
                 prev_type = tok.type
@@ -247,7 +244,7 @@ def _find_when_bodies(source: str):
     Base priority is extracted from ``when EVENT priority N { body }``; defaults
     to 500.
     """
-    _it = iter(tokenise(source, 0, 0, 0)[0])
+    lex_tokens, _ = tokenise(source, 0, 0, 0)
     argv: list[Token] = []
     argv_texts: list[str] = []
     prev_type = TokenType.EOL
@@ -268,10 +265,7 @@ def _find_when_bodies(source: str):
         argv.clear()
         argv_texts.clear()
 
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    for tok in lex_tokens:
         match tok.type:
             case TokenType.COMMENT | TokenType.SEP:
                 prev_type = tok.type
@@ -1112,7 +1106,7 @@ def _scan_namespaced_cmds_in_text(text: str) -> set[str]:
     if "[" not in text and "::" not in text:
         return found
     try:
-        tokens, _ = tokenise(text, 0, 0, 0)
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         # Unparseable -- fall back to the regex match (sound: caller
         # will refuse to hoist if any cmd looks unavailable).

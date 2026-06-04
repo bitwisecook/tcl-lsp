@@ -214,10 +214,9 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
     must = _ALL_MUST
     leading_resolved = False  # have we seen the first content token?
 
-    _it = iter(tokenise(stripped, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
+    lex_tokens, _ = tokenise(stripped, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type in (TokenType.EOL, TokenType.EOF):
             break
 
         if tok.type is TokenType.SEP:

@@ -35,7 +35,7 @@ from compiler.registry.namespace_models import EventRequires
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import variable_writing_commands
 from shared.codes import diag
-from shared.ranges import range_from_token
+from shared.ranges import range_from_token, word_closer_offset, word_end_position
 from shared.tokens import Token
 
 from .semantic_model import CodeFix, Diagnostic, Range, Severity
@@ -53,20 +53,17 @@ def _valid_events_for_command(cmd_name: str, dialect: str) -> list[str]:
 def _raw_arg_text(source: str, tok: Token) -> str:
     """Return the raw source slice for an argument token.
 
-    Widens the end offset by one when the next character is the
-    matching closing delimiter of an opening ``"``/``{`` so quoted /
-    braced args round-trip intact.  Used by quick-fix builders that
-    must preserve variable and command substitutions in the original
-    syntax (rather than re-emitting the post-substitution value via
-    ``args[idx]``).
+    Includes the closing delimiter of a quoted/braced/bracketed word so quoted,
+    braced, and command-substitution args round-trip intact.  Used by quick-fix
+    builders that must preserve variable and command substitutions in the
+    original syntax (rather than re-emitting the post-substitution value via
+    ``args[idx]``).  The closer is located via the authoritative
+    :func:`word_closer_offset` — correct for an empty ``{}`` / ``[]`` / ``""``,
+    whose end already sits on the closer — not re-derived as ``end + 1``.
     """
-    start = tok.start.offset
-    end = tok.end.offset + 1
-    if 0 <= start < len(source) and source[start] in ('"', "{"):
-        close = '"' if source[start] == '"' else "}"
-        if end < len(source) and source[end] == close:
-            end += 1
-    return source[start:end]
+    closer = word_closer_offset(tok, source)
+    end = (closer + 1) if closer is not None else tok.end.offset + 1
+    return source[tok.start.offset : end]
 
 
 # IRULE1001: Command invalid/ineffective in this event
@@ -207,28 +204,16 @@ def check_matchclass(
     if len(args) >= 2 and len(all_tokens) >= 3 and len(arg_tokens) >= 2:
         first_tok = all_tokens[0]
         last_tok = all_tokens[-1]
-        # Token end offsets point at the last *content* character, so a
-        # quoted/braced final argument leaves the closing ``"``/``}``
-        # outside the fix range.  Widen the end by one when the next
-        # source char is the matching delimiter — otherwise applying
-        # the fix leaves a stray delimiter trailing the rewrite
-        # (Copilot review, PR #438).
-        fix_end = last_tok.end
-        next_off = last_tok.end.offset + 1
-        if 0 <= last_tok.start.offset < len(source) and source[last_tok.start.offset] in (
-            '"',
-            "{",
-        ):
-            close = '"' if source[last_tok.start.offset] == '"' else "}"
-            if next_off < len(source) and source[next_off] == close:
-                fix_end = type(last_tok.end)(
-                    line=last_tok.end.line,
-                    character=last_tok.end.character + 1,
-                    offset=next_off,
-                )
+        # Token ends point at the last *content* character, so a quoted/braced
+        # final argument leaves the closing ``"``/``}`` outside the fix range —
+        # otherwise applying the fix leaves a stray delimiter trailing the
+        # rewrite (Copilot review, PR #438).  ``word_end_position`` is the
+        # authoritative widener: it covers the closer and handles an empty
+        # ``{}``/``""`` final argument (whose end already sits on the closer, so
+        # the old ``end + 1`` overshot by one).
         fix_range = Range(
             start=first_tok.start,
-            end=fix_end,
+            end=word_end_position(last_tok, source),
         )
         # ``args[idx]`` holds the *substituted* value of each word.  For
         # ``matchclass $url ::lib`` that gives ``"url"`` instead of

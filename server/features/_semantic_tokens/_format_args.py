@@ -38,15 +38,13 @@ def _split_words(
     base_col: int = 0,
 ) -> tuple[list[str], list[Token]]:
     """Split Tcl words and return (word_texts, first_token_per_word)."""
-    _it = iter(tokenise(source, base_offset, base_line, base_col)[0])
+    # Shared green-tree memo (token-for-token identical to a private TclLexer).
+    tokens, _ = tokenise(source, base_offset, base_line, base_col)
     words: list[str] = []
     word_tokens: list[Token] = []
     prev_type = TokenType.EOL
 
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    for tok in tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL):
             prev_type = tok.type
             continue

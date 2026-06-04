@@ -226,15 +226,15 @@ def _stmt_command_args(stmt) -> tuple[str, tuple[str, ...]] | None:
 def _arg_var_names(arg: str) -> frozenset[str]:
     """Return normalised variable names referenced by *arg*."""
     names: set[str] = set()
-    _it = iter(tokenise(arg, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL:
+    lex_tokens, _ = tokenise(arg, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL:
             return frozenset(names)
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             if name:
                 names.add(name)
+    return frozenset(names)
 
 
 @lru_cache(maxsize=32768)
@@ -357,7 +357,7 @@ def _eval_stmt_protected_by_list_literal(stmt, var_name: str) -> bool:
 
 
 def _direct_expr_operand_names(node) -> set[str]:
-    """Return the set of variable names that appear as DIRECT operands of
+    r"""Return the set of variable names that appear as DIRECT operands of
     an expression AST — ie ``ExprVar`` nodes that are NOT nested inside
     an ``ExprCommand`` (command substitution).
 

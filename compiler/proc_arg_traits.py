@@ -26,10 +26,6 @@ from collections.abc import Mapping
 
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.lexer import TclParseError
-from compiler.parsing.token_scanning import (
-    extract_scalar_var_name,
-    scan_command_substitutions,
-)
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from compiler.registry.signatures import ArgRole
@@ -56,10 +52,24 @@ def _var_write_commands() -> dict[str, int]:
 def _extract_var_name(text: str) -> str | None:
     """Extract a bare scalar variable name from a ``$var`` / ``${var}`` word.
 
-    Delegates to the canonical :func:`token_scanning.extract_scalar_var_name`
-    (routed through the green-tree tokeniser memo).
+    Uses the lexer rather than a regex: the whole word must be exactly one
+    variable substitution naming a scalar (no array index), and the name must
+    have the conventional shape (letter/underscore start, word chars and
+    ``::`` namespace separators).
     """
-    return extract_scalar_var_name(text)
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
+    if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
+        return None
+    name = tok.text
+    # The word must be solely this variable reference.
+    if text not in (f"${name}", f"${{{name}}}"):
+        return None
+    if not name or not (name[0].isalpha() or name[0] == "_"):
+        return None
+    if not all(ch.isalnum() or ch in "_:" for ch in name):
+        return None
+    return name
 
 
 def _extract_commands(source: str) -> list[tuple[str, list[str]]]:
@@ -412,10 +422,10 @@ def collect_call_by_name_reads(
 
     def _parse_subst(text: str) -> tuple[str, tuple[str, ...]] | None:
         """Parse a ``[cmd ...]`` body into (cmd, args)."""
-        tokens, _ = tokenise(text, 0, 0, 0)
+        lex_tokens, _ = tokenise(text, 0, 0, 0)
         argv: list[str] = []
         prev_sep = True
-        for tok in tokens:
+        for tok in lex_tokens:
             if tok.type in (TokenType.EOL, TokenType.EOF):
                 break
             if tok.type in (TokenType.SEP, TokenType.COMMENT):
@@ -444,16 +454,17 @@ def collect_call_by_name_reads(
         if not text or "[" not in text:
             return
         try:
-            cmd_tokens = scan_command_substitutions(text)
+            lex_tokens, _ = tokenise(text, 0, 0, 0)
         except TclParseError:
             return
-        for tok in cmd_tokens:
-            parsed = _parse_subst(tok.text)
-            if parsed is not None:
-                cmd, args = parsed
-                _add_for_call(cmd, args)
-                for a in args:
-                    _scan_value_text(a)
+        for tok in lex_tokens:
+            if tok.type is TokenType.CMD:
+                parsed = _parse_subst(tok.text)
+                if parsed is not None:
+                    cmd, args = parsed
+                    _add_for_call(cmd, args)
+                    for a in args:
+                        _scan_value_text(a)
 
     for block in cfg.blocks.values():
         for stmt in block.statements:

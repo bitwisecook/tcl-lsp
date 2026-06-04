@@ -294,25 +294,21 @@ class _AnalyserProcMixin(_Base):
         is_regexp: bool = False,
     ) -> None:
         """Parse the braced body of a switch command to extract pattern/body pairs."""
-        # Create lexer with base offsets if we have the outer body token
+        # Tokenise with base offsets if we have the outer body token
         if outer_body_token is not None:
-            _toks = tokenise(
+            lex_tokens, _ = tokenise(
                 body_text,
                 outer_body_token.start.offset + 1,
                 outer_body_token.start.line,
                 outer_body_token.start.character + 1,
-            )[0]
+            )
         else:
-            _toks = tokenise(body_text, 0, 0, 0)[0]
-        _it = iter(_toks)
+            lex_tokens, _ = tokenise(body_text, 0, 0, 0)
         elements: list[str] = []
         element_tokens: list[Token] = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = next(_it, None)
-            if tok is None:
-                break
+        for tok in lex_tokens:
             if tok.type in (TokenType.SEP, TokenType.EOL):
                 prev_type = tok.type
                 continue

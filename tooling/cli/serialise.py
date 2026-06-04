@@ -606,6 +606,154 @@ def _serialise_greentree(source: str) -> dict | None:
         return None
 
 
+def _serialise_cst(source: str) -> dict | None:
+    """Serialise the canonical red-green CST for the explorer.
+
+    The structural counterpart to :func:`_serialise_greentree`: ``DOCUMENT`` →
+    ``COMMAND`` → ``WORD`` → fragment, each interior node carrying its absolute
+    range (and a word's ``single`` / ``braced`` / ``quoted`` / ``expand`` shape),
+    each leaf its inner ``text`` versus lossless ``raw`` and inner-end range, and
+    each opaque ``{…}`` / ``[…]`` leaf its descended child document (flagged
+    ``terminated``).  Built from the same ``build_document`` the analyser and
+    lowering consume, so the GUI shows exactly the tree everything rides on.
+    """
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import (
+        SyntaxKind,
+        SyntaxToken,
+        SyntaxTree,
+        build_document,
+    )
+    from compiler.parsing.syntax.descend import descend_token
+    from shared.tokens import TokenType
+
+    opaque = (TokenType.STR, TokenType.CMD)
+
+    def command_span(cmd) -> tuple[int, int]:
+        first = next(cmd.tokens())
+        start = first.start_position.offset
+        end = cmd.tree.position_at(first.raw_start + (cmd.green.range_end_rel or 0)).offset
+        return start, end
+
+    def leaf_dict(tok, is_marker: bool, depth: int) -> dict:
+        # End offsets are exclusive (the front-end slices src[start:end]); the
+        # red layer's end is the lexer inner-end (#527), so +1 covers the last
+        # inner char — matching greentree / range_dict.
+        entry = {
+            "kind": tok.token_type.name,
+            "isMarker": is_marker,
+            "text": tok.text,
+            "raw": tok.raw,
+            "inQuote": tok.in_quote,
+            "startOffset": tok.start_position.offset,
+            "endOffset": tok.end_position.offset + 1,
+        }
+        if depth < 24 and tok.token_type in opaque and tok.text:
+            descended = descend_token(tok.to_token(), source)
+            entry["terminated"] = descended.terminated
+            entry["child"] = node_dict(descended.tree.root, depth + 1)
+        return entry
+
+    def node_dict(node, depth: int) -> dict:
+        markers = node.expand_markers()
+        children = list(node.children())
+        frags = [c for c in children if isinstance(c, SyntaxToken)]
+        tags: list[str] = []
+        label = ""
+        if node.kind is SyntaxKind.COMMAND:
+            start, end_inc = command_span(node)
+            end = end_inc + 1
+            label = source[start : end_inc + 1] if 0 <= start <= end_inc < len(source) else ""
+        elif node.kind is SyntaxKind.WORD:
+            first = (markers or frags)[0]
+            start = first.start_position.offset
+            end = (frags[-1].end_position.offset + 1) if frags else start
+            if markers:
+                tags.append("expand")
+            if len(frags) == 1:
+                tags.append("single")
+            if frags and frags[0].token_type is TokenType.STR:
+                tags.append("braced")
+            if frags and frags[0].raw.startswith('"'):
+                tags.append("quoted")
+        else:  # DOCUMENT (the region the tree is anchored over, delimiter-excluded)
+            start = node.tree.base_offset
+            end = node.tree.base_offset + len(node.tree.text)
+        kids = [leaf_dict(m, True, depth) for m in markers]
+        for child in children:
+            if isinstance(child, SyntaxToken):
+                kids.append(leaf_dict(child, False, depth))
+            else:
+                kids.append(node_dict(child, depth))
+        return {
+            "kind": node.kind.name,
+            "label": label,
+            "tags": tags,
+            "startOffset": start,
+            "endOffset": end,
+            "children": kids,
+        }
+
+    try:
+        with green_tree_scope():
+            document, _ = build_document(source)
+            return node_dict(SyntaxTree(document, text=source).root, 0)
+    except Exception as exc:  # a malformed tree must not kill the whole result
+        print(f"warning: cst serialisation failed: {exc}", file=sys.stderr)
+        return None
+
+
+def _serialise_segments(source: str) -> list[dict]:
+    """Serialise the ``SegmentedCommand`` list derived from the CST.
+
+    The public segmenter contract the GUI exposes: each command's
+    closer-inclusive range and source slice, its words in canonical
+    ``_word_piece`` form with their per-word shape flags, plus the resolved
+    subcommand and the forward-attached preceding comment — via the same
+    ``segments_from_document`` bridge the analyser reads.
+    """
+    from compiler.parsing.green_tree import green_tree_scope
+    from compiler.parsing.syntax import build_document, segments_from_document
+
+    try:
+        with green_tree_scope():
+            document, _ = build_document(source)
+            segments = segments_from_document(document, text=source)
+    except Exception as exc:
+        print(f"warning: segments serialisation failed: {exc}", file=sys.stderr)
+        return []
+
+    out: list[dict] = []
+    for seg in segments:
+        start, end_inc = seg.range.start.offset, seg.range.end.offset
+        words = []
+        for i, text in enumerate(seg.texts):
+            tok = seg.argv[i]
+            words.append(
+                {
+                    "text": text,
+                    "startOffset": tok.start.offset,
+                    "endOffset": tok.end.offset + 1,
+                    "single": seg.single_token_word[i],
+                    "braced": bool(seg.braced_word and seg.braced_word[i]),
+                    "quoted": bool(seg.quoted_word and seg.quoted_word[i]),
+                    "expand": bool(seg.expand_word and seg.expand_word[i]),
+                }
+            )
+        out.append(
+            {
+                "name": seg.name,
+                "startOffset": start,
+                "endOffset": end_inc + 1,
+                "slice": source[start : end_inc + 1] if 0 <= start <= end_inc < len(source) else "",
+                "precedingComment": seg.preceding_comment,
+                "subcommand": seg.subcommand,
+                "words": words,
+            }
+        )
+    return out
+
+
 def _serialise_loops(snapshots: list[FunctionSnapshot]) -> list[dict]:
     """Serialise the natural-loop forest per function (mirrors CLI ``loops``)."""
     from compiler.loops import build_loop_forest, dominates
@@ -989,6 +1137,8 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
     return {
         "meta": _serialise_meta(),
         "greentree": _serialise_greentree(result.source),
+        "cst": _serialise_cst(result.source),
+        "segments": _serialise_segments(result.source),
         "ir": _serialise_ir(result.ir_module),
         "irOptimised": ir_optimised,
         "cfgPreSsa": _serialise_cfg_pre_ssa(result.snapshots),
@@ -1064,6 +1214,8 @@ def _group_annotations_by_line(annotation_dicts: list[dict], source: str) -> dic
 _VIEW_META: tuple[tuple[str, str, str], ...] = (
     # (id, label, group)  — group is informational; CLI uses VIEW_GROUPS.
     ("greentree", "Green Tree", "compiler"),
+    ("cst", "CST", "compiler"),
+    ("segments", "Segments", "compiler"),
     ("ir", "IR", "compiler"),
     ("cfg", "CFG (pre-SSA)", "compiler"),
     ("ssa", "CFG (post-SSA)", "compiler"),

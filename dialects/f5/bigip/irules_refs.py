@@ -294,11 +294,10 @@ def _walk_irules_commands(
             if tok.type not in (TokenType.STR, TokenType.ESC):
                 continue
             base_offset, base_line, base_col = token_content_base(tok)
-            _it = iter(tokenise(tok.text, base_offset, base_line, base_col)[0])
-            while True:
-                inner = next(_it, None)
-                if inner is None:
-                    break
+            # Find command substitutions inside the EXPR arg through the shared
+            # green-tree memo (token-for-token identical to a private TclLexer).
+            inner_tokens, _ = tokenise(tok.text, base_offset, base_line, base_col)
+            for inner in inner_tokens:
                 if inner.type is not TokenType.CMD or not inner.text.strip():
                     continue
                 key = (inner.start.offset, inner.end.offset)

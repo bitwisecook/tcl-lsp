@@ -66,7 +66,7 @@ def _word_has_observable_side_effect(
     from shared.tokens import TokenType
 
     try:
-        tokens, _ = tokenise(text, 0, 0, 0)
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return True  # unparseable -> conservative
     for tok in tokens:

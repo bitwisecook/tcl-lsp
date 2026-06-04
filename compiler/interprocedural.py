@@ -52,7 +52,6 @@ from compiler.ir import (
 from compiler.lowering import lower_to_ir
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.lexer import is_simple_scalar_var_word
-from compiler.parsing.token_scanning import scan_command_substitutions
 from compiler.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
@@ -332,7 +331,7 @@ def _scan_script_text(
     """
     if not text:
         return
-    tokens, _ = tokenise(text, 0, 0, 0)
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
     # Words accumulate token fragments until a SEP/EOL boundary.
     current_words: list[_WordFragment] = []
     word_in_progress: _WordFragment | None = None
@@ -343,7 +342,7 @@ def _scan_script_text(
             current_words.append(word_in_progress)
             word_in_progress = None
 
-    for tok in tokens:
+    for tok in lex_tokens:
         if tok.type is TokenType.EOL:
             _flush_word()
             if current_words:
@@ -491,7 +490,10 @@ def _scan_embedded_commands(
     known_procs: set[str],
     facts: _LocalFacts,
 ) -> None:
-    for tok2 in scan_command_substitutions(text):
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    for tok2 in lex_tokens:
+        if tok2.type is not TokenType.CMD:
+            continue
         _scan_script_text(
             tok2.text,
             caller_qname=caller_qname,
@@ -1444,7 +1446,7 @@ def _try_fold_return_value(
             return lv.value
         return None
 
-    # 3) Tokenise with TclLexer for interpolation and command substitution
+    # 3) Tokenise for interpolation and command substitution
     # Build env from ALL CONST values in the values dict (including seeded
     # version-0 params), not just exit_versions which may be empty.
     env: dict[str, int | float | bool | str] = {}
@@ -1459,8 +1461,8 @@ def _try_fold_return_value(
             env[name] = lv.value
 
     pieces: list[str] = []
-    tokens, _ = tokenise(ret, 0, 0, 0)
-    for tok in tokens:
+    lex_tokens, _ = tokenise(ret, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             if name not in env:

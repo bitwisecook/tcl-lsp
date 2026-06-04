@@ -206,10 +206,9 @@ def _leading_literal_prefix_char(value: str) -> str | None:
     """
     from shared.tcl_subst import backslash_subst as _bss
 
-    _it = iter(tokenise(value, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL:
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL:
             return None
         if tok.type is TokenType.ESC:
             rendered = _bss(tok.text) if "\\" in tok.text else tok.text
@@ -222,6 +221,7 @@ def _leading_literal_prefix_char(value: str) -> str | None:
             continue
         if tok.type in (TokenType.VAR, TokenType.CMD):
             return None
+    return None
 
 
 def _literal_contains_crlf(value: str) -> bool:
@@ -232,10 +232,9 @@ def _literal_contains_crlf(value: str) -> bool:
     """
     from shared.tcl_subst import backslash_subst as _bss
 
-    _it = iter(tokenise(value, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL:
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL:
             return False
         if tok.type is TokenType.ESC:
             rendered = _bss(tok.text) if "\\" in tok.text else tok.text
@@ -244,6 +243,7 @@ def _literal_contains_crlf(value: str) -> bool:
         elif tok.type is TokenType.STR:
             if "\r" in tok.text or "\n" in tok.text:
                 return True
+    return False
 
 
 def _evaluate_interpolated_word_taint(
@@ -256,10 +256,9 @@ def _evaluate_interpolated_word_taint(
 ) -> TaintLattice:
     """Evaluate taint for words that contain interpolation/concatenation."""
     result = _UNTAINTED
-    _it = iter(tokenise(value, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None or tok.type is TokenType.EOL:
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL:
             break
         if tok.type is TokenType.VAR:
             var_name = _normalise_var_name(tok.text)
@@ -315,11 +314,8 @@ def _word_uses_from_versions(
     versions: dict[str, int],
 ) -> dict[str, int]:
     uses: dict[str, int] = {}
-    _it = iter(tokenise(text, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is not TokenType.VAR:
             continue
         name = _normalise_var_name(tok.text)

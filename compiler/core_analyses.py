@@ -40,7 +40,6 @@ from typing import TYPE_CHECKING
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.green_tree import tokenise
-from compiler.parsing.token_scanning import single_command_substitution
 from compiler.registry.runtime import (
     FOLD_HINTS,
     FOLD_SUBCOMMAND_HINTS,
@@ -116,9 +115,8 @@ from .static_loops import (
 )
 from .tcl_constants import TCL_BOOL_LITERALS as _BOOL_LITERALS
 from .tcl_expr_eval import _split_tcl_list, eval_tcl_expr
-from .token_helpers import contains_braced_scalar_marker
 from .types import TclType, TypeLattice, type_join
-from .value_shapes import is_pure_var_ref
+from .value_shapes import is_braced_whole_name_array_ref, is_pure_var_ref
 from .var_refs import VarReferenceScanner, body_write_names, command_sub_write_names
 
 if TYPE_CHECKING:
@@ -142,7 +140,12 @@ def _parse_cmd_subst(value: str) -> tuple[str, str] | None:
     v = value.strip()
     if not (v.startswith("[") and v.endswith("]")):
         return None
-    if single_command_substitution(v) is None:
+    lex_tokens, _ = tokenise(v, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = next((t for t in lex_tokens[1:] if t.type not in (TokenType.EOL, TokenType.SEP)), None)
+    if nxt is not None:
         return None
     inner = v[1:-1]
     commands = segment_commands(inner)
@@ -165,7 +168,12 @@ def _parse_cmd_subst_command(value: str):
     v = value.strip()
     if not (v.startswith("[") and v.endswith("]")):
         return None
-    if single_command_substitution(v) is None:
+    lex_tokens, _ = tokenise(v, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
+    if tok is None or tok.type is not TokenType.CMD:
+        return None
+    nxt = next((t for t in lex_tokens[1:] if t.type not in (TokenType.EOL, TokenType.SEP)), None)
+    if nxt is not None:
         return None
     inner = v[1:-1]
     commands = segment_commands(inner)
@@ -524,14 +532,14 @@ def _fold_interpolation(
 ) -> LatticeValue:
     """Constant-fold a Tcl word containing variable substitutions.
 
-    Tokenises *value* with ``TclLexer``.  If every ``$var`` resolves to a
+    Tokenises *value* with ``tokenise``.  If every ``$var`` resolves to a
     known constant and there are no command substitutions, the pieces are
     concatenated and returned as a **string** constant — matching the Tcl
     runtime representation after interpolation.
     """
     pieces: list[str] = []
-    tokens, _ = tokenise(value, 0, 0, 0)
-    for tok in tokens:
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             ver = uses.get(name, 0)
@@ -576,8 +584,8 @@ def _fold_interpolation_set(
     """
     # Each element is either a literal string or a set of possible values.
     segments: list[list[str]] = []
-    tokens, _ = tokenise(value, 0, 0, 0)
-    for tok in tokens:
+    lex_tokens, _ = tokenise(value, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             ver = uses.get(name, 0)
@@ -818,12 +826,13 @@ def _evaluate_def(
             return _substitute_expr_with_lattice(expr, ssa_stmt.uses, values)
 
         case IRAssignValue(value=value):
-            # A ``$={name}`` marker is a braced-scalar *variable reference*
-            # (the SSA use-collector doesn't decode it, so it never reaches
-            # ``ssa_stmt.uses``).  It must not be mistaken for a literal whose
-            # text happens to be ``$={...}`` — resolving the scalar isn't
-            # tracked, so it's conservatively overdefined, matching ``${ns::y}``.
-            if contains_braced_scalar_marker(value):
+            # A braced array-shaped ref ``${a(1)}`` is a *variable
+            # reference* — tclsh loads the whole name ``a(1)`` (the
+            # runtime resolves the array element) — not a literal whose
+            # text happens to be ``${a(1)}``.  The SSA use-collector
+            # doesn't decode it, so it never reaches ``ssa_stmt.uses``;
+            # treat it as conservatively overdefined, matching ``${ns::y}``.
+            if is_braced_whole_name_array_ref(value.strip()):
                 return OVERDEFINED
             if not ssa_stmt.uses:
                 # Only treat as constant if the value doesn't contain
@@ -1123,7 +1132,7 @@ def _word_mutation_free(text: str) -> bool:
     if "[" not in text:
         return True
     try:
-        tokens, _ = tokenise(text, 0, 0, 0)
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return False
     for tok in tokens:
@@ -2444,7 +2453,7 @@ def _collect_existence_in_word(text: str, out: set[str]) -> None:
     if "[" not in text:
         return
     try:
-        tokens, _ = tokenise(text, 0, 0, 0)
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return
     for tok in tokens:
@@ -2589,7 +2598,7 @@ def _split_command_args(args_text: str) -> list[str]:
     words: list[str] = []
     prev_sep = True
     try:
-        tokens, _ = tokenise(args_text, 0, 0, 0)
+        tokens = tokenise(args_text, 0, 0, 0)[0]
     except Exception:
         return []
     for tok in tokens:

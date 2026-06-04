@@ -1259,11 +1259,8 @@ def _scan_profile_directive(source: str) -> tuple[frozenset[str], Token] | None:
     than regex over raw source.  Returns ``(profiles, comment_token)`` or
     ``None`` if no directive is found in the leading comments.
     """
-    _it = iter(tokenise(source, 0, 0, 0)[0])
-    while True:
-        tok = next(_it, None)
-        if tok is None:
-            break
+    tokens, _ = tokenise(source, 0, 0, 0)
+    for tok in tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL):
             continue
         if tok.type is not TokenType.COMMENT:

@@ -34,12 +34,12 @@ from compiler.parsing.command_segmenter import (
     find_first_dirty_chunk,
     segment_top_level_chunks,
 )
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.incremental import (
     EditRange,
     incremental_top_level_chunks,
     infer_edit_range,
 )
-from compiler.parsing.lexer import TclLexer
 from compiler.registry.dialect import detect_dialect_from_source, dialect_scope
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect
@@ -824,7 +824,7 @@ class DocumentState:
             snap = self._snap
             if snap._tokens is None:
                 with self._signature_profile():
-                    tokens = TclLexer(snap.source).tokenise_all()
+                    tokens = list(tokenise(snap.source, 0, 0, 0)[0])
                 self._snap = replace(snap, _tokens=tokens)
                 return tokens
             return snap._tokens

@@ -226,19 +226,18 @@ def _last_literal_set_value_for_var(
 
     for cmd in reversed(segment_commands(source[:before_offset])):
         # Cross-scope guard: if we encounter a proc whose body *contains*
-        # the use offset AND whose params include var_name, the
-        # parameter shadows any outer scope -- stop searching.
-        # The proc body contains the use offset iff the proc command's
-        # full range is INCOMPLETE in the truncated source[:before_offset]
-        # view (i.e. the proc's closing brace is past the use, so the
-        # segmenter saw a partial command).  When the proc command's
-        # end offset is <= before_offset, the entire proc body has been
-        # truncated-and-shown; the use comes AFTER the proc and the
-        # parameter does NOT shadow.  (PR #498 deep-review follow-up
-        # finding 7: top-level ``$path`` after ``proc p {path}`` must
-        # use the top-level ``set path -force`` evidence.)
-        body_offset_end = cmd.range.end.offset
-        use_inside_proc = body_offset_end >= before_offset
+        # the use offset AND whose params include var_name, the parameter
+        # shadows any outer scope -- stop searching.  The use is inside the proc
+        # body iff that proc is the command left *unclosed* by the truncation at
+        # before_offset: its faithful end is then the last truncated byte
+        # (before_offset - 1), so ``end + 1 >= before_offset``.  A *complete*
+        # proc before the use (top-level ``$path`` after ``proc p {path} {...}``)
+        # ends well before that, so it does not shadow (PR #498 follow-up
+        # finding 7).
+        # TODO(range-tree): the proper form is a tree-ancestry query on the
+        # lowered module ("is the use node inside this proc's body node?"), not a
+        # re-segmentation of truncated source -- Phase 3 of the faithful-range plan.
+        use_inside_proc = cmd.range.end.offset + 1 >= before_offset
         if use_inside_proc and cmd.texts and cmd.texts[0] == "proc" and len(cmd.texts) >= 4:
             # cmd.texts[2] is the param-list literal -- the segmenter
             # has already brace-stripped braced words so this is the
@@ -521,14 +520,16 @@ def _find_regex_patterns_in_command(
                 base_off = case_tok.start.offset + 1
                 base_line = case_tok.start.line
                 base_col = case_tok.start.character + 1
-                _it = iter(tokenise(args[i], base_off, base_line, base_col)[0])
+                lex_tokens, _ = tokenise(
+                    args[i],
+                    base_off,
+                    base_line,
+                    base_col,
+                )
                 elements: list[str] = []
                 element_tokens: list[Token] = []
                 prev = TokenType.EOL
-                while True:
-                    tok = next(_it, None)
-                    if tok is None:
-                        break
+                for tok in lex_tokens:
                     if tok.type in (TokenType.SEP, TokenType.EOL):
                         prev = tok.type
                         continue

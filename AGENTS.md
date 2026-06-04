@@ -789,7 +789,35 @@ position type. Use it instead of constructing `SourceMap` or calling
   `position_from_relative()` when a `line_starts` array is available
   (O(log n) instead of O(text_len)).
 
-See `docs/design/contracts/shared-utility-contracts.md` for the full contract.
+### Word-token closing delimiters
+
+A braced/bracketed/quoted word token follows the *inner-end* convention:
+`Token.end.offset` is the last **inner** character and the closing `}` / `]` /
+`"` is one past it — **except** an empty `{}` / `[]` / `""`, whose `end` already
+sits *on* the closer. Never re-derive the closer as `tok.end.offset + 1` (it
+overshoots the empty case by one — issue #527).
+
+- **Command/word ranges come from the concrete syntax tree the segmenter
+  builds.** The authoritative command span is `SegmentedCommand.range` / the IR
+  statement `.range`: its end is the *boundary* (the `SEP`/`EOL` the lexer emits
+  after the last word) minus one — covering the closer for braces, brackets,
+  quoted, empty `{}`/`""`, and compound (`{a}b`) words, with no source re-scan and
+  no `base_offset`. **Trust it** rather than re-deriving a command's span. The
+  segmenter now derives this from the canonical red-green CST in
+  `compiler/parsing/syntax/` (`docs/design/compiler/syntax-tree.md`) — the
+  lossless, position-independent tree the formatter, minifier, AOT lowering, and
+  per-command tooling are migrating onto; build it with `build_document` and read
+  positions through the red `SyntaxTree` overlay.
+- To *slice raw source text* for a single delimited word (raw-arg extraction in
+  refactors/quick-fixes), use `word_closer_offset(tok, source)` (offset) or
+  `word_end_position(tok, source)` (position) in `shared/ranges.py` — they
+  handle the empty-word exception and quoted words via `tok.text` emptiness.
+- `range_from_word_token(tok)` — token-only full-word `Range` for `STR`/`CMD`
+  words, for a caller with no source; quoted words need the source-aware
+  accessors above.
+
+See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
+for the contract, and `docs/design/contracts/shared-utility-contracts.md`.
 
 ## Command registry
 
