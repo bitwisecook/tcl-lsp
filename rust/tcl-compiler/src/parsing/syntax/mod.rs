@@ -13,7 +13,8 @@
 //!   offsets / lines / columns.
 //! - [`build`] — re-shapes the existing lexer stream into the tree (no
 //!   second parser) via start-to-start tiling.
-//! - `segment` (strip 5) — derives `SegmentedCommand` from the tree.
+//! - [`segment`] — derives `SegmentedCommand` from the tree,
+//!   byte-identically to the token-loop segmenter.
 //! - `descend` (strip 6) — lazy descent into braced bodies / `[…]` subs.
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
@@ -21,3 +22,4 @@
 pub mod build;
 pub mod green;
 pub mod red;
+pub mod segment;

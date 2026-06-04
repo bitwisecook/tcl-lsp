@@ -6,7 +6,7 @@
 //!
 //! Ports `core/parsing/command_segmenter.py`.
 
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
 /// A single Tcl command parsed from the token stream.
 #[derive(Debug, Clone)]
@@ -146,7 +146,7 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
 /// `range_from_word_token`); whether the closer is *already covered* by the
 /// span is derived from the token *text*, not a source byte — see
 /// [`widen_word_end`].
-fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
+pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
     if tokens.is_empty() {
         return Span::new(0, 0);
     }
@@ -405,207 +405,21 @@ where
     None
 }
 
-/// Mutable accumulator state for the per-token segmenter loop.
-///
-/// Bundles the in-flight word/argv/expand/comment state plus the
-/// output `commands` vector so [`SegmenterState::flush_eol_or_eof`]
-/// can read and mutate them through a single `&mut self`.
-struct SegmenterState {
-    /// Output: completed commands so far.
-    commands: Vec<SegmentedCommand>,
-    /// In-flight argv tokens for the current command.
-    argv: Vec<Token>,
-    /// Per-argv-token rendered text (one entry per argv).
-    texts: Vec<String>,
-    /// Per-argv-token "single physical token" flag.
-    single: Vec<bool>,
-    /// Per-argv-token `{*}`-expansion flag.
-    expand: Vec<bool>,
-    /// All physical tokens that compose the in-flight command, in
-    /// source order — kept verbatim so downstream consumers can
-    /// see e.g. the `{*}` token even though it isn't an argv slot.
-    all_tokens: Vec<Token>,
-    /// Whether any `{*}` expansion appeared in the in-flight command.
-    has_expand: bool,
-    /// Buffered `#` comment block preceding the next command.
-    last_comment: Option<String>,
-}
-
-impl SegmenterState {
-    fn new() -> Self {
-        Self {
-            commands: Vec::new(),
-            argv: Vec::new(),
-            texts: Vec::new(),
-            single: Vec::new(),
-            expand: Vec::new(),
-            all_tokens: Vec::new(),
-            has_expand: false,
-            last_comment: None,
-        }
-    }
-
-    /// Flush the in-flight command on `Eol` / `Eof`, or — when no
-    /// command is in flight — clear the accumulated
-    /// preceding-comment state when the EOL spans a blank line.
-    /// Mirrors the Python ``command_segmenter`` blank-line and
-    /// EOL-flush behaviour and the corresponding doc-comment
-    /// detachment heuristic for class definitions.
-    fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
-        if !self.argv.is_empty() {
-            self.commands.push(SegmentedCommand {
-                span: command_span(&self.all_tokens, sm),
-                argv: std::mem::take(&mut self.argv),
-                texts: std::mem::take(&mut self.texts),
-                single_token_word: std::mem::take(&mut self.single),
-                all_tokens: std::mem::take(&mut self.all_tokens),
-                is_partial: false,
-                expand_word: if self.has_expand {
-                    Some(std::mem::take(&mut self.expand))
-                } else {
-                    self.expand.clear();
-                    None
-                },
-                preceding_comment: self.last_comment.take(),
-            });
-        } else if matches!(tok.kind, TokenType::Eol) {
-            // Blank-line EOL: clear any accumulated preceding-comment
-            // state so a comment block separated from its following
-            // declaration by a blank line doesn't get attached to
-            // that declaration.  Mirrors Python's
-            // ``command_segmenter.py`` lines 257-261 — an EOL token
-            // whose text contains more than one ``\n`` is the lexer's
-            // encoding of a run-of-empty-lines.
-            let eol_text = sm.token_text(tok);
-            if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
-                self.last_comment = None;
-            }
-        }
-        self.has_expand = false;
-    }
-}
-
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
-    // word_piece only needs token_text (source indexing), no base offset.
+    // The segmenter now derives its `SegmentedCommand`s from the canonical
+    // red-green CST (`parsing::syntax`) rather than its own token loop —
+    // the 150-line `SegmenterState` accumulator and `flush_eol_or_eof` are
+    // gone (CST-PORT strip 5, SYNC-JUN06).  `build_document` reshapes the
+    // dialect-configured lexer stream into a green tree (no second parser),
+    // and `segments_from_document` derives the public `SegmentedCommand`
+    // shape from it.  Verified byte-identical to the former loop, field for
+    // field, over the edge-case table + the full Tcl 8.4/8.5/8.6/9.0 corpus
+    // (`tests/differential_segment.rs`).  The derivation runs in
+    // local-offset space; relocation stays the caller's job via
+    // `SegmentedCommand::shifted_by`.
     let sm = SourceMap::new(source);
-    // Honour the caller's dialect flags but force local-offset space —
-    // relocation is the caller's job, so a stray `base_offset` on the
-    // config must not double-count.
-    let config = LexerConfig {
-        base_offset: 0,
-        base_line: 0,
-        base_col: 0,
-        ..config
-    };
-    let lexer_sm = SourceMap::new(source);
-    let lexer = Lexer::with_source_map(lexer_sm, config);
-    let Ok(tokens) = lexer.tokenise_all() else {
-        return Vec::new();
-    };
-
-    let mut state = SegmenterState::new();
-    let mut prev_type = TokenType::Eol;
-    let mut next_expand = false;
-
-    for &tok in &tokens {
-        match tok.kind {
-            TokenType::Comment => {
-                let raw = sm.token_text(tok);
-                let line = raw.trim_start_matches('#').trim().to_string();
-                state.last_comment = Some(match state.last_comment.take() {
-                    Some(prev) => format!("{prev}\n{line}"),
-                    None => line,
-                });
-                continue;
-            }
-
-            TokenType::Sep => {
-                prev_type = tok.kind;
-                continue;
-            }
-
-            // Backslash-newline continuation between words is whitespace.
-            TokenType::Esc if sm.token_text(tok) == "\\\n" => {
-                prev_type = TokenType::Sep;
-                continue;
-            }
-
-            TokenType::Expand => {
-                state.all_tokens.push(tok);
-                next_expand = true;
-                state.has_expand = true;
-                prev_type = TokenType::Sep;
-                continue;
-            }
-
-            TokenType::Eol | TokenType::Eof => {
-                state.flush_eol_or_eof(tok, &sm);
-                next_expand = false;
-                prev_type = tok.kind;
-                continue;
-            }
-
-            _ => {}
-        }
-
-        state.all_tokens.push(tok);
-        let piece = word_piece(&sm, tok);
-
-        if prev_type == TokenType::Sep || prev_type == TokenType::Eol {
-            state.argv.push(tok);
-            state.texts.push(piece);
-            state.single.push(true);
-            state.expand.push(next_expand);
-            next_expand = false;
-        } else if let Some(last_text) = state.texts.last_mut() {
-            last_text.push_str(&piece);
-            if let Some(s) = state.single.last_mut() {
-                *s = false;
-            }
-            // Widen argv[-1] to cover the full Tcl word, matching
-            // Python's command_segmenter so multi-token words like
-            // ``$var/literal.tcl`` carry one argv token whose span
-            // ends at the last sub-token.
-            if let Some(prev) = state.argv.last_mut() {
-                prev.span = Span::new(prev.span.start(), tok.span.end());
-            }
-        } else {
-            state.argv.push(tok);
-            state.texts.push(piece);
-            state.single.push(true);
-            state.expand.push(next_expand);
-            next_expand = false;
-        }
-
-        prev_type = tok.kind;
-    }
-
-    // Trailing command without final EOL.
-    if state.argv.is_empty() {
-        state.commands
-    } else {
-        let SegmenterState {
-            mut commands,
-            argv,
-            texts,
-            single,
-            expand,
-            all_tokens,
-            has_expand,
-            mut last_comment,
-        } = state;
-        commands.push(SegmentedCommand {
-            span: command_span(&all_tokens, &sm),
-            argv,
-            texts,
-            single_token_word: single,
-            all_tokens,
-            is_partial: false,
-            expand_word: if has_expand { Some(expand) } else { None },
-            preceding_comment: last_comment.take(),
-        });
-        commands
-    }
+    let (document, _warnings) = crate::parsing::syntax::build::build_document(source, config);
+    crate::parsing::syntax::segment::segments_from_document(document, &sm)
 }
 
 #[cfg(test)]
