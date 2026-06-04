@@ -846,9 +846,13 @@ fn record_command_invocations(
     config: LexerConfig,
     out: &mut Vec<(String, Span)>,
 ) {
-    // Head (main's argv_texts[0], word_piece form).
+    // Head — main records ``argv_texts[0]`` (the `word_piece` form in
+    // `texts[0]`) for *every* command, whatever the head's kind: a bare
+    // word, a `$var` (`${var}`), a `"quote"` (unquoted), a compound head,
+    // a `[subst]` head (`[gen]` — recorded *and* descended below), or a
+    // `{braced}` head (its inner text).
     if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first()) {
-        if !matches!(head.kind, TokenType::Cmd | TokenType::Str) && !name.is_empty() {
+        if !name.is_empty() {
             out.push((name.clone(), head.span));
         }
     }

@@ -2594,6 +2594,11 @@ mod tests {
                 "set x [while {[cond]} {act}]\n",
                 &["set", "while", "cond", "act"],
             ),
+            // CST-CONSUMERS strip 8: main records argv_texts[0] for every
+            // command, incl. a `[subst]` head (recorded *and* descended)
+            // and a `{braced}` head (its inner text).
+            ("set x [[gen] arg]\n", &["set", "[gen]", "gen"]),
+            ("puts [[a] [b]]\n", &["puts", "[a]", "a", "b"]),
         ];
         for (src, expected) in cases {
             let mut a = Analyser::new();
