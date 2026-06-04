@@ -50,7 +50,9 @@ from compiler.ir import (
     IRWhile,
 )
 from compiler.lowering import lower_to_ir
-from compiler.parsing.lexer import TclLexer, is_simple_scalar_var_word
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import is_simple_scalar_var_word
+from compiler.parsing.token_scanning import scan_command_substitutions
 from compiler.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
@@ -330,7 +332,7 @@ def _scan_script_text(
     """
     if not text:
         return
-    lexer = TclLexer(text)
+    tokens, _ = tokenise(text, 0, 0, 0)
     # Words accumulate token fragments until a SEP/EOL boundary.
     current_words: list[_WordFragment] = []
     word_in_progress: _WordFragment | None = None
@@ -341,10 +343,7 @@ def _scan_script_text(
             current_words.append(word_in_progress)
             word_in_progress = None
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in tokens:
         if tok.type is TokenType.EOL:
             _flush_word()
             if current_words:
@@ -492,13 +491,7 @@ def _scan_embedded_commands(
     known_procs: set[str],
     facts: _LocalFacts,
 ) -> None:
-    lexer2 = TclLexer(text)
-    while True:
-        tok2 = lexer2.get_token()
-        if tok2 is None:
-            break
-        if tok2.type is not TokenType.CMD:
-            continue
+    for tok2 in scan_command_substitutions(text):
         _scan_script_text(
             tok2.text,
             caller_qname=caller_qname,
@@ -1466,11 +1459,8 @@ def _try_fold_return_value(
             env[name] = lv.value
 
     pieces: list[str] = []
-    lexer = TclLexer(ret)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    tokens, _ = tokenise(ret, 0, 0, 0)
+    for tok in tokens:
         if tok.type is TokenType.VAR:
             name = _normalise_var_name(tok.text)
             if name not in env:

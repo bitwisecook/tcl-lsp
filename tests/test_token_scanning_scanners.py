@@ -54,7 +54,8 @@ def test_scan_command_substitutions_absolute_offsets():
 
 
 def test_single_command_substitution():
-    assert ts.single_command_substitution("[set x]").text == "set x"
+    tok = ts.single_command_substitution("[set x]")
+    assert tok is not None and tok.text == "set x"
     assert ts.single_command_substitution("  [set x]  ") is None  # leading literal
     assert ts.single_command_substitution("[a][b]") is None  # two subs
     assert ts.single_command_substitution("{[set x]}") is None  # braced literal, STR not CMD
