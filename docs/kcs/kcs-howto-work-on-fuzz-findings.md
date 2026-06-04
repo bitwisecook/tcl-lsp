@@ -91,7 +91,7 @@ surfaces at VM runtime, because the user gets immediate editor feedback.
 1. **Lowering / IR** (`compiler/lowering.py`) — reject malformed
    structures by emitting an `IRBarrier` so the bytecode compiler never
    sees them. This also enables a diagnostic (see step 4b).
-2. **Compiler checks / diagnostics** (`compiler/compiler_checks.py`) —
+2. **Compiler checks / diagnostics** (`analyser/compiler_checks.py`) —
    emit an `E0xx` diagnostic for the `IRBarrier` so the LSP shows an
    error squiggle in the editor *before* the user runs the code.
 3. **Interpreter command handler** (`tooling/vm/commands/`) — add runtime
@@ -118,7 +118,7 @@ Key files:
 - `tooling/vm/commands/math_cmds.py` — `incr` command
 - `tooling/vm/commands/string_cmds.py` — `string` subcommands
 - `compiler/lowering.py` — IR lowering (structural validation)
-- `compiler/compiler_checks.py` — IR-based diagnostics
+- `analyser/compiler_checks.py` — IR-based diagnostics
 
 Common fix patterns:
 

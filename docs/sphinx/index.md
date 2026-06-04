@@ -1,6 +1,6 @@
-# f5q — Python API for the `f5 query` engine
+# dialects.f5.query — Python API for the `f5 query` engine
 
-**f5q** is the importable Python surface of the same jq-flavoured
+**dialects.f5.query** is the importable Python surface of the same jq-flavoured
 BIG-IP query engine that powers the `f5 query` (alias `f5 q`) CLI.
 External scripts can run queries, build them up progressively,
 render results through plugins or inline callables, and ship
@@ -9,17 +9,17 @@ via one-line decorators auto-loaded from
 `$XDG_CONFIG_HOME/dialects/f5/query/plugins/`.
 
 ```python
-import f5q
+from dialects.f5.query import q
 
 # One-liner — first non-file string is the expression, everything
 # else is an input.
-for name in f5q.q(".ltm.virtual[] | .name", "bigip.conf"):
+for name in q(".ltm.virtual[] | .name", "bigip.conf"):
     print(name)
 
 # Progressive — chain queries.  The prior values become the new
 # primary input; the typed wrapper stays immutable.
 filtered = (
-    f5q.q(".ltm.virtual[]", "bigip.conf")
+    q(".ltm.virtual[]", "bigip.conf")
     .q('.[] | select(.pool != null)')
     .q('.[] | .name')
 )
@@ -34,9 +34,9 @@ data = filtered.out()
 
 ## What's on this site
 
-This site is the **API reference** for `f5q` — autodoc-generated
+This site is the **API reference** for `dialects.f5.query` — autodoc-generated
 from the docstrings on every public symbol, so it can't drift from
-what `import f5q` actually exposes.
+what `import dialects.f5.query` actually exposes.
 
 For **narrative material** (tutorials, the DSL grammar reference,
 worked recipes, plugin packaging walkthroughs) follow the
@@ -72,16 +72,16 @@ The CLI (`f5 q`) ships as a standalone zipapp — see
 
 | Topic | Entry point |
 |---|---|
-| Run a query in one call | {py:func}`f5q.q` |
-| Pre-stage source files | {py:func}`f5q.load` |
-| Chain queries progressively | {py:meth}`f5q.QueryRun.q` |
-| Get typed values back | {py:meth}`f5q.QueryRun.values`, {py:meth}`f5q.QueryRun.objects` |
-| Coerce to plain Python | {py:meth}`f5q.QueryRun.out` |
-| Render with a plugin or callable | {py:meth}`f5q.QueryRun.render` |
-| Ship a custom renderer | {py:func}`f5q.renderer` |
-| Ship a custom DSL function | {py:func}`f5q.builtin` |
-| Ship a custom input format | {py:func}`f5q.input_format` |
-| XDG auto-load directory | {py:func}`f5q.xdg_plugin_dir`, {py:func}`f5q.load_user_plugins` |
+| Run a query in one call | {py:func}`dialects.f5.query.q` |
+| Pre-stage source files | {py:func}`dialects.f5.query.load` |
+| Chain queries progressively | {py:meth}`dialects.f5.query.QueryRun.q` |
+| Get typed values back | {py:meth}`dialects.f5.query.QueryRun.values`, {py:meth}`dialects.f5.query.QueryRun.objects` |
+| Coerce to plain Python | {py:meth}`dialects.f5.query.QueryRun.out` |
+| Render with a plugin or callable | {py:meth}`dialects.f5.query.QueryRun.render` |
+| Ship a custom renderer | {py:func}`dialects.f5.query.renderer` |
+| Ship a custom DSL function | {py:func}`dialects.f5.query.builtin` |
+| Ship a custom input format | {py:func}`dialects.f5.query.input_format` |
+| XDG auto-load directory | {py:func}`dialects.f5.query.xdg_plugin_dir`, {py:func}`dialects.f5.query.load_user_plugins` |
 
 ## External documentation
 

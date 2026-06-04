@@ -63,7 +63,7 @@ After install, restart the IDE.
 
 ```bash
 # Build the plugin
-make jetbrains
+make build-editor-jetbrains
 
 # The .zip is at build/tcl-lsp-jetbrains-VERSION.zip
 ```
@@ -78,7 +78,7 @@ make jetbrains
 - **Feature toggles**: Enable/disable individual LSP features
 - **Formatting**: 20+ style settings (indent, braces, line length, etc.)
 - **Diagnostics**: Toggle individual diagnostic codes (E001–W309)
-- **Optimiser**: Toggle optimisation suggestions (O100–O125)
+- **Optimiser**: Toggle optimisation suggestions (O100–O130)
 
 ## Development
 
@@ -95,7 +95,7 @@ cd editors/jetbrains
 ./gradlew buildPlugin
 
 # Or via the top-level Makefile
-make jetbrains
+make build-editor-jetbrains
 ```
 
 ## Configuration File
@@ -117,5 +117,5 @@ IDE settings (Settings → Tools → Tcl Language Server) override the config
 file — so you can set shared defaults in the config file and per-project
 overrides in the IDE.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

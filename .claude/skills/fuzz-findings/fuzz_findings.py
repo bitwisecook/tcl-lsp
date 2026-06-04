@@ -10,7 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-FINDINGS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "fuzzing" / "findings"
+FINDINGS_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "tooling" / "fuzzing" / "findings"
+)
 
 
 def _load_findings() -> list[dict]:

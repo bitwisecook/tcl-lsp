@@ -28,6 +28,6 @@ Ensure editor-facing consumers read from shared `CompilationUnit` facts instead 
 
 - `tooling/explorer/pipeline.py`
 - `analyser/semantic_graph.py`
-- `server/compiler/compilation_unit.py`
+- `compiler/compilation_unit.py`
 - `tests/test_semantic_graph.py`
 - `tests/test_compiler_explorer_pipeline.py`

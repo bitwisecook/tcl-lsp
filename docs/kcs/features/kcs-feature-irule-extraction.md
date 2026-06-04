@@ -38,7 +38,8 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 
 ## Test anchors
 
-- `tests/test_bigip_extraction.py`
+- `tests/test_bigip_link_extract.py`
+- `tests/test_bigip_rule_extract.py`
 
 ## Example
 

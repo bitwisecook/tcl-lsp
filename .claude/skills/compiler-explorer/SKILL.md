@@ -15,7 +15,7 @@ allowed-tools: Bash, Read
 
 Inspect every stage of the Tcl compiler for a snippet of source, **running from
 the working tree** (`python -m tooling.explorer`) so what you see is the live
-code, not a stale `.pyz`. Built on the `tcl-explorer` CLI (22 views) plus two
+code, not a stale `.pyz`. Built on the `tcl-explorer` CLI (24 views) plus two
 local views — `slices` and `tokens` — that the raw CLI does not provide and that
 catch range / offset bugs at a glance.
 

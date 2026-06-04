@@ -14,7 +14,7 @@ layers:
    wired in by importing them from `tooling/f5/verbs/__init__.py:load_verbs()`.
 
 2. **Core analysis** (`dialects/f5/bigip/`) — a parser
-   (`dialects/f5/bigip/parser.py`), a typed object model (`dialects/f5/bigip/model.py`),
+   (`dialects/f5/bigip/parser/`), a typed object model (`dialects/f5/bigip/model/`),
    a reference graph (`dialects/f5/bigip/link_extract.py`), a lint registry
    (`dialects/f5/bigip/lint/`), emitters (`dialects/f5/bigip/emit.py`,
    `dialects/f5/bigip/tmsh_emit.py`, `dialects/f5/bigip/convert/as3.py`,
@@ -164,28 +164,28 @@ content survive the round-trip verbatim.
 ## File layout
 
 ```
-tooling/explorer/
-├── f5_cli.py                     ← argparse entrypoint, brief help
+tooling/f5/
+├── main.py                       ← argparse entrypoint, brief help
 ├── f5_remote/                    ← network/auth (stdlib-only)
 │   ├── auth.py                     credential resolution + XDG
 │   ├── rest.py                     iControl REST client
 │   ├── ssh.py                      ssh/scp wrapper
 │   ├── ucs.py                      UCS archive handling
 │   └── object_io.py                single-object pull/push
-└── verbs/f5/
+└── verbs/
     ├── _registry.py              ← @verb decorator + brief help
     ├── _paths.py                 ← shared file-input helpers
     ├── cleanup.py grep.py …      ← one module per verb
     └── irule.py                  ← sub-parser group
 
 dialects/f5/bigip/
-├── parser.py                     ← SCF tokeniser + block extractor
-├── model.py                      ← BigipConfig dataclass family
+├── parser/                       ← SCF tokeniser + block extractor
+├── model/                        ← BigipConfig dataclass family
 ├── link_extract.py               ← reference graph
 ├── cleanup.py grep.py            ← graph-based analyses
 ├── stats.py diff.py explain.py   ← analysis verbs' core
 ├── graph_export.py               ← DOT / JSON / Mermaid serialisation
-├── lint/__init__.py              ← rule registry + 7 built-in rules
+├── lint/__init__.py              ← rule registry + 8 built-in rules
 ├── emit.py                       ← block slicer for split/merge
 ├── rewrite.py                    ← rename + redact pipeline
 ├── redact_map.py                 ← stable IP map + sidecar TOML

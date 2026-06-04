@@ -37,23 +37,23 @@ running stub example elsewhere — as a concrete target.
 
 ### 1. Decide the home
 
-Pick the directory under `compiler/registry/` that matches the
+Pick the directory under `dialects/` that matches the
 package's distribution shape:
 
 | Distribution shape | Folder | Loader |
 |---|---|---|
-| Bundled with Tcl core | `tcl/` | always available |
-| Standard library package (Tk, http, msgcat, …) | `stdlib/` | gated by `package require` |
-| tcllib package | `tcllib/` | gated by `package require` |
-| Dialect-specific (iRules, iApps, EDA vendors, Expect) | `irules/`, `iapps/`, `eda_*.py`, `expect/` | loaded on dialect activation |
-| Standalone C extension (sqlite3, tdom, …) | `stdlib/` (alongside Tk and friends) | gated by `package require` |
+| Bundled with Tcl core | `dialects/tcl/` | always available |
+| Standard library package (Tk, http, msgcat, …) | `dialects/stdlib/` | gated by `package require` |
+| tcllib package | `dialects/tcllib/` | gated by `package require` |
+| Dialect-specific (iRules, iApps, EDA vendors, Expect) | `dialects/f5/irules/`, `dialects/f5/iapps/`, `dialects/eda/`, `dialects/expect/` | loaded on dialect activation |
+| Standalone C extension (sqlite3, tdom, …) | `dialects/stdlib/` (alongside Tk and friends) | gated by `package require` |
 
 `sqlite3` is a standalone C extension that needs `package require
-sqlite3`, so it belongs under `stdlib/`.
+sqlite3`, so it belongs under `dialects/stdlib/`.
 
 ### 2. Create the package module
 
-Add `compiler/registry/stdlib/sqlite3_.py` (the trailing
+Add `dialects/stdlib/sqlite3_.py` (the trailing
 underscore matches the convention used for module names that would
 otherwise clash with the standard library or built-ins):
 
@@ -62,13 +62,8 @@ otherwise clash with the standard library or built-ins):
 
 from __future__ import annotations
 
-from ....compiler.side_effects import (
-    ConnectionSide,
-    SideEffect,
-    SideEffectTarget,
-)
-from .._base import CommandDef
-from ..models import (
+from compiler.registry._base import CommandDef
+from compiler.registry.models import (
     CommandSpec,
     FormKind,
     FormSpec,
@@ -76,7 +71,12 @@ from ..models import (
     SubCommand,
     ValidationSpec,
 )
-from ..signatures import ArgRole, Arity
+from compiler.registry.signatures import ArgRole, Arity
+from compiler.side_effects import (
+    ConnectionSide,
+    SideEffect,
+    SideEffectTarget,
+)
 from ._base import register
 
 _SOURCE = "sqlite3 Tcl bindings"
@@ -123,7 +123,7 @@ the *instance command*, which is created dynamically. See section 4.
 
 ### 3. Wire it into the loader
 
-Add the module to `compiler/registry/stdlib/__init__.py`:
+Add the module to `dialects/stdlib/__init__.py`:
 
 ```python
 from . import sqlite3_  # noqa: F401

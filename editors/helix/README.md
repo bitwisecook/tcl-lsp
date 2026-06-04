@@ -27,7 +27,7 @@ on their PATH — no per-user `languages.toml` edit is required.
 ```toml
 [language-server.tcl-lsp]
 command = "uv"
-args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "lsp"]
+args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
 
 # Or with the standalone zipapp:
 # command = "python3"
@@ -78,5 +78,5 @@ Settings from the config file are applied as baseline defaults.  Helix
 can set shared defaults in the config file and per-project overrides in
 Helix.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

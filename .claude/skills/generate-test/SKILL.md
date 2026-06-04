@@ -12,7 +12,7 @@ allowed-tools: Bash, Read, Write, Glob, Grep
 # Generate iRule Test
 
 Generates a complete test script for an iRule using the Event Orchestrator
-test framework (`core/irule_test/tcl/orchestrator.tcl`).
+test framework (`tooling/irule_test/tcl/orchestrator.tcl`).
 
 ## Usage
 
@@ -98,8 +98,8 @@ foreach tmm_id [::orch::tmm_ids] {
 
 ## Reference
 
-- Framework source: `core/irule_test/tcl/orchestrator.tcl`
-- Example tests: `core/irule_test/tcl/example_test.tcl`, `example_multi_tmm_test.tcl`
+- Framework source: `tooling/irule_test/tcl/orchestrator.tcl`
+- Example tests: `tooling/irule_test/tcl/example_test.tcl`, `example_multi_tmm_test.tcl`
 - KCS documentation: `docs/kcs/kcs-irule-test-framework.md`
 - MCP tools: `generate_irule_test`, `irule_cfg_paths`, `fakecmp_which_tmm`, `fakecmp_suggest_sources`
 - CLI: `python3 -m ai.claude.tcl_ai cfg-paths <irule_file>` — extract control flow paths

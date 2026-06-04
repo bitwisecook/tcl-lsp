@@ -82,8 +82,8 @@ validation.
 - `dialects/f5/bigip/apl_model.py` — structured APL model, #include resolution
 - `dialects/f5/bigip/iapp_vars.py` — iApp variable reference extraction
 - `dialects/f5/bigip/iapp_diagnostics.py` — cross-file diagnostic validation
-- `compiler/registry/iapps/tmsh__commands.py` — tmsh:: command registry
-- `server/features/semantic_tokens.py` — `_collect_apl_tokens()`, embedded Tcl
+- `dialects/f5/iapps/` — tmsh:: command registry (individual tmsh__*.py modules)
+- `server/features/_semantic_tokens/` — `_collect_apl_tokens()`, embedded Tcl
 - `server/server.py` — `_is_apl_source()`, `_publish_apl_diagnostics()`
 - `server/workspace/scanner.py` — APL model caching, sibling file discovery
 - `editors/vscode/package.json` — `tcl-apl` language registration and colours

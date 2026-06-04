@@ -138,6 +138,16 @@ diag(
     "Possible paste error — repeated assignment to same variable with same value.",
     section="hint",
 )
+diag(
+    "I230",
+    "Constant branch condition — the alternate branch is provably unreachable.",
+    section="hint",
+)
+diag(
+    "I231",
+    "Constant switch arm condition — the arm is provably unreachable.",
+    section="hint",
+)
 diag("W113", "Procedure shadows built-in command.", section="warning")
 diag("IRULE5006", "Top-level-only command used inside a nested body.", section="irules")
 diag(

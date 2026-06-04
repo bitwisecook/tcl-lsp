@@ -763,6 +763,15 @@ RANGE_FIXME: dict[str, FiresCase] = {
     "O129": FiresCase("puts [string length abcde]\n", "puts 5\n"),
     # lappend list-build chain fold.
     "O130": FiresCase("set l {}\nlappend l a b\nputs $l\n", "set l {a b}\nputs $l\n"),
+    # Constant if-branch: the condition word's range drops its closing brace
+    # (covers `{1` of `{1}`) pending narrowing.
+    "I230": FiresCase("if {1} {puts a} else {puts b}\n", "if {$x} {puts a} else {puts b}\n"),
+    # Constant switch arm: range covers the constant subject word, not yet
+    # token-precise on the unreachable arm.
+    "I231": FiresCase(
+        "switch -- 1 {\n  1 {puts a}\n  default {puts b}\n}\n",
+        "switch -- $x {\n  1 {puts a}\n  2 {puts b}\n}\n",
+    ),
     # Dead store: range bleeds onto the following line's first character.
     "O109": FiresCase("set x 1\nset x 2\nputs $x\n", "set x 1\nputs $x\n"),
     # lassign-pack of consecutive set literals: range bleeds onto the

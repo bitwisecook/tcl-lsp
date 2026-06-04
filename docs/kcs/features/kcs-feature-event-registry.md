@@ -53,7 +53,7 @@ $ f5 irule event-info HTTP_REQUEST
   Side: client-side
   Transport: tcp
   Profiles: FASTHTTP, HTTP
-  Valid commands: 1235
+  Valid commands: 1236
 ```
 
 ### event-order
