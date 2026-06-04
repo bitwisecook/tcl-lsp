@@ -35,7 +35,7 @@ fun getCompilerExplorerHtml(): String {
         <body>
             <h2>Tcl Compiler Explorer</h2>
             <p>The compiler explorer HTML resource was not found in the plugin bundle.</p>
-            <p>This feature requires the plugin to be built with <code>make jetbrains</code>
+            <p>This feature requires the plugin to be built with <code>make build-editor-jetbrains</code>
             which bundles the compiler explorer from the VS Code extension.</p>
         </body>
         </html>
