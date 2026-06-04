@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.dialects import is_irules_dialect
@@ -226,9 +226,9 @@ def _stmt_command_args(stmt) -> tuple[str, tuple[str, ...]] | None:
 def _arg_var_names(arg: str) -> frozenset[str]:
     """Return normalised variable names referenced by *arg*."""
     names: set[str] = set()
-    lexer = TclLexer(arg)
+    _it = iter(tokenise(arg, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None or tok.type is TokenType.EOL:
             return frozenset(names)
         if tok.type is TokenType.VAR:

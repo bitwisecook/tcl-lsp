@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import (
     canonical_list_commands,
@@ -206,9 +206,9 @@ def _leading_literal_prefix_char(value: str) -> str | None:
     """
     from shared.tcl_subst import backslash_subst as _bss
 
-    lexer = TclLexer(value)
+    _it = iter(tokenise(value, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None or tok.type is TokenType.EOL:
             return None
         if tok.type is TokenType.ESC:
@@ -232,9 +232,9 @@ def _literal_contains_crlf(value: str) -> bool:
     """
     from shared.tcl_subst import backslash_subst as _bss
 
-    lexer = TclLexer(value)
+    _it = iter(tokenise(value, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None or tok.type is TokenType.EOL:
             return False
         if tok.type is TokenType.ESC:
@@ -256,9 +256,9 @@ def _evaluate_interpolated_word_taint(
 ) -> TaintLattice:
     """Evaluate taint for words that contain interpolation/concatenation."""
     result = _UNTAINTED
-    lexer = TclLexer(value)
+    _it = iter(tokenise(value, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None or tok.type is TokenType.EOL:
             break
         if tok.type is TokenType.VAR:
@@ -315,9 +315,9 @@ def _word_uses_from_versions(
     versions: dict[str, int],
 ) -> dict[str, int]:
     uses: dict[str, int] = {}
-    lexer = TclLexer(text)
+    _it = iter(tokenise(text, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type is not TokenType.VAR:
