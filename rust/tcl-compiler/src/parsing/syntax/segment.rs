@@ -157,6 +157,72 @@ mod tests {
         segments_from_document(doc, &sm)
     }
 
+    /// `descend_token` on a body `Str` token + `segments_from_tree` is
+    /// **field-identical** to `segment_commands_with_offset_and_config(
+    /// body_text, start + content_offset, …)` (segment at origin, then
+    /// `shifted_by(base)`) — over a body battery at several base offsets,
+    /// incl. the seams (`;`-/newline-separated commands, nested `[...]`,
+    /// a quoted last word, `{*}`, comments, line continuation,
+    /// empty/degenerate bodies).
+    ///
+    /// This pins the equivalence of the two CST entry points.  A
+    /// CST-CONSUMERS "optional fold" of `analyse_body` / `rename.rs` onto
+    /// the descent was prototyped against this gate but **deferred**: it is
+    /// byte-identical (zero behavioural change), and routing `analyse_body`
+    /// through `descend_token` would couple it to `self.source` containing
+    /// the body token's absolute span — breaking the self-contained
+    /// `analyse_body(body_text, …)` contract that ~36 handler unit tests
+    /// rely on, for no functional gain.  See the `CST-CONSUMERS` ledger row.
+    #[test]
+    fn descend_token_body_matches_segment_with_offset() {
+        use super::super::descend::descend_token;
+        use tcl_lexer::{Lexer, TokenType};
+
+        let bodies = [
+            "puts hi",
+            "a; b; c",
+            "set x [foo]\n incr y",
+            "if {$c} {puts ok}",
+            "puts \"a [b] c\"",
+            "set q \"trailing\"",
+            "foo {*}$args",
+            "# comment\n real cmd",
+            "a \\\n b",
+            "",
+            "{}",
+            "[x] hi",
+            "nested [a [b]] end",
+        ];
+        for prefix in ["", "xy ", "p\nq "] {
+            for body in bodies {
+                let src = format!("{prefix}{{{body}}}");
+                let toks = Lexer::new(&src).tokenise_all().unwrap();
+                let body_tok = toks
+                    .iter()
+                    .find(|t| t.kind == TokenType::Str)
+                    .copied()
+                    .expect("a braced Str body token");
+                let base = body_tok.span.start() + u32::from(body_tok.content_offset);
+
+                let via_offset = crate::segmenter::segment_commands_with_offset_and_config(
+                    body,
+                    base,
+                    LexerConfig::default(),
+                );
+
+                let sm = SourceMap::new(&src);
+                let descended = descend_token(&sm, body_tok, LexerConfig::default());
+                let via_descent = segments_from_tree(descended.tree(), &sm);
+
+                assert_eq!(
+                    format!("{via_offset:?}"),
+                    format!("{via_descent:?}"),
+                    "body {body:?} at prefix {prefix:?}",
+                );
+            }
+        }
+    }
+
     #[test]
     fn single_command_fields() {
         let segs = cst_segments("set x 1");

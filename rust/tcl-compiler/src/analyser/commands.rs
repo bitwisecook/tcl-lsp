@@ -25,7 +25,12 @@
 //! ``if let true = self.handle_xxx(...) { return }`` calls so
 //! extending it remains a one-liner.
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
+use tcl_registry::{ArgRole, CommandRegistry};
+
+use crate::parsing::syntax::descend::{descend_command, descend_token};
+use crate::parsing::syntax::segment::segments_from_tree;
+use crate::segmenter::SegmentedCommand;
 
 use super::state::Analyser;
 
@@ -222,7 +227,7 @@ impl Analyser {
         // ``CommandInvocation``.  Mirrors ``_iter_nested_invocations``
         // in ``_AnalyserCommandsMixin._record_command_invocation``
         // (Python).
-        self.record_nested_invocations_from_args(arg_tokens_in);
+        self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
 
         // **C41d3.** Record variable-as-command and
         // command-substitution-as-command call sites so the
@@ -535,69 +540,159 @@ impl Analyser {
     /// and call-hierarchy.  Mirrors ``_iter_nested_invocations``
     /// in ``_AnalyserCommandsMixin._record_command_invocation``
     /// (Python).
-    fn record_nested_invocations_from_args(&mut self, arg_tokens_in: &[Token]) {
-        for arg_tok in arg_tokens_in.iter().skip(1) {
+    fn record_nested_invocations_from_args(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens_in: &[Token],
+    ) {
+        // Which arguments are *expressions*?  A `[...]` inside a braced
+        // expr arg is a real invocation (`if {[acl_ok]} …`), but a `[...]`
+        // inside a braced *data* word is literal (`set x {[noeval]}`) — so
+        // a braced word is scanned only when it is an `Expr` arg.  A braced
+        // *body* arg is covered separately by `analyse_body`.
+        let expr_indices: Vec<usize> = self
+            .registry
+            .as_ref()
+            .map(|r| {
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
+            })
+            .unwrap_or_default();
+        // A command whose *name* is itself a substitution (`[x] hi`) — main's
+        // `_recurse_nested_commands` iterates every token including the head,
+        // so descend a `Cmd` head too (the head's *name* is recorded
+        // separately by `process_command`; this records what it substitutes).
+        if let Some(head) = arg_tokens_in.first() {
+            if head.kind == TokenType::Cmd {
+                self.record_invocations_from_cmd_token(*head);
+            }
+        }
+        for (i, arg_tok) in arg_tokens_in.iter().enumerate().skip(1) {
             let arg_start = arg_tok.span.start();
             let arg_end = arg_tok.span.end() as usize;
             let src_len = self.source.len();
             if arg_start as usize >= src_len || arg_end > src_len {
                 continue;
             }
-            // Clone the slice into an owned ``String`` so the
-            // helper can take ``&mut self`` without conflicting
-            // with the source borrow.  The slice is small (one
-            // argument's source text) so the allocation cost is
-            // bounded.
-            let arg_src = self.source[arg_start as usize..arg_end].to_string();
-            match arg_tok.kind {
-                TokenType::Cmd => {
-                    self.record_invocations_from_cmd_token(*arg_tok, &arg_src, arg_start);
+            if arg_tok.kind == TokenType::Cmd {
+                self.record_invocations_from_cmd_token(*arg_tok);
+            } else if arg_tok.kind == TokenType::Str {
+                // Braced word: scan its `[...]` substitutions only when it
+                // is an expression argument (substitutions are then active);
+                // a braced data word stays opaque (mirrors main, which never
+                // walks a non-expr braced word as a script).
+                if expr_indices.contains(&(i - 1)) {
+                    self.record_invocations_from_expr_token(*arg_tok);
                 }
-                _ => {
-                    self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
-                }
+            } else {
+                // `Esc` (bareword / quoted): substitutions are active, so
+                // scan.  Clone the slice into an owned ``String`` so the
+                // helper can take ``&mut self`` without conflicting with the
+                // source borrow.
+                let arg_src = self.source[arg_start as usize..arg_end].to_string();
+                self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
             }
         }
     }
 
-    /// Inner: ``Cmd`` (``[…]``) tokens.  The segmenter's ``Cmd``
-    /// span starts at ``[`` and ends one past the inner text
-    /// without the closing ``]``.  Strip the leading ``[`` via
-    /// ``content_offset`` and pass the inner content directly to
-    /// ``first_command_head``; recurse into nested ``[...]``.
-    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token, arg_src: &str, arg_start: u32) {
-        let inner_off = arg_tok.content_offset as usize;
-        if inner_off > arg_src.len() {
-            return;
+    /// Inner: ``Cmd`` (``[…]``) substitution tokens.  Descend the
+    /// substitution into a child CST ([`descend_token`]) and record
+    /// *every* inner command's bareword head, recursing into nested
+    /// ``[...]``.  Mirrors main's ``_recurse_nested_commands`` (segment
+    /// the substitution, process each command).
+    ///
+    /// The previous flat [`first_command_head`] scan recorded only the
+    /// *first* head of each ``[...]``, so ``;``- / newline-separated
+    /// commands were dropped (`[foo; bar]` → only `foo`); the CST
+    /// descent finds them all (CST-CONSUMERS strip 1).  This is the
+    /// first production caller of the landed-but-unused `descend_token`.
+    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token) {
+        let config = self.lexer_config();
+        // Collect the inner heads first (this borrows `self.source`
+        // through the `SourceMap`); resolve + push afterwards so the
+        // immutable source borrow has ended.
+        let heads = {
+            let sm = SourceMap::new(&self.source);
+            let mut heads: Vec<(String, Span)> = Vec::new();
+            // `arg_tok` is the *merged* argv token.  For a compound word
+            // whose first fragment is a `[…]` substitution (`[foo]bar`,
+            // `[foo]$x`, `[foo]bar[baz]`), `segments_from_tree` widens the
+            // span from the first fragment's start to the *last* fragment's
+            // end.  Descending that merged span would re-lex the trailing
+            // literal as a script and record a bogus head (`[foo]bar` →
+            // `foo]bar`).  Descend each `[…]` fragment instead, mirroring
+            // main's walk over the unmerged token stream; a single-fragment
+            // `[…]` word yields just itself.
+            for frag in self.cmd_fragments(arg_tok, config) {
+                collect_substitution_heads(&sm, self.registry.as_ref(), frag, config, &mut heads);
+            }
+            heads
+        };
+        self.push_collected_heads(heads);
+    }
+
+    /// The `[…]` substitution fragment tokens of a (possibly compound)
+    /// `Cmd`-headed word, with absolute spans.  Re-lexing the word slice
+    /// recovers the per-fragment boundaries the argv merge erased, so
+    /// `[foo]bar` yields its `[foo]` fragment (not the whole word) and
+    /// `[foo]bar[baz]` yields both `[foo]` and `[baz]`.  On a lex error or
+    /// a degenerate empty/out-of-bounds span, falls back to the token as
+    /// given so the caller still descends *something*.
+    fn cmd_fragments(&self, arg_tok: Token, config: LexerConfig) -> Vec<Token> {
+        let start = arg_tok.span.start() as usize;
+        let end = arg_tok.span.end() as usize;
+        if start >= self.source.len() || end > self.source.len() || start >= end {
+            return vec![arg_tok];
         }
-        let inner = &arg_src[inner_off..];
-        if let Some((head, head_off)) = first_command_head(inner) {
-            let head_byte_off = u32::try_from(inner_off + head_off)
-                .expect("byte offset fits in u32 for in-memory source");
-            let abs_start = arg_start + head_byte_off;
-            let abs_end = abs_start
-                + u32::try_from(head.len()).expect("token length fits in u32 for in-memory source");
-            let resolved = self.resolve_command_qualified_name(head);
-            self.result.command_invocations.push(
-                crate::signature_scan::types::SignatureCommandInvocation {
-                    name: head.to_string(),
-                    range: tcl_lexer::Span::new(abs_start, abs_end),
-                    resolved_qualified_name: Some(resolved),
-                },
-            );
+        let base = arg_tok.span.start();
+        let frags: Vec<Token> =
+            Lexer::with_source_map(SourceMap::new(&self.source[start..end]), config)
+                .tokenise_all()
+                .map(|toks| {
+                    toks.into_iter()
+                        .filter(|t| t.kind == TokenType::Cmd)
+                        .map(|t| Token {
+                            kind: t.kind,
+                            span: Span::new(t.span.start() + base, t.span.end() + base),
+                            content_offset: t.content_offset,
+                            in_quote: t.in_quote,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+        if frags.is_empty() {
+            vec![arg_tok]
+        } else {
+            frags
         }
-        for (name, off) in scan_nested_command_heads(inner) {
-            let off_in_outer = u32::try_from(inner_off)
-                .expect("byte offset fits in u32 for in-memory source")
-                + off;
-            let abs_start = arg_start + off_in_outer;
-            let abs_end = abs_start
-                + u32::try_from(name.len()).expect("token length fits in u32 for in-memory source");
+    }
+
+    /// Inner: a braced ``Str`` *expression* argument (`if {[acl_ok]} …`).
+    /// Record the command substitutions inside the expression — the
+    /// expression's own operands are not commands (see
+    /// [`collect_expr_substitutions`]).  Skips the over-recording the
+    /// generic word scanner would do on a braced *data* word.
+    fn record_invocations_from_expr_token(&mut self, expr_tok: Token) {
+        let config = self.lexer_config();
+        let heads = {
+            let sm = SourceMap::new(&self.source);
+            let mut heads: Vec<(String, Span)> = Vec::new();
+            collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
+            heads
+        };
+        self.push_collected_heads(heads);
+    }
+
+    /// Resolve each collected `(name, span)` head to a qualified name and
+    /// push it as a `command_invocations` entry.
+    fn push_collected_heads(&mut self, heads: Vec<(String, Span)>) {
+        for (name, range) in heads {
             let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
-                    range: tcl_lexer::Span::new(abs_start, abs_end),
+                    range,
                     resolved_qualified_name: Some(resolved),
                 },
             );
@@ -748,6 +843,176 @@ impl Analyser {
             return None;
         }
         self.resolve_user_class(class)
+    }
+}
+
+/// Descend a ``Cmd`` (``[…]``) substitution token and collect every
+/// inner command's head as ``(name, head_span)``, recursing into nested
+/// ``[...]`` substitutions and registry-resolved body arguments.
+///
+/// Mirrors main's ``_recurse_nested_commands``: the token is descended
+/// into a child CST ([`descend_token`]) and the inner script segmented;
+/// each command is then handled by [`record_command_invocations`].
+/// Spans are absolute (the descent anchors the child tree at the
+/// substitution's position).
+fn collect_substitution_heads(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, cmd_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        record_command_invocations(sm, registry, &seg, config, out);
+    }
+}
+
+/// Record one (already-segmented) command's head, then recurse into its
+/// nested ``[...]`` substitutions *and* its registry-resolved body
+/// arguments — the combined ``_recurse_nested_commands`` +
+/// ``_recurse_body_arguments`` walk main runs on every command, so a
+/// command-substitution containing a control-flow command surfaces the
+/// body's commands too (`[if {$c} {puts hi}]` → `if`, `puts`).
+///
+/// The head is recorded as main's ``argv_texts[0]`` (the `word_piece`
+/// form in `texts[0]`: a ``$var`` head as ``${var}``, a ``"quoted"``
+/// head unquoted, a compound ``$x$y`` head reconstructed); a ``[subst]``
+/// head is left to the substitution recursion, and a ``{brace}`` head is
+/// data, not a command.  Body arguments are resolved through
+/// [`descend_command`] (the registry's ``arg_indices_for_role`` /
+/// `iter_body_arguments`), so the body set matches the registry exactly
+/// and an ``Expr`` argument is never walked as a script.
+fn record_command_invocations(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    seg: &SegmentedCommand,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    // Head — main records ``argv_texts[0]`` (the `word_piece` form in
+    // `texts[0]`) for *every* command, whatever the head's kind: a bare
+    // word, a `$var` (`${var}`), a `"quote"` (unquoted), a compound head,
+    // a `[subst]` head (`[gen]` — recorded *and* descended below), or a
+    // `{braced}` head (its inner text).
+    if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first()) {
+        if !name.is_empty() {
+            out.push((name.clone(), head.span));
+        }
+    }
+    // Nested ``[...]`` substitutions in any position (args, or embedded
+    // in a quoted word — both are `Cmd` tokens in the command's token
+    // stream; a `{brace}` region stays opaque).
+    for tok in &seg.all_tokens {
+        if tok.kind == TokenType::Cmd {
+            collect_substitution_heads(sm, registry, *tok, config, out);
+        }
+    }
+    // Registry-resolved body arguments (`if` / `foreach` / `eval` / …
+    // bodies).  The body's commands are inner invocations too.
+    if let (Some(registry), Some(name)) = (registry, seg.texts.first()) {
+        let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
+        let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
+        // The `switch … {pattern body …}` list-form arg is a Tcl *list*,
+        // not a script — the registry still marks it `Body`, but walking
+        // it as one mis-reads a pattern as a command head.  Main
+        // special-cases it (`_recurse_switch_list_body`): parse the list
+        // into pattern/body pairs and descend each arm *body*.
+        let switch_list_idx = if name == "switch" {
+            switch_list_body_index(&args)
+        } else {
+            None
+        };
+        for body in descend_command(registry, sm, name, &args, &arg_tokens, config) {
+            if switch_list_idx == Some(body.index) {
+                let elements = super::handlers::parse_switch_body_elements(&body.text, body.token);
+                // Elements alternate pattern, body, pattern, body, … —
+                // descend the (odd-indexed) arm bodies only; a `-`
+                // fall-through has no body of its own.
+                let mut k = 1;
+                while k < elements.len() {
+                    let (arm_text, arm_tok) = &elements[k];
+                    if arm_text != "-" && arm_tok.kind == TokenType::Str {
+                        let arm = descend_token(sm, *arm_tok, config);
+                        for inner in segments_from_tree(arm.tree(), sm) {
+                            record_command_invocations(sm, Some(registry), &inner, config, out);
+                        }
+                    }
+                    k += 2;
+                }
+                continue;
+            }
+            for inner in segments_from_tree(body.descended.tree(), sm) {
+                record_command_invocations(sm, Some(registry), &inner, config, out);
+            }
+        }
+        // Expr arguments (`if` / `while` / `expr` / … conditions): a
+        // command substitution inside the expression is an invocation
+        // too (`if {[acl_ok]} …` → `acl_ok`).  `descend_command`
+        // deliberately excludes `Expr` args (they are not scripts), so
+        // handle them here — mirroring main's
+        // `_recurse_expression_subcommands`.
+        for index in registry.arg_indices_for_role(name, &args, ArgRole::Expr) {
+            if let Some(&tok) = arg_tokens.get(index) {
+                collect_expr_substitutions(sm, Some(registry), tok, config, out);
+            }
+        }
+    }
+}
+
+/// Find the ``[…]`` command substitutions inside an expression argument
+/// (`if` / `while` / `expr` conditions) and descend each — mirroring
+/// main's `_recurse_expression_subcommands`.
+///
+/// An expression's own operands (`$x`, `+`, literals) are not commands,
+/// so the braced expr is re-lexed as a script (which still tokenises a
+/// ``[…]`` as a `Cmd`) and only the `Cmd` tokens are descended — never
+/// the expression "head".
+fn collect_expr_substitutions(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    expr_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    if expr_tok.kind != TokenType::Str || sm.token_text(expr_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, expr_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        for tok in &seg.all_tokens {
+            if tok.kind == TokenType::Cmd {
+                collect_substitution_heads(sm, registry, *tok, config, out);
+            }
+        }
+    }
+}
+
+/// Mirror of main's `_switch_list_body_index`: for the
+/// ``switch ?options? string {pattern body …}`` form, the index (into
+/// `args`, 0-based, excluding the command name) of the single braced
+/// pattern/body list.  `None` for the separate-args form
+/// (``switch string pat body pat body``), whose bodies *are* scripts.
+fn switch_list_body_index(args: &[&str]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        if args[i] == "--" {
+            i += 1;
+            break;
+        }
+        i += 1;
+    }
+    if i >= args.len() {
+        return None;
+    }
+    i += 1; // the `string` argument
+    if i == args.len() - 1 {
+        Some(i)
+    } else {
+        None
     }
 }
 
