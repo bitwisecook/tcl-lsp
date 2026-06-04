@@ -235,7 +235,22 @@ impl<'a> Builder<'a> {
             }
             // Backslash-newline continuation behaves like a separator: it
             // never becomes a fragment but advances the word boundary when
-            // it follows a real word (matches the segmenter).
+            // it follows a real word.
+            //
+            // DELIBERATE DIVERGENCE from `build.py` (flagged per review M1):
+            // the Rust port folds this `Esc` into whitespace trivia to match
+            // the **token-loop segmenter** (its `Esc if text == "\\\n"` arm),
+            // which is this rebase's byte-identity oracle.  `build.py` instead
+            // keeps the `Esc` as a word *fragment* ("folding it would lose the
+            // possibly-only fragment of the quoted word").  The two differ
+            // only for a quoted word whose entire content is a line
+            // continuation (`"\<newline>"`, token text exactly `"\\\n"`),
+            // which the segmenter drops — see the `puts "\<newline>"` cases in
+            // `tests/differential_segment.rs`.  Reconciling toward `build.py`
+            // / Tcl semantics (a quoted `\<newline>` collapses to a space, so
+            // the word is a valid empty-ish argument, not nothing) is a
+            // separate lexer/segmenter change with its own behavioural bar;
+            // doing it here would break the byte-identical rebase.
             TokenType::Sep | TokenType::Esc
                 if tok.kind == TokenType::Sep || self.sm.token_text(tok) == "\\\n" =>
             {

@@ -412,11 +412,12 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
     // gone (CST-PORT strip 5, SYNC-JUN06).  `build_document` reshapes the
     // dialect-configured lexer stream into a green tree (no second parser),
     // and `segments_from_document` derives the public `SegmentedCommand`
-    // shape from it.  Verified byte-identical to the former loop, field for
-    // field, over the edge-case table + the full Tcl 8.4/8.5/8.6/9.0 corpus
-    // (`tests/differential_segment.rs`).  The derivation runs in
-    // local-offset space; relocation stays the caller's job via
-    // `SegmentedCommand::shifted_by`.
+    // shape from it.  Verified byte-identical, field for field, against a
+    // **frozen copy of the former token loop** (preserved as the
+    // independent oracle in `tests/differential_segment.rs`) over the
+    // edge-case table + the full Tcl 8.4/8.5/8.6/9.0 corpus.  The
+    // derivation runs in local-offset space; relocation stays the caller's
+    // job via `SegmentedCommand::shifted_by`.
     let sm = SourceMap::new(source);
     let (document, _warnings) = crate::parsing::syntax::build::build_document(source, config);
     crate::parsing::syntax::segment::segments_from_document(document, &sm)

@@ -65,8 +65,16 @@ fn command_segment(
 
     for word in words {
         let frags = word_fragments(word);
-        let first = frags[0].to_token();
-        let last = frags[frags.len() - 1].to_token();
+        // `build` only ever emits words with at least one fragment, so this
+        // is unreachable for trees produced by `build_document`.  Guard it
+        // anyway: `segments_from_tree` is `pub`, and a hand-built or
+        // otherwise malformed empty-fragment `Word` must not panic on the
+        // `frags[0]` / `frags[len-1]` indexing below (review L2).
+        let (Some(first_frag), Some(last_frag)) = (frags.first(), frags.last()) else {
+            continue;
+        };
+        let first = first_frag.to_token();
+        let last = last_frag.to_token();
         // The representative word token: kind / content_offset / in_quote
         // from the first fragment, span widened from the first fragment's
         // start to the last fragment's end — the segmenter's compound-word

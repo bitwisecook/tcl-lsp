@@ -19,11 +19,10 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tcl_lexer::{LexerConfig, SourceMap};
+use tcl_lexer::LexerConfig;
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::red::SyntaxTree;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::segmenter::{segment_commands_with_offset_and_config, SegmentedCommand};
 
 /// Repo root — two directories above `CARGO_MANIFEST_DIR`.
@@ -31,16 +30,24 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-/// The token-loop oracle (local-offset space, `base_offset = 0`).
+/// The **independent oracle**: a frozen, byte-for-byte copy of the
+/// pre-CST token-loop `segment_commands_local` (snapshotted from commit
+/// `3410dd4e`, the last state before the strip-5 rebase deleted it).
+///
+/// This is what makes the harness a genuine differential rather than a
+/// self-comparison: the production segmenter
+/// ([`production`]) now derives from the CST, so comparing it against the
+/// live `segment_commands_local` would be tautological.  The frozen loop
+/// is the original reference behaviour the CST port must reproduce.
 fn oracle(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
-    segment_commands_with_offset_and_config(src, 0, config)
+    frozen_oracle::segment_local(src, config)
 }
 
-/// The CST-derived segmenter (local-offset space).
-fn cst(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
-    let sm = SourceMap::new(src);
-    let (doc, _warnings) = build_document(src, config);
-    segments_from_document(doc, &sm)
+/// The **production** segmenter under test (CST-backed, local-offset
+/// space).  Routes through the real public entry point so the test
+/// exercises the shipping code path, not a re-implementation.
+fn production(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
+    segment_commands_with_offset_and_config(src, 0, config)
 }
 
 /// Assert two `SegmentedCommand`s are equal field-for-field.
@@ -61,14 +68,15 @@ fn assert_seg_eq(o: &SegmentedCommand, c: &SegmentedCommand, ctx: &str) {
     );
 }
 
-/// Compare CST vs oracle over `src` for a given dialect config, and check
-/// losslessness.  Returns `Ok(())` or a descriptive error string.
+/// Compare the production (CST) segmenter against the frozen oracle over
+/// `src` for a given dialect config, and check losslessness.  Returns
+/// `Ok(())` or a descriptive error string.
 fn check(src: &str, config: LexerConfig, ctx: &str) -> Result<(), String> {
     let o = oracle(src, config);
-    let c = cst(src, config);
+    let c = production(src, config);
     if o.len() != c.len() {
         return Err(format!(
-            "command count mismatch [{ctx}]: oracle {} vs cst {}",
+            "command count mismatch [{ctx}]: oracle {} vs production {}",
             o.len(),
             c.len()
         ));
@@ -149,6 +157,14 @@ const EDGE_CASES: &[&str] = &[
     "puts $a$b", // compound var word
     "namespace eval ns {\n  proc g {} {}\n}\n",
     "switch $x {\n a {one}\n b {two}\n}\n",
+    // Quoted whole-content line-continuation (M1): the quoted word is a
+    // single ESC whose text is exactly "\\\n", which both the frozen
+    // oracle and the CST fold into whitespace trivia (dropping the word).
+    // Pinned here so the two stay in lockstep — see build.rs's
+    // backslash-newline note.
+    "puts \"\\\n\"",
+    "puts \"$x\\\n\"",
+    "set y \"a\\\nb\"", // partial continuation — NOT folded (text != "\\\n")
 ];
 
 #[test]
@@ -168,23 +184,25 @@ fn cst_matches_oracle_on_edge_cases() {
 }
 
 #[test]
-fn cst_matches_oracle_with_nonzero_base_offset() {
-    // Both paths derive in local-offset space and relocate via
-    // `shifted_by` (the segmenter never runs `word_piece` / `command_span`
-    // on shifted tokens — `sm` is local).  A non-zero base must therefore
-    // apply the same uniform shift on both sides.
+fn production_matches_oracle_with_nonzero_base_offset() {
+    // The frozen oracle derives in local space; the production
+    // `_with_offset` API relocates via `shifted_by`.  Shifting the frozen
+    // oracle's local output by the same base must reproduce the
+    // production segmenter's offset output — a genuine cross-check of the
+    // relocation path.
     let src = "if {$x} {body}\nputs \"q\"\n";
     let base = 100u32;
-    let oracle_shifted = segment_commands_with_offset_and_config(src, base, LexerConfig::default());
+    let production_shifted =
+        segment_commands_with_offset_and_config(src, base, LexerConfig::default());
 
-    let cst_shifted: Vec<SegmentedCommand> = cst(src, LexerConfig::default())
+    let oracle_shifted: Vec<SegmentedCommand> = oracle(src, LexerConfig::default())
         .into_iter()
         .map(|c| c.shifted_by(base))
         .collect();
 
-    assert_eq!(oracle_shifted.len(), cst_shifted.len());
-    for (o, c) in oracle_shifted.iter().zip(cst_shifted.iter()) {
-        assert_seg_eq(o, c, "nonzero-base");
+    assert_eq!(production_shifted.len(), oracle_shifted.len());
+    for (p, o) in production_shifted.iter().zip(oracle_shifted.iter()) {
+        assert_seg_eq(o, p, "nonzero-base");
     }
 }
 
@@ -250,4 +268,200 @@ fn recovery_known_commands_smoke() {
         segs.iter().any(|s| s.is_partial),
         "expected a partial command from the unclosed brace"
     );
+}
+
+/// A frozen, byte-for-byte snapshot of the pre-CST token-loop segmenter.
+///
+/// Lifted verbatim from `rust/tcl-compiler/src/segmenter.rs` at commit
+/// `3410dd4e` — the last state before the strip-5 rebase replaced the
+/// token loop with the CST derivation.  Kept here as the **independent
+/// reference** the CST port is differentially validated against: comparing
+/// the production segmenter (now CST-backed) against the live
+/// `segment_commands_local` would be a tautology, so this frozen copy
+/// preserves the original behaviour.  It deliberately duplicates
+/// `command_span` / `widen_word_end` (rather than calling the crate's
+/// `pub(crate)` versions) so the oracle is fully self-contained and cannot
+/// drift with the production code.
+///
+/// Do not "fix" this module to match new behaviour — a divergence between
+/// it and production is exactly what the harness exists to surface.
+mod frozen_oracle {
+    use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
+
+    use tcl_compiler::segmenter::{word_piece, SegmentedCommand};
+
+    fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
+        if tokens.is_empty() {
+            return Span::new(0, 0);
+        }
+        let start = tokens.first().unwrap().span.start();
+        let end = widen_word_end(*tokens.last().unwrap(), sm);
+        Span::new(start, end)
+    }
+
+    fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
+        let closer = match tok.kind {
+            TokenType::Str => b'}',
+            TokenType::Cmd => b']',
+            _ => return tok.span.end(),
+        };
+        let end = tok.span.end();
+        if sm.token_text(tok).is_empty() {
+            return end;
+        }
+        if sm.source().as_bytes().get(end as usize) == Some(&closer) {
+            end + 1
+        } else {
+            end
+        }
+    }
+
+    #[derive(Default)]
+    struct SegmenterState {
+        commands: Vec<SegmentedCommand>,
+        argv: Vec<Token>,
+        texts: Vec<String>,
+        single: Vec<bool>,
+        expand: Vec<bool>,
+        all_tokens: Vec<Token>,
+        has_expand: bool,
+        last_comment: Option<String>,
+    }
+
+    impl SegmenterState {
+        fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
+            if !self.argv.is_empty() {
+                self.commands.push(SegmentedCommand {
+                    span: command_span(&self.all_tokens, sm),
+                    argv: std::mem::take(&mut self.argv),
+                    texts: std::mem::take(&mut self.texts),
+                    single_token_word: std::mem::take(&mut self.single),
+                    all_tokens: std::mem::take(&mut self.all_tokens),
+                    is_partial: false,
+                    expand_word: if self.has_expand {
+                        Some(std::mem::take(&mut self.expand))
+                    } else {
+                        self.expand.clear();
+                        None
+                    },
+                    preceding_comment: self.last_comment.take(),
+                });
+            } else if matches!(tok.kind, TokenType::Eol) {
+                let eol_text = sm.token_text(tok);
+                if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
+                    self.last_comment = None;
+                }
+            }
+            self.has_expand = false;
+        }
+    }
+
+    /// The frozen token loop, in local-offset space (`base_offset = 0`).
+    pub fn segment_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
+        let sm = SourceMap::new(source);
+        let config = LexerConfig {
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
+            ..config
+        };
+        let lexer_sm = SourceMap::new(source);
+        let lexer = Lexer::with_source_map(lexer_sm, config);
+        let Ok(tokens) = lexer.tokenise_all() else {
+            return Vec::new();
+        };
+
+        let mut state = SegmenterState::default();
+        let mut prev_type = TokenType::Eol;
+        let mut next_expand = false;
+
+        for &tok in &tokens {
+            match tok.kind {
+                TokenType::Comment => {
+                    let raw = sm.token_text(tok);
+                    let line = raw.trim_start_matches('#').trim().to_string();
+                    state.last_comment = Some(match state.last_comment.take() {
+                        Some(prev) => format!("{prev}\n{line}"),
+                        None => line,
+                    });
+                    continue;
+                }
+                TokenType::Sep => {
+                    prev_type = tok.kind;
+                    continue;
+                }
+                TokenType::Esc if sm.token_text(tok) == "\\\n" => {
+                    prev_type = TokenType::Sep;
+                    continue;
+                }
+                TokenType::Expand => {
+                    state.all_tokens.push(tok);
+                    next_expand = true;
+                    state.has_expand = true;
+                    prev_type = TokenType::Sep;
+                    continue;
+                }
+                TokenType::Eol | TokenType::Eof => {
+                    state.flush_eol_or_eof(tok, &sm);
+                    next_expand = false;
+                    prev_type = tok.kind;
+                    continue;
+                }
+                _ => {}
+            }
+
+            state.all_tokens.push(tok);
+            let piece = word_piece(&sm, tok);
+
+            if prev_type == TokenType::Sep || prev_type == TokenType::Eol {
+                state.argv.push(tok);
+                state.texts.push(piece);
+                state.single.push(true);
+                state.expand.push(next_expand);
+                next_expand = false;
+            } else if let Some(last_text) = state.texts.last_mut() {
+                last_text.push_str(&piece);
+                if let Some(s) = state.single.last_mut() {
+                    *s = false;
+                }
+                if let Some(prev) = state.argv.last_mut() {
+                    prev.span = Span::new(prev.span.start(), tok.span.end());
+                }
+            } else {
+                state.argv.push(tok);
+                state.texts.push(piece);
+                state.single.push(true);
+                state.expand.push(next_expand);
+                next_expand = false;
+            }
+
+            prev_type = tok.kind;
+        }
+
+        if state.argv.is_empty() {
+            state.commands
+        } else {
+            let SegmenterState {
+                mut commands,
+                argv,
+                texts,
+                single,
+                expand,
+                all_tokens,
+                has_expand,
+                mut last_comment,
+            } = state;
+            commands.push(SegmentedCommand {
+                span: command_span(&all_tokens, &sm),
+                argv,
+                texts,
+                single_token_word: single,
+                all_tokens,
+                is_partial: false,
+                expand_word: if has_expand { Some(expand) } else { None },
+                preceding_comment: last_comment.take(),
+            });
+            commands
+        }
+    }
 }
