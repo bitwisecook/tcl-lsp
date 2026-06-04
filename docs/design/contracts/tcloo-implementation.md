@@ -78,5 +78,5 @@ variable preservation.
 | `tooling/vm/commands/info_cmds.py` | `info object`/`info class` introspection |
 | `tooling/vm/scope.py` | CallFrame with OO variable binding slots |
 | `analyser/mro.py` | MRO linearisation algorithm |
-| `analyser/analyser.py` | Static OO analysis (class/method extraction) |
+| `analyser/_analyser/__init__.py` | Static OO analysis (class/method extraction) |
 | `tests/test_vm_oo_test.py` | Native test runner with known-failure tracking |

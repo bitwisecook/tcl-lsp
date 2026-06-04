@@ -30,7 +30,7 @@ The translator maps iRule event handlers and commands to XC route and service po
 
 ## File-path anchors
 
-- `dialects/f5/xc/translate.py`
+- `dialects/f5/xc/translator.py`
 - `editors/vscode/src/extension.ts`
 
 ## Failure modes
@@ -40,7 +40,7 @@ The translator maps iRule event handlers and commands to XC route and service po
 
 ## Test anchors
 
-- `tests/test_xc_translate.py`
+- `tests/test_xc_translator.py`
 
 ## Example
 

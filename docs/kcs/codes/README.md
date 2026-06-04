@@ -45,6 +45,8 @@ for historical reference.
 
 - [W001 — unknown subcommand](kcs-diagnostic-w001-unknown-subcommand.md)
 - [W002 — command disabled in dialect](kcs-diagnostic-w002-command-disabled-in-dialect.md)
+- [W003 — dialect-invalid expression operator](kcs-diagnostic-w003-dialect-invalid-expr-operator.md)
+- [W004 — dialect-invalid command option](kcs-diagnostic-w004-dialect-invalid-option.md)
 - [W100 — unbraced expression](kcs-diagnostic-w100-unbraced-expression.md)
 - [W104 — string concat for lists](kcs-diagnostic-w104-string-concat-for-lists.md)
 - [W105 — unbraced code block](kcs-diagnostic-w105-unbraced-code-block.md)
@@ -66,6 +68,7 @@ for historical reference.
 - [W125 — orphaned control flow](kcs-diagnostic-w125-orphaned-control-flow.md)
 - [W126 — non-channel argument](kcs-diagnostic-w126-non-channel-argument.md)
 - [W127 — value not in allowed set](kcs-diagnostic-w127-value-not-in-allowed-set.md)
+- [W128 — renamed or deleted command call](kcs-diagnostic-w128-renamed-command-call.md)
 - [W130 — package not in lockfile](kcs-diagnostic-w130-package-not-in-lockfile.md)
 - [W131 — lockfile out of sync](kcs-diagnostic-w131-lockfile-out-of-sync.md)
 - [W132 — integrity mismatch](kcs-diagnostic-w132-integrity-mismatch.md)
@@ -76,6 +79,7 @@ for historical reference.
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)
 - [W231 — lset index out of range](kcs-diagnostic-w231-lset-index-out-of-range.md)
 - [W232 — string index out of range](kcs-diagnostic-w232-string-index-out-of-range.md)
+- [W233 — divide or modulo by zero](kcs-diagnostic-w233-divide-by-zero.md)
 - [W240 — loop condition is constant false](kcs-diagnostic-w240-loop-constant-false.md)
 - [W241 — loop is provably infinite](kcs-diagnostic-w241-loop-provably-infinite.md)
 - [W242 — loop termination not provable (opt-in)](kcs-diagnostic-w242-loop-termination-unprovable.md)
@@ -107,6 +111,10 @@ for historical reference.
 - [W215 — variable name unreachable via $-substitution](kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
 - [W216 — broken brace-form array element reference](kcs-diagnostic-w216-broken-brace-array-element-reference.md)
 - [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
+
+## Hints (H-codes)
+
+- [H300 — repeated assignment to same variable with same value](kcs-diagnostic-h300-repeated-assignment-same-value.md)
 
 ## Information (I-codes)
 
@@ -149,11 +157,6 @@ for historical reference.
 - [IRULE2003 — unsafe command](kcs-diagnostic-irule2003-unsafe-command.md)
 - [IRULE2101 — heavy regexp in hot event](kcs-diagnostic-irule2101-heavy-regexp-in-hot-event.md)
 
-## iRule security (IRULE3xxx)
-
-*5 codes — iRule-specific taint and HTTP normalisation warnings.
-Populated in Phase 5.2.*
-
 ## iRule variables (IRULE4xxx)
 
 - [IRULE4001 — static write outside RULE_INIT](kcs-diagnostic-irule4001-static-write-outside-rule-init.md)
@@ -181,6 +184,7 @@ Populated in Phase 5.2.*
 - [O103 — static proc folding](kcs-optimisation-o103-static-proc-folding.md)
 - [O104 — string build chain folding](kcs-optimisation-o104-string-build-chain-folding.md)
 - [O105 — constant var-ref propagation / GVN/CSE](kcs-optimisation-o105-constant-var-ref-propagation.md)
+- [O129 — builtin command substitution folding](kcs-optimisation-o129-builtin-command-substitution-folding.md)
 
 ### Code motion and dead-code elimination
 
@@ -213,6 +217,7 @@ Populated in Phase 5.2.*
 - [O126 — unused variable removal](kcs-optimisation-o126-unused-variable-removal.md)
 - [O127 — single-use inline](kcs-optimisation-o127-single-use-inline.md)
 - [O128 — end-offset index rewrite](kcs-optimisation-o128-end-offset-index.md)
+- [O130 — lappend list build chain folding](kcs-optimisation-o130-lappend-list-build-chain-folding.md)
 
 ## Internal codes
 

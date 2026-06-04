@@ -385,7 +385,8 @@ unsound for procs whose runtime dispatch state may change —
 The compiler now invalidates ``proc_index`` entries for any
 proc name that appears as the target of ``rename`` /
 ``interp hide`` / ``interp expose`` anywhere in the module
-(``_collect_dynamically_modified_procs`` walks the IR).  Affected
+(``_collect_dynamically_modified_procs`` in
+``compiler/codegen/wasm/proc_scan.py`` walks the IR).  Affected
 calls downgrade to the ``tcl_eval`` eval-fallback path, which
 routes through ``proc_lookup`` and observes the live
 cmd-table / hidden-table state.

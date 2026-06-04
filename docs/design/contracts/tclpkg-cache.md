@@ -30,4 +30,4 @@ expected entry.
 
 ## Test anchors
 
-- ``tests/tooling/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise
+- ``tests/tclpkg/test_cas.py`` — 18 tests: hashing, ignore, CAS store/materialise

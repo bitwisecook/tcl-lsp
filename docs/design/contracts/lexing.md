@@ -20,7 +20,6 @@ Lexer output is the positional source of truth for segmentation, recovery, seman
 - `compiler/parsing/lexer.py`
 - `shared/tokens.py`
 - `shared/ranges.py` (authoritative word-closer accessors)
-- `compiler/parsing/substitution.py`
 
 ## Failure modes
 

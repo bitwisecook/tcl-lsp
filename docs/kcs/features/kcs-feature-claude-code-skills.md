@@ -2,7 +2,7 @@
 
 ## Summary
 
-21 slash-command skills for Claude Code providing iRules, Tcl, and Tk development assistance.
+26 slash-command skills for Claude Code providing iRules, Tcl, Tk, and BIG-IP development assistance.
 
 ## Applies to
 
@@ -31,6 +31,7 @@ In Claude Code, type the skill name:
 | `/irule-convert` | Modernise legacy patterns |
 | `/irule-optimise` | Apply LSP optimisation suggestions |
 | `/irule-scaffold` | Generate an iRule skeleton from events |
+| `/irule-dataflow` | Analyse and visualise data flow in an iRule (def-use chains, Mermaid diagram) |
 | `/irule-datagroup` | Suggest data-group extraction |
 | `/irule-diff` | Explain differences between two versions |
 | `/irule-event` | Show valid commands for an event |
@@ -47,6 +48,15 @@ In Claude Code, type the skill name:
 | `/tcl-fix` | Fix issues using LSP diagnostics |
 | `/tcl-validate` | Run LSP diagnostics |
 | `/tcl-optimise` | Apply LSP optimisation suggestions |
+| `/tcl-refactor` | Apply mechanical refactorings (extract/inline variable, if-to-switch, switch-to-dict, brace expr) |
+
+### BIG-IP skills
+
+| Skill | Description |
+|-------|-------------|
+| `/bigip-cleanup` | Generate a tmsh delete script for unreferenced BIG-IP objects |
+| `/explain-flow` | Trace a PCAP session through a BIG-IP config and explain what the device did |
+| `/f5-query` | Translate a natural-language question into an `f5 query` DSL expression and run it |
 
 ### Tk skills
 

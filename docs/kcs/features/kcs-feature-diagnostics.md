@@ -22,7 +22,7 @@ The analyser produces diagnostics in categories: errors (E-codes), security (S-c
 
 ## File-path anchors
 
-- `analyser/analyser.py`
+- `analyser/_analyser/_diagnostics.py`
 - `server/features/diagnostics.py`
 - `ai/shared/diagnostics.py`
 - `ai/shared/diagnostics.json`

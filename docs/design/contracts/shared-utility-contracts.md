@@ -54,7 +54,7 @@ Shared surfaces this contract covers:
 - `shared/document_buffer.py` — `DocumentBuffer`, `EditDescriptor`, `compute_line_starts`, `update_line_starts`
 - `shared/source_map.py` — legacy `SourceMap`, `offset_to_line_col` (non-hot-path only)
 - `shared/ranges.py` — `position_from_offset`, `position_from_relative`
-- `shared/position.py` — `offset_at_position`, `find_command_at_position`
+- `shared/position.py` — `offset_at_position`, `position_in_range`
 - `compiler/parsing/known_commands.py`
 - `compiler/parsing/argv.py`
 - `compiler/parsing/command_shapes.py`
@@ -68,14 +68,14 @@ Shared surfaces this contract covers:
 Primary consumers:
 
 - `server/workspace/document_state.py` — `DocumentState.buffer` property
-- `server/features/semantic_tokens.py` — `position_from_offset` with shared `_line_starts`
+- `server/features/_semantic_tokens/` — `position_from_offset` with shared `_line_starts`
 - `server/server.py`
-- `dialects/f5/bigip/parser.py`
+- `dialects/f5/bigip/parser/`
 - `dialects/f5/bigip/rule_extract.py`
 - `dialects/f5/bigip/validator.py`
 - `shared/position.py`
-- `analyser/analyser.py`
-- `compiler/compiler_checks.py`
+- `analyser/_analyser/`
+- `analyser/compiler_checks.py`
 - `compiler/lowering.py`
 - `compiler/optimiser/`
 - `compiler/core_analyses.py`
@@ -92,7 +92,7 @@ Primary consumers:
 - `server/features/signature_help.py`
 - `server/features/code_actions.py`
 - `server/features/completion.py`
-- `server/features/semantic_tokens.py`
+- `server/features/_semantic_tokens/`
 - `server/features/inlay_hints.py`
 
 ## Failure modes

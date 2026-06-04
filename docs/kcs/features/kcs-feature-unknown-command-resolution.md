@@ -54,7 +54,8 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 ## File-path anchors
 
-- `analyser/analyser.py` — `_emit_unresolved_command_diagnostics`, `_extract_unknown_proc_info`
+- `analyser/_analyser/_diag_commands.py` — `_emit_unresolved_command_diagnostics`
+- `analyser/_analyser/_oo.py` — `_extract_unknown_proc_info`
 - `analyser/semantic_model.py` — `UnknownProcInfo`
 - `shared/text.py` — `edit_distance`, `suggest_similar`
 - `server/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)

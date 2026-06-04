@@ -26,4 +26,4 @@ directive does not take effect.
 
 ## Test anchors
 
-- ``tests/tooling/tclpkg/test_resolver.py`` — 15 tests: diamond, MVS max, replace, exclude, dev
+- ``tests/tclpkg/test_resolver.py`` — 15 tests: diamond, MVS max, replace, exclude, dev

@@ -1,8 +1,8 @@
-"""Sphinx configuration for the ``f5q`` Python API reference.
+"""Sphinx configuration for the ``dialects.f5.query`` Python API reference.
 
 Builds the API reference site published to Read the Docs.  The
-config picks up every public symbol re-exported from
-:mod:`f5q` (which in turn forwards from :mod:`dialects.f5.query`)
+config picks up every public symbol exported from
+:mod:`dialects.f5.query`
 via ``sphinx.ext.autodoc`` and ``sphinx.ext.autosummary`` so
 the on-disk reference can't drift from what ``import dialects.f5.query``
 actually exposes.
@@ -23,9 +23,7 @@ import sys
 from pathlib import Path
 
 # Make the in-repo packages importable so autodoc can introspect
-# them — ``f5q`` and ``dialects.f5.query`` are both needed because
-# the public surface lives in the latter and is re-exported from the
-# former.
+# them — ``dialects.f5.query`` holds the public surface.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -33,7 +31,7 @@ sys.path.insert(0, str(REPO_ROOT))
 # Project metadata
 # ---------------------------------------------------------------------------
 
-project = "f5q"
+project = "dialects.f5.query"
 author = "tcl-lsp contributors"
 copyright = "2026, tcl-lsp contributors"
 
@@ -110,7 +108,7 @@ myst_enable_extensions = [
 # ---------------------------------------------------------------------------
 
 html_theme = "furo"
-html_title = f"f5q {release}"
+html_title = f"dialects.f5.query {release}"
 html_static_path: list[str] = []
 
 html_theme_options = {
@@ -121,7 +119,7 @@ html_theme_options = {
 }
 
 # Cleaner module-index display.
-modindex_common_prefix = ["f5q.", "dialects.f5.query."]
+modindex_common_prefix = ["dialects.f5.query."]
 
 # Default role for `single-backtick` text is :py:obj: so DSL
 # fragments don't get treated as cross-references.

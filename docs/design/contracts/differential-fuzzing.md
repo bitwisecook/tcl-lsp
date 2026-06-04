@@ -36,10 +36,10 @@ The differential fuzzer generates random Tcl scripts and runs them through multi
 
 ## Test anchors
 
-- `tests/test_fuzz_differential.py::TestGenerator::test_bad_input_pct_produces_some_bad`
-- `tests/test_fuzz_differential.py::TestGenerator::test_bad_input_pct_zero_no_corruption`
-- `tests/test_fuzz_differential.py::TestFuzzCampaign`
-- `tests/test_fuzz_differential.py::TestOptimiserEquivalence`
+- `tooling/fuzzing/tests/test_fuzz_differential.py::TestGenerator::test_bad_input_pct_produces_some_bad`
+- `tooling/fuzzing/tests/test_fuzz_differential.py::TestGenerator::test_bad_input_pct_zero_no_corruption`
+- `tooling/fuzzing/tests/test_fuzz_differential.py::TestFuzzCampaign`
+- `tooling/fuzzing/tests/test_fuzz_differential.py::TestOptimiserEquivalence`
 
 ## Discoverability
 

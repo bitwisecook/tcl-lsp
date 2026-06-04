@@ -64,7 +64,7 @@ Pure Python implementation — no heavy SDK, no pydantic, no C extensions. Runs 
 
 ## Test anchors
 
-- `tests/test_mcp_server.py`
+- `tests/test_mcp_minifier_consumers.py`
 
 ## Example
 

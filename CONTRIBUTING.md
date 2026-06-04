@@ -161,7 +161,7 @@ not just the implementation.
 
 Bare `except Exception:` handlers must include a `log.debug(...)` call with
 `exc_info=True` so failures are visible at debug log level.  Follow the
-pattern established in `workspace/scanner.py` and `workspace/package_resolver.py`:
+pattern established in `server/workspace/scanner.py` and `analyser/packages/resolver.py`:
 
 ```python
 except Exception:
@@ -197,7 +197,7 @@ The pattern to follow:
    (e.g. `is_diagram_action(name)`) and a bulk query
    (e.g. `diagram_action_commands()`).
 3. **Set the flag** on each relevant command spec in
-   `compiler/registry/{irules,tcl,iapps}/`.
+   `dialects/tcl/`, `dialects/f5/irules/`, or `dialects/f5/iapps/`.
 4. **Use the registry** in the consumer module instead of a local set.
 
 Existing examples of this pattern: `pure`, `commits_response`,
@@ -208,14 +208,14 @@ Existing examples of this pattern: `pure`, `commits_response`,
 ## Body identification and command argument roles
 
 The canonical source for identifying body, expression, and pattern argument
-indices is `commands/registry/runtime.py` via `body_arg_indices()`,
+indices is `compiler/registry/runtime.py` via `body_arg_indices()`,
 `expr_arg_indices()`, and `arg_indices_for_role()`.  Other modules (including
 the formatter) delegate to these functions rather than duplicating the
 argument-walking logic.
 
 If the formatter needs to restrict which bodies are expanded (e.g. the `for`
 command only expands its main body, not `init`/`next`), add a
-formatter-specific override in `formatting/engine.py` before the general
+formatter-specific override in `tooling/formatter/engine.py` before the general
 delegation call.
 
 ## Dead code and docstring accuracy
@@ -242,7 +242,7 @@ The Python source of truth is partitioned into seven concern packages
 `dialects/`, `analyser/`, `server/`, `tooling/`, `ai/`.
 
 - The extension package does not keep a mirrored Python tree under `editors/vscode/`.
-- `make vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.
+- `make package-vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.
 - If you need to point VS Code at a working tree directly, set `tclLsp.serverPath` to the repo root.
 
 ## Dependency audit policy

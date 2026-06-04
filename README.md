@@ -104,7 +104,7 @@ on first use and auto-discovers Python 3.10+ on your PATH.
 
 Includes 16 built-in snippets (`tcl-proc`, `tcl-namespace`, `tcl-if`,
 `irule-http-request`, `irule-collect-release`, etc.), an MCP context server
-exposing all 23 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
+exposing all 44 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
 `/tcl-validate`).
 
 Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
@@ -169,7 +169,7 @@ Features a **Compiler Explorer tool window** with JCEF browser for inspecting
 IR, CFG, SSA, and optimiser output directly inside the IDE.
 
 Install: see [INSTALL-editors.md](INSTALL-editors.md#jetbrains).
-Build from source: `make jetbrains`.
+Build from source: `make build-editor-jetbrains`.
 
 ## Features
 
@@ -193,7 +193,7 @@ string length "a" "b"   ;# E003: too many arguments
 
 Variables, procs, keywords, and strings are classified using SSA-informed type
 information, giving richer highlighting than a TextMate grammar alone.  The
-server provides 43 token types beyond the standard LSP set, including
+server provides 44 token types beyond the standard LSP set, including
 sub-token highlighting inside strings.  Tokens are cached per top-level chunk
 so only dirty regions are recomputed after an edit, and the server supports
 `textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
@@ -403,7 +403,7 @@ source lib/utils.tcl        ;# click → opens lib/utils.tcl
 
 ### Formatting
 
-Full-document and range formatting with 24 configurable options.  Defaults
+Full-document and range formatting with 25 configurable options.  Defaults
 follow the F5 iRules Style Guide.  Supports full-document
 (`textDocument/formatting`) and range (`textDocument/rangeFormatting`)
 requests.
@@ -1109,11 +1109,11 @@ Copilot: generates a complete iRule with HTTP_REQUEST handler, table-based
          counting, and HTTP::respond 429 — validated against the LSP
 ```
 
-![AI — create iRule](docs/screenshots/15-ai-create.png)
+![AI — create iRule](docs/screenshots/26-ai-create.png)
 
-![AI — explain iRule](docs/screenshots/16-ai-explain.png)
+![AI — explain iRule](docs/screenshots/27-ai-explain.png)
 
-![AI — diagram iRule](docs/screenshots/17-ai-diagram.png)
+![AI — diagram iRule](docs/screenshots/28-ai-diagram.png)
 
 #### `@tcl` — Tcl assistant
 
@@ -2036,7 +2036,7 @@ cd tcl-lsp
 make test
 
 # Build the .vsix
-make vsix
+make build-editor-vsix
 
 # Install in VS Code
 code --install-extension tcl-lsp-vscode-0.1.0.vsix
@@ -2048,8 +2048,8 @@ Run `make help` to see all targets:
 
 | Target | Description |
 |--------|-------------|
-| `make test-pr` | **Full CI gate** — lint + Python tests + extension tests + smoke tests |
-| `make vsix` | Build the .vsix (tests must pass first) |
+| `make ci-fast` | **Full CI gate** — lint + Python tests + extension tests + smoke tests |
+| `make build-editor-vsix` | Build the .vsix (tests must pass first) |
 | `make install` | Build and install the .vsix into VS Code |
 | `make package-vsix` | Package VSIX (skip lint/test, for CI) |
 | `make test` | Run all tests (Python + VS Code extension) |
@@ -2072,9 +2072,9 @@ Run `make help` to see all targets:
 | `make zipapp-mcp` | Build the MCP server zipapp |
 | `make zipapp-wasm` | Build the WASM compiler zipapp |
 | `make claude-skills` | Build Claude Code skills release zip |
-| `make jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
-| `make sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
-| `make zed` | Build the Zed extension (.tar.gz WASM artifact) | <!-- editors:Zed -->
+| `make build-editor-jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
+| `make build-editor-sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
+| `make build-editor-zed` | Build the Zed extension (.tar.gz WASM artifact) | <!-- editors:Zed -->
 | `make screenshot` | Alias of `make screenshots` |
 | `make screenshots` | Capture extension screenshots and build demo GIF (macOS) |
 | `make release` | Build all release artifacts (parity with tagged CI release jobs) |
@@ -2086,7 +2086,7 @@ Artifact version strings are derived from `git describe` (with `v` stripped).
 If Git metadata is unavailable, builds fall back to `dev` (and semver-constrained
 manifest fields use `0.0.0-dev`).
 
-`make vsix` is the main entry point.  It runs the test suite first and will
+`make build-editor-vsix` is the main entry point.  It runs the test suite first and will
 not package a .vsix if any test fails.  Packaging uses an isolated staging
 directory under `build/vsix-stage/`, and the output file lands under
 `build/` as `tcl-lsp-<version>.vsix`.

@@ -175,7 +175,7 @@ unterminated `[`, E202 = unterminated `"`, E203 = unterminated `{`).
 
 ### 4. Semantic Analyser
 
-**File:** `analyser/analyser.py` — class `Analyser`
+**File:** `analyser/_analyser/__init__.py` — class `Analyser`
 
 A single-pass walk over segmented commands that builds a semantic model:
 scopes, procedure definitions, variable definitions, command invocations.
@@ -579,7 +579,7 @@ and pass/test anchors are tracked in:
 flowchart LR
     CU["CompilationUnit"]
 
-    CU --> OPT["<b>Optimiser</b><br/>O100–O125"]
+    CU --> OPT["<b>Optimiser</b><br/>O100–O130"]
     CU --> TAINT["<b>Taint Analysis</b><br/>T100–T106, IRULE3xxx"]
     CU --> SHIM["<b>Shimmer Detection</b><br/>S100–S102"]
     CU --> GVN["<b>GVN / CSE</b><br/>O105, O106"]
@@ -632,7 +632,7 @@ flowchart TD
 
 ### 13. Bytecode Assembly Backend
 
-**File:** `compiler/codegen.py` — functions `codegen_function()`, `codegen_module()`
+**File:** `compiler/codegen/bytecode/_emitter.py` — functions `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `CFGModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.2.
@@ -675,7 +675,7 @@ flowchart TD
 
     subgraph "Background thread"
         direction TB
-        OPT["Optimiser (O100–O125)"]
+        OPT["Optimiser (O100–O130)"]
         SHIM["Shimmer (S100–S102)"]
         TAINT["Taint (T100–T106)"]
         GVN["GVN/CSE (O105–O106)"]
@@ -737,7 +737,7 @@ consumer must treat it as opaque and conservative.
 | W100–W120 | Semantic & style warnings | Analyser / Diagnostics |
 | W200–W214 | Variable & versioning warnings | Analyser |
 | W300–W313 | Security warnings | Analyser |
-| O100–O125 | Optimisation suggestions | Optimiser + GVN |
+| O100–O130 | Optimisation suggestions | Optimiser + GVN |
 | S100–S102 | Shimmer / type thunking | Shimmer detection |
 | T100–T106 | Taint / security | Taint analysis |
 | IRULE1007–IRULE1008 | Collect/release pairing (side-aware) | iRules flow analysis |
@@ -753,8 +753,8 @@ consumer must treat it as opaque and conservative.
 | `compiler/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
 | `compiler/parsing/expr_lexer.py` | Expression tokenisation |
 | `compiler/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
-| `compiler/parsing/substitution.py` | Tcl backslash substitution helpers |
-| `analyser/analyser.py` | Semantic analysis, scope tracking |
+| `shared/tcl_subst.py` | Tcl backslash substitution helpers |
+| `analyser/_analyser/__init__.py` | Semantic analysis, scope tracking |
 | `analyser/checks/` | Best-practice and security checks (W-series) |
 | `analyser/irules_checks.py` | iRules-specific checks (IRULE-series) |
 | `analyser/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
@@ -765,13 +765,13 @@ consumer must treat it as opaque and conservative.
 | `compiler/core_analyses.py` | SCCP, liveness, type inference |
 | `compiler/compilation_unit.py` | Pipeline orchestration and caching |
 | `compiler/interprocedural.py` | Call graph and procedure summaries |
-| `compiler/optimiser/` | Optimisation passes (O100–O125) |
+| `compiler/optimiser/` | Optimisation passes (O100–O130) |
 | `compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
 | `compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
 | `compiler/shimmer.py` | Type representation issue detection (S100–S102) |
 | `compiler/irules_flow.py` | iRules control-flow checks |
-| `compiler/codegen.py` | Tcl VM bytecode assembly backend |
-| `compiler/effects.py` | Command side-effect classification |
+| `compiler/codegen/` | Tcl VM bytecode assembly backend |
+| `compiler/side_effects.py` | Command side-effect classification |
 | `compiler/types.py` | Type lattice definitions |
 | `server/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
 | `server/features/diagnostics.py` | LSP diagnostic aggregation |

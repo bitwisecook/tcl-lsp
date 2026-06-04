@@ -21,7 +21,7 @@ The compiler pipeline spans parsing, lowering, control/data-flow analysis, speci
 5. Diagnostics composition for editor publication
    - source: `server/features/diagnostics.py`
 6. Bytecode/disassembly generation
-   - source: `compiler/codegen.py`
+   - source: `compiler/codegen/`
 
 ## Decision rule
 

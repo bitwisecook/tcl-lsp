@@ -22,7 +22,7 @@ Compiler work spans lowering, CFG/SSA, core analyses, interprocedural summaries,
 - `compiler/core_analyses.py`
 - `compiler/interprocedural.py`
 - `compiler/optimiser/`
-- `compiler/codegen/` (package: `__init__.py`, `opcodes.py`, `layout.py`, `format.py`)
+- `compiler/codegen/` (package: `__init__.py`, `bytecode/opcodes.py`, `bytecode/layout.py`, `bytecode/format.py`)
 
 ## Failure modes
 

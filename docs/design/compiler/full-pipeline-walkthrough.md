@@ -71,7 +71,7 @@ Phase 7: Specialised passes
     │   EventVarSummary per handler, cross-event variable flow
     │
     ├── Optimiser (_manager.py, _propagation.py, _elimination.py, ...)
-    │   O100–O126: constant propagation, folding, ICIP, DCE, DSE, ADCE,
+    │   O100–O130: constant propagation, folding, ICIP, DCE, DSE, ADCE,
     │   InstCombine, GVN/CSE, code sinking, tail-call, unused procs
     │
     ├── Taint engine (taint/)
@@ -157,7 +157,7 @@ Source text  ──────────────────────�
        ▼                                                           │
   Token stream → SegmentedCommand → IR → CFG → SSA → Analyses → Codegen
                                                   │
-                                                  ├─► Optimisations (O100–O126)
+                                                  ├─► Optimisations (O100–O130)
                                                   ├─► Taint warnings (T100+)
                                                   ├─► Shimmer warnings (S100+)
                                                   └─► Flow warnings (IRULE+)
