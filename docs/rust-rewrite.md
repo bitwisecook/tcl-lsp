@@ -3728,6 +3728,36 @@ fully (no merge-base) — per-file audit.
   (a red-green tree is the natural incremental-edit substrate).  Tracked as a
   new priority-queue row (`CST-PORT`).
 
+## SYNC-JUN07 family — main audit (2026-06-04, PR #534)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`4092ab31` (SYNC-JUN06).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`73492e98`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**No in-scope rows.**
+
+- **#534** (`73492e98`) — *Fix empty symbol names in BigIP document
+  outline.*  The VS Code client rejects the **entire** document outline when
+  any `DocumentSymbol.name` is falsy, and the BigIP global-singleton objects
+  (`auth password-policy`, `net self-allow`, `sys diags ihealth`, …) have an
+  empty path key (`""`).  The fix falls back to the object's `kind` label as
+  its effective identity (`full_path or kind`) in
+  `server/features/_bigip_symbols.py::get_bigip_document_symbols`, with a
+  `tests/test_document_symbols.py` regression.  Rides along: a cosmetic
+  raw-string docstring fix in `compiler/taint/_sinks.py`
+  (`_direct_expr_operand_names` — a `"""` → `r"""` change so an embedded
+  backslash in the prose no longer triggers an invalid-escape warning; **no
+  behavioural change**) and a `.test-slow.stamp` refresh.  **Out of scope** —
+  the document-outline feature lives in the Python **LSP server**
+  (`server/features/**`), explicitly outside the rewrite scope; the
+  `taint/_sinks.py` touch is a docstring-only edit with no analyser /
+  compiler / lowering / CFG-SSA / registry / optimiser semantics, and the
+  commit carries no `rust/` change.
+
+The single commit is an LSP-server outline fix plus a docstring tweak — no
+parsing-frontend, analyser, compiler, or registry surface to mirror.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -4035,6 +4065,14 @@ priority queue:
   Rust port target (`CST-PORT` priority-queue row); the existing token-loop
   segmenter (just made dialect-aware) is the thing it eventually replaces.
   See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.
+* **`SYNC-JUN07` family** — opened 2026-06-04 (PR #534); advances the anchor
+  from `origin/main`@`4092ab31` to `origin/main`@`73492e98` (+1 commit).
+  **No in-scope rows** — #534 fixes the BigIP document outline (a falsy
+  `DocumentSymbol.name` made the VS Code client reject the whole outline) in
+  the Python **LSP server** (`server/features/_bigip_symbols.py`), rides along
+  a docstring-only `r"""` fix in `compiler/taint/_sinks.py`, and refreshes
+  `.test-slow.stamp`; no analyser / compiler / registry / optimiser surface
+  and no `rust/` change.  See the `SYNC-JUN07` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
