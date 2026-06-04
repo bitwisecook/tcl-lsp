@@ -30,14 +30,17 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                 func_idx = emitter._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = args[1:]
-                if subcmd == "get" and len(sub_args) > 2:
-                    # ``dict get DICT KEY ?KEY...?`` — Tcl 9 supports
-                    # chained-key descent into nested dicts.  The
-                    # 2-param runtime import only handles a single
-                    # key; route the multi-key form through eval so
-                    # the runtime ``dict get`` handler walks the
-                    # chain (error-18.10's ``dict get $opts -during
-                    # -during -errorcode`` exercises this).
+                if subcmd in ("get", "exists") and len(sub_args) > 2:
+                    # ``dict get/exists DICT KEY ?KEY...?`` — Tcl 9
+                    # supports chained-key descent into nested dicts.
+                    # The 2-param runtime imports only handle a single
+                    # key; route the multi-key form through eval so the
+                    # runtime ``dict get`` / ``dict exists`` handlers
+                    # walk the chain.  ``dict get`` (error-18.10's
+                    # ``dict get $opts -during -during -errorcode``) and
+                    # ``dict exists`` (error-18.8/.9/.10's
+                    # ``dict exists $opts -during -during``) both
+                    # exercise this.
                     emitter._emit_eval_fallback("dict", args)
                     return True
                 if subcmd == "set" and len(sub_args) >= 3:
@@ -159,6 +162,19 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         for elem in kv:
             emitter._emit_value(elem)
             emitter._emit_call(lappend_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
+        return True
+
+    if subcmd in ("get", "exists") and len(args) - 1 > 2:
+        # Multi-key ``dict get/exists DICT KEY ?KEY...?`` — the 2-param
+        # runtime imports only walk a single key, so route the chained
+        # form through eval (the runtime handlers do the nested descent).
+        # See the matching guard on the VALUE path above.
+        emitter._emit_eval_fallback("dict", args)
         if defs:
             def_idx = emitter._intern_local(defs[0])
             emitter._emit_local_set(def_idx)

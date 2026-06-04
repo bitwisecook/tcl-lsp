@@ -1173,6 +1173,23 @@ class _WasmEmitterStmtMixin(_Base):
             return idx.get(imported)
         return None
 
+    def _proc_arity_exceeded(self, qname: "str | None", n_params: int, n_args: int) -> bool:
+        """True when a compiled call to *qname* supplies more positional
+        arguments than the proc accepts.
+
+        A proc whose last formal is the variadic ``args`` collector
+        (tracked in ``_proc_args_tail``) accepts any number of trailing
+        args, so it never exceeds.  Otherwise more than *n_params* call
+        args is a ``wrong # args`` error.  Direct-call emit sites consult
+        this and route the over-arity case through the eval fallback,
+        which raises the canonical message via ``eval_proc_call_bucket``
+        (the interpreted dispatch enforces the same limit) — proc-old-30.3
+        on the static-codegen path, matching the interpreted slice.
+        """
+        if qname is not None and qname in self._proc_args_tail:
+            return False
+        return n_args > n_params
+
     def _emit_call_stmt(
         self,
         command: str,
@@ -1967,6 +1984,14 @@ class _WasmEmitterStmtMixin(_Base):
         if proc_info is not None:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(command)
+            # Surplus args to a non-variadic proc → route through the eval
+            # fallback so the interpreter raises ``wrong # args`` instead
+            # of the direct dispatch silently truncating (Codex review on
+            # PR #532).  The fallback leaves its i32 result on the stack,
+            # matching this tail/value context.
+            if self._proc_arity_exceeded(qname, n_params, len(args)):
+                self._emit_eval_fallback(command, args, tokens=tokens)
+                return
             has_args_tail = qname is not None and qname in self._proc_args_tail
             # Stash the invoked word for the callee's
             # ``info level 0`` argv0 — see

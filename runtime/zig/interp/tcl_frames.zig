@@ -2740,6 +2740,42 @@ pub export fn var_resolve(name: i32) i32 {
 /// Used by :func:`var_set` to detect the conflict BEFORE the bare
 /// name is qualified to ``::ns::name`` and routed through
 /// ``global_set`` (which would report the qualified form).
+/// ``can't set "<arr(key)>": variable isn't array`` — raised when an
+/// array-element write targets a name that already exists as a scalar
+/// (set-old-6.2, regexpComp-6.8/11.7).  *name_ptr*/*name_len* is the
+/// user's full spelling including the ``(key)`` suffix.
+fn raise_set_not_array(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "can't set \"";
+    const suffix: []const u8 = "\": variable isn't array";
+    const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_len > 0 and name_ptr != 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 fn raise_set_array_conflict(name_ptr: u32, name_len: u32) void {
     const catch_mod = @import("tcl_catch.zig");
     const prefix: []const u8 = "can't set \"";
@@ -2828,6 +2864,35 @@ pub export fn var_set(name: i32, value: i32) i32 {
             const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            // Scalar-vs-array conflict: writing an element of a name
+            // that already exists as a SCALAR raises ``can't set
+            // "<arr(key)>": variable isn't array`` with the user's full
+            // spelling (set-old-6.2, regexpComp-6.8/11.7).  The probe
+            // MUST use the same scope this element write resolves to:
+            // inside a proc an unqualified name binds to a frame-local,
+            // so a same-named GLOBAL scalar must not block ``set x(1)``
+            // (which creates a fresh local array — set-old-12.2).  A
+            // ``::``-qualified name and the top-level case bind to the
+            // global/namespace store.  An existing array is fine
+            // (``array_exists``); an absent base falls through to the
+            // normal create-on-write.  Cases this scope branch misses
+            // (e.g. a namespace-eval scalar) are still caught by
+            // ``find_or_create`` inside ``array_set``.
+            if (obj.obj_get_int(tcl_array.array_exists(resolved_arr)) == 0) {
+                const ap: [*]const u8 = if (paren > 0) @ptrFromInt(sn.ptr) else undefined;
+                const qualified = paren >= 2 and ap[0] == ':' and ap[1] == ':';
+                const base_is_scalar = if (current_frame() != null and !qualified)
+                    obj.obj_get_int(local_exists(arr_name)) != 0
+                else
+                    obj.obj_get_int(globals.global_exists(arr_name)) != 0;
+                if (base_is_scalar) {
+                    raise_set_not_array(sn.ptr, sn.len);
+                    obj.tcl_obj_release(arr_name);
+                    if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
+                    obj.tcl_obj_release(key);
+                    return 0;
+                }
+            }
             _ = tcl_array.array_set(resolved_arr, key, value);
             obj.tcl_obj_release(arr_name);
             if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
