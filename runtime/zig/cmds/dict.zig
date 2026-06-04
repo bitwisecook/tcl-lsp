@@ -174,7 +174,37 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(result);
     }
     if (str_eq(sp, sub.len, "update") and words.len >= 6) return result_mod.from_globals(eval_dict_update(words));
-    if (str_eq(sp, sub.len, "exists") and words.len >= 4) return result_mod.from_globals(rt.dict_exists(words[2], words[3]));
+    if (str_eq(sp, sub.len, "exists") and words.len >= 4) {
+        // ``dict exists DICT KEY ?KEY ...?`` — walk the nested key
+        // path (error-18.8/.9/.10 probe a two-level
+        // ``dict exists $opts -during -during`` chain).  Unlike
+        // ``dict get`` this never raises: a missing key OR a non-dict
+        // intermediate value collapses to false (0), matching
+        // tclDictObj.c::DictExistsCmd, which traces the path with
+        // interp==NULL so lookup errors fold into a false result.
+        //
+        // Ownership mirrors the ``dict get`` walk above: ``cur`` starts
+        // borrowed (``words[2]``); each ``dict_get`` drill returns +1
+        // owned, so release the prior owned ``cur`` before overwriting.
+        // ``dict_exists`` yields an immediate 0/1 box (no refcount).
+        var cur: i32 = words[2];
+        var owns_cur: bool = false;
+        var ki: u32 = 3;
+        while (ki + 1 < words.len) : (ki += 1) {
+            const here = rt.dict_exists(cur, words[ki]);
+            if (rt.obj_get_int(here) == 0) {
+                if (owns_cur) obj.tcl_obj_release(cur);
+                return result_mod.from_globals(here);
+            }
+            const next = rt.dict_get(cur, words[ki]);
+            if (owns_cur) obj.tcl_obj_release(cur);
+            cur = next;
+            owns_cur = true;
+        }
+        const res = rt.dict_exists(cur, words[words.len - 1]);
+        if (owns_cur) obj.tcl_obj_release(cur);
+        return result_mod.from_globals(res);
+    }
     if (str_eq(sp, sub.len, "keys")) return result_mod.from_globals(rt.dict_keys(words[2]));
     if (str_eq(sp, sub.len, "values")) return result_mod.from_globals(rt.dict_values(words[2]));
     if (str_eq(sp, sub.len, "size")) return result_mod.from_globals(rt.dict_size(words[2]));

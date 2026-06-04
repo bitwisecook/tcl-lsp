@@ -2770,17 +2770,15 @@ class TestRenamedToProcDispatch:
         assert ok, err
         assert out.strip() == "caught"
 
-    @pytest.mark.xfail(
-        reason=(
-            "Known narrow gap: a *variadic* {args} proc that shadows a *renamed* "
-            "builtin binds args short. The AOT prologue pre-registers every proc "
-            "before ::top runs, so `rename string ::s` reorders against tclsh's "
-            "lazy define. Fixed-arity shadows (above) are correct; redefining "
-            "without a prior rename is correct too. Documented in _values.py."
-        ),
-        strict=True,
-    )
     def test_variadic_shadow_of_renamed_builtin(self):
+        # Formerly a known gap: a *variadic* {args} proc shadowing a
+        # *renamed* builtin bound args short because the compile-time
+        # ``_proc_args_tail`` didn't recognise the shadow as variadic, so
+        # the direct distrust dispatch truncated.  The proc-arity work
+        # (PR #532) routes the compile-time-over-arity case through the
+        # eval fallback, where the runtime reads the proc's real stored
+        # params, recognises the ``args`` collector, and packs the tail
+        # correctly — so ``string length abcde`` → args = {length abcde}.
         ok, out, err = _run_tcl_for_stdout(
             "rename string ::s\nproc string {args} {return [llength $args]}\n"
             "puts [string length abcde]"

@@ -385,6 +385,7 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc(self, *a: Any, **kw: Any) -> Any: ...
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterExprMixin
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_expr_obj(self, *a: Any, **kw: Any) -> Any: ...
@@ -815,10 +816,12 @@ class _WasmEmitterValuesMixin(_Base):
         # takes the rename-aware, trace-aware guarded dispatch (mirrors
         # ``_emit_command_subst``): needed for proc calls that appear as command
         # *arguments* (``[string range $c [12days …] end]``).  See
-        # ``_emit_distrust_proc_subst``.  Known narrow gap: a *variadic*
-        # ``{args}`` proc shadowing a *renamed* builtin binds ``args`` short
-        # (AOT prologue pre-registers procs before the rename runs); fixed-arity
-        # shadows are correct.
+        # ``_emit_distrust_proc_subst``.  A *variadic* ``{args}`` proc
+        # shadowing a *renamed* builtin whose ``args`` tail the compile-time
+        # ``_proc_args_tail`` didn't recognise is handled by the over-arity
+        # guard below: it routes that call through the eval fallback, where
+        # the runtime reads the proc's real stored params and packs the tail
+        # correctly (test_variadic_shadow_of_renamed_builtin).
         if not builtin_is_trusted(cmd_name):
             proc_info = self._resolve_proc(cmd_name, self._full_proc_index)
             if (
@@ -830,11 +833,16 @@ class _WasmEmitterValuesMixin(_Base):
             ):
                 func_idx, n_params = proc_info
                 qname = self._resolve_proc_qname(cmd_name)
-                has_args_tail = qname is not None and qname in self._proc_args_tail
-                self._emit_distrust_proc_subst(
-                    cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=False
-                )
-                return
+                # Surplus args to a non-variadic proc → fall through to the
+                # eval fallback so the interpreter raises ``wrong # args``
+                # (Codex review on PR #532); don't truncate via the direct
+                # dispatch.
+                if not self._proc_arity_exceeded(qname, n_params, len(cmd_args)):
+                    has_args_tail = qname is not None and qname in self._proc_args_tail
+                    self._emit_distrust_proc_subst(
+                        cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=False
+                    )
+                    return
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             return
 
@@ -932,6 +940,14 @@ class _WasmEmitterValuesMixin(_Base):
         if proc_info is not None:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(cmd_name)
+            # Surplus args to a non-variadic proc → route through the eval
+            # fallback so the interpreter raises ``wrong # args`` instead
+            # of the direct dispatch silently truncating (Codex review on
+            # PR #532).  The fallback leaves its i32 result on the stack,
+            # matching this value context.
+            if self._proc_arity_exceeded(qname, n_params, len(cmd_args)):
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                return
             has_args_tail = qname is not None and qname in self._proc_args_tail
             # Stash the exact word the caller wrote so the callee's
             # prologue can report it as argv[0] via
@@ -1063,11 +1079,13 @@ class _WasmEmitterValuesMixin(_Base):
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = cmd_args[1:]
-                # ``dict get DICT KEY ?KEY...?`` — multi-key chain
-                # descent into nested dicts.  The 2-param fast path
-                # only sees the first key; route extra keys through
-                # eval so the runtime walks the chain (error-18.10).
-                if subcmd == "get" and len(sub_args) > 2:
+                # ``dict get/exists DICT KEY ?KEY...?`` — multi-key
+                # chain descent into nested dicts.  The 2-param fast
+                # path only sees the first key; route extra keys through
+                # eval so the runtime walks the chain.  ``dict get``
+                # (error-18.10) and ``dict exists`` (error-18.8/.9/.10's
+                # ``dict exists $opts -during -during``) both need this.
+                if subcmd in ("get", "exists") and len(sub_args) > 2:
                     self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                     return
                 for i in range(min(param_count, len(sub_args))):

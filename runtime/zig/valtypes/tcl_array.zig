@@ -940,6 +940,13 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
         // 8.38.3).  Pass key_ptr = 0 / key_len = 0 so the helper
         // selects the empty-list message.
         if (!array_check_or_create(arr, 0, 0)) return obj_new_string(0, 0);
+        // ``array_check_or_create`` only validated the scalar conflict;
+        // it does NOT create the table (the non-empty path relies on the
+        // first ``array_set`` for that).  Materialise an empty table so
+        // ``array set X {}`` makes ``info exists X`` / ``array exists X``
+        // true and a later scalar read of X reports ``variable is
+        // array`` rather than ``no such variable`` (set-old-8.38/8.38.2).
+        _ = find_or_create(arr);
         return obj_new_string(0, 0);
     }
     // Up-front scalar-conflict probe: ``array set arr ...`` on a
@@ -1526,10 +1533,13 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
         ar_set_count(t, ar_count(t) - 1);
         if (old != 0) obj.tcl_obj_release(old);
         if (kp != 0 and kl > 0) obj.free_sized(kp, kl);
+        // Phase 6: fire UNSET trace AFTER the unset so the callback sees
+        // the variable in its final (gone) state.  Only fire when an
+        // element was actually removed — ``unset -nocomplain arr(k)``
+        // against a missing key (or ``array unset`` of an absent
+        // element) must NOT trigger the trace (trace-4.7).
+        fire_var_trace_unset(arr, sk.ptr, sk.len);
     }
-    // Phase 6: fire UNSET trace AFTER the unset so the callback sees
-    // the variable in its final (gone) state.
-    fire_var_trace_unset(arr, sk.ptr, sk.len);
     return obj_new_int(0);
 }
 

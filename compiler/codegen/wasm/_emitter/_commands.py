@@ -73,6 +73,7 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_diag_site(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
@@ -642,6 +643,17 @@ class _WasmEmitterCmdMixin(_Base):
         # pad with ``i32.const 0`` via :meth:`_emit_default_arg`
         # for missing args — no per-call-site default lookup
         # needed.
+        # Surplus positional args to a non-variadic proc are a
+        # ``wrong # args`` error.  The interpreted dispatch
+        # (``eval_proc_call_bucket``) enforces this; route the over-arity
+        # call through the eval fallback so the static-codegen path raises
+        # the same error instead of silently truncating (Codex review on
+        # PR #532; proc-old-30.3).  ``invoked_name`` is the source word
+        # the fallback re-evals; it is always set from ``_emit_call_stmt``.
+        if invoked_name is not None and self._proc_arity_exceeded(qname, n_params, len(args)):
+            self._emit_eval_fallback(invoked_name, args, tokens=tokens)
+            self._emit(WasmOp.DROP)
+            return
         has_args_tail = qname is not None and qname in self._proc_args_tail
         argv0_local = (
             self._emit_prepare_pending_argv0(invoked_name) if invoked_name is not None else None
