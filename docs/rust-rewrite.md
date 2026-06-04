@@ -3947,6 +3947,25 @@ substitution` (4 cases drawn from main's battery) FAILS pre-rebase
 (`missing "bar"`).  `cargo fmt` / `clippy -D warnings` clean; full
 workspace test green (3339).
 
+**Follow-up fix — compound-word over-read (2026-06-04, Codex P2 on #542).**
+When a `[…]` substitution is the *first fragment* of a compound word
+(`puts [foo]bar`, `set x [foo]$suffix`, head `[foo]bar hi`),
+`segments_from_tree` widens the merged argv token's span from the first
+fragment's start to the *last* fragment's end — so `record_invocations_from_
+cmd_token` descended `[foo]bar` and re-lexed the trailing literal as a
+script, recording a bogus head (`foo]bar` at the whole-word range) instead
+of `foo`.  The descent-internal `record_command_invocations` was already
+correct (it iterates the unmerged `seg.all_tokens`); only this top-level
+entry used the merged `argv`.  Fix: a `cmd_fragments` helper re-lexes the
+word slice and descends *each* `[…]` `Cmd` fragment (mirroring main's
+unmerged token walk), so `[foo]bar[baz]` records both `foo` and `baz` and
+`[aa; bb]cc` keeps strip-1's `;`-separation — falling back to the token
+as-given on any lex error.  Pinned by `compound_cmd_word_descends_
+substitution_fragments_only`.  (An `Esc`-first compound like `a[foo]` — the
+substitution *not* first — flows through the untouched word-scanner path and
+is outside this fix's scope; the command-invocations differential vs. main
+stays green.)  `cargo fmt` / `clippy -D warnings` clean.
+
 ### Strip 2 — var / `"quote"` / compound head fidelity (LANDED 2026-06-04)
 
 `collect_substitution_heads` recorded only single-token bareword heads;

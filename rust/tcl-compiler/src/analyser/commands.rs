@@ -25,7 +25,7 @@
 //! ``if let true = self.handle_xxx(...) { return }`` calls so
 //! extending it remains a one-liner.
 
-use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::parsing::syntax::descend::{descend_command, descend_token};
@@ -615,10 +615,57 @@ impl Analyser {
         let heads = {
             let sm = SourceMap::new(&self.source);
             let mut heads: Vec<(String, Span)> = Vec::new();
-            collect_substitution_heads(&sm, self.registry.as_ref(), arg_tok, config, &mut heads);
+            // `arg_tok` is the *merged* argv token.  For a compound word
+            // whose first fragment is a `[…]` substitution (`[foo]bar`,
+            // `[foo]$x`, `[foo]bar[baz]`), `segments_from_tree` widens the
+            // span from the first fragment's start to the *last* fragment's
+            // end.  Descending that merged span would re-lex the trailing
+            // literal as a script and record a bogus head (`[foo]bar` →
+            // `foo]bar`).  Descend each `[…]` fragment instead, mirroring
+            // main's walk over the unmerged token stream; a single-fragment
+            // `[…]` word yields just itself.
+            for frag in self.cmd_fragments(arg_tok, config) {
+                collect_substitution_heads(&sm, self.registry.as_ref(), frag, config, &mut heads);
+            }
             heads
         };
         self.push_collected_heads(heads);
+    }
+
+    /// The `[…]` substitution fragment tokens of a (possibly compound)
+    /// `Cmd`-headed word, with absolute spans.  Re-lexing the word slice
+    /// recovers the per-fragment boundaries the argv merge erased, so
+    /// `[foo]bar` yields its `[foo]` fragment (not the whole word) and
+    /// `[foo]bar[baz]` yields both `[foo]` and `[baz]`.  On a lex error or
+    /// a degenerate empty/out-of-bounds span, falls back to the token as
+    /// given so the caller still descends *something*.
+    fn cmd_fragments(&self, arg_tok: Token, config: LexerConfig) -> Vec<Token> {
+        let start = arg_tok.span.start() as usize;
+        let end = arg_tok.span.end() as usize;
+        if start >= self.source.len() || end > self.source.len() || start >= end {
+            return vec![arg_tok];
+        }
+        let base = arg_tok.span.start();
+        let frags: Vec<Token> =
+            Lexer::with_source_map(SourceMap::new(&self.source[start..end]), config)
+                .tokenise_all()
+                .map(|toks| {
+                    toks.into_iter()
+                        .filter(|t| t.kind == TokenType::Cmd)
+                        .map(|t| Token {
+                            kind: t.kind,
+                            span: Span::new(t.span.start() + base, t.span.end() + base),
+                            content_offset: t.content_offset,
+                            in_quote: t.in_quote,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+        if frags.is_empty() {
+            vec![arg_tok]
+        } else {
+            frags
+        }
     }
 
     /// Inner: a braced ``Str`` *expression* argument (`if {[acl_ok]} …`).

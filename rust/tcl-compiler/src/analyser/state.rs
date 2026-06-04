@@ -2514,6 +2514,54 @@ mod tests {
     // opaquely).
 
     #[test]
+    fn compound_cmd_word_descends_substitution_fragments_only() {
+        // A command substitution that is the *first* fragment of a
+        // compound word (`[foo]bar`, `[foo]$x`) merges with the trailing
+        // literal into one argv token spanning the whole word.  The
+        // nested-invocation recorder must descend only the `[…]`
+        // fragment(s) — not the merged span — so it records the real
+        // inner head (`foo`) rather than a bogus one (`foo]bar`).
+        // Regression for the Codex P2 review on PR #542.
+        type Inv = (&'static str, u32, u32);
+        let cases: &[(&str, &[Inv])] = &[
+            ("puts [foo]bar\n", &[("foo", 6, 9)]),
+            ("set x [foo]$suffix\n", &[("foo", 7, 10)]),
+            // Substitution as the command head of a compound word.
+            ("[foo]bar hi\n", &[("foo", 1, 4)]),
+            // Two substitutions in one word — both must be found.
+            ("puts [foo]bar[baz]\n", &[("foo", 6, 9), ("baz", 14, 17)]),
+            // `;`-separated commands inside a compound substitution.
+            ("puts [aa; bb]cc\n", &[("aa", 6, 8), ("bb", 10, 12)]),
+        ];
+        for (src, expected) in cases {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "f5-irules");
+            let got: Vec<(String, u32, u32)> = r
+                .command_invocations
+                .iter()
+                .map(|c| (c.name.clone(), c.range.start(), c.range.end()))
+                .collect();
+            for &(name, start, end) in *expected {
+                assert!(
+                    got.iter()
+                        .any(|(n, s, e)| n == name && *s == start && *e == end),
+                    "src {src:?}: expected ({name:?}, {start}, {end}) in {got:?}",
+                );
+            }
+            // No over-read: a *descended* substitution head must never
+            // carry the literal suffix after the matching `]` (`foo]bar`,
+            // `foo]${suffix}`).  A whole-word head recorded verbatim by
+            // `process_command` (`[foo]bar`) legitimately starts with `[`
+            // and is excluded.
+            assert!(
+                !got.iter()
+                    .any(|(n, _, _)| n.contains(']') && !n.starts_with('[')),
+                "src {src:?}: a descended head leaked the literal suffix (over-read): {got:?}",
+            );
+        }
+    }
+
+    #[test]
     fn analyse_when_body_records_inner_command_invocations() {
         // ``when HTTP_REQUEST { body }`` — ``call`` and the
         // target ``myhelper`` should appear in
