@@ -26,9 +26,11 @@
 //! extending it remains a one-liner.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
+use tcl_registry::CommandRegistry;
 
-use crate::parsing::syntax::descend::descend_token;
+use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
+use crate::segmenter::SegmentedCommand;
 
 use super::state::Analyser;
 
@@ -578,7 +580,7 @@ impl Analyser {
         let heads = {
             let sm = SourceMap::new(&self.source);
             let mut heads: Vec<(String, Span)> = Vec::new();
-            collect_substitution_heads(&sm, arg_tok, config, &mut heads);
+            collect_substitution_heads(&sm, self.registry.as_ref(), arg_tok, config, &mut heads);
             heads
         };
         for (name, range) in heads {
@@ -740,6 +742,118 @@ impl Analyser {
     }
 }
 
+/// Descend a ``Cmd`` (``[…]``) substitution token and collect every
+/// inner command's head as ``(name, head_span)``, recursing into nested
+/// ``[...]`` substitutions and registry-resolved body arguments.
+///
+/// Mirrors main's ``_recurse_nested_commands``: the token is descended
+/// into a child CST ([`descend_token`]) and the inner script segmented;
+/// each command is then handled by [`record_command_invocations`].
+/// Spans are absolute (the descent anchors the child tree at the
+/// substitution's position).
+fn collect_substitution_heads(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, cmd_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        record_command_invocations(sm, registry, &seg, config, out);
+    }
+}
+
+/// Record one (already-segmented) command's head, then recurse into its
+/// nested ``[...]`` substitutions *and* its registry-resolved body
+/// arguments — the combined ``_recurse_nested_commands`` +
+/// ``_recurse_body_arguments`` walk main runs on every command, so a
+/// command-substitution containing a control-flow command surfaces the
+/// body's commands too (`[if {$c} {puts hi}]` → `if`, `puts`).
+///
+/// The head is recorded as main's ``argv_texts[0]`` (the `word_piece`
+/// form in `texts[0]`: a ``$var`` head as ``${var}``, a ``"quoted"``
+/// head unquoted, a compound ``$x$y`` head reconstructed); a ``[subst]``
+/// head is left to the substitution recursion, and a ``{brace}`` head is
+/// data, not a command.  Body arguments are resolved through
+/// [`descend_command`] (the registry's ``arg_indices_for_role`` /
+/// `iter_body_arguments`), so the body set matches the registry exactly
+/// and an ``Expr`` argument is never walked as a script.
+fn record_command_invocations(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    seg: &SegmentedCommand,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    // Head (main's argv_texts[0], word_piece form).
+    if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first()) {
+        if !matches!(head.kind, TokenType::Cmd | TokenType::Str) && !name.is_empty() {
+            out.push((name.clone(), head.span));
+        }
+    }
+    // Nested ``[...]`` substitutions in any position (args, or embedded
+    // in a quoted word — both are `Cmd` tokens in the command's token
+    // stream; a `{brace}` region stays opaque).
+    for tok in &seg.all_tokens {
+        if tok.kind == TokenType::Cmd {
+            collect_substitution_heads(sm, registry, *tok, config, out);
+        }
+    }
+    // Registry-resolved body arguments (`if` / `foreach` / `eval` / …
+    // bodies).  The body's commands are inner invocations too.
+    if let (Some(registry), Some(name)) = (registry, seg.texts.first()) {
+        let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
+        let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
+        // The `switch … {pattern body …}` list-form arg is a Tcl *list*,
+        // not a script — the registry still marks it `Body`, but walking
+        // it as one mis-reads a pattern as a command head.  Main
+        // special-cases it (`_recurse_switch_list_body`); we skip it here
+        // (recording the arm bodies' commands is a follow-up).
+        let switch_list_idx = if name == "switch" {
+            switch_list_body_index(&args)
+        } else {
+            None
+        };
+        for body in descend_command(registry, sm, name, &args, &arg_tokens, config) {
+            if switch_list_idx == Some(body.index) {
+                continue;
+            }
+            for inner in segments_from_tree(body.descended.tree(), sm) {
+                record_command_invocations(sm, Some(registry), &inner, config, out);
+            }
+        }
+    }
+}
+
+/// Mirror of main's `_switch_list_body_index`: for the
+/// ``switch ?options? string {pattern body …}`` form, the index (into
+/// `args`, 0-based, excluding the command name) of the single braced
+/// pattern/body list.  `None` for the separate-args form
+/// (``switch string pat body pat body``), whose bodies *are* scripts.
+fn switch_list_body_index(args: &[&str]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        if args[i] == "--" {
+            i += 1;
+            break;
+        }
+        i += 1;
+    }
+    if i >= args.len() {
+        return None;
+    }
+    i += 1; // the `string` argument
+    if i == args.len() - 1 {
+        Some(i)
+    } else {
+        None
+    }
+}
+
 /// Walk `text` looking for ``[cmd args...]`` command
 /// substitutions and return the head name + the offset of the
 /// head's first byte within `text` for each substitution found.
@@ -752,48 +866,6 @@ impl Analyser {
 /// Returns ``(name, byte_offset_in_text)`` pairs.  The caller
 /// adds the enclosing token's source-span start to obtain an
 /// absolute offset.
-/// Descend a ``Cmd`` (``[…]``) substitution token and collect every
-/// inner command's bareword head as ``(name, head_span)``, recursing
-/// into nested ``[...]`` substitutions.
-///
-/// Mirrors main's ``_recurse_nested_commands``: the token is descended
-/// into a child CST ([`descend_token`]), the inner script segmented, and
-/// each command's head recorded.  Only a pure single-token bareword head
-/// is a command name — a ``$var`` / ``"quote"`` / ``{brace}`` /
-/// ``[subst]`` or compound (`$x$y`) head is skipped, matching the old
-/// [`first_command_head`] filter.  Spans are absolute (the descent
-/// anchors the child tree at the substitution's position).
-fn collect_substitution_heads(
-    sm: &SourceMap<'_>,
-    cmd_tok: Token,
-    config: LexerConfig,
-    out: &mut Vec<(String, Span)>,
-) {
-    if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
-        return;
-    }
-    let descended = descend_token(sm, cmd_tok, config);
-    for seg in segments_from_tree(descended.tree(), sm) {
-        // Record this command's head when it is a single-token bareword.
-        if let (Some(&head), Some(&single)) = (seg.argv.first(), seg.single_token_word.first()) {
-            if single && head.kind == TokenType::Esc && head.content_offset == 0 {
-                let text = sm.token_text(head);
-                if !text.is_empty() {
-                    out.push((text.to_string(), head.span));
-                }
-            }
-        }
-        // Recurse into nested ``[...]`` substitutions in any position
-        // (args, or embedded in a quoted word — both are `Cmd` tokens in
-        // the command's token stream; a `{brace}` region stays opaque).
-        for tok in &seg.all_tokens {
-            if tok.kind == TokenType::Cmd {
-                collect_substitution_heads(sm, *tok, config, out);
-            }
-        }
-    }
-}
-
 pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();

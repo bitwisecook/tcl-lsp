@@ -2557,11 +2557,29 @@ mod tests {
         // The CST descent records every inner command head, matching
         // main (`set x [foo; bar]` -> {foo, bar, set}); the old flat
         // scan recorded only the *first* head (missing `bar` / `baz`).
+        // CST-CONSUMERS strip 2: a head is recorded in main's
+        // `word_piece` form for every command, incl. a `$var` head
+        // (`${var}`), a `"quoted"` head (unquoted), and a compound head
+        // (`set x [$cmd a; bar]` -> {${cmd}, bar, set}). Verified against
+        // main's analyser.
         let cases: &[(&str, &[&str])] = &[
             ("set x [foo; bar]\n", &["set", "foo", "bar"]),
             ("puts [a; b; c]\n", &["puts", "a", "b", "c"]),
             ("set x [foo [bar; baz]]\n", &["set", "foo", "bar", "baz"]),
             ("set x [foo $y; bar]\n", &["set", "foo", "bar"]),
+            ("set x [$cmd a; bar]\n", &["set", "${cmd}", "bar"]),
+            ("set x [foo; $y arg]\n", &["set", "foo", "${y}"]),
+            ("set x [\"q\" a; bar]\n", &["set", "q", "bar"]),
+            // CST-CONSUMERS strip 3: a control-flow command inside a
+            // substitution has body arguments whose commands are inner
+            // invocations too (descend_command resolves them via the
+            // registry). `[if {$c} {puts hi}]` -> {if, puts}.
+            ("set x [if {$c} {puts hi}]\n", &["set", "if", "puts"]),
+            (
+                "set x [foreach a $l {log $a}]\n",
+                &["set", "foreach", "log"],
+            ),
+            ("set x [eval {one; two}]\n", &["set", "eval", "one", "two"]),
         ];
         for (src, expected) in cases {
             let mut a = Analyser::new();
@@ -2578,6 +2596,31 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn analyse_does_not_record_switch_patterns_as_commands() {
+        // CST-CONSUMERS strip 3: the `switch … {pat body …}` list-form
+        // arg is a Tcl *list*, not a script — descending it as one would
+        // mis-record the pattern `a` / `b` as command heads. Main
+        // special-cases it; we skip the list body (a clean subset — no
+        // false invocation), matching main's {set, switch} here.
+        let mut a = Analyser::new();
+        let r = a.analyse("set x [switch $v {a {cmd1} b {cmd2}}]\n", "tcl8.6");
+        let names: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert!(names.contains(&"switch"), "got {names:?}");
+        assert!(
+            !names.contains(&"a"),
+            "pattern recorded as command: {names:?}"
+        );
+        assert!(
+            !names.contains(&"b"),
+            "pattern recorded as command: {names:?}"
+        );
     }
 
     #[test]
