@@ -65,7 +65,7 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
 /// tokens) yield an empty list — the caller must fall back to
 /// form-1-style alternation when the form-2 body cannot be
 /// statically split.
-fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
+pub(super) fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
     if body_tok.kind != TokenType::Str {
         return Vec::new();
     }

@@ -868,8 +868,8 @@ fn record_command_invocations(
         // The `switch … {pattern body …}` list-form arg is a Tcl *list*,
         // not a script — the registry still marks it `Body`, but walking
         // it as one mis-reads a pattern as a command head.  Main
-        // special-cases it (`_recurse_switch_list_body`); we skip it here
-        // (recording the arm bodies' commands is a follow-up).
+        // special-cases it (`_recurse_switch_list_body`): parse the list
+        // into pattern/body pairs and descend each arm *body*.
         let switch_list_idx = if name == "switch" {
             switch_list_body_index(&args)
         } else {
@@ -877,6 +877,21 @@ fn record_command_invocations(
         };
         for body in descend_command(registry, sm, name, &args, &arg_tokens, config) {
             if switch_list_idx == Some(body.index) {
+                let elements = super::handlers::parse_switch_body_elements(&body.text, body.token);
+                // Elements alternate pattern, body, pattern, body, … —
+                // descend the (odd-indexed) arm bodies only; a `-`
+                // fall-through has no body of its own.
+                let mut k = 1;
+                while k < elements.len() {
+                    let (arm_text, arm_tok) = &elements[k];
+                    if arm_text != "-" && arm_tok.kind == TokenType::Str {
+                        let arm = descend_token(sm, *arm_tok, config);
+                        for inner in segments_from_tree(arm.tree(), sm) {
+                            record_command_invocations(sm, Some(registry), &inner, config, out);
+                        }
+                    }
+                    k += 2;
+                }
                 continue;
             }
             for inner in segments_from_tree(body.descended.tree(), sm) {

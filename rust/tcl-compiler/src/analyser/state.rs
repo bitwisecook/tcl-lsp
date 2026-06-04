@@ -2613,12 +2613,15 @@ mod tests {
     }
 
     #[test]
-    fn analyse_does_not_record_switch_patterns_as_commands() {
-        // CST-CONSUMERS strip 3: the `switch … {pat body …}` list-form
-        // arg is a Tcl *list*, not a script — descending it as one would
-        // mis-record the pattern `a` / `b` as command heads. Main
-        // special-cases it; we skip the list body (a clean subset — no
-        // false invocation), matching main's {set, switch} here.
+    fn analyse_records_switch_arm_bodies_not_patterns() {
+        // CST-CONSUMERS strip 7: the `switch … {pat body …}` list-form arg
+        // is a Tcl *list*, not a script.  The arm *bodies* are scripts
+        // (their commands are invocations), but the *patterns* are not —
+        // descending the whole list as a script would mis-record a pattern
+        // (`a`/`b`) as a command head.  Mirror main's
+        // `_recurse_switch_list_body`: parse the pairs and descend each
+        // body.  A `default` keyword / `-` fall-through is a pattern, not a
+        // body.  Matches main exactly: {cmd1, cmd2, set, switch}.
         let mut a = Analyser::new();
         let r = a.analyse("set x [switch $v {a {cmd1} b {cmd2}}]\n", "tcl8.6");
         let names: Vec<&str> = r
@@ -2627,6 +2630,8 @@ mod tests {
             .map(|c| c.name.as_str())
             .collect();
         assert!(names.contains(&"switch"), "got {names:?}");
+        assert!(names.contains(&"cmd1"), "arm body missing: {names:?}");
+        assert!(names.contains(&"cmd2"), "arm body missing: {names:?}");
         assert!(
             !names.contains(&"a"),
             "pattern recorded as command: {names:?}"
