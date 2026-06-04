@@ -15,11 +15,13 @@
 //!   second parser) via start-to-start tiling.
 //! - [`segment`] — derives `SegmentedCommand` from the tree,
 //!   byte-identically to the token-loop segmenter.
-//! - `descend` (strip 6) — lazy descent into braced bodies / `[…]` subs.
+//! - [`descend`] — lazy descent into braced bodies / `[…]` subs as
+//!   child CSTs anchored one byte past the opener.
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
 
 pub mod build;
+pub mod descend;
 pub mod green;
 pub mod red;
 pub mod segment;
