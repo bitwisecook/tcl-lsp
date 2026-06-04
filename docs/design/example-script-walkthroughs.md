@@ -55,8 +55,8 @@ Source text
   │
   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:1146
-│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:368
+│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:1183
+│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:344
 │      (derived byte-identically from the red-green CST — syntax/build.py)        │
 │ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:2767
 │ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1447
@@ -119,7 +119,7 @@ class Token:                        # tokens.py:33
 
 ```python
 @dataclass(slots=True)
-class SegmentedCommand:              # command_segmenter.py:86
+class SegmentedCommand:              # command_segmenter.py:62
     range: Range                         # source span of the entire command
     argv: list[Token]                    # first token of each word
     texts: list[str]                     # concatenated text per word
@@ -3813,7 +3813,7 @@ Source text  ──────────────────────�
 
 Each stage transforms the data into a richer representation:
 1. **Tokens** — flat character-level classification (`tokens.py:33`)
-2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:86`)
+2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:62`)
 3. **IR nodes** — typed, structured command semantics (`ir.py:609`)
 4. **CFG blocks** — explicit control flow with terminators (`cfg.py:473`)
 5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:633`)

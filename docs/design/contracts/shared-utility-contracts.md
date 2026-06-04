@@ -57,7 +57,7 @@ Shared surfaces this contract covers:
 - `shared/position.py` — `offset_at_position`, `position_in_range`
 - `compiler/parsing/known_commands.py`
 - `compiler/parsing/argv.py`
-- `compiler/parsing/command_shapes.py`
+- `compiler/parsing/token_scanning.py` — `extract_single_expr_argument`, `word_piece`, command-substitution scanners (canonical home; `command_shapes.py` re-exports for back-compat)
 - `compiler/parsing/token_positions.py`
 - `compiler/value_shapes.py`
 - `compiler/var_refs.py`

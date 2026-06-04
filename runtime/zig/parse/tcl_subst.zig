@@ -299,6 +299,21 @@ pub fn subst_flagged_full(
                     // exception-handling fold (parse-18.* / subst-8.9
                     // / 10.6 / 11.6).
                     const key_obj = subst_flagged_full(wptr + ks, ke - ks, do_vars, do_cmds, do_bs, false);
+                    // An error raised while substituting the index span
+                    // (e.g. an unterminated ``${`` in ``$arr(${foo)`` —
+                    // parse-18.11 / 18.12, ``missing close-brace for
+                    // variable name``) must propagate verbatim.  Without
+                    // this the array lookup below runs with a 0 key,
+                    // clobbering the real diagnostic with ``can't read
+                    // "arr()": no such variable`` (static path) or
+                    // trapping when the doubled error state unwinds
+                    // through the interpreter (interpreted path).
+                    if (catch_mod.state.error_flag != 0) {
+                        obj_mod.tcl_obj_release(name_obj);
+                        if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                        release_pieces_for_bail(retained_objs, n_retained, retained_alloc, pieces_alloc);
+                        return 0;
+                    }
                     if (from_subst_cmd) {
                         const key_ir = result_mod.snapshot(key_obj);
                         switch (key_ir.code) {

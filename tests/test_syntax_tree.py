@@ -57,6 +57,20 @@ EDGE_CASES = [
     "\n\n\n",
     "if {$x > 1} {puts hi} else {puts bye}",
     "set x 1;set y 2;set z 3",
+    # A quoted word whose entire content is a backslash-newline: the lexer emits
+    # it as a real ``ESC`` *content* fragment, not a separator, so the tree must
+    # keep it (folding it to trivia dropped the only fragment of the word).
+    '"\\\n',  # unterminated quote, content == backslash-newline
+    '"\\\n"',  # terminated quote, content == backslash-newline
+    'set x "\\\n"',
+    # Lone carriage-return continuations: the token after a ``\\<CR>`` must not
+    # land on a different line than the line index reports (it is not a break).
+    "\\\r}",
+    "foo\\\r{bar}",
+    "set x \\\r\n  y",
+    # Astral / combining unicode in words must not desync columns.
+    "set 😀 [list λ 𝕏]",
+    "puts a̲b",
 ]
 
 
@@ -80,8 +94,18 @@ def _gen(rng: random.Random) -> str:
         "1",
         "\\\n",
         "{a\nb}",
+        # Quoted-word backslash-newline content + lone-CR continuations + astral
+        # unicode — the seams a \\n-only / ASCII-only generator never reaches.
+        '"\\\n"',
+        '"\\\n',
+        "\\\r}",
+        "x\\\ry",
+        '"a\\\rb"',
+        "😀",
+        "λ𝕏",
+        "a̲b",
     ]
-    seps = [" ", "  ", "\t", ";", "\n", "\n\n", " ;", "\t;\t"]
+    seps = [" ", "  ", "\t", ";", "\n", "\n\n", " ;", "\t;\t", "\r", "\r\n", "\\\r\n", "\\\r "]
     comments = ["# c", "#", "# a b c"]
     out = []
     for _ in range(rng.randint(0, 12)):
@@ -153,6 +177,25 @@ class TestPositionEquivalence:
         seg = segments_from_document(doc, text=src)[0]
         assert src[seg.range.end.offset] == "}"
         assert seg.range.end.line == 2
+
+    @pytest.mark.parametrize("src", ['"\\\n', '"\\\n"', 'set x "\\\n"', '"a\\\rb"'])
+    def test_quoted_backslash_newline_is_a_fragment(self, src):
+        # A backslash-newline inside a quoted word is lexed as a content ESC
+        # token, never a separator — the tree must keep it as a fragment, so the
+        # red token stream still equals the lexer's non-trivia tokens.
+        doc, _ = build_document(src)
+        red = _red_fragment_tokens(SyntaxTree(doc, text=src))
+        lex = [t for t in tokenise(src, 0, 0, 0)[0] if t.type not in _TRIVIA]
+        assert red == lex, repr(src)
+
+    @pytest.mark.parametrize("src", ["\\\r}", "foo\\\r{bar}", "x\\\ry", '"q\\\rr"'])
+    def test_lone_cr_continuation_positions(self, src):
+        # After the lone-CR lexer fix, the fragment tokens still match the lexer
+        # (no token straddles two lines).
+        doc, _ = build_document(src)
+        red = _red_fragment_tokens(SyntaxTree(doc, text=src))
+        lex = [t for t in tokenise(src, 0, 0, 0)[0] if t.type not in _TRIVIA]
+        assert red == lex, repr(src)
 
 
 class TestStructuralModel:

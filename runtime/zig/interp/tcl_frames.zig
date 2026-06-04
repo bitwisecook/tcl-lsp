@@ -3182,6 +3182,13 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
         const tcl_array = @import("../valtypes/tcl_array.zig");
         return tcl_array.make_local_array_obj(local_name, frame_depth);
     }
+    // No proc frame: a top-level ``upvar 0`` / ``upvar #0`` alias is a
+    // ``VAR_LINK`` in the root Var table (not a frame ALIAS_EXT).
+    // Follow it so array operations land on the target's storage rather
+    // than minting a separate array under the alias name
+    // (set-old-8.38.2).
+    const gl = tcl_ns.global_link_target_name(local_name);
+    if (gl != 0) return gl;
     return local_name;
 }
 

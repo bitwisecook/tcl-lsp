@@ -241,3 +241,40 @@ class TestBigipDocumentSymbols:
         # Garbage input parses to an empty BigipConfig (no outline).
         out = get_bigip_document_symbols("this is not a bigip config\n")
         assert out == []
+
+    def test_global_singletons_have_non_empty_names(self):
+        from server.features._bigip_symbols import get_bigip_document_symbols
+
+        # Global singletons (``auth password-policy``, ``net self-allow``,
+        # ``sys diags ihealth``) carry no path.  An empty ``name`` makes the
+        # VS Code client reject the *entire* outline ("name must not be
+        # falsy"), so every symbol — at every depth — must be non-empty.
+        source = (
+            "auth password-policy {\n"
+            "    lockout-duration 10\n"
+            "}\n"
+            "net self-allow {\n"
+            "    defaults {\n"
+            "        tcp:443\n"
+            "    }\n"
+            "}\n"
+            "sys diags ihealth {\n"
+            "    user admin\n"
+            "}\n"
+            "ltm pool /Common/p1 { }\n"
+        )
+        out = get_bigip_document_symbols(source)
+
+        def all_names(symbols):
+            for sym in symbols:
+                yield sym.name
+                yield from all_names(sym.children or [])
+
+        names = list(all_names(out))
+        assert names, "expected a non-empty outline"
+        assert all(names), f"empty symbol name(s) present: {names!r}"
+
+        # The nameless singletons fall back to their kind label.
+        auth = next(s for s in out if s.name == "auth")
+        pwd = next(c for c in (auth.children or []) if c.name == "password-policy")
+        assert [o.name for o in (pwd.children or [])] == ["password-policy"]

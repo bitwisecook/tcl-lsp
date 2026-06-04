@@ -2213,10 +2213,11 @@ tcl-lsp/
       lexer.py            Tcl lexer with position tracking
       tokens.py           Token and position types
       command_segmenter.py Command segmentation from token stream
+      token_scanning.py   Shared token-stream scanning helpers
       recovery.py         Centralised error recovery via virtual tokens
       expr_lexer.py       Expression sub-lexer
       expr_parser.py      Expression sub-parser
-      substitution.py     Tcl backslash substitution helpers
+      subst_nocommands.py Compile-time `[subst -nocommands]` evaluator
     tk/
       detection.py        Tk widget auto-detection
       diagnostics.py      Tk-specific diagnostics
