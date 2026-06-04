@@ -362,3 +362,62 @@ class TestIncrementalProperty:
         # fire rate, is the contract.)
         assert checked > 1000
         assert matched > checked // 3
+
+
+class TestIncrementalRecovery:
+    """When the old segmentation involved error recovery (a partial command),
+    the fast path must bail — the window is re-segmented with recovery disabled
+    and cannot reproduce a recovered command, so reusing it would diverge from a
+    from-scratch pass (which re-runs recovery).  Regression for the #533 fuzz
+    finding: a partial command sitting in the *window* region (between the prefix
+    and the validation chunk) used to slip past the per-region partial checks.
+    """
+
+    def test_old_partial_command_bails(self):
+        # An unclosed leading ``{`` makes command 0 partial via recovery; the
+        # recovered ``puts`` command follows.  Any edit must take the full
+        # fallback (return None) rather than a wrong incremental result.
+        old = '{[x\n{*}"{}\n  [{*}puts hi\n]\nputs hi  {\n{*}\n }  '
+        new = '{[x\n{*}"{}\n  [{*}puts hi\n]\nputs hi  {\n{*}[\n }  '
+        old_chunks = segment_top_level_chunks(old)
+        assert any(c.is_partial for ch in old_chunks for c in ch.commands)
+        edit = infer_edit_range(old, new)
+        assert edit is not None
+        assert incremental_top_level_chunks(old, old_chunks, new, edit) is None
+
+    def test_recovery_inputs_never_diverge(self):
+        # Property check over heavily-unbalanced (recovery-triggering) sources:
+        # whenever the fast path returns non-None it must equal a full pass.
+        atoms = [
+            "{",
+            "}",
+            "[",
+            "]",
+            '"',
+            "$v",
+            "puts hi",
+            "{*}",
+            "set a 1",
+            "a b",
+            ";",
+            "\n",
+            " ",
+            "x",
+        ]
+        rng = random.Random(0x5EED)
+        partial_seen = 0
+        for _ in range(6000):
+            old = "".join(rng.choice(atoms) for _ in range(rng.randint(0, 24)))
+            i = rng.randint(0, len(old))
+            ins = rng.choice(["{", "}", "[", "x", " ", "\n", '"', ";"])
+            new = old[:i] + ins + old[i:]
+            old_chunks = segment_top_level_chunks(old)
+            if any(c.is_partial for ch in old_chunks for c in ch.commands):
+                partial_seen += 1
+            edit = infer_edit_range(old, new)
+            if edit is None:
+                continue
+            inc = incremental_top_level_chunks(old, old_chunks, new, edit)
+            if inc is not None:
+                assert_chunks_equal(inc, segment_top_level_chunks(new))
+        assert partial_seen > 50  # the corpus really does exercise recovery

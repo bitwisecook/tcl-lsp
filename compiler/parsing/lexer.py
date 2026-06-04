@@ -343,11 +343,20 @@ class TclLexer:
                             col = 0
                             pos += 1
                         elif esc == "\r":
-                            line += 1
-                            col = 0
                             pos += 1
                             if pos < _len and text[pos] == "\n":
+                                # CRLF: the LF is the line break recorded in the
+                                # _line_starts index, so count it there.
                                 pos += 1
+                                line += 1
+                                col = 0
+                            else:
+                                # A lone CR is not a line break for the line index
+                                # (_pos_at / _advance only count \n), so advance the
+                                # column — a token straddling it, and tokens after
+                                # the command substitution, must not report a line
+                                # the index disagrees with.
+                                col += 1
                         else:
                             col += 1
                             pos += 1
@@ -605,11 +614,19 @@ class TclLexer:
                             col = 0
                             pos += 1
                         elif esc == "\r":
-                            line += 1
-                            col = 0
                             pos += 1
                             if pos < _len and text[pos] == "\n":
+                                # CRLF: the LF is the line break recorded in the
+                                # _line_starts index, so count it there.
                                 pos += 1
+                                line += 1
+                                col = 0
+                            else:
+                                # A lone CR is not a line break for the line index
+                                # (_pos_at / _advance only count \n), so advance the
+                                # column to stay consistent — a token straddling it
+                                # must not report start and end on different lines.
+                                col += 1
                         else:
                             col += 1
                             pos += 1
@@ -793,12 +810,21 @@ class TclLexer:
                         # Advance past escaped char.
                         esc = text[pos]
                         if esc == "\n" or esc == "\r":
-                            line += 1
-                            col = 0
                             pos += 1
-                            # Consume the LF half of a CRLF pair.
+                            # Consume the LF half of a CRLF pair.  A lone CR is not
+                            # a line break for the _line_starts index (_pos_at /
+                            # _advance only count \n), so advance the column there
+                            # instead — otherwise a token straddling it reports
+                            # start and end on different lines.
                             if esc == "\r" and pos < _len and text[pos] == "\n":
                                 pos += 1
+                                line += 1
+                                col = 0
+                            elif esc == "\n":
+                                line += 1
+                                col = 0
+                            else:
+                                col += 1
                             # Backslash-newline at the very start of a
                             # token is pure line-continuation whitespace.
                             # Emit it as a SEP so the *next* token can
@@ -978,13 +1004,20 @@ class TclLexer:
                         if next_ch == "\n" or next_ch == "\r":
                             # Backslash-newline continuation.
                             col += 1
-                            pos += 1
-                            line += 1
-                            col = 0
-                            pos += 1
-                            # Consume LF half of CRLF.
+                            pos += 1  # past backslash
+                            pos += 1  # past CR or LF
+                            # Consume LF half of CRLF.  A lone CR is not a line
+                            # break for the _line_starts index, so advance the
+                            # column instead of resetting the line.
                             if next_ch == "\r" and pos < _len and text[pos] == "\n":
                                 pos += 1
+                                line += 1
+                                col = 0
+                            elif next_ch == "\n":
+                                line += 1
+                                col = 0
+                            else:
+                                col += 1
                             continue
                         else:
                             # Backslash followed by another char.
@@ -996,11 +1029,15 @@ class TclLexer:
                                 col = 0
                                 pos += 1
                             elif esc2 == "\r":
-                                line += 1
-                                col = 0
                                 pos += 1
                                 if pos < _len and text[pos] == "\n":
+                                    # CRLF: count the LF (it is in _line_starts).
                                     pos += 1
+                                    line += 1
+                                    col = 0
+                                else:
+                                    # Lone CR is not a line break for the index.
+                                    col += 1
                             else:
                                 col += 1
                                 pos += 1

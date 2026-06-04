@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import random
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -1442,3 +1445,61 @@ class TestIRulesBraceSeparatorMinifier:
         result = minify_tcl(source, dialect="f5-irules")
         # set and x are bare words, so space must remain
         assert result == "set x {hello}"
+
+
+class TestMinifierBraceCompressionIdempotent:
+    """``${a}d`` must keep its braces through minification — stripping them to
+    ``$ad`` both changes semantics (variable ``a`` + literal ``d`` becomes
+    variable ``ad``) and breaks idempotency.  A ``$var`` immediately followed by
+    a word-char fragment needs ``${var}`` whether or not the word is quoted."""
+
+    def test_braced_var_followed_by_word_char_survives_reminify(self):
+        # Quoted form strips quotes but keeps the protecting braces...
+        assert minify_tcl('puts "${a}d"\n') == "puts ${a}d"
+        # ...and re-minifying the already-unquoted form must not drop them.
+        assert minify_tcl("puts ${a}d") == "puts ${a}d"
+
+    def test_unquoted_compound_var_keeps_braces(self):
+        for src in ("puts ${a}b", "set x ${v}1", "puts ${a}${b}c"):
+            once = minify_tcl(src)
+            assert minify_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+
+class TestMinifierIdempotency:
+    """``minify_tcl(minify_tcl(x)) == minify_tcl(x)`` for every input, including
+    structurally malformed code (unbalanced delimiters used to grow the output
+    unboundedly on every pass via fabricated closers)."""
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "[\n{*}{",
+            'set s "a b c"$};',
+            "proc p {a b} { return [expr {$a+$b}] ;",
+            "{",
+            "[",
+            "$",
+            'puts "unterminated',
+            "if {$x} {puts a}}",
+        ],
+    )
+    def test_malformed_input_is_idempotent(self, src):
+        once = minify_tcl(src)
+        assert minify_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+    def test_valid_code_idempotent(self):
+
+        snippets = [
+            "set x 1",
+            "proc add {a b} { return [expr {$a + $b}] }",
+            "if {$x} { puts a } else { puts b }",
+            "foreach x $xs { puts $x }",
+            'set s "hello world"',
+            "puts ${a}b",
+            "set v $a$b",
+        ]
+        rng = random.Random(99)
+        for _ in range(2000):
+            src = "\n".join(rng.choice(snippets) for _ in range(rng.randint(1, 5)))
+            once = minify_tcl(src)
+            assert minify_tcl(once) == once, f"valid not idempotent: {src!r}"
