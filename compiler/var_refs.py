@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.green_tree import tokenise
+from compiler.parsing.token_scanning import scan_command_substitutions
 from compiler.registry.runtime import (
     REGISTRY,
     ArgRole,
@@ -320,9 +321,8 @@ def _collect_cmd_sub_writes(script: str, out: set[str]) -> None:
 def _scan_word_cmd_subs(word: str, out: set[str]) -> None:
     """Scan a single word for ``[...]`` command substitutions and collect the
     literal VAR_WRITE names written inside each."""
-    tokens, _ = tokenise(word, 0, 0, 0)
-    for tok in tokens:
-        if tok.type is TokenType.CMD and tok.text:
+    for tok in scan_command_substitutions(word):
+        if tok.text:
             _collect_cmd_sub_writes(tok.text, out)
 
 

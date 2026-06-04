@@ -924,58 +924,19 @@ def _parse_cmd_token_contents(
 ) -> tuple[list[str], list[Token], list[bool]] | None:
     """Parse the inside of a CMD substitution token with absolute positions.
 
-    The inner text lives one character past the opening ``[``; passing the
-    correct ``base_offset``/``base_line``/``base_col`` to the lexer keeps
-    every re-parsed inner token's range pointing into the original source.
+    Thin wrapper over the canonical :func:`parse_single_command`: the inner text
+    lives one character past the opening ``[``, so anchoring the lexer at
+    ``cmd_tok.start + 1`` keeps every re-parsed inner token's range pointing into
+    the original source.  Words use the default :func:`word_piece` spelling.
     """
-    from compiler.parsing.green_tree import tokenise
+    from compiler.parsing.token_scanning import parse_single_command
 
-    lex_tokens, _ = tokenise(
+    return parse_single_command(
         cmd_tok.text,
-        cmd_tok.start.offset + 1,
-        cmd_tok.start.line,
-        cmd_tok.start.character + 1,
+        base_offset=cmd_tok.start.offset + 1,
+        base_line=cmd_tok.start.line,
+        base_col=cmd_tok.start.character + 1,
     )
-    argv_texts: list[str] = []
-    argv_tokens: list[Token] = []
-    argv_single: list[bool] = []
-    prev_type = TokenType.EOL
-    saw_eol = False
-
-    for tok in lex_tokens:
-        if tok.type is TokenType.COMMENT:
-            continue
-        if tok.type is TokenType.SEP:
-            prev_type = tok.type
-            continue
-        if tok.type is TokenType.EOL:
-            if argv_texts:
-                saw_eol = True
-            prev_type = tok.type
-            continue
-        if saw_eol:
-            return None
-
-        from ..token_helpers import word_piece
-
-        piece = word_piece(tok)
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(piece)
-            argv_tokens.append(tok)
-            argv_single.append(True)
-        else:
-            if argv_texts:
-                argv_texts[-1] += piece
-                argv_single[-1] = False
-            else:
-                argv_texts.append(piece)
-                argv_tokens.append(tok)
-                argv_single.append(True)
-        prev_type = tok.type
-
-    if not argv_texts:
-        return None
-    return argv_texts, argv_tokens, argv_single
 
 
 def _walk_nested_cmd_tokens(argv_tokens: list[Token], argv_single: list[bool]):

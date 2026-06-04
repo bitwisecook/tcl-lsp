@@ -25,7 +25,7 @@ from shared.tokens import Token, TokenType
 from .green_tree import tokenise
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 
 def word_piece(
@@ -147,14 +147,23 @@ def single_command_substitution(text: str) -> Token | None:
 
 def parse_single_command(
     text: str,
+    *,
+    piece: Callable[[Token], str] = word_piece,
+    base_offset: int = 0,
+    base_line: int = 0,
+    base_col: int = 0,
 ) -> tuple[list[str], list[Token], list[bool]] | None:
     """Parse a single Tcl command into ``(argv_texts, argv_tokens, argv_single)``.
 
     Returns ``None`` if *text* contains zero commands or more than one.  Each
-    word's text is reconstructed via :func:`word_piece` (natural-spelling
-    defaults: bare scalars normalise to ``${name}``, bare arrays stay bare).
+    word's text is reconstructed via *piece* (default :func:`word_piece` —
+    natural spelling: bare scalars normalise to ``${name}``, bare arrays stay
+    bare); pass another reconstructor — e.g. ``lambda t: t.text`` for the raw
+    inner text — when a caller wants a different spelling.  *base_offset* /
+    *base_line* / *base_col* anchor the lexer so each returned token carries
+    absolute positions (pass the content base when *text* is a region substring).
     """
-    tokens, _ = tokenise(text, 0, 0, 0)
+    tokens, _ = tokenise(text, base_offset, base_line, base_col)
     commands: list[tuple[list[str], list[Token], list[bool]]] = []
     argv_texts: list[str] = []
     argv_tokens: list[Token] = []
@@ -179,17 +188,17 @@ def parse_single_command(
             flush()
             prev_type = tok.type
             continue
-        piece = word_piece(tok)
+        frag = piece(tok)
         if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(piece)
+            argv_texts.append(frag)
             argv_tokens.append(tok)
             argv_single.append(True)
         else:
             if argv_texts:
-                argv_texts[-1] += piece
+                argv_texts[-1] += frag
                 argv_single[-1] = False
             else:
-                argv_texts.append(piece)
+                argv_texts.append(frag)
                 argv_tokens.append(tok)
                 argv_single.append(True)
         prev_type = tok.type
