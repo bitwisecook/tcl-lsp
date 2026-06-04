@@ -216,10 +216,11 @@ class TestW304MissingOptionTerminator:
 
 
 class TestW123CommandRecognition:
-    """#105 / #109 / #110 / #111 / #112 / #455 -- builtin command recognition.
+    """#105 / #109 / #110 / #111 / #112 / #429 / #455 -- builtin command recognition.
 
     Core builtins were reported as unknown (W123) / mis-analysed; they must be
-    recognised, while a genuinely-undefined command is still flagged.
+    recognised (including the Tcl 9.0 ``foreachLine``, #429), while a
+    genuinely-undefined command is still flagged.
     """
 
     def test_fix_holds_core_builtins_recognised(self):

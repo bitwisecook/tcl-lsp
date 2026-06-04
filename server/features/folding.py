@@ -285,8 +285,14 @@ def _collect_continuation_folds(
     tokenise each level and recurse into multi-line ``STR`` / ``CMD`` tokens.
     Recursion anchors content one character past the opening delimiter, where
     the lexer anchors a body token (mirrors the command segmenter).
+
+    This is a second, independent tree-walk, distinct from
+    ``_collect_body_folds`` (which folds command bodies via ``segment_commands``).
+    ``tokenise`` interns its lex, so the extra pass is Python-level iteration
+    rather than re-lexing, and folding is off the hot keystroke path; the two
+    descents are a candidate to unify later.
     """
-    if depth > 25:
+    if depth > 20:  # match _collect_body_folds' recursion cap
         return
     tokens, _ = tokenise(source, base_offset, base_line, base_col)
     _emit_continuation_runs(tokens, lines, seen, ranges)
