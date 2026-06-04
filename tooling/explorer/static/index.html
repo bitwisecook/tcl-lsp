@@ -705,6 +705,7 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
 .gt-type { color: var(--accent); font-weight: 600; flex: 0 0 auto; }
 .gt-text { color: var(--text); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .gt-range { color: var(--text-dim); font-size: 10px; margin-left: auto; flex: 0 0 auto; }
+.gt-tags { color: var(--green); font-size: 10px; flex: 0 0 auto; }
 .gt-node.gt-opaque > .gt-head .gt-type { color: var(--cyan); }
 .gt-node.gt-error > .gt-head .gt-type { color: var(--red); }
 .xpand-children { margin-left: 14px; border-left: 1px solid var(--border); padding-left: 4px; }
@@ -955,6 +956,8 @@ puts $x"></textarea>
       <div class="tab-bar" id="tabBar">
         <div class="tab active" data-tab="ir">IR</div>
         <div class="tab" data-tab="greentree">Green Tree</div>
+        <div class="tab" data-tab="cst">CST</div>
+        <div class="tab" data-tab="segments">Segments</div>
         <div class="tab" data-tab="cfg-pre">CFG</div>
         <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
         <div class="tab" data-tab="loops">Loops</div>
@@ -979,6 +982,8 @@ puts $x"></textarea>
           <div class="empty-state" id="emptyState">Loading compiler...</div>
         </div>
         <div class="tab-pane" id="pane-greentree"></div>
+        <div class="tab-pane" id="pane-cst"></div>
+        <div class="tab-pane" id="pane-segments"></div>
         <div class="tab-pane" id="pane-cfg-pre"></div>
         <div class="tab-pane" id="pane-cfg-post"></div>
         <div class="tab-pane" id="pane-loops"></div>
@@ -1222,6 +1227,8 @@ function renderAll() {
   renderStats();
   renderIR();
   renderGreentree();
+  renderCst();
+  renderSegments();
   renderCfgPre();
   renderCfgPost();
   renderLoops();
@@ -1261,6 +1268,7 @@ function updateBadges() {
     'irules-flow': (data.eventOrder || []).length + data.irulesFlow.length,
     'event-order': (data.eventOrder || []).length,
     'callouts': data.annotations.length,
+    'segments': (data.segments || []).length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
   };

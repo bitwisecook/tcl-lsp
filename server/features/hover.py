@@ -10,7 +10,7 @@ from analyser import analyse
 from analyser.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from compiler.compilation_unit import CompilationUnit
 from compiler.core_analyses import analyse_source
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.info import effective_event_requires
@@ -479,15 +479,15 @@ def _find_token_at_position(
     *arg_index* is the 0-based index of the argument containing the cursor.
     *token_text* is the full text of the Tcl token at the cursor, or None.
     """
-    lexer = TclLexer(line_text)
+    # Shared green-tree memo (token-for-token identical to a private TclLexer).
+    tokens, _ = tokenise(line_text, 0, 0, 0)
     argv_texts: list[str] = []
     token_list: list = []  # (arg_idx, token)
     prev_type = TokenType.EOL
     arg_idx = -1
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None or tok.type is TokenType.EOL:
+    for tok in tokens:
+        if tok.type is TokenType.EOL:
             break
         if tok.type is TokenType.SEP:
             prev_type = tok.type

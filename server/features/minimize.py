@@ -108,7 +108,7 @@ def _collect_rename_edits(source: str, names_seen: dict[str, str]) -> list[tuple
     …).  *names_seen* accumulates name→short-name across the whole source so the
     mapping is stable and consistent.
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
 
     edits: list[tuple[int, int, str]] = []
 
@@ -127,12 +127,9 @@ def _collect_rename_edits(source: str, names_seen: dict[str, str]) -> list[tuple
         return short
 
     # 1. ``$``/``${}`` references — VAR tokens (rename the scalar/array base).
-    lx = TclLexer(source)
-    while True:
-        tok = lx.get_token()
-        if tok is None or tok.type is TokenType.EOL and tok.text == "":
-            if tok is None:
-                break
+    lex_tokens, _ = tokenise(source, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type is TokenType.EOL and tok.text == "":
             continue
         if tok.type is TokenType.VAR:
             base = tok.text.split("(", 1)[0]

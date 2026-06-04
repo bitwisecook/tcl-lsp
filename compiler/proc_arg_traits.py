@@ -24,7 +24,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from compiler.registry.signatures import ArgRole
@@ -56,8 +57,8 @@ def _extract_var_name(text: str) -> str | None:
     have the conventional shape (letter/underscore start, word chars and
     ``::`` namespace separators).
     """
-    lexer = TclLexer(text)
-    tok = lexer.get_token()
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    tok = lex_tokens[0] if lex_tokens else None
     if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
         return None
     name = tok.text
@@ -421,12 +422,11 @@ def collect_call_by_name_reads(
 
     def _parse_subst(text: str) -> tuple[str, tuple[str, ...]] | None:
         """Parse a ``[cmd ...]`` body into (cmd, args)."""
-        lexer = TclLexer(text)
+        lex_tokens, _ = tokenise(text, 0, 0, 0)
         argv: list[str] = []
         prev_sep = True
-        while True:
-            tok = lexer.get_token()
-            if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
+        for tok in lex_tokens:
+            if tok.type in (TokenType.EOL, TokenType.EOF):
                 break
             if tok.type in (TokenType.SEP, TokenType.COMMENT):
                 prev_sep = True
@@ -454,16 +454,10 @@ def collect_call_by_name_reads(
         if not text or "[" not in text:
             return
         try:
-            lexer = TclLexer(text)
+            lex_tokens, _ = tokenise(text, 0, 0, 0)
         except TclParseError:
             return
-        while True:
-            try:
-                tok = lexer.get_token()
-            except TclParseError:
-                break
-            if tok is None:
-                break
+        for tok in lex_tokens:
             if tok.type is TokenType.CMD:
                 parsed = _parse_subst(tok.text)
                 if parsed is not None:

@@ -32,20 +32,48 @@ def range_from_word_token(tok: Token) -> Range:
     """Range covering a full word token, *including* its closing delimiter.
 
     A braced/bracketed word token starts on the opening ``{`` / ``[`` but its
-    ``end`` sits on the last *inner* character — the matching closer is exactly
-    one position past ``end`` and ``tok.text`` omits it.  For ``STR``
+    ``end`` normally sits on the last *inner* character — the matching closer is
+    exactly one position past ``end`` and ``tok.text`` omits it.  For ``STR``
     (``{...}``) and ``CMD`` (``[...]``) tokens, extend the range by that single
     closer character so a whole-word span covers the closer rather than
     stopping one short.
 
+    An *empty* ``{}`` / ``[]`` is the exception: it has no inner character, so
+    the lexer already places ``end`` *on* the closer.  Advancing again would
+    overshoot into whatever follows — for a trailing ``{}`` argument that is the
+    enclosing body's closing brace, which corrupts the command span and
+    produces a phantom stray ``}`` (issue #527).  ``span_extra`` — the bytes the
+    span carries beyond the opener and content — is ``0`` when the closer is
+    excluded and ``>= 1`` when it is already covered, so it distinguishes the
+    two cases without touching the source.
+
+    An *empty* ``{}`` / ``[]`` is the exception: it has no inner character, so
+    the lexer already places ``end`` *on* the closer.  Advancing again would
+    overshoot into whatever follows — for a trailing ``{}`` argument that is the
+    enclosing body's closing brace, which corrupts the command span and
+    produces a phantom stray ``}`` (issue #527).  ``span_extra`` — the bytes the
+    span carries beyond the opener and content — is ``0`` when the closer is
+    excluded and ``>= 1`` when it is already covered, so it distinguishes the
+    two cases without touching the source.
+
     The closer width comes from the token's *type*, so the span is derived
     straight from the token tree with no source slicing — which is what lets it
     work for tokens whose offsets are absolute but whose surrounding source
-    string is only a substring (nested ``proc`` / loop bodies).  When the
+    string is only a substring (nested ``proc`` / loop bodies).  Quoted
+    ``"..."`` words (which lex as ``ESC``) are deliberately **not** widened
+    here: the closer character cannot be derived from the token *type* without
+    source, and ``cmd.range`` consumers (W105 unbraced-body detection, segmenter
+    tiling) rely on the inner-end for quoted bodies.  A consumer that needs a
+    quoted word's closing ``"`` uses the source-aware
+    :func:`word_closer_offset` / :func:`word_end_position` instead.  When the
     closer falls on the next line (a multi-line braced body whose last inner
     character is a newline), the line/column advance with the offset.
     """
     if tok.type in (TokenType.STR, TokenType.CMD):
+        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
+        if span_extra >= 1:
+            # Empty ``{}`` / ``[]``: ``end`` already sits on the closer.
+            return Range(start=tok.start, end=tok.end)
         last_inner = tok.text[-1] if tok.text else ""
         return Range(start=tok.start, end=_closer_position(tok.end, last_inner))
     return Range(start=tok.start, end=tok.end)
@@ -57,6 +85,58 @@ def range_from_tokens(tokens: list[Token]) -> Range:
 
 
 _RANGE_CLOSERS = {'"': '"', "{": "}", "[": "]"}
+
+
+def word_closer_offset(tok: Token, source: str) -> int | None:
+    """Offset of *tok*'s closing ``}`` / ``]`` / ``"`` in *source*, or ``None``.
+
+    The authoritative way to locate a delimited word's closing delimiter for a
+    caller that needs to *slice source* (e.g. extracting the raw argument text of
+    a refactor edit).  It must be called rather than re-deriving the position as
+    ``tok.end.offset + 1``: the lexer stores word ends in the *inner-end*
+    convention (``end`` is the last inner character, closer one past it) **except**
+    for an empty ``{}`` / ``[]`` / ``""``, whose ``end`` already sits *on* the
+    closer.  ``tok.text`` is the discriminator — an empty word has none — so the
+    closer is at ``end`` when the word is empty and ``end + 1`` otherwise.
+    Deriving emptiness from ``tok.text`` keeps this correct for quoted words
+    whose inner text contains backslash escapes, and for a non-empty word whose
+    last inner character is itself a closer (``{a {b}}``).
+
+    Returns ``None`` when *tok* does not begin with an opening delimiter, or when
+    the word is unterminated (the computed position is not the matching closer).
+    *tok* and *source* must share a coordinate frame (top-level: pass the
+    document).  Command/word *ranges* are owned by the concrete syntax tree the
+    segmenter builds and do not use this — see :mod:`compiler.parsing.syntax`.
+    """
+    start = tok.start.offset
+    if not (0 <= start < len(source)):
+        return None
+    closer = _RANGE_CLOSERS.get(source[start])
+    if closer is None:
+        return None
+    closer_off = tok.end.offset if not tok.text else tok.end.offset + 1
+    if 0 <= closer_off < len(source) and source[closer_off] == closer:
+        return closer_off
+    return None
+
+
+def word_end_position(tok: Token, source: str) -> SourcePosition:
+    """Inclusive end :class:`SourcePosition` covering *tok*'s closing delimiter.
+
+    The position-returning sibling of :func:`word_closer_offset`, for callers
+    that build a :class:`Range`/LSP position rather than slice by offset.  For a
+    delimited word it returns the position *of* the closing ``}`` / ``]`` / ``"``
+    (with line/column advanced when the closer falls on the next line); for an
+    empty ``{}`` / ``[]`` / ``""`` the inclusive end already *is* the closer, so
+    ``tok.end`` is returned unchanged.  For any non-delimited or unterminated
+    token it returns ``tok.end`` unchanged.  Unlike :func:`range_from_word_token`
+    this also covers quoted ``"..."`` words, whose opener lives only in *source*.
+    """
+    closer_off = word_closer_offset(tok, source)
+    if closer_off is None or closer_off == tok.end.offset:
+        return tok.end
+    last_inner = source[tok.end.offset] if 0 <= tok.end.offset < len(source) else ""
+    return _closer_position(tok.end, last_inner)
 
 
 def widen_range_for_closer(source: str, range_: Range) -> Range:
@@ -75,6 +155,19 @@ def widen_range_for_closer(source: str, range_: Range) -> Range:
         return range_
     closer = _RANGE_CLOSERS.get(source[start_off])
     end = range_.end
+    # An empty ``{}`` / ``[]`` / ``""`` already ends *on* its closer — the range
+    # spans exactly the opener and the closer — so there is nothing to widen.
+    # Advancing would overshoot into whatever follows; for a trailing ``{}`` that
+    # is the enclosing body's closing brace (issue #527).  This 2-character span
+    # is unambiguous: any non-empty word is longer, so a deeper nested closer
+    # (``{a {b}`` ending on an inner ``}``) never matches ``start_off + 1``.
+    if (
+        closer
+        and end.offset == start_off + 1
+        and end.offset < len(source)
+        and source[end.offset] == closer
+    ):
+        return range_
     if closer and end.offset + 1 < len(source) and source[end.offset + 1] == closer:
         last_inner = source[end.offset] if 0 <= end.offset < len(source) else ""
         return Range(start=range_.start, end=_closer_position(end, last_inner))

@@ -155,6 +155,11 @@ def _shift_command(cmd: SegmentedCommand, offset_delta: int, line_delta: int) ->
         partial_delimiter=cmd.partial_delimiter,
         expand_word=cmd.expand_word,
         subcommand=cmd.subcommand,
+        # Per-word shape is position-independent, so it carries over a shift
+        # unchanged — like texts / single_token_word / expand_word above.  Missing
+        # these made a shifted command diverge from a from-scratch segmentation.
+        braced_word=cmd.braced_word,
+        quoted_word=cmd.quoted_word,
     )
 
 

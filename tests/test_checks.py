@@ -1906,9 +1906,12 @@ class TestUnbracedBody:
     def test_if_unbraced_body_with_var(self):
         diags = _diag_with_code('if {1} "puts $x"', "W105")
         assert len(diags) == 1
-        # Quoted body — lexer resolves $x so text-level substitution check
-        # sees 'puts x' (no '$'), producing WARNING rather than ERROR.
-        assert diags[0].severity == Severity.WARNING
+        # The quoted body contains a ``$x`` substitution that is expanded before
+        # the body runs as code — a double-substitution / injection risk, same as
+        # the ``[cmd]`` case below, so ERROR.  (Pre-CST, the descended-body path
+        # fed the check the raw text ``puts x``, hiding the ``$`` and under-rating
+        # this to WARNING.)
+        assert diags[0].severity == Severity.ERROR
 
     def test_if_braced_body_clean(self):
         diags = _diag_with_code("if {1} {puts hello}", "W105")
@@ -1946,9 +1949,10 @@ class TestUnbracedSwitchBody:
     def test_switch_alternating_unbraced_body_with_var(self):
         diags = _diag_with_code('switch -- $x a "puts $y" b {puts ok}', "W106")
         assert len(diags) == 1
-        # Quoted body — lexer resolves $y so text-level substitution check
-        # sees 'puts y' (no '$'), producing WARNING rather than ERROR.
-        assert diags[0].severity == Severity.WARNING
+        # The quoted arm body contains a ``$y`` substitution expanded before it
+        # runs as code — a double-substitution / injection risk, so ERROR.
+        # (Pre-CST, the descended path fed the check ``puts y``, hiding the ``$``.)
+        assert diags[0].severity == Severity.ERROR
 
     def test_switch_braced_body_clean(self):
         diags = _diag_with_code("switch -- $x { a {puts hi} b {puts ok} }", "W106")

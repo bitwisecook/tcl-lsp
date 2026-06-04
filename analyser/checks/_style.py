@@ -18,7 +18,7 @@ from compiler.expr_ast import (
     ExprUnary,
 )
 from compiler.parsing.expr_parser import parse_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import (
     ArgRole,
@@ -30,6 +30,8 @@ from shared.ranges import (
     range_from_token,
     range_from_tokens,
     widen_range_for_closer,
+    word_closer_offset,
+    word_end_position,
 )
 from shared.tokens import SourcePosition, Token, TokenType
 
@@ -72,6 +74,16 @@ def _widen_for_close_delim(
     raw_end = inclusive_end.offset + 1
     if 0 <= start_offset < len(source) and source[start_offset] in ('"', "{"):
         close = '"' if source[start_offset] == '"' else "}"
+        # An empty ``{}`` / ``""`` already ends *on* its closer (the span is
+        # exactly opener+closer), so there is nothing to widen — advancing would
+        # overshoot into whatever follows (issue #527 family).  This
+        # two-character span is unambiguous: any non-empty word is longer.
+        if (
+            inclusive_end.offset == start_offset + 1
+            and inclusive_end.offset < len(source)
+            and source[inclusive_end.offset] == close
+        ):
+            return raw_end, inclusive_end
         if raw_end < len(source) and source[raw_end] == close:
             new_inclusive = SourcePosition(
                 line=inclusive_end.line,
@@ -754,13 +766,10 @@ def check_missing_option_terminator(
     diag_end = tok.end
 
     if tok.type is TokenType.CMD:
-        close = tok.end.offset + 1
-        if close < len(source) and source[close] == "]":
-            fix_end = SourcePosition(
-                line=tok.end.line,
-                character=tok.end.character + 1,
-                offset=close,
-            )
+        # Locate the closing ``]`` authoritatively (correct for an empty ``[]``,
+        # whose end already sits on the closer) rather than re-deriving it.
+        if word_closer_offset(tok, source) is not None:
+            fix_end = word_end_position(tok, source)
             diag_end = fix_end
             tok_source = source[tok.start.offset : fix_end.offset + 1]
             fix = CodeFix(
@@ -1086,7 +1095,35 @@ def check_name_vs_value(
             continue
         if arg_tokens[idx].type is not TokenType.VAR:
             continue
-        var_name = args[idx]
+        # Show the substitution exactly as written — including ``$`` and any
+        # ``${…}`` braces — so the user can visualise it, then suggest the literal
+        # name with that syntax stripped.  The text is sliced from source because a
+        # namespaced or array name (``$ns::var``, ``$arr(i)``) lexes as multiple
+        # fragments: the VAR token's ``.text`` is only the first piece (``ns``) and
+        # ``args[idx]`` is the rendered ``${ns}::var`` form.
+        tok = arg_tokens[idx]
+        s, e = tok.start.offset, tok.end.offset
+        written = source[s : e + 1] if 0 <= s <= e < len(source) else "$" + tok.text
+        # A braced ``${…}`` ref ends on its inner char (the VAR token's end by the
+        # #527 convention), so pull in the closing brace too.
+        if written.startswith("${") and e + 1 < len(source) and source[e + 1] == "}":
+            written = source[s : e + 2]
+        # The literal name to suggest: strip only the *outer* substitution syntax
+        # — the leading ``$`` and a ``${…}`` wrapping the reference — which is the
+        # indirection W212 flags, while keeping a legitimate inner substitution
+        # such as a dynamic array index.  ``$v`` → ``v``, ``${v}`` → ``v``,
+        # ``$options($option)`` → ``options($option)``, ``${v}($k)`` → ``v($k)``.
+        name = written[1:] if written.startswith("$") else written
+        if name.startswith("{"):
+            depth = 0
+            for i, ch in enumerate(name):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        name = name[1:i] + name[i + 1 :]
+                        break
         # Build display command for the message.
         if cmd_name == "info" and args:
             display_cmd = f"info {args[0]}"
@@ -1097,8 +1134,8 @@ def check_name_vs_value(
                 range=range_from_token(arg_tokens[idx]),
                 message=(
                     f"'{display_cmd}' expects a variable name, "
-                    f"got substitution (${var_name}). "
-                    f"Did you mean '{var_name}'?"
+                    f"got substitution ({written}). "
+                    f"Did you mean '{name}'?"
                 ),
                 severity=Severity.WARNING,
                 code="W212",
@@ -1524,16 +1561,14 @@ def _find_nested_expr_subst(text: str) -> tuple[int, int] | None:
     is ``expr``; the lexer handles bracket nesting, so a deeper ``[expr ...]``
     inside another command is not mistaken for a redundant nested expr.
     """
-    lexer = TclLexer(text)
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            return None
+    lex_tokens, _ = tokenise(text, 0, 0, 0)
+    for tok in lex_tokens:
         if tok.type is TokenType.CMD:
             inner = tok.text.lstrip()
             first = inner.split(None, 1)[0] if inner else ""
             if first == "expr":
                 return tok.start.offset, tok.end.offset + 1
+    return None
 
 
 @diag("W114", "Redundant nested `[expr {...}]` — already in expression context.", section="warning")

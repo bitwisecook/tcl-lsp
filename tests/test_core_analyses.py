@@ -301,7 +301,9 @@ class TestVariableShapeCoreAnalyses:
         ).top_level
         assert ("::ns::arr", 1) in analysis.types
 
-    def test_braced_scalar_like_array_name_flows_as_scalar_symbol(self):
+    def test_braced_array_like_name_flows_as_base_array_symbol(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); it
+        # flows under the base array symbol "a".
         analysis = analyse_source('set {a(1)} "alpha beta"\nset n [llength ${a(1)}]').top_level
         assert ("a", 1) in analysis.types
 

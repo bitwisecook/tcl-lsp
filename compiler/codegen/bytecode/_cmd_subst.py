@@ -268,11 +268,12 @@ class _CmdSubstMixin:
         """Emit a single arg from a parsed command substitution."""
         arg, braced, _expand = arg_pair
         if not braced and arg.startswith("$"):
-            # Braced scalar marker: $={name} → push + loadStk.
-            braced_scalar = self._parse_braced_scalar_ref(arg)
-            if braced_scalar is not None:
-                self._push_lit(braced_scalar)
-                self._emit(Op.LOAD_STK)
+            # A braced whole-name array ref ``${a($i)}`` loads the WHOLE
+            # literal name (``push "a($i)"; loadStk``) — braces suppress the
+            # inner ``$i`` substitution.  Must run before the split paths
+            # below, which would otherwise compile it like a bare ``$a($i)``
+            # (``push "a"; <load i>; loadArrayStk``).
+            if self._emit_whole_name_array_load(arg):
                 return
             var_name = self._parse_simple_var_ref(arg)
             if var_name is None and len(arg) > 1 and arg[1:].isidentifier():
@@ -332,8 +333,12 @@ class _CmdSubstMixin:
         time.
         """
         any_expand = any(a[2] for a in args)
+        # Comments surface the command word verbatim; keep a bare array-ref
+        # head in its canonical ``${a(1)}`` form (the value emission below
+        # still substitutes it).
+        cmd_comment = self._canonical_verbatim_ref(cmd)
         if any_expand:
-            self._emit(Op.EXPAND_START, comment=f"{cmd} (expanded)")
+            self._emit(Op.EXPAND_START, comment=f"{cmd_comment} (expanded)")
         # Dynamic command word: ``[$var arg ...]`` or ``[[cmd] arg]``.
         # In both cases the command word resolves at runtime — for
         # ``\$var`` via variable substitution, for ``[…]`` via a
@@ -352,11 +357,11 @@ class _CmdSubstMixin:
                 self._emit_inline_cmd_subst(arg)
                 self._place_label(end_label)
             elif not braced and arg.startswith("$"):
-                braced_scalar = self._parse_braced_scalar_ref(arg)
-                if braced_scalar is not None:
-                    self._push_lit(braced_scalar)
-                    self._emit(Op.LOAD_STK)
-                else:
+                # A braced whole-name array ref ``${a($i)}`` loads the WHOLE
+                # literal name (``push "a($i)"; loadStk``) — braces suppress
+                # the inner ``$i``.  Must run before the split paths below,
+                # which would compile it like a bare ``$a($i)``.
+                if not self._emit_whole_name_array_load(arg):
                     var_name = self._parse_simple_var_ref(arg)
                     if var_name is None and len(arg) > 1:
                         # Bare ``\$varname`` form parsed verbatim
@@ -404,7 +409,7 @@ class _CmdSubstMixin:
             if expand:
                 self._emit(Op.EXPAND_STKTOP, word_count)
         if any_expand:
-            self._emit(Op.INVOKE_EXPANDED, comment=cmd)
+            self._emit(Op.INVOKE_EXPANDED, comment=cmd_comment)
         else:
             argc = 1 + len(args)
             op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4

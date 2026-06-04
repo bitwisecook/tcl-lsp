@@ -169,7 +169,9 @@ class TestVariableShapeDiagnostics:
         assert len(s100) == 1
         assert "$::demo::arr" in s100[0].message
 
-    def test_braced_scalar_like_array_name_treated_as_scalar_name(self):
+    def test_braced_array_like_name_treated_as_base_array(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); the
+        # shape diagnostic reports the base array ``$a``.
         source = _load_fixture("variable_shapes/braced_scalar_like_array_name.tcl")
         result = get_diagnostics(source)
         s100 = [d for d in result if d.code == "S100"]
@@ -205,7 +207,7 @@ class TestMalformedNestedSubstitutionDiagnostics:
         assert len(e201) == 1
         assert "missing close-bracket" in e201[0].message
 
-    def test_braced_scalar_like_array_name_in_braces_has_no_parse_error(self):
+    def test_braced_array_like_name_in_braces_has_no_parse_error(self):
         result = get_diagnostics("puts {${a(1)} [set x}")
         assert not any(d.code and str(d.code).startswith("E") for d in result)
 

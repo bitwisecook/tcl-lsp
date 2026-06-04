@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.proc_arg_traits import infer_param_traits
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -294,24 +294,21 @@ class _AnalyserProcMixin(_Base):
         is_regexp: bool = False,
     ) -> None:
         """Parse the braced body of a switch command to extract pattern/body pairs."""
-        # Create lexer with base offsets if we have the outer body token
+        # Tokenise with base offsets if we have the outer body token
         if outer_body_token is not None:
-            lexer = TclLexer(
+            lex_tokens, _ = tokenise(
                 body_text,
-                base_offset=outer_body_token.start.offset + 1,
-                base_line=outer_body_token.start.line,
-                base_col=outer_body_token.start.character + 1,
+                outer_body_token.start.offset + 1,
+                outer_body_token.start.line,
+                outer_body_token.start.character + 1,
             )
         else:
-            lexer = TclLexer(body_text)
+            lex_tokens, _ = tokenise(body_text, 0, 0, 0)
         elements: list[str] = []
         element_tokens: list[Token] = []
         prev_type = TokenType.EOL
 
-        while True:
-            tok = lexer.get_token()
-            if tok is None:
-                break
+        for tok in lex_tokens:
             if tok.type in (TokenType.SEP, TokenType.EOL):
                 prev_type = tok.type
                 continue

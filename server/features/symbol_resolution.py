@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from analyser.semantic_model import Range, Scope
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from shared.tokens import Token, TokenType
 
 _WORD_DELIMS = ' \t\n;{}[]"$'
@@ -55,15 +55,12 @@ def find_word_at_position(
 
 def _command_tokens_for_prefix(prefix: str) -> tuple[list[Token], bool]:
     """Return tokens in the active command segment and whether cursor is at a new word."""
-    lexer = TclLexer(prefix)
+    # Shared green-tree memo (token-for-token identical to a private TclLexer).
+    lex_tokens, _ = tokenise(prefix, 0, 0, 0)
     tokens: list[Token] = []
     at_new_word = False
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-
+    for tok in lex_tokens:
         if tok.type is TokenType.SEP:
             at_new_word = True
             continue

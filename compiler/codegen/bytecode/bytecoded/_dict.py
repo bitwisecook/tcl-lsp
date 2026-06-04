@@ -39,7 +39,9 @@ def codegen_dict(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C90
             slot = emitter._lvt.intern(var_name)
             for k in keys:
                 emitter._push_lit(k)
-            emitter._push_lit(value)
+            # The value is pushed verbatim here (not substituted); keep a
+            # bare array-ref value in its canonical ``${a(1)}`` literal form.
+            emitter._push_lit(emitter._canonical_verbatim_ref(value))
             emitter._emit(Op.DICT_SET, len(keys), slot, comment=f'var "{var_name}"')
             emitter._emit(Op.POP)
             return True

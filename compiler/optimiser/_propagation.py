@@ -9,7 +9,7 @@ from compiler.interprocedural import (
     fold_static_proc_call,
 )
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
@@ -803,20 +803,14 @@ def optimise_return_terminator(
     # re-lex the return command to recover the nested VAR tokens inside strings.
     safe_constants = safe_string_constants(constants, block, len(block.statements))
     if safe_constants:
-        all_tokens: list[Token] = []
-        lexer = TclLexer(
+        all_tokens, _ = tokenise(
             source[start : end + 1],
-            base_offset=start,
-            base_line=ret_range.start.line,
-            base_col=ret_range.start.character,
+            start,
+            ret_range.start.line,
+            ret_range.start.character,
         )
-        while True:
-            t = lexer.get_token()
-            if t is None:
-                break
-            all_tokens.append(t)
         optimise_string_interpolation_var_refs(
-            ctx, arg_tokens_slice, arg_single_slice, safe_constants, tuple(all_tokens)
+            ctx, arg_tokens_slice, arg_single_slice, safe_constants, all_tokens
         )
 
 
