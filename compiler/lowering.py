@@ -598,22 +598,31 @@ class _Lowerer:
     def _segment_body(self, text: str, body_token: Token | None) -> list[SegmentedCommand]:
         """Segment a body's commands, descending the shared CST when possible.
 
-        A real braced/bracketed body token that indexes into the document
+        A real **braced** (``{…}``) body token that indexes into the document
         ``self._source`` is descended through :func:`descend_token` — the same
         body-descent entry point the analyser uses — so lowering and the checks
         share one descent path.  This is byte-identical to
-        ``segment_commands(text, body_token)`` for an opaque body: recovery is
-        skipped for bodies, so the two derive the same segments (asserted by
-        ``tests/test_syntax_descend.py``).  Falls back to ``segment_commands``
-        for the top level (no token) and for synthesised bodies whose token does
-        not index into the document source.
+        ``segment_commands(text, body_token)`` for a braced body: the arg text
+        and the ``STR`` token's inner text are both the brace-stripped content,
+        and recovery is skipped for bodies, so the two derive the same segments
+        (asserted by ``tests/test_syntax_descend.py``).
+
+        Only ``STR`` bodies are descended — deliberately mirroring the analyser's
+        :func:`descend_command`, which skips non-``STR`` bodies.  A ``[…]``
+        command-substitution body is **not** a script: it is substituted at
+        runtime to *produce* the body string, so its inner text is not the body.
+        Descending it would read ``[foo bar]`` as the script ``foo bar`` and
+        diverge from ``segment_commands`` (which keeps the ``[…]`` word).  So
+        every non-braced body — ``CMD`` / ``VAR`` / quoted, the top level (no
+        token), and synthesised bodies whose token does not index into the
+        document — falls through to ``segment_commands``.
         """
         if (
             body_token is not None
-            and body_token.type in (TokenType.STR, TokenType.CMD)
+            and body_token.type is TokenType.STR
             and self._source
             and 0 <= body_token.start.offset < len(self._source)
-            and self._source[body_token.start.offset] in "{["
+            and self._source[body_token.start.offset] == "{"
         ):
             return segments_from_tree(descend_token(body_token, self._source).tree)
         return segment_commands(text, body_token)

@@ -113,10 +113,9 @@ def descend_command(
 
     The single registry-aware descent entry point, resolving body arguments
     through ``iter_body_arguments`` so the set of descended bodies matches
-    exactly. A
-    body that is not a non-empty ``STR`` word is skipped (it is data, not a
-    script the tree should re-lex).  ``ArgRole.EXPR`` arguments are deliberately
-    not routed here — they are handled by ``expr_lexer``.
+    exactly; a body that is not a non-empty ``STR`` word is skipped (it is data,
+    not a script the tree should re-lex).  ``ArgRole.EXPR`` arguments are
+    deliberately not routed here — they are handled by ``expr_lexer``.
 
     The registry import is deferred so importing this module never triggers the
     registry ↔ parsing load cycle.
