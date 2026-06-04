@@ -2487,6 +2487,11 @@ field on the per-document state.  Implementation belongs in the
 land together; the Rust caches naturally form around the `Arc<Rope>`
 + analysis snapshots.  Classify: in-scope, defer to `S*` (no point
 caching today — the Rust analyser has no production driver).
+**Superseded direction (2026-06-05):** #477 here is a token *cache* whose
+tokens carry absolute positions; the later #533 (`SYNC-JUN06`) built the
+red-green **CST** this row's "green token tree" deliberately declined to —
+position-independent green nodes, lazy red positions.  The real
+shared-representation work now lives under the `CST-PORT` queue row.
 
 ### SYNC-MAY31-7 — `ExprRaw` switch-subject variable scan (#473)
 
@@ -3656,6 +3661,73 @@ Out of scope (no Rust mirror — record and skip):
 No in-scope rows — the single commit is entirely Zig VM / WASM codegen +
 runtime tests.
 
+## SYNC-JUN06 family — main audit (2026-06-05, PR #533)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`77215e87` (SYNC-JUN05).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`4092ab31`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**In scope — a major new parsing-frontend structure with no Rust mirror yet.**
+
+- **#533** (`4092ab31`) — *Introduce canonical red-green concrete syntax
+  tree (CST).*  A multi-cycle PR (93 files, **0 `rust/`**) landing the
+  single lossless representation the segmenter / formatter / minifier / AOT
+  lowering / per-command tooling are meant to share.  Three strands:
+  - **The red-green CST** — new `compiler/parsing/syntax/` package, the
+    Roslyn / rust-analyzer split **#477's "green token tree" deliberately
+    declined to build** (see `SYNC-MAY31-6`; #477 is a token *cache* whose
+    tokens carry absolute positions): `green.py` (position-independent — a
+    node knows only its width + children, so identical subtrees are shareable
+    and an edit shifts a subtree for free; trivia attached to the adjacent
+    token so a command is pure syntax while every byte round-trips); `red.py`
+    (anchors a green tree, resolves absolute positions lazily — reproduces the
+    lexer's exact Token offsets / lines / UTF-16 columns); `build.py`
+    (re-shapes the existing lexer stream into the tree — *no second parser* —
+    via start-to-start tiling, replicating the segmenter's word-boundary rule
+    incl. the stale-`{*}` quirk and its comment accumulation); `segment.py`
+    (derives `SegmentedCommand` from the tree — argv compound-word merge,
+    texts, all_tokens, range, preceding_comment, expand_word); `descend.py`
+    (cycle 2 — lazy descent: `descend_token` builds a child CST for a braced
+    body / `[…]` sub anchored one byte past the opener; `descend_command`
+    descends registry-resolved `ArgRole.BODY` args via `iter_body_arguments`).
+    `command_segmenter._segment_raw` now builds the tree and derives segments
+    from it — the **150-line token loop + `_command_range` are removed**.
+    Verified byte-identical (losslessness, position-equivalence vs the lexer,
+    field-for-field `SegmentedCommand` parity) over the 157-file 8.6/9.0
+    corpus + 120k randomised differential cases + nested-body anchoring.
+    Design doc: `docs/design/compiler/syntax-tree.md`.
+  - **Authoritative span/range accessors** — `shared/ranges.py` gains
+    `word_closer_offset` / `word_end_position` (derive a word's closing
+    `}`/`]`/`"` from the lexer's content geometry instead of re-deriving
+    `tok.end.offset + 1`, which overshoots an empty `{}`/`[]`/`""`); the
+    segmenter's command range is now token-only (`start, boundary − 1` off the
+    post-word SEP/EOL), making the empty-delimiter overshoot *structurally
+    impossible*.
+  - **Diagnostic fixes riding along** — the #527 **E102** false positive
+    (empty trailing `{}` swallowing the enclosing `}`) and a **W304**
+    `_last_literal_set_value_for_var` "inside proc body?" guard restored on
+    the faithful range; plus a `compiler-explorer` skill with `slices` /
+    `tokens` views.
+  **Rust mirror state + plan.**  *In scope* (parsing frontend →
+  `tcl-lexer` / `tcl-compiler`), **unported.**  The Rust side has the lexer
+  (`tcl-lexer`) + a token-loop segmenter
+  (`tcl-compiler/src/segmenter.rs::segment_commands_local`) — the same one
+  just made dialect-aware (`SYNC-MAY19-dialect-contextvar`).  The faithful
+  porting target is a Rust red-green CST (a new `tcl-cst` module / crate, or
+  in `tcl-compiler::parsing`) with the green/red split + `build` + `segment`
+  + `descend`, then rebasing `segment_commands*` to derive from it (the
+  `_and_config` dialect plumbing carries over — the tree's `build` consumes
+  the same dialect-configured `Lexer`).  Lower-risk sub-items portable first:
+  the `shared/ranges.py` authoritative-closer accessors.  The Rust segmenter's
+  `widen_word_end` / `command_span` already byte-check the degenerate `{}` /
+  `[]` closer (segmenter.rs:147-172), so the #527-class overshoot is likely
+  *already absent* on the Rust side — audit + a parity test before assuming so.
+  Relation: this supersedes the deferred `SYNC-MAY31-6` direction (token cache,
+  not a tree) and feeds the same `S*` document-store / incremental-reparse work
+  (a red-green tree is the natural incremental-edit substrate).  Tracked as a
+  new priority-queue row (`CST-PORT`).
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3665,6 +3737,7 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
+| NEW | `CST-PORT` (red-green concrete syntax tree) | **Opened 2026-06-05 by `SYNC-JUN06` / #533.**  Main landed the canonical lossless red-green CST (`compiler/parsing/syntax/{green,red,build,segment,descend}.py`) and rebased the segmenter onto it (the 150-line token loop is gone).  In scope, unported.  Port target: a Rust green/red split + `build` (reshapes the existing dialect-configured `Lexer` stream, no second parser) + `segment` (derives `SegmentedCommand` byte-identically) + `descend` (lazy body / cmd-sub children), then rebase `segment_commands*` onto it — the `_and_config` dialect plumbing carries over.  Large + foundational, but **not urgent**: the Rust token-loop segmenter works and was just made dialect-aware, and main proved the migration byte-identical.  Smallest-first sub-item: port the `shared/ranges.py` authoritative-closer accessors.  Supersedes the deferred token-cache direction (`SYNC-MAY31-6`) and is the natural incremental-edit substrate for the `S*` document store.  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`. |
 | — | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Landed via PR #389 — SYNC1 (minimum-viable, multi-role via duplicate rows; full `ArgRoleSet` type widening deferred), SYNC2 (`BodyKind`), SYNC3 (`body_arg_implicit_args`), SYNC4 (registry-driven trace defs), SYNC5 (`CREATES_DYNAMIC_BARRIER` guard), SYNC6 (`reads_own_def` for dict), SYNC7 (canonical-command field, type surface only), SYNC8 (GVN trace-aware purity), SYNC9 (Module trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11 (hover debounce / cache / worker-offload contract) is deferred to `S-hover-sync11` since it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row. |
 | 1 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241.  Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
 | 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question.  Status sibling of the postpass row: the override the chunk was supposed to flip is gone since #241; the work closes with `S*`. |
@@ -3951,6 +4024,17 @@ priority queue:
   WASM tcltest-gate refresh and new WASM execution tests; no analyser /
   compiler / registry / optimiser surface and no `rust/` change.  See the
   `SYNC-JUN05` family section.
+* **`SYNC-JUN06` family** — opened 2026-06-05 (PR #533); advances the anchor
+  from `origin/main`@`77215e87` to `origin/main`@`4092ab31` (+1 commit).
+  **In scope, unported** — #533 introduces the canonical **red-green
+  concrete syntax tree** (`compiler/parsing/syntax/{green,red,build,segment,
+  descend}.py`), the Roslyn / rust-analyzer split #477's "green token tree"
+  declined to build, and rebases the segmenter onto it byte-identically
+  (150-line token loop removed); plus `shared/ranges.py` authoritative-closer
+  accessors and the #527 E102 / W304 span fixes.  Parsing frontend → a new
+  Rust port target (`CST-PORT` priority-queue row); the existing token-loop
+  segmenter (just made dialect-aware) is the thing it eventually replaces.
+  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
