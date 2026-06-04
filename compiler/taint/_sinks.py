@@ -357,7 +357,7 @@ def _eval_stmt_protected_by_list_literal(stmt, var_name: str) -> bool:
 
 
 def _direct_expr_operand_names(node) -> set[str]:
-    """Return the set of variable names that appear as DIRECT operands of
+    r"""Return the set of variable names that appear as DIRECT operands of
     an expression AST — ie ``ExprVar`` nodes that are NOT nested inside
     an ``ExprCommand`` (command substitution).
 
