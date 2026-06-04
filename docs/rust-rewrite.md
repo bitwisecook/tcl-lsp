@@ -1270,12 +1270,14 @@ commits (`SYNC-MAY19-surrogate-pair`, `-word-piece-array`,
 `-empty-name-proc`, `-tail-call-dialect`, `-proc-body-const-map`,
 `-option-dialects`, `-tcl9-commands`, `-foreachLine-lowering`,
 `-W003-W004`, and `-stub-overlay` sub-strip (b)).  The
-`SYNC-MAY19-dialect-contextvar` row covers `S*` LSP server
-plumbing that can't land before the server itself has a per-
-folder document-state builder; the `-stub-overlay` (a)+(c)
-sub-strips close with `S*` for the same reason.  The
-`-switch-fallthrough-cfg` row is deferred until a Rust bytecode
-codegen exists.
+`SYNC-MAY19-dialect-contextvar` row is now **substantially landed**
+(strips 1-6, 2026-06-04/05): the server already threaded the
+per-folder `doc.dialect` into `analyse()`, so the work was to carry
+that dialect into every `segment_commands*` re-segmentation across
+the analyser, lowering / optimiser pipeline, and the eight LSP
+feature modules; the `-stub-overlay` (a)+(c) sub-strips also landed
+(`6487a4f` / `c945baa`).  The `-switch-fallthrough-cfg` row is
+deferred until a Rust bytecode codegen exists.
 
 The two remaining `SYNC-JUN-*` rows above carry the wiring
 half of the upvar / literal-set work; the `SYNC-JUN-FRAME356-
@@ -3616,6 +3618,44 @@ In-scope follow-up (confirmation, no behaviour change):
   the registry fold directly, bypassing `literal_words` — must not feed a
   backslash word.
 
+## SYNC-JUN05 family — main audit (2026-06-05, PR #532)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`43812a60` (SYNC-JUN04).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`77215e87`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#532** (`77215e87`) — *Fix dict exists, try exception chaining, and
+  related interpreter bugs.*  A cluster of Tcl 9 **Zig-VM / WASM-codegen**
+  runtime fixes against the tcl9-tcltest-wasm core slice: (1) **`dict exists
+  DICT KEY ?KEY ...?`** now walks the whole key chain (returning false on a
+  missing key or non-dict intermediate without raising, matching
+  `tclDictObj.c::DictExistsCmd`) instead of consulting only the first key —
+  fixed in the Zig runtime (`runtime/zig/cmds/dict.zig`) and the WASM codegen
+  value / statement / command-substitution / expr paths
+  (`compiler/codegen/wasm/_emitter/{cmds/dict_,_values,_statements,_expressions}.py`),
+  which route the multi-key form through the eval fallback; (2) **`try …
+  on/trap … finally` `-during` exception chaining** mirrors `TryPostHandler`
+  (`runtime/zig/cmds/flow.zig`); (3) **`apply` anonymous-lambda parity** —
+  formal-param validation (array-element / qualified-name rejection), the
+  `(parsing lambda expression …)` `::errorInfo` frame, and `info level 0`
+  inside the body (`runtime/zig/interp/tcl_interp.zig`); plus `incr`
+  bad-increment-frame, `unset` array-element, regexp option-abbrev, and
+  array/scalar-conflict fixes across `runtime/zig/{cmds/var,interp/tcl_frames,
+  interp/tcl_ns,valtypes/tcl_array,valtypes/tcl_regex}.zig`.  Touches only the
+  **Zig VM**, the **WASM emitter** (`compiler/codegen/wasm/_emitter/**`), the
+  **WASM tcltest baselines / gate** (`tests/baselines/tcl9-tcltest-wasm/**`),
+  the **WASM execution tests** (`tests/test_wasm_*.py`), and `.test-slow.stamp`.
+  **Out of scope** — the Zig VM, the WASM emitter, and the WASM test suite are
+  all explicitly outside the rewrite scope; the commit carries no analyser /
+  compiler / lowering / CFG-SSA / registry / optimiser surface, and no `rust/`
+  change.
+
+No in-scope rows — the single commit is entirely Zig VM / WASM codegen +
+runtime tests.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3639,7 +3679,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
 | — | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **Landed (#506)** — strips 1/2/3/4a/4b/5.  `Lowerer::extract_oo_methods_pass` populates `Module.methods`; `CompilationUnit.methods` builds per-method `FunctionUnit`s; `build_method_summaries` fills `InterproceduralAnalysis.methods`; `elimination::run` iterates method bodies with `enclosing_class` so `set unused [my <pure-method>]` folds to O126 (impure preserved — FP-OPT-12 → FIXED); W307 reads the precise SSA use-version.  Strip 4a additionally ported the C30d `_assignment_safe_to_delete` RHS-purity gate that the Rust O109/O126 had been missing (it had fired on `set unused [puts hi]`).  See the `SYNC-JUN02` family section. |
 | — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
-| 6 | `SYNC-MAY19-dialect-contextvar` | Thread the per-folder dialect into the **lexer config** so mixed-dialect workspaces tokenise correctly.  **Primary analyser path LANDED (2026-06-04); follow-ups open.**  Strip 1: `segment_commands*` gained `_and_config` variants (`segment_commands_with_offset_and_config` / `_with_recovery_and_config`) carrying a `LexerConfig`; the existing functions delegate with `LexerConfig::default()` (zero churn).  `Analyser::lexer_config()` returns `LexerConfig::for_dialect(&self.dialect)` and is threaded into the three primary tokenisation sites — top-level (`state::analyse`), body recursion (`commands::analyse_body`, covers every body-walking handler), and OO bodies (`oo::parse_oo_definition_body`).  The server already passes the resolved `doc.dialect` into `analyse()`, so its analyser-based features (diagnostics, document symbols, hover, …) are now dialect-aware end-to-end — verified by `e003_arity_is_dialect_aware_via_expand_syntax` (8.4 `{*}` literal → E003; 9.0 expands → none).  **Strip 2 (2026-06-05): the free-fn analyser sites.**  `param_traits` gained `infer_param_traits_with_config` / `infer_param_traits_deep_with_config` (the existing fns delegate with `LexerConfig::default()`); `config` threads through `scan_commands` / `scan_deep` / `extract_commands`, and `handlers.rs` calls them with `self.lexer_config()` — so trait inference re-segments per-dialect (verified by `trait_inference_is_dialect_aware_via_expand_syntax`: `eval {*}$p` → `p` is `Eval` on 9.0, not on 8.4).  The `diagnostics.rs` W304 set-finder (`last_literal_set_value_for_var`) was threaded too, for consistency.  **Strip 3 (2026-06-05): lowering.**  `Lowerer` carries a `config` field; `lower_to_ir_with_config` / `CompilationUnit::build_for_with_config` thread it (existing entry points delegate with the default); `optimise_with_dialect` / `optimise_raw` build the CU with `for_dialect(dialect)`, so optimiser O-codes + CFG-SSA diagnostics + iRules flow are dialect-aware end-to-end (verified by `lowering_is_dialect_aware_via_expand_syntax`: `if {*}$cond {…}` → `Statement::Barrier` on 9.0, structured `if` on 8.4).  **Strip 4 (2026-06-05): `interprocedural::scan_source_for_calls`** threaded (it already carried `dialect`).  **Deliberately left on the default config (dialect-insensitive in practice — documented, not threaded):** the lowering leaf free-fns `body_has_dynamic_barrier` / `eval_list_literal_body`; `optimiser::elimination`'s embedded-cmd-sub purity classifier (its sibling `Lexer::new` is also default); `place_bridge::command_reads`; `specialise_factories`'s `subst -nocommands` template extractor — all operate on command-name / barrier / template shapes that `{*}`/`}{` don't change.  `signature_scan::extract_signatures` has **no production caller** (dormant public API — thread it when the `S*` workspace-index consumer lands).  **Strips 5 + 6 (2026-06-05): the `tcl-lsp-core` LSP feature modules — all eight LANDED.**  Group A (genuinely dialect-relevant, scan general bodies): `semantic_tokens` / `folding` / `inlay_hints` / `document_links` gained a `dialect` param (folding already had one) threaded to their body-segmentation sites; verified by `semantic_tokens_are_dialect_aware_via_expand_syntax` (`foo {*}$x` → longer token stream on 8.4).  Group B (`references` / `rename` / `call_hierarchy` / `code_lens`): same `dialect`-param threading, but these scan **TclOO method/class** bodies only — OO is 8.6+ where `for_dialect` is the default, and reference/call detection keys on command-head words that `{*}`/`}{` don't change, so it is consistency-threading with no behavioural change (no discriminating test constructible).  The server passes `&doc.dialect` to every one.  **All direct `segment_commands*` sites across the analyser, compiler pipeline, and LSP feature layer are now dialect-aware.**  Only non-production / dialect-insensitive leaves remain (documented above): the lowering / elimination / place_bridge / specialise / W304 leaves; `signature_scan::extract_signatures` and the server `analyse_chunked` reparse, both with no production caller yet.  W108's `non_ascii_mode` still has no Rust mirror (closes with the `_style.py` port). |
+| — | `SYNC-MAY19-dialect-contextvar` | Thread the per-folder dialect into the **lexer config** so mixed-dialect workspaces tokenise correctly.  **Substantially landed (strips 1-6, 2026-06-04/05) — every direct `segment_commands*` site is dialect-aware; only dialect-insensitive leaves + dormant APIs remain.**  Strip 1: `segment_commands*` gained `_and_config` variants (`segment_commands_with_offset_and_config` / `_with_recovery_and_config`) carrying a `LexerConfig`; the existing functions delegate with `LexerConfig::default()` (zero churn).  `Analyser::lexer_config()` returns `LexerConfig::for_dialect(&self.dialect)` and is threaded into the three primary tokenisation sites — top-level (`state::analyse`), body recursion (`commands::analyse_body`, covers every body-walking handler), and OO bodies (`oo::parse_oo_definition_body`).  The server already passes the resolved `doc.dialect` into `analyse()`, so its analyser-based features (diagnostics, document symbols, hover, …) are now dialect-aware end-to-end — verified by `e003_arity_is_dialect_aware_via_expand_syntax` (8.4 `{*}` literal → E003; 9.0 expands → none).  **Strip 2 (2026-06-05): the free-fn analyser sites.**  `param_traits` gained `infer_param_traits_with_config` / `infer_param_traits_deep_with_config` (the existing fns delegate with `LexerConfig::default()`); `config` threads through `scan_commands` / `scan_deep` / `extract_commands`, and `handlers.rs` calls them with `self.lexer_config()` — so trait inference re-segments per-dialect (verified by `trait_inference_is_dialect_aware_via_expand_syntax`: `eval {*}$p` → `p` is `Eval` on 9.0, not on 8.4).  The `diagnostics.rs` W304 set-finder (`last_literal_set_value_for_var`) was threaded too, for consistency.  **Strip 3 (2026-06-05): lowering.**  `Lowerer` carries a `config` field; `lower_to_ir_with_config` / `CompilationUnit::build_for_with_config` thread it (existing entry points delegate with the default); `optimise_with_dialect` / `optimise_raw` build the CU with `for_dialect(dialect)`, so optimiser O-codes + CFG-SSA diagnostics + iRules flow are dialect-aware end-to-end (verified by `lowering_is_dialect_aware_via_expand_syntax`: `if {*}$cond {…}` → `Statement::Barrier` on 9.0, structured `if` on 8.4).  **Strip 4 (2026-06-05): `interprocedural::scan_source_for_calls`** threaded (it already carried `dialect`).  **Deliberately left on the default config (dialect-insensitive in practice — documented, not threaded):** the lowering leaf free-fns `body_has_dynamic_barrier` / `eval_list_literal_body`; `optimiser::elimination`'s embedded-cmd-sub purity classifier (its sibling `Lexer::new` is also default); `place_bridge::command_reads`; `specialise_factories`'s `subst -nocommands` template extractor — all operate on command-name / barrier / template shapes that `{*}`/`}{` don't change.  `signature_scan::extract_signatures` has **no production caller** (dormant public API — thread it when the `S*` workspace-index consumer lands).  **Strips 5 + 6 (2026-06-05): the `tcl-lsp-core` LSP feature modules — all eight LANDED.**  Group A (genuinely dialect-relevant, scan general bodies): `semantic_tokens` / `folding` / `inlay_hints` / `document_links` gained a `dialect` param (folding already had one) threaded to their body-segmentation sites; verified by `semantic_tokens_are_dialect_aware_via_expand_syntax` (`foo {*}$x` → longer token stream on 8.4).  Group B (`references` / `rename` / `call_hierarchy` / `code_lens`): same `dialect`-param threading, but these scan **TclOO method/class** bodies only — OO is 8.6+ where `for_dialect` is the default, and reference/call detection keys on command-head words that `{*}`/`}{` don't change, so it is consistency-threading with no behavioural change (no discriminating test constructible).  The server passes `&doc.dialect` to every one.  **All direct `segment_commands*` sites across the analyser, compiler pipeline, and LSP feature layer are now dialect-aware.**  Only non-production / dialect-insensitive leaves remain (documented above): the lowering / elimination / place_bridge / specialise / W304 leaves; `signature_scan::extract_signatures` and the server `analyse_chunked` reparse, both with no production caller yet.  W108's `non_ascii_mode` still has no Rust mirror (closes with the `_style.py` port). |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
 | — | `SYNC-MAY19-proc-body-const-map` | Landed 2026-05-19 — Var-token const-map materialisation + `arg_single_token` multi-token-word check in `lower_proc`. |
 | — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
@@ -3705,10 +3745,12 @@ priority queue:
   (`rust/tcl-registry/src/stub_overlay.rs` + `StubOverlay`
   threaded through `infer_param_traits` /
   `infer_param_traits_deep`), which **closes
-  `SYNC-MAY19-stub-overlay` entirely**.  Two remain open:
-  priority 6 (dialect-contextvar — `S*` work) and 7 (switch-
-  fallthrough-cfg — deferred until a Rust bytecode codegen
-  exists).
+  `SYNC-MAY19-stub-overlay` entirely**.  Of the two formerly
+  open: priority 6 (dialect-contextvar) is now **substantially
+  landed** (strips 1-6, 2026-06-04/05 — every direct
+  `segment_commands*` site is dialect-aware); only priority 7
+  (switch-fallthrough-cfg — deferred until a Rust bytecode
+  codegen exists) remains open.
 * **`SYNC-MAY26` family** — landed via PR #389: SYNC1
   (minimum-viable), SYNC2 / SYNC3 (registry shape), SYNC4 /
   SYNC5 / SYNC6 (SSA fallout), SYNC7 (canonical-command type
@@ -3900,6 +3942,15 @@ priority queue:
   reaches the same outcome via a result-side guard; outcome-equivalent for
   `concat`).  Pinned by a new regression test in `propagation.rs`.  See the
   `SYNC-JUN04` family section.
+* **`SYNC-JUN05` family** — opened 2026-06-05 (PR #532); advances the anchor
+  from `origin/main`@`43812a60` to `origin/main`@`77215e87` (+1 commit).
+  **No in-scope rows** — #532 is entirely Tcl 9 **Zig-VM / WASM-codegen**
+  runtime (multi-key `dict exists`, `try … finally` `-during` exception
+  chaining, `apply` lambda formal-param validation + `errorInfo` frame +
+  `info level 0`, plus `incr` / `unset` / regexp / array-scalar fixes) with a
+  WASM tcltest-gate refresh and new WASM execution tests; no analyser /
+  compiler / registry / optimiser surface and no `rust/` change.  See the
+  `SYNC-JUN05` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
