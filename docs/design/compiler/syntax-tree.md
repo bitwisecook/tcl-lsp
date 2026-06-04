@@ -178,7 +178,14 @@ locked by the suite afterwards:
   table in `tests/test_syntax_tree.py`.
 - **Position-equivalence** — red fragment tokens equal the lexer's non-trivia
   token stream (offsets, lines, UTF-16 columns, `in_quote`) over the same
-  corpus + fuzz, including multi-line and unicode bodies.
+  corpus + fuzz, including multi-line and unicode bodies. The randomised
+  generator in `tests/test_syntax_tree.py` now also covers carriage returns
+  (lone `\<CR>` continuations), astral / combining unicode, and a quoted word
+  whose entire content is a backslash-newline — the seams a `\n`-only, ASCII
+  generator never reached. The last is a real fragment, not trivia: the lexer
+  emits a separator backslash-newline as `SEP`, but a quoted-word content
+  backslash-newline as an `ESC` token the tree must keep (a fold there dropped
+  the only fragment of the word).
 - **Segment byte-identity** — `segments_from_*` matched the former
   `_segment_raw` field-for-field (`range`, `argv`, `texts`, `single_token_word`,
   `all_tokens`, `preceding_comment`, `expand_word`) over the corpus, 120k

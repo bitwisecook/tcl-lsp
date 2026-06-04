@@ -174,15 +174,13 @@ def build_document(
                 pending.append(eol_triv)
             prev_type = TokenType.EOL
             continue
-        # Backslash-newline continuation between words is whitespace, never a
-        # fragment (matches the segmenter, which skips it but still advances the
-        # word boundary when it follows a real word).
-        if ttype is TokenType.ESC and tok.text == "\\\n":
-            if prev_type not in _SEP_OR_EOL:
-                word_boundary = region
-            pending.append(trivia(TriviaKind.WHITESPACE, raw))
-            prev_type = TokenType.SEP
-            continue
+        # A backslash-newline that is a *separator* (between/after words, after a
+        # ``{*}`` marker, mid-word) is lexed as ``SEP`` and folded above.  The
+        # lexer emits ``\<newline>`` as an ``ESC`` token *only* as quoted-word
+        # content (``"\<newline>"`` — terminated or not), where it is a real
+        # fragment of that word, so it must fall through to the fragment path:
+        # folding it would drop a token the lexer reports and lose the (possibly
+        # only) fragment of the quoted word.
 
         leaf = GreenToken(
             token_type=ttype,

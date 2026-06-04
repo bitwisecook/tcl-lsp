@@ -358,6 +358,18 @@ def incremental_top_level_chunks(
     if not old_chunks:
         return None
 
+    # If the old segmentation involved error recovery, no fast path can
+    # guarantee byte-identity: the window is re-segmented with recovery
+    # *disabled* (a body_token slice), so it cannot reproduce a recovered /
+    # partial command, and a from-scratch pass *would* re-run recovery.  A
+    # partial command can sit anywhere — including the window region between the
+    # prefix and the validation chunk, which the per-region checks below do not
+    # cover — so bail up front whenever any old command is partial.  Recovery
+    # only fires on malformed input (a transiently unbalanced file mid-edit), so
+    # the full-resegment fallback here is both rare and correct.
+    if any(cmd.is_partial for chunk in old_chunks for cmd in chunk.commands):
+        return None
+
     # Fast path: a brace-safe interior edit of one large braced-body command
     # (the single-giant-command file) — reuse it with a body splice instead of
     # re-lexing the whole body.
@@ -384,8 +396,6 @@ def incremental_top_level_chunks(
         else:
             break
     prefix = list(old_chunks[:prefix_count])
-    if any(cmd.is_partial for chunk in prefix for cmd in chunk.commands):
-        return None
 
     # Suffix: chunks beginning after the first newline at/after old_end sit on
     # lines strictly below the edit, so offset+line shifting (columns
@@ -403,8 +413,6 @@ def incremental_top_level_chunks(
     if val_idx is None or val_idx >= n - 1:
         return None  # need a validation chunk and at least one tail chunk to reuse.
     reuse_old = old_chunks[val_idx + 1 :]
-    if any(cmd.is_partial for chunk in old_chunks[val_idx:] for cmd in chunk.commands):
-        return None
 
     # Window: covers the middle plus the validation chunk.  The first command
     # in the window is the one at ``p`` (the first non-prefix command); the

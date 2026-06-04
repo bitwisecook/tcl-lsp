@@ -1500,3 +1500,48 @@ class TestLSPFormatting:
         )
         edits = get_range_formatting(source, range_, options)
         assert len(edits) >= 0  # May or may not have edits depending on content
+
+
+class TestFormatterIdempotency:
+    """``format_tcl`` must be idempotent — ``format_tcl(format_tcl(x)) == format_tcl(x)``
+    — for every input, including structurally malformed code.  Before the
+    stabilising wrapper, an unbalanced ``{`` / ``[`` / ``"`` made the
+    reconstruction fabricate a closer that a re-parse re-mangled, growing the
+    output by a delimiter on *every* pass (catastrophic under format-on-save).
+    """
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "[\n{*}{",  # unterminated [ around an unterminated {
+            'set s "a b c"$};',  # bare $ + stray } after a quoted word
+            'puts "line1\nline2"[\n\tset x $y\n\n\n{',  # unterminated quote-led word
+            "proc p {a b} { return [expr {$a+$b}] ;",  # unbalanced proc body
+            "{",
+            "[",
+            "$",
+            "a$",
+            "\\",
+            "if {$x} { puts a } else { puts b }}",  # one extra }
+        ],
+    )
+    def test_malformed_input_is_idempotent(self, src):
+        once = format_tcl(src)
+        assert format_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+    def test_valid_code_unchanged_and_idempotent(self):
+        import random
+
+        snippets = [
+            "set x 1",
+            "proc add {a b} {\n    return [expr {$a + $b}]\n}",
+            "if {$x} {\n    puts a\n} else {\n    puts b\n}",
+            "foreach x $xs {\n    puts $x\n}",
+            'set s "hello world"',
+            "namespace eval ns {\n    variable v 0\n}",
+        ]
+        rng = random.Random(1234)
+        for _ in range(2000):
+            src = "\n".join(rng.choice(snippets) for _ in range(rng.randint(1, 5)))
+            once = format_tcl(src)
+            assert format_tcl(once) == once, f"valid not idempotent: {src!r}"
