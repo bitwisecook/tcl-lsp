@@ -6,7 +6,7 @@ import re
 
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.command_registry import ResolvedTerminator
 from compiler.registry.dialect import active_dialect
@@ -521,17 +521,12 @@ def _find_regex_patterns_in_command(
                 base_off = case_tok.start.offset + 1
                 base_line = case_tok.start.line
                 base_col = case_tok.start.character + 1
-                lexer = TclLexer(
-                    args[i],
-                    base_offset=base_off,
-                    base_line=base_line,
-                    base_col=base_col,
-                )
+                _it = iter(tokenise(args[i], base_off, base_line, base_col)[0])
                 elements: list[str] = []
                 element_tokens: list[Token] = []
                 prev = TokenType.EOL
                 while True:
-                    tok = lexer.get_token()
+                    tok = next(_it, None)
                     if tok is None:
                         break
                     if tok.type in (TokenType.SEP, TokenType.EOL):

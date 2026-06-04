@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.dialects import has_fixed_ensembles, is_irules_dialect
 from compiler.registry.runtime import (
     body_arg_indices,
@@ -801,12 +801,12 @@ def _scan_array_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
         prev_type = TokenType.EOL
         in_quoted = False
 
         while True:
-            tok = lexer.get_token()
+            tok = next(_it, None)
             if tok is None:
                 break
 
@@ -1114,12 +1114,12 @@ def _scan_argument_tokens(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
         is_command_word = True
         in_quoted = False
 
         while True:
-            tok = lexer.get_token()
+            tok = next(_it, None)
             if tok is None:
                 break
 
@@ -1260,12 +1260,12 @@ def _collect_string_literals(
 
     while work_stack:
         cur_text, cur_base = work_stack.pop()
-        lexer = TclLexer(cur_text)
+        _it = iter(tokenise(cur_text, 0, 0, 0)[0])
         is_command_word = True
         in_quoted = False
 
         while True:
-            tok = lexer.get_token()
+            tok = next(_it, None)
             if tok is None:
                 break
 
@@ -1601,13 +1601,13 @@ _apply_edits = apply_edits
 
 def _minify_body(source: str, *, dialect: str | None = None) -> str:
     """Minify a Tcl script body (top-level or inside braces)."""
-    lexer = TclLexer(source)
+    _it = iter(tokenise(source, 0, 0, 0)[0])
     commands: list[list[_Arg]] = []
     current_args: list[_Arg] = []
     prev_type = TokenType.EOL
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
 

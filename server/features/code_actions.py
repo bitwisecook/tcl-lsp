@@ -14,7 +14,7 @@ from analyser.semantic_model import AnalysisResult, CodeFix, ProcDef
 from compiler.irules_flow import DATA_EVENT_REQUIREMENTS, find_irules_flow_warnings
 from compiler.optimiser import demorgan_transform, invert_expression
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.position_lookup import find_command_at_position
 from compiler.registry import REGISTRY
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -1259,9 +1259,9 @@ def _scan_profile_directive(source: str) -> tuple[frozenset[str], Token] | None:
     than regex over raw source.  Returns ``(profiles, comment_token)`` or
     ``None`` if no directive is found in the leading comments.
     """
-    lexer = TclLexer(source)
+    _it = iter(tokenise(source, 0, 0, 0)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type in (TokenType.SEP, TokenType.EOL):

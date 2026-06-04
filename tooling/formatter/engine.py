@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import (
     SIGNATURES,
@@ -161,7 +161,7 @@ def parse_commands(source: str) -> tuple[list[ParsedCommand], list[str]]:
     Returns (commands, trailing_comments) where trailing_comments are
     any comments after the last command.
     """
-    lexer = TclLexer(source)
+    _it = iter(tokenise(source, 0, 0, 0)[0])
     commands: list[ParsedCommand] = []
     pending_comments: list[str] = []
     pending_blank_lines = 0
@@ -174,7 +174,7 @@ def parse_commands(source: str) -> tuple[list[ParsedCommand], list[str]]:
     prev_type = TokenType.EOL
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
 
@@ -453,7 +453,7 @@ def _format_switch_body(
     The body contains pattern/body pairs. Parse them and format each body
     recursively.
     """
-    lexer = TclLexer(body_text)
+    _it = iter(tokenise(body_text, 0, 0, 0)[0])
     elements: list[tuple[list[Token], str, bool]] = []  # (tokens, text, is_braced)
     prev_type = TokenType.EOL
 
@@ -462,7 +462,7 @@ def _format_switch_body(
     current_braced = False
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type in (TokenType.SEP, TokenType.EOL):
