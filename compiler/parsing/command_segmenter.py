@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 from shared.tokens import SourcePosition, Token, TokenType
 
-from .green_tree import tokenise
+from .green_tree import active_scope, tokenise
 
 log = logging.getLogger(__name__)
 
@@ -465,6 +465,13 @@ def _resolve_subcommands(
             cmd.subcommand = candidate
 
 
+# Segmentation key carried in the green-tree scope's ``_segmentation_cache``.
+# ``known_commands`` is intentionally omitted: no caller passes it explicitly
+# (it is always derived deterministically from the registry), and recovery is
+# already gated by ``recovery`` + ``registry_present`` below.
+_SegKey = tuple[str, int, int, int, bool, bool]
+
+
 def segment_commands(
     source: str,
     body_token: Token | None = None,
@@ -490,7 +497,61 @@ def segment_commands(
 
     When *collect_warnings* is provided, non-fatal lexer warnings
     (e.g. "extra characters after close-brace") are appended to it.
+
+    Within an active :func:`green_tree_scope`, the result is memoised per
+    ``(source, base, recovery, registry_present)`` so a region segmented by
+    several consumers in one pass is segmented once (the returned commands are
+    treated as read-only by all consumers).  The memo is bypassed when
+    *virtual_insertions* is set (request-specific, mirroring ``node_for``);
+    warnings are captured into the cached value and replayed into
+    *collect_warnings* on a hit.
     """
+    scope = active_scope() if virtual_insertions is None else None
+    if scope is None:
+        return _segment_commands_uncached(
+            source,
+            body_token,
+            known_commands=known_commands,
+            virtual_insertions=virtual_insertions,
+            collect_warnings=collect_warnings,
+            registry_snapshot=registry_snapshot,
+            recovery=recovery,
+        )
+    base = _base_position_for(body_token)
+    key: _SegKey = (source, base[0], base[1], base[2], recovery, registry_snapshot is not None)
+    cached = scope.seg_get(key)
+    if cached is not None:
+        commands, warnings = cached
+        if collect_warnings is not None and warnings:
+            collect_warnings.extend(warnings)
+        return commands
+    memo_warnings: list[tuple[SourcePosition, str]] = []
+    commands = _segment_commands_uncached(
+        source,
+        body_token,
+        known_commands=known_commands,
+        virtual_insertions=virtual_insertions,
+        collect_warnings=memo_warnings,
+        registry_snapshot=registry_snapshot,
+        recovery=recovery,
+    )
+    scope.seg_put(key, commands, tuple(memo_warnings))
+    if collect_warnings is not None and memo_warnings:
+        collect_warnings.extend(memo_warnings)
+    return commands
+
+
+def _segment_commands_uncached(
+    source: str,
+    body_token: Token | None = None,
+    *,
+    known_commands: frozenset[str] | None = None,
+    virtual_insertions: dict[int, str] | None = None,
+    collect_warnings: list[tuple[SourcePosition, str]] | None = None,
+    registry_snapshot: CommandRegistry | None = None,
+    recovery: bool = True,
+) -> list[SegmentedCommand]:
+    """Segment without the per-scope memo — the canonical algorithm."""
     commands = _segment_raw(source, body_token, virtual_insertions, collect_warnings)
 
     if not commands:

@@ -322,16 +322,30 @@ class GreenTreeScope:
     single analysis pass.
     """
 
-    __slots__ = ("_index",)
+    __slots__ = ("_index", "_segmentation_cache")
 
     def __init__(self) -> None:
         self._index: dict[_Key, GreenNode] = {}
+        # Per-scope segmentation memo: maps an opaque segmentation key
+        # (owned by ``command_segmenter``) to ``(commands, warnings)``.  Held
+        # here so ``command_segmenter`` reuses the same scope lifetime as the
+        # token memo, while ``green_tree`` stays free of a ``SegmentedCommand``
+        # import (the key and value are deliberately untyped here).
+        self._segmentation_cache: dict[tuple, tuple] = {}
 
     def intern(self, key: _Key, node: GreenNode) -> None:
         self._index[key] = node
 
     def get(self, key: _Key) -> GreenNode | None:
         return self._index.get(key)
+
+    def seg_get(self, key: tuple) -> tuple | None:
+        """Return the cached ``(commands, warnings)`` for *key*, or ``None``."""
+        return self._segmentation_cache.get(key)
+
+    def seg_put(self, key: tuple, commands: object, warnings: object) -> None:
+        """Cache ``(commands, warnings)`` under the segmentation *key*."""
+        self._segmentation_cache[key] = (commands, warnings)
 
 
 _active_scope: ContextVar[GreenTreeScope | None] = ContextVar("tcl_green_tree_scope", default=None)
