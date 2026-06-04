@@ -57,6 +57,7 @@ Source text
 ┌───────────────────────────────────────────────────────────────────────┐
 │ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:494
 │ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:390
+│      (derived byte-identically from the red-green CST — syntax/build.py)        │
 │ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:1020
 │ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1058
 │ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:359
@@ -108,6 +109,13 @@ class Token:                        # tokens.py:33
   the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
 
 ### Stage 2 — Segmenter types ([`compiler/parsing/command_segmenter.py`](../../compiler/parsing/command_segmenter.py))
+
+> `segment_commands()` builds the canonical lossless **red-green concrete syntax
+> tree** ([`compiler/parsing/syntax/`](../../compiler/parsing/syntax/), see
+> [syntax-tree.md](compiler/syntax-tree.md)) and derives the `SegmentedCommand`
+> list from it.  The output below is byte-identical to the former hand-rolled
+> token loop, so every example's Stage 2 data structure is unchanged — the tree
+> is the new *backing*, not a new shape.
 
 ```python
 @dataclass(slots=True)
@@ -1120,7 +1128,8 @@ Key observations:
 
 ### Stage 2 — Segmenter → SegmentedCommand
 
-The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
+The segmenter builds the red-green CST for the source and derives one
+`SegmentedCommand` per command (split at `EOL`/`EOF` boundaries):
 
 ```python
 SegmentedCommand(

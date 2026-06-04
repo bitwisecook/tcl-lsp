@@ -33,8 +33,9 @@ Phase 1: Lexing (tokens.py)
     │  Token stream: ESC, STR, VAR, CMD, SEP, NL, ...
     │
     ▼
-Phase 2: Segmentation (command_segmenter.py)
-    │  SegmentedCommand objects with texts[] and single[] arrays
+Phase 2: Segmentation (command_segmenter.py → syntax/ CST)
+    │  Build the lossless red-green CST, derive SegmentedCommand objects
+    │  (texts[] / single[] arrays) byte-identically from it
     │
     ▼
 Phase 3: IR lowering (lowering.py, lowering_hooks/)
@@ -100,9 +101,12 @@ FunctionAsm (instructions + LVT + literal table)
 Virtual token injection for unclosed `[`, `"`, `{`.  Heuristics detect command
 breaks to determine where to insert the missing delimiter.
 
-**Phase 1–2 — Lexing and segmentation** ([Examples 1–2](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)):
+**Phase 1–2 — Lexing and segmentation** ([Examples 1–2](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42), [KCS: CST](../../../docs/design/compiler/syntax-tree.md)):
 `set x 42` → Token(`ESC`, `"set"`), Token(`ESC`, `"x"`), Token(`ESC`, `"42"`)
-→ `SegmentedCommand(texts=["set", "x", "42"])`.
+→ `SegmentedCommand(texts=["set", "x", "42"])`.  Segmentation builds the
+canonical red-green concrete syntax tree (`syntax/`) and derives the
+`SegmentedCommand`s from it byte-identically — the single representation the
+formatter, minifier, lowering, and per-command tooling are migrating onto.
 
 **Phase 3 — IR lowering** ([KCS: lowering](../../../docs/design/compiler/lowering-dispatch.md), [KCS: expressions](../../../docs/design/compiler/expression-parsing.md), [KCS: namespaces](../../../docs/design/compiler/namespace-resolution.md)):
 - Dispatch hierarchy: hooks → match/case → arg_roles fallthrough
@@ -175,6 +179,7 @@ Source text  ──────────────────────�
 - [compiler-architecture.md](../../../docs/design/compiler-architecture.md)
 - Individual topic KCS files:
   - [kcs-lexing-segmentation.md](../../../docs/design/compiler/lexing-segmentation.md)
+  - [syntax-tree.md](../../../docs/design/compiler/syntax-tree.md) — the canonical red-green CST
   - [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)
   - [kcs-expression-parsing.md](../../../docs/design/compiler/expression-parsing.md)
   - [kcs-ir-types-lowering.md](../../../docs/design/compiler/ir-types-lowering.md)

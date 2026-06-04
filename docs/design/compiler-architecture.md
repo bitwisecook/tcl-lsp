@@ -122,6 +122,13 @@ being a list of whitespace-separated words terminated by a newline or
 semicolon.  The segmenter groups the flat token stream into per-command
 structures.
 
+Internally `segment_commands()` no longer runs a bespoke token loop: it builds
+the canonical lossless [red-green concrete syntax tree](compiler/syntax-tree.md)
+for the region and *derives* the `SegmentedCommand` list from it,
+byte-identically to the former loop (verified over the real-world corpus and
+120k randomised differential cases).  The tree is the single representation the
+formatter, minifier, AOT lowering, and per-command tooling are migrating onto.
+
 ```mermaid
 flowchart LR
     TOKS["Token stream"] --> SEGR["segment_commands()"]

@@ -58,6 +58,16 @@ tokens).
 
 ### Stage 2 — Segmentation
 
+`segment_commands()` no longer runs its own hand-rolled token loop: it builds
+the canonical lossless **red-green concrete syntax tree** for the region
+([`compiler/parsing/syntax/`](../../../compiler/parsing/syntax/), see
+[syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
+it.  The derivation is byte-identical to the former loop — `range`, `argv`,
+`texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
+`expand_word` all match field-for-field (verified over the real-world corpus,
+120k randomised differential cases, and nested-body anchoring) — so everything
+below describes the unchanged output shape.
+
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
 
 ```python
@@ -204,6 +214,8 @@ IRAssignValue(name="y", value="${x}")
 
 ## Related docs
 
+- [syntax-tree.md](syntax-tree.md) — the canonical red-green CST the segmenter
+  builds and derives `SegmentedCommand`s from
 - [Examples 1–2 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference](../../../docs/design/example-script-walkthroughs.md#data-structure-reference)
 - [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)
