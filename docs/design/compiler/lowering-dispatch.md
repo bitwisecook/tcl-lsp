@@ -45,7 +45,7 @@ _lower_command(cmd)
 
 ### Lowering hooks — `lower_set()` example
 
-`set` has a registered lowering hook (`lowering_hooks/_var.py:36`).  It
+`set` has a registered lowering hook (`lowering_hooks/_var.py:53`).  It
 pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |

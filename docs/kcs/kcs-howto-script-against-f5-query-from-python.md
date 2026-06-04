@@ -25,9 +25,9 @@ without shelling out to the CLI and parsing stdout.
 
 ## Answer
 
-The engine is exposed as the top-level **`f5q`** package.  Everything
-external scripts normally need lives at the top level — no reaching
-into `dialects.f5.query` internals.
+The engine is exposed via the **`dialects.f5.query`** package.  Everything
+external scripts normally need lives at the top level — import it once
+under a short alias and all the examples below work unchanged.
 
 ### 1. The one-liner — `f5q.q()`
 
@@ -37,7 +37,7 @@ else is an input (file path, `Sources`, a prior result, or in-memory
 data):
 
 ```python
-import f5q
+from dialects.f5 import query as f5q
 
 # Expression + file.
 for name in f5q.q(".ltm.virtual[] | .name", "bigip.conf"):
@@ -53,6 +53,8 @@ like a list, supports `len()` / `bool()`, and exposes one method per
 When one corpus feeds many queries, load it once:
 
 ```python
+from dialects.f5 import query as f5q
+
 corpus = f5q.load("ltm.conf", "gtm.conf")
 virtuals = f5q.q(".ltm.virtual[]", corpus)
 pools = f5q.q(".ltm.pool[]", corpus)
@@ -69,6 +71,8 @@ method form `run.q(...)`.  The prior values become the new primary
 input — `.` reads the synthesised list, so `.[]` iterates jq-style:
 
 ```python
+from dialects.f5 import query as f5q
+
 # Function form.
 virtuals = f5q.q(".ltm.virtual[] | .name", "bigip.conf")
 web_vses = f5q.q('.[] | select(contains(., "web"))', virtuals)
@@ -105,6 +109,8 @@ matched = f5q.q(
 `QueryRun` exposes the shapes external scripts normally want:
 
 ```python
+from dialects.f5 import query as f5q
+
 run = f5q.q(".ltm.virtual[]", "bigip.conf")
 
 run.values()    # flat list of every value the query produced
@@ -114,9 +120,8 @@ run.paths()     # full_path of every ObjectRef / PathRef
 run.rows()      # [QueryRow(uri, value), ...] keeping the source URI
 ```
 
-`ObjectRef`, `PathRef`, and `Stream` are re-exported from `f5q` so
-your script can pattern-match on them without importing anything from
-`dialects.f5.query`.
+`ObjectRef`, `PathRef`, and `Stream` are exported from `dialects.f5.query` so
+your script can pattern-match on them without reaching into private sub-modules.
 
 ### 5. Get plain JSON-compatible Python — `.out()`
 
@@ -125,6 +130,7 @@ graph walks but they don't JSON-serialise.  `.out()` coerces:
 
 ```python
 import json
+from dialects.f5 import query as f5q
 
 text = json.dumps(f5q.q(".ltm.virtual[]", "bigip.conf").out())
 # ObjectRef → {"kind": ..., "full-path": ..., "fields": {...}}
@@ -135,7 +141,7 @@ text = json.dumps(f5q.q(".ltm.virtual[]", "bigip.conf").out())
 ### 6. Apply a mutation and read back the rewritten config
 
 ```python
-import f5q
+from dialects.f5 import query as f5q
 
 run = f5q.q(
     '.ltm.virtual[].destination |= ip("192.168.9.0/24", .)',
@@ -158,7 +164,7 @@ Edits stay in memory — `f5q.q()` never writes to disk.  The CLI's
 renderer plugin (built-in or user-registered):
 
 ```python
-import f5q
+from dialects.f5 import query as f5q
 
 # ASCII Gantt of pool-member up/down transitions.
 print(
@@ -173,7 +179,7 @@ print(
 ```
 
 Three renderers ship in-tree: `gantt`, `ascii-blocks`, `mermaid`.
-List them with `f5q.list_renderers()` or `f5 q --help-renderers`.
+List them with `f5q.list_renderers()` (where `f5q = dialects.f5.query`) or `f5 q --help-renderers`.
 
 ### 8. Inline callables — the one-off escape hatch
 
@@ -182,6 +188,8 @@ deserve its own XDG plugin), pass a **function directly** anywhere
 the API accepts a registered name:
 
 ```python
+from dialects.f5 import query as f5q
+
 # Inline renderer — a callable matching (values, **opts) -> str.
 text = f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
     lambda values, **opts: ", ".join(str(v) for v in values) + "\n"
@@ -206,7 +214,7 @@ up without copy-paste.
 ### 9. Ship a custom renderer
 
 ```python
-from f5q import renderer
+from dialects.f5.query import renderer
 
 @renderer(
     "md-table",
@@ -231,7 +239,7 @@ other in-tree builtins is exposed as the public `@builtin`
 decorator:
 
 ```python
-from f5q import builtin
+from dialects.f5.query import builtin
 
 @builtin(
     "uppercase",
@@ -257,7 +265,7 @@ in-tree builtins.
 ### 11. Ship a custom input format
 
 ```python
-from f5q import input_format
+from dialects.f5.query import input_format
 
 @input_format(
     "yaml",
@@ -287,7 +295,7 @@ file in that directory and it loads transparently the next time
 ```sh
 mkdir -p ~/.config/dialects/f5/query/plugins
 cat > ~/.config/dialects/f5/query/plugins/my_extensions.py <<'PY'
-from f5q import builtin, renderer, input_format
+from dialects.f5.query import builtin, renderer, input_format
 
 @builtin("uppercase", summary="upper", min_args=1, max_args=1)
 def _u(s):
@@ -328,8 +336,8 @@ sub-folder files; within each tier files load alphabetically.
 The same loader runs from Python:
 
 ```python
-import f5q
-dialects.f5.query.load_user_plugins()        # idempotent — call once at startup
+from dialects.f5 import query as f5q
+f5q.load_user_plugins()        # idempotent — call once at startup
 print(f5q.xdg_plugin_dir())    # diagnostic: where the loader looks
 print(f5q.list_renderers())    # everything available after loading
 ```
@@ -345,7 +353,7 @@ value.
 ## How to tell it worked
 
 ```sh
-uv run python -c "import f5q; print(len(f5q.q('.ltm.virtual[]', 'bigip.conf')))"
+uv run python -c "from dialects.f5 import query as f5q; print(len(f5q.q('.ltm.virtual[]', 'bigip.conf')))"
 ```
 
 …prints the virtual-server count of the file.  `f5 q --help-renderers`

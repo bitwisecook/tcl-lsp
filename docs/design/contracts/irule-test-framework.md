@@ -20,7 +20,7 @@ Python.
 User test script (Tcl or Python)
     -> orchestrator.tcl  (event ordering, flow chains, assertions)
     -> itest_core.tcl    (iRule loader, event firer)
-    -> command_mocks.tcl (73 hand-written + 1188 auto-generated stubs)
+    -> command_mocks.tcl (93 hand-written + 1473 auto-generated stubs)
     -> state_layers.tcl  (10 protocol state namespaces)
     -> tmm_shim.tcl      (disabled commands, info override)
     -> expr_ops.tcl      (contains/starts_with/ends_with/etc.)

@@ -89,8 +89,8 @@ mirrors a directory under `runtime/zig/`.
 |---|---|---|---|---|
 | `frame_push()` | (n/a) | i32 (frame idx) | (n/a) | Frame entry; no obj refs yet. |
 | `frame_pop()` | (n/a) | `void` | releases every slot's value | MM-B.3 retain/release on each slot. Idempotent for slots already at 0. |
-| `local_set(name, value)` | name `borrowed`, value `borrowed` | i32 (= value) | retains value into slot, releases prior occupant | MM-B.3 commit `fe68d410`. |
-| `local_get(name)` | name `borrowed` | `borrowed` | (n/a) | Returns the slot's current value without retain. Caller must retain if it stores elsewhere. |
+| `frame_local_set_at(idx, value)` | idx `u32`, value `borrowed` | i32 (= value) | retains value into slot, releases prior occupant | MM-B.3 commit `fe68d410`. |
+| `frame_local_at(idx)` | idx `u32` | `borrowed` | (n/a) | Returns the slot's current value without retain. Caller must retain if it stores elsewhere. |
 | `var_set` / `var_resolve` / `var_exists` | (TBD) | (TBD) | (TBD) | Audit pending. |
 | `frame_set_argv(argv)` / `frame_get_argv()` | (TBD) | (TBD) | (TBD) | MM-B.5d retain/release; audit pending. |
 

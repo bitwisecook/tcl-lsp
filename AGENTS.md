@@ -11,8 +11,8 @@ tool dialects.
 
 The Python code is partitioned into seven concern packages with a fixed
 dependency direction enforced by `import-linter` (see `.importlinter`
-at the repo root). Each concern is also documented by `make
-lint-imports` errors when crossed.
+at the repo root). Each concern is also documented by `uv run --extra dev lint-imports`
+(run inside `make lint-py`) errors when crossed.
 
 ```
 shared/           Leaf utilities — Range/Token/SourcePosition, document
@@ -309,7 +309,7 @@ merged IR, then `wasm-merge`s it with the user-code module to
 produce a single bundled `.wasm`.
 
 The first extension is **Tcltest**: the full Tcl 9 `tcltest` C-tier
-`test*` command surface (107 commands across 12 cmd_*.zig files
+`test*` command surface (107 commands across 14 cmd_*.zig files
 under `runtime/zig/tcltest/`).  PORTABLE / PARTIAL commands have
 functional implementations; NOT-PORTABLE ones (sockets, threads,
 fork, native FS hooks) raise an explicit "not supported under WASM"
@@ -628,7 +628,7 @@ without restarting.
 A small set of features cannot follow this pattern because their handler
 registration changes the `ServerCapabilities` advertised during `initialize`,
 which alters client behaviour irreversibly for the session. These are listed
-in `_RESTART_REQUIRED_TOGGLES` in `server/server.py` and are registered
+in `_RESTART_REQUIRED_TOGGLES` in `server/settings.py` and are registered
 conditionally at import time. Currently this set includes:
 
 - **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and

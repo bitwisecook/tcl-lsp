@@ -42,7 +42,7 @@ Source: [`server/features/diagnostics.py`](../../../server/features/diagnostics.
 `get_deep_diagnostics()` runs via `asyncio.to_thread` to avoid blocking.
 It reuses the `CompilationUnit` from Phase 1:
 
-- **Optimiser** (`find_optimisations`): O100–O126
+- **Optimiser** (`find_optimisations`): O100–O130
 - **Shimmer detector** (`find_shimmer_warnings`): S100–S102
 - **Taint engine** (`find_taint_warnings`): T100–T106, IRULE3001–3004
 - **iRules flow checker** (`find_irules_flow_warnings`): IRULE1005–1008, IRULE4002, IRULE5004

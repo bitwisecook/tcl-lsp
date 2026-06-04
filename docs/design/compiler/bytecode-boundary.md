@@ -2,7 +2,7 @@
 
 ## Symptom
 
-A useful analysis fact exists only in `codegen.py`, limiting LSP features from using it.
+A useful analysis fact exists only in the codegen package, limiting LSP features from using it.
 
 ## Context
 
@@ -30,6 +30,6 @@ If a rule in codegen would improve diagnostics or quick-fix quality, model it as
 
 ## Related files
 
-- `compiler/codegen.py`
+- `compiler/codegen/`
 - `compiler/lowering.py`
 - `compiler/compilation_unit.py`

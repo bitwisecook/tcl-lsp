@@ -52,6 +52,7 @@ Source: [`shared/tokens.py`](../../../shared/tokens.py),
 | `IRAssignConst` | `set x 42` — constant assignment |
 | `IRAssignExpr` | `set x [expr {…}]` — expression assignment |
 | `IRAssignValue` | `set x $y` — variable/interpolated assignment |
+| `IRExprEval` | `expr {…}` evaluated for side-effects (result discarded) |
 | `IRIncr` | `incr i` / `incr i 5` |
 | `IRCall` | Generic command (`puts`, `regexp`, etc.) with `defs`/`reads` |
 | `IRReturn` | `return` statement |
@@ -128,7 +129,7 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 | `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function (also built per TclOO method) |
 | `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `methods dict` (per-method `FunctionUnit`s), `connection_scope` |
 
-`compile_source()` at `compilation_unit.py:89` orchestrates all stages and
+`compile_source()` at `compilation_unit.py:376` orchestrates all stages and
 returns a `CompilationUnit`.
 
 ## Decision rule

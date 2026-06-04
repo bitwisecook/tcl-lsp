@@ -43,7 +43,6 @@ Formatting is implemented as an engine/config/runtime pipeline and surfaced thro
 - `tests/test_formatter.py`
 - `tests/test_tcl_parse.py`
 - `tests/test_tcl_parse_expr.py`
-- `tests/test_core_lift_consumers.py`
 
 ## Discoverability
 

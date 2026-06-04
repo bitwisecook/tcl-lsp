@@ -757,8 +757,8 @@ compiler/registry/
     namespace_data.py           # PROFILE_SPECS, PROTOCOL_NAMESPACE_SPECS,
                                 # MODIFICATION_SPECS tables
 
-docs/kcs/
-    kcs-namespace-model-design.md   # this document
+docs/design/contracts/
+    namespace-model.md              # this document
 ```
 
 ## Data tables

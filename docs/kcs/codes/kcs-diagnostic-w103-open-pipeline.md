@@ -21,7 +21,9 @@ A pipe prefix in the path executes shell commands under attacker control, enabli
 
 ## Symptoms
 
-- A yellow squiggle appears under the `open` call, with the message "open with pipeline prefix".
+- A yellow squiggle appears under the first argument of the `open` call, with a message such as: "open with a pipeline containing variable/command substitution risks command injection. Validate and sanitize the command before passing to open."
+- For a literal pipeline (no substitution), the severity is a hint: "open with a pipeline (&quot;|&quot;) executes an external command. Ensure the command is not influenced by untrusted input."
+- For a bare variable argument: "open with a variable argument: if the value starts with &quot;|&quot;, it will execute a command pipeline. Validate input or use explicit I/O commands."
 
 ## Example that triggers it
 
@@ -29,7 +31,7 @@ A pipe prefix in the path executes shell commands under attacker control, enabli
 open "|$cmd"
 ```
 
-The analyser reports **`W103`** on the `open` call.
+The analyser reports **`W103`** on the `|$cmd` argument token.
 
 ## Fix
 

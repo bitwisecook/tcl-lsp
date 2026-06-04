@@ -77,6 +77,8 @@ object DiagnosticCatalog {
         DiagnosticDef("W309", "security", "W309: eval/uplevel with subst", true),
         DiagnosticDef("W313", "security", "W313: Destructive file operation with variable path", true),
         DiagnosticDef("H300", "hint", "H300: Possible paste error", true),
+        DiagnosticDef("I230", "hint", "I230: Constant branch condition", true),
+        DiagnosticDef("I231", "hint", "I231: Constant switch arm condition", true),
         DiagnosticDef("W123", "hint", "W123: Unresolved command", false),
         DiagnosticDef("W242", "hint", "W242: Loop termination cannot be proven", false),
         DiagnosticDef("S100", "shimmer", "S100: Single shimmer outside a loop", true),

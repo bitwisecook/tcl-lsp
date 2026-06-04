@@ -26,7 +26,7 @@ LSP features are implemented as focused providers under `server/features/`, each
 - `server/features/definition.py`
 - `server/features/references.py`
 - `server/features/rename.py`
-- `server/features/semantic_tokens.py`
+- `server/features/_semantic_tokens/`
 - `server/features/call_hierarchy.py`
 - `server/features/document_symbols.py`
 - `server/features/document_links.py`
@@ -42,7 +42,7 @@ LSP features are implemented as focused providers under `server/features/`, each
 - `analyser/proc_lookup.py`
 - `dialects/f5/bigip/object_registry.py`
 - `dialects/f5/bigip/registry/data.py`
-- `dialects/f5/bigip/registry/objects/`
+- `dialects/f5/bigip/registry/specs/`
 
 ## Failure modes
 

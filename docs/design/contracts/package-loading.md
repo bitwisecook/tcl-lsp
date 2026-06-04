@@ -21,9 +21,9 @@ Three package sources are supported, plus the iRules cross-file equivalent:
 
 | Source  | `required_package` value | Registration location                         |
 |---------|--------------------------|-----------------------------------------------|
-| Stdlib  | e.g. `"http"`, `"msgcat"` | `compiler/registry/stdlib/`               |
-| Tcllib  | derived from `tcllib_package` | `compiler/registry/tcllib/`            |
-| Tk      | `"Tk"`                   | `compiler/registry/tk/`                   |
+| Stdlib  | e.g. `"http"`, `"msgcat"` | `dialects/stdlib/`                        |
+| Tcllib  | derived from `tcllib_package` | `dialects/tcllib/`                     |
+| Tk      | `"Tk"`                   | `dialects/tk/`                            |
 | iRules  | n/a (no packages on BIG-IP) | `server/workspace/workspace_index.py` globals  |
 
 ## Decision rules / contracts
@@ -103,13 +103,13 @@ Three package sources are supported, plus the iRules cross-file equivalent:
 ## File-path anchors
 
 - `analyser/semantic_model.py` — `PackageRequire`, `active_package_names()`
-- `analyser/analyser.py` — package require extraction (~line 876)
+- `analyser/_analyser/_commands.py` — package require extraction (~line 328)
 - `compiler/registry/models.py` — `required_package`, `tcllib_package`, `supports_packages()`
 - `compiler/registry/command_registry.py` — package filtering methods
-- `compiler/registry/stdlib/` — stdlib command specs
-- `compiler/registry/tcllib/` — tcllib command specs
-- `compiler/registry/tk/` — Tk command specs
-- `dialects/tk/dialect/detection.py` — `has_tk_require()`
+- `dialects/stdlib/` — stdlib command specs
+- `dialects/tcllib/` — tcllib command specs
+- `dialects/tk/` — Tk command specs
+- `analyser/tk_detection.py` — `has_tk_require()`
 - `analyser/packages/resolver.py` — `PackageResolver`, pkgIndex parsing
 - `server/workspace/workspace_index.py` — `EntrySource`, iRules globals
 - `server/features/package_suggestions.py` — `rank_package_suggestions()`

@@ -31,7 +31,7 @@ For command substitutions (`set x [cmd ...]`), intent records:
 
 ## Related files
 
-- `server/compiler/execution_intent.py`
-- `server/compiler/compilation_unit.py`
-- `server/compiler/shimmer.py`
-- `server/compiler/optimiser.py`
+- `compiler/execution_intent.py`
+- `compiler/compilation_unit.py`
+- `compiler/shimmer.py`
+- `compiler/optimiser/`

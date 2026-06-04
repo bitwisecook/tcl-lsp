@@ -375,6 +375,14 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Related docs
 
+- [syntax-tree.md](syntax-tree.md) — the canonical **red-green concrete syntax
+  tree** (CST). A *different* structure despite also naming its node
+  `GreenNode`: the CST is position-independent (green nodes carry only widths;
+  a red overlay resolves absolute positions lazily), whereas this green token
+  tree is a context-aware tokenisation *memo* whose tokens carry absolute
+  positions because ~80 consumers read `Token.start.offset` as absolute. The
+  CST is built *alongside*, verified byte-identical, and adopted incrementally;
+  it rides this tree's `tokenise` memo for the leaf lexing.
 - [lexing-segmentation.md](lexing-segmentation.md) — current lexer/segmenter
   contract and the shipped memo.
 - [error-recovery.md](error-recovery.md) — virtual-token injection.

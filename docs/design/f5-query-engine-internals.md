@@ -22,7 +22,7 @@ dialects/f5/query/
 │   ├── _engine.py        # _project_field — the dispatch core, ObjectRef caching
 │   ├── _classes.py       # Container, FieldSpec, ObjectRef construction helpers
 │   └── _data.py          # Per-kind field maps (manually curated)
-├── builtins.py           # @_register decorator + 116 builtin catalogue
+├── builtins.py           # @_register decorator + 260 builtin catalogue
 ├── _probes.py            # Network builtins (gated by --enable-probes)
 ├── _inputs.py            # External input parsers (JSON / JSONL / CSV / f5log)
 ├── values.py             # ObjectRef, PathRef, Stream, Root, FieldSlot
@@ -461,7 +461,7 @@ the same dict.
 ### `builtins.py` — Builtin catalogue + registration
 
 The registration mechanics live at the top of the file; the
-~116 builtins follow.
+260 builtins follow.
 
 - `BuiltinSpec` (frozen dataclass) — name, summary, signatures
   tuple, examples tuple, category, `impl` callable, `details`
@@ -478,9 +478,9 @@ The registration mechanics live at the top of the file; the
     unwraps streams element-by-element.
 - `_REGISTRY: dict[str, BuiltinSpec]` — the master dispatch
   table.
-- `_CATEGORY_ORDER` — tuple of seven category labels used for
-  `--help-builtins` ordering: `("stream", "string", "path",
-  "rename", "net", "graph", "value")`.
+- `_CATEGORY_ORDER` — tuple of nine category labels used for
+  `--help-builtins` ordering: `("stream", "string", "math",
+  "time", "path", "rename", "net", "graph", "value")`.
 - `_register(name, *, summary, signatures, examples, category,
   min_args, max_args, details, special_form, with_ctx,
   stream_aware)` — decorator.  Populates `_REGISTRY[name]` and
@@ -653,9 +653,9 @@ isn't needed (no extra round-trip).
 - `parse_f5log(text, *, source)` — F5 syslog → list of
   `F5LogEvent` dicts.  Severity vocabulary is `_F5_SEVERITIES`
   (frozenset of the eight syslog severities).
-- `F5LogEvent` (frozen dataclass) — 14 fields: `timestamp`,
+- `F5LogEvent` (frozen dataclass) — 10 fields: `timestamp`,
   `host`, `severity`, `daemon`, `pid`, `code`, `module`,
-  `level`, `message`, `raw`, etc.
+  `level`, `message`, `raw`.
 
 These feed the `json_load` / `jsonl_load` / `csv_load` /
 `f5log_load` builtins and the `--name=alias=path.{json,jsonl,csv}`

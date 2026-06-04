@@ -16,8 +16,9 @@ namespace command and variable tables, explicit path and export lists
 — so command and variable resolution matches Tcl 9 semantics
 (`tclNamesp.c:Tcl_FindCommand`, `tclVar.c:TclObjLookupVarEx`) instead
 of the current FQN-string fallbacks in `runtime/zig/tcl_procs.zig`
-(suffix-scan in `proc_lookup`) and `runtime/zig/tcl_globals.zig`
-(flat FQN-keyed hash).
+(suffix-scan in `proc_lookup`) and `runtime/zig/interp/tcl_ns.zig`
+(flat FQN-keyed hash; globals were folded from the retired
+`tcl_globals.zig` into `tcl_ns.zig` in P3.4).
 
 Correctness first: a tcltest-shaped bundle (`proc $varName {args}
 body` created inside a factory, then invoked by FQN or unqualified

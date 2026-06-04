@@ -110,10 +110,10 @@ tclpkg.tcl (manifest)
 - `tooling/tcl/verbs/venv.py` — `tcl venv` CLI verb handlers
 - `tooling/vm/interp.py:102` — `TclInterp(safe=…)` parameter
 - `tooling/vm/commands/interp_cmds.py:65` — `interp issafe` handler
-- `shared/user_config.py:126` — `_cache_dir()` helper
-- `server/settings.py:58` — `_KNOWN_TCL_LSP_SECTIONS`
-- `server/commands.py:825` — `tcl-lsp.tclpkg.install` command handler
-- `server/features/code_actions.py:383` — `_tclpkg_install_action()`
+- `shared/user_config.py:130` — `_cache_dir()` helper
+- `server/settings.py:60` — `_KNOWN_TCL_LSP_SECTIONS`
+- `server/commands.py:996` — `tcl-lsp.tclpkg.install` command handler
+- `server/features/code_actions.py:419` — `_tclpkg_install_action()`
 
 ## Failure modes
 
@@ -125,11 +125,11 @@ tclpkg.tcl (manifest)
 
 ## Test anchors
 
-- `tests/tooling/tclpkg/test_manifest.py` — 29 tests for manifest parsing
-- `tests/tooling/tclpkg/test_lockfile.py` — 23 tests for lockfile serialisation
-- `tests/tooling/tclpkg/test_cas.py` — 18 tests for CAS hashing + storage
-- `tests/tooling/tclpkg/test_resolver.py` — 15 tests for MVS resolution
-- `tests/tooling/tclpkg/test_version.py` — 34 tests for version ordering
+- `tests/tclpkg/test_manifest.py` — 24 tests for manifest parsing
+- `tests/tclpkg/test_lockfile.py` — 23 tests for lockfile serialisation
+- `tests/tclpkg/test_cas.py` — 18 tests for CAS hashing + storage
+- `tests/tclpkg/test_resolver.py` — 15 tests for MVS resolution
+- `tests/tclpkg/test_version.py` — 34 tests for version ordering
 - `tests/test_vm_safe_mode.py` — 12 tests for VM safe-mode
 
 ## Discoverability

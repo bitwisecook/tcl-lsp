@@ -1,6 +1,6 @@
 # Adding a Tcl Command
 
-Every Tcl command lives in its own file under `compiler/registry/tcl/`.
+Every Tcl command lives in its own file under `dialects/tcl/`.
 This guide covers every feature available in a command definition.
 
 ## Quick start
@@ -12,9 +12,9 @@ Create a file, e.g. `mycommand.py`:
 
 from __future__ import annotations
 
-from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from compiler.registry._base import CommandDef
+from compiler.registry.models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from compiler.registry.signatures import Arity
 from ._base import register
 
 @register
@@ -384,7 +384,7 @@ expects for each argument and what it returns.  Set `return_type` and
 ### Simple command
 
 ```python
-from ....compiler.types import TclType
+from compiler.types import TclType
 from ..models import ArgTypeHint
 
 CommandSpec(
@@ -405,7 +405,7 @@ CommandSpec(
 ### Subcommand command
 
 ```python
-from ....compiler.types import TclType
+from compiler.types import TclType
 
 subcommands={
     "length": SubCommand(

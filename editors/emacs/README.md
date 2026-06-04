@@ -35,7 +35,7 @@ Add to your `init.el`:
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '(tcl-mode . ("uv" "run" "--directory" "/path/to/tcl-lsp"
-                             "--no-dev" "python" "-m" "lsp"))))
+                             "--no-dev" "python" "-m" "server"))))
 
 ;; Auto-start on Tcl files
 (add-hook 'tcl-mode-hook #'eglot-ensure)
@@ -57,7 +57,7 @@ Or with the standalone zipapp:
    (make-lsp-client
     :new-connection (lsp-stdio-connection
                      '("uv" "run" "--directory" "/path/to/tcl-lsp"
-                       "--no-dev" "python" "-m" "lsp"))
+                       "--no-dev" "python" "-m" "server"))
     :activation-fn (lsp-activate-on "tcl")
     :server-id 'tcl-lsp)))
 
@@ -238,5 +238,5 @@ defaults in the config file and per-project overrides in Emacs.
 Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
 write current settings to the config file.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.
