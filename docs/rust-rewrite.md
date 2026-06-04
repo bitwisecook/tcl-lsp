@@ -3875,10 +3875,26 @@ on the `\n`-only convention, not a self-comparison), FAILS pre-fix
 (`(1,0)` vs `(0,2)` for `b` in `"a\rb"`).  `cargo test --workspace`
 green, clippy/fmt clean.
 
-**Strand 2 (CST build quoted `\<newline>`)** — candidate follow-up strip;
-needs a behaviour audit of `build.rs::handle_trivia` against the Rust
-lexer/segmenter (it deliberately mirrors the token-loop segmenter's ESC
-fold).  **Strand 3 (incremental reparse)** — N/A (no Rust path yet).
+**Strand 2 (CST build quoted `\<newline>`)** — **audited: a real but
+narrow divergence, deferred as its own coordinated strip.**  Post-#537
+`build.py` removed the `ESC` trivia branch so a `\<newline>` that is a
+quoted word's *whole content* (`"\<newline>"`, token text exactly
+`"\\\n"`) falls through to the **fragment** path (kept); only a `SEP`
+`\<newline>` between/after words folds to trivia.  The Rust port instead
+folds *both* (`build.rs::handle_trivia`'s `Sep | Esc if … "\\\n"` arm) to
+stay byte-identical with the **token-loop segmenter** — and the frozen
+differential oracle does the same (`differential_segment.rs:393`,
+`Esc if token_text == "\\\n" => fold`), so the CST and the oracle are in
+lockstep (pinned by the M1 cases `puts "\<newline>"` / `puts "$x\<newline>"`).
+The Rust side is therefore *internally* consistent but drops a token
+post-#537 Python keeps — a known, documented decision, not a silent
+paper-over.  Reconciling needs a **coordinated** change moving the live
+token-loop segmenter, the frozen oracle, and the `build.rs` arm together
+(else the byte-identical rebase breaks) plus a re-think of how the frozen
+oracle stays an independent cross-check across a deliberate behaviour
+change — its own strip with its own behavioural bar, not folded in here.
+**Strand 3 (incremental reparse)** — N/A (no Rust path yet; deferred to
+the `S*` document-store rows).
 
 ## Next-up priority queue
 
