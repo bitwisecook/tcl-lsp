@@ -216,6 +216,20 @@ impl Analyser {
         Self::with_disabled_diagnostics(HashSet::new())
     }
 
+    /// The lexer config for this document's dialect.
+    ///
+    /// `LexerConfig::for_dialect` resolves the dialect-dependent
+    /// tokenisation flags — `expand_syntax` (`{*}` expansion, off for
+    /// Tcl 8.4 and iRules) and `irules_brace_separator` (`}{` ghost SEP,
+    /// iRules-only).  Threaded into every analyser re-segmentation so
+    /// tokenisation honours the workspace folder's dialect rather than
+    /// always assuming the Tcl-8.5+ default
+    /// (`SYNC-MAY19-dialect-contextvar`).  Reads `self.dialect`, set at
+    /// the top of [`Self::analyse`].
+    pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_dialect(&self.dialect)
+    }
+
     /// Construct an analyser with a fixed set of diagnostic codes
     /// disabled (e.g. `"W210"`, `"W211"`).
     #[must_use]
@@ -358,7 +372,11 @@ impl Analyser {
             .expect("registry just stashed")
             .command_names()
             .collect();
-        let commands = crate::segmenter::segment_commands_with_recovery(source, &known_commands);
+        let commands = crate::segmenter::segment_commands_with_recovery_and_config(
+            source,
+            &known_commands,
+            self.lexer_config(),
+        );
         drop(known_commands);
 
         // Walk each command through the dispatcher. Body recursion

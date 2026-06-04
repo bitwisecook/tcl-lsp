@@ -24,7 +24,7 @@ use crate::cfg_builder::build_cfg;
 use crate::def_use::{build_def_use_chains, DefUseResult};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
-use crate::lowering::lower_to_ir;
+use crate::lowering::lower_to_ir_with_config;
 use crate::memory_ssa::{build_memory_ssa, MemorySSAFunction};
 use crate::rendered_properties::{propagate_rendered_props, RenderedValueProps};
 use crate::sccp::{sccp, SccpResult};
@@ -186,9 +186,30 @@ impl CompilationUnit {
     /// CFG; passing `true` matches the codegen behaviour where
     /// top-level `foreach` / `catch` / `try` are compiled as
     /// opaque calls.
+    ///
+    /// Lowers with the default (Tcl-8.5+) lexer config; use
+    /// [`Self::build_for_with_config`] to honour a document's dialect.
     #[must_use]
     pub fn build_for(source: &str, registry: &CommandRegistry, defer_top_level: bool) -> Self {
-        let mut ir_module = lower_to_ir(source, registry);
+        Self::build_for_with_config(
+            source,
+            registry,
+            defer_top_level,
+            tcl_lexer::LexerConfig::default(),
+        )
+    }
+
+    /// Like [`Self::build_for`] but lowers with an explicit dialect
+    /// [`tcl_lexer::LexerConfig`] so `{*}` / `}{` tokenisation follows the
+    /// document's dialect (`SYNC-MAY19-dialect-contextvar`, strip 3).
+    #[must_use]
+    pub fn build_for_with_config(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+    ) -> Self {
+        let mut ir_module = lower_to_ir_with_config(source, registry, config);
         // C36d/e/f: specialise Option-shape factories before any
         // other module-level passes so the synthesised child procs
         // appear in module.procedures for the inline_uplevel pass

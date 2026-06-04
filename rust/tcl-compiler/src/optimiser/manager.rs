@@ -48,8 +48,13 @@ pub fn optimise_with_dialect(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
-    let cu =
-        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
+    let cu = CompilationUnit::build_for_with_config(
+        source,
+        registry,
+        false,
+        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+    )
+    .with_interprocedural(registry, dialect);
     let interproc = cu.interproc.clone().unwrap_or_default();
     let _ = interproc;
     let ia = cu.interproc.clone().unwrap_or_default();
@@ -71,7 +76,12 @@ pub fn optimise_raw(
 ) -> Vec<Optimisation> {
     // Split the raw CU build to avoid recomputing on
     // `with_interprocedural` — done in two lines for clarity.
-    let cu = CompilationUnit::build_for(source, registry, false);
+    let cu = CompilationUnit::build_for_with_config(
+        source,
+        registry,
+        false,
+        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+    );
     let ia = build_interprocedural_analysis(&cu.ir_module, registry, dialect);
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);

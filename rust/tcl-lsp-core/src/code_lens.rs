@@ -63,6 +63,7 @@ pub struct CodeLens {
 #[must_use]
 pub fn code_lenses(
     source: &str,
+    dialect: &str,
     analysis: Option<&AnalysisResult>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     current_uri: &str,
@@ -130,7 +131,7 @@ pub fn code_lenses(
         // segmenting every sibling method body (the analyser
         // doesn't walk into method bodies for
         // `command_invocations`).
-        emit_class_member_lenses(source, class_def, &line_index, &mut lenses);
+        emit_class_member_lenses(source, dialect, class_def, &line_index, &mut lenses);
     }
 
     lenses
@@ -141,6 +142,7 @@ pub fn code_lenses(
 /// discovered by re-segmenting each method body.
 fn emit_class_member_lenses(
     source: &str,
+    dialect: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
     line_index: &LineIndex,
     lenses: &mut Vec<CodeLens>,
@@ -156,7 +158,7 @@ fn emit_class_member_lenses(
     let calls_for = |word: &str, decl_span: tcl_lexer::Span| -> usize {
         let mut count = 0;
         for span in &body_spans {
-            count += count_method_calls_in_body(source, *span, word, decl_span);
+            count += count_method_calls_in_body(source, dialect, *span, word, decl_span);
         }
         count
     };
@@ -200,11 +202,12 @@ fn emit_class_member_lenses(
 /// `word`, skipping the declaration site at `decl_span`.
 fn count_method_calls_in_body(
     source: &str,
+    dialect: &str,
     body_span: tcl_lexer::Span,
     word: &str,
     decl_span: tcl_lexer::Span,
 ) -> usize {
-    use tcl_compiler::segmenter::segment_commands_with_offset;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     if body_span.is_empty() {
         return 0;
     }
@@ -220,8 +223,11 @@ fn count_method_calls_in_body(
         end -= 1;
     }
     let body_text = &source[start..end];
-    let commands =
-        segment_commands_with_offset(body_text, u32::try_from(start).unwrap_or(body_span.start()));
+    let commands = segment_commands_with_offset_and_config(
+        body_text,
+        u32::try_from(start).unwrap_or(body_span.start()),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
     let mut count = 0;
     for cmd in &commands {
         let Some(head) = cmd.argv.first() else {
@@ -319,14 +325,14 @@ mod tests {
 
     #[test]
     fn empty_lenses_when_analysis_is_none() {
-        assert!(code_lenses("proc foo {} {}\n", None, None, "").is_empty());
+        assert!(code_lenses("proc foo {} {}\n", "tcl", None, None, "").is_empty());
     }
 
     #[test]
     fn lens_per_user_proc() {
         let src = "proc foo {} {}\nproc bar {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         assert_eq!(lenses.len(), 2, "{lenses:?}");
     }
 
@@ -334,7 +340,7 @@ mod tests {
     fn lens_shows_zero_references_for_unused_proc() {
         let src = "proc lonely {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         assert_eq!(lenses[0].command_title, "0 references");
     }
@@ -343,7 +349,7 @@ mod tests {
     fn lens_shows_singular_for_one_reference() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -355,7 +361,7 @@ mod tests {
     fn lens_counts_multiple_references() {
         let src = "proc tool {} {}\ntool\ntool\ntool\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let tool = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -367,7 +373,7 @@ mod tests {
     fn lens_anchors_at_proc_name_span() {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
@@ -385,7 +391,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let class_lenses: Vec<_> = lenses
             .iter()
             .filter(|l| l.command_title.contains("reference"))
@@ -407,7 +413,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let myclass_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -430,7 +436,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         // Find the lens anchored on line 1 (the `greet`
         // declaration's name span).
         let greet_lens = lenses
@@ -447,7 +453,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let orphan_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -471,7 +477,7 @@ mod tests {
         ]);
         // The lens on lib.tcl's `helper` counts the two
         // cross-document calls.
-        let lenses = code_lenses(lib_src, Some(&lib), Some(&index), "file:///lib.tcl");
+        let lenses = code_lenses(lib_src, "tcl", Some(&lib), Some(&index), "file:///lib.tcl");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -483,7 +489,7 @@ mod tests {
     fn proc_lens_without_workspace_counts_local_only() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, Some(&analysis), None, "");
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)

@@ -155,6 +155,13 @@ const FOLDABLE: &[Case] = &[
     ("lrepeat", None, &["3", "x"]),
     ("concat", None, &["a", "b", "c"]),
     ("concat", None, &["a b", "c d"]),
+    // NB: no backslash-bearing `concat` case here. `fold_concat` is the simple
+    // trim+single-space-join model and does not replicate `Tcl_ConcatObj`'s
+    // trailing-backslash re-expose rule (#530 / SYNC-JUN04), so it is unsound in
+    // isolation for a trailing-backslash-whitespace word (`b\ ` -> `b\` not
+    // `b\ `).  The optimiser never folds one — `literal_words` bails on any
+    // backslash word before the registry fold runs — so this harness, which
+    // exercises the registry fold directly, must not feed it such a word.
     ("join", None, &["a b c", "-"]),
     ("join", None, &["a b c"]),
     ("join", None, &["a b c", ":"]),

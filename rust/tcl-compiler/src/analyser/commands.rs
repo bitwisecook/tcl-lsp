@@ -62,7 +62,11 @@ impl Analyser {
         }
         self.body_depth += 1;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let body_commands = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
+        let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
+            body_text,
+            base_offset,
+            self.lexer_config(),
+        );
         let total = body_commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {

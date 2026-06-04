@@ -194,7 +194,26 @@ pub fn segment_commands(source: &str) -> Vec<SegmentedCommand> {
 /// consumers see absolute offsets into the outer source buffer.
 #[must_use]
 pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
-    let commands = segment_commands_local(source);
+    segment_commands_with_offset_and_config(source, base_offset, LexerConfig::default())
+}
+
+/// Like [`segment_commands_with_offset`] but with an explicit dialect
+/// [`LexerConfig`].
+///
+/// The config supplies the lexer's dialect flags — `expand_syntax`
+/// (`{*}` expansion, off for Tcl 8.4 / iRules) and
+/// `irules_brace_separator` (`}{` ghost SEP, iRules-only).  Build it
+/// with [`tcl_lexer::LexerConfig::for_dialect`].  The config's *offset*
+/// fields (`base_offset` / `base_line` / `base_col`) are ignored:
+/// segmentation always runs in local-offset space and relocation is
+/// done here via `base_offset`, exactly as the default-config path.
+#[must_use]
+pub fn segment_commands_with_offset_and_config(
+    source: &str,
+    base_offset: u32,
+    config: LexerConfig,
+) -> Vec<SegmentedCommand> {
+    let commands = segment_commands_local(source, config);
     if base_offset == 0 {
         return commands;
     }
@@ -230,7 +249,23 @@ pub fn segment_commands_with_recovery<S>(
 where
     S: std::hash::BuildHasher,
 {
-    let mut commands = segment_commands_local(source);
+    segment_commands_with_recovery_and_config(source, known_commands, LexerConfig::default())
+}
+
+/// Like [`segment_commands_with_recovery`] but with an explicit dialect
+/// [`LexerConfig`] (see [`segment_commands_with_offset_and_config`]).
+/// The recovery re-segmentation threads the same config, so a recovered
+/// tail lexes under the document's dialect too.
+#[must_use]
+pub fn segment_commands_with_recovery_and_config<S>(
+    source: &str,
+    known_commands: &std::collections::HashSet<&str, S>,
+    config: LexerConfig,
+) -> Vec<SegmentedCommand>
+where
+    S: std::hash::BuildHasher,
+{
+    let mut commands = segment_commands_local(source, config);
     let Some(last_cmd) = commands.last_mut() else {
         return commands;
     };
@@ -255,7 +290,7 @@ where
     let remaining = &source[recovery_offset..];
     if !remaining.trim().is_empty() {
         let base = u32::try_from(recovery_offset).expect("recovery_offset fits in u32");
-        let recovered = segment_commands_with_offset(remaining, base);
+        let recovered = segment_commands_with_offset_and_config(remaining, base, config);
         commands.extend(recovered);
     }
     commands
@@ -433,10 +468,18 @@ impl SegmenterState {
     }
 }
 
-fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
+fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     // word_piece only needs token_text (source indexing), no base offset.
     let sm = SourceMap::new(source);
-    let config = LexerConfig::default();
+    // Honour the caller's dialect flags but force local-offset space —
+    // relocation is the caller's job, so a stray `base_offset` on the
+    // config must not double-count.
+    let config = LexerConfig {
+        base_offset: 0,
+        base_line: 0,
+        base_col: 0,
+        ..config
+    };
     let lexer_sm = SourceMap::new(source);
     let lexer = Lexer::with_source_map(lexer_sm, config);
     let Ok(tokens) = lexer.tokenise_all() else {
@@ -555,6 +598,65 @@ mod tests {
     #[test]
     fn empty_source() {
         assert!(segment_commands("").is_empty());
+    }
+
+    #[test]
+    fn config_variant_threads_dialect_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar: the `_and_config` variants let
+        // the analyser segment under a document's dialect.  `{*}$x` is the
+        // expansion operator on 8.5+ (the default) but a literal brace
+        // word on 8.4 / iRules, so the dialect flag must reach the lexer.
+        // 8.5+ default → word 1 is an expanded `$x`.
+        let on = segment_commands_with_offset_and_config("cmd {*}$x", 0, LexerConfig::default());
+        assert_eq!(on.len(), 1);
+        assert_eq!(on[0].expand_word, Some(vec![false, true]));
+        // 8.4 → `{*}` is literal, so the word is an ordinary composite and
+        // no expansion is recorded.
+        let off = segment_commands_with_offset_and_config(
+            "cmd {*}$x",
+            0,
+            LexerConfig::for_dialect("tcl8.4"),
+        );
+        assert_eq!(off.len(), 1);
+        assert!(off[0].expand_word.is_none());
+        // The recovery variant threads the same config to both the initial
+        // pass and any recovered tail.
+        let kc: std::collections::HashSet<&str> = ["cmd"].into_iter().collect();
+        let rec = segment_commands_with_recovery_and_config(
+            "cmd {*}$x",
+            &kc,
+            LexerConfig::for_dialect("tcl8.4"),
+        );
+        assert!(rec[0].expand_word.is_none());
+    }
+
+    #[test]
+    fn config_variant_threads_irules_brace_separator() {
+        // SYNC-MAY19-dialect-contextvar: the other dialect flag carried by
+        // `LexerConfig::for_dialect` — iRules injects a zero-width SEP at a
+        // `}{` brace boundary, so `cmd {a}{b}` is three words under
+        // `f5-irules` but a two-word command (`{a}{b}` is one composite
+        // word) under the vanilla default.
+        let irules = segment_commands_with_offset_and_config(
+            "cmd {a}{b}",
+            0,
+            LexerConfig::for_dialect("f5-irules"),
+        );
+        assert_eq!(irules.len(), 1);
+        assert_eq!(
+            irules[0].argv.len(),
+            3,
+            "iRules `}}{{` splits into two words: {:?}",
+            irules[0].texts,
+        );
+        let vanilla =
+            segment_commands_with_offset_and_config("cmd {a}{b}", 0, LexerConfig::default());
+        assert_eq!(
+            vanilla[0].argv.len(),
+            2,
+            "vanilla keeps `{{a}}{{b}}` as one composite word: {:?}",
+            vanilla[0].texts,
+        );
     }
 
     #[test]

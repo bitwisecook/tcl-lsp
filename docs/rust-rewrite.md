@@ -1260,7 +1260,7 @@ deferred bytecode-codegen flag.
 
 | Status | Source on `main` | Scope summary | Rust mirror to update | Suggested chunk handle |
 |---|---|---|---|---|
-| open (`S*` LSP server work) | `7a9f9b36` (#407+#408) | **Per-folder dialect ContextVar for lexer.** Python `core/parsing/lexer.py` replaced the class-level `expand_syntax` / iRules-brace flags with per-request resolution: `_expand_syntax_active()` reads `_dialect_var` (a registry `ContextVar`) and intersects it with `dialects_since("tcl8.5")`; `_irules_brace_separator_active()` reads it too; `expand_syntax_disabled_scope()` is a thread-local override the VM's `subst` machinery uses to disable `{*}` expansion regardless of dialect.  `core/analysis/checks/_style.py` does the same for `_non_ascii_mode` (W108) via `non_ascii_mode_scope`.  **Rust mirror gap:** `rust/tcl-lexer/src/lexer.rs` still uses static `LexerConfig { expand_syntax: bool, irules_brace_separator: bool, ... }` set at construction.  This is fine for the analyser (per-document) but the `S*` LSP server port needs to thread the active workspace folder's dialect into the lexer config per document open / change.  W108's `non_ascii_mode` has no Rust mirror at all (the W108 check itself is not yet ported). | `rust/tcl-lexer/src/lexer.rs` — keep the config approach but add a `LexerConfig::for_dialect(&str)` constructor; `rust/tcl-lsp-server/` (S*) — call it from the document-state builder using the resolved per-folder dialect.  W108: closes with the `_style.py` port (no separate row needed). | `SYNC-MAY19-dialect-contextvar` |
+| substantially landed — strips 1-6 (`S*`) | `7a9f9b36` (#407+#408) | **Per-folder dialect ContextVar for lexer.** Python `core/parsing/lexer.py` replaced the class-level `expand_syntax` / iRules-brace flags with per-request resolution: `_expand_syntax_active()` reads `_dialect_var` (a registry `ContextVar`) and intersects it with `dialects_since("tcl8.5")`; `_irules_brace_separator_active()` reads it too; `expand_syntax_disabled_scope()` is a thread-local override the VM's `subst` machinery uses to disable `{*}` expansion regardless of dialect.  `core/analysis/checks/_style.py` does the same for `_non_ascii_mode` (W108) via `non_ascii_mode_scope`.  **Rust mirror gap (constructor landed, wiring not — pinpointed 2026-06-04):** the `LexerConfig::for_dialect(&str)` constructor now exists in `rust/tcl-lexer/src/lexer.rs` (sets `expand_syntax` off for 8.4 / iRules, `irules_brace_separator` on for iRules) **but has zero callers anywhere in the workspace.**  The real lex site that ignores dialect is the **analyser's segmenter** — `rust/tcl-compiler/src/segmenter.rs::segment_commands_local` builds `LexerConfig::default()` unconditionally — not the server document-state builder, so the earlier "call it from the document-state builder" plan was misdirected and the "no analyser-crate changes" note was wrong.  The server resolves the per-folder dialect only into `registry_for_dialect`; the lexer flags never follow.  **Strip 1 (2026-06-04) closed this for the primary analyser path** (see the priority-6 queue row): `segment_commands*` gained `_and_config` variants, `Analyser::lexer_config()` derives the config from `self.dialect`, and the top-level + body + OO segmentation sites use it; the server already passed `doc.dialect` into `analyse()`, so analyser-based features are now dialect-aware end-to-end.  **Strip 2 (2026-06-05) closed the free-fn analyser sites**: `param_traits` got `infer_param_traits{,_deep}_with_config` (existing fns delegate with the default) threading `config` through `scan_commands` / `scan_deep` / `extract_commands`, called from `handlers.rs` with `self.lexer_config()`; the `diagnostics.rs` W304 set-finder was threaded for consistency.  **Strips 3-6 (2026-06-05) closed the rest**: lowering (`Lowerer` config + `lower_to_ir_with_config` / `build_for_with_config`, wired through `optimise_*`), `interprocedural`, and **all eight `tcl-lsp-core` LSP feature modules** (`semantic_tokens` / `folding` / `inlay_hints` / `document_links` / `references` / `rename` / `call_hierarchy` / `code_lens`) — each with a `dialect` param and server wiring.  Every direct `segment_commands*` site is now dialect-aware; only the documented dialect-insensitive leaves (lowering free-fns, `optimiser::elimination`, `place_bridge`, `specialise_factories`, W304) and the no-production-caller `signature_scan` / `analyse_chunked` reparse remain on the default.  W108's `non_ascii_mode` has no Rust mirror at all (the W108 check itself is not yet ported). | `rust/tcl-lexer/src/lexer.rs` — `LexerConfig::for_dialect(&str)` constructor **(done)**; `segment_commands*` `_and_config` wiring + threading through the analyser (strips 1-2), the lowering / optimiser pipeline (strips 3-4), and all eight LSP feature modules (strips 5-6) — **all done**.  Per-dialect regression covered by `e003_arity_is_dialect_aware_via_expand_syntax` + `config_variant_threads_dialect_expand_syntax` + `trait_inference_is_dialect_aware_via_expand_syntax` + `lowering_is_dialect_aware_via_expand_syntax` + `semantic_tokens_are_dialect_aware_via_expand_syntax`.  W108: closes with the `_style.py` port (no separate row needed). | `SYNC-MAY19-dialect-contextvar` |
 | landed | `7578a480` (#410) | **Stub signature overlay + deep param-trait inference — all three sub-strips landed.** (a) **Landed via `6487a4f`** — `rust/tcl-registry/src/stub_overlay.rs` carries `StubOverlay` + `StubSig` + `StubArg` + `StubSigFlags` (bit layout identical to `analyser::types::StubFlags`); `StubCommandDef::to_stub_sig` and `build_stub_overlay` glue analyser records to the overlay; `Analyser::stub_overlay` populates during `analyse()`; `infer_param_traits` / `_deep` thread it through, unioning the registry's and overlay's role tables.  Includes subcommand-stub / dynamic-resolver hooks (the `_args` parameter on `StubOverlay::arg_indices_for_role` is reserved for that follow-up).  (b) `scan_expr_for_calls` ExprBinary/ExprString + BODY recursion landed 2026-05-19.  (c) **Landed via `c945baa`** — `infer_param_traits_deep` + `merge_traits` ported with `MAX_DEPTH = 8`; `Analyser::deep_param_traits` plumbed through `handle_proc_command`.  Cache-key integration of `StubOverlay::fingerprint()` lands alongside the `S*` call-graph / interproc summary builders. | landed | `SYNC-MAY19-stub-overlay` |
 | open (deferred) | `0fc2d6a9` (#393) | **Switch fallthrough → STR_EQ chain for bytecode `jumpTable`.** `core/compiler/cfg.py::_CFGBuilder` adds an `expand_fallthrough_switch` constructor flag.  When true, `-exact` switches whose arms include fallthrough (`a - b - c {body}`) are lowered to a real STR_EQ dispatch chain so the bytecode codegen can fold it into a `jumpTable` instruction; WASM keeps the IRSwitch statement form because the multi-predecessor shared-body topology can't be expressed in WASM structured control flow.  **Rust mirror gap:** `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` carry no `expand_fallthrough_switch` flag.  **Defer until a Rust bytecode codegen exists** — the Rust path doesn't emit Tcl bytecode today (only WASM via codegen + the in-process IR), so the flag has no consumer.  The companion `lowering.rs` Var-token const-map extension landed under `SYNC-MAY19-proc-body-const-map` (committed 2026-05-19). | `rust/tcl-compiler/src/cfg.rs` + `cfg_builder/` — add the `expand_fallthrough_switch` flag once a Rust bytecode codegen is added. | `SYNC-MAY19-switch-fallthrough-cfg` |
 
@@ -1270,12 +1270,14 @@ commits (`SYNC-MAY19-surrogate-pair`, `-word-piece-array`,
 `-empty-name-proc`, `-tail-call-dialect`, `-proc-body-const-map`,
 `-option-dialects`, `-tcl9-commands`, `-foreachLine-lowering`,
 `-W003-W004`, and `-stub-overlay` sub-strip (b)).  The
-`SYNC-MAY19-dialect-contextvar` row covers `S*` LSP server
-plumbing that can't land before the server itself has a per-
-folder document-state builder; the `-stub-overlay` (a)+(c)
-sub-strips close with `S*` for the same reason.  The
-`-switch-fallthrough-cfg` row is deferred until a Rust bytecode
-codegen exists.
+`SYNC-MAY19-dialect-contextvar` row is now **substantially landed**
+(strips 1-6, 2026-06-04/05): the server already threaded the
+per-folder `doc.dialect` into `analyse()`, so the work was to carry
+that dialect into every `segment_commands*` re-segmentation across
+the analyser, lowering / optimiser pipeline, and the eight LSP
+feature modules; the `-stub-overlay` (a)+(c) sub-strips also landed
+(`6487a4f` / `c945baa`).  The `-switch-fallthrough-cfg` row is
+deferred until a Rust bytecode codegen exists.
 
 The two remaining `SYNC-JUN-*` rows above carry the wiring
 half of the upvar / literal-set work; the `SYNC-JUN-FRAME356-
@@ -2485,6 +2487,11 @@ field on the per-document state.  Implementation belongs in the
 land together; the Rust caches naturally form around the `Arc<Rope>`
 + analysis snapshots.  Classify: in-scope, defer to `S*` (no point
 caching today — the Rust analyser has no production driver).
+**Superseded direction (2026-06-05):** #477 here is a token *cache* whose
+tokens carry absolute positions; the later #533 (`SYNC-JUN06`) built the
+red-green **CST** this row's "green token tree" deliberately declined to —
+position-independent green nodes, lazy red positions.  The real
+shared-representation work now lives under the `CST-PORT` queue row.
 
 ### SYNC-MAY31-7 — `ExprRaw` switch-subject variable scan (#473)
 
@@ -3548,6 +3555,179 @@ Out of scope (no Rust mirror — record and skip):
 
 No in-scope rows — the single commit is entirely VM / WASM runtime + tests.
 
+## SYNC-JUN04 family — main audit (2026-06-04, PR #530)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`ca7bba21` (SYNC-JUN03).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`43812a60`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#530** (`43812a60`) — *Fix concat trailing whitespace trimming and
+  empty proc names.*  Three Tcl 9 **WASM / Zig-VM** runtime fixes plus a
+  WASM-gate refresh: (1) **`concat` trailing backslash-space** — match
+  `Tcl_ConcatObj`'s rule: trim all trailing whitespace, then re-expose one
+  byte when the trim lands on a backslash, *regardless of backslash-run
+  parity*.  The old code stopped at the first odd-backslash-escaped space, so
+  it trimmed the exposed space away for even runs
+  (`concat a {b\\   } c` → `a b\\  c`, util-4.3).  (2) **empty command name**
+  — a single command word that evaluates to `""` is a genuine invocation of a
+  command literally named `""`: dispatch it to a user-defined `""` proc when
+  one exists, else fall through to the canonical `invalid command name ""`
+  (proc-3.7, proc-old-9.1); previously a silent no-op.  A follow-up sub-commit
+  dropped the `simple_len == 0` guard in `proc_register_compiled` so the static
+  codegen path registers empty-named procs too (matching the interpreted path).
+  (3) **proc wrong-args** — list-element-quote the invoked name in the
+  `wrong # args: should be "…"` message (`Tcl_WrongNumArgs` runs each word
+  through `TclScanElement` / `TclConvertElement`), so an empty proc name renders
+  as `{}` and a whitespaced name as `{a b}` (proc-3.7).  Touches only the
+  **Zig VM** (`runtime/zig/interp/{tcl_interp,tcl_procs}.zig`,
+  `runtime/zig/valtypes/tcl_string.zig`), the **WASM tcltest baselines / gate**
+  (`tests/baselines/tcl9-tcltest-wasm/**` — util 2→1, proc 2→1, proc-old 13→12
+  failing; refreshed `summary.json`), the **WASM execution tests**
+  (`tests/test_wasm_concat_trim.py`, `tests/test_wasm_proc_validate.py`), and
+  `.test-slow.stamp`.  **Out of scope** — the Zig VM, the WASM emitter, and the
+  WASM test suite are all explicitly outside the rewrite scope; the commit
+  carries no analyser / compiler / lowering / CFG-SSA / registry / optimiser
+  surface, and no `rust/` change.
+
+In-scope follow-up (confirmation, no behaviour change):
+
+- **`fold_concat` differential confirmation — CONFIRMED SOUND, no change
+  needed.**  #530's VM fix raised the question of whether the registry
+  `const_fold` for `concat` (`const_fold::fold_concat`) needs the same
+  trailing-backslash re-expose rule.  It does not, because the Rust fold never
+  receives a backslash-bearing word.  `fold_concat` is a **faithful, byte-
+  identical port** of main's `dialects/tcl/const_fold.py::fold_concat`
+  (`" ".join(a.strip() for a in args if a.strip())`); neither models the
+  re-expose rule, so both are unsound *in isolation* for a
+  trailing-backslash-whitespace word (`concat a {b\ } c` would fold to the
+  6-byte `a b\ c`, but Tcl 9.0 gives the 7-byte `a b\  c`).  Soundness is
+  upheld upstream, at **different stages** in the two pipelines:
+  **Rust gates on the input word** — the optimiser's `literal_words`
+  (`tcl-compiler/src/optimiser/propagation.rs`) bails on **any**
+  backslash-bearing word (it does not decode escapes), so `fold_concat` never
+  sees one; **main gates on the fold result** —
+  `fold_cmd_subst_to_string` (`compiler/core_analyses.py`) rejects any result
+  containing `;\n[$"\\`.  For `concat` these are **outcome-equivalent**: a
+  backslash in any input word is non-whitespace, so it always survives the
+  trim into the result, and both pipelines decline the fold.  Pinned by a new
+  discriminating regression test
+  (`o129_concat_trailing_backslash_space_word_is_not_folded` in
+  `propagation.rs`) — it folds a clean `concat` for contrast and asserts the
+  backslash forms (incl. the exact #530 `concat a {b\\   } c` shape) are left
+  unfolded; deleting the `literal_words` backslash bail makes it fail (the
+  cmd-sub would fold to a wrong literal).  A note added beside the
+  `differential_fold.rs` `concat` cases records why that harness — which drives
+  the registry fold directly, bypassing `literal_words` — must not feed a
+  backslash word.
+
+## SYNC-JUN05 family — main audit (2026-06-05, PR #532)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`43812a60` (SYNC-JUN04).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`77215e87`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+Out of scope (no Rust mirror — record and skip):
+
+- **#532** (`77215e87`) — *Fix dict exists, try exception chaining, and
+  related interpreter bugs.*  A cluster of Tcl 9 **Zig-VM / WASM-codegen**
+  runtime fixes against the tcl9-tcltest-wasm core slice: (1) **`dict exists
+  DICT KEY ?KEY ...?`** now walks the whole key chain (returning false on a
+  missing key or non-dict intermediate without raising, matching
+  `tclDictObj.c::DictExistsCmd`) instead of consulting only the first key —
+  fixed in the Zig runtime (`runtime/zig/cmds/dict.zig`) and the WASM codegen
+  value / statement / command-substitution / expr paths
+  (`compiler/codegen/wasm/_emitter/{cmds/dict_,_values,_statements,_expressions}.py`),
+  which route the multi-key form through the eval fallback; (2) **`try …
+  on/trap … finally` `-during` exception chaining** mirrors `TryPostHandler`
+  (`runtime/zig/cmds/flow.zig`); (3) **`apply` anonymous-lambda parity** —
+  formal-param validation (array-element / qualified-name rejection), the
+  `(parsing lambda expression …)` `::errorInfo` frame, and `info level 0`
+  inside the body (`runtime/zig/interp/tcl_interp.zig`); plus `incr`
+  bad-increment-frame, `unset` array-element, regexp option-abbrev, and
+  array/scalar-conflict fixes across `runtime/zig/{cmds/var,interp/tcl_frames,
+  interp/tcl_ns,valtypes/tcl_array,valtypes/tcl_regex}.zig`.  Touches only the
+  **Zig VM**, the **WASM emitter** (`compiler/codegen/wasm/_emitter/**`), the
+  **WASM tcltest baselines / gate** (`tests/baselines/tcl9-tcltest-wasm/**`),
+  the **WASM execution tests** (`tests/test_wasm_*.py`), and `.test-slow.stamp`.
+  **Out of scope** — the Zig VM, the WASM emitter, and the WASM test suite are
+  all explicitly outside the rewrite scope; the commit carries no analyser /
+  compiler / lowering / CFG-SSA / registry / optimiser surface, and no `rust/`
+  change.
+
+No in-scope rows — the single commit is entirely Zig VM / WASM codegen +
+runtime tests.
+
+## SYNC-JUN06 family — main audit (2026-06-05, PR #533)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`77215e87` (SYNC-JUN05).  `main` landed **1** commit;
+advances the anchor to `origin/main`@`4092ab31`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**In scope — a major new parsing-frontend structure with no Rust mirror yet.**
+
+- **#533** (`4092ab31`) — *Introduce canonical red-green concrete syntax
+  tree (CST).*  A multi-cycle PR (93 files, **0 `rust/`**) landing the
+  single lossless representation the segmenter / formatter / minifier / AOT
+  lowering / per-command tooling are meant to share.  Three strands:
+  - **The red-green CST** — new `compiler/parsing/syntax/` package, the
+    Roslyn / rust-analyzer split **#477's "green token tree" deliberately
+    declined to build** (see `SYNC-MAY31-6`; #477 is a token *cache* whose
+    tokens carry absolute positions): `green.py` (position-independent — a
+    node knows only its width + children, so identical subtrees are shareable
+    and an edit shifts a subtree for free; trivia attached to the adjacent
+    token so a command is pure syntax while every byte round-trips); `red.py`
+    (anchors a green tree, resolves absolute positions lazily — reproduces the
+    lexer's exact Token offsets / lines / UTF-16 columns); `build.py`
+    (re-shapes the existing lexer stream into the tree — *no second parser* —
+    via start-to-start tiling, replicating the segmenter's word-boundary rule
+    incl. the stale-`{*}` quirk and its comment accumulation); `segment.py`
+    (derives `SegmentedCommand` from the tree — argv compound-word merge,
+    texts, all_tokens, range, preceding_comment, expand_word); `descend.py`
+    (cycle 2 — lazy descent: `descend_token` builds a child CST for a braced
+    body / `[…]` sub anchored one byte past the opener; `descend_command`
+    descends registry-resolved `ArgRole.BODY` args via `iter_body_arguments`).
+    `command_segmenter._segment_raw` now builds the tree and derives segments
+    from it — the **150-line token loop + `_command_range` are removed**.
+    Verified byte-identical (losslessness, position-equivalence vs the lexer,
+    field-for-field `SegmentedCommand` parity) over the 157-file 8.6/9.0
+    corpus + 120k randomised differential cases + nested-body anchoring.
+    Design doc: `docs/design/compiler/syntax-tree.md`.
+  - **Authoritative span/range accessors** — `shared/ranges.py` gains
+    `word_closer_offset` / `word_end_position` (derive a word's closing
+    `}`/`]`/`"` from the lexer's content geometry instead of re-deriving
+    `tok.end.offset + 1`, which overshoots an empty `{}`/`[]`/`""`); the
+    segmenter's command range is now token-only (`start, boundary − 1` off the
+    post-word SEP/EOL), making the empty-delimiter overshoot *structurally
+    impossible*.
+  - **Diagnostic fixes riding along** — the #527 **E102** false positive
+    (empty trailing `{}` swallowing the enclosing `}`) and a **W304**
+    `_last_literal_set_value_for_var` "inside proc body?" guard restored on
+    the faithful range; plus a `compiler-explorer` skill with `slices` /
+    `tokens` views.
+  **Rust mirror state + plan.**  *In scope* (parsing frontend →
+  `tcl-lexer` / `tcl-compiler`), **unported.**  The Rust side has the lexer
+  (`tcl-lexer`) + a token-loop segmenter
+  (`tcl-compiler/src/segmenter.rs::segment_commands_local`) — the same one
+  just made dialect-aware (`SYNC-MAY19-dialect-contextvar`).  The faithful
+  porting target is a Rust red-green CST (a new `tcl-cst` module / crate, or
+  in `tcl-compiler::parsing`) with the green/red split + `build` + `segment`
+  + `descend`, then rebasing `segment_commands*` to derive from it (the
+  `_and_config` dialect plumbing carries over — the tree's `build` consumes
+  the same dialect-configured `Lexer`).  Lower-risk sub-items portable first:
+  the `shared/ranges.py` authoritative-closer accessors.  The Rust segmenter's
+  `widen_word_end` / `command_span` already byte-check the degenerate `{}` /
+  `[]` closer (segmenter.rs:147-172), so the #527-class overshoot is likely
+  *already absent* on the Rust side — audit + a parity test before assuming so.
+  Relation: this supersedes the deferred `SYNC-MAY31-6` direction (token cache,
+  not a tree) and feeds the same `S*` document-store / incremental-reparse work
+  (a red-green tree is the natural incremental-edit substrate).  Tracked as a
+  new priority-queue row (`CST-PORT`).
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3557,6 +3737,7 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
+| NEW | `CST-PORT` (red-green concrete syntax tree) | **Opened 2026-06-05 by `SYNC-JUN06` / #533.**  Main landed the canonical lossless red-green CST (`compiler/parsing/syntax/{green,red,build,segment,descend}.py`) and rebased the segmenter onto it (the 150-line token loop is gone).  In scope, unported.  Port target: a Rust green/red split + `build` (reshapes the existing dialect-configured `Lexer` stream, no second parser) + `segment` (derives `SegmentedCommand` byte-identically) + `descend` (lazy body / cmd-sub children), then rebase `segment_commands*` onto it — the `_and_config` dialect plumbing carries over.  Large + foundational, but **not urgent**: the Rust token-loop segmenter works and was just made dialect-aware, and main proved the migration byte-identical.  Smallest-first sub-item: port the `shared/ranges.py` authoritative-closer accessors.  Supersedes the deferred token-cache direction (`SYNC-MAY31-6`) and is the natural incremental-edit substrate for the `S*` document store.  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`. |
 | — | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Landed via PR #389 — SYNC1 (minimum-viable, multi-role via duplicate rows; full `ArgRoleSet` type widening deferred), SYNC2 (`BodyKind`), SYNC3 (`body_arg_implicit_args`), SYNC4 (registry-driven trace defs), SYNC5 (`CREATES_DYNAMIC_BARRIER` guard), SYNC6 (`reads_own_def` for dict), SYNC7 (canonical-command field, type surface only), SYNC8 (GVN trace-aware purity), SYNC9 (Module trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11 (hover debounce / cache / worker-offload contract) is deferred to `S-hover-sync11` since it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row. |
 | 1 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241.  Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
 | 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question.  Status sibling of the postpass row: the override the chunk was supposed to flip is gone since #241; the work closes with `S*`. |
@@ -3571,7 +3752,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-MAY19-tail-call-dialect` | Landed 2026-05-19 — `TAILCALL_DIALECTS` / `LASSIGN_DIALECTS` constants in `rust/tcl-compiler/src/optimiser/tail_call.rs`. |
 | — | `SYNC-JUN02-1` (TclOO method FunctionUnits) | **Landed (#506)** — strips 1/2/3/4a/4b/5.  `Lowerer::extract_oo_methods_pass` populates `Module.methods`; `CompilationUnit.methods` builds per-method `FunctionUnit`s; `build_method_summaries` fills `InterproceduralAnalysis.methods`; `elimination::run` iterates method bodies with `enclosing_class` so `set unused [my <pure-method>]` folds to O126 (impure preserved — FP-OPT-12 → FIXED); W307 reads the precise SSA use-version.  Strip 4a additionally ported the C30d `_assignment_safe_to_delete` RHS-purity gate that the Rust O109/O126 had been missing (it had fired on `set unused [puts hi]`).  See the `SYNC-JUN02` family section. |
 | — | `SYNC-JUN02-2` (PGO branch reordering) | **Deferred** (#515).  Opt-in, off-by-default `compiler/pgo/` subsystem emitting hint-only P100 suggestions to reorder side-effect-free equality dispatch chains by profile frequency.  No behavioural change when off, and the profile importers (F5 profiler log / tclsh capture) are tooling-side; the portable slice is the `reorder` analysis + occurrence/profile model.  Listed for tracking. |
-| 6 | `SYNC-MAY19-dialect-contextvar` | LSP server (`S*`) plumbing: thread the per-folder dialect into `LexerConfig` at document-open / change time so multi-folder workspaces with mixed dialects parse correctly.  Pure server-side, no analyser-crate changes.  Closes with `S*`. |
+| — | `SYNC-MAY19-dialect-contextvar` | Thread the per-folder dialect into the **lexer config** so mixed-dialect workspaces tokenise correctly.  **Substantially landed (strips 1-6, 2026-06-04/05) — every direct `segment_commands*` site is dialect-aware; only dialect-insensitive leaves + dormant APIs remain.**  Strip 1: `segment_commands*` gained `_and_config` variants (`segment_commands_with_offset_and_config` / `_with_recovery_and_config`) carrying a `LexerConfig`; the existing functions delegate with `LexerConfig::default()` (zero churn).  `Analyser::lexer_config()` returns `LexerConfig::for_dialect(&self.dialect)` and is threaded into the three primary tokenisation sites — top-level (`state::analyse`), body recursion (`commands::analyse_body`, covers every body-walking handler), and OO bodies (`oo::parse_oo_definition_body`).  The server already passes the resolved `doc.dialect` into `analyse()`, so its analyser-based features (diagnostics, document symbols, hover, …) are now dialect-aware end-to-end — verified by `e003_arity_is_dialect_aware_via_expand_syntax` (8.4 `{*}` literal → E003; 9.0 expands → none).  **Strip 2 (2026-06-05): the free-fn analyser sites.**  `param_traits` gained `infer_param_traits_with_config` / `infer_param_traits_deep_with_config` (the existing fns delegate with `LexerConfig::default()`); `config` threads through `scan_commands` / `scan_deep` / `extract_commands`, and `handlers.rs` calls them with `self.lexer_config()` — so trait inference re-segments per-dialect (verified by `trait_inference_is_dialect_aware_via_expand_syntax`: `eval {*}$p` → `p` is `Eval` on 9.0, not on 8.4).  The `diagnostics.rs` W304 set-finder (`last_literal_set_value_for_var`) was threaded too, for consistency.  **Strip 3 (2026-06-05): lowering.**  `Lowerer` carries a `config` field; `lower_to_ir_with_config` / `CompilationUnit::build_for_with_config` thread it (existing entry points delegate with the default); `optimise_with_dialect` / `optimise_raw` build the CU with `for_dialect(dialect)`, so optimiser O-codes + CFG-SSA diagnostics + iRules flow are dialect-aware end-to-end (verified by `lowering_is_dialect_aware_via_expand_syntax`: `if {*}$cond {…}` → `Statement::Barrier` on 9.0, structured `if` on 8.4).  **Strip 4 (2026-06-05): `interprocedural::scan_source_for_calls`** threaded (it already carried `dialect`).  **Deliberately left on the default config (dialect-insensitive in practice — documented, not threaded):** the lowering leaf free-fns `body_has_dynamic_barrier` / `eval_list_literal_body`; `optimiser::elimination`'s embedded-cmd-sub purity classifier (its sibling `Lexer::new` is also default); `place_bridge::command_reads`; `specialise_factories`'s `subst -nocommands` template extractor — all operate on command-name / barrier / template shapes that `{*}`/`}{` don't change.  `signature_scan::extract_signatures` has **no production caller** (dormant public API — thread it when the `S*` workspace-index consumer lands).  **Strips 5 + 6 (2026-06-05): the `tcl-lsp-core` LSP feature modules — all eight LANDED.**  Group A (genuinely dialect-relevant, scan general bodies): `semantic_tokens` / `folding` / `inlay_hints` / `document_links` gained a `dialect` param (folding already had one) threaded to their body-segmentation sites; verified by `semantic_tokens_are_dialect_aware_via_expand_syntax` (`foo {*}$x` → longer token stream on 8.4).  Group B (`references` / `rename` / `call_hierarchy` / `code_lens`): same `dialect`-param threading, but these scan **TclOO method/class** bodies only — OO is 8.6+ where `for_dialect` is the default, and reference/call detection keys on command-head words that `{*}`/`}{` don't change, so it is consistency-threading with no behavioural change (no discriminating test constructible).  The server passes `&doc.dialect` to every one.  **All direct `segment_commands*` sites across the analyser, compiler pipeline, and LSP feature layer are now dialect-aware.**  Only non-production / dialect-insensitive leaves remain (documented above): the lowering / elimination / place_bridge / specialise / W304 leaves; `signature_scan::extract_signatures` and the server `analyse_chunked` reparse, both with no production caller yet.  W108's `non_ascii_mode` still has no Rust mirror (closes with the `_style.py` port). |
 | — | `SYNC-MAY19-empty-name-proc` | Landed 2026-05-19 — trailing-`::` proc-name → `Statement::Barrier` short-circuit in `rust/tcl-compiler/src/lowering/mod.rs::lower_proc`. |
 | — | `SYNC-MAY19-proc-body-const-map` | Landed 2026-05-19 — Var-token const-map materialisation + `arg_single_token` multi-token-word check in `lower_proc`. |
 | — | `SYNC-MAY19-word-piece-array` | Landed 2026-05-19 — bare `$arr($idx)` round-trip in `rust/tcl-compiler/src/segmenter.rs::word_piece` gated on `tok.content_offset`. |
@@ -3582,7 +3763,7 @@ to the chunk-log entry that has the full spec.
 | — | `SYNC-JUN-CFG-uplevel-literal-set` + `SYNC-JUN-CFG-upvar-info` wiring + embedded-substitution form | **Landed.** Direct-call form: `UpvarInfo::caller_side_defs(call_args, params)` resolves every upvar declaration against a call site (literal / param / args-tail); `CfgBuilder::apply_upvar_invalidation` augments `Statement::Call::defs` from the `other =>` arm in `lower_script`; `prepare_cfg_context` / `detect_upvar_procs` free helpers scan every procedure and register both qualified and short name keys.  Embedded-substitution form: `upvar_defs_from_text(text)` re-lexes via `tcl-lexer`, walks `[command_substitution]` tokens, and accumulates defs from any embedded upvar proc calls; `apply_upvar_invalidation` either merges into the host Call's defs or emits a synthetic `<upvar-invalidate>` Call before non-Call hosts.  28 new tests cover the resolver, the wiring, and both substitution forms. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
 | — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
-| — | `S*` (LSP server) | Per-feature ports.  ARCH8 landed the `tcl-lsp-server` bootstrap with folding; subsequent providers (document symbols, hover, completion, semantic tokens, diagnostics, …) extend it one at a time, smallest first. |
+| — | `S*` (LSP server) | Per-feature ports — **broadly landed** (audited 2026-06-04 on `rust`).  ARCH8 landed the `tcl-lsp-server` bootstrap; the providers have since been filled in one at a time and `build_server_capabilities` now advertises ~27 capabilities, every one backed by a real `tcl-lsp-core` implementation: folding, document symbols, hover, completion, signature help, definition / declaration / type-definition / implementation, references, document highlight, rename (+prepare), selection range, formatting (+range), document link, inlay hint, code lens, code action, call hierarchy (incoming/outgoing, +cross-document), semantic tokens (full / delta / range, cached), workspace symbol, linked editing range, pull diagnostics, and `executeCommand` (minify).  Per-folder dialect → registry selection, workspace-folder indexing, and cross-document resolution are wired.  **What genuinely remains** is cross-cutting structural, not new providers: (1) the dialect → **lexer-config** threading (priority 6 below — the analyser segments with `LexerConfig::default()`, so iRules / 8.4 brace-and-`{*}` tokenisation is dialect-blind); (2) the document-store / incremental-reparse / scope-cache / reposition-cache / green-token-tree rows deferred here (SYNC-MAY31-1/-6/-11, the rope-backed `DocumentState`); (3) the hover debounce / cache / worker-offload contract (SYNC11 → `S-hover-sync11`).  Smallest-first still applies for any newly surfaced gap. |
 | — | `VM*`, `F*`, `REF*`, `IT*`, `DBG*`, `EXP*`, `AI*`, `BIG*`, `APL*`, `TK*`, `DIAG*`, `PKG*`, `XK*`, `SCR*` | The other top-level Python-retirement chunks.  See the chunk-log rows for scope. |
 | — | `PYO3-API` | After every consumer above ports.  Defines the public binding surface; in practice the work was done by ARCH9 (`tcl-lsp-py`). |
 | — | `TEST-MIGRATE` | Per-file commits — port test, delete the matching ``test_*.py`` in the same commit.  Picks up incrementally as each port lands. |
@@ -3637,10 +3818,12 @@ priority queue:
   (`rust/tcl-registry/src/stub_overlay.rs` + `StubOverlay`
   threaded through `infer_param_traits` /
   `infer_param_traits_deep`), which **closes
-  `SYNC-MAY19-stub-overlay` entirely**.  Two remain open:
-  priority 6 (dialect-contextvar — `S*` work) and 7 (switch-
-  fallthrough-cfg — deferred until a Rust bytecode codegen
-  exists).
+  `SYNC-MAY19-stub-overlay` entirely**.  Of the two formerly
+  open: priority 6 (dialect-contextvar) is now **substantially
+  landed** (strips 1-6, 2026-06-04/05 — every direct
+  `segment_commands*` site is dialect-aware); only priority 7
+  (switch-fallthrough-cfg — deferred until a Rust bytecode
+  codegen exists) remains open.
 * **`SYNC-MAY26` family** — landed via PR #389: SYNC1
   (minimum-viable), SYNC2 / SYNC3 (registry shape), SYNC4 /
   SYNC5 / SYNC6 (SSA fallout), SYNC7 (canonical-command type
@@ -3819,6 +4002,39 @@ priority queue:
   `format` bignum fix) plus a WASM tcltest-gate refresh and new WASM
   execution tests; no analyser / compiler / registry / optimiser surface and
   no `rust/` change.  See the `SYNC-JUN03` family section.
+* **`SYNC-JUN04` family** — opened 2026-06-04 (PR #530); advances the anchor
+  from `origin/main`@`ca7bba21` to `origin/main`@`43812a60` (+1 commit).
+  #530 itself is entirely Tcl 9 **WASM / Zig-VM** runtime (`Tcl_ConcatObj`
+  trailing-backslash re-expose, empty-command-name dispatch, `Tcl_WrongNumArgs`
+  name-quoting) plus a WASM tcltest-gate refresh and new WASM execution tests —
+  **out of scope**, no `rust/` change.  It did prompt one **in-scope
+  confirmation**: the registry `fold_concat` const-fold is **already sound** for
+  the trailing-backslash-space edge and needs no change — it is a byte-identical
+  port of main's simple trim+join model, and the optimiser's `literal_words`
+  input gate bails on any backslash-bearing word before the fold runs (main
+  reaches the same outcome via a result-side guard; outcome-equivalent for
+  `concat`).  Pinned by a new regression test in `propagation.rs`.  See the
+  `SYNC-JUN04` family section.
+* **`SYNC-JUN05` family** — opened 2026-06-05 (PR #532); advances the anchor
+  from `origin/main`@`43812a60` to `origin/main`@`77215e87` (+1 commit).
+  **No in-scope rows** — #532 is entirely Tcl 9 **Zig-VM / WASM-codegen**
+  runtime (multi-key `dict exists`, `try … finally` `-during` exception
+  chaining, `apply` lambda formal-param validation + `errorInfo` frame +
+  `info level 0`, plus `incr` / `unset` / regexp / array-scalar fixes) with a
+  WASM tcltest-gate refresh and new WASM execution tests; no analyser /
+  compiler / registry / optimiser surface and no `rust/` change.  See the
+  `SYNC-JUN05` family section.
+* **`SYNC-JUN06` family** — opened 2026-06-05 (PR #533); advances the anchor
+  from `origin/main`@`77215e87` to `origin/main`@`4092ab31` (+1 commit).
+  **In scope, unported** — #533 introduces the canonical **red-green
+  concrete syntax tree** (`compiler/parsing/syntax/{green,red,build,segment,
+  descend}.py`), the Roslyn / rust-analyzer split #477's "green token tree"
+  declined to build, and rebases the segmenter onto it byte-identically
+  (150-line token loop removed); plus `shared/ranges.py` authoritative-closer
+  accessors and the #527 E102 / W304 span fixes.  Parsing frontend → a new
+  Rust port target (`CST-PORT` priority-queue row); the existing token-loop
+  segmenter (just made dialect-aware) is the thing it eventually replaces.
+  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.

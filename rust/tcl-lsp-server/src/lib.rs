@@ -847,15 +847,17 @@ impl Backend {
         &self,
         current_uri: &Url,
         source: &str,
+        dialect: &str,
         item: &core_call_hierarchy::CallHierarchyItem,
         analysis: &AnalysisResult,
     ) -> Vec<CallHierarchyOutgoingCall> {
         let unresolved = {
             let source = source.to_owned();
+            let dialect = dialect.to_owned();
             let item = item.clone();
             let analysis = analysis.clone();
             tokio::task::spawn_blocking(move || {
-                core_call_hierarchy::unresolved_outgoing_calls(&source, &item, &analysis)
+                core_call_hierarchy::unresolved_outgoing_calls(&source, &dialect, &item, &analysis)
             })
             .await
             .unwrap_or_default()
@@ -1467,10 +1469,12 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
         let ranges = tokio::task::spawn_blocking(move || {
             core_references::references(
                 &text,
+                &dialect,
                 pos.line,
                 pos.character,
                 &analysis_for_worker,
@@ -1525,7 +1529,13 @@ impl LanguageServer for Backend {
             // point tags variable defining spans as `Write` and
             // their reads as `Read`; command-invocation heads
             // stay `Text`.
-            core_references::document_highlights(&doc.text, pos.line, pos.character, &analysis)
+            core_references::document_highlights(
+                &doc.text,
+                &doc.dialect,
+                pos.line,
+                pos.character,
+                &analysis,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1624,10 +1634,16 @@ impl LanguageServer for Backend {
             .await;
         let qualified = core_item.name.clone();
         let doc_text = doc.text.clone();
+        let doc_dialect = doc.dialect.clone();
         let local_item = core_item.clone();
         let local_analysis = analysis.clone();
         let local = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::incoming_calls(&doc_text, &local_item, &local_analysis)
+            core_call_hierarchy::incoming_calls(
+                &doc_text,
+                &doc_dialect,
+                &local_item,
+                &local_analysis,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1690,12 +1706,17 @@ impl LanguageServer for Backend {
             .await;
         // Cross-document edges: callees defined in sibling files.
         let cross = self
-            .cross_document_outgoing_calls(&uri, &doc.text, &core_item, &analysis)
+            .cross_document_outgoing_calls(&uri, &doc.text, &doc.dialect, &core_item, &analysis)
             .await;
         let local_uri = uri.clone();
         let local_analysis = analysis.clone();
         let outgoing = tokio::task::spawn_blocking(move || {
-            core_call_hierarchy::outgoing_calls(&doc.text, &core_item, &local_analysis)
+            core_call_hierarchy::outgoing_calls(
+                &doc.text,
+                &doc.dialect,
+                &core_item,
+                &local_analysis,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -1827,7 +1848,7 @@ impl LanguageServer for Backend {
         // packed integer stream is 5 ints per token
         // `[deltaLine, deltaCol, length, type, modifiers]`.
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::full(&doc.text, &registry).data;
+        let core_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
         let result_id = next_semantic_tokens_id();
         self.semantic_tokens_cache.lock().await.insert(
             uri,
@@ -1852,7 +1873,7 @@ impl LanguageServer for Backend {
         };
         let previous_result_id = params.previous_result_id;
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let new_data = core_semantic_tokens::full(&doc.text, &registry).data;
+        let new_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
         let new_result_id = next_semantic_tokens_id();
 
         // Compare against the cached snapshot.  When the client's
@@ -1916,7 +1937,8 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::range(&doc.text, core_range, &registry).data;
+        let core_data =
+            core_semantic_tokens::range(&doc.text, &doc.dialect, core_range, &registry).data;
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),
@@ -1996,7 +2018,8 @@ impl LanguageServer for Backend {
             .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
-        let links = core_document_links::document_links(&doc.text, workspace_root.as_deref());
+        let links =
+            core_document_links::document_links(&doc.text, &doc.dialect, workspace_root.as_deref());
         if links.is_empty() {
             return Ok(None);
         }
@@ -2044,7 +2067,13 @@ impl LanguageServer for Backend {
         // the provider still returns built-in hints from the
         // registry.
         let hints = tokio::task::spawn_blocking(move || {
-            core_inlay_hints::inlay_hints(&doc.text, range, Some(&analysis), Some(&registry))
+            core_inlay_hints::inlay_hints(
+                &doc.text,
+                &doc.dialect,
+                range,
+                Some(&analysis),
+                Some(&registry),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -2090,7 +2119,13 @@ impl LanguageServer for Backend {
         let workspace = self.workspace_index.lock().await.clone();
         let uri_str = uri.to_string();
         let lenses = tokio::task::spawn_blocking(move || {
-            core_code_lens::code_lenses(&doc.text, Some(&analysis), Some(&workspace), &uri_str)
+            core_code_lens::code_lenses(
+                &doc.text,
+                &doc.dialect,
+                Some(&analysis),
+                Some(&workspace),
+                &uri_str,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -2335,12 +2370,14 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
         let new_name_worker = new_name.clone();
         let registry_worker = Arc::clone(&registry);
         let edits = tokio::task::spawn_blocking(move || {
             core_rename::rename(
                 &text,
+                &dialect,
                 pos.line,
                 pos.character,
                 &new_name_worker,
@@ -3946,7 +3983,7 @@ mod tests {
             a.analyse(main_src, "tcl8.6").clone()
         };
         let cross = backend
-            .cross_document_outgoing_calls(&main, main_src, &item, &analysis)
+            .cross_document_outgoing_calls(&main, main_src, "tcl", &item, &analysis)
             .await;
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].to.name, "::helper");

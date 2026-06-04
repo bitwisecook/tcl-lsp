@@ -1702,6 +1702,41 @@ mod tests {
     }
 
     #[test]
+    fn o129_concat_trailing_backslash_space_word_is_not_folded() {
+        // SYNC-JUN04: #530 fixed `Tcl_ConcatObj`'s trailing-whitespace trim in
+        // the VM — when the trim lands on a backslash, one byte is re-exposed
+        // (`concat a {b\ } c` -> `a b\  c`, two spaces; the exact util-4.3 shape
+        // `concat a {b\\   } c` -> `a b\\  c`).  The registry `fold_concat` is a
+        // faithful port of main's simple model (`" ".join(a.strip() …)`) and so
+        // does NOT replicate that re-expose rule — it is unsound *in isolation*
+        // for a trailing-backslash-whitespace word.  Soundness is upheld by the
+        // optimiser's input gate: `literal_words` bails on ANY backslash-bearing
+        // word (it does not decode escapes), so `fold_concat` never receives one.
+        // (main reaches the same outcome via a *result*-side guard that rejects
+        // a backslash-bearing fold result; for `concat` a backslash in any input
+        // word always survives trimming into the result, so the two are
+        // equivalent.)  Drop the `literal_words` backslash bail and this test
+        // fails — the cmd-sub would fold to a wrong literal.
+        let fold = |src: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == "O129")
+                .map(|o| o.replacement)
+                .collect()
+        };
+        // Sanity: a backslash-free concat still folds (the path is live).
+        assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
+        // A braced word carrying a backslash escape is left unfolded.
+        assert!(
+            fold("puts [concat a {b\\ } c]").is_empty(),
+            "trailing backslash-space word must not fold (re-expose rule unmodelled)",
+        );
+        assert!(fold("puts [concat {b\\ }]").is_empty());
+        // The exact #530 util-4.3 shape (double backslash, trailing spaces).
+        assert!(fold("puts [concat a {b\\\\   } c]").is_empty());
+    }
+
+    #[test]
     fn o129_resolves_constant_var_args_b2() {
         // B2 (SYNC-JUN02d-2, #525): a constant `$var` arg in a builtin
         // cmd-sub is resolved (whole-function-constant → sound) before

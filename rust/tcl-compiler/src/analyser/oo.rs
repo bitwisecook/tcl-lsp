@@ -88,7 +88,11 @@ impl Analyser {
             return;
         }
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let cmds = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
+        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+            body_text,
+            base_offset,
+            self.lexer_config(),
+        );
         for cmd in cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;

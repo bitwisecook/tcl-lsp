@@ -235,14 +235,21 @@ impl Analyser {
         };
         let overlay = self.stub_overlay.as_ref();
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        let shallow =
-            super::param_traits::infer_param_traits(&param_names, body_text, registry, overlay);
+        let config = self.lexer_config();
+        let shallow = super::param_traits::infer_param_traits_with_config(
+            &param_names,
+            body_text,
+            registry,
+            overlay,
+            config,
+        );
         if self.deep_param_traits {
-            let deep = super::param_traits::infer_param_traits_deep(
+            let deep = super::param_traits::infer_param_traits_deep_with_config(
                 &param_names,
                 body_text,
                 registry,
                 overlay,
+                config,
             );
             super::param_traits::merge_traits(shallow, deep)
         } else {

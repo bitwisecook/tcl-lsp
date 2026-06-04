@@ -558,6 +558,7 @@ fn last_literal_set_value_for_var(
     source: &str,
     var_name: &str,
     before_offset: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, tcl_lexer::Span, String)> {
     if var_name.is_empty() || before_offset == 0 {
         return None;
@@ -567,7 +568,7 @@ fn last_literal_set_value_for_var(
         return None;
     }
     let prefix = &source[..head];
-    let segments = crate::segmenter::segment_commands(prefix);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(prefix, 0, config);
 
     for cmd in segments.iter().rev() {
         if cmd.texts.first().map(String::as_str) != Some("set") {
@@ -1622,7 +1623,12 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
             if matches!(tok.kind, tcl_lexer::TokenType::Var) {
                 let var_name = self.var_name_from_token(tok);
                 let resolved = var_name.and_then(|name| {
-                    last_literal_set_value_for_var(&self.source, &name, tok.span.start())
+                    last_literal_set_value_for_var(
+                        &self.source,
+                        &name,
+                        tok.span.start(),
+                        self.lexer_config(),
+                    )
                 });
                 if let Some((resolved_text, resolved_span, var_text)) = resolved {
                     if resolved_text.starts_with('-') {
@@ -4541,6 +4547,40 @@ mod tests {
             literal.diagnostics.iter().any(|d| d.code == "E003"),
             "control: five literal words should fire E003: {:?}",
             literal.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_arity_is_dialect_aware_via_expand_syntax() {
+        // SYNC-MAY19-dialect-contextvar: end-to-end proof that the
+        // document dialect reaches the analyser's segmenter (and thus the
+        // lexer's `expand_syntax` flag).  `{*}` is the expansion operator
+        // on 8.5+ but a literal brace word on 8.4, so for
+        // `regsub a b c d {*}$rest`:
+        //   * tcl8.4 — `{*}$rest` is a 5th literal positional word; 5 > max
+        //     4 → E003 fires.
+        //   * tcl9.0 — `{*}$rest` expands, contributing an unbounded count;
+        //     the 4 non-expanded words are ≤ max 4 → E003 is suppressed.
+        // Before the dialect → `LexerConfig` wiring the analyser always
+        // lexed with `expand_syntax` on, so 8.4 wrongly behaved like 9.0
+        // (no E003) — this asserts the two now diverge.
+        let codes = |dialect: &str| -> Vec<String> {
+            let mut a = Analyser::new();
+            a.analyse("regsub a b c d {*}$rest", dialect)
+                .diagnostics
+                .iter()
+                .map(|d| d.code.clone())
+                .collect()
+        };
+        let on_84 = codes("tcl8.4");
+        assert!(
+            on_84.iter().any(|c| c == "E003"),
+            "8.4 treats `{{*}}` as a literal word → 5 positional args → E003: {on_84:?}",
+        );
+        let on_90 = codes("tcl9.0");
+        assert!(
+            !on_90.iter().any(|c| c == "E003"),
+            "9.0 expands `{{*}}` → 4 positional words ≤ max → no E003: {on_90:?}",
         );
     }
 
