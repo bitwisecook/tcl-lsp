@@ -83,6 +83,7 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
         def _resolve_proc(self, *a: Any, **kw: Any) -> Any: ...
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCtrlMixin
         def _emit_catch_from_args(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCmdMixin
@@ -766,11 +767,15 @@ class _WasmEmitterExprMixin(_Base):
             ):
                 func_idx, n_params = proc_info
                 qname = self._resolve_proc_qname(cmd_name)
-                has_args_tail = qname is not None and qname in self._proc_args_tail
-                self._emit_distrust_proc_subst(
-                    cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=True
-                )
-                return
+                # Surplus args to a non-variadic proc → fall through to the
+                # eval fallback so the interpreter raises ``wrong # args``
+                # (Codex review on PR #532).
+                if not self._proc_arity_exceeded(qname, n_params, len(cmd_args)):
+                    has_args_tail = qname is not None and qname in self._proc_args_tail
+                    self._emit_distrust_proc_subst(
+                        cmd_name, cmd_args, cmd_text, func_idx, n_params, has_args_tail, unbox=True
+                    )
+                    return
             self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
             self._emit_unbox_int()
             return
@@ -846,6 +851,16 @@ class _WasmEmitterExprMixin(_Base):
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            # Surplus args to a non-variadic proc → route through the eval
+            # fallback so the interpreter raises ``wrong # args`` rather
+            # than the direct dispatch silently truncating (Codex review
+            # on PR #532).  Unbox to i64 for the expression context.
+            if self._proc_arity_exceeded(
+                self._resolve_proc_qname(cmd_name), n_params, len(cmd_args)
+            ):
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                self._emit_unbox_int()
+                return
             # Stash the caller's invoked word for the callee's
             # ``info level 0`` — see :meth:`_emit_prepare_pending_argv0`.
             argv0_local = self._emit_prepare_pending_argv0(cmd_name)
@@ -877,6 +892,14 @@ class _WasmEmitterExprMixin(_Base):
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 sub_args = cmd_args[1:]
+                # ``dict get/exists DICT KEY ?KEY...?`` in a condition
+                # (``if {[dict exists $d a b]}``) — the 2-param fast path
+                # only walks the first key.  Route the multi-key form
+                # through eval so the runtime descends the chain.
+                if subcmd in ("get", "exists") and len(sub_args) > 2:
+                    self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                    self._emit_unbox_int()
+                    return
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):

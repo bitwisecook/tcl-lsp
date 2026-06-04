@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T09:46:54Z",
+  "generated_at": "2026-06-03T18:34:11Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -15,8 +15,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 7,
-      "passed_min": 35,
+      "failed_max": 1,
+      "passed_min": 41,
       "skipped": 0,
       "total": 42
     },
@@ -102,11 +102,11 @@
       "total": 9
     },
     "error": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 306,
+      "failed_max": 0,
+      "passed_min": 309,
       "skipped": 8,
       "total": 317
     },
@@ -210,11 +210,11 @@
       "total": 69
     },
     "incr-old": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 13,
+      "failed_max": 0,
+      "passed_min": 14,
       "skipped": 0,
       "total": 14
     },
@@ -429,8 +429,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 12,
-      "passed_min": 62,
+      "failed_max": 9,
+      "passed_min": 65,
       "skipped": 0,
       "total": 74
     },
@@ -444,11 +444,11 @@
       "total": 257
     },
     "regexpComp": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 6,
-      "passed_min": 173,
+      "failed_max": 0,
+      "passed_min": 179,
       "skipped": 0,
       "total": 179
     },
@@ -492,8 +492,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 12,
-      "passed_min": 141,
+      "failed_max": 7,
+      "passed_min": 146,
       "skipped": 0,
       "total": 153
     },
@@ -537,8 +537,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 72,
-      "passed_min": 204,
+      "failed_max": 65,
+      "passed_min": 211,
       "skipped": 14,
       "total": 290
     },

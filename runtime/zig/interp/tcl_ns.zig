@@ -1905,11 +1905,15 @@ pub export fn tcl_incr(o: i32, amount: i32) i32 {
     // "first error wins" semantics for a single command.
     if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return obj_new_int_pub(0);
     if (!incr_is_strict_int(o)) {
-        raise_expected_integer(o);
+        // The variable's current value is the non-integer — no
+        // ``(reading increment)`` frame (incr-old-2.4).
+        raise_expected_integer(o, false);
         return obj_new_int_pub(0);
     }
     if (!incr_is_strict_int(amount)) {
-        raise_expected_integer(amount);
+        // The explicit increment argument is the non-integer — add the
+        // ``(reading increment)`` frame (incr-old-2.5, incr-2.30..2.33).
+        raise_expected_integer(amount, true);
         return obj_new_int_pub(0);
     }
     // Bignum-aware addition: promote to ``*BigInt`` whenever either
@@ -1979,7 +1983,7 @@ fn incr_is_strict_int(o: i32) bool {
     return true;
 }
 
-fn raise_expected_integer(o: i32) void {
+fn raise_expected_integer(o: i32, reading_increment: bool) void {
     // Preserve the first error in a chain — see ``tcl_incr`` for
     // the rationale.  Without this, a missing-variable read on the
     // increment expression that already set ``error_flag`` would be
@@ -2042,16 +2046,21 @@ fn raise_expected_integer(o: i32) void {
     const msg = obj.obj_new_string_take(buf_addr, @intCast(off), total);
     const tcl_catch = @import("tcl_catch.zig");
     tcl_catch.tcl_cmd_error(msg);
-    // Tcl 9 adds a ``(reading increment)`` frame between the
-    // error message and the surrounding command frame in
-    // ``::errorInfo`` (incr-2.30 / 2.31 / 2.32 / 2.33).  Reference
-    // Tcl emits this via ``Tcl_AddObjErrorInfo`` from
-    // ``TclCompileIncrCmd`` after ``Tcl_GetIntFromObj`` rejects
-    // the increment operand.  Append it to ``::errorInfo`` after
-    // the canonical stamp and prime the log-command state so the
-    // next ``log_command_info`` uses ``invoked from within``
-    // rather than ``while executing``.
-    append_errinfo_frame("\n    (reading increment)");
+    // Tcl 9 adds a ``(reading increment)`` frame between the error
+    // message and the surrounding command frame in ``::errorInfo``
+    // ONLY when the explicit increment operand fails to parse
+    // (``incr x 1a`` — incr-2.30/2.31/2.32/2.33, incr-old-2.5).
+    // Reference Tcl emits this via ``Tcl_AddObjErrorInfo`` from
+    // ``TclCompileIncrCmd`` / ``Tcl_IncrObjCmd`` after
+    // ``Tcl_GetIntFromObj`` rejects the increment argument.  When the
+    // *variable's own value* is the non-integer (``incr x`` with x set
+    // to "abc" — incr-old-2.4) there is no increment being read, so the
+    // frame must be omitted and the enclosing log stays ``while
+    // executing``.  Priming ``last_log_script`` (via
+    // ``append_errinfo_frame``) is likewise gated on this.
+    if (reading_increment) {
+        append_errinfo_frame("\n    (reading increment)");
+    }
 }
 
 /// Append a literal string to the current ``::errorInfo`` global

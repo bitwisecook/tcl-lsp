@@ -170,6 +170,43 @@ fn eval_unset(words: []const i32) result_mod.InterpResult {
             return result_mod.from_globals(0);
         }
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
+        // Array-element form ``arr(key)`` — remove just that element via
+        // ``array_unset_element`` (resolving the array name through any
+        // ``global`` / ``upvar`` link), NOT the whole array.  Without
+        // this the loop below fell through to ``array_unset`` (a no-op
+        // against the literal name ``arr(key)``) plus ``var_set(.., 0)``
+        // (which routes through the array path and merely *set* the
+        // element to the empty string), leaving the element present and
+        // the directory inconsistent — proc-old-3.3 / 3.5
+        // (``global a; unset a(y)``).  Mirrors ``array unset arr key``.
+        elem_unset: {
+            if (w.len < 3) break :elem_unset;
+            var paren: u32 = 0;
+            var has_paren = false;
+            var pk: u32 = 0;
+            while (pk < w.len) : (pk += 1) {
+                if (wp[pk] == '(') {
+                    paren = pk;
+                    has_paren = true;
+                    break;
+                }
+            }
+            if (!(has_paren and paren > 0 and wp[w.len - 1] == ')')) break :elem_unset;
+            const tcl_obj_elem = @import("../valtypes/tcl_obj.zig");
+            // ``obj_new_string`` borrows the byte span (no copy); both
+            // names point into ``words[i]``'s live buffer for the call.
+            const arr_name = tcl_obj_elem.obj_new_string(@bitCast(w.ptr), @bitCast(paren));
+            defer tcl_obj_elem.tcl_obj_release(arr_name);
+            const resolved_elem_arr = frames.frame_resolve_array_name(arr_name);
+            defer if (resolved_elem_arr != arr_name) tcl_obj_elem.tcl_obj_release(resolved_elem_arr);
+            const key_len: u32 = w.len - paren - 2;
+            const key = tcl_obj_elem.obj_new_string(@bitCast(w.ptr + paren + 1), @bitCast(key_len));
+            defer tcl_obj_elem.tcl_obj_release(key);
+            _ = tcl_array.array_unset_element(resolved_elem_arr, key);
+            const inspect_elem = @import("inspect.zig");
+            inspect_elem.remove_all_var_traces(words[i]);
+            continue;
+        }
         // Clear the array table before nulling the variable so
         // ``info exists arr`` returns 0 after ``unset arr``.
         const resolved_arr = frames.frame_resolve_array_name(words[i]);

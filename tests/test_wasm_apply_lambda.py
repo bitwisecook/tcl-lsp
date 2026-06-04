@@ -49,3 +49,78 @@ def test_apply_malformed_no_name() -> None:
 def test_apply_malformed_too_many_fields() -> None:
     body = "set L [list {{a b c}} boo]\nputs [catch {apply $L} msg]:$msg\n"
     assert _run(body) == '1:too many fields in argument specifier "a b c"'
+
+
+# ---------------------------------------------------------------------------
+# (parsing lambda expression ...) errorInfo frame + formal validation +
+# info level 0.  The slice runs test bodies INTERPRETED (eval_script), so
+# these force that path via ``set s {…}; eval $s`` to match it.  Mirrors
+# C Tcl's SetLambdaFromAny / TclCreateProc (apply-2.2..2.5, 6.2, 6.3).
+# ---------------------------------------------------------------------------
+
+
+def _run_interp(source: str) -> str:
+    wrapped = "set __s {" + source + "}\neval $__s\n"
+    _, stdout = _run_wasm(_compile_tcl(wrapped), capture_stdout=True)
+    return stdout.rstrip("\n")
+
+
+def test_apply_2_2_errorinfo_frame() -> None:
+    src = "set lambda [list {{}} boo]\nputs [list [catch {apply $lambda} msg] $msg $::errorInfo]\n"
+    expected = (
+        "1 {argument with no name} {argument with no name\n"
+        '    (parsing lambda expression "{{}} boo")\n'
+        '    invoked from within\n"apply $lambda"}'
+    )
+    assert _run_interp(src) == expected
+
+
+def test_apply_2_3_errorinfo_frame() -> None:
+    src = (
+        "set lambda [list {{a b c}} boo]\n"
+        "puts [list [catch {apply $lambda} msg] $msg $::errorInfo]\n"
+    )
+    expected = (
+        '1 {too many fields in argument specifier "a b c"} '
+        '{too many fields in argument specifier "a b c"\n'
+        '    (parsing lambda expression "{{a b c}} boo")\n'
+        '    invoked from within\n"apply $lambda"}'
+    )
+    assert _run_interp(src) == expected
+
+
+def test_apply_2_4_array_element_formal() -> None:
+    src = "set lambda [list a(1) boo]\nputs [list [catch {apply $lambda} msg] $msg $::errorInfo]\n"
+    expected = (
+        '1 {formal parameter "a(1)" is an array element} '
+        '{formal parameter "a(1)" is an array element\n'
+        '    (parsing lambda expression "a(1) boo")\n'
+        '    invoked from within\n"apply $lambda"}'
+    )
+    assert _run_interp(src) == expected
+
+
+def test_apply_2_5_qualified_formal() -> None:
+    src = "set lambda [list a::b boo]\nputs [list [catch {apply $lambda} msg] $msg $::errorInfo]\n"
+    expected = (
+        '1 {formal parameter "a::b" is not a simple name} '
+        '{formal parameter "a::b" is not a simple name\n'
+        '    (parsing lambda expression "a::b boo")\n'
+        '    invoked from within\n"apply $lambda"}'
+    )
+    assert _run_interp(src) == expected
+
+
+def test_apply_open_paren_not_array_element() -> None:
+    # A scalar formal containing ``(`` but no trailing ``)`` is valid.
+    assert _run_interp("puts [apply {{a(b} {return ok}} hi]") == "ok"
+
+
+def test_apply_6_2_info_level_no_args() -> None:
+    src = "set lambda [list {} {info level 0}]\nputs [apply $lambda]\n"
+    assert _run_interp(src) == "apply {{} {info level 0}}"
+
+
+def test_apply_6_3_info_level_with_args() -> None:
+    src = "set lambda [list args {info level 0}]\nputs [apply $lambda x y]\n"
+    assert _run_interp(src) == "apply {args {info level 0}} x y"

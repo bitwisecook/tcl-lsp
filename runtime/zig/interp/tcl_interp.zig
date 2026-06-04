@@ -4272,11 +4272,15 @@ fn build_invocation_list(words: []const i32) i32 {
 /// parameter as ``?arg ...?``, and a required parameter as its bare
 /// name.  ``invoked_name`` is the word the caller used (``words[0]``)
 /// so the message echoes the spelling at the call site.
-fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void {
+fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params_in: u32) void {
     const catch_mod = @import("tcl_catch.zig");
     const quote = @import("../valtypes/tcl_list_quote.zig");
     const inv = obj_ensure_string(invoked_name);
     const ps = obj_ensure_string(params_obj);
+    // Null/empty params (e.g. a compiled proc whose param-source stash
+    // is unavailable) → emit just ``wrong # args: should be "name"``
+    // rather than dereferencing a null list pointer.
+    const n_params: u32 = if (params_obj == 0 or ps.ptr == 0) 0 else n_params_in;
     const prefix = "wrong # args: should be \"";
     var pcap: u32 = 0;
     var i: u32 = 0;
@@ -4342,6 +4346,31 @@ fn raise_proc_wrong_args(invoked_name: i32, params_obj: i32, n_params: u32) void
     off += 1;
     const msg = obj_mod.obj_new_string_take(buf, off, total);
     catch_mod.tcl_cmd_error(msg);
+}
+
+/// True when the proc's last formal is the variadic ``args`` collector
+/// — a last element whose name (after stripping any ``{name default}``
+/// wrapper) is exactly ``args``.  Such a proc accepts any number of
+/// trailing arguments; every other proc rejects surplus args with
+/// ``wrong # args``.  Note ``{args 9}`` (args with a default) IS still
+/// the collector in Tcl 9 (the default is ignored) — verified against
+/// tclsh9.0 — so the wrapper is stripped before the name comparison.
+fn proc_last_param_is_args(params_obj: i32, n_params: u32) bool {
+    if (n_params == 0 or params_obj == 0) return false;
+    const ps = obj_ensure_string(params_obj);
+    const le = list_element_at(ps.ptr, ps.len, @intCast(n_params - 1));
+    const lptr = ps.ptr + le.start;
+    const llen = le.len;
+    var nptr = lptr;
+    var nlen = llen;
+    if (list_count_elements(lptr, llen) == 2) {
+        const ne = list_element_at(lptr, llen, 0);
+        nptr = lptr + ne.start;
+        nlen = ne.len;
+    }
+    if (nlen != 4) return false;
+    const np: [*]const u8 = @ptrFromInt(nptr);
+    return np[0] == 'a' and np[1] == 'r' and np[2] == 'g' and np[3] == 's';
 }
 
 /// Internal: dispatch once the proc bucket is already resolved.
@@ -4415,6 +4444,40 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     if ((cmd_flags & procs.CMD_ENSEMBLE) != 0) {
         const ns_mod = @import("../cmds/namespace.zig");
         return ns_mod.dispatch_ensemble(bucket, words);
+    }
+    // Too-many-arguments check — BEFORE the compiled-proc dispatch
+    // below so it applies to compiled procs as well (their bridge call
+    // truncates surplus args and never reaches the interpreted binding
+    // loop's check).  A proc whose last formal is the variadic ``args``
+    // collector accepts any tail; otherwise more than ``n_params`` call
+    // args is ``wrong # args`` (proc-old-30.3; Codex review on PR #532
+    // — the static-codegen call sites route the over-arity case here
+    // via the eval fallback).  The too-FEW case is handled per-param in
+    // the interpreted binding loop / compiled prologue.
+    {
+        const aw_n: u32 = @intCast(procs.proc_get_n_params(bucket));
+        if (words.len > aw_n + 1) {
+            // Interpreted procs keep the param list in OFF_PARAMS_OBJ;
+            // compiled procs leave that 0 and stash the source bytes in
+            // OFF_PARAMS_SRC (the slot ``info args`` reads).  Materialise
+            // a TclObj from whichever is present so the variadic probe and
+            // the ``should be "..."`` message both see the real formals.
+            var aw_params = procs.proc_get_params(bucket);
+            var aw_owned = false;
+            if (aw_params == 0) {
+                const src = procs.proc_get_params_src(@bitCast(bucket));
+                if (src.ptr != 0 and src.len > 0) {
+                    aw_params = obj_new_string_copy(src.ptr, src.len);
+                    aw_owned = true;
+                }
+            }
+            if (!proc_last_param_is_args(aw_params, aw_n)) {
+                raise_proc_wrong_args(words[0], aw_params, aw_n);
+                if (aw_owned) obj_mod.tcl_obj_release(aw_params);
+                return 0;
+            }
+            if (aw_owned) obj_mod.tcl_obj_release(aw_params);
+        }
     }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
@@ -4742,6 +4805,10 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             }
         }
     }
+
+    // (Too-many-arguments is rejected up front — before the
+    // compiled-proc dispatch — so it covers compiled procs too; see
+    // ``proc_last_param_is_args`` above.)
 
     // Evaluate body
     const body_s = obj_ensure_string(body_obj);
@@ -5425,6 +5492,99 @@ pub fn eval_call(words: []const i32) i32 {
     return eval_command(words);
 }
 
+/// Append the ``(parsing lambda expression "<lambda>")`` errorInfo frame
+/// that C Tcl's ``SetLambdaFromAny`` adds whenever ``TclCreateProc``
+/// rejects a lambda's formal-parameter list (apply-2.2..2.5).  The
+/// sentinel set by ``append_errinfo_frame`` makes the enclosing
+/// ``apply $lambda`` log use ``invoked from within`` rather than the
+/// first-frame ``while executing``.  No-op unless an error is pending.
+fn append_lambda_parse_frame(lambda_obj: i32) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    if (tcl_catch.state.error_flag == 0) return;
+    const tcl_ns_mod = @import("tcl_ns.zig");
+    const ls = obj_ensure_string(lambda_obj);
+    const prefix: []const u8 = "\n    (parsing lambda expression \"";
+    const suffix: []const u8 = "\")";
+    const total: u32 = @intCast(prefix.len + ls.len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (ls.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(ls.ptr);
+        var k: u32 = 0;
+        while (k < ls.len) : (k += 1) {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp: [*]const u8 = @ptrFromInt(buf);
+    tcl_ns_mod.append_errinfo_frame(bp[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
+/// Validate a proc/lambda formal-parameter NAME the way C Tcl's
+/// ``TclCreateProc`` does: reject array-element names (``a(1)`` ->
+/// "is an array element") and qualified names (``a::b`` -> "is not a
+/// simple name").  When NAME is invalid the matching error is raised
+/// and ``true`` returned; the caller then pops its frame, appends the
+/// lambda-parse frame, and propagates (apply-2.4 / 2.5).
+fn raise_if_bad_formal_param(name_ptr: u32, name_len: u32) bool {
+    if (name_len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    const last = name_len - 1;
+    var i: u32 = 0;
+    var kind: u8 = 0; // 1 = array element, 2 = not a simple name
+    while (i < last) : (i += 1) {
+        if (sp[i] == '(') {
+            if (sp[last] == ')') {
+                kind = 1;
+                break;
+            }
+        } else if (sp[i] == ':' and sp[i + 1] == ':') {
+            kind = 2;
+            break;
+        }
+    }
+    if (kind == 0) return false;
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix: []const u8 = "formal parameter \"";
+    const suffix: []const u8 = if (kind == 1) "\" is an array element" else "\" is not a simple name";
+    const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        stubs.raise("formal parameter is invalid");
+        return true;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    var k: u32 = 0;
+    while (k < name_len) : (k += 1) {
+        dst[off] = sp[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const bp: [*]const u8 = @ptrFromInt(buf);
+    stubs.raise(bp[0..total]);
+    obj_mod.free_sized(buf, total);
+    return true;
+}
+
 /// ``apply`` — invoke an anonymous lambda: apply {paramList body ?ns?} ?arg ...?
 /// Public so tcl_env_stubs.zig can call it from the 2-arg compiled export.
 pub fn eval_apply(words: []const i32) i32 {
@@ -5505,6 +5665,16 @@ pub fn eval_apply(words: []const i32) i32 {
         frames.frame_set_proc_name(fq);
         obj_mod.tcl_obj_release(fq);
     }
+    {
+        // Record the invocation (``apply`` + lambda + args) so
+        // ``info level 0`` in the body returns the real call, e.g.
+        // ``apply {{} {info level 0}}`` (apply-6.2 / 6.3) rather than
+        // the legacy placeholder.  ``frame_set_argv`` retains for the
+        // slot; drop our creator-side ref (see eval_proc_call_bucket).
+        const argv = build_invocation_list(words);
+        frames.frame_set_argv(argv);
+        obj_mod.tcl_obj_release(argv);
+    }
 
     // Bind parameters — same pattern as eval_proc_call_bucket but user
     // args start at words[2] (words[0]=apply, words[1]=lambda).
@@ -5527,6 +5697,7 @@ pub fn eval_apply(words: []const i32) i32 {
                 const stubs = @import("../stubs/tcl_stubs.zig");
                 frames.frame_pop();
                 stubs.raise("argument with no name");
+                append_lambda_parse_frame(words[1]);
                 return 0;
             }
             if (field_count > 2) {
@@ -5548,11 +5719,20 @@ pub fn eval_apply(words: []const i32) i32 {
                 const stubs = @import("../stubs/tcl_stubs.zig");
                 frames.frame_pop();
                 stubs.raise(mbuf[0..mo]);
+                append_lambda_parse_frame(words[1]);
                 return 0;
             }
             const name_elem = list_element_at(spec_ptr, spec_len, 0);
             const param_name_ptr = spec_ptr + name_elem.start;
             const param_name_len = name_elem.len;
+            // Reject array-element (``a(1)``) and qualified (``a::b``)
+            // formal-parameter names, matching C Tcl's TclCreateProc
+            // (apply-2.4 / 2.5).
+            if (raise_if_bad_formal_param(param_name_ptr, param_name_len)) {
+                frames.frame_pop();
+                append_lambda_parse_frame(words[1]);
+                return 0;
+            }
             const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
             defer obj_mod.tcl_obj_release(param_name);
             const has_default = field_count == 2;
