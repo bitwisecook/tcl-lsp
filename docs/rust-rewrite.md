@@ -4072,10 +4072,39 @@ faithful port of main's `_recurse_nested_commands` +
 `_recurse_expression_subcommands` + `_recurse_body_arguments` +
 `_recurse_switch_list_body`, all routed through the CST descent.
 
-**Only optional work remains (not a parity gap):** behaviour-preserving
-folds of `analyse_body` / `rename.rs`'s body re-segmentation onto
-`descend_token` (they already use the CST-backed `segment_commands*`; the
-fold is structural fidelity, not needed for L1, which strips 1 + 3 close).
+### Optional fold (`analyse_body` → descent) — PROTOTYPED + DEFERRED (2026-06-04)
+
+The one remaining item — folding `analyse_body` / `rename.rs`'s body
+re-segmentation onto `descend_token` for "single descent primitive"
+fidelity — was prototyped against a new byte-identity gate and **deferred**
+as a net-negative trade.  Findings:
+- **Byte-identical, zero behavioural change.** `descend_token` on a body
+  `Str` token + `segments_from_tree` is **field-identical** to
+  `segment_commands_with_offset_and_config(body_text, start +
+  content_offset, …)` — pinned (kept) by
+  `segment::tests::descend_token_body_matches_segment_with_offset` over a
+  body battery (`;`/newline-separated, nested `[...]`, quoted last word,
+  `{*}`, comments, line continuation, empty/degenerate) × 3 base offsets.
+  So the fold buys **no** behavioural fidelity (`segment_commands*` is
+  already the CST: `build_document` + `segments_from_document`).
+- **It breaks a useful contract.** `analyse_body(body_text, body_tok, …)`
+  is self-contained — it segments the *passed* `body_text`.  Routing it
+  through `descend_token(SourceMap::new(&self.source), body_tok)` couples
+  it to `self.source` containing the body token's absolute span; **~36
+  handler unit tests** construct a `body_tok` + pass `body_text` *without*
+  setting `self.source`, and panic (`byte index … out of bounds of \`\``)
+  under the fold.  Fixing them = 36 tests rebuilt around a real source, for
+  zero functional gain.
+- **Decision:** reverted the fold; kept the equivalence test.  The fold is
+  only worth doing if `analyse_body`'s contract is deliberately reworked to
+  be source-coupled (e.g. as part of the incremental-reparse / document-
+  store substrate, where a single descent primitive over a shared rope is
+  the natural design).  Tracked there, not as a standalone churn strip.
+
+**CST-CONSUMERS is complete**: L1 resolved (production callers for
+`descend_token` + `descend_command`), `command_invocations` is exact-match
+with main across the combined battery, and the only deferred items are the
+blocked `ranges` accessors (strip 4) and this net-negative fold.
 
 ## Next-up priority queue
 
