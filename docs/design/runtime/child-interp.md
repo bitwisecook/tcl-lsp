@@ -187,7 +187,7 @@ the Command's import-machinery slots independent.
 ## 7. Compiler: conservative proc-index flush
 
 `_collect_dynamically_modified_procs` in
-[`compiler/codegen/wasm/__init__.py`](../../../compiler/codegen/wasm/__init__.py)
+[`compiler/codegen/wasm/proc_scan.py`](../../../compiler/codegen/wasm/proc_scan.py)
 now returns `(affected, full_flush)`.  When it sees any of
 `interp create` / `interp eval` / `interp delete` anywhere in the
 IR, `full_flush` is set.  The caller responds by clearing
@@ -352,4 +352,4 @@ Three layers:
   `tcl_test_interp_root` / `_current` / `_create` / `_lookup` /
   `_delete` / `_eval_script` / `_root_ns` / `_hidden_find_in`.
 - Upstream `interp.test` sections 1–6 ported verbatim as
-  `TestInterpTestPort` (39 cases, all passing).
+  `TestInterpTestPort` (59 cases, all passing).

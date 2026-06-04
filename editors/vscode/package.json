@@ -4020,19 +4020,33 @@
             "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
             "order": 0
           },
+          "tclLsp.diagnostics.I230": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**I230:** Constant branch condition — the alternate branch is provably unreachable.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.I231": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**I231:** Constant switch arm condition — the arm is provably unreachable.",
+            "order": 2
+          },
           "tclLsp.diagnostics.W123": {
             "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
-            "order": 1
+            "order": 3
           },
           "tclLsp.diagnostics.W242": {
             "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
-            "order": 2
+            "order": 4
           }
         }
       },

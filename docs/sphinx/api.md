@@ -6,8 +6,8 @@ myst:
 
 # API reference
 
-Everything `f5q` exports.  Generated from the docstrings on each
-public symbol, so this page can't drift from `import f5q`.
+Everything `dialects.f5.query` exports.  Generated from the docstrings on each
+public symbol, so this page can't drift from `import dialects.f5.query`.
 
 ## Calling the engine
 
@@ -15,8 +15,8 @@ The polymorphic single-call entry plus the pre-staging helper most
 scripts use.
 
 ```{eval-rst}
-.. autofunction:: f5q.q
-.. autofunction:: f5q.load
+.. autofunction:: dialects.f5.query.q
+.. autofunction:: dialects.f5.query.load
 ```
 
 ## Result types
@@ -25,38 +25,38 @@ The wrapper types `q()` / `load()` return and the typed values that
 appear inside a result.
 
 ```{eval-rst}
-.. autoclass:: f5q.QueryRun
+.. autoclass:: dialects.f5.query.QueryRun
    :members:
    :special-members: __len__, __bool__, __iter__, __getitem__
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.QueryRow
+.. autoclass:: dialects.f5.query.QueryRow
    :members:
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.Sources
+.. autoclass:: dialects.f5.query.Sources
    :members:
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.ObjectRef
+.. autoclass:: dialects.f5.query.ObjectRef
    :members:
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.PathRef
+.. autoclass:: dialects.f5.query.PathRef
    :members:
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.Stream
+.. autoclass:: dialects.f5.query.Stream
    :members:
 ```
 
 ```{eval-rst}
-.. autoclass:: f5q.Root
+.. autoclass:: dialects.f5.query.Root
    :members:
 ```
 
@@ -67,13 +67,13 @@ stay available for code that needs explicit control over source
 maps, named bindings, partitions, or merge mode.
 
 ```{eval-rst}
-.. autoclass:: f5q.Query
+.. autoclass:: dialects.f5.query.Query
    :members:
-.. autoclass:: f5q.QueryResult
+.. autoclass:: dialects.f5.query.QueryResult
    :members:
-.. autofunction:: f5q.run_query
-.. autofunction:: f5q.parse_query
-.. autoclass:: f5q.InputSpec
+.. autofunction:: dialects.f5.query.run_query
+.. autofunction:: dialects.f5.query.parse_query
+.. autoclass:: dialects.f5.query.InputSpec
    :members:
 ```
 
@@ -88,9 +88,9 @@ Format an evaluator result as a string — Mermaid graph, ASCII
 Gantt, Unicode line-art block tree, custom.
 
 ```{eval-rst}
-.. autofunction:: f5q.renderer
-.. autofunction:: f5q.render
-.. autofunction:: f5q.list_renderers
+.. autofunction:: dialects.f5.query.renderer
+.. autofunction:: dialects.f5.query.render
+.. autofunction:: dialects.f5.query.list_renderers
 ```
 
 ### DSL builtins
@@ -99,9 +99,9 @@ Add new functions callable from the query language
 (`my_func(.x, .y)`).
 
 ```{eval-rst}
-.. autofunction:: f5q.builtin
-.. autofunction:: f5q.list_builtins
-.. autofunction:: f5q.format_builtins
+.. autofunction:: dialects.f5.query.builtin
+.. autofunction:: dialects.f5.query.list_builtins
+.. autofunction:: dialects.f5.query.format_builtins
 ```
 
 ### Input formats
@@ -110,8 +110,8 @@ Parse a non-BIG-IP side-input format (`--input KIND NAME=PATH` on
 the CLI, `parser=` on `load()` / `q()` from Python).
 
 ```{eval-rst}
-.. autofunction:: f5q.input_format
-.. autofunction:: f5q.list_input_formats
+.. autofunction:: dialects.f5.query.input_format
+.. autofunction:: dialects.f5.query.list_input_formats
 ```
 
 ## XDG plugin auto-loader
@@ -121,8 +121,8 @@ loads transparently on the first registry access — no
 `import my_plugin` ceremony, no PYTHONPATH dance.
 
 ```{eval-rst}
-.. autofunction:: f5q.xdg_plugin_dir
-.. autofunction:: f5q.load_user_plugins
+.. autofunction:: dialects.f5.query.xdg_plugin_dir
+.. autofunction:: dialects.f5.query.load_user_plugins
 ```
 
 ## DSL grammar and worked examples
@@ -132,9 +132,9 @@ via `f5 query --help-dsl` / `--help-examples`.  Useful for
 embedding the DSL grammar into a host application's help system.
 
 ```{eval-rst}
-.. autofunction:: f5q.format_grammar
-.. autofunction:: f5q.format_examples
-.. autofunction:: f5q.list_examples
+.. autofunction:: dialects.f5.query.format_grammar
+.. autofunction:: dialects.f5.query.format_examples
+.. autofunction:: dialects.f5.query.list_examples
 ```
 
 ## Exceptions
@@ -143,11 +143,11 @@ Every error the engine raises descends from `QueryError`, so a
 script catching the umbrella type stays robust to engine changes.
 
 ```{eval-rst}
-.. autoexception:: f5q.QueryError
-.. autoexception:: f5q.LexError
-.. autoexception:: f5q.ParseError
-.. autoexception:: f5q.EvalError
-.. autoexception:: f5q.EditError
-.. autoexception:: f5q.BuiltinError
-.. autoexception:: f5q.RendererError
+.. autoexception:: dialects.f5.query.QueryError
+.. autoexception:: dialects.f5.query.LexError
+.. autoexception:: dialects.f5.query.ParseError
+.. autoexception:: dialects.f5.query.EvalError
+.. autoexception:: dialects.f5.query.EditError
+.. autoexception:: dialects.f5.query.BuiltinError
+.. autoexception:: dialects.f5.query.RendererError
 ```

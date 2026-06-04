@@ -57,7 +57,7 @@ pool builds the cold initial graph on open.**
 
 2. **Bounded worker pool + per-document single-writer lock** (decided). Warm
    edits already run on a shared thread pool (`asyncio.to_thread`,
-   `diagnostics_pipeline.py:394`); we keep a *bounded* pool rather than spawning
+   `diagnostics_pipeline.py:606`); we keep a *bounded* pool rather than spawning
    one OS thread per document. The single-writer invariant is enforced **per
    uri by a lock/queue** — at most one in-flight job per document, which the
    `diagnostic_scheduler` already provides by superseding stale versions — not

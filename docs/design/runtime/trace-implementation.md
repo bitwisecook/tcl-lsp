@@ -1,18 +1,21 @@
-# Variable traces — implementation gap
+# Variable traces — implementation
 
 ## Status
 
-`trace add variable …` and `trace add command …` are currently
-**no-ops**.  The runtime accepts the syntax (so tcltest harnesses
-load), silently drops the callback, and never fires it.  See
-`runtime/zig/interp/tcl_trace.zig` (header comment line 1) for the
-canonical statement of intent.
+`trace add variable …` is **implemented** in
+`runtime/zig/interp/tcl_var_trace.zig` (~854 LOC).  Variable traces
+fire on read, write, and unset for global scalars, global arrays,
+array elements, namespace variables, and proc-local variables (via a
+parallel per-frame chain rooted in `tcl_frames.zig`).
 
-This is the largest spec divergence we still carry.  It's tracked
-here because none of the other gap fixes (see
-[`leak-sweep-trap-triage.md`](leak-sweep-trap-triage.md) and the
-S2/S6 work) touch it, and because doing it right is a multi-day
-project rather than a one-commit fix.
+`trace add command …` and `trace add execution …` remain
+**no-ops** — they are accepted syntactically (so tcltest harnesses
+load) but silently drop the callback.  See
+`runtime/zig/interp/tcl_trace.zig` (header comment) for the
+canonical statement of their deferred status.
+
+The remaining gaps are tracked here because they are independent
+of the variable-trace work that has already landed.
 
 ## What has to change
 

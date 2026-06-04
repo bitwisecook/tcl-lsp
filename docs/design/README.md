@@ -87,7 +87,9 @@ ownership matrices.
   the Zig runtime's namespace tree (root, child links, per-ns
   command/variable/path tables) modelled on Tcl 9's `Namespace`
   struct, with per-phase migration plan from the FQN-string
-  fallbacks currently in `tcl_procs.zig` / `tcl_globals.zig`.
+  fallbacks currently in `tcl_procs.zig` / `tcl_ns.zig` (globals
+  were folded into `tcl_ns.zig` in P3.4; `tcl_globals.zig` no longer
+  exists).
 - [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
   for `rename` and single-interp `interp alias`, layered on top of the
   namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch

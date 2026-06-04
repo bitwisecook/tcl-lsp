@@ -226,8 +226,8 @@ Three layers, each live:
 
 ## 7. Ship summary
 
-- Two new Zig modules: ``tcl_rename.zig`` (146 LOC) and
-  ``tcl_alias.zig`` (150 LOC).
+- Two new Zig modules: ``tcl_rename.zig`` (365 LOC) and
+  ``tcl_alias.zig`` (481 LOC).
 - One extension to ``tcl_ns.zig``: ``ns_cmd_clear`` helper +
   exposure of ``bump_cmd_ref_epoch`` / ``link_import_ref`` /
   ``unlink_import_ref``.

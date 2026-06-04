@@ -37,8 +37,8 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 - `compiler/memory_ssa.py`
 - `compiler/dataflow_graph.py`
 - `compiler/compilation_unit.py`
-- `docs/kcs/compiler/kcs-execution-intent-model.md`
-- `docs/kcs/compiler/kcs-def-use-chains.md`
-- `docs/kcs/compiler/kcs-memory-ssa.md`
+- `docs/design/compiler/execution-intent-model.md`
+- `docs/design/compiler/def-use-chains.md`
+- `docs/design/compiler/memory-ssa.md`
 - `compiler/shimmer.py`
 - `compiler/optimiser/`

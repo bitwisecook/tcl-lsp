@@ -28,4 +28,4 @@ during evaluation.
 
 ## Test anchors
 
-- ``tests/tooling/tclpkg/test_manifest.py`` — 29 tests covering all directives and refusals
+- ``tests/tclpkg/test_manifest.py`` — 24 tests covering all directives and refusals

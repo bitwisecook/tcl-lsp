@@ -42,7 +42,6 @@ Known commands/events are flagged as unknown (or vice versa), event ordering che
 ## Test anchors
 
 - `tests/test_command_registry.py`
-- `tests/test_registry_validation.py`
 - `tests/test_event_registry.py` (tests NamespaceRegistry via EVENT_REGISTRY alias)
 - `tests/test_event_flow_chains.py` (tests ordering from namespace_data)
 - `tests/test_event_tree.py` (tests data types and validation from namespace_data/namespace_models)

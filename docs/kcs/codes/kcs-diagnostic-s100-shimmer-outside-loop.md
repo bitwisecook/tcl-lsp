@@ -21,7 +21,7 @@ Tcl converts the value's internal type each time the code runs, which wastes CPU
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable use, with the message "value shimmers between types".
+- A blue information underline appears under the variable use, with the message "value shimmers between types".
 
 ## Example that triggers it
 

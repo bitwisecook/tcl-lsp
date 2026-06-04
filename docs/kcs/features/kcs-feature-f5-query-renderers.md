@@ -52,10 +52,10 @@ f5 q --raw 'my_func(.ltm.virtual[].name)' bigip.conf
 f5 q --help-plugins
 ```
 
-### Python (`f5q`)
+### Python (`dialects.f5.query`)
 
 ```python
-import f5q
+from dialects.f5 import query as f5q
 
 # Built-in renderer via QueryRun.render().
 print(f5q.q(".ltm.virtual[]", "bigip.conf").render("mermaid", direction="TB"))
@@ -75,7 +75,7 @@ is imported (drop a file in `$XDG_CONFIG_HOME/dialects/f5/query/plugins/` and th
 loader picks it up automatically):
 
 ```python
-from f5q import renderer, builtin, input_format
+from dialects.f5.query import renderer, builtin, input_format
 
 @renderer("md-table", summary="Markdown table.", accepts="list of dicts")
 def _render(values, **opts): ...
@@ -152,11 +152,11 @@ default to category `user`.
 ## Writing a plugin
 
 Three decorators cover the surface; each ships from the public
-`f5q` package and registers via import-time side-effect:
+`dialects.f5.query` package and registers via import-time side-effect:
 
 ```python
 # ~/.config/dialects/f5/query/plugins/my_extensions.py
-from f5q import builtin, renderer, input_format
+from dialects.f5.query import builtin, renderer, input_format
 
 @builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
 def _u(s):

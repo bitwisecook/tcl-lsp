@@ -107,7 +107,7 @@ python tcl.pyz venv delete .venv
 - `tooling/tcl/main.py`
 - `analyser/semantic_graph.py`
 - `compiler/registry/info.py`
-- `tests/test_core_lift_consumers.py`
+- `tests/test_tcl_cli.py`
 - `scripts/zipapp-main/tcl.py`
 - `scripts/build/zipapps.py`
 - `Makefile`

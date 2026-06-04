@@ -23,4 +23,4 @@ an existing lockfile.
 
 ## Test anchors
 
-- ``tests/tooling/tclpkg/test_lockfile.py`` — 23 tests covering serialisation, round-tripping, and error cases
+- ``tests/tclpkg/test_lockfile.py`` — 23 tests covering serialisation, round-tripping, and error cases

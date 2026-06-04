@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 494),
+Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 1183),
 [`shared/tokens.py`](../../../shared/tokens.py),
-[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 390)
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 344)
 
 ## Content
 
@@ -70,6 +70,16 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 ### Stage 2 — Segmentation
 
+`segment_commands()` no longer runs its own hand-rolled token loop: it builds
+the canonical lossless **red-green concrete syntax tree** for the region
+([`compiler/parsing/syntax/`](../../../compiler/parsing/syntax/), see
+[syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
+it.  The derivation is byte-identical to the former loop — `range`, `argv`,
+`texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
+`expand_word` all match field-for-field (verified over the real-world corpus,
+120k randomised differential cases, and nested-body anchoring) — so everything
+below describes the unchanged output shape.
+
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
 
 ```python
@@ -116,8 +126,8 @@ sets the flag based on the active dialect:
   braced literal `{*}` concatenated with `$x`.
 
 Arity checks at both the analyser (`_check_proc_call_arity` in
-`analyser/analyser.py`) and the IR layer (`_check_simple_arity` in
-`compiler/compiler_checks.py`) treat each expanded word as an
+`analyser/_analyser/_proc.py`) and the IR layer (`_check_simple_arity` in
+`analyser/compiler_checks.py`) treat each expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or
@@ -216,6 +226,8 @@ IRAssignValue(name="y", value="${x}")
 
 ## Related docs
 
+- [syntax-tree.md](syntax-tree.md) — the canonical red-green CST the segmenter
+  builds and derives `SegmentedCommand`s from
 - [Examples 1–2 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference](../../../docs/design/example-script-walkthroughs.md#data-structure-reference)
 - [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)

@@ -115,7 +115,7 @@ maintainer's machine.  None of them exist in GitHub Actions secrets.
 ## What CI may do
 
 * Build every release artefact via `make zipapp-X` / `make build-editor-jetbrains`
-  / `make sublime` / `make zed` / `make package-vsix`.
+  / `make build-editor-sublime` / `make build-editor-zed` / `make package-vsix`.
 * Sign every artefact with sigstore (OIDC + `github.token` — no
   configured secrets).
 * Generate SBOMs (`anchore/sbom-action`).

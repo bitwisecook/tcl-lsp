@@ -29,7 +29,7 @@ Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. 
 | `compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
 | `compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
 | `compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity); TclOO method summaries (`MethodSummary`: purity, instance-var writes, class context) | optimiser (O103; O126 `my <method>` purity gate), interproc taint propagation | `analyse_interprocedural_ir()` |
-| `compiler/optimiser/` | optimisation findings (`O100`–`O125`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
+| `compiler/optimiser/` | optimisation findings (`O100`–`O130`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
 | `compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
 | `compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
 | `compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
