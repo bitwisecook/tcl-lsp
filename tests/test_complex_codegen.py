@@ -1986,9 +1986,7 @@ class TestBracedWholeNameArrayRef:
         assert Op.LOAD_STK not in ops
 
     def test_list_arg_braced_is_whole_name_bare_is_split(self):
-        fa = _proc_asm(
-            "proc p {} { global a i l; set l [list ${a($i)} $a($i)] }", "::p"
-        )
+        fa = _proc_asm("proc p {} { global a i l; set l [list ${a($i)} $a($i)] }", "::p")
         ops = _opcodes(fa)
         # First element ${a($i)} → loadStk; second $a($i) → loadArray1.
         assert Op.LOAD_STK in ops
@@ -2036,9 +2034,7 @@ class TestBracedWholeNameArrayRef:
     def test_cmd_subst_arg_braced_is_whole_name(self):
         # `string length ${a($i)}` routes the braced arg through
         # _emit_cmd_subst_arg, which must whole-name-load it.
-        fa = _proc_asm(
-            "proc p {} { global a i; set r [string length ${a($i)}] }", "::p"
-        )
+        fa = _proc_asm("proc p {} { global a i; set r [string length ${a($i)}] }", "::p")
         ops = _opcodes(fa)
         assert Op.LOAD_STK in ops
         assert Op.STR_LEN in ops
@@ -2046,9 +2042,7 @@ class TestBracedWholeNameArrayRef:
         assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
 
     def test_cmd_subst_arg_bare_is_split(self):
-        fa = _proc_asm(
-            "proc p {} { global a i; set r [string length $a($i)] }", "::p"
-        )
+        fa = _proc_asm("proc p {} { global a i; set r [string length $a($i)] }", "::p")
         ops = _opcodes(fa)
         assert Op.LOAD_ARRAY1 in ops
         assert Op.STR_LEN in ops
