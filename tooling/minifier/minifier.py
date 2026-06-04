@@ -333,9 +333,37 @@ def minify_tcl(
     resolved_dialect = _resolve_dialect(dialect)
     if compact_names:
         renamed_source, symbol_map = _compact_names(source, isolated=isolated, seed_map=seed_map)
-        minified = _minify_body(renamed_source, dialect=resolved_dialect)
+        minified = _minify_body_stable(renamed_source, dialect=resolved_dialect)
         return minified, symbol_map
-    return _minify_body(source, dialect=resolved_dialect)
+    return _minify_body_stable(source, dialect=resolved_dialect)
+
+
+# Upper bound on stabilisation passes (see :func:`_minify_body_stable`).
+_STABILISE_PASSES = 8
+
+
+def _minify_body_stable(source: str, *, dialect: str | None = None) -> str:
+    """Minify *source* to a **fixed point**, so minification is idempotent.
+
+    Valid Tcl minifies idempotently in one pass, so the confirming pass returns
+    immediately.  Structurally malformed input (an unbalanced ``{`` / ``[`` /
+    ``"``) can minify non-idempotently — the lexer swallows an unterminated
+    region to EOF and reconstruction fabricates a closer that a re-parse
+    re-mangles, which used to grow the output by a delimiter on every pass.
+    Iterate to a fixed point; if none exists within :data:`_STABILISE_PASSES`,
+    the input is not cleanly minifiable, so return it unchanged rather than
+    mangle or unboundedly grow it.
+    """
+    result = _minify_body(source, dialect=dialect)
+    if _minify_body(result, dialect=dialect) == result:
+        return result
+    current = result
+    for _ in range(_STABILISE_PASSES):
+        nxt = _minify_body(current, dialect=dialect)
+        if nxt == current:
+            return current
+        current = nxt
+    return source
 
 
 def unminify_error(
@@ -1925,10 +1953,17 @@ def _reconstruct_arg(arg: _Arg, *, dialect: str | None = None) -> str:
     tokens = arg.tokens
     for idx, t in enumerate(tokens):
         next_t = tokens[idx + 1] if idx + 1 < len(tokens) else None
+        # Pass the following token whether or not the word is quoted: the
+        # fragments of a compound word abut with no separator either way, so a
+        # ``$var`` immediately followed by a word-char fragment needs ``${var}``
+        # braces to stop Tcl merging them into one longer name — ``${a}d`` must
+        # not minify to ``$ad`` (a different variable).  Restricting this to
+        # quoted words made re-minifying an unquoted ``${a}d`` drop the braces,
+        # which both changed semantics and broke idempotency.
         parts.append(
             _reconstruct_raw(
                 t,
-                next_tok=next_t if arg.is_quoted else None,
+                next_tok=next_t,
                 dialect=dialect,
             )
         )
