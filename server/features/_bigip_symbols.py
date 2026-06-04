@@ -74,8 +74,13 @@ def get_bigip_document_symbols(source: str) -> list[types.DocumentSymbol]:
             obj_range = getattr(obj, "range", None)
             if obj_range is None:
                 continue
+            # Global singletons (``auth password-policy``, ``net self-allow``,
+            # ``sys diags ihealth``, ...) have no path — the dict key is "".
+            # An empty ``DocumentSymbol.name`` makes the VS Code client reject
+            # the *entire* outline ("name must not be falsy"), so fall back to
+            # the kind label, which is the object's effective identity.
             by_module_kind.setdefault(module, {}).setdefault(kind, []).append(
-                (full_path, obj_range)
+                (full_path or kind, obj_range)
             )
 
     # Build the three-level tree.  Module / kind ranges span their
