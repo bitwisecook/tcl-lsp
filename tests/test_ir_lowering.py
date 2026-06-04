@@ -177,6 +177,31 @@ class TestIRLowering:
         assert expr_text(loop.condition) == "$i < 10"
         assert any(isinstance(s, IRIncr) and s.name == "i" for s in loop.body.statements)
 
+    def test_command_substitution_body_is_not_descended(self):
+        # A ``[...]`` command-substitution body is substituted at runtime to
+        # *produce* the body string — its inner text is NOT the body script.
+        # Lowering must keep it as the ``[foo bar]`` word (mirroring the
+        # analyser's ``descend_command``, which skips non-``STR`` bodies), not
+        # descend it into a call of ``foo`` (regression: ``_segment_body`` once
+        # admitted ``CMD`` bodies and read ``[foo bar]`` as the script
+        # ``foo bar``).
+        mod = lower_to_ir("while {1} [foo bar]")
+        loop = mod.top_level.statements[0]
+        assert isinstance(loop, IRWhile)
+        (body_stmt,) = loop.body.statements
+        assert isinstance(body_stmt, (IRCall, IRBarrier))
+        assert body_stmt.command == "[foo bar]"
+
+    def test_braced_body_is_descended(self):
+        # The braced counterpart *is* the script, so it is descended normally —
+        # the body command is ``foo``, not the literal ``{foo bar}`` word.
+        mod = lower_to_ir("while {1} {foo bar}")
+        loop = mod.top_level.statements[0]
+        assert isinstance(loop, IRWhile)
+        (body_stmt,) = loop.body.statements
+        assert isinstance(body_stmt, (IRCall, IRBarrier))
+        assert body_stmt.command == "foo"
+
     # Phase 1: Variable-defining commands
 
     def test_append_tracks_var_def(self):

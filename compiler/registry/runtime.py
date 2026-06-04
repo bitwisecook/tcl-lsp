@@ -1068,6 +1068,7 @@ def iter_switch_case_list(
     surrounding ``{`` ``}``).
     """
     from compiler.parsing.green_tree import tokenise
+    from shared.ranges import word_closer_offset
     from shared.tokens import TokenType
 
     lex_tokens, _ = tokenise(
@@ -1088,22 +1089,34 @@ def iter_switch_case_list(
     word_braced: list[bool] = []
     prev_type = TokenType.EOL
 
+    def _raw_end(tok: Token) -> int:
+        # Region-relative, exclusive end for the *pattern* raw-span slice
+        # ``case_list_text[start:end]``.  A braced ``{a b}`` / quoted ``"c d"``
+        # pattern lexes with ``tok.end`` on its last *inner* char, so a bare
+        # ``tok.end + 1`` lands *on* the closer and the slice drops it — the
+        # minifier then re-emits ``{a b`` / ``"c d`` and tclsh rejects the
+        # output ("missing close-brace").  Derive the end from the authoritative
+        # closer so it is included; fall back to ``tok.end + 1`` for
+        # non-delimited / unterminated words (unchanged behaviour there).
+        closer = word_closer_offset(tok, case_list_text, base_offset=base_offset)
+        return closer + 1 if closer is not None else tok.end.offset - base_offset + 1
+
     for tok in lex_tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
             prev_type = tok.type
             continue
         if prev_type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
             word_starts.append(tok.start.offset - base_offset)
-            word_ends.append(tok.end.offset - base_offset + 1)
+            word_ends.append(_raw_end(tok))
             word_tokens.append(tok)
             word_inner.append(tok.text)
             word_braced.append(tok.type == TokenType.STR)
         elif word_ends:
-            word_ends[-1] = tok.end.offset - base_offset + 1
+            word_ends[-1] = _raw_end(tok)
             word_inner[-1] += tok.text
         else:
             word_starts.append(tok.start.offset - base_offset)
-            word_ends.append(tok.end.offset - base_offset + 1)
+            word_ends.append(_raw_end(tok))
             word_tokens.append(tok)
             word_inner.append(tok.text)
             word_braced.append(tok.type == TokenType.STR)

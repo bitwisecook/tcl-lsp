@@ -9,6 +9,7 @@ from compiler.interprocedural import InterproceduralAnalysis
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_shift
+from compiler.parsing.token_scanning import parse_single_command
 from compiler.registry import REGISTRY
 from shared.diagnostic import Range
 from shared.naming import (
@@ -479,51 +480,16 @@ def _parse_single_command_from_range(
     end = command_range.end.offset
     if start < 0 or end < start or end >= len(source):
         return None
-
-    lex_tokens, _ = tokenise(
+    # Reconstruct each word from its *raw* token text (``tok.text``) — the
+    # spelling the optimiser's literal/var inspection expects — anchored at the
+    # range start so the returned tokens keep their absolute document positions.
+    return parse_single_command(
         source[start : end + 1],
-        start,
-        command_range.start.line,
-        command_range.start.character,
+        piece=lambda t: t.text,
+        base_offset=start,
+        base_line=command_range.start.line,
+        base_col=command_range.start.character,
     )
-
-    argv_texts: list[str] = []
-    argv_tokens: list[Token] = []
-    argv_single: list[bool] = []
-    prev_type = TokenType.EOL
-    saw_eol = False
-
-    for tok in lex_tokens:
-        if tok.type is TokenType.COMMENT:
-            continue
-        if tok.type is TokenType.SEP:
-            prev_type = tok.type
-            continue
-        if tok.type is TokenType.EOL:
-            if argv_texts:
-                saw_eol = True
-            prev_type = tok.type
-            continue
-        if saw_eol:
-            return None
-
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(tok.text)
-            argv_tokens.append(tok)
-            argv_single.append(True)
-        else:
-            if argv_texts:
-                argv_texts[-1] += tok.text
-                argv_single[-1] = False
-            else:
-                argv_texts.append(tok.text)
-                argv_tokens.append(tok)
-                argv_single.append(True)
-        prev_type = tok.type
-
-    if not argv_texts:
-        return None
-    return argv_texts, argv_tokens, argv_single
 
 
 def _parse_string_length_arg(cmd_text: str) -> str | None:

@@ -73,6 +73,29 @@ def test_parse_single_command():
     assert ts.parse_single_command("") is None
 
 
+def test_parse_single_command_expand_marker():
+    # ``{*}`` is a word-prefix *marker*, not a fragment: the real word token is
+    # the representative and ``single`` reflects the real fragment count
+    # (matching the CST's expand_marker model) — under both the default
+    # ``word_piece`` spelling and the optimiser's raw-text path.
+    for piece, expected in ((ts.word_piece, "${args}"), (lambda t: t.text, "args")):
+        parsed = ts.parse_single_command("foo {*}$args x", piece=piece)
+        assert parsed is not None
+        texts, tokens, single = parsed
+        assert texts == ["foo", expected, "x"]
+        assert single == [True, True, True]
+        # the expanded word's representative is the real VAR token, not the
+        # zero-width EXPAND marker
+        assert tokens[1].type is TokenType.VAR
+    # a multi-fragment expanded word stays single=False, anchored on its first
+    # real fragment (not the marker)
+    parsed = ts.parse_single_command("foo {*}$a$b")
+    assert parsed is not None
+    _texts, tokens, single = parsed
+    assert single == [True, False]
+    assert tokens[1].type is TokenType.VAR and tokens[1].text == "a"
+
+
 @pytest.mark.parametrize(
     "cmd_text,expected",
     [
@@ -98,3 +121,11 @@ def test_iter_region_words():
     assert texts == ["pat1", "body 1", "pat2", "body 2"]
     # every element is flagged as a word start (all separated by spaces)
     assert all(start for _, _, start in words)
+
+
+def test_iter_region_words_expand_marker():
+    # ``{*}`` is skipped as a word boundary; the following real token becomes the
+    # word's first_token (not the zero-width EXPAND marker).
+    words = list(ts.iter_region_words("foo {*}$args"))
+    assert [w for _, w, _ in words] == ["foo", "${args}"]
+    assert [tok.type for tok, _, _ in words] == [TokenType.ESC, TokenType.VAR]
