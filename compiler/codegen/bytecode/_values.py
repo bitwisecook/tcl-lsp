@@ -92,20 +92,35 @@ class _ValuesMixin:
         """
         if elem.startswith("${") and elem.endswith("}"):
             # Braced variable reference used as an array key, e.g.
-            # ``socketMapping(${state(socketinfo)})``.  The segmenter
-            # normalises a *bare* nested ref ``$state(socketinfo)`` to the
-            # ``${...}`` spelling when it reconstructs the composite word,
-            # so an array-shaped key here is a SPLIT array read (``push
-            # "state"; push "socketinfo"; loadArrayStk``), not a whole-name
-            # load.  Resolve it directly via ``_load_var`` (a scalar key
-            # ``${foo}`` still loads the scalar) rather than ``_emit_value``,
-            # whose whole-name detection is reserved for genuinely braced
-            # top-level values.
-            inner = self._parse_simple_var_ref(elem)
-            if inner is not None:
-                self._load_var(inner)
+            # ``outer(${a($i)})`` or the store target ``set outer(${a($i)}) 9``.
+            # Braced spelling SUPPRESSES inner substitution, so a braced
+            # array-shaped key whose inner name carries a *suppressed*
+            # substitution (``${a($i)}`` — the ``$i`` is held literal) is a
+            # WHOLE-name load: ``push "a($i)"; loadStk`` (the runtime
+            # resolves the array element from the whole literal name),
+            # matching tclsh 9.0.3.
+            #
+            # A braced key with a *static* index (``${a(1)}``) is special:
+            # the command segmenter collapses BOTH the bare ``$a(1)`` and
+            # braced ``${a(1)}`` static-index keys to the same ``${a(1)}``
+            # spelling here, so the bare/braced distinction is already lost
+            # by the time codegen runs.  The reference corpus exercises the
+            # bare form (``set ::a($::a(1)) 3`` → SPLIT ``loadArrayStk``),
+            # so the ambiguous static case must keep SPLITTING via
+            # ``_load_var``; only the unambiguous dynamic-index case takes
+            # the whole-name path.  A plain braced scalar ``${foo}`` also
+            # loads via ``_load_var``.  Bare ``$...`` keys with a dynamic
+            # index (``$a($i)``) survive as bare and are SPLIT by the
+            # ``elif elem.startswith("$")`` branch below.
+            whole = self._parse_whole_name_array_ref(elem)
+            if whole is not None and ("$" in whole or "[" in whole):
+                self._emit_whole_name_array_load(elem)
             else:
-                self._emit_value(elem)
+                inner = self._parse_simple_var_ref(elem)
+                if inner is not None:
+                    self._load_var(inner)
+                else:
+                    self._emit_value(elem)
         elif elem.startswith("$"):
             # Bare variable reference: $::a(1) — strip $ and load
             self._load_var(elem[1:])
@@ -248,8 +263,12 @@ class _ValuesMixin:
                     self._load_var(amount)
                     self._emit(Op.INCR_SCALAR1, slot, comment=f'var "{name}"')
             else:
-                var_ref = self._parse_simple_var_ref(amount)
-                self._load_var(var_ref if var_ref is not None else amount)
+                # A braced whole-name amount ``incr x ${a($i)}`` loads the
+                # WHOLE name (``push "a($i)"; loadStk``); bare ``$a($i)`` and
+                # scalars go through the split ``_load_var`` path.
+                if not self._emit_whole_name_array_load(amount):
+                    var_ref = self._parse_simple_var_ref(amount)
+                    self._load_var(var_ref if var_ref is not None else amount)
                 self._emit(Op.INCR_SCALAR1, slot, comment=f'var "{name}"')
         else:
             arr = self._split_array_ref(name)
@@ -279,9 +298,19 @@ class _ValuesMixin:
                     self._emit(Op.INVOKE_STK1, 3, comment="incr")
                     return
             else:
-                # Variable amount — use incrStk (load amount from stack)
+                # Variable amount — use incrStk (load amount from stack).
+                # A braced whole-name amount ``incr x ${a($i)}`` loads the
+                # WHOLE name (``push name; push "a($i)"; loadStk; incrStk``);
+                # a scalar/array ``${var}`` amount loads via ``_load_var``.
+                # Bare/other amounts fall back to the generic ``incr`` invoke.
+                whole_amount = self._parse_whole_name_array_ref(amount)
                 var_ref = self._parse_simple_var_ref(amount)
-                if arr is None and var_ref is not None:
+                if arr is None and whole_amount is not None:
+                    self._push_lit(name)
+                    self._push_lit(whole_amount)
+                    self._emit(Op.LOAD_STK)
+                    self._emit(Op.INCR_STK)
+                elif arr is None and var_ref is not None:
                     self._push_lit(name)
                     self._load_var(var_ref)
                     self._emit(Op.INCR_STK)
@@ -370,6 +399,25 @@ class _ValuesMixin:
         if "(" in inner and inner.endswith(")"):
             return inner
         return None
+
+    def _emit_whole_name_array_load(self: _Emitter, value: str) -> bool:
+        """Emit a whole-name array load for a braced ``${a(...)}`` ref.
+
+        If *value* is a braced whole-name array ref ``${a(...)}``, emit
+        ``push <inner>; loadStk`` (the runtime resolves the array element
+        from the whole literal name) and return True; otherwise return
+        False.  Callers MUST try this BEFORE
+        ``_parse_simple_var_ref``/``_load_var``, which would otherwise
+        SPLIT ``${a($i)}`` into a substituted array read (``push "a";
+        <load i>; loadArrayStk``), wrongly compiling braced ``${a($i)}``
+        exactly like bare ``$a($i)``.
+        """
+        whole = self._parse_whole_name_array_ref(value)
+        if whole is None:
+            return False
+        self._push_lit(whole)
+        self._emit(Op.LOAD_STK)
+        return True
 
     @staticmethod
     def _canonical_verbatim_ref(text: str) -> str:
@@ -521,10 +569,7 @@ class _ValuesMixin:
         # push + loadStk (the runtime resolves the array element), NOT a
         # split array load.  Must run before _parse_simple_var_ref, which
         # would otherwise route ${a(1)} through the split _load_var path.
-        whole_name = self._parse_whole_name_array_ref(value)
-        if whole_name is not None:
-            self._push_lit(whole_name)
-            self._emit(Op.LOAD_STK)
+        if self._emit_whole_name_array_load(value):
             return
         var_name = self._parse_simple_var_ref(value)
         if var_name is not None:
@@ -663,10 +708,7 @@ class _ValuesMixin:
             return
         # Braced array-shaped ref ${a(1)} → load WHOLE name a(1) via
         # push + loadStk (runtime resolves the array element).
-        whole_name = self._parse_whole_name_array_ref(value)
-        if whole_name is not None:
-            self._push_lit(whole_name)
-            self._emit(Op.LOAD_STK)
+        if self._emit_whole_name_array_load(value):
             return
         # Variable reference → load var.
         var_name = self._parse_simple_var_ref(value)

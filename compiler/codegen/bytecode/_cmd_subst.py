@@ -268,6 +268,13 @@ class _CmdSubstMixin:
         """Emit a single arg from a parsed command substitution."""
         arg, braced, _expand = arg_pair
         if not braced and arg.startswith("$"):
+            # A braced whole-name array ref ``${a($i)}`` loads the WHOLE
+            # literal name (``push "a($i)"; loadStk``) — braces suppress the
+            # inner ``$i`` substitution.  Must run before the split paths
+            # below, which would otherwise compile it like a bare ``$a($i)``
+            # (``push "a"; <load i>; loadArrayStk``).
+            if self._emit_whole_name_array_load(arg):
+                return
             var_name = self._parse_simple_var_ref(arg)
             if var_name is None and len(arg) > 1 and arg[1:].isidentifier():
                 # Bare $varname form (not normalised to ${var})
@@ -350,39 +357,44 @@ class _CmdSubstMixin:
                 self._emit_inline_cmd_subst(arg)
                 self._place_label(end_label)
             elif not braced and arg.startswith("$"):
-                var_name = self._parse_simple_var_ref(arg)
-                if var_name is None and len(arg) > 1:
-                    # Bare ``\$varname`` form parsed verbatim
-                    # from the cmd-subst text.
-                    # ``_parse_simple_var_ref`` only matches the
-                    # lowering's normalised ``${var}`` shape;
-                    # recognise the unbraced scalar (``\$x``,
-                    # ``\$ns::var``) and array-element
-                    # (``\$arr(key)``, including dynamic
-                    # ``\$arr(\$i)`` indices) forms here so we
-                    # emit a real variable load through
-                    # ``_load_var`` instead of pushing the
-                    # literal ``\$…`` source bytes.
-                    rest = arg[1:]
-                    paren = rest.find("(")
-                    if paren != -1 and rest.endswith(")"):
-                        head = rest[:paren]
-                        if (
-                            head
-                            and (head[0].isalpha() or head[0] == "_")
-                            and all(ch.isalnum() or ch in "_:" for ch in head)
+                # A braced whole-name array ref ``${a($i)}`` loads the WHOLE
+                # literal name (``push "a($i)"; loadStk``) — braces suppress
+                # the inner ``$i``.  Must run before the split paths below,
+                # which would compile it like a bare ``$a($i)``.
+                if not self._emit_whole_name_array_load(arg):
+                    var_name = self._parse_simple_var_ref(arg)
+                    if var_name is None and len(arg) > 1:
+                        # Bare ``\$varname`` form parsed verbatim
+                        # from the cmd-subst text.
+                        # ``_parse_simple_var_ref`` only matches the
+                        # lowering's normalised ``${var}`` shape;
+                        # recognise the unbraced scalar (``\$x``,
+                        # ``\$ns::var``) and array-element
+                        # (``\$arr(key)``, including dynamic
+                        # ``\$arr(\$i)`` indices) forms here so we
+                        # emit a real variable load through
+                        # ``_load_var`` instead of pushing the
+                        # literal ``\$…`` source bytes.
+                        rest = arg[1:]
+                        paren = rest.find("(")
+                        if paren != -1 and rest.endswith(")"):
+                            head = rest[:paren]
+                            if (
+                                head
+                                and (head[0].isalpha() or head[0] == "_")
+                                and all(ch.isalnum() or ch in "_:" for ch in head)
+                            ):
+                                var_name = rest
+                        elif (
+                            rest
+                            and (rest[0].isalpha() or rest[0] == "_")
+                            and all(ch.isalnum() or ch in "_:" for ch in rest)
                         ):
                             var_name = rest
-                    elif (
-                        rest
-                        and (rest[0].isalpha() or rest[0] == "_")
-                        and all(ch.isalnum() or ch in "_:" for ch in rest)
-                    ):
-                        var_name = rest
-                if var_name is not None:
-                    self._load_var(var_name)
-                else:
-                    self._push_lit(arg)
+                    if var_name is not None:
+                        self._load_var(var_name)
+                    else:
+                        self._push_lit(arg)
             elif braced and ("$" in arg or "[" in arg):
                 self._push_lit("{" + arg + "}")
             elif not braced and "\\" in arg:

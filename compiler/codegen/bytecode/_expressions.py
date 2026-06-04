@@ -180,11 +180,7 @@ class _ExpressionsMixin:
             case ExprRaw(text=text):
                 # Braced array-shaped ref ${a(1)}: load the WHOLE name
                 # a(1) via push + loadStk (runtime resolves the element).
-                whole_name = self._parse_whole_name_array_ref(text)
-                if whole_name is not None:
-                    self._push_lit(whole_name)
-                    self._emit(Op.LOAD_STK)
-                else:
+                if not self._emit_whole_name_array_load(text):
                     var_name = self._parse_simple_var_ref(text)
                     if var_name is not None:
                         self._load_var(var_name)
