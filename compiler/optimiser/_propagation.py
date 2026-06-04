@@ -9,7 +9,7 @@ from compiler.interprocedural import (
     fold_static_proc_call,
 )
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role
@@ -804,14 +804,13 @@ def optimise_return_terminator(
     safe_constants = safe_string_constants(constants, block, len(block.statements))
     if safe_constants:
         all_tokens: list[Token] = []
-        lexer = TclLexer(
-            source[start : end + 1],
-            base_offset=start,
-            base_line=ret_range.start.line,
-            base_col=ret_range.start.character,
+        _it = iter(
+            tokenise(
+                source[start : end + 1], start, ret_range.start.line, ret_range.start.character
+            )[0]
         )
         while True:
-            t = lexer.get_token()
+            t = next(_it, None)
             if t is None:
                 break
             all_tokens.append(t)

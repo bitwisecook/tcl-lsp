@@ -40,7 +40,8 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from compiler.interprocedural import InterproceduralAnalysis, resolve_call_target
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.token_scanning import scan_command_substitutions
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.runtime import loop_list_header_commands
@@ -461,12 +462,12 @@ def _parse_cmd_token(text: str) -> tuple[str, tuple[str, ...]] | None:
     downstream canonicalisation and purity checks can re-discover the
     nested commands.
     """
-    lexer = TclLexer(text)
+    _it = iter(tokenise(text, 0, 0, 0)[0])
     argv: list[str] = []
     prev_sep = True
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
             break
         if tok.type in (TokenType.SEP, TokenType.COMMENT):
@@ -501,20 +502,7 @@ def _find_cmd_tokens_in_text(
     base_col: int,
 ) -> list[Token]:
     """Find all CMD tokens in *text* (a word or value string)."""
-    lexer = TclLexer(
-        text,
-        base_offset=base_offset,
-        base_line=base_line,
-        base_col=base_col,
-    )
-    result: list[Token] = []
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.CMD:
-            result.append(tok)
-    return result
+    return scan_command_substitutions(text, base_offset, base_line, base_col)
 
 
 def _cmd_tokens_from_statement(
@@ -1026,9 +1014,9 @@ def _collect_cmd_tokens_recursive(
     STR tokens to find CMD tokens inside conditions and bodies.
     """
     result: list[Token] = []
-    lexer = TclLexer(text, base_offset=base_offset, base_line=base_line, base_col=base_col)
+    _it = iter(tokenise(text, base_offset, base_line, base_col)[0])
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type is TokenType.CMD:

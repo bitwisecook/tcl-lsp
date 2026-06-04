@@ -37,7 +37,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
@@ -198,7 +198,7 @@ class IrulesFlowWarning:
 
 def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_col: int):
     """Yield (cmd_name, cmd_token, all_tokens) for each top-level command in body_text."""
-    lexer = TclLexer(body_text, base_offset=base_offset, base_line=base_line, base_col=base_col)
+    _it = iter(tokenise(body_text, base_offset, base_line, base_col)[0])
     argv: list[Token] = []
     argv_texts: list[str] = []
     all_tokens: list[Token] = []
@@ -212,7 +212,7 @@ def _walk_body_commands(body_text: str, base_offset: int, base_line: int, base_c
         all_tokens.clear()
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         match tok.type:
@@ -247,7 +247,7 @@ def _find_when_bodies(source: str):
     Base priority is extracted from ``when EVENT priority N { body }``; defaults
     to 500.
     """
-    lexer = TclLexer(source)
+    _it = iter(tokenise(source, 0, 0, 0)[0])
     argv: list[Token] = []
     argv_texts: list[str] = []
     prev_type = TokenType.EOL
@@ -269,7 +269,7 @@ def _find_when_bodies(source: str):
         argv_texts.clear()
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         match tok.type:
@@ -1105,14 +1105,14 @@ def _scan_namespaced_cmds_in_text(text: str) -> set[str]:
     also caught here, plus the cases the regex missed).
     """
     from compiler.parsing.command_segmenter import segment_commands
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
     from shared.tokens import TokenType
 
     found: set[str] = set()
     if "[" not in text and "::" not in text:
         return found
     try:
-        tokens = TclLexer(text).tokenise_all()
+        tokens, _ = tokenise(text, 0, 0, 0)
     except Exception:
         # Unparseable -- fall back to the regex match (sound: caller
         # will refuse to hoist if any cmd looks unavailable).

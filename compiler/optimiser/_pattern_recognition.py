@@ -928,13 +928,15 @@ def _parse_cmd_token_contents(
     correct ``base_offset``/``base_line``/``base_col`` to the lexer keeps
     every re-parsed inner token's range pointing into the original source.
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
 
-    lexer = TclLexer(
-        cmd_tok.text,
-        base_offset=cmd_tok.start.offset + 1,
-        base_line=cmd_tok.start.line,
-        base_col=cmd_tok.start.character + 1,
+    _it = iter(
+        tokenise(
+            cmd_tok.text,
+            cmd_tok.start.offset + 1,
+            cmd_tok.start.line,
+            cmd_tok.start.character + 1,
+        )[0]
     )
     argv_texts: list[str] = []
     argv_tokens: list[Token] = []
@@ -943,7 +945,7 @@ def _parse_cmd_token_contents(
     saw_eol = False
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type is TokenType.COMMENT:

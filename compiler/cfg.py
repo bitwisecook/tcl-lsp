@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from compiler.registry.runtime import arg_indices_for_role
 from compiler.registry.signatures import ArgRole
@@ -84,7 +84,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
     ``x`` even though ``x`` is not a direct argument of ``catch``.
     """
     defs: list[str] = []
-    lexer = TclLexer(body_text)
+    _toks = tokenise(body_text, 0, 0, 0)[0]
     words: list[str] = []
     prev_type = TokenType.EOL
 
@@ -99,7 +99,7 @@ def _defs_from_body_script(body_text: str) -> list[str]:
                 if name:
                     defs.append(name)
 
-    for tok in lexer.tokenise_all():
+    for tok in _toks:
         if tok.type in (TokenType.EOL, TokenType.EOF):
             _flush()
             words = []
@@ -359,10 +359,10 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
         if text.startswith("[") and text.endswith("]"):
             text = text[1:-1]
         # Tokenise the command to get the command name and plain-word args.
-        lexer = TclLexer(text)
+        _toks = tokenise(text, 0, 0, 0)[0]
         words: list[str] = []
         prev_type = TokenType.EOL
-        for tok in lexer.tokenise_all():
+        for tok in _toks:
             if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
                 prev_type = tok.type
                 continue
@@ -396,14 +396,14 @@ def _defs_from_expr(expr: ExprNode) -> list[str]:
         # Recursively scan command substitutions in arguments so that
         # ``[lsearch $tags [set full_tag [string tolower $x]]]``
         # correctly reports ``full_tag`` as defined.
-        lexer2 = TclLexer(text)
-        for tok in lexer2.tokenise_all():
+        _toks2 = tokenise(text, 0, 0, 0)[0]
+        for tok in _toks2:
             if tok.type is TokenType.CMD and tok.text:
                 nested_text = tok.text
-                nested_lexer = TclLexer(nested_text)
+                _ntoks = tokenise(nested_text, 0, 0, 0)[0]
                 nested_words: list[str] = []
                 np = TokenType.EOL
-                for nt in nested_lexer.tokenise_all():
+                for nt in _ntoks:
                     if nt.type in (TokenType.SEP, TokenType.EOL, TokenType.EOF):
                         np = nt.type
                         continue
@@ -661,20 +661,20 @@ class _CFGBuilder:
         if not self._upvar_procs or "[" not in text:
             return []
         defs: list[str] = []
-        lexer = TclLexer(text)
+        _it = iter(tokenise(text, 0, 0, 0)[0])
         while True:
-            tok = lexer.get_token()
+            tok = next(_it, None)
             if tok is None:
                 break
             if tok.type is not TokenType.CMD:
                 continue
             # tok.text is the inner text of [...]; lex it for words.
-            inner = TclLexer(tok.text)
+            _inner_it = iter(tokenise(tok.text, 0, 0, 0)[0])
             words: list[str] = []
             parts: list[str] = []
             prev_sep = True
             while True:
-                t = inner.get_token()
+                t = next(_inner_it, None)
                 if t is None:
                     break
                 if t.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):

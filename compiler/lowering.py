@@ -22,7 +22,8 @@ from typing import cast
 from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
-from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect as _active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
@@ -244,21 +245,22 @@ def _expr_arg_from_expr_command(cmd_text: str) -> str | None:
 
 def _switch_body_elements(body_text: str, outer_tok: Token | None) -> tuple[list[str], list[Token]]:
     if outer_tok is not None:
-        lexer = TclLexer(
+        _toks = tokenise(
             body_text,
-            base_offset=outer_tok.start.offset + 1,
-            base_line=outer_tok.start.line,
-            base_col=outer_tok.start.character + 1,
-        )
+            outer_tok.start.offset + 1,
+            outer_tok.start.line,
+            outer_tok.start.character + 1,
+        )[0]
     else:
-        lexer = TclLexer(body_text)
+        _toks = tokenise(body_text, 0, 0, 0)[0]
+    _it = iter(_toks)
 
     elements: list[str] = []
     element_tokens: list[Token] = []
     prev_type = TokenType.EOL
 
     while True:
-        tok = lexer.get_token()
+        tok = next(_it, None)
         if tok is None:
             break
         if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):

@@ -111,11 +111,11 @@ def _script_command_names(script_text: str, out: set[str]) -> None:
     bodies of command substitutions, where the leading word genuinely is
     a command.
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
     from shared.tokens import TokenType
 
     at_cmd_start = True
-    for tok in TclLexer(script_text).tokenise_all():
+    for tok in tokenise(script_text, 0, 0, 0)[0]:
         ttype = tok.type
         if ttype in (TokenType.EOL,):
             at_cmd_start = True
@@ -146,10 +146,10 @@ def _subst_commands(word_text: str, out: set[str]) -> None:
     The word's own bare text is NOT a command (e.g. ``lappend l foo``'s
     ``foo`` is data) — only the contents of command substitutions are.
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
     from shared.tokens import TokenType
 
-    for tok in TclLexer(word_text).tokenise_all():
+    for tok in tokenise(word_text, 0, 0, 0)[0]:
         if tok.type == TokenType.CMD:
             _script_command_names(tok.text, out)
 
