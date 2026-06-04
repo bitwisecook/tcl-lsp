@@ -143,29 +143,46 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
 /// `Str` / `Cmd` whose closer actually sits at `span.end()`.
 ///
 /// The closer character is derived from the token *type* (Python's
-/// `range_from_word_token`); the single source byte at `span.end()` is only
-/// inspected to skip the degenerate `{}` / `[]` forms, whose span already
-/// covers the closer (the lexer extends those by one), so the byte at
-/// `span.end()` is whatever follows the word, not the closer.
-fn command_span(tokens: &[Token], source: &str) -> Span {
+/// `range_from_word_token`); whether the closer is *already covered* by the
+/// span is derived from the token *text*, not a source byte — see
+/// [`widen_word_end`].
+fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
     if tokens.is_empty() {
         return Span::new(0, 0);
     }
     let start = tokens.first().unwrap().span.start();
-    let end = widen_word_end(*tokens.last().unwrap(), source);
+    let end = widen_word_end(*tokens.last().unwrap(), sm);
     Span::new(start, end)
 }
 
 /// Exclusive end offset of `tok` including its closing delimiter, for the
 /// braced / bracketed word forms. See [`command_span`].
-fn widen_word_end(tok: Token, source: &str) -> u32 {
+///
+/// Mirrors `shared/ranges.py::range_from_word_token`: the lexer follows the
+/// inner-end convention, so a non-empty `{…}` / `[…]` word's span ends one
+/// byte *before* its closer and the command range must widen by one to cover
+/// it.  An empty `{}` / `[]` is the exception — the lexer extends its span to
+/// cover the closer, so the closer is *already inside* the span and widening
+/// would overshoot into whatever follows (issue #527: a trailing empty `{}`
+/// swallowing the enclosing body's `}`).  The discriminator is the token
+/// *text* (empty ⟺ the closer is already covered), not a source byte: a byte
+/// check at `span.end()` is fooled by an enclosing closer immediately after
+/// an empty `{}` (`a {}}`) and by a backslash-escaped inner closer (`{a\}}`).
+/// Quoted `"…"` words are deliberately **not** widened here — their closer
+/// cannot be derived from the token *type*, and `cmd.range` consumers (W105
+/// unbraced-body detection, segmenter tiling) rely on the inner-end for them.
+fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
     let closer = match tok.kind {
         TokenType::Str => b'}',
         TokenType::Cmd => b']',
         _ => return tok.span.end(),
     };
     let end = tok.span.end();
-    if source.as_bytes().get(end as usize) == Some(&closer) {
+    if sm.token_text(tok).is_empty() {
+        // Empty `{}` / `[]`: span already covers the closer — don't widen.
+        return end;
+    }
+    if sm.source().as_bytes().get(end as usize) == Some(&closer) {
         end + 1
     } else {
         end
@@ -437,7 +454,7 @@ impl SegmenterState {
     fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
         if !self.argv.is_empty() {
             self.commands.push(SegmentedCommand {
-                span: command_span(&self.all_tokens, sm.source()),
+                span: command_span(&self.all_tokens, sm),
                 argv: std::mem::take(&mut self.argv),
                 texts: std::mem::take(&mut self.texts),
                 single_token_word: std::mem::take(&mut self.single),
@@ -578,7 +595,7 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
             mut last_comment,
         } = state;
         commands.push(SegmentedCommand {
-            span: command_span(&all_tokens, source),
+            span: command_span(&all_tokens, &sm),
             argv,
             texts,
             single_token_word: single,
@@ -845,6 +862,37 @@ mod tests {
         let cmds = segment_commands(src);
         assert_eq!(cmds.len(), 1);
         assert_eq!(&src[cmds[0].span.as_range()], "proc f {}");
+    }
+
+    #[test]
+    fn widen_word_end_does_not_overshoot_empty_brace_before_enclosing_closer() {
+        // The #527 / SYNC-JUN06 case made reachable directly: an empty
+        // `{}` as the final word of a command, with an enclosing `}`
+        // immediately after it in the *same* buffer. `command_span` must
+        // stop at the empty brace's own closer, never the enclosing one.
+        //
+        // The old byte-check `source[span.end()] == '}'` over-reached here
+        // (the byte one past the empty `{}` span *is* the enclosing `}`);
+        // the faithful text-empty predicate does not. The public
+        // segmenter lexes `a {}}` as `a`, `{}`, `}` (the stray `}` is its
+        // own word), so the overshoot is constructed at the token level.
+        let src = "a {}}";
+        let sm = SourceMap::new(src);
+        let toks = tcl_lexer::Lexer::new(src).tokenise_all().unwrap();
+        let words: Vec<Token> = toks
+            .iter()
+            .copied()
+            .filter(|t| !matches!(t.kind, TokenType::Sep | TokenType::Eol | TokenType::Eof))
+            .collect();
+        // words == [`a`, `{}`, `}`]; drop the trailing stray `}` so the
+        // empty `{}` is the command's final word.
+        assert_eq!(words[1].kind, TokenType::Str);
+        assert_eq!(words[1].span.end(), 4);
+        let span = command_span(&words[..2], &sm);
+        assert_eq!(&src[span.as_range()], "a {}");
+        assert_eq!(span.end(), 4, "must not swallow the enclosing `}}`");
+        // The lone widen helper agrees.
+        assert_eq!(widen_word_end(words[1], &sm), 4);
     }
 
     #[test]

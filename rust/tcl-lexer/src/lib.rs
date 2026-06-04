@@ -12,6 +12,12 @@
 //!   rewrite (tokens now, IR and CFG nodes later) holds a bare
 //!   [`Span`] and asks a [`SourceMap`] for text or positions on
 //!   demand (chunk **L3**).
+//! - [`word_closer_offset`], [`word_end_position`] — source-aware
+//!   authoritative closer accessors for delimited word tokens, derived
+//!   from the lexer's content geometry (correct for empty `{}` / `[]` /
+//!   `""` and backslash-bearing quoted words). Ports the
+//!   `shared/ranges.py` accessors landed on `main` by #533
+//!   (`SYNC-JUN06` / `CST-PORT`).
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the L3 lexer
 //!   skeleton. Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens;
 //!   every other construct is surfaced as a `SyntaxError` (in
@@ -28,6 +34,7 @@
 mod expr_lexer;
 mod lexer;
 mod line_index;
+mod ranges;
 mod source_map;
 mod span;
 mod substitution;
@@ -39,6 +46,7 @@ pub use expr_lexer::{
 };
 pub use lexer::{LexError, Lexer, LexerConfig};
 pub use line_index::LineIndex;
+pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use substitution::backslash_subst;
