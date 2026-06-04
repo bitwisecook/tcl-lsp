@@ -188,6 +188,18 @@ def parse_single_command(
             flush()
             prev_type = tok.type
             continue
+        if tok.type is TokenType.EXPAND:
+            # ``{*}`` is a word-prefix *marker*, not a fragment: it carries no
+            # text and is not the representative token of the word it expands.
+            # The lexer only emits it immediately before that word (a bare/
+            # trailing ``{*}`` lexes as a literal ``STR``), so treating it as a
+            # word boundary makes the following real token start a fresh word —
+            # matching the CST, which models ``{*}`` as a separate expand_marker
+            # (C Tcl ``tclParse.c`` TCL_TOKEN_EXPAND_WORD), so the word's
+            # representative token and ``single`` flag agree with the CommandTokens
+            # the segmenter attaches.
+            prev_type = TokenType.SEP
+            continue
         frag = piece(tok)
         if prev_type in (TokenType.SEP, TokenType.EOL):
             argv_texts.append(frag)
@@ -287,6 +299,13 @@ def iter_region_words(
                 word = ""
             word_start = True
             prev_type = tok.type
+            continue
+        if tok.type is TokenType.EXPAND:
+            # ``{*}`` marker: not a fragment and not the word's representative
+            # token.  It only appears immediately before the word it expands, so
+            # treat it as a word boundary — the following real token becomes the
+            # word's ``first_token`` (matching the CST's expand_marker model).
+            prev_type = TokenType.SEP
             continue
         piece = word_piece(tok, bare_arrays_split=False)
         if first_tok is None:
