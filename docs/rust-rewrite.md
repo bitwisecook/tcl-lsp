@@ -3995,19 +3995,42 @@ deferred until the irules quick-fixes / `_style.py` land (then the fold is
 direct).  **The L1 finding for the *descent* is fully resolved** (strips 1
 + 3); only the range accessors remain, gated on their consumers.
 
-**Remaining follow-ups (subset gaps vs main, not over-records — tracked):**
-(a) **switch-arm recording** — record the arm bodies' commands
+### Strip 5 — expr-arg command substitutions in the recursion (LANDED 2026-06-04)
+
+A command substitution inside an *expr* argument of a command nested in a
+substitution is an invocation too (`[if {[acl_ok]} {fwd}]` → `acl_ok`);
+`record_command_invocations` recorded the head + bodies but skipped expr
+args (`descend_command` deliberately excludes `Expr`).  Added
+`collect_expr_substitutions`: for each `ArgRole::Expr` arg (resolved via
+the registry) the braced expression is re-lexed as a script (which still
+tokenises a `[…]` as `Cmd`) and every `Cmd` token descended — only the
+substitutions, never the expression's operands (`$x`, `+`, literals) or a
+spurious expr "head" — mirroring main's `_recurse_expression_subcommands`.
+`[if {[check]} {fwd}]` → `{if, check, fwd}`, `[expr {[bar]+1}]` →
+`{expr, bar}`, `[while {[cond]} {act}]` → `{while, cond, act}` — all
+matching main (verified on the 9-context expr/data battery; the only
+remaining divergence is the pre-existing top-level `{[noeval]}`
+over-record, follow-up (a) below).  Discriminating test extended (FAILS
+pre-strip: `missing "check"`).
+
+**Remaining follow-ups (tracked):**
+(a) **braced-data over-record** — at the *top level*
+`record_invocations_from_word_token` strips braces and scans **every**
+`Str` arg, so a braced *data* word over-records (`set x {[noeval]}` →
+spurious `noeval`; main records nothing).  Fix: gate the braced-`Str` scan
+on `ArgRole::Expr` (reuse `collect_expr_substitutions`), skipping non-expr
+braced words — a `Body` braced word is already covered by `analyse_body`,
+verified by `proc p {} {[x] hi}` → `{proc, [x], x}` with **no
+double-count** today.  Carries a small regression risk (a body arg some
+handler doesn't route to `analyse_body` would be lost), so it needs the
+empirical `analyse_body`-coverage check before landing — its own strip.
+(b) **switch-arm recording** — record the arm bodies' commands
 (`[switch $v {a {cmd1} …}]` → `cmd1`/`cmd2`) by parsing the list into
 pattern/body pairs and descending each body (main's
-`_recurse_switch_list_body`); (b) **expr-arg cmd-subs** — record `[cmd]`
-inside a braced *expr* arg (`[expr {[bar]+1}]` → `bar`, `[if {[foo]} …]` →
-`foo`) via the expr lexer (main's `_recurse_expression_subcommands`), and
-in the same strip stop `record_invocations_from_word_token` stripping
-braces on a *data* word (the pre-existing `set x {[noeval]}` → spurious
-`noeval` over-record — the two are the same missing Expr-vs-data
-distinction); (c) optional behaviour-preserving folds of `analyse_body` /
-`rename.rs`'s body re-segmentation onto the descent (not needed for L1,
-which strips 1 + 3 close).
+`_recurse_switch_list_body`); currently a clean subset (the list body is
+skipped, no over-record).  (c) optional behaviour-preserving folds of
+`analyse_body` / `rename.rs`'s body re-segmentation onto the descent (not
+needed for L1, which strips 1 + 3 close).
 
 ## Next-up priority queue
 

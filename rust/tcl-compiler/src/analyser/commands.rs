@@ -26,7 +26,7 @@
 //! extending it remains a one-liner.
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
@@ -824,6 +824,45 @@ fn record_command_invocations(
             }
             for inner in segments_from_tree(body.descended.tree(), sm) {
                 record_command_invocations(sm, Some(registry), &inner, config, out);
+            }
+        }
+        // Expr arguments (`if` / `while` / `expr` / … conditions): a
+        // command substitution inside the expression is an invocation
+        // too (`if {[acl_ok]} …` → `acl_ok`).  `descend_command`
+        // deliberately excludes `Expr` args (they are not scripts), so
+        // handle them here — mirroring main's
+        // `_recurse_expression_subcommands`.
+        for index in registry.arg_indices_for_role(name, &args, ArgRole::Expr) {
+            if let Some(&tok) = arg_tokens.get(index) {
+                collect_expr_substitutions(sm, Some(registry), tok, config, out);
+            }
+        }
+    }
+}
+
+/// Find the ``[…]`` command substitutions inside an expression argument
+/// (`if` / `while` / `expr` conditions) and descend each — mirroring
+/// main's `_recurse_expression_subcommands`.
+///
+/// An expression's own operands (`$x`, `+`, literals) are not commands,
+/// so the braced expr is re-lexed as a script (which still tokenises a
+/// ``[…]`` as a `Cmd`) and only the `Cmd` tokens are descended — never
+/// the expression "head".
+fn collect_expr_substitutions(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    expr_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    if expr_tok.kind != TokenType::Str || sm.token_text(expr_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, expr_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        for tok in &seg.all_tokens {
+            if tok.kind == TokenType::Cmd {
+                collect_substitution_heads(sm, registry, *tok, config, out);
             }
         }
     }

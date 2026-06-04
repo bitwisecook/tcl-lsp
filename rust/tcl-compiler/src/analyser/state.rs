@@ -2580,6 +2580,20 @@ mod tests {
                 &["set", "foreach", "log"],
             ),
             ("set x [eval {one; two}]\n", &["set", "eval", "one", "two"]),
+            // CST-CONSUMERS strip 4: a command substitution inside an
+            // *expr* argument of a command nested in a substitution is an
+            // invocation too (collect_expr_substitutions, mirroring
+            // `_recurse_expression_subcommands`). `[if {[check]} {fwd}]`
+            // -> {if, check, fwd}; `[expr {[bar] + 1}]` -> {expr, bar}.
+            (
+                "set x [if {[check]} {fwd}]\n",
+                &["set", "if", "check", "fwd"],
+            ),
+            ("set x [expr {[bar] + 1}]\n", &["set", "expr", "bar"]),
+            (
+                "set x [while {[cond]} {act}]\n",
+                &["set", "while", "cond", "act"],
+            ),
         ];
         for (src, expected) in cases {
             let mut a = Analyser::new();
