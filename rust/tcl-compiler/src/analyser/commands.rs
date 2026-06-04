@@ -227,7 +227,7 @@ impl Analyser {
         // ``CommandInvocation``.  Mirrors ``_iter_nested_invocations``
         // in ``_AnalyserCommandsMixin._record_command_invocation``
         // (Python).
-        self.record_nested_invocations_from_args(arg_tokens_in);
+        self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
 
         // **C41d3.** Record variable-as-command and
         // command-substitution-as-command call sites so the
@@ -540,8 +540,35 @@ impl Analyser {
     /// and call-hierarchy.  Mirrors ``_iter_nested_invocations``
     /// in ``_AnalyserCommandsMixin._record_command_invocation``
     /// (Python).
-    fn record_nested_invocations_from_args(&mut self, arg_tokens_in: &[Token]) {
-        for arg_tok in arg_tokens_in.iter().skip(1) {
+    fn record_nested_invocations_from_args(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens_in: &[Token],
+    ) {
+        // Which arguments are *expressions*?  A `[...]` inside a braced
+        // expr arg is a real invocation (`if {[acl_ok]} …`), but a `[...]`
+        // inside a braced *data* word is literal (`set x {[noeval]}`) — so
+        // a braced word is scanned only when it is an `Expr` arg.  A braced
+        // *body* arg is covered separately by `analyse_body`.
+        let expr_indices: Vec<usize> = self
+            .registry
+            .as_ref()
+            .map(|r| {
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
+            })
+            .unwrap_or_default();
+        // A command whose *name* is itself a substitution (`[x] hi`) — main's
+        // `_recurse_nested_commands` iterates every token including the head,
+        // so descend a `Cmd` head too (the head's *name* is recorded
+        // separately by `process_command`; this records what it substitutes).
+        if let Some(head) = arg_tokens_in.first() {
+            if head.kind == TokenType::Cmd {
+                self.record_invocations_from_cmd_token(*head);
+            }
+        }
+        for (i, arg_tok) in arg_tokens_in.iter().enumerate().skip(1) {
             let arg_start = arg_tok.span.start();
             let arg_end = arg_tok.span.end() as usize;
             let src_len = self.source.len();
@@ -550,11 +577,19 @@ impl Analyser {
             }
             if arg_tok.kind == TokenType::Cmd {
                 self.record_invocations_from_cmd_token(*arg_tok);
+            } else if arg_tok.kind == TokenType::Str {
+                // Braced word: scan its `[...]` substitutions only when it
+                // is an expression argument (substitutions are then active);
+                // a braced data word stays opaque (mirrors main, which never
+                // walks a non-expr braced word as a script).
+                if expr_indices.contains(&(i - 1)) {
+                    self.record_invocations_from_expr_token(*arg_tok);
+                }
             } else {
-                // Clone the slice into an owned ``String`` so the helper
-                // can take ``&mut self`` without conflicting with the
-                // source borrow.  The slice is small (one argument's
-                // source text) so the allocation cost is bounded.
+                // `Esc` (bareword / quoted): substitutions are active, so
+                // scan.  Clone the slice into an owned ``String`` so the
+                // helper can take ``&mut self`` without conflicting with the
+                // source borrow.
                 let arg_src = self.source[arg_start as usize..arg_end].to_string();
                 self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
             }
@@ -583,6 +618,28 @@ impl Analyser {
             collect_substitution_heads(&sm, self.registry.as_ref(), arg_tok, config, &mut heads);
             heads
         };
+        self.push_collected_heads(heads);
+    }
+
+    /// Inner: a braced ``Str`` *expression* argument (`if {[acl_ok]} …`).
+    /// Record the command substitutions inside the expression — the
+    /// expression's own operands are not commands (see
+    /// [`collect_expr_substitutions`]).  Skips the over-recording the
+    /// generic word scanner would do on a braced *data* word.
+    fn record_invocations_from_expr_token(&mut self, expr_tok: Token) {
+        let config = self.lexer_config();
+        let heads = {
+            let sm = SourceMap::new(&self.source);
+            let mut heads: Vec<(String, Span)> = Vec::new();
+            collect_expr_substitutions(&sm, self.registry.as_ref(), expr_tok, config, &mut heads);
+            heads
+        };
+        self.push_collected_heads(heads);
+    }
+
+    /// Resolve each collected `(name, span)` head to a qualified name and
+    /// push it as a `command_invocations` entry.
+    fn push_collected_heads(&mut self, heads: Vec<(String, Span)>) {
         for (name, range) in heads {
             let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(

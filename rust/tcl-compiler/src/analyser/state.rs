@@ -2638,6 +2638,41 @@ mod tests {
     }
 
     #[test]
+    fn analyse_braced_data_word_is_not_over_recorded() {
+        // CST-CONSUMERS strip 6: a `[...]` inside a braced *data* word is
+        // literal (braces suppress substitution), so it must not be
+        // recorded — only an *expr* arg's substitutions are.  And a
+        // command whose name is itself a substitution (`[x] hi`) must
+        // still be descended (main iterates the head token too).  Matches
+        // main exactly on each case.
+        let cases: &[(&str, &[&str], &[&str])] = &[
+            // (source, must-contain, must-NOT-contain)
+            ("set x {[noeval]}\n", &["set"], &["noeval"]),
+            ("set d {literal data}\n", &["set"], &["data", "literal"]),
+            ("proc p {} {[x] hi}\n", &["proc", "x"], &[]),
+            ("if {[chk]} {puts ok}\n", &["if", "chk", "puts"], &[]),
+        ];
+        for (src, want, unwant) in cases {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "tcl8.6");
+            let names: Vec<&str> = r
+                .command_invocations
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect();
+            for w in *want {
+                assert!(names.contains(w), "{src:?}: missing {w:?}, got {names:?}");
+            }
+            for u in *unwant {
+                assert!(
+                    !names.contains(u),
+                    "{src:?}: over-recorded {u:?}, got {names:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn analyse_regexp_var_added_to_regex_vars_set() {
         // Side effect: the var name is recorded in
         // ``regex_vars`` so downstream consumers (var-as-regex
