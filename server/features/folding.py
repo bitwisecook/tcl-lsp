@@ -6,8 +6,14 @@ from lsprotocol import types
 
 from analyser.semantic_model import AnalysisResult, Scope
 from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import iter_body_arguments
 from shared.tokens import Token, TokenType
+
+# Lexer text for a backslash-newline line continuation: a literal ``\`` followed
+# immediately by a newline.  The green-tree tokeniser surfaces each such join
+# between words as a ``SEP`` token whose text is exactly this string.
+_CONTINUATION = "\\\n"
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
@@ -178,6 +184,128 @@ def _collect_body_folds(
                 )
 
 
+def _emit_region(
+    start_line: int,
+    end_line: int,
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Append a Region fold if it spans >1 line and its span isn't claimed."""
+    if end_line <= start_line:
+        return
+    key = (start_line, end_line)
+    if key in seen:
+        return
+    seen.add(key)
+    ranges.append(
+        types.FoldingRange(
+            start_line=start_line,
+            end_line=end_line,
+            kind=types.FoldingRangeKind.Region,
+        )
+    )
+
+
+def _emit_continuation_run(
+    run_start: int,
+    run_end: int,
+    lines: list[str],
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Emit a fold for a run of continued lines ``run_start..run_end``.
+
+    Each line in the run ends with a continuation, so the command's final
+    physical line is ``run_end + 1`` -- the line the last ``\\`` joins onto.
+    A trailing backslash with no following content (``foo \\`` at end of file)
+    points past the last real line; trim blank / past-EOF trailing lines so a
+    dangling continuation doesn't produce a degenerate fold over empty space.
+    """
+    end_line = run_end + 1
+    while end_line > run_start and (end_line >= len(lines) or not lines[end_line].strip()):
+        end_line -= 1
+    _emit_region(run_start, end_line, seen, ranges)
+
+
+def _emit_continuation_runs(
+    tokens: tuple[Token, ...],
+    lines: list[str],
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+) -> None:
+    """Fold commands stretched across lines by ``\\``-continuations (issue #493).
+
+    A command such as ::
+
+        MyProcCall $a \\
+                   $b \\
+                   $c
+
+    is a single logical command spread over several physical lines.  The lexer
+    represents each backslash-newline join between words as a ``SEP`` token
+    whose text is exactly :data:`_CONTINUATION`; a token starting on line *L*
+    means line *L* continues onto line *L + 1*.  Consecutive continued lines
+    form one run, folded down to the run's opening line.
+    """
+    continued = sorted(
+        {
+            tok.start.line
+            for tok in tokens
+            if tok.type is TokenType.SEP and tok.text == _CONTINUATION
+        }
+    )
+    if not continued:
+        return
+
+    run_start = prev = continued[0]
+    for line in continued[1:]:
+        if line == prev + 1:
+            prev = line
+            continue
+        _emit_continuation_run(run_start, prev, lines, seen, ranges)
+        run_start = prev = line
+    _emit_continuation_run(run_start, prev, lines, seen, ranges)
+
+
+def _collect_continuation_folds(
+    source: str,
+    base_offset: int,
+    base_line: int,
+    base_col: int,
+    lines: list[str],
+    seen: set[tuple[int, int]],
+    ranges: list[types.FoldingRange],
+    *,
+    depth: int = 0,
+) -> None:
+    """Emit backslash-continuation folds at every nesting depth.
+
+    A continuation join inside a braced / bracketed body is invisible at the
+    enclosing level -- the body is one opaque ``STR`` / ``CMD`` token -- so we
+    tokenise each level and recurse into multi-line ``STR`` / ``CMD`` tokens.
+    Recursion anchors content one character past the opening delimiter, where
+    the lexer anchors a body token (mirrors the command segmenter).
+    """
+    if depth > 25:
+        return
+    tokens, _ = tokenise(source, base_offset, base_line, base_col)
+    _emit_continuation_runs(tokens, lines, seen, ranges)
+    for tok in tokens:
+        if tok.start.line >= tok.end.line:
+            continue
+        if tok.type in (TokenType.STR, TokenType.CMD):
+            _collect_continuation_folds(
+                tok.text,
+                tok.start.offset + 1,
+                tok.start.line,
+                tok.start.character + 1,
+                lines,
+                seen,
+                ranges,
+                depth=depth + 1,
+            )
+
+
 def _normalise_overlaps(
     ranges: list[types.FoldingRange],
 ) -> list[types.FoldingRange]:
@@ -290,10 +418,13 @@ def get_folding_ranges(
     """
     ranges: list[types.FoldingRange] = []
     seen: set[tuple[int, int]] = set()
+    if lines is None:
+        lines = source.split("\n")
 
     if analysis is not None:
         _collect_scope_folds(analysis.global_scope, seen, ranges, source)
     _collect_comment_folds(source, seen, ranges, lines=lines)
     _collect_body_folds(source, seen, ranges, original_source=source)
+    _collect_continuation_folds(source, 0, 0, 0, lines, seen, ranges)
 
     return _normalise_overlaps(ranges)
