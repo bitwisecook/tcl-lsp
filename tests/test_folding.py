@@ -269,3 +269,89 @@ class TestFoldingRanges:
         normalised = _normalise_overlaps(ranges)
         keys = [(r.start_line, r.end_line, r.kind) for r in normalised]
         assert len(keys) == len(set(keys)), f"duplicates in {keys}"
+
+
+class TestLineContinuationFolds:
+    """Backslash line-continuation folding (issue #493).
+
+    A command stretched across physical lines by trailing ``\\`` joins is a
+    single logical command; the provider folds the run down to its opening
+    line.  Originally added in #494; the feature and its tests were dropped by
+    the #498 folding refactor and are restored here with the failure-mode
+    (fix-holds) cases *and* the semantically-similar-but-correct cases that
+    must **not** fold (an escaped ``\\\\`` is a literal backslash, not a
+    continuation; a dangling ``\\`` at EOF joins nothing).
+    """
+
+    @staticmethod
+    def _regions(source: str) -> set[tuple[int, int]]:
+        return {
+            (r.start_line, r.end_line)
+            for r in get_folding_ranges(source)
+            if r.kind == types.FoldingRangeKind.Region
+        }
+
+    @staticmethod
+    def _spans(source: str) -> set[tuple[int, int]]:
+        return {(r.start_line, r.end_line) for r in get_folding_ranges(source)}
+
+    # ── fix holds: continuations fold ────────────────────────────────────
+
+    def test_line_continuation_fold(self):
+        """A backslash-continued command folds to its opening line."""
+        source = textwrap.dedent("""\
+            MyProcCall $var1 \\
+                       $var2 \\
+                       $var3
+        """)
+        assert (0, 2) in self._regions(source), self._regions(source)
+
+    def test_line_continuation_two_lines(self):
+        """A single continuation still produces a fold over both lines."""
+        assert (0, 1) in self._regions("set x $a \\\n    $b\n")
+
+    def test_crlf_line_continuation_fold(self):
+        """CRLF (Windows) buffers fold too: the join tokenises as ``\\\r\n``."""
+        assert (0, 2) in self._regions("MyProcCall $a \\\r\n   $b \\\r\n   $c\r\n")
+
+    def test_separate_continuation_runs(self):
+        """Two distinct continued commands yield two separate folds."""
+        source = "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n"
+        regions = self._regions(source)
+        assert {(0, 1), (3, 4)} <= regions, regions
+
+    def test_continuation_inside_body_folds(self):
+        """A continued command inside a braced body folds, not just top-level."""
+        source = textwrap.dedent("""\
+            proc foo {} {
+                MyProcCall $a \\
+                           $b \\
+                           $c
+            }
+        """)
+        spans = self._spans(source)
+        assert (0, 3) in spans, spans  # the proc body
+        assert (1, 3) in spans, spans  # the continued command inside it
+
+    def test_continuation_inside_nested_body_folds(self):
+        """Continuations fold even when nested several blocks deep."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                if {1} {
+                    cmd $a \\
+                        $b
+                }
+            }
+        """)
+        assert (2, 3) in self._spans(source), self._spans(source)
+
+    # ── known-incorrect look-alikes: must NOT fold ───────────────────────
+
+    def test_escaped_backslash_is_not_a_continuation(self):
+        r"""A literal ``\\`` at end of line is an escaped backslash, not a line
+        continuation (matches tclsh: the two lines are separate commands)."""
+        assert self._regions("puts foo\\\\\nputs bar\n") == set()
+
+    def test_dangling_continuation_at_eof_no_degenerate_fold(self):
+        """A trailing ``\\`` with nothing after it must not fold empty space."""
+        assert get_folding_ranges("foo a \\\n") == []
