@@ -122,6 +122,19 @@ pub struct GreenToken {
     /// `Token.end.offset - Token.start.offset`; the red layer adds the
     /// raw start to reconstruct the lexer's inclusive `end` offset.
     pub end_rel: u32,
+    /// Leading delimiter bytes the lexer strips from `raw` to get the
+    /// human-readable `text` (1 for `{` / `[` / `$` / `"`, 2 for `${`,
+    /// 0 for a bare word).  Position-independent, like [`Self::end_rel`].
+    ///
+    /// **Rust-specific** (no field in Python's `green.py`): the Rust
+    /// [`tcl_lexer::Token`] is span + `content_offset`, where Python's
+    /// `Token` is `text` + `start` + `end`.  Green stores whatever the
+    /// platform's `Token` needs to be reconstructed losslessly — `text`
+    /// (as Python) **and** `content_offset` — so the red layer's
+    /// [`super::super::syntax::red::SyntaxToken::to_token`] can rebuild
+    /// the exact lexer `Token` (span via `end_rel`, `content_offset`
+    /// verbatim).
+    pub content_offset: u8,
     /// Whether the fragment was lexed inside a quoted-string context.
     pub in_quote: bool,
     /// Trivia immediately preceding the fragment, in document order.
@@ -137,11 +150,13 @@ pub struct GreenToken {
 impl GreenToken {
     /// Construct a green token, caching its full width.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         token_type: TokenType,
         text: impl Into<String>,
         raw: impl Into<String>,
         end_rel: u32,
+        content_offset: u8,
         in_quote: bool,
         leading: Vec<GreenTrivia>,
         trailing: Vec<GreenTrivia>,
@@ -155,6 +170,7 @@ impl GreenToken {
             text: text.into(),
             raw,
             end_rel,
+            content_offset,
             in_quote,
             leading,
             trailing,
@@ -411,6 +427,7 @@ mod tests {
             text,
             text,
             end_rel,
+            0, // bare word: no leading delimiter
             false,
             Vec::new(),
             Vec::new(),
@@ -433,6 +450,7 @@ mod tests {
             "abc",
             "{abc}",
             3, // end_rel: inner end (the `c`) relative to start
+            1, // content_offset: the `{`
             false,
             vec![ws(" ")],
             vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
@@ -448,7 +466,16 @@ mod tests {
     fn empty_braced_token_keeps_both_text_fields() {
         // `{}` — raw `{}` (width 2), inner text empty, end_rel 1 (the
         // closer, per the #527 convention).
-        let tok = GreenToken::new(TokenType::Str, "", "{}", 1, false, Vec::new(), Vec::new());
+        let tok = GreenToken::new(
+            TokenType::Str,
+            "",
+            "{}",
+            1,
+            1,
+            false,
+            Vec::new(),
+            Vec::new(),
+        );
         assert_eq!(tok.text, "");
         assert_eq!(tok.raw, "{}");
         assert_eq!(tok.width(), 2);
@@ -459,7 +486,16 @@ mod tests {
     #[test]
     fn word_node_sums_child_and_marker_widths() {
         // Compound word `{a}b`: two abutting fragments, no trivia.
-        let frag_a = GreenToken::new(TokenType::Str, "a", "{a}", 1, false, Vec::new(), Vec::new());
+        let frag_a = GreenToken::new(
+            TokenType::Str,
+            "a",
+            "{a}",
+            1,
+            1,
+            false,
+            Vec::new(),
+            Vec::new(),
+        );
         let frag_b = bare("b");
         let word = GreenNode::word(
             vec![GreenElement::Token(frag_a), GreenElement::Token(frag_b)],
@@ -478,12 +514,22 @@ mod tests {
             TokenType::Expand,
             "",
             "{*}",
-            2,
+            0, // EXPAND lexes to a zero-width ghost token (end_rel 0)
+            0,
             false,
             Vec::new(),
             Vec::new(),
         );
-        let frag = GreenToken::new(TokenType::Var, "x", "$x", 1, false, Vec::new(), Vec::new());
+        let frag = GreenToken::new(
+            TokenType::Var,
+            "x",
+            "$x",
+            1,
+            1,
+            false,
+            Vec::new(),
+            Vec::new(),
+        );
         let word = GreenNode::word(vec![GreenElement::Token(frag)], vec![marker]);
         assert!(word.is_expand());
         // Markers are NOT children but DO contribute to width/text.
@@ -516,6 +562,7 @@ mod tests {
             "puts",
             "puts",
             3,
+            0,
             false,
             Vec::new(),
             vec![ws(" ")],
@@ -525,6 +572,7 @@ mod tests {
             "hi",
             "hi",
             1,
+            0,
             false,
             Vec::new(),
             vec![GreenTrivia::new(TriviaKind::Eol, "\n")],
@@ -551,11 +599,21 @@ mod tests {
             "puts",
             "puts",
             3,
+            0,
             false,
             Vec::new(),
             vec![ws(" ")],
         );
-        let hi = GreenToken::new(TokenType::Esc, "hi", "hi", 1, false, Vec::new(), Vec::new());
+        let hi = GreenToken::new(
+            TokenType::Esc,
+            "hi",
+            "hi",
+            1,
+            0,
+            false,
+            Vec::new(),
+            Vec::new(),
+        );
         let cmd = GreenNode::command(
             vec![
                 GreenElement::Node(GreenNode::word(vec![GreenElement::Token(puts)], Vec::new())),
@@ -585,6 +643,7 @@ mod tests {
                 "",
                 "{}",
                 1,
+                1,
                 false,
                 Vec::new(),
                 Vec::new(),
@@ -596,6 +655,7 @@ mod tests {
                 TokenType::Str,
                 "",
                 "{}",
+                1,
                 1,
                 false,
                 Vec::new(),

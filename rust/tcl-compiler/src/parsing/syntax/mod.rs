@@ -8,8 +8,9 @@
 //!   its *width* and its children, never an absolute offset.  Trivia is
 //!   attached to the adjacent token, so a command is pure syntax while
 //!   every inter-word byte still round-trips.
-//! - `red` (strip 3) — overlays a green tree with an anchoring and
-//!   resolves absolute positions lazily.
+//! - [`red`] — overlays a green tree with an anchoring and resolves
+//!   absolute positions lazily, reproducing the lexer's exact `Token`
+//!   offsets / lines / columns.
 //! - `build` (strip 4) — re-shapes the existing lexer stream into the
 //!   tree (no second parser).
 //! - `segment` (strip 5) — derives `SegmentedCommand` from the tree.
@@ -18,3 +19,4 @@
 //! See `docs/design/compiler/syntax-tree.md`.
 
 pub mod green;
+pub mod red;
