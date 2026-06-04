@@ -42,6 +42,14 @@ const RetOptCtx = struct {
     level_value: *u32,
     errorcode_obj: *i32,
     errorinfo_obj: *i32,
+    // Whether ``errorcode_obj`` / ``errorinfo_obj`` currently hold a
+    // FRESH (+1 owned) object minted by the ``-options`` expander, as
+    // opposed to a borrowed ``words[]`` slice set by the direct
+    // ``-errorcode`` / ``-errorinfo`` argument path.  Owned slots are
+    // released by ``eval_return`` after consumption (``tcl_cmd_error_full``
+    // / ``global_set`` keep their own retain); borrowed ones must not be.
+    errorcode_owned: *bool,
+    errorinfo_owned: *bool,
 };
 
 /// Copy list element [*start*, *start*+*len*) out of *base_ptr* into a
@@ -59,15 +67,22 @@ fn ret_opt_elem_to_obj(base_ptr: u32, start: u32, len: u32) i32 {
 /// update their dedicated tracking variables; a nested ``-options``
 /// recurses (C Tcl's ``TclMergeReturnOptions`` flattens recursively —
 /// cmdMZ-return-2.21); anything else lands in the pending-extras dict.
-fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u32) void {
+///
+/// Returns ``true`` when it *takes ownership* of *val_obj* (stores the
+/// +1 handle into the ``errorcode_obj`` / ``errorinfo_obj`` slot for
+/// consumption later by ``eval_return``); ``false`` when *val_obj* is
+/// transient — read as a string (``-code`` / ``-level``), recursed into
+/// (``-options``), or byte-copied by ``dict_set`` (extras) — in which
+/// case the caller must release it.
+fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u32) bool {
     const obj_opt = @import("../valtypes/tcl_obj.zig");
     const dict_mod_opt = @import("../valtypes/tcl_dict.zig");
     const ks_inner = obj_ensure_string(key_obj);
-    if (val_obj == 0 or ks_inner.len == 0) return;
+    if (val_obj == 0 or ks_inner.len == 0) return false;
     const kp: [*]const u8 = @ptrFromInt(ks_inner.ptr);
     if (str_eq(kp, ks_inner.len, "-options")) {
         apply_return_options_dict(ctx, val_obj, depth + 1);
-        return;
+        return false;
     }
     if (str_eq(kp, ks_inner.len, "-code")) {
         const cs = obj_ensure_string(val_obj);
@@ -101,7 +116,7 @@ fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u3
                 }
             }
         }
-        return;
+        return false;
     }
     if (str_eq(kp, ks_inner.len, "-level")) {
         const lv = obj_ensure_string(val_obj);
@@ -122,17 +137,31 @@ fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u3
                 ctx.extra_levels.* = if (nv > 0) nv - 1 else 0;
             }
         }
-        return;
+        return false;
     }
     if (str_eq(kp, ks_inner.len, "-errorcode")) {
+        // Take ownership of the +1 ``val_obj``.  Free a previously
+        // expander-minted value before overwriting it
+        // (``-options {-errorcode A -errorcode B}``); a borrowed
+        // direct-path value (``errorcode_owned == false``) is left be.
+        if (ctx.errorcode_obj.* != 0 and ctx.errorcode_owned.*) {
+            obj_opt.tcl_obj_release(ctx.errorcode_obj.*);
+        }
         ctx.errorcode_obj.* = val_obj;
-        return;
+        ctx.errorcode_owned.* = true;
+        return true;
     }
     if (str_eq(kp, ks_inner.len, "-errorinfo")) {
+        if (ctx.errorinfo_obj.* != 0 and ctx.errorinfo_owned.*) {
+            obj_opt.tcl_obj_release(ctx.errorinfo_obj.*);
+        }
         ctx.errorinfo_obj.* = val_obj;
-        return;
+        ctx.errorinfo_owned.* = true;
+        return true;
     }
-    // Arbitrary option — record into the pending-extras dict.
+    // Arbitrary option — record into the pending-extras dict.  ``dict_set``
+    // copies the key and value byte content (it never takes ownership of
+    // the handles), so ``val_obj`` stays transient and the caller frees it.
     if (catch_mod.state.pending_return_extras == 0) {
         catch_mod.state.pending_return_extras = dict_mod_opt.dict_create();
     }
@@ -147,15 +176,18 @@ fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u3
         }
         catch_mod.state.pending_return_extras = new_extras;
     }
+    return false;
 }
 
 /// Expand a ``-options`` dict, applying each ``KEY VALUE`` pair in
 /// order.  Iterates the raw list pairs (NOT ``dict_keys``, which dedups
 /// — a dict with repeated keys like ``{-options A -options B}`` must
 /// apply each occurrence; cmdMZ-return-2.21).  ``depth`` guards against
-/// pathological self-referential nesting.  Note the standard ``-error*``
-/// slots receive ``val_obj`` directly (ownership transfer, matching the
-/// pre-refactor ``dict_get`` path); only ``key_obj`` is released here.
+/// pathological self-referential nesting.  ``ret_opt_elem_to_obj`` mints
+/// a fresh +1 ``key_obj`` / ``val_obj`` per pair: ``key_obj`` is always
+/// released here, and ``val_obj`` is too — UNLESS
+/// ``apply_one_return_option`` reports it took ownership (the
+/// ``-errorcode`` / ``-errorinfo`` slots, freed later by ``eval_return``).
 fn apply_return_options_dict(ctx: RetOptCtx, opts_dict: i32, depth: u32) void {
     if (depth > 64 or opts_dict == 0) return;
     const obj_opt = @import("../valtypes/tcl_obj.zig");
@@ -168,7 +200,8 @@ fn apply_return_options_dict(ctx: RetOptCtx, opts_dict: i32, depth: u32) void {
         const ve = obj_opt.list_element_at(ds.ptr, ds.len, i + 1);
         const key_obj = ret_opt_elem_to_obj(ds.ptr, ke.start, ke.len);
         const val_obj = ret_opt_elem_to_obj(ds.ptr, ve.start, ve.len);
-        apply_one_return_option(ctx, key_obj, val_obj, depth);
+        const took_val = apply_one_return_option(ctx, key_obj, val_obj, depth);
+        if (!took_val and val_obj != 0) obj_opt.tcl_obj_release(val_obj);
         if (key_obj != 0) obj_opt.tcl_obj_release(key_obj);
     }
 }
@@ -191,6 +224,20 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
     var result_obj: i32 = 0;
     var errorcode_obj: i32 = 0;
     var errorinfo_obj: i32 = 0;
+    // ``errorcode_obj`` / ``errorinfo_obj`` hold either a BORROWED
+    // ``words[]`` slice (direct ``-errorcode`` / ``-errorinfo`` args) or a
+    // FRESH +1 object minted by the ``-options`` expander.  Track which so
+    // the owned ones are freed (and the borrowed ones are not) via the
+    // ``defer`` below: ``tcl_cmd_error_full`` / ``global_set`` keep their
+    // own retain on consumption, and the non-error branches simply drop
+    // the slots.
+    var errorcode_owned: bool = false;
+    var errorinfo_owned: bool = false;
+    const obj_ret_cleanup = @import("../valtypes/tcl_obj.zig");
+    defer {
+        if (errorcode_owned and errorcode_obj != 0) obj_ret_cleanup.tcl_obj_release(errorcode_obj);
+        if (errorinfo_owned and errorinfo_obj != 0) obj_ret_cleanup.tcl_obj_release(errorinfo_obj);
+    }
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
         const w = obj_ensure_string(words[wi]);
@@ -339,11 +386,23 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         }
                         return result_mod.from_globals(0);
                     }
+                    // Free a prior expander-minted value before storing
+                    // this borrowed ``words[]`` slice
+                    // (``-options {-errorcode A} -errorcode B``); a prior
+                    // borrowed slot needs no release.
+                    if (errorcode_obj != 0 and errorcode_owned) {
+                        obj_ret_cleanup.tcl_obj_release(errorcode_obj);
+                        errorcode_owned = false;
+                    }
                     errorcode_obj = words[wi + 1];
                     wi += 1;
                     continue;
                 }
                 if (str_eq(wp, w.len, "-errorinfo") and wi + 1 < words.len) {
+                    if (errorinfo_obj != 0 and errorinfo_owned) {
+                        obj_ret_cleanup.tcl_obj_release(errorinfo_obj);
+                        errorinfo_owned = false;
+                    }
                     errorinfo_obj = words[wi + 1];
                     wi += 1;
                     continue;
@@ -369,6 +428,8 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         .level_value = &level_value,
                         .errorcode_obj = &errorcode_obj,
                         .errorinfo_obj = &errorinfo_obj,
+                        .errorcode_owned = &errorcode_owned,
+                        .errorinfo_owned = &errorinfo_owned,
                     };
                     apply_return_options_dict(ctx, words[wi + 1], 0);
                     wi += 1;
