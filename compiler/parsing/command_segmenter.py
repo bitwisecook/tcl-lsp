@@ -12,7 +12,7 @@ separator followed by a known command name and resumes segmentation there.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -445,6 +445,29 @@ def _resolve_subcommands(
 _SegKey = tuple[str, int, int, int, bool, bool]
 
 
+def _copy_commands(commands: list[SegmentedCommand]) -> list[SegmentedCommand]:
+    """Return a copy of *commands* with fresh per-command mutable lists.
+
+    The cached segmentation must never be handed out directly: some consumers
+    append to a returned command's ``argv`` / ``texts`` / ``all_tokens`` in
+    place (e.g. ``analyser/_analyser/_recovery.py`` folds orphaned switch-case
+    words into the switch command).  Without this each cache hit would observe
+    a prior caller's mutation, matching neither the un-memoised behaviour nor
+    each other.  Tokens are frozen, so only the list containers are copied.
+    """
+    return [
+        replace(
+            c,
+            argv=list(c.argv),
+            texts=list(c.texts),
+            single_token_word=list(c.single_token_word),
+            all_tokens=list(c.all_tokens),
+            expand_word=None if c.expand_word is None else list(c.expand_word),
+        )
+        for c in commands
+    ]
+
+
 def segment_commands(
     source: str,
     body_token: Token | None = None,
@@ -497,7 +520,7 @@ def segment_commands(
         commands, warnings = cached
         if collect_warnings is not None and warnings:
             collect_warnings.extend(warnings)
-        return commands
+        return _copy_commands(commands)
     memo_warnings: list[tuple[SourcePosition, str]] = []
     commands = _segment_commands_uncached(
         source,
@@ -511,7 +534,9 @@ def segment_commands(
     scope.seg_put(key, commands, tuple(memo_warnings))
     if collect_warnings is not None and memo_warnings:
         collect_warnings.extend(memo_warnings)
-    return commands
+    # Hand out a copy so the cached canonical commands are never mutated by a
+    # caller (the cache then stays pristine for the next hit).
+    return _copy_commands(commands)
 
 
 def _segment_commands_uncached(
