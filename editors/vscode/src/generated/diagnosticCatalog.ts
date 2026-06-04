@@ -386,6 +386,18 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "I230",
+    section: "hint",
+    description: "Constant branch condition — the alternate branch is provably unreachable.",
+    defaultEnabled: true,
+  },
+  {
+    code: "I231",
+    section: "hint",
+    description: "Constant switch arm condition — the arm is provably unreachable.",
+    defaultEnabled: true,
+  },
+  {
     code: "W123",
     section: "hint",
     description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
