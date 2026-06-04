@@ -7,7 +7,7 @@ expressions use a separate tokeniser.  Because of this the pipeline cannot
 flatten the document once and reuse one stream everywhere — each region must
 be tokenised in its own *mode*.
 
-This module is the shared substrate for that.  A :class:`GreenNode` owns the
+This module is the shared substrate for that.  A :class:`TokenRegion` owns the
 token stream for one region, tagged with the :class:`Mode` it was lexed in,
 and lazily *descends* into the opaque ``{...}`` / ``[...]`` leaves it
 contains — re-lexing each child region once and memoising the result on the
@@ -16,7 +16,7 @@ same descent rather than each re-lexing overlapping regions.
 
 This subsumes the flat tokenisation memo that preceded it (the old
 ``token_cache`` module): a region interned in the active scope is a
-:class:`GreenNode`, and the per-node ``_descended`` map is the memo for
+:class:`TokenRegion`, and the per-node ``_descended`` map is the memo for
 nesting.  See ``docs/design/compiler/green-token-tree.md``.
 
 Correctness rules carried over from the flat memo:
@@ -89,7 +89,7 @@ _OPAQUE_TYPES = (TokenType.STR, TokenType.CMD)
 
 
 @dataclass(slots=True)
-class GreenNode:
+class TokenRegion:
     """One tokenised region of source, with lazy memoised descent.
 
     A node holds the token stream for its region (``tokens``), tagged with the
@@ -112,9 +112,9 @@ class GreenNode:
     width: int
     tokens: tuple[Token, ...]
     warnings: _Warnings
-    _descended: dict[tuple[int, Mode], GreenNode] = field(default_factory=dict)
+    _descended: dict[tuple[int, Mode], TokenRegion] = field(default_factory=dict)
 
-    def descend(self, token: Token, mode: Mode = Mode.SCRIPT) -> GreenNode:
+    def descend(self, token: Token, mode: Mode = Mode.SCRIPT) -> TokenRegion:
         """Return the child node for an opaque ``token`` within this region.
 
         For ``STR`` / ``CMD`` tokens the child covers the inner text anchored
@@ -147,7 +147,7 @@ def _delimiter_terminated(token: Token, text: str, base_offset: int) -> bool:
     return closer_present_in_region(token, text, base_offset)
 
 
-def _descend(token: Token, mode: Mode, context_text: str, context_base: int) -> GreenNode:
+def _descend(token: Token, mode: Mode, context_text: str, context_base: int) -> TokenRegion:
     """Build the child node for *token*, resolving ERROR kind in context.
 
     *context_text* / *context_base* describe the region containing *token*
@@ -211,10 +211,10 @@ def _build_node(
     mode: Mode,
     kind: NodeKind,
     line_starts: list[int] | None = None,
-) -> GreenNode:
+) -> TokenRegion:
     insidequote = mode is Mode.QUOTED
     tokens, warnings = _lex(text, base_offset, base_line, base_col, insidequote, None, line_starts)
-    return GreenNode(
+    return TokenRegion(
         kind=kind,
         mode=mode,
         text=text,
@@ -241,7 +241,7 @@ _Key = tuple[int, int, int, Mode, str]
 
 
 class GreenTreeScope:
-    """A per-analysis intern index of :class:`GreenNode` regions.
+    """A per-analysis intern index of :class:`TokenRegion` regions.
 
     Lifetime is bounded by :func:`green_tree_scope`; the index is discarded
     when the scope exits, so memory is bounded by the regions lexed within a
@@ -251,12 +251,12 @@ class GreenTreeScope:
     __slots__ = ("_index",)
 
     def __init__(self) -> None:
-        self._index: dict[_Key, GreenNode] = {}
+        self._index: dict[_Key, TokenRegion] = {}
 
-    def intern(self, key: _Key, node: GreenNode) -> None:
+    def intern(self, key: _Key, node: TokenRegion) -> None:
         self._index[key] = node
 
-    def get(self, key: _Key) -> GreenNode | None:
+    def get(self, key: _Key) -> TokenRegion | None:
         return self._index.get(key)
 
 
@@ -298,8 +298,8 @@ def node_for(
     kind: NodeKind = NodeKind.ROOT,
     virtual_insertions: dict[int, str] | None = None,
     line_starts: list[int] | None = None,
-) -> GreenNode:
-    """Return the :class:`GreenNode` for *text* at the given anchoring.
+) -> TokenRegion:
+    """Return the :class:`TokenRegion` for *text* at the given anchoring.
 
     Consults the active scope's intern index; the first caller of a region
     pays the tokenisation cost and every later caller of the *same* region
@@ -317,7 +317,7 @@ def node_for(
             tokens, warnings = _lex(
                 text, base_offset, base_line, base_col, insidequote, virtual_insertions, line_starts
             )
-            return GreenNode(
+            return TokenRegion(
                 kind=kind,
                 mode=mode,
                 text=text,

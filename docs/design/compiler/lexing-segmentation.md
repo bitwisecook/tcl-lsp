@@ -169,7 +169,7 @@ green token tree** in `compiler/parsing/green_tree.py` — see
 [green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
 analysis-scoped intern index, with the same correctness rules:
 
-- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `GreenNode`
+- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
   carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
   substrings lexed at the same base offset (e.g. two bodies both lexed at
   base 0) never collide.

@@ -116,8 +116,8 @@ it byte-identically. Implemented in
 [`compiler/parsing/syntax/`](../compiler/parsing/syntax/).
 
 > Distinct from the [green token tree](design/compiler/green-token-tree.md), a
-> context-aware tokenisation *memo* whose tokens carry absolute positions
-> (despite also naming its node `GreenNode`).
+> context-aware tokenisation *memo* (its node type is `TokenRegion`) whose tokens
+> carry absolute positions.
 
 See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
 KCS tag: `lexing`.

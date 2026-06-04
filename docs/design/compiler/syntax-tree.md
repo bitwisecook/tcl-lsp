@@ -46,10 +46,9 @@ This is deliberately the model the earlier *green token tree* (issue #477,
 structure is a context-aware tokenisation memo whose tokens carry **absolute**
 positions, because ~80 consumers read `Token.start.offset` as absolute. The CST
 does not change those consumers — it is built *alongside*, verified
-byte-identical, and adopted incrementally. (Naming wrinkle: `green_tree.py` owns
-the name `GreenNode` but is a memo; the real CST lives under `syntax/`. Renaming
-the memo is a deferred follow-up because it touches every `tokenise` /
-`node_for` importer.)
+byte-identical, and adopted incrementally. (The `green_tree.py` memo node is named
+`TokenRegion`; the CST's structural node under `syntax/` is `GreenNode`, so the
+two no longer collide.)
 
 ## Node model
 
@@ -337,6 +336,6 @@ and the refactoring body splitters left to fold onto `descend_*`.
 ## Related docs
 
 - [green-token-tree.md](green-token-tree.md) — the context-aware tokenisation
-  memo (a different structure, despite the `GreenNode` name) and incremental
+  memo (a different structure — its node is `TokenRegion`) and incremental
   reparse.
 - [lexing-segmentation.md](lexing-segmentation.md) — lexer/segmenter contract.
