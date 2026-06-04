@@ -119,6 +119,7 @@ for historical reference.
 ## Information (I-codes)
 
 - [I230 — constant existence check / unreachable branch](kcs-diagnostic-i230-constant-existence-check.md)
+- [I231 — constant switch arm / unreachable case](kcs-diagnostic-i231-constant-switch-arm.md)
 
 ## Shimmer (S-codes)
 

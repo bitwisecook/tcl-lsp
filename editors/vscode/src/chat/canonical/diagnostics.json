@@ -88,6 +88,8 @@
       "label": "Style & Best Practice",
       "codes": [
         "H300",
+        "I230",
+        "I231",
         "IRULE2001",
         "W001",
         "W002",
