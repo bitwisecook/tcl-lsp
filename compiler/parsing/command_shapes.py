@@ -5,20 +5,18 @@ from __future__ import annotations
 from shared.tokens import Token, TokenType
 
 from .lexer import TclLexer
+from .token_scanning import word_piece
 
 
 def _word_piece(tok: Token) -> str:
-    """Return source-faithful text for one token when rebuilding a Tcl word."""
-    if tok.type is TokenType.VAR:
-        is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
-        if "}" in tok.text:
-            return "$" + tok.text
-        if is_braced:
-            return f"${{{tok.text}}}"
-        return "$" + tok.text
-    if tok.type is TokenType.CMD:
-        return f"[{tok.text}]"
-    return tok.text
+    """Verbatim word reconstruction for expr-argument matching.
+
+    Thin wrapper over the canonical :func:`token_scanning.word_piece`: no
+    codegen marker, and bare ``$name`` / ``$a(1)`` round-trip *verbatim*
+    (not normalised to ``${…}``) so the extracted expr argument is exactly
+    what the user typed.
+    """
+    return word_piece(tok, array_codegen_marker=False, normalise_var_braces=False)
 
 
 def extract_single_expr_argument(

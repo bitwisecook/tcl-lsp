@@ -8,82 +8,20 @@ compiler modules that walk raw token streams.
 from __future__ import annotations
 
 from compiler.parsing.lexer import TclLexer
+
+# ``word_piece`` and the braced-scalar marker are now defined canonically in
+# ``compiler.parsing.token_scanning``; re-exported here so existing import
+# paths — including the dialects XC ``parse_command_words`` carve-out and the
+# ``contains_braced_scalar_marker`` use in ``core_analyses`` — stay stable.
+# ``parse_command_words`` below still reconstructs words via ``word_piece``.
+from compiler.parsing.token_scanning import (  # noqa: F401  (re-exported façade)
+    BRACED_SCALAR_MARKER_PREFIX,
+    contains_braced_scalar_marker,
+    word_piece,
+)
 from shared.tokens import Token, TokenType
 
 from .eval_helpers import DECIMAL_INT_RE
-
-# Compiler-internal marker for a braced scalar whose name is array-shaped.
-# ``${a(1)}`` in source refers to a *scalar* named ``a(1)`` — braces suppress
-# array parsing — unlike bare ``$a(1)`` (array ``a`` element ``1``).
-# :func:`word_piece` reconstructs the braced-scalar word as ``$={name}`` so the
-# rest of the pipeline can tell the two apart (codegen emits push + loadStk for
-# the marked form rather than an array load).  It is a *variable reference*,
-# never a literal — analyses must decode it, not treat it as opaque text.
-BRACED_SCALAR_MARKER_PREFIX = "$={"
-
-
-def contains_braced_scalar_marker(text: str) -> bool:
-    """True if *text* embeds a ``$={name}`` braced-scalar variable marker."""
-    return BRACED_SCALAR_MARKER_PREFIX in text
-
-
-def word_piece(tok: Token) -> str:
-    """Return the source-level text fragment for a single token.
-
-    Variables are prefixed with ``$`` and command substitutions are
-    wrapped in ``[...]`` so that the result mirrors what the user wrote.
-
-    For VAR tokens with array-like names (containing ``(`` and ending
-    with ``)``) where the original source used braced ``${a(1)}`` form,
-    a ``$={name}`` marker is emitted.  In Tcl, braces prevent array
-    interpretation so ``${a(1)}`` refers to a scalar named ``a(1)``,
-    while bare ``$a(1)`` refers to array element ``a`` key ``1``.
-    Codegen uses this marker to emit ``push + loadStk`` instead of
-    ``loadArray1``.
-    """
-    if tok.type is TokenType.VAR:
-        # Detect braced ``${...}`` vs bare ``$name`` form from the
-        # token span.  ``Token.end.offset`` is the position of the
-        # *last* source byte covered by the token (inclusive — see
-        # ``compiler/parsing/lexer.py``); ``tok.text`` excludes the
-        # leading ``$`` for bare and excludes both braces for
-        # ``${…}``.  Net delta is 0 for bare and 1 for braced
-        # (the leading ``$`` and the closing ``}`` cancel against
-        # the omitted ``${``+``}`` so only one source char is
-        # un-accounted-for in the braced form).  An earlier
-        # ``>= 2`` test never fired and silently flipped braced
-        # array-shaped names into bare array-element reads
-        # (Copilot review on PR #382).
-        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
-        is_braced = span_extra >= 1
-        if is_braced and "(" in tok.text and tok.text.endswith(")"):
-            # Braced form with array-like name: ${a(1)} is a scalar,
-            # NOT an array access.  Mark with $= prefix so codegen
-            # emits push + loadStk instead of array load.
-            return f"{BRACED_SCALAR_MARKER_PREFIX}{tok.text}}}"
-        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
-        # inside the parens) must round-trip verbatim — the ``${…}`` wrapper
-        # below would collapse the recursive substitution into a literal
-        # scalar lookup (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).  When
-        # the index is fully literal we can still normalise to ``${a(1)}``
-        # since no substitution is at risk.
-        if (
-            not is_braced
-            and "(" in tok.text
-            and tok.text.endswith(")")
-            and ("$" in tok.text or "[" in tok.text)
-        ):
-            return "$" + tok.text
-        # Use ${name} form only when the name doesn't contain '}'.
-        # Names with '}' (e.g. array indices with braced expressions
-        # like ``a(1[expr {3 - 1}])``) would cause the first '}' to
-        # prematurely close the ${...} form during runtime substitution.
-        if "}" in tok.text:
-            return "$" + tok.text
-        return f"${{{tok.text}}}"
-    if tok.type is TokenType.CMD:
-        return f"[{tok.text}]"
-    return tok.text
 
 
 def parse_command_words(

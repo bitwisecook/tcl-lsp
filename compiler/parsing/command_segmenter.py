@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 from shared.tokens import SourcePosition, Token, TokenType
 
 from .green_tree import active_scope, tokenise
+from .token_scanning import word_piece
 
 log = logging.getLogger(__name__)
 
@@ -42,41 +43,13 @@ class UnclosedDelimiter(Enum):
 
 
 def _word_piece(tok: Token) -> str:
-    """Return the source-level text fragment for a single token.
+    """Source-faithful word reconstruction (no codegen array marker).
 
-    Variables are prefixed with ``$`` and command substitutions are
-    wrapped in ``[...]`` so that the result mirrors what the user wrote.
+    Thin wrapper over the canonical :func:`token_scanning.word_piece`; the
+    segmenter normalises bare ``$name`` to ``${name}`` but never emits the
+    ``$={…}`` codegen marker.
     """
-    if tok.type is TokenType.VAR:
-        # Distinguish bare ``$a(idx)`` from braced ``${a(idx)}``:
-        # ``Token.end.offset`` is the end of the source span, ``tok.text``
-        # excludes the leading ``$`` and the braces.  Bare form leaves
-        # ``end-start == len(text)``; braced adds 1 (the ``${`` and ``}``
-        # against the omitted ``${`` net to one unaccounted byte).
-        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
-        is_braced = span_extra >= 1
-        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
-        # inside the parens) must round-trip verbatim — wrapping in braces
-        # would disable array-element interpretation and turn the recursive
-        # substitution into a literal scalar lookup
-        # (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).
-        if (
-            not is_braced
-            and "(" in tok.text
-            and tok.text.endswith(")")
-            and ("$" in tok.text or "[" in tok.text)
-        ):
-            return "$" + tok.text
-        # Use ${name} form only when the name doesn't contain '}'.
-        # Names with '}' (e.g. array indices with braced expressions
-        # like ``a(1[expr {3 - 1}])``) would cause the first '}' to
-        # prematurely close the ${...} form during runtime substitution.
-        if "}" in tok.text:
-            return "$" + tok.text
-        return f"${{{tok.text}}}"
-    if tok.type is TokenType.CMD:
-        return f"[{tok.text}]"
-    return tok.text
+    return word_piece(tok, array_codegen_marker=False)
 
 
 def _command_range(tokens: list[Token]) -> Range:
