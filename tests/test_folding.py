@@ -310,6 +310,10 @@ class TestLineContinuationFolds:
         """A single continuation still produces a fold over both lines."""
         assert (0, 1) in self._regions("set x $a \\\n    $b\n")
 
+    def test_crlf_line_continuation_fold(self):
+        """CRLF (Windows) buffers fold too: the join tokenises as ``\\\r\n``."""
+        assert (0, 2) in self._regions("MyProcCall $a \\\r\n   $b \\\r\n   $c\r\n")
+
     def test_separate_continuation_runs(self):
         """Two distinct continued commands yield two separate folds."""
         source = "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n"

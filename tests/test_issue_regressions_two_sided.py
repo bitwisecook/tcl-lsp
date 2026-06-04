@@ -36,11 +36,7 @@ def _has(source: str, code: str) -> bool:
 
 def _w214_unused(source: str) -> set[str]:
     """Parameter names flagged W214 (unused proc parameter)."""
-    return {
-        d.message.split("'")[1]
-        for d in analyse(source).diagnostics
-        if d.code == "W214"
-    }
+    return {d.message.split("'")[1] for d in analyse(source).diagnostics if d.code == "W214"}
 
 
 class TestE102UnmatchedBrace:
@@ -92,9 +88,7 @@ class TestE002TooFewArguments:
         # #308: passing a proc *name* as a callback argument is not a call of
         # that proc, so its arity must not be checked here.
         src = "proc cb {x} {return}\nproc run {a b} {return}\nrun [list 1] cb\n"
-        assert "E002" not in {
-            d.code for d in analyse(src).diagnostics if "cb" in d.message
-        }
+        assert "E002" not in {d.code for d in analyse(src).diagnostics if "cb" in d.message}
 
     def test_true_positive_literal_too_few(self):
         # tclsh 8.6/9.0:  wrong # args: should be "f r g b"
@@ -116,7 +110,7 @@ class TestE003TooManyArguments:
 
     def test_true_positive_genuinely_too_many(self):
         # tclsh 8.6/9.0:  wrong # args: should be "puts ?-nonewline? ..."
-        assert _has('puts a b c d\n', "E003")
+        assert _has("puts a b c d\n", "E003")
 
     def test_true_positive_user_proc_too_many(self):
         # tclsh 8.6/9.0:  wrong # args: should be "f a"
@@ -209,7 +203,7 @@ class TestW304MissingOptionTerminator:
     """
 
     def test_fix_holds_dict_filter_script_form(self):
-        src = 'set d [dict create a 1]\ndict filter $d script {k v} {string match x $v}\n'
+        src = "set d [dict create a 1]\ndict filter $d script {k v} {string match x $v}\n"
         assert not _has(src, "W306")
 
     def test_fix_holds_regexp_with_terminator(self):

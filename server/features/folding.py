@@ -10,10 +10,16 @@ from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import iter_body_arguments
 from shared.tokens import Token, TokenType
 
-# Lexer text for a backslash-newline line continuation: a literal ``\`` followed
-# immediately by a newline.  The green-tree tokeniser surfaces each such join
-# between words as a ``SEP`` token whose text is exactly this string.
-_CONTINUATION = "\\\n"
+
+def _is_continuation_sep(tok: Token) -> bool:
+    r"""Whether *tok* is a backslash line-continuation join.
+
+    The lexer surfaces a backslash-newline join between words as a ``SEP``
+    token whose text is the backslash plus the physical line ending: ``"\\\n"``
+    on LF buffers and ``"\\\r\n"`` on CRLF (Windows) buffers.  Match both
+    spellings so continuation folding works regardless of line-ending style.
+    """
+    return tok.type is TokenType.SEP and tok.text.startswith("\\") and tok.text.endswith("\n")
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
@@ -243,17 +249,11 @@ def _emit_continuation_runs(
 
     is a single logical command spread over several physical lines.  The lexer
     represents each backslash-newline join between words as a ``SEP`` token
-    whose text is exactly :data:`_CONTINUATION`; a token starting on line *L*
-    means line *L* continues onto line *L + 1*.  Consecutive continued lines
-    form one run, folded down to the run's opening line.
+    (see :func:`_is_continuation_sep`); a token starting on line *L* means line
+    *L* continues onto line *L + 1*.  Consecutive continued lines form one run,
+    folded down to the run's opening line.
     """
-    continued = sorted(
-        {
-            tok.start.line
-            for tok in tokens
-            if tok.type is TokenType.SEP and tok.text == _CONTINUATION
-        }
-    )
+    continued = sorted({tok.start.line for tok in tokens if _is_continuation_sep(tok)})
     if not continued:
         return
 
