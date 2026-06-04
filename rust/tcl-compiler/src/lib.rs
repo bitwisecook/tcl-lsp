@@ -60,6 +60,13 @@
 //!   flattening `if`/`for`/`while`/`switch`/`catch`/`try` into
 //!   basic blocks (chunk **C7**).
 //!
+//! - [`parsing`] — the parsing frontend.  Houses the canonical
+//!   red-green concrete syntax tree under
+//!   [`parsing::syntax`](parsing::syntax); the position-independent
+//!   green layer ([`parsing::syntax::green`](parsing::syntax::green))
+//!   is the lossless representation the segmenter / lowering / formatter
+//!   / tooling are meant to share (`CST-PORT` / `SYNC-JUN06`).
+//!
 //! The crate has no `pyo3` dependency and no Python-compat concerns —
 //! those belong in the `tcl-lsp-rust` binding crate. See
 //! `docs/rust-rewrite.md` in the main repository for the full
@@ -93,6 +100,7 @@ pub mod lowering_hooks;
 pub mod memory_ssa;
 pub mod naming;
 pub mod optimiser;
+pub mod parsing;
 pub mod path_concat;
 pub mod place;
 pub mod place_bridge;
