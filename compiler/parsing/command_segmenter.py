@@ -39,41 +39,17 @@ class UnclosedDelimiter(Enum):
 
 
 def _word_piece(tok: Token) -> str:
-    """Return the source-level text fragment for a single token.
+    """Source-faithful word reconstruction (segmenter form).
 
-    Variables are prefixed with ``$`` and command substitutions are
-    wrapped in ``[...]`` so that the result mirrors what the user wrote.
+    Thin wrapper over the canonical :func:`token_scanning.word_piece`
+    (``bare_arrays_split=False``: a *substituted*-index bare array stays bare
+    while a literal ``$a(1)`` normalises to ``${a(1)}``).  The import is
+    deferred to avoid the ``syntax`` ↔ ``command_segmenter`` ↔ ``token_scanning``
+    module cycle (``syntax`` reuses this ``_word_piece``).
     """
-    if tok.type is TokenType.VAR:
-        # Distinguish bare ``$a(idx)`` from braced ``${a(idx)}``:
-        # ``Token.end.offset`` is the end of the source span, ``tok.text``
-        # excludes the leading ``$`` and the braces.  Bare form leaves
-        # ``end-start == len(text)``; braced adds 1 (the ``${`` and ``}``
-        # against the omitted ``${`` net to one unaccounted byte).
-        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
-        is_braced = span_extra >= 1
-        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
-        # inside the parens) must round-trip verbatim — wrapping in braces
-        # would disable array-element interpretation and turn the recursive
-        # substitution into a literal scalar lookup
-        # (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).
-        if (
-            not is_braced
-            and "(" in tok.text
-            and tok.text.endswith(")")
-            and ("$" in tok.text or "[" in tok.text)
-        ):
-            return "$" + tok.text
-        # Use ${name} form only when the name doesn't contain '}'.
-        # Names with '}' (e.g. array indices with braced expressions
-        # like ``a(1[expr {3 - 1}])``) would cause the first '}' to
-        # prematurely close the ${...} form during runtime substitution.
-        if "}" in tok.text:
-            return "$" + tok.text
-        return f"${{{tok.text}}}"
-    if tok.type is TokenType.CMD:
-        return f"[{tok.text}]"
-    return tok.text
+    from .token_scanning import word_piece
+
+    return word_piece(tok, bare_arrays_split=False)
 
 
 # Minimum number of lines a suspicious STR token must span to trigger

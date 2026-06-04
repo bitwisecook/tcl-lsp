@@ -1,6 +1,6 @@
 # set-old.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '7 of 153 failed'
+# reason = '5 of 153 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 153
-observed_passed = 146
-observed_failed = 7
+observed_passed = 148
+observed_failed = 5
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["set-old-2.8", "set-old-7.16", "set-old-8.38.2", "set-old-8.38.3", "set-old-8.49", "set-old-8.52", "set-old-8.52.1"]
+ids = ["set-old-2.8", "set-old-8.38.3", "set-old-8.49", "set-old-8.52", "set-old-8.52.1"]
