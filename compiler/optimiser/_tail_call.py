@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 
 from compiler.parsing.command_segmenter import segment_commands
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry.dialect import active_dialect
 from compiler.registry.dialects import dialects_since
 from shared.codes import opt
@@ -266,16 +266,13 @@ def _count_self_calls_in_command_range(
     if start < 0 or end < start or end >= len(source):
         return count
 
-    lexer = TclLexer(
+    lex_tokens, _ = tokenise(
         source[start : end + 1],
-        base_offset=start,
-        base_line=command_range.start.line,
-        base_col=command_range.start.character,
+        start,
+        command_range.start.line,
+        command_range.start.character,
     )
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is not TokenType.CMD:
             continue
         inner = tok.text.strip()

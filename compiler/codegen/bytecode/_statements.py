@@ -470,7 +470,11 @@ class _StatementsMixin:
         self: _Emitter, cmd: str, args: tuple[str, ...], expand_word: tuple[bool, ...]
     ) -> None:
         """Emit a command call with {*} expansion on marked arguments."""
-        self._emit(Op.EXPAND_START, comment=f"{cmd} (expanded)")
+        # Comments surface the command word verbatim; keep a bare
+        # array-ref head in its canonical ``${a(1)}`` form (the emitted
+        # value below still substitutes it via ``_emit_value``).
+        cmd_comment = self._canonical_verbatim_ref(cmd)
+        self._emit(Op.EXPAND_START, comment=f"{cmd_comment} (expanded)")
         # Build full word list: [cmd, *args]
         all_words = (cmd,) + args
         word_count = 0
@@ -479,7 +483,7 @@ class _StatementsMixin:
             word_count += 1
             if i < len(expand_word) and expand_word[i]:
                 self._emit(Op.EXPAND_STKTOP, word_count)
-        self._emit(Op.INVOKE_EXPANDED, comment=cmd)
+        self._emit(Op.INVOKE_EXPANDED, comment=cmd_comment)
         self._emit(Op.POP)
         self._used_generic_invoke = True
 

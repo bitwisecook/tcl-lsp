@@ -604,24 +604,33 @@ class TestProcDynamicBodySubstNocommands:
 class TestNamespaceArrayScalarVariableForms:
     """Variable form edge cases: namespaced + array/scalar distinctions."""
 
-    def test_lowering_marks_braced_array_like_name_as_scalar_read(self):
+    def test_lowering_keeps_braced_array_like_name_for_whole_name_load(self):
+        # Braced ``${a(1)}`` loads the WHOLE literal name ``a(1)`` (the
+        # runtime resolves it as array element ``a(1)``).  The natural
+        # braced spelling is preserved so codegen takes the whole-name
+        # ``push "a(1)"; loadStk`` path, not a split array load.
         mod = lower_to_ir("set out ${a(1)}")
-        stmt = mod.top_level.statements[0]
-        assert isinstance(stmt, IRAssignValue)
-        assert stmt.value == "$={a(1)}"
-
-    def test_lowering_keeps_unbraced_array_ref_as_array_form(self):
-        mod = lower_to_ir("set out $a(1)")
         stmt = mod.top_level.statements[0]
         assert isinstance(stmt, IRAssignValue)
         assert stmt.value == "${a(1)}"
 
-    def test_lowering_preserves_namespaced_braced_scalar_form(self):
+    def test_lowering_keeps_unbraced_array_ref_as_bare_array_form(self):
+        # Bare ``$a(1)`` SPLITS into array ``a`` element ``1``; the natural
+        # bare spelling is kept so codegen emits ``push "a"; push "1";
+        # loadArrayStk``.
+        mod = lower_to_ir("set out $a(1)")
+        stmt = mod.top_level.statements[0]
+        assert isinstance(stmt, IRAssignValue)
+        assert stmt.value == "$a(1)"
+
+    def test_lowering_preserves_namespaced_braced_whole_name_form(self):
+        # Namespaced braced ``${::ns::arr(item)}`` is a whole-name load of
+        # ``::ns::arr(item)`` — keep the braced spelling.
         mod = lower_to_ir("set ::ns::out ${::ns::arr(item)}")
         stmt = mod.top_level.statements[0]
         assert isinstance(stmt, IRAssignValue)
         assert stmt.name == "::ns::out"
-        assert stmt.value == "$={::ns::arr(item)}"
+        assert stmt.value == "${::ns::arr(item)}"
 
     def test_lowering_tracks_namespace_array_defs_by_base_name(self):
         mod = lower_to_ir("unset ::ns::arr(item)")

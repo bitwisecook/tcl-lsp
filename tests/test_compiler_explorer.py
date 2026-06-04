@@ -41,6 +41,58 @@ class TestGreenTreeView:
         assert "greentree" in ALL_VIEWS
 
 
+class TestCstView:
+    def test_cst_view_shows_structural_tree(self, capsys):
+        code, out = _run_source("proc f {} { puts hi }", capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "cst" in out
+        assert "document [0:" in out
+        assert "command [0:" in out
+        assert "word [" in out
+        # the proc body descends into a child CST flagged terminated
+        assert "body [terminated]" in out
+
+    def test_cst_view_flags_word_shape(self, capsys):
+        code, out = _run_source('foo {*}$args "hi $x" {}', capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "{expand,single}" in out  # {*}-expanded word
+        assert "quoted" in out  # the "…" word
+        assert "braced" in out  # the {} word
+
+    def test_cst_view_marks_unterminated_as_recovered(self, capsys):
+        code, out = _run_source("set y [foo {bar", capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "body [recovered]" in out
+
+    def test_cst_in_all_views(self):
+        assert "cst" in ALL_VIEWS
+
+
+class TestSegmentsView:
+    def test_segments_view_lists_commands_and_words(self, capsys):
+        code, out = _run_source("set x {a b}\nputs $x", capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "segments" in out
+        assert "set [0:" in out
+        assert "puts [" in out
+        assert "{single,braced}" in out  # the {a b} word
+
+    def test_segments_view_renders_word_pieces_and_flags(self, capsys):
+        code, out = _run_source('foo {*}$args "hi $x"', capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "${args}" in out  # _word_piece form of the expanded var
+        assert "{*}" in out  # the expansion flag
+        assert "{quoted}" in out
+
+    def test_segments_view_shows_preceding_comment(self, capsys):
+        code, out = _run_source("# hello\nputs hi", capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "comment: hello" in out
+
+    def test_segments_in_all_views(self):
+        assert "segments" in ALL_VIEWS
+
+
 class TestLoopsView:
     def test_loops_view_lists_natural_loop(self, capsys):
         src = (

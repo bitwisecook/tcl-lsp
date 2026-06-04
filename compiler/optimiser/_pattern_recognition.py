@@ -883,7 +883,7 @@ def _apply_end_offset_to_argv(
     container_tok = argv_tokens[container_pos]
     if container_tok.type is not TokenType.VAR:
         return
-    # Compare full variable references (``${L}``, ``${a(1)}``, ``$={a(1)}``),
+    # Compare full variable references (``${L}``, ``${a(1)}``, ``$a(1)``),
     # not normalised base names — otherwise ``$a(1)`` and ``$a(2)`` would be
     # treated as the same container and the rewrite would change semantics.
     container_repr = argv_texts[container_pos].strip()
@@ -928,13 +928,13 @@ def _parse_cmd_token_contents(
     correct ``base_offset``/``base_line``/``base_col`` to the lexer keeps
     every re-parsed inner token's range pointing into the original source.
     """
-    from compiler.parsing.lexer import TclLexer
+    from compiler.parsing.green_tree import tokenise
 
-    lexer = TclLexer(
+    lex_tokens, _ = tokenise(
         cmd_tok.text,
-        base_offset=cmd_tok.start.offset + 1,
-        base_line=cmd_tok.start.line,
-        base_col=cmd_tok.start.character + 1,
+        cmd_tok.start.offset + 1,
+        cmd_tok.start.line,
+        cmd_tok.start.character + 1,
     )
     argv_texts: list[str] = []
     argv_tokens: list[Token] = []
@@ -942,10 +942,7 @@ def _parse_cmd_token_contents(
     prev_type = TokenType.EOL
     saw_eol = False
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.COMMENT:
             continue
         if tok.type is TokenType.SEP:

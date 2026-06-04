@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_base
 from compiler.registry.command_registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -38,15 +38,13 @@ def _split_words(
     base_col: int = 0,
 ) -> tuple[list[str], list[Token]]:
     """Split Tcl words and return (word_texts, first_token_per_word)."""
-    lexer = TclLexer(source, base_offset=base_offset, base_line=base_line, base_col=base_col)
+    # Shared green-tree memo (token-for-token identical to a private TclLexer).
+    tokens, _ = tokenise(source, base_offset, base_line, base_col)
     words: list[str] = []
     word_tokens: list[Token] = []
     prev_type = TokenType.EOL
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL):
             prev_type = tok.type
             continue

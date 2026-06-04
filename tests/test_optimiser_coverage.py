@@ -1767,7 +1767,7 @@ class TestFindOptimisations:
 
 
 class TestVariableShapeGuardrails:
-    def test_braced_scalar_like_array_not_rewritten(self):
+    def test_braced_whole_name_array_ref_not_rewritten(self):
         s = "set x ${a(1)}\nputs $x"
         o, rw = _opt(s)
         assert o == s and rw == []

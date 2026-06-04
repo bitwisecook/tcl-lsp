@@ -701,8 +701,8 @@ class TestBracedVarAndExpansionPreservation:
         result = format_tcl(source)
         assert "arr(key)" in result
 
-    def test_braced_scalar_array_like(self):
-        """${a(1)} braced form (scalar, not array) preserved."""
+    def test_braced_array_like_name(self):
+        """${a(1)} braced whole-name form (loads array element a(1)) preserved."""
         source = "puts ${a(1)}"
         result = format_tcl(source)
         assert "${a(1)}" in result

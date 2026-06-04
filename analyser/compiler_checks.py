@@ -32,13 +32,15 @@ from compiler.ir import (
 )
 from compiler.lowering import lower_to_ir
 from compiler.parsing.argv import widen_argv_tokens_to_word_spans
+from compiler.parsing.command_segmenter import SegmentedCommand
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.green_tree import (
-    GreenNode,
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.syntax import (
+    build_document,
     descend_command,
     descend_token,
-    node_for,
-    tokenise,
+    segments_from_document,
+    segments_from_tree,
 )
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect
@@ -176,7 +178,7 @@ class _CompilerCheckRunner:
         """Process an IR statement, using carried tokens when available."""
         ct: CommandTokens | None = getattr(stmt, "tokens", None)
         if ct is not None and ct.all_tokens:
-            self._process_tokens(
+            self._run_for_command(
                 list(ct.argv),
                 list(ct.argv_texts),
                 list(ct.all_tokens),
@@ -185,7 +187,24 @@ class _CompilerCheckRunner:
             r = stmt.range
             start = r.start.offset
             end = r.end.offset
-            if start < 0 or end < start or end >= len(self._source):
+            if start < 0 or end < start:
+                return
+            if end >= len(self._source):
+                # A statement whose range reaches past the source end is an
+                # upstream range overshoot (e.g. a word-token closer widened one
+                # byte too far).  Dropping it silently turns the bug into a
+                # missing diagnostic — the failure mode that hid a broken change
+                # behind a single test in the issue #527 work.  Log so future
+                # overshoots surface instead of vanishing.
+                log.warning(
+                    "compiler_checks: dropping %s with out-of-range end "
+                    "(start=%d, end=%d, source_len=%d) — likely an upstream "
+                    "range overshoot",
+                    type(stmt).__name__,
+                    start,
+                    end,
+                    len(self._source),
+                )
                 return
             self._process_text(
                 self._source[start : end + 1],
@@ -194,13 +213,21 @@ class _CompilerCheckRunner:
                 base_col=r.start.character,
             )
 
-    def _process_tokens(
+    def _run_for_command(
         self,
         argv: list[Token],
         argv_texts: list[str],
         all_tokens: list[Token],
     ) -> None:
-        """Run checks using pre-parsed tokens from the IR."""
+        """Run all checks for one command, then recurse into its nested scripts.
+
+        The single per-command entry point, fed identically from the top-level
+        IR-carried tokens and from segments derived from the concrete syntax tree
+        for descended bodies / substitutions — so a nested command is analysed
+        exactly like a top-level one (``argv_texts`` is the canonical ``_word_piece``
+        form, ``{*}`` is a marker, …), which the former ``_process_node``
+        mini-segmenter did not guarantee.
+        """
         if not argv or not all_tokens:
             return
 
@@ -231,6 +258,10 @@ class _CompilerCheckRunner:
         self._recurse_expression_subcommands(cmd_name, args, arg_tokens)
         self._recurse_body_arguments(cmd_name, args, arg_tokens)
 
+    def _process_segments(self, segments: list[SegmentedCommand]) -> None:
+        for seg in segments:
+            self._run_for_command(seg.argv, seg.texts, seg.all_tokens)
+
     def _process_text(
         self,
         text: str,
@@ -239,88 +270,19 @@ class _CompilerCheckRunner:
         base_line: int,
         base_col: int,
     ) -> None:
-        self._process_node(node_for(text, base_offset, base_line, base_col))
-
-    def _process_node(self, node: GreenNode) -> None:
-        tokens = node.tokens
-
-        argv: list[Token] = []
-        argv_texts: list[str] = []
-        all_tokens: list[Token] = []
-        prev_type = TokenType.EOL
-
-        def flush_command() -> None:
-            if not argv or not all_tokens:
-                return
-
-            span = (all_tokens[0].start.offset, all_tokens[-1].end.offset)
-            if span in self._seen_commands:
-                return
-            self._seen_commands.add(span)
-
-            argv_spanned = _argv_with_word_spans(argv, all_tokens)
-            cmd_name = argv_texts[0]
-            args = argv_texts[1:]
-            arg_tokens = argv_spanned[1:]
-
-            self.diagnostics.extend(
-                run_all_checks(
-                    cmd_name,
-                    args,
-                    arg_tokens,
-                    all_tokens,
-                    self._source,
-                    event=self._current_event,
-                    file_profiles=self._file_profiles,
-                    user_procs=self._user_procs,
-                )
-            )
-
-            self._recurse_nested_commands(all_tokens)
-            self._recurse_expression_subcommands(cmd_name, args, arg_tokens)
-            self._recurse_body_arguments(cmd_name, args, arg_tokens)
-
-        for tok in tokens:
-            match tok.type:
-                case TokenType.COMMENT:
-                    continue
-                case TokenType.SEP:
-                    prev_type = tok.type
-                    continue
-                case TokenType.EOL:
-                    flush_command()
-                    argv = []
-                    argv_texts = []
-                    all_tokens = []
-                    prev_type = tok.type
-                    continue
-                case _:
-                    text_piece = tok.text
-
-            all_tokens.append(tok)
-
-            if prev_type in (TokenType.SEP, TokenType.EOL):
-                argv.append(tok)
-                argv_texts.append(text_piece)
-            else:
-                if argv_texts:
-                    argv_texts[-1] += text_piece
-                else:
-                    argv.append(tok)
-                    argv_texts.append(text_piece)
-
-            prev_type = tok.type
-
-        flush_command()
+        document, _ = build_document(text, base_offset, base_line, base_col)
+        self._process_segments(
+            segments_from_document(document, base_offset, base_line, base_col, text=text)
+        )
 
     def _recurse_nested_commands(self, tokens: list[Token]) -> None:
         for tok in tokens:
             if tok.type is not TokenType.CMD or not tok.text:
                 continue
-            # Descend the command substitution against the full source; the
-            # green tree shares its tokenisation with the lowerer's and tags
-            # an unterminated [..] as an ERROR node.
-            self._process_node(descend_token(tok, self._source))
+            # Descend the command substitution against the full source and analyse
+            # its commands through the same segment path; an unterminated [..]
+            # descends to a recovered tree that still carries its inner tokens.
+            self._process_segments(segments_from_tree(descend_token(tok, self._source).tree))
 
     def _recurse_body_arguments(
         self,
@@ -338,7 +300,7 @@ class _CompilerCheckRunner:
             if cmd_name == "switch" and _switch_list_body_index(args) == child.index:
                 self._recurse_switch_list_body(child.text, child.token)
                 continue
-            self._process_node(child.node)
+            self._process_segments(segments_from_tree(child.descended.tree))
         if cmd_name == "when":
             self._current_event = prev_event
 

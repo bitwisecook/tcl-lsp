@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Flag, auto
 
-from compiler.parsing.lexer import TclLexer
+from compiler.parsing.green_tree import tokenise
 from compiler.registry import REGISTRY
 from shared.tcl_subst import backslash_subst
 from shared.tokens import TokenType
@@ -214,10 +214,9 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
     must = _ALL_MUST
     leading_resolved = False  # have we seen the first content token?
 
-    lexer = TclLexer(stripped)
-    while True:
-        tok = lexer.get_token()
-        if tok is None or tok.type in (TokenType.EOL, TokenType.EOF):
+    lex_tokens, _ = tokenise(stripped, 0, 0, 0)
+    for tok in lex_tokens:
+        if tok.type in (TokenType.EOL, TokenType.EOF):
             break
 
         if tok.type is TokenType.SEP:

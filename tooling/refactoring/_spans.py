@@ -7,42 +7,38 @@ from typing import TYPE_CHECKING
 from compiler.parsing.command_segmenter import segment_commands
 from compiler.registry.runtime import iter_body_arguments
 from shared.document_buffer import DocumentBuffer
-from shared.tokens import TokenType
+from shared.ranges import word_closer_offset
 
 if TYPE_CHECKING:
     from compiler.parsing.command_segmenter import SegmentedCommand
     from shared.tokens import Token
 
-_CLOSER_BY_OPENER = {
-    '"': '"',
-    "{": "}",
-    "[": "]",
-}
-
 
 def token_end_offset(source: str, token: Token) -> int:
     """Return an exclusive end offset for *token* in *source*.
 
-    Lexer token end offsets are inclusive and omit closing delimiters for
-    quoted/brace/bracket words, so this widens the span when needed.
+    Lexer token ends are inclusive and omit the closing delimiter for
+    quoted/brace/bracket words, so a whole-word span must cover the closer.
+    The closer is located via :func:`shared.ranges.word_closer_offset` — the
+    single authoritative accessor — rather than re-derived here, so an empty
+    ``{}`` / ``[]`` / ``""`` is handled correctly (its inclusive end already
+    sits on the closer, so ``end + 1`` would overshoot by one).
     """
-    end = token.end.offset + 1
-    if token.type in (TokenType.STR, TokenType.CMD, TokenType.ESC):
-        start = token.start.offset
-        if 0 <= start < len(source):
-            closer = _CLOSER_BY_OPENER.get(source[start])
-            if closer and end < len(source) and source[end] == closer:
-                end += 1
+    closer = word_closer_offset(token, source)
+    end = closer + 1 if closer is not None else token.end.offset + 1
     return max(0, min(end, len(source)))
 
 
 def command_span_offsets(source: str, cmd: SegmentedCommand) -> tuple[int, int]:
-    """Return ``(start, end)`` offsets that cover the full command text."""
-    if not cmd.all_tokens:
-        return (0, 0)
-    start = cmd.all_tokens[0].start.offset
-    end = token_end_offset(source, cmd.all_tokens[-1])
-    return (max(0, start), max(0, end))
+    """Return ``(start, end)`` offsets that cover the full command text.
+
+    Trusts the segmenter's authoritative ``cmd.range`` — which now covers the
+    final word's closing delimiter for braces, brackets, *and* quoted words, and
+    never overshoots an empty ``{}`` / ``""`` (the segmenter source-verifies the
+    closer).  The exclusive end is the inclusive range end plus one.
+    """
+    r = cmd.range
+    return (max(0, r.start.offset), min(r.end.offset + 1, len(source)))
 
 
 def offsets_to_position(

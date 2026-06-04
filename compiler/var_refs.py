@@ -6,6 +6,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from compiler.parsing.command_segmenter import segment_commands
 from compiler.parsing.green_tree import tokenise
 from compiler.registry.runtime import (
     REGISTRY,
@@ -137,7 +138,7 @@ class VarReferenceScanner:
                 vars_found |= self.scan_script(tok.text)
 
         if self._options.include_var_read_roles:
-            vars_found |= self._scan_var_read_role_names(tokens)
+            vars_found |= self._scan_var_read_role_names(source)
 
         if self._options.recurse_into_script_roles or self._options.recurse_into_expr_roles:
             vars_found |= self._scan_script_role_args(tokens)
@@ -209,16 +210,12 @@ class VarReferenceScanner:
         flush_command()
         return result
 
-    def _scan_var_read_role_names(self, tokens: Sequence[Token]) -> set[str]:
+    def _scan_var_read_role_names(self, source: str) -> set[str]:
         result: set[str] = set()
-        words: list[str] = []
-        prev_type = TokenType.EOL
-
-        def flush_command() -> None:
-            if not words:
-                return
-            cmd_name = words[0]
-            args = words[1:]
+        for seg in segment_commands(source):
+            cmd_name = seg.name
+            args = seg.args
+            arg_tokens = seg.arg_tokens
             read_indices = set(arg_indices_for_role(cmd_name, args, ArgRole.VAR_READ))
             # A read-modify-write command (incr/append/lappend) reads its
             # VAR_WRITE target's prior value, so report it as a read too.
@@ -227,29 +224,18 @@ class VarReferenceScanner:
             ):
                 read_indices |= set(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE))
             for idx in sorted(read_indices):
-                if idx < len(args):
-                    name = normalise_var_name(args[idx])
-                    if name:
-                        result.add(name)
-
-        for tok in tokens:
-            if tok.type in (TokenType.EOL, TokenType.EOF):
-                flush_command()
-                words = []
-                prev_type = tok.type
-                continue
-            if tok.type is TokenType.SEP:
-                prev_type = tok.type
-                continue
-            if prev_type in (TokenType.SEP, TokenType.EOL):
-                words.append(tok.text)
-            else:
-                if words:
-                    words[-1] += tok.text
-                else:
-                    words.append(tok.text)
-            prev_type = tok.type
-        flush_command()
+                if idx >= len(args) or idx >= len(arg_tokens):
+                    continue
+                # A substitution-named read target (``info exists [foo]`` /
+                # ``array get $name``) computes the variable name at runtime —
+                # it is not a literal read of ``foo`` / ``name``.  A literal
+                # name with a substituted index (``info exists arr($i)``) still
+                # reads array ``arr``, so only VAR/CMD-led words are dropped.
+                if arg_tokens[idx].type in (TokenType.VAR, TokenType.CMD):
+                    continue
+                name = normalise_var_name(args[idx])
+                if name:
+                    result.add(name)
         return result
 
 

@@ -16,7 +16,7 @@ from ..ir import (
     IRStatement,
 )
 from ..parsing.command_segmenter import segment_commands
-from ..parsing.lexer import TclLexer
+from ..parsing.green_tree import tokenise
 from ..registry.runtime import REGISTRY
 from ..side_effects import classify_side_effects
 from ..var_refs import VarReferenceScanner
@@ -66,7 +66,7 @@ def _word_has_observable_side_effect(
     from shared.tokens import TokenType
 
     try:
-        tokens = TclLexer(text).tokenise_all()
+        tokens = tokenise(text, 0, 0, 0)[0]
     except Exception:
         return True  # unparseable -> conservative
     for tok in tokens:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from shared.tokens import Token, TokenType
 
-from .lexer import TclLexer
+from .green_tree import tokenise
 
 
 def _word_piece(tok: Token) -> str:
@@ -37,16 +37,13 @@ def extract_single_expr_argument(
     the second command, lowering ``set r [expr {…};expr {…}]`` as if
     only the first ``expr`` existed.
     """
-    lexer = TclLexer(cmd_text)
+    lex_tokens, _ = tokenise(cmd_text, 0, 0, 0)
     argv_texts: list[str] = []
     argv_single: list[bool] = []
     prev_type = TokenType.EOL
     saw_eol = False
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in lex_tokens:
         if tok.type is TokenType.EOL:
             # ``;`` / ``\n`` ends a command.  Set the marker — only a
             # subsequent **word** token (skipping trailing

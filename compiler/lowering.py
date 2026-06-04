@@ -22,7 +22,8 @@ from typing import cast
 from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
 from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
-from compiler.parsing.lexer import TclLexer, TclParseError
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import TclParseError
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect as _active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
@@ -244,23 +245,20 @@ def _expr_arg_from_expr_command(cmd_text: str) -> str | None:
 
 def _switch_body_elements(body_text: str, outer_tok: Token | None) -> tuple[list[str], list[Token]]:
     if outer_tok is not None:
-        lexer = TclLexer(
-            body_text,
-            base_offset=outer_tok.start.offset + 1,
-            base_line=outer_tok.start.line,
-            base_col=outer_tok.start.character + 1,
-        )
+        base_offset = outer_tok.start.offset + 1
+        base_line = outer_tok.start.line
+        base_col = outer_tok.start.character + 1
     else:
-        lexer = TclLexer(body_text)
+        base_offset = base_line = base_col = 0
 
+    # Shared green-tree memo instead of a private TclLexer — token-for-token
+    # identical, so switch list-body lowering rides the shared tokeniser.
+    tokens, _ = tokenise(body_text, base_offset, base_line, base_col)
     elements: list[str] = []
     element_tokens: list[Token] = []
     prev_type = TokenType.EOL
 
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
+    for tok in tokens:
         if tok.type in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
             prev_type = tok.type
             continue
@@ -621,11 +619,18 @@ class _Lowerer:
                     )
                 )
                 continue
-            # Fix braced-scalar array refs: the segmenter normalises
-            # both ${a(1)} and $a(1) to ${a(1)}, but in Tcl ${a(1)} is
-            # a scalar while $a(1) is an array.  Mark braced forms with
-            # $={name} so codegen emits push + loadStk (scalar) instead
-            # of loadArray1 (array).
+            # Disambiguate array-shaped var refs by *natural spelling*.
+            # The segmenter normalises both ``$a(1)`` and ``${a(1)}`` to
+            # ``${a(1)}``, but they need different bytecode: braced
+            # ``${a(1)}`` loads the WHOLE name ``a(1)`` (the runtime
+            # resolves it as array element ``a(1)``) via ``push "a(1)";
+            # loadStk``, while bare ``$a(1)`` SPLITS into array ``a``
+            # element ``1`` via ``push "a"; push "1"; loadArrayStk``.
+            # Braced forms keep the segmenter's ``${a(1)}`` text; bare
+            # literal-index forms are respelled back to ``$a(1)`` so
+            # codegen takes the split path.  (Bare substituted-index
+            # forms like ``$a($i)`` are already left bare by the
+            # segmenter, so they need no fix-up here.)
             fixed_texts = seg.texts
             for i, (tok, single) in enumerate(zip(seg.argv, seg.single_token_word)):
                 if (
@@ -633,11 +638,12 @@ class _Lowerer:
                     and tok.type is TokenType.VAR
                     and "(" in tok.text
                     and tok.text.endswith(")")
-                    and (tok.end.offset - tok.start.offset) > len(tok.text)
+                    and (tok.end.offset - tok.start.offset) == len(tok.text)
+                    and seg.texts[i].startswith("${")
                 ):
                     if fixed_texts is seg.texts:
                         fixed_texts = list(seg.texts)
-                    fixed_texts[i] = f"$={{{tok.text}}}"
+                    fixed_texts[i] = "$" + tok.text
             cmd = _Command(
                 range=seg.range,
                 argv=seg.argv,
