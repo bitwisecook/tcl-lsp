@@ -2551,6 +2551,36 @@ mod tests {
     }
 
     #[test]
+    fn analyse_records_every_command_in_a_substitution() {
+        // CST-CONSUMERS strip 1: a command substitution can hold more than one
+        // command (`;`- / newline-separated), and substitutions nest.
+        // The CST descent records every inner command head, matching
+        // main (`set x [foo; bar]` -> {foo, bar, set}); the old flat
+        // scan recorded only the *first* head (missing `bar` / `baz`).
+        let cases: &[(&str, &[&str])] = &[
+            ("set x [foo; bar]\n", &["set", "foo", "bar"]),
+            ("puts [a; b; c]\n", &["puts", "a", "b", "c"]),
+            ("set x [foo [bar; baz]]\n", &["set", "foo", "bar", "baz"]),
+            ("set x [foo $y; bar]\n", &["set", "foo", "bar"]),
+        ];
+        for (src, expected) in cases {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "tcl8.6");
+            let names: Vec<&str> = r
+                .command_invocations
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect();
+            for want in *expected {
+                assert!(
+                    names.contains(want),
+                    "{src:?}: missing {want:?}, got {names:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn analyse_regexp_var_added_to_regex_vars_set() {
         // Side effect: the var name is recorded in
         // ``regex_vars`` so downstream consumers (var-as-regex

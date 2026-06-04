@@ -25,7 +25,10 @@
 //! ``if let true = self.handle_xxx(...) { return }`` calls so
 //! extending it remains a one-liner.
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
+
+use crate::parsing::syntax::descend::descend_token;
+use crate::parsing::syntax::segment::segments_from_tree;
 
 use super::state::Analyser;
 
@@ -543,61 +546,47 @@ impl Analyser {
             if arg_start as usize >= src_len || arg_end > src_len {
                 continue;
             }
-            // Clone the slice into an owned ``String`` so the
-            // helper can take ``&mut self`` without conflicting
-            // with the source borrow.  The slice is small (one
-            // argument's source text) so the allocation cost is
-            // bounded.
-            let arg_src = self.source[arg_start as usize..arg_end].to_string();
-            match arg_tok.kind {
-                TokenType::Cmd => {
-                    self.record_invocations_from_cmd_token(*arg_tok, &arg_src, arg_start);
-                }
-                _ => {
-                    self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
-                }
+            if arg_tok.kind == TokenType::Cmd {
+                self.record_invocations_from_cmd_token(*arg_tok);
+            } else {
+                // Clone the slice into an owned ``String`` so the helper
+                // can take ``&mut self`` without conflicting with the
+                // source borrow.  The slice is small (one argument's
+                // source text) so the allocation cost is bounded.
+                let arg_src = self.source[arg_start as usize..arg_end].to_string();
+                self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start);
             }
         }
     }
 
-    /// Inner: ``Cmd`` (``[…]``) tokens.  The segmenter's ``Cmd``
-    /// span starts at ``[`` and ends one past the inner text
-    /// without the closing ``]``.  Strip the leading ``[`` via
-    /// ``content_offset`` and pass the inner content directly to
-    /// ``first_command_head``; recurse into nested ``[...]``.
-    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token, arg_src: &str, arg_start: u32) {
-        let inner_off = arg_tok.content_offset as usize;
-        if inner_off > arg_src.len() {
-            return;
-        }
-        let inner = &arg_src[inner_off..];
-        if let Some((head, head_off)) = first_command_head(inner) {
-            let head_byte_off = u32::try_from(inner_off + head_off)
-                .expect("byte offset fits in u32 for in-memory source");
-            let abs_start = arg_start + head_byte_off;
-            let abs_end = abs_start
-                + u32::try_from(head.len()).expect("token length fits in u32 for in-memory source");
-            let resolved = self.resolve_command_qualified_name(head);
-            self.result.command_invocations.push(
-                crate::signature_scan::types::SignatureCommandInvocation {
-                    name: head.to_string(),
-                    range: tcl_lexer::Span::new(abs_start, abs_end),
-                    resolved_qualified_name: Some(resolved),
-                },
-            );
-        }
-        for (name, off) in scan_nested_command_heads(inner) {
-            let off_in_outer = u32::try_from(inner_off)
-                .expect("byte offset fits in u32 for in-memory source")
-                + off;
-            let abs_start = arg_start + off_in_outer;
-            let abs_end = abs_start
-                + u32::try_from(name.len()).expect("token length fits in u32 for in-memory source");
+    /// Inner: ``Cmd`` (``[…]``) substitution tokens.  Descend the
+    /// substitution into a child CST ([`descend_token`]) and record
+    /// *every* inner command's bareword head, recursing into nested
+    /// ``[...]``.  Mirrors main's ``_recurse_nested_commands`` (segment
+    /// the substitution, process each command).
+    ///
+    /// The previous flat [`first_command_head`] scan recorded only the
+    /// *first* head of each ``[...]``, so ``;``- / newline-separated
+    /// commands were dropped (`[foo; bar]` → only `foo`); the CST
+    /// descent finds them all (CST-CONSUMERS strip 1).  This is the
+    /// first production caller of the landed-but-unused `descend_token`.
+    fn record_invocations_from_cmd_token(&mut self, arg_tok: Token) {
+        let config = self.lexer_config();
+        // Collect the inner heads first (this borrows `self.source`
+        // through the `SourceMap`); resolve + push afterwards so the
+        // immutable source borrow has ended.
+        let heads = {
+            let sm = SourceMap::new(&self.source);
+            let mut heads: Vec<(String, Span)> = Vec::new();
+            collect_substitution_heads(&sm, arg_tok, config, &mut heads);
+            heads
+        };
+        for (name, range) in heads {
             let resolved = self.resolve_command_qualified_name(&name);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name,
-                    range: tcl_lexer::Span::new(abs_start, abs_end),
+                    range,
                     resolved_qualified_name: Some(resolved),
                 },
             );
@@ -763,6 +752,48 @@ impl Analyser {
 /// Returns ``(name, byte_offset_in_text)`` pairs.  The caller
 /// adds the enclosing token's source-span start to obtain an
 /// absolute offset.
+/// Descend a ``Cmd`` (``[…]``) substitution token and collect every
+/// inner command's bareword head as ``(name, head_span)``, recursing
+/// into nested ``[...]`` substitutions.
+///
+/// Mirrors main's ``_recurse_nested_commands``: the token is descended
+/// into a child CST ([`descend_token`]), the inner script segmented, and
+/// each command's head recorded.  Only a pure single-token bareword head
+/// is a command name — a ``$var`` / ``"quote"`` / ``{brace}`` /
+/// ``[subst]`` or compound (`$x$y`) head is skipped, matching the old
+/// [`first_command_head`] filter.  Spans are absolute (the descent
+/// anchors the child tree at the substitution's position).
+fn collect_substitution_heads(
+    sm: &SourceMap<'_>,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<(String, Span)>,
+) {
+    if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, cmd_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        // Record this command's head when it is a single-token bareword.
+        if let (Some(&head), Some(&single)) = (seg.argv.first(), seg.single_token_word.first()) {
+            if single && head.kind == TokenType::Esc && head.content_offset == 0 {
+                let text = sm.token_text(head);
+                if !text.is_empty() {
+                    out.push((text.to_string(), head.span));
+                }
+            }
+        }
+        // Recurse into nested ``[...]`` substitutions in any position
+        // (args, or embedded in a quoted word — both are `Cmd` tokens in
+        // the command's token stream; a `{brace}` region stays opaque).
+        for tok in &seg.all_tokens {
+            if tok.kind == TokenType::Cmd {
+                collect_substitution_heads(sm, *tok, config, out);
+            }
+        }
+    }
+}
+
 pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
