@@ -535,6 +535,41 @@ mod tests {
     }
 
     #[test]
+    fn lexer_line_index_agrees_with_red_overlay_on_lone_cr() {
+        // #537 (SYNC-JUN08): a lone CR is *not* a line break — post-fix
+        // main counts only `\n` (and the LF of a CRLF) in every line
+        // index. The red overlay's `build_line_starts` already does, so
+        // the lexer's `SourceMap` / `LineIndex` must agree, or the CST
+        // and the lexer report different lines for a token after a bare
+        // CR (the position-equivalence inconsistency CST fuzzing exposed:
+        // a CR-counting lexer index put `b` in `"a\rb"` on line 1 while
+        // the red overlay put it on line 0).
+        //
+        // `build_line_starts` is an independent `\n`-only index, so this
+        // is a genuine cross-check, not a self-comparison.
+        for src in ["a\rb", "set a\rset b", "x\r\ny\rz", "\r\r", "a\rb\nc"] {
+            let sm = SourceMap::new(src);
+            let red_starts = build_line_starts(src);
+            for off in 0..=u32::try_from(src.len()).expect("len fits u32") {
+                let lex = sm.position_at(off);
+                let line = red_starts.partition_point(|&s| s <= off) - 1;
+                let col = off - red_starts[line];
+                assert_eq!(
+                    (lex.line, lex.character),
+                    (u32::try_from(line).expect("line fits u32"), col),
+                    "offset {off} in {src:?}",
+                );
+            }
+        }
+        // Pin the absolute post-fix-Python position too: in `"a\rb"`,
+        // `b` (offset 2) is line 0, column 2 — not line 1.
+        assert_eq!(
+            SourceMap::new("a\rb").position_at(2),
+            SourcePosition::new(0, 2, 2),
+        );
+    }
+
+    #[test]
     fn expand_marker_reconstructs_to_empty_span() {
         // `{*}$x` — the EXPAND marker is a zero-width ghost token at the
         // word's start; the VAR `$x` carries the real content.

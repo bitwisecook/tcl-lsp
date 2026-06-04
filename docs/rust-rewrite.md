@@ -3762,6 +3762,124 @@ fully (no merge-base) — per-file audit.
 The single commit is an LSP-server outline fix plus a docstring tweak — no
 parsing-frontend, analyser, compiler, or registry surface to mirror.
 
+## SYNC-JUN08 family — main audit (2026-06-04, PRs #536/#537/#539)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`73492e98` (SYNC-JUN07).  `main` landed **3** commits;
+advances the anchor to `origin/main`@`de6e9815`.  Histories still diverge
+fully (no merge-base) — per-file audit.
+
+**One in-scope parsing-frontend soundness fix (#537); the other two are
+out-of-scope or no-delta.**
+
+- **#537** (`26e1e79c`) — *Fix lexer line tracking for lone CR
+  continuations.*  **In scope** (parsing frontend → lexer + CST build +
+  incremental).  Fuzzing the new red-green CST (#533) for losslessness /
+  position-equivalence / segment validity / descent / anchoring /
+  incremental reparse (1.15M checks) surfaced three tracking bugs:
+  - **Strand 1 — lexer lone-CR line tracking.**  A backslash-CR
+    continuation (`\<CR>`, old-Mac line ending) bumped the lexer's
+    incremental line counter, but the `\n`-only line-start index that
+    `_pos_at` / `_advance` / the red CST overlay all use never recorded
+    it — so the token *after* a `\<CR>` reported its `start` one line
+    below its own `end` (a backwards range).  A lone CR is now a *column*
+    advance, not a line break, at five fast-path continuation sites; a
+    CRLF still breaks on its LF.  The canonical resolution: **a bare `\r`
+    is not a line break — only `\n` (incl. the LF of CRLF) is** (matches
+    `compiler/parsing/lexer.py::_build_line_starts` and
+    `shared/source_map.py`, both `\n`-only).  **→ this is the chunk
+    (`SYNC-JUN08-1`), smallest-first + soundness.**
+  - **Strand 2 — CST build dropped quoted backslash-newline content.**
+    A `\<newline>` that is a quoted word's *content* (`"\<newline>"`) is
+    lexed as an `ESC` fragment, but `build.py` folded every `ESC`
+    `\<newline>` into trivia — dropping the word's only fragment.  The
+    `ESC` trivia branch is removed (separators are `SEP`, folded
+    elsewhere).  **Maps to `rust/.../syntax/build.rs`'s `handle_trivia`
+    ESC arm — needs a behaviour audit against the Rust lexer/segmenter
+    before deciding whether it is a real Rust divergence** (the Rust port
+    deliberately mirrors the *token-loop segmenter*'s `Esc if text ==
+    "\\\n"` fold, which may already differ from main; tracked under
+    `SYNC-JUN08-1` as a candidate follow-up strip).
+  - **Strand 3 — incremental reparse recovery bail.**  `incremental_top_
+    level_chunks` (window re-segmented with recovery disabled) now bails
+    when any old command is partial.  **N/A on the Rust side — there is
+    no Rust incremental-reparse path yet** (deferred to the `S*`
+    document-store rows; `incremental_top_level_chunks` has no mirror).
+  The formatter/minifier idempotency strands riding along are **out of
+  scope** (Python `tooling/`).
+- **#536** (`af0a0c86`) — *Consolidate token-scanning helpers into
+  canonical green-tree module.*  **Mixed.**  The bulk is **out of scope**
+  (four Tcl 9 WASM-runtime fixes in `runtime/zig/**` — `unset
+  -nocomplain` parsing, `subst` array-index errors, `return -options`
+  merge/leak, `array set` through a top-level `upvar 0` alias — plus the
+  WASM tcltest baselines).  The in-scope strands carry **no behavioural
+  delta to port**: (1) a pure Python-internal consolidation moving
+  `word_piece` + the token scanners into a new
+  `compiler/parsing/token_scanning.py` (`command_segmenter._word_piece`
+  becomes a thin wrapper over `token_scanning.word_piece(tok,
+  bare_arrays_split=False)` — *same* bare-array round-trip logic the Rust
+  `segmenter.rs::word_piece` already has via `SYNC-MAY19-word-piece-array`);
+  (2) a per-scope segmentation memo on `GreenTreeScope` (perf only — the
+  algorithm is "unchanged (renamed to `_segment_commands_uncached`)").
+  No `rust/` mirror needed; flagged the new `bare_arrays_split` two-mode
+  split as a thing to watch if a future divergence surfaces.
+- **#539** (`de6e9815`) — *Docs: Update API references and add new
+  diagnostic KCS notes.*  **Out of scope.**  A repo-wide docs/KCS veracity
+  sweep + editor-catalog regeneration (`.kt` / `.ts` / `package.json`) +
+  two new diagnostic-catalog entries in `analyser/_analyser/_utils.py`
+  (`I230` constant-branch / `I231` constant-switch-arm unreachability
+  hints).  The catalog `diag(...)` calls register description metadata
+  only — the **emitters already exist** in both main
+  (`analyser/_analyser/_diag_branches.py`) and the Rust port
+  (`rust/tcl-compiler/src/analyser/diagnostics.rs`, "✅ landed: I230 /
+  I231").  No analyser / compiler / lowering / CFG-SSA / registry /
+  optimiser semantics changed; no `rust/` change.
+
+### SYNC-JUN08-1 — lexer lone-CR line tracking (#537 strand 1)
+
+**In scope, soundness.**  Post-fix main establishes the canonical line
+model unambiguously: **a lone `\r` is not a line break** — every Python
+line index (`compiler/parsing/lexer.py::_build_line_starts`,
+`shared/source_map.py`) counts only `\n` (the LF of a CRLF counts; a bare
+`\r` is horizontal whitespace, a `Sep`, in Tcl).  The Rust port diverged:
+`rust/tcl-lexer/src/line_index.rs::LineIndex::new` counted a bare `\r` as
+a line break (pinned by `bare_cr_counts_as_line_break` /
+`mixed_line_endings`), citing the *pre-fix incremental counter*.  But the
+Rust lexer is span-based — token (line, char) is resolved **only** through
+`SourceMap::position_at` → `LineIndex::position_at` (there is no separate
+incremental counter to disagree with), and the red CST overlay's own
+`build_line_starts` (`red.rs`) already counts `\n`-only.  So
+`LineIndex`'s CR-counting disagreed with both post-fix Python **and** the
+red overlay: for `"a\rb"`, `LineIndex` put `b` on line 1 while the red
+overlay (and Python) put it on line 0 — the exact position-equivalence
+inconsistency the #537 CST fuzzing exposed.
+
+**Blast radius** (audited): the CR-counting convention lived **only** in
+`LineIndex::new`.  `red.rs::build_line_starts` and the sole `with_parts`
+caller (`descend.rs`, which passes `build_line_starts(inner)`) are already
+`\n`-only; no other Rust site assumes bare-CR-as-line-break (`cr_is_
+separator_not_eol` already pins `\r` as a `Sep`).
+
+**Strip 1 — LANDED (2026-06-04).**  `LineIndex::new` now counts `\n`
+only (mirroring `red.rs::build_line_starts` and Python `_build_line_
+starts` byte-for-byte; CRLF still breaks on its LF, unchanged).  Inverted
+the two unit tests (`bare_cr_counts_as_line_break` →
+`bare_cr_is_not_a_line_break`; `mixed_line_endings` recomputed to the
+`\n`-only line set), pinning the explicit post-fix-Python positions.
+**Discriminating cross-layer test** (`red.rs`):
+`lexer_line_index_agrees_with_red_overlay_on_lone_cr` resolves every
+offset of a battery of bare-CR / CRLF / mixed sources through the lexer's
+`SourceMap` and asserts it equals the red overlay's **independent**
+`build_line_starts` index — a genuine cross-check (red's index is frozen
+on the `\n`-only convention, not a self-comparison), FAILS pre-fix
+(`(1,0)` vs `(0,2)` for `b` in `"a\rb"`).  `cargo test --workspace`
+green, clippy/fmt clean.
+
+**Strand 2 (CST build quoted `\<newline>`)** — candidate follow-up strip;
+needs a behaviour audit of `build.rs::handle_trivia` against the Rust
+lexer/segmenter (it deliberately mirrors the token-loop segmenter's ESC
+fold).  **Strand 3 (incremental reparse)** — N/A (no Rust path yet).
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
@@ -3771,6 +3889,7 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
+| — | `SYNC-JUN08-1` (lexer lone-CR line tracking) | **Opened 2026-06-04 by `SYNC-JUN08` / #537; strip 1 LANDED.**  In scope, **soundness**: post-fix main counts only `\n` in every line index (a lone `\r` is horizontal whitespace, not an EOL), but the Rust `rust/tcl-lexer/src/line_index.rs::LineIndex::new` counted a bare `\r` as a line break — disagreeing with both post-fix Python (`_build_line_starts` / `shared/source_map.py`) and the red CST overlay's `build_line_starts`, so a token after a lone CR resolved to the wrong line (the position-equivalence inconsistency #537's CST fuzzing exposed).  **Strip 1:** `LineIndex::new` is now `\n`-only (mirrors `red.rs::build_line_starts` byte-for-byte; CRLF still breaks on its LF); the two unit tests are inverted to pin the post-fix-Python positions; a cross-layer test (`red.rs::lexer_line_index_agrees_with_red_overlay_on_lone_cr`) asserts the lexer's `SourceMap` positions equal the red overlay's **independent** index over bare-CR / CRLF / mixed sources (FAILS pre-fix).  Remaining candidate: **strand 2** (CST build quoted `\<newline>` content in `build.rs::handle_trivia`) pending a behaviour audit; **strand 3** (incremental reparse) N/A.  See the `SYNC-JUN08` family section + `SYNC-JUN08-1`. |
 | — | `CST-PORT` (red-green concrete syntax tree) | **Opened 2026-06-05 by `SYNC-JUN06` / #533; all six strips LANDED 2026-06-04 on `claude/awesome-newton`.**  The full Rust red-green CST lives in `rust/tcl-compiler/src/parsing/syntax/{green,red,build,segment,descend}.rs` (+ `rust/tcl-lexer/src/ranges.rs`), and `segment_commands_local` is rebased onto it (the ~150-line token loop is gone), byte-identical over all 256 Tcl 8.4/8.5/8.6/9.0 corpus files (`tests/differential_segment.rs`).  Main landed the canonical lossless red-green CST (`compiler/parsing/syntax/{green,red,build,segment,descend}.py`) and rebased the segmenter onto it (the 150-line token loop is gone).  In scope, unported.  Port target: a Rust green/red split + `build` (reshapes the existing dialect-configured `Lexer` stream, no second parser) + `segment` (derives `SegmentedCommand` byte-identically) + `descend` (lazy body / cmd-sub children), then rebase `segment_commands*` onto it — the `_and_config` dialect plumbing carries over.  Large + foundational, but **not urgent**: the Rust token-loop segmenter works and was just made dialect-aware, and main proved the migration byte-identical.  Supersedes the deferred token-cache direction (`SYNC-MAY31-6`) and is the natural incremental-edit substrate for the `S*` document store.  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.  **Strip sequence (smallest-first):** (1) `shared/ranges.py` authoritative-closer accessors **— DONE** (2026-06-04); (2) green tree **— DONE** (2026-06-04); (3) red tree **— DONE** (2026-06-04); (4) `build` **— DONE** (2026-06-04); (5) `segment` + rebase `segment_commands*` **— DONE** (2026-06-04); (6) `descend` **— DONE** (2026-06-04).  **Strip 6 landed:** `rust/tcl-compiler/src/parsing/syntax/descend.rs` ports `descend.py` — lazy descent into braced bodies / `[…]` substitutions.  `descend_token(sm, token, config)` re-lexes an opaque `Str` / `Cmd` token's inner text as a child CST anchored **one byte past the opener** (`start.offset+1`, `character+1`) via `build_document` + `SyntaxTree::with_parts`, so the child owns the delimiter-excluding interior with absolute positions; a length-based `terminated` check (`start+1+text.len()`, not `end+1`) classifies an empty `{}`/`[]` correctly (#527) and flags an unterminated region as *recovered*.  `descend_command(registry, sm, cmd_name, args, arg_tokens, config)` resolves `ArgRole::Body` arguments through `CommandRegistry::arg_indices_for_role` (the Rust `iter_body_arguments`) and descends each non-empty `Str` body — `Expr` args stay with the expr lexer.  Python's `insidequote` param is not threaded (no production caller descends a quoted region).  6 tests: braced/cmd-sub/empty/unterminated descent, multi-level descent (a `[…]` inside a descended body, positions absolute), and `for`-loop body-vs-expr resolution.  **Strip 5 landed:** `rust/tcl-compiler/src/parsing/syntax/segment.rs` ports `segment.py` (adapted to the Rust `SegmentedCommand` shape) and **rebases `segment_commands_local` onto the CST** — the ~150-line `SegmenterState` token loop + `flush_eol_or_eof` are gone, replaced by `build_document` + `segments_from_document`.  `segments_from_tree` walks the red tree and derives every field: `argv` (compound-word merge — kind/`content_offset`/`in_quote` from the first fragment, span widened to the last), `texts` (`word_piece` per fragment), `single_token_word`, `all_tokens` (fragments + `{*}` markers in document order via `cmd.tokens()`), `expand_word`, `preceding_comment`.  **Key divergence handled:** the Rust oracle derives the command **span** via `command_span`/`widen_word_end` (which deliberately does *not* widen a quoted `"…"` final word over its closing quote), whereas main's `segment.py` uses the green `range_end_rel` (`word_boundary` rule, which *does* include the quote) — the two differ by one byte only for a quoted last word.  To keep the public behaviour byte-identical, the Rust derivation computes the span with `command_span` over the derived `all_tokens` (same fn + inputs as the oracle ⇒ identical by construction); `range_end_rel` stays in the green tree as the main-faithful range for future consumers.  **Differential harness** `tests/differential_segment.rs` asserts the production (CST) segmenter == an **independent oracle** field-for-field + losslessness + position-equivalence over an edge table (×3 dialects), a non-zero-base shift, and **all 256 Tcl 8.4/8.5/8.6/9.0 corpus files**.  Post-review (H2): the oracle is a **frozen byte-for-byte copy of the pre-CST token loop** (snapshotted from `3410dd4e` into the test's `frozen_oracle` module) — not the live `segment_commands_local`, which is now CST-backed and would make the test a tautology — so the byte-identity is a genuine cross-check, not a self-comparison.  The recovery post-process (`segment_commands_with_recovery`) is unchanged and re-verified.  Full `cargo test --workspace` byte-identical.  `command_span` made `pub(crate)`.  **Strip 4 landed:** `rust/tcl-compiler/src/parsing/syntax/build.rs` ports `build.py` — `build_document(source, config)` reshapes the dialect-configured `Lexer` stream into the green tree (no second parser) via start-to-start tiling (`raw = source[tok[i].start .. tok[i+1].start]`, delimiters included, sidestepping the inner-end/#527 convention).  Lexes in local-offset space (base 0, like `segment_commands_local`) since green is position-independent — anchoring is the red layer's job.  A `Builder` mirrors the segmenter's `nonlocal` state: command/word grouping, `{*}` marker handling (stale-boundary quirk — EXPAND advances `prev_type` to SEP without touching `word_boundary`), backslash-newline continuation, comment accumulation across dangling-`{*}` commands + blank-line reset, the `word_boundary` range rule (token-only `start, boundary-1`, making the #527 overshoot structural), and terminator-trivia attachment.  Verified **byte-lossless over all 256 Tcl 8.4/8.5/8.6/9.0 source files** (`full_text == source`) plus 12 unit tests.  Added `with_trailing` / `with_last_child_trailing` green mutation helpers (recompute cached width) and exported `tcl_lexer::LexWarning`.  **Strip 3 landed:** `rust/tcl-compiler/src/parsing/syntax/red.rs` ports `red.py` — the lazy red overlay: `SyntaxTree` anchors a green root at `(base_offset, base_line, base_col)` and resolves a region offset to an absolute `SourcePosition` via a line index built from the tree's *own* reconstructed text (`build_line_starts`), reproducing the lexer's `_pos_at` (region-relative line bisect, then shift line by `base_line` and the first line's column by `base_col`).  `SyntaxToken` / `SyntaxNode` are cheap borrowed views (no `parent` back-pointer — Python's is unused); `raw_start` skips leading trivia, `start_position` / `end_position` reproduce the lexer's `Token.start` / inner-end `Token.end` (#527) via `end_rel`, and `to_token` rebuilds the exact span-based Rust `Token` (span = `raw_start..raw_start+end_rel+1`, with the `{*}` `Expand` marker special-cased to its zero-width ghost span).  Required carrying `content_offset` on `GreenToken` (the Rust `Token` is span+`content_offset` where Python's is text+start+end) — a justified Rust-specific addition.  12 tests including cross-checks that `to_token` byte-matches `Lexer` output (braced/empty-brace/var/braced-var/cmd-sub/bare/quoted/multiline/expand) field-for-field.  **Strip 2 landed:** `rust/tcl-compiler/src/parsing/syntax/green.rs` ports `green.py` — the position-independent green layer: `TriviaKind` / `SyntaxKind` enums, `GreenTrivia`, `GreenToken` (twin `text`/`raw` fields + `end_rel` + attached leading/trailing trivia + cached `full_width`), `GreenElement` (`Node`|`Token`), and `GreenNode` (`Document`/`Command`/`Word` with `expand_markers`, dangling `trailing`, `range_end_rel`, `preceding_comment`).  `full_text` round-trips byte-for-byte (losslessness); cached widths are pure functions of the other fields so they don't perturb structural equality (the shareability property).  Widths are byte lengths (matching the Rust lexer's byte-offset convention) where Python uses codepoint `len`.  Module tree `parsing/syntax/` mirrors the Python package layout.  10 tests.  **Strip 1 landed:** `rust/tcl-lexer/src/ranges.rs` ports `word_closer_offset` / `word_end_position` (derive the closing `}` / `]` / `"` from the lexer's content geometry — correct for empty `{}` / `[]` / `""` and backslash-bearing quoted `"a\"b"` / escaped-brace `{a\}}` words; emptiness keys on `SourceMap::token_text`, the Python `tok.text` discriminator, not a source byte), exported from `tcl-lexer`, 16 tests.  Audit of the segmenter's `widen_word_end` / `command_span`: the prior byte-check (`source[span.end()] == closer`) was robust for the *current* local-slice segmenter (an empty `{}` never sees an enclosing closer at `span.end()`) but would re-introduce the #527 overshoot once the CST rebase computes command spans against the full buffer (`a {}}` → the byte one past the empty `{}` *is* the enclosing `}`); rebased onto the faithful text-empty predicate (mirrors `range_from_word_token`'s `span_extra`) — behaviour-preserving for every existing input, robust for the rebase, pinned by `widen_word_end_does_not_overshoot_empty_brace_before_enclosing_closer`.  `cargo test --workspace` green (3337), clippy/fmt clean.  **CST-PORT complete.** |
 | — | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Landed via PR #389 — SYNC1 (minimum-viable, multi-role via duplicate rows; full `ArgRoleSet` type widening deferred), SYNC2 (`BodyKind`), SYNC3 (`body_arg_implicit_args`), SYNC4 (registry-driven trace defs), SYNC5 (`CREATES_DYNAMIC_BARRIER` guard), SYNC6 (`reads_own_def` for dict), SYNC7 (canonical-command field, type surface only), SYNC8 (GVN trace-aware purity), SYNC9 (Module trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11 (hover debounce / cache / worker-offload contract) is deferred to `S-hover-sync11` since it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row. |
 | 1 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` and as of 2026-05-08 has no live caller — the lone consumer (`tests/test_rust_analyser_differential.py`) was deleted by `SYNC-JUN-DIFF-harness-delete` because it had been silently broken since #241.  Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
@@ -4077,6 +4196,17 @@ priority queue:
   a docstring-only `r"""` fix in `compiler/taint/_sinks.py`, and refreshes
   `.test-slow.stamp`; no analyser / compiler / registry / optimiser surface
   and no `rust/` change.  See the `SYNC-JUN07` family section.
+* **`SYNC-JUN08` family** — opened 2026-06-04 (PRs #536/#537/#539); advances
+  the anchor from `origin/main`@`73492e98` to `origin/main`@`de6e9815`
+  (+3 commits).  **One in-scope soundness row** — #537 (`SYNC-JUN08-1`)
+  fixes lexer lone-CR line tracking; the Rust port's `LineIndex::new`
+  counted a bare `\r` as a line break, disagreeing with post-fix Python
+  (`\n`-only) and the red CST overlay, so a token after a lone CR landed
+  on the wrong line.  **Strip 1 LANDED** (`LineIndex` now `\n`-only;
+  cross-layer position-equivalence test).  #536 (token-scanning
+  consolidation + seg memo) carries no behavioural delta; #539 (docs/KCS +
+  I230/I231 catalog metadata, emitters already ported) is out of scope.
+  See the `SYNC-JUN08` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.

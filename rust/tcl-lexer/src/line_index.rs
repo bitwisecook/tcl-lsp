@@ -32,11 +32,22 @@ pub struct LineIndex {
 }
 
 impl LineIndex {
-    /// Build a `LineIndex` by scanning `source` once for line
-    /// terminators. Recognises `\n`, `\r\n`, and bare `\r` —
-    /// the three Tcl-relevant line endings (the bare-`\r` case
-    /// matches the Python lexer's incremental counter, which
-    /// also advances on `\r` inside backslash continuations).
+    /// Build a `LineIndex` by scanning `source` once for line breaks.
+    ///
+    /// A line break is `\n` **only**: the byte immediately after each
+    /// `\n` begins the next line. A CRLF therefore breaks on its LF,
+    /// and a *lone* CR is **not** a line break — in Tcl a bare `\r` is
+    /// horizontal whitespace (a `Sep`), not an end-of-line.
+    ///
+    /// This matches every line index on the Python side
+    /// (`compiler/parsing/lexer.py::_build_line_starts` and
+    /// `shared/source_map.py`, both `\n`-only) and the red CST overlay's
+    /// own `build_line_starts`. Keeping the rule identical across the
+    /// lexer and the CST is what makes their token positions agree for
+    /// old-Mac (bare-CR) input — the position-equivalence invariant
+    /// restored upstream in #537 (SYNC-JUN08), where a CR-counting index
+    /// reported a token after a lone CR one line below its own end (a
+    /// backwards range).
     ///
     /// # Panics
     ///
@@ -51,29 +62,11 @@ impl LineIndex {
             "source longer than 4 GiB cannot be indexed",
         );
         let bytes = source.as_bytes();
-        let len = bytes.len();
-        let mut starts = Vec::with_capacity(len / 32 + 1);
+        let mut starts = Vec::with_capacity(bytes.len() / 32 + 1);
         starts.push(0_u32);
-        let mut i = 0;
-        while i < len {
-            match bytes[i] {
-                b'\r' => {
-                    // ``\r\n`` counts as one line break; bare ``\r``
-                    // also counts as one. The next-line offset is
-                    // immediately after the terminator.
-                    let consumed = if i + 1 < len && bytes[i + 1] == b'\n' {
-                        2
-                    } else {
-                        1
-                    };
-                    starts.push(u32::try_from(i + consumed).expect("offset fits u32"));
-                    i += consumed;
-                }
-                b'\n' => {
-                    starts.push(u32::try_from(i + 1).expect("offset fits u32"));
-                    i += 1;
-                }
-                _ => i += 1,
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'\n' {
+                starts.push(u32::try_from(i + 1).expect("offset fits u32"));
             }
         }
         Self {
@@ -243,24 +236,32 @@ mod tests {
     }
 
     #[test]
-    fn bare_cr_counts_as_line_break() {
+    fn bare_cr_is_not_a_line_break() {
+        // A lone CR is horizontal whitespace in Tcl, not an EOL — and
+        // post-#537 main counts only `\n` in its line index, so a bare
+        // `\r` does not start a new line.
         let idx = LineIndex::new("abc\rdef");
-        assert_eq!(idx.line_count(), 2);
-        assert_eq!(idx.line_start(1), 4);
-        assert_eq!(idx.position_at(4), SourcePosition::new(1, 0, 4));
+        assert_eq!(idx.line_count(), 1);
+        // The lone CR at offset 3 is itself on line 0, column 3.
+        assert_eq!(idx.position_at(3), SourcePosition::new(0, 3, 3));
+        // ``def`` (offset 4) stays on line 0, column 4 — not line 1.
+        assert_eq!(idx.position_at(4), SourcePosition::new(0, 4, 4));
     }
 
     #[test]
     fn mixed_line_endings() {
-        // ``\n``, ``\r\n``, bare ``\r`` all count once.
+        // Only ``\n`` (incl. the LF of a CRLF) breaks a line; a bare
+        // ``\r`` does not.
         let src = "a\nb\r\nc\rd";
         let idx = LineIndex::new(src);
-        assert_eq!(idx.line_count(), 4);
-        // Lines: "a" (0..2), "b" (2..5), "c" (5..7), "d" (7..8).
+        assert_eq!(idx.line_count(), 3);
+        // Lines: "a" (0..2), "b\r" (2..5), "c\rd" (5..8).
         assert_eq!(idx.line_start(0), 0);
         assert_eq!(idx.line_start(1), 2);
         assert_eq!(idx.line_start(2), 5);
-        assert_eq!(idx.line_start(3), 7);
+        // The bare ``\r`` at offset 6 stays on line 2, not a new line.
+        assert_eq!(idx.position_at(6), SourcePosition::new(2, 1, 6));
+        assert_eq!(idx.position_at(7), SourcePosition::new(2, 2, 7));
     }
 
     #[test]
