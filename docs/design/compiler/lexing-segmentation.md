@@ -56,6 +56,18 @@ consumers that check for stray punctuation must test
 characters from structural delimiters (which are part of `STR` or `CMD`
 tokens).
 
+**Line-tracking convention** — the lexer resolves line/column two ways that
+must agree: a `\n`-only line-start index (`_line_starts`, consumed by
+`_pos_at` and the red [concrete syntax tree](syntax-tree.md) overlay), and an
+incremental `line`/`col` counter advanced per character. **Only `\n` is a line
+break for positions.** A lone carriage return — including a backslash-CR
+*continuation* (`\<CR>`, the old-Mac line ending) — splits the word like any
+continuation but does **not** advance the line, because the index never records
+it; a CRLF advances the line on its `\n`. Treating a lone `\<CR>` as a line
+break in the incremental counter (but not the index) made the token *after* it
+report `start` one line below its own `end` — a backwards range. Any new
+position-tracking path must keep the two mechanisms in lock-step.
+
 ### Stage 2 — Segmentation
 
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
