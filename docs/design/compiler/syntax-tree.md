@@ -1,13 +1,13 @@
 # The canonical concrete syntax tree (red-green CST)
 
 > **Status:** Cycles 1–9 shipped; cycle 10 (a hot-path allocation micro-opt) is
-> deferred as not worth its codegen risk, and a final shared-memo cleanup of the
-> remaining value-lexers is under way. The position-independent green tree, the
+> deferred as not worth its codegen risk, and the final shared-memo cleanup of the
+> remaining value-lexers is complete. The position-independent green tree, the
 > lazy red overlay, and the constructor are live in `compiler/parsing/syntax/`;
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
 > byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
-> substitutions is in `syntax/descend.py`, byte-identical to the analyser's
-> `green_tree` descent (cycle 2); and `analyser/compiler_checks.py` now descends
+> substitutions is in `syntax/descend.py`, byte-identical to a direct
+> `green_tree` tokenisation (cycle 2); and `analyser/compiler_checks.py` now descends
 > the shared tree and runs checks from its segments, retiring its duplicate
 > mini-segmenter so nested commands are analysed identically to top-level (cycle
 > 3 — a reviewed behaviour change, not byte-identical). The formatter, the whole
@@ -46,10 +46,9 @@ This is deliberately the model the earlier *green token tree* (issue #477,
 structure is a context-aware tokenisation memo whose tokens carry **absolute**
 positions, because ~80 consumers read `Token.start.offset` as absolute. The CST
 does not change those consumers — it is built *alongside*, verified
-byte-identical, and adopted incrementally. (Naming wrinkle: `green_tree.py` owns
-the name `GreenNode` but is a memo; the real CST lives under `syntax/`. Renaming
-the memo is a deferred follow-up because it touches every `tokenise` /
-`node_for` importer.)
+byte-identical, and adopted incrementally. (The `green_tree.py` memo node is named
+`TokenRegion`; the CST's structural node under `syntax/` is `GreenNode`, so the
+two no longer collide.)
 
 ## Node model
 
@@ -161,9 +160,9 @@ realised for nested bodies. Descent is lazy and shares the lex memo (the child's
   registry-resolved `ArgRole.BODY` argument (via `iter_body_arguments`); `EXPR`
   arguments stay with `expr_lexer` and data words are left opaque.
 
-Because both this descent and the analyser's `green_tree.descend_token` /
-`descend_command` tokenise the same inner text at the same anchor through the
-shared memo, the descended token stream is **identical by construction** — the
+Because this descent's `build_document` and a direct `green_tree.tokenise` of the
+same region share the one tokenisation memo (same inner text, same anchor), the
+descended token stream is **identical by construction** — the
 parity is asserted directly (same child fragments, same terminated/recovered
 classification) over the corpus, 8 000 randomised nested cases, and multi-level
 descent (a substitution inside a descended body).
@@ -311,17 +310,17 @@ and the refactoring body splitters left to fold onto `descend_*`.
    allocation — a hot-path micro-optimisation that feeds codegen, so its
    byte-identical IR + bytecode + `test-py` bar is not worth the risk for one
    fewer allocation. The CST-adoption goal is already met here.
-10. **Shared-memo cleanup** (in progress) — the remaining private `TclLexer`
-    sites that lex a *value* to analyse it (the var_refs-style uses in
-    `core_analyses`, `cfg`, `gvn`, `taint`, the optimiser, `interprocedural`,
-    `irules_flow`, `proc_arg_traits`, `execution_intent`, the analyser checks,
-    `document_state`, …) are being switched to the shared `tokenise` memo. Not
-    duplicate segmenters — token-for-token-identical value lexes that gain memo
-    sharing within the analysis scope. The cursor-local prefix lexers (`hover`,
-    `symbol_resolution`) and the tokeniser foundation (`green_tree`, `lexer`)
-    stay. Then `green_tree.descend_token` / `descend_command` can be deleted —
-    they have no production callers (only the NEW-vs-OLD equivalence test), so
-    the cleanup is gated only on retiring that safety net; `node_for` survives
+10. **Shared-memo cleanup** (done) — the private `TclLexer` sites that lexed a
+    *value* to analyse it (the var_refs-style uses in `core_analyses`, `cfg`,
+    `gvn`, `taint`, the optimiser, `interprocedural`, `irules_flow`,
+    `proc_arg_traits`, `execution_intent`, the analyser checks, `document_state`,
+    …) now lex through the shared `tokenise` memo — token-for-token-identical
+    value lexes that gain memo sharing within the analysis scope, not duplicate
+    segmenters. The cursor-local prefix lexers (`hover`, `symbol_resolution`),
+    the tokeniser foundation (`green_tree`, `lexer`), and the VM's `substitution`
+    / `compiler` (which lex under lexer-affecting thread-locals outside any
+    tokenise scope) keep their own `TclLexer`. The old flat-list `green_tree`
+    descent is gone; `node_for` survives
     for the explorer debug dumps.
 
 ## Pointers
@@ -337,6 +336,6 @@ and the refactoring body splitters left to fold onto `descend_*`.
 ## Related docs
 
 - [green-token-tree.md](green-token-tree.md) — the context-aware tokenisation
-  memo (a different structure, despite the `GreenNode` name) and incremental
+  memo (a different structure — its node is `TokenRegion`) and incremental
   reparse.
 - [lexing-segmentation.md](lexing-segmentation.md) — lexer/segmenter contract.

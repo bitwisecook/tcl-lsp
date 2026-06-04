@@ -98,14 +98,14 @@ incremental reparse that fixes (2).
 > green tree (relative widths + a cursor resolving absolute positions on
 > demand). That was *not* implemented, because `Token` positions are read as
 > absolute by every position-sensitive consumer (see the status note); the
-> shipped `GreenNode` therefore stores **absolute** positions and a `width`
+> shipped `TokenRegion` therefore stores **absolute** positions and a `width`
 > for shifting. The description below reflects the implementation.
 
-A `GreenNode` owns the tokenisation of one region, tagged with its `Mode`.
+A `TokenRegion` owns the tokenisation of one region, tagged with its `Mode`.
 Concretely (`compiler/parsing/green_tree.py`):
 
 ```
-GreenNode
+TokenRegion
   kind:       NodeKind          # ROOT | BRACED | BRACKETED | QUOTED | EXPR | ERROR
   mode:       Mode              # script | quoted | expr | raw
   text:       str               # the region's source text
@@ -113,7 +113,7 @@ GreenNode
   width:      int               # len(text) — used to locate/shift regions
   tokens:     tuple[Token, ...] # the lexed stream for this region (positions ABSOLUTE)
   warnings:   tuple[...]
-  _descended: dict[(offset, Mode), GreenNode]  # memoised child descents
+  _descended: dict[(offset, Mode), TokenRegion]  # memoised child descents
 ```
 
 Key properties:
@@ -124,7 +124,7 @@ Key properties:
   incremental layer uses to locate the edited region and offset-shift the
   unchanged tail (phases 3–4); there is no cursor.
 - **Lazy descent, not interior child nodes.** A node does not eagerly hold
-  interior `GreenNode` children; instead `descend(token)` re-lexes an opaque
+  interior `TokenRegion` children; instead `descend(token)` re-lexes an opaque
   `{…}` / `[…]` leaf on demand and memoises the child in `_descended`. Sharing
   of regions reached independently (segmenter vs `compiler_checks` vs lowerer)
   is provided by the analysis-scoped intern index, not by a parent→child link.
@@ -376,13 +376,14 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
 ## Related docs
 
 - [syntax-tree.md](syntax-tree.md) — the canonical **red-green concrete syntax
-  tree** (CST). A *different* structure despite also naming its node
-  `GreenNode`: the CST is position-independent (green nodes carry only widths;
-  a red overlay resolves absolute positions lazily), whereas this green token
-  tree is a context-aware tokenisation *memo* whose tokens carry absolute
-  positions because ~80 consumers read `Token.start.offset` as absolute. The
-  CST is built *alongside*, verified byte-identical, and adopted incrementally;
-  it rides this tree's `tokenise` memo for the leaf lexing.
+  tree** (CST), whose structural node is named `GreenNode` (distinct from this
+  green token tree's `TokenRegion`). A *different* structure: the CST is
+  position-independent (its `GreenNode`s carry only widths; a red overlay
+  resolves absolute positions lazily), whereas this green token tree is a
+  context-aware tokenisation *memo* whose tokens carry absolute positions
+  because ~80 consumers read `Token.start.offset` as absolute. The CST is built
+  *alongside*, verified byte-identical, and adopted incrementally; it rides this
+  tree's `tokenise` memo for the leaf lexing.
 - [lexing-segmentation.md](lexing-segmentation.md) — current lexer/segmenter
   contract and the shipped memo.
 - [error-recovery.md](error-recovery.md) — virtual-token injection.

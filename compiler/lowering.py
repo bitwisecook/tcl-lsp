@@ -24,6 +24,7 @@ from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.lexer import TclParseError
+from compiler.parsing.syntax import descend_token, segments_from_tree
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect as _active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
@@ -318,6 +319,12 @@ class _Command:
 class _Lowerer:
     def __init__(self) -> None:
         self.module = IRModule()
+        # Full document source, set by ``lower`` / ``lower_commands``.  When
+        # present it lets ``_segment_body`` descend a real body token through the
+        # shared CST (the analyser's body-descent path) rather than re-segmenting
+        # the body text; empty for callers that don't supply it, whose bodies
+        # then fall back to ``segment_commands``.
+        self._source: str = ""
         self._in_namespace_eval = False
         self._when_counts: dict[str, int] = {}  # event -> occurrence count
         # Command aliases: alias_name -> (target_cmd, prepended_args).
@@ -554,6 +561,7 @@ class _Lowerer:
         return self._canonicalise_command(cmd_name, self._current_namespace)
 
     def lower(self, source: str) -> IRModule:
+        self._source = source
         self.module.top_level = self._lower_script(source, namespace="::")
         self.module.namespace_exports = tuple(self._namespace_exports)
         self.module.namespace_imports = tuple(self._namespace_imports)
@@ -565,13 +573,19 @@ class _Lowerer:
         commands: list[SegmentedCommand],
         *,
         namespace: str = "::",
+        source: str = "",
     ) -> tuple[tuple[IRStatement, ...], dict[str, IRProcedure]]:
         """Lower pre-segmented commands to IR without calling ``segment_commands``.
 
         Returns the top-level IR statements and any procedure definitions
-        discovered.  Used by the incremental pipeline to lower a single
-        chunk without re-segmenting the entire source.
+        discovered.  Used by the incremental pipeline to lower a single chunk
+        without re-segmenting the entire source.  *source* is the full current
+        document, whose absolute offsets the chunk's tokens index into; threading
+        it lets nested body tokens descend the shared CST (when omitted, bodies
+        fall back to ``segment_commands``).
         """
+        if source:
+            self._source = source
         procs_before = set(self.module.procedures)
         self._const_map_stack.append({})
         try:
@@ -581,6 +595,38 @@ class _Lowerer:
         new_procs = {k: v for k, v in self.module.procedures.items() if k not in procs_before}
         return stmts, new_procs
 
+    def _segment_body(self, text: str, body_token: Token | None) -> list[SegmentedCommand]:
+        """Segment a body's commands, descending the shared CST when possible.
+
+        A real **braced** (``{…}``) body token that indexes into the document
+        ``self._source`` is descended through :func:`descend_token` — the same
+        body-descent entry point the analyser uses — so lowering and the checks
+        share one descent path.  This is byte-identical to
+        ``segment_commands(text, body_token)`` for a braced body: the arg text
+        and the ``STR`` token's inner text are both the brace-stripped content,
+        and recovery is skipped for bodies, so the two derive the same segments
+        (asserted by ``tests/test_syntax_descend.py``).
+
+        Only ``STR`` bodies are descended — deliberately mirroring the analyser's
+        :func:`descend_command`, which skips non-``STR`` bodies.  A ``[…]``
+        command-substitution body is **not** a script: it is substituted at
+        runtime to *produce* the body string, so its inner text is not the body.
+        Descending it would read ``[foo bar]`` as the script ``foo bar`` and
+        diverge from ``segment_commands`` (which keeps the ``[…]`` word).  So
+        every non-braced body — ``CMD`` / ``VAR`` / quoted, the top level (no
+        token), and synthesised bodies whose token does not index into the
+        document — falls through to ``segment_commands``.
+        """
+        if (
+            body_token is not None
+            and body_token.type is TokenType.STR
+            and self._source
+            and 0 <= body_token.start.offset < len(self._source)
+            and self._source[body_token.start.offset] == "{"
+        ):
+            return segments_from_tree(descend_token(body_token, self._source).tree)
+        return segment_commands(text, body_token)
+
     def _lower_script(
         self,
         source: str,
@@ -588,7 +634,7 @@ class _Lowerer:
         namespace: str,
         body_token: Token | None = None,
     ) -> IRScript:
-        commands = segment_commands(source, body_token)
+        commands = self._segment_body(source, body_token)
         # Inherit the parent scope's const-map so a child body (e.g.
         # the ``catch`` body in ``set body {literal}; catch {uplevel 1
         # $body}``) can still relax.  The child's copy is independent,
@@ -2671,7 +2717,7 @@ class _Lowerer:
         class_qname = _qualify_proc_name(namespace, class_simple)
         body_tok = arg_tokens[body_idx]
         try:
-            segments = segment_commands(body_text, body_tok)
+            segments = self._segment_body(body_text, body_tok)
         except TclParseError:
             return
 
@@ -2821,7 +2867,7 @@ def _lower_to_ir_inner(
         else:
             # Lower this chunk's commands fresh.
             cmds = list(chunk.commands)
-            stmts, procs = lowerer.lower_commands(cmds)
+            stmts, procs = lowerer.lower_commands(cmds, source=source)
             all_stmts.extend(stmts)
             # procs already on lowerer.module via lower_commands
 
@@ -2846,4 +2892,4 @@ def lower_commands_to_ir(
     Convenience wrapper around ``_Lowerer.lower_commands`` for use by
     the per-chunk incremental pipeline.
     """
-    return _Lowerer().lower_commands(commands)
+    return _Lowerer().lower_commands(commands, source=source)
