@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T18:34:11Z",
+  "generated_at": "2026-06-04T07:49:58Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -60,8 +60,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 94,
+      "failed_max": 2,
+      "passed_min": 95,
       "skipped": 0,
       "total": 97
     },
@@ -366,8 +366,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 2,
-      "passed_min": 0,
+      "failed_max": 1,
+      "passed_min": 1,
       "skipped": 299,
       "total": 301
     },
@@ -393,8 +393,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 2,
-      "passed_min": 100,
+      "failed_max": 1,
+      "passed_min": 101,
       "skipped": 169,
       "total": 271
     },
@@ -492,8 +492,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 7,
-      "passed_min": 146,
+      "failed_max": 5,
+      "passed_min": 148,
       "skipped": 0,
       "total": 153
     },

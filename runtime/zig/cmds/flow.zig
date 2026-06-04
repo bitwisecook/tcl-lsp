@@ -27,6 +27,152 @@ fn clicks_us() i64 {
     return v;
 }
 
+/// Tcl status code for ``return -code`` / a ``-options`` dict's
+/// ``-code`` key — keyword (``ok``/``error``/…) or numeric.
+const ReturnCode = enum { ok, err, ret, brk, cont, custom };
+
+/// Mutable state threaded through ``return``'s option parsing so the
+/// recursive ``-options`` expander updates the same slots the main
+/// argument loop uses.
+const RetOptCtx = struct {
+    code_kind: *ReturnCode,
+    custom_code: *i64,
+    extra_levels: *u32,
+    level_explicit: *bool,
+    level_value: *u32,
+    errorcode_obj: *i32,
+    errorinfo_obj: *i32,
+};
+
+/// Copy list element [*start*, *start*+*len*) out of *base_ptr* into a
+/// fresh owning TclObj.  ``list_element_at`` already hands back the
+/// brace-stripped content span for braced elements, so this matches
+/// what ``dict_get``'s list-walk fallback produces.
+fn ret_opt_elem_to_obj(base_ptr: u32, start: u32, len: u32) i32 {
+    const obj_opt = @import("../valtypes/tcl_obj.zig");
+    if (len == 0) return obj_opt.obj_new_string(0, 0);
+    return obj_opt.obj_new_string_copy(base_ptr + start, len);
+}
+
+/// Apply one ``KEY VALUE`` pair from a ``-options`` dict.  The standard
+/// slots (``-code`` / ``-level`` / ``-errorcode`` / ``-errorinfo``)
+/// update their dedicated tracking variables; a nested ``-options``
+/// recurses (C Tcl's ``TclMergeReturnOptions`` flattens recursively —
+/// cmdMZ-return-2.21); anything else lands in the pending-extras dict.
+fn apply_one_return_option(ctx: RetOptCtx, key_obj: i32, val_obj: i32, depth: u32) void {
+    const obj_opt = @import("../valtypes/tcl_obj.zig");
+    const dict_mod_opt = @import("../valtypes/tcl_dict.zig");
+    const ks_inner = obj_ensure_string(key_obj);
+    if (val_obj == 0 or ks_inner.len == 0) return;
+    const kp: [*]const u8 = @ptrFromInt(ks_inner.ptr);
+    if (str_eq(kp, ks_inner.len, "-options")) {
+        apply_return_options_dict(ctx, val_obj, depth + 1);
+        return;
+    }
+    if (str_eq(kp, ks_inner.len, "-code")) {
+        const cs = obj_ensure_string(val_obj);
+        if (cs.len >= 1) {
+            const cp: [*]const u8 = @ptrFromInt(cs.ptr);
+            if (str_eq(cp, cs.len, "ok") or (cs.len == 1 and cp[0] == '0')) {
+                ctx.code_kind.* = .ok;
+            } else if (str_eq(cp, cs.len, "error") or (cs.len == 1 and cp[0] == '1')) {
+                ctx.code_kind.* = .err;
+            } else if (str_eq(cp, cs.len, "return") or (cs.len == 1 and cp[0] == '2')) {
+                ctx.code_kind.* = .ret;
+                ctx.extra_levels.* = 1;
+            } else if (str_eq(cp, cs.len, "break") or (cs.len == 1 and cp[0] == '3')) {
+                ctx.code_kind.* = .brk;
+            } else if (str_eq(cp, cs.len, "continue") or (cs.len == 1 and cp[0] == '4')) {
+                ctx.code_kind.* = .cont;
+            } else {
+                var n2: i64 = 0;
+                var okp = cs.len > 0;
+                var k2: u32 = 0;
+                while (k2 < cs.len) : (k2 += 1) {
+                    if (cp[k2] < '0' or cp[k2] > '9') {
+                        okp = false;
+                        break;
+                    }
+                    n2 = n2 * 10 + (cp[k2] - '0');
+                }
+                if (okp and n2 >= 5) {
+                    ctx.code_kind.* = .custom;
+                    ctx.custom_code.* = n2;
+                }
+            }
+        }
+        return;
+    }
+    if (str_eq(kp, ks_inner.len, "-level")) {
+        const lv = obj_ensure_string(val_obj);
+        if (lv.len >= 1) {
+            const lp: [*]const u8 = @ptrFromInt(lv.ptr);
+            var nv: u32 = 0;
+            var ok2 = true;
+            for (0..lv.len) |k2| {
+                if (lp[k2] < '0' or lp[k2] > '9') {
+                    ok2 = false;
+                    break;
+                }
+                nv = nv * 10 + @as(u32, @intCast(lp[k2] - '0'));
+            }
+            if (ok2) {
+                ctx.level_explicit.* = true;
+                ctx.level_value.* = nv;
+                ctx.extra_levels.* = if (nv > 0) nv - 1 else 0;
+            }
+        }
+        return;
+    }
+    if (str_eq(kp, ks_inner.len, "-errorcode")) {
+        ctx.errorcode_obj.* = val_obj;
+        return;
+    }
+    if (str_eq(kp, ks_inner.len, "-errorinfo")) {
+        ctx.errorinfo_obj.* = val_obj;
+        return;
+    }
+    // Arbitrary option — record into the pending-extras dict.
+    if (catch_mod.state.pending_return_extras == 0) {
+        catch_mod.state.pending_return_extras = dict_mod_opt.dict_create();
+    }
+    const new_extras = dict_mod_opt.dict_set(
+        catch_mod.state.pending_return_extras,
+        key_obj,
+        val_obj,
+    );
+    if (new_extras != catch_mod.state.pending_return_extras) {
+        if (catch_mod.state.pending_return_extras != 0) {
+            obj_opt.tcl_obj_release(catch_mod.state.pending_return_extras);
+        }
+        catch_mod.state.pending_return_extras = new_extras;
+    }
+}
+
+/// Expand a ``-options`` dict, applying each ``KEY VALUE`` pair in
+/// order.  Iterates the raw list pairs (NOT ``dict_keys``, which dedups
+/// — a dict with repeated keys like ``{-options A -options B}`` must
+/// apply each occurrence; cmdMZ-return-2.21).  ``depth`` guards against
+/// pathological self-referential nesting.  Note the standard ``-error*``
+/// slots receive ``val_obj`` directly (ownership transfer, matching the
+/// pre-refactor ``dict_get`` path); only ``key_obj`` is released here.
+fn apply_return_options_dict(ctx: RetOptCtx, opts_dict: i32, depth: u32) void {
+    if (depth > 64 or opts_dict == 0) return;
+    const obj_opt = @import("../valtypes/tcl_obj.zig");
+    const ds = obj_ensure_string(opts_dict);
+    if (ds.len == 0) return;
+    const n = obj_opt.list_count_elements(ds.ptr, ds.len);
+    var i: i64 = 0;
+    while (i + 1 < n) : (i += 2) {
+        const ke = obj_opt.list_element_at(ds.ptr, ds.len, i);
+        const ve = obj_opt.list_element_at(ds.ptr, ds.len, i + 1);
+        const key_obj = ret_opt_elem_to_obj(ds.ptr, ke.start, ke.len);
+        const val_obj = ret_opt_elem_to_obj(ds.ptr, ve.start, ve.len);
+        apply_one_return_option(ctx, key_obj, val_obj, depth);
+        if (key_obj != 0) obj_opt.tcl_obj_release(key_obj);
+    }
+}
+
 fn eval_return(words: []const i32) result_mod.InterpResult {
     // Tcl's ``return -level N -code C value`` produces an exception
     // that unwinds *N* frames with code C.  The default ``return val``
@@ -37,7 +183,6 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
     // frames.  We model this with a single ``extra_levels`` counter
     // tracked in ``tcl_catch.return_level`` and decremented at every
     // proc-dispatch boundary.
-    const ReturnCode = enum { ok, err, ret, brk, cont, custom };
     var code_kind: ReturnCode = .ok;
     var custom_code: i64 = 0;
     var extra_levels: u32 = 0;
@@ -204,111 +349,28 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                     continue;
                 }
                 if (str_eq(wp, w.len, "-options") and wi + 1 < words.len) {
-                    // Expand DICT into the pending-extras options
-                    // for ``return … -options DICT …``.  Multiple
-                    // ``-options`` arguments accumulate (cmdMZ-return-
-                    // 2.20).  Standard slots (``-code`` / ``-level`` /
-                    // ``-errorcode`` / ``-errorinfo``) inside the
-                    // dict are extracted into their dedicated
-                    // tracking variables rather than the extras
-                    // dict — they pass through the normal
-                    // ``-code`` / ``-level`` paths so the catch
-                    // sees the right surface.
-                    const dict_mod_opt = @import("../valtypes/tcl_dict.zig");
-                    const obj_opt = @import("../valtypes/tcl_obj.zig");
-                    const opts_dict = words[wi + 1];
-                    const keys = dict_mod_opt.dict_keys(opts_dict);
-                    if (keys != 0) {
-                        const ks = obj_ensure_string(keys);
-                        const n = obj_opt.list_count_elements(ks.ptr, ks.len);
-                        var ki: i64 = 0;
-                        while (ki < n) : (ki += 1) {
-                            const elem = obj_opt.list_element_at(ks.ptr, ks.len, ki);
-                            const key_obj = obj_opt.obj_new_string_copy(
-                                ks.ptr + elem.start,
-                                elem.len,
-                            );
-                            const ks_inner = obj_ensure_string(key_obj);
-                            const val_obj = dict_mod_opt.dict_get(opts_dict, key_obj);
-                            if (val_obj != 0 and ks_inner.len > 0) {
-                                const kp: [*]const u8 = @ptrFromInt(ks_inner.ptr);
-                                if (str_eq(kp, ks_inner.len, "-code")) {
-                                    const cs = obj_ensure_string(val_obj);
-                                    if (cs.len >= 1) {
-                                        const cp: [*]const u8 = @ptrFromInt(cs.ptr);
-                                        if (str_eq(cp, cs.len, "ok") or (cs.len == 1 and cp[0] == '0')) {
-                                            code_kind = .ok;
-                                        } else if (str_eq(cp, cs.len, "error") or (cs.len == 1 and cp[0] == '1')) {
-                                            code_kind = .err;
-                                        } else if (str_eq(cp, cs.len, "return") or (cs.len == 1 and cp[0] == '2')) {
-                                            code_kind = .ret;
-                                            extra_levels = 1;
-                                        } else if (str_eq(cp, cs.len, "break") or (cs.len == 1 and cp[0] == '3')) {
-                                            code_kind = .brk;
-                                        } else if (str_eq(cp, cs.len, "continue") or (cs.len == 1 and cp[0] == '4')) {
-                                            code_kind = .cont;
-                                        } else {
-                                            var n2: i64 = 0;
-                                            var okp = cs.len > 0;
-                                            var k2: u32 = 0;
-                                            while (k2 < cs.len) : (k2 += 1) {
-                                                if (cp[k2] < '0' or cp[k2] > '9') {
-                                                    okp = false;
-                                                    break;
-                                                }
-                                                n2 = n2 * 10 + (cp[k2] - '0');
-                                            }
-                                            if (okp and n2 >= 5) {
-                                                code_kind = .custom;
-                                                custom_code = n2;
-                                            }
-                                        }
-                                    }
-                                } else if (str_eq(kp, ks_inner.len, "-level")) {
-                                    const lv = obj_ensure_string(val_obj);
-                                    if (lv.len >= 1) {
-                                        const lp: [*]const u8 = @ptrFromInt(lv.ptr);
-                                        var nv: u32 = 0;
-                                        var ok2 = true;
-                                        for (0..lv.len) |k2| {
-                                            if (lp[k2] < '0' or lp[k2] > '9') {
-                                                ok2 = false;
-                                                break;
-                                            }
-                                            nv = nv * 10 + @as(u32, @intCast(lp[k2] - '0'));
-                                        }
-                                        if (ok2) {
-                                            level_explicit = true;
-                                            level_value = nv;
-                                            extra_levels = if (nv > 0) nv - 1 else 0;
-                                        }
-                                    }
-                                } else if (str_eq(kp, ks_inner.len, "-errorcode")) {
-                                    errorcode_obj = val_obj;
-                                } else if (str_eq(kp, ks_inner.len, "-errorinfo")) {
-                                    errorinfo_obj = val_obj;
-                                } else {
-                                    // Arbitrary option — record into extras.
-                                    if (catch_mod.state.pending_return_extras == 0) {
-                                        catch_mod.state.pending_return_extras = dict_mod_opt.dict_create();
-                                    }
-                                    const new_extras = dict_mod_opt.dict_set(
-                                        catch_mod.state.pending_return_extras,
-                                        key_obj,
-                                        val_obj,
-                                    );
-                                    if (new_extras != catch_mod.state.pending_return_extras) {
-                                        if (catch_mod.state.pending_return_extras != 0) {
-                                            obj_opt.tcl_obj_release(catch_mod.state.pending_return_extras);
-                                        }
-                                        catch_mod.state.pending_return_extras = new_extras;
-                                    }
-                                }
-                            }
-                            obj_opt.tcl_obj_release(key_obj);
-                        }
-                        obj_opt.tcl_obj_release(keys);
-                    }
+                    // Expand the options DICT.  Standard slots
+                    // (``-code`` / ``-level`` / ``-errorcode`` /
+                    // ``-errorinfo``) are extracted into their
+                    // dedicated tracking variables (so they pass
+                    // through the normal ``-code`` / ``-level`` paths
+                    // and the surrounding catch sees the right
+                    // surface); a nested ``-options`` recurses; any
+                    // other option accumulates into pending-extras.
+                    // Multiple ``-options`` arguments to ``return``
+                    // also accumulate (cmdMZ-return-2.20), and a dict
+                    // with repeated / nested keys is applied in order
+                    // and recursively flattened (cmdMZ-return-2.21).
+                    const ctx = RetOptCtx{
+                        .code_kind = &code_kind,
+                        .custom_code = &custom_code,
+                        .extra_levels = &extra_levels,
+                        .level_explicit = &level_explicit,
+                        .level_value = &level_value,
+                        .errorcode_obj = &errorcode_obj,
+                        .errorinfo_obj = &errorinfo_obj,
+                    };
+                    apply_return_options_dict(ctx, words[wi + 1], 0);
                     wi += 1;
                     continue;
                 }

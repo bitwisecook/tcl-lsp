@@ -9,6 +9,7 @@ const tcl_ns = @import("../interp/tcl_ns.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 fn eval_set(words: []const i32) result_mod.InterpResult {
     // Reference Tcl: ``set varName ?newValue?`` takes 1 or 2 args.
@@ -119,35 +120,36 @@ fn eval_incr(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_unset(words: []const i32) result_mod.InterpResult {
+    // ``unset`` with no names is a documented no-op.
+    if (words.len <= 1) return result_mod.from_globals(obj_new_string(0, 0));
     var i: u32 = 1;
     var nocomplain = false;
-    // Consume option arguments first (``-nocomplain``, ``--``).
-    while (i < words.len) : (i += 1) {
-        const w = obj_ensure_string(words[i]);
-        if (w.len == 0) continue;
-        const wp: [*]const u8 = @ptrFromInt(w.ptr);
-        if (wp[0] != '-') break;
-        if (w.len == 2 and wp[1] == '-') {
-            i += 1;
-            break;
-        }
-        if (w.len == 11) {
-            const lit = "-nocomplain";
-            var matches = true;
-            for (lit, 0..) |c, k2| {
-                if (wp[k2] != c) {
-                    matches = false;
-                    break;
+    // Simple, restrictive option parsing mirroring ``Tcl_UnsetObjCmd``
+    // (generic/tclVar.c).  ``-nocomplain`` and ``--`` are recognised
+    // ONLY as leading argument(s); ``-nocomplain`` must match exactly
+    // and is consumed exactly once.  A second ``-nocomplain``
+    // (``unset -nocomplain -nocomplain``) is therefore a variable
+    // *name*, not a repeated option (set-old-7.16).
+    {
+        const w0 = obj_ensure_string(words[1]);
+        if (w0.len != 0) {
+            const wp0: [*]const u8 = @ptrFromInt(w0.ptr);
+            if (wp0[0] == '-') {
+                if (str_eq(wp0, w0.len, "-nocomplain")) {
+                    i = 2;
+                    // ``unset -nocomplain`` with no following names → no-op.
+                    if (i >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+                    nocomplain = true;
+                }
+                // A leading ``--`` (possibly following ``-nocomplain``)
+                // ends option processing; the next word is a name.
+                const wi = obj_ensure_string(words[i]);
+                if (wi.len == 2) {
+                    const wpi: [*]const u8 = @ptrFromInt(wi.ptr);
+                    if (wpi[0] == '-' and wpi[1] == '-') i += 1;
                 }
             }
-            if (matches) {
-                nocomplain = true;
-                continue;
-            }
         }
-        // Unknown option — Tcl 9 ``unset`` is permissive and treats
-        // anything else (or any past-option name) as a variable name.
-        break;
     }
     while (i < words.len) : (i += 1) {
         const w = obj_ensure_string(words[i]);

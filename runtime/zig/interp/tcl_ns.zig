@@ -1008,6 +1008,57 @@ pub fn global_alias_link(local: i32, target: i32) void {
     v.value = target_var;
 }
 
+/// Reverse-lookup: find the simple name a root-namespace ``*Var``
+/// (``target_addr``) is stored under in the root var table.  Returns a
+/// fresh bare-name TclObj (``aVaRnAmE``, not ``::aVaRnAmE``) so it keys
+/// the array directory the same way an un-aliased top-level array does,
+/// or 0 when the address isn't found.
+fn root_var_name_obj(target_addr: u32) i32 {
+    if (target_addr == 0) return 0;
+    const root: *Namespace = @ptrFromInt(ns_root());
+    if (root.var_table.buf == 0) return 0;
+    const Ctx = struct {
+        want: u32,
+        found_ptr: u32 = 0,
+        found_len: u32 = 0,
+    };
+    var ctx = Ctx{ .want = target_addr };
+    root.var_table.each(&ctx, struct {
+        fn visit(c: *Ctx, base: u32) void {
+            if (c.found_ptr != 0) return;
+            const h: u32 = @bitCast(read_i32(base + OFF_HANDLE));
+            if (h == c.want) {
+                c.found_ptr = @bitCast(read_i32(base));
+                c.found_len = @bitCast(read_i32(base + 4));
+            }
+        }
+    }.visit);
+    if (ctx.found_ptr == 0 or ctx.found_len == 0) return 0;
+    return obj.obj_new_string_copy(ctx.found_ptr, ctx.found_len);
+}
+
+/// If *name* resolves to a top-level (root-namespace) ``upvar`` link,
+/// return the bare name of the link's terminal target; else 0.  This
+/// lets array operations (``array set`` / ``names`` / ``exists``)
+/// follow a ``upvar 0`` / ``upvar #0`` alias created at the script top
+/// level — where the link lives in the root Var table as a ``VAR_LINK``
+/// rather than in a frame's ALIAS_EXT descriptor.  Without it
+/// ``array set anAliAs …`` through such an alias creates a *separate*
+/// array under the alias name instead of populating the target
+/// (set-old-8.38.2).
+pub fn global_link_target_name(name: i32) i32 {
+    const sn = obj.obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return 0;
+    const key = strip_global_prefix(sn.ptr, sn.len);
+    const local_var = ns_var_find(ns_root(), key.ptr, key.len);
+    if (local_var == 0) return 0;
+    const v: *const Var = @ptrFromInt(local_var);
+    if ((v.flags & VAR_LINK) == 0) return 0;
+    const terminal = var_resolve_link(local_var);
+    if (terminal == 0 or terminal == local_var) return 0;
+    return root_var_name_obj(terminal);
+}
+
 /// Promote a possibly-borrowing TclObj to an owning copy.  Mirrors
 /// :func:`tcl_procs.ensure_owned` — when the input's
 /// ``OBJ_STR_CAP == 0`` the buffer bytes belong to *someone else*

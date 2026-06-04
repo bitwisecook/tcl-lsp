@@ -1207,5 +1207,23 @@ fn pick_var_read_suffix(s: anytype) []const u8 {
     if (tcl_array.array_exists_raw(probe_ptr, probe_len)) {
         return "\": variable is array";
     }
+    // A whole-array read through a top-level ``upvar 0`` / ``upvar #0``
+    // alias: the array lives under the link *target*'s name, so follow
+    // the root-ns link and re-probe so the alias also reports
+    // "variable is array" rather than "no such variable"
+    // (set-old-8.38.2).
+    {
+        const obj_helpers = @import("../valtypes/tcl_obj.zig");
+        const tcl_ns_link = @import("tcl_ns.zig");
+        const nm = obj_helpers.obj_new_string(@bitCast(s.ptr), @bitCast(s.len));
+        const linked = tcl_ns_link.global_link_target_name(nm);
+        obj_helpers.tcl_obj_release(nm);
+        if (linked != 0) {
+            const ls = obj_helpers.obj_ensure_string(linked);
+            const is_arr = tcl_array.array_exists_raw(ls.ptr, ls.len);
+            obj_helpers.tcl_obj_release(linked);
+            if (is_arr) return "\": variable is array";
+        }
+    }
     return "\": no such variable";
 }
