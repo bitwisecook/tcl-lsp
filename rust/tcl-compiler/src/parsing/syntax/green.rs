@@ -89,6 +89,26 @@ fn trivia_width(trivia: &[GreenTrivia]) -> u32 {
     trivia.iter().map(GreenTrivia::width).sum()
 }
 
+/// Cached full width of a token: leading trivia + raw + trailing trivia.
+fn token_full_width(raw: &str, leading: &[GreenTrivia], trailing: &[GreenTrivia]) -> u32 {
+    trivia_width(leading) + u32::try_from(raw.len()).unwrap_or(u32::MAX) + trivia_width(trailing)
+}
+
+/// Cached full width of an interior node: children + `{*}` markers +
+/// dangling trivia.
+fn node_full_width(
+    children: &[GreenElement],
+    expand_markers: &[GreenToken],
+    trailing: &[GreenTrivia],
+) -> u32 {
+    children.iter().map(GreenElement::full_width).sum::<u32>()
+        + expand_markers
+            .iter()
+            .map(GreenToken::full_width)
+            .sum::<u32>()
+        + trivia_width(trailing)
+}
+
 /// A leaf: one lexer word-fragment, with attached leading/trailing trivia.
 ///
 /// `token_type` is the lexer [`TokenType`] of the fragment
@@ -162,9 +182,7 @@ impl GreenToken {
         trailing: Vec<GreenTrivia>,
     ) -> Self {
         let raw = raw.into();
-        let full_width = trivia_width(&leading)
-            + u32::try_from(raw.len()).unwrap_or(u32::MAX)
-            + trivia_width(&trailing);
+        let full_width = token_full_width(&raw, &leading, &trailing);
         Self {
             token_type,
             text: text.into(),
@@ -176,6 +194,17 @@ impl GreenToken {
             trailing,
             full_width,
         }
+    }
+
+    /// Return a copy with `extra` appended to the trailing trivia,
+    /// recomputing the cached width.  Used by the `build` constructor to
+    /// attach a command's terminator (trailing whitespace + `EOL`) to its
+    /// last fragment, keeping the tree lossless.
+    #[must_use]
+    pub fn with_trailing(mut self, extra: impl IntoIterator<Item = GreenTrivia>) -> Self {
+        self.trailing.extend(extra);
+        self.full_width = token_full_width(&self.raw, &self.leading, &self.trailing);
+        self
     }
 
     /// Narrow width: just the fragment's own bytes (`raw`).
@@ -257,6 +286,17 @@ impl GreenElement {
         self.push_full_text(&mut out);
         out
     }
+
+    /// Return a copy with `extra` appended to the element's trailing
+    /// trivia (a token's `trailing`, or a node's dangling `trailing`).
+    /// Mirrors Python's `replace(child, trailing=child.trailing + …)`.
+    #[must_use]
+    pub fn with_trailing(self, extra: impl IntoIterator<Item = GreenTrivia>) -> Self {
+        match self {
+            Self::Node(n) => Self::Node(n.with_trailing(extra)),
+            Self::Token(t) => Self::Token(t.with_trailing(extra)),
+        }
+    }
 }
 
 /// An interior node: a `Document`, `Command`, or `Word`.
@@ -313,12 +353,7 @@ impl GreenNode {
         range_end_rel: Option<u32>,
         preceding_comment: Option<String>,
     ) -> Self {
-        let width = children.iter().map(GreenElement::full_width).sum::<u32>()
-            + expand_markers
-                .iter()
-                .map(GreenToken::full_width)
-                .sum::<u32>()
-            + trivia_width(&trailing);
+        let width = node_full_width(&children, &expand_markers, &trailing);
         Self {
             kind,
             children,
@@ -328,6 +363,32 @@ impl GreenNode {
             preceding_comment,
             full_width: width,
         }
+    }
+
+    /// Return a copy with `extra` appended to this node's dangling
+    /// trailing trivia, recomputing the cached width.
+    #[must_use]
+    pub fn with_trailing(mut self, extra: impl IntoIterator<Item = GreenTrivia>) -> Self {
+        self.trailing.extend(extra);
+        self.full_width = node_full_width(&self.children, &self.expand_markers, &self.trailing);
+        self
+    }
+
+    /// Return a copy with `extra` appended to the trailing trivia of the
+    /// node's *last child* (token or nested node), recomputing the cached
+    /// width.  Mirrors the `build` constructor closing a command whose
+    /// last word already finished — the terminator attaches to that
+    /// word's last fragment.
+    #[must_use]
+    pub fn with_last_child_trailing(
+        mut self,
+        extra: impl IntoIterator<Item = GreenTrivia>,
+    ) -> Self {
+        if let Some(last) = self.children.pop() {
+            self.children.push(last.with_trailing(extra));
+        }
+        self.full_width = node_full_width(&self.children, &self.expand_markers, &self.trailing);
+        self
     }
 
     /// Construct a `Document` node from its commands and dangling trivia.

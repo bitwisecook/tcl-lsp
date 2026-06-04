@@ -11,12 +11,13 @@
 //! - [`red`] — overlays a green tree with an anchoring and resolves
 //!   absolute positions lazily, reproducing the lexer's exact `Token`
 //!   offsets / lines / columns.
-//! - `build` (strip 4) — re-shapes the existing lexer stream into the
-//!   tree (no second parser).
+//! - [`build`] — re-shapes the existing lexer stream into the tree (no
+//!   second parser) via start-to-start tiling.
 //! - `segment` (strip 5) — derives `SegmentedCommand` from the tree.
 //! - `descend` (strip 6) — lazy descent into braced bodies / `[…]` subs.
 //!
 //! See `docs/design/compiler/syntax-tree.md`.
 
+pub mod build;
 pub mod green;
 pub mod red;

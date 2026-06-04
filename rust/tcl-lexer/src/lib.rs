@@ -44,7 +44,7 @@ pub use expr_lexer::{
     math_functions as expr_math_functions, tokenise_expr, tokenise_expr_checked, ExprToken,
     ExprTokenType,
 };
-pub use lexer::{LexError, Lexer, LexerConfig};
+pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
