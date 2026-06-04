@@ -477,9 +477,24 @@ class TestBackslashCRPositionConsistency:
             "# c \\\rd\nputs hi",
             "set x \\\r\n  y",
             "a\\\rb\\\rc\\\rd",
+            # Command substitutions: a lone-CR continuation inside [...] must not
+            # bump the line for the bytes after the substitution (issue surfaced
+            # in PR #537 review — the _parse_command scanner).
+            "[x\\\ry]\nset z 1",
+            "puts [x\\\ry] w",
+            "[a\\\rb]",
+            "[x\\\r\ny]\nset z 1",
         ):
             self._assert_no_backwards_range(source)
             self._assert_positions_match_index(source)
+
+    def test_cmdsub_lone_cr_following_token_line(self):
+        # The command after `[…\<CR>…]\n` lands on line 1, not line 2 — the lone
+        # CR inside the substitution is not a line break for the index.
+        toks = _tokens("[x\\\ry]\nset z 1", include_sep=True)
+        set_tok = next(t for t in toks if t.text == "set")
+        assert set_tok.start.line == 1
+        assert set_tok.start.character == 0
 
 
 class TestBackslashSubstCRLF:

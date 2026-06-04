@@ -343,11 +343,20 @@ class TclLexer:
                             col = 0
                             pos += 1
                         elif esc == "\r":
-                            line += 1
-                            col = 0
                             pos += 1
                             if pos < _len and text[pos] == "\n":
+                                # CRLF: the LF is the line break recorded in the
+                                # _line_starts index, so count it there.
                                 pos += 1
+                                line += 1
+                                col = 0
+                            else:
+                                # A lone CR is not a line break for the line index
+                                # (_pos_at / _advance only count \n), so advance the
+                                # column — a token straddling it, and tokens after
+                                # the command substitution, must not report a line
+                                # the index disagrees with.
+                                col += 1
                         else:
                             col += 1
                             pos += 1

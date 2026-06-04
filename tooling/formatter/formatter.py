@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from .config import FormatterConfig
 
 # ``format_body`` is the core recursive snippet formatter.  It is part of
@@ -10,6 +12,8 @@ from .config import FormatterConfig
 # ``rangeFormatting`` provider — without the document-level normalisation
 # (final newline / line-ending rewrite) that :func:`format_tcl` applies.
 from .engine import format_body
+
+log = logging.getLogger(__name__)
 
 __all__ = ["format_body", "format_tcl"]
 
@@ -68,13 +72,30 @@ def format_tcl(source: str, config: FormatterConfig | None = None) -> str:
     # Fast path: already a fixed point (all valid Tcl, the overwhelming case).
     if _format_once(result, config) == result:
         return result
-    # Otherwise search for a fixed point a few passes out.
+    # Otherwise iterate, watching for a fixed point *or* a transform loop: track
+    # every output seen so an oscillation (the passes fight between two-or-more
+    # forms) is caught immediately instead of running to the cap, and is
+    # distinguishable from never-converging growth (each pass strictly larger,
+    # which the cap bounds).  Both fall back to the unchanged source.
+    seen = {source, result}
     current = result
     for _ in range(_STABILISE_PASSES):
         nxt = _format_once(current, config)
         if nxt == current:
-            return current
+            return current  # fixed point
+        if nxt in seen:
+            log.warning(
+                "format_tcl did not converge: the formatting passes form a "
+                "transform loop on this input; returning it unchanged."
+            )
+            return source
+        seen.add(nxt)
         current = nxt
-    # No fixed point — the input is not cleanly formattable; leave it as-is so
-    # repeated formatting is stable (returns the same *source* every time).
+    # No fixed point and no loop within the cap — the input is not cleanly
+    # formattable (delimiter imbalance the reconstruction keeps growing); leave
+    # it as-is so repeated formatting is stable (returns the same source).
+    log.debug(
+        "format_tcl did not converge within %d passes; returning input unchanged.",
+        _STABILISE_PASSES,
+    )
     return source

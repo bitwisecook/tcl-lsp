@@ -20,6 +20,7 @@ semantic equivalence while producing the smallest reasonable output by:
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Literal, overload
@@ -36,6 +37,8 @@ from shared.naming import split_array_name
 from shared.suffix_array import build_lcp_array, build_suffix_array
 from shared.text_edits import apply_edits, name_generator
 from shared.tokens import Token, TokenType
+
+log = logging.getLogger(__name__)
 
 # Commands whose presence in a proc body makes variable renaming unsafe
 # because they reference variables by name as strings at runtime.
@@ -357,12 +360,29 @@ def _minify_body_stable(source: str, *, dialect: str | None = None) -> str:
     result = _minify_body(source, dialect=dialect)
     if _minify_body(result, dialect=dialect) == result:
         return result
+    # Iterate, watching for a fixed point *or* a transform loop: tracking every
+    # output seen stops on an oscillation (the passes fight between two-or-more
+    # forms) immediately instead of waiting for the cap, and distinguishes it
+    # from never-converging growth (each pass strictly larger, which the cap
+    # bounds).  Both fall back to the unchanged source.
+    seen = {source, result}
     current = result
     for _ in range(_STABILISE_PASSES):
         nxt = _minify_body(current, dialect=dialect)
         if nxt == current:
-            return current
+            return current  # fixed point
+        if nxt in seen:
+            log.warning(
+                "minify did not converge: the minification passes form a "
+                "transform loop on this input; returning it unchanged."
+            )
+            return source
+        seen.add(nxt)
         current = nxt
+    log.debug(
+        "minify did not converge within %d passes; returning input unchanged.",
+        _STABILISE_PASSES,
+    )
     return source
 
 
