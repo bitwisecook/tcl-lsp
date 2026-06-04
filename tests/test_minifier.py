@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import random
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -246,6 +248,35 @@ class TestMinifyRealWorld:
         result = minify_tcl(source)
         assert "#" not in result
         assert "puts nested" in result
+
+    def test_switch_case_list_preserves_braced_quoted_pattern_spans(self):
+        # Regression: a braced ``{a b}`` / quoted ``"c d"`` switch pattern lexes
+        # with ``tok.end`` on its last inner char, so deriving the pattern
+        # raw-span end as ``tok.end + 1`` dropped the closing ``}`` / ``"``.
+        from compiler.registry.runtime import iter_switch_case_list
+
+        cl = '{a b} {puts 1} "c d" {puts 2} default {puts 3}'
+        patterns = [case.pattern for case in iter_switch_case_list(cl)]
+        assert patterns == ["{a b}", '"c d"', "default"]
+
+    def test_switch_braced_quoted_patterns_round_trip(self):
+        # The dropped closer made the minifier re-emit ``{a b`` / ``"c d`` and
+        # collapse the switch to ``switch $x {}``, which tclsh rejects.
+        src = 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+        result = minify_tcl(src)
+        assert result == 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+
+    def test_switch_braced_pattern_minify_accepted_by_tclsh(self):
+        tclsh = shutil.which("tclsh9.0") or shutil.which("tclsh8.6")
+        if tclsh is None:
+            pytest.skip("no tclsh on PATH")
+        src = 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+        script = "set x {a b}\n" + minify_tcl(src) + "\n"
+        out = subprocess.run(
+            [tclsh], input=script, capture_output=True, text=True, check=True
+        ).stdout
+        # pattern ``{a b}`` matches ``$x`` → runs ``puts 1``
+        assert out.strip() == "1"
 
     def test_for_loop(self):
         source = "for {set i 0} {$i < 10} {incr i} {\n    puts $i\n}\n"

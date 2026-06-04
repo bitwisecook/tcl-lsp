@@ -13,7 +13,7 @@ without an import-linter carve-out (``dialects/`` may import
 For the same reason it must **not** import the command registry at module
 scope (that would create a ``parsing`` ↔ ``registry`` cycle); any registry-aware
 helper imports it lazily inside the function body, mirroring
-``green_tree.descend_command``.
+``syntax.descend.descend_command``.
 """
 
 from __future__ import annotations

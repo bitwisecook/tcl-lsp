@@ -46,6 +46,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+from shared.ranges import closer_present_in_region
 from shared.tokens import SourcePosition, TokenType
 
 from .lexer import TclLexer
@@ -139,20 +140,11 @@ class GreenNode:
 def _delimiter_terminated(token: Token, text: str, base_offset: int) -> bool:
     """Return whether *token*'s closing delimiter is present in *text*.
 
-    *text* is the region containing *token* and *base_offset* its absolute
-    anchor.  The opening delimiter sits at ``token.start.offset`` and the inner
-    content occupies the ``len(token.text)`` bytes after it, so a terminated
-    ``{...}`` / ``[...]`` has its closing brace/bracket immediately past that.
-    Deriving the closer position from the token's *length* (rather than
-    ``token.end.offset``) is what classifies empty regions correctly: for an
-    empty ``{}`` / ``[]`` the lexer reports ``token.end.offset`` *at* the
-    closer, which ``end.offset + 1`` would skip over.
+    Thin wrapper over the shared :func:`shared.ranges.closer_present_in_region`
+    so the closer geometry lives in exactly one place.  *text* is the region
+    containing *token* and *base_offset* its absolute anchor.
     """
-    idx = token.start.offset + 1 + len(token.text) - base_offset
-    if idx < 0 or idx >= len(text):
-        return False
-    close = "}" if token.type is TokenType.STR else "]"
-    return text[idx] == close
+    return closer_present_in_region(token, text, base_offset)
 
 
 def _descend(token: Token, mode: Mode, context_text: str, context_base: int) -> GreenNode:

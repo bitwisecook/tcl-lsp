@@ -8,13 +8,13 @@ absolute positions matching where that interior sits in the document. That is th
 "a delimited region is a node owning its full span with delimiter-excluding
 children" shape, realised for nested bodies.
 
-This mirrors :func:`compiler.parsing.green_tree.descend_token` /
-:func:`compiler.parsing.green_tree.descend_command` — the descent the analyser
-uses today — but yields a structural :class:`SyntaxTree` rather than a flat token
-list, and flags an unterminated region as *recovered* (the lossless
-representation of malformed input). Because both this module's
-:func:`build_document` and ``green_tree.node_for`` tokenise through the same
-shared memo, the descended token stream is identical to today's by construction.
+These are the descent the analyser uses today — ``analyser/compiler_checks.py``
+descends the shared tree through :func:`descend_token` / :func:`descend_command`
+— yielding a structural :class:`SyntaxTree` rather than a flat token list, and
+flagging an unterminated region as *recovered* (the lossless representation of
+malformed input). Because both this module's :func:`build_document` and
+``green_tree.node_for`` tokenise through the same shared memo, the descended
+token stream is identical regardless of which consumer triggers the descent.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from shared.ranges import closer_present_in_region
 from shared.tokens import Token, TokenType
 
 from .build import build_document
@@ -36,16 +37,11 @@ _OPAQUE = (TokenType.STR, TokenType.CMD)
 def _terminated(token: Token, source: str) -> bool:
     """Return whether *token*'s closing delimiter is present in *source*.
 
-    The closer sits one byte past the ``len(token.text)`` bytes of inner content
-    after the opener.  Deriving it from the *length* (not ``token.end.offset``)
-    is what classifies an empty ``{}`` / ``[]`` correctly — the lexer reports
-    ``end`` *on* the closer there, which ``end + 1`` would overshoot (#527).
+    Thin wrapper over the shared :func:`shared.ranges.closer_present_in_region`
+    so the closer geometry lives in exactly one place.  *source* is the document
+    in *token*'s own (absolute) frame, hence ``base_offset=0``.
     """
-    idx = token.start.offset + 1 + len(token.text)
-    if idx < 0 or idx >= len(source):
-        return False
-    close = "}" if token.type is TokenType.STR else "]"
-    return source[idx] == close
+    return closer_present_in_region(token, source)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,9 +111,9 @@ def descend_command(
 ) -> list[CommandBody]:
     """Descend each ``ArgRole.BODY`` argument of a command as a child CST.
 
-    The single registry-aware descent entry point — the analogue of
-    ``green_tree.descend_command``, resolving body arguments through the same
-    ``iter_body_arguments`` so the set of descended bodies matches exactly. A
+    The single registry-aware descent entry point, resolving body arguments
+    through ``iter_body_arguments`` so the set of descended bodies matches
+    exactly. A
     body that is not a non-empty ``STR`` word is skipped (it is data, not a
     script the tree should re-lex).  ``ArgRole.EXPR`` arguments are deliberately
     not routed here — they are handled by ``expr_lexer``.

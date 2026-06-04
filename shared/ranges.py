@@ -47,15 +47,6 @@ def range_from_word_token(tok: Token) -> Range:
     excluded and ``>= 1`` when it is already covered, so it distinguishes the
     two cases without touching the source.
 
-    An *empty* ``{}`` / ``[]`` is the exception: it has no inner character, so
-    the lexer already places ``end`` *on* the closer.  Advancing again would
-    overshoot into whatever follows — for a trailing ``{}`` argument that is the
-    enclosing body's closing brace, which corrupts the command span and
-    produces a phantom stray ``}`` (issue #527).  ``span_extra`` — the bytes the
-    span carries beyond the opener and content — is ``0`` when the closer is
-    excluded and ``>= 1`` when it is already covered, so it distinguishes the
-    two cases without touching the source.
-
     The closer width comes from the token's *type*, so the span is derived
     straight from the token tree with no source slicing — which is what lets it
     work for tokens whose offsets are absolute but whose surrounding source
@@ -87,7 +78,7 @@ def range_from_tokens(tokens: list[Token]) -> Range:
 _RANGE_CLOSERS = {'"': '"', "{": "}", "[": "]"}
 
 
-def word_closer_offset(tok: Token, source: str) -> int | None:
+def word_closer_offset(tok: Token, source: str, *, base_offset: int = 0) -> int | None:
     """Offset of *tok*'s closing ``}`` / ``]`` / ``"`` in *source*, or ``None``.
 
     The authoritative way to locate a delimited word's closing delimiter for a
@@ -104,20 +95,39 @@ def word_closer_offset(tok: Token, source: str) -> int | None:
 
     Returns ``None`` when *tok* does not begin with an opening delimiter, or when
     the word is unterminated (the computed position is not the matching closer).
-    *tok* and *source* must share a coordinate frame (top-level: pass the
-    document).  Command/word *ranges* are owned by the concrete syntax tree the
-    segmenter builds and do not use this — see :mod:`compiler.parsing.syntax`.
+    *tok* and *source* must share a coordinate frame: by default *source* is the
+    document and the returned offset is absolute.  Pass *base_offset* (the
+    absolute start of *source*) when *source* is a region *substring* — both the
+    opener and closer indices are shifted by it and the result is region-relative.
+    (A ``base_offset`` was removed in ``4092ab3`` when ``cmd.range`` went
+    token-only; this re-adds it for the internal terminated checks and the
+    switch-case-list raw-span slicer, which genuinely work in a substring frame.)
+    Command/word *ranges* are owned by the concrete syntax tree the segmenter
+    builds and do not use this — see :mod:`compiler.parsing.syntax`.
     """
-    start = tok.start.offset
+    start = tok.start.offset - base_offset
     if not (0 <= start < len(source)):
         return None
     closer = _RANGE_CLOSERS.get(source[start])
     if closer is None:
         return None
-    closer_off = tok.end.offset if not tok.text else tok.end.offset + 1
+    closer_off = (tok.end.offset if not tok.text else tok.end.offset + 1) - base_offset
     if 0 <= closer_off < len(source) and source[closer_off] == closer:
         return closer_off
     return None
+
+
+def closer_present_in_region(tok: Token, text: str, base_offset: int = 0) -> bool:
+    """Whether *tok*'s closing ``}`` / ``]`` / ``"`` is present in *text*.
+
+    The boolean, region-relative sibling of :func:`word_closer_offset` for the
+    green-tree descent's terminated checks: *text* is the region containing *tok*
+    and *base_offset* its absolute anchor (``0`` when *text* is the document).
+    A delimited word is *terminated* exactly when its matching closer is present
+    one byte past its inner content, which is what :func:`word_closer_offset`
+    locates — so the two stay in lockstep by construction.
+    """
+    return word_closer_offset(tok, text, base_offset=base_offset) is not None
 
 
 def word_end_position(tok: Token, source: str) -> SourcePosition:
