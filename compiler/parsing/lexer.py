@@ -1172,14 +1172,11 @@ def is_simple_scalar_var_word(text: str) -> bool:
     Tcl's real variable-name rules (only ``::`` is a namespace separator, a
     lone ``:`` ends the name), so it is stricter than the old regex on
     malformed input and identical on valid input.
+
+    Delegates to the canonical :func:`token_scanning.extract_scalar_var_name`
+    (routed through the green-tree tokeniser memo) — the import is deferred to
+    avoid the ``lexer`` ↔ ``green_tree`` ↔ ``token_scanning`` module cycle.
     """
-    lexer = TclLexer(text)
-    tok = lexer.get_token()
-    if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
-        return False
-    name = tok.text
-    if text not in (f"${name}", f"${{{name}}}"):
-        return False
-    if not name or not (name[0].isalpha() or name[0] == "_"):
-        return False
-    return all(ch.isalnum() or ch in "_:" for ch in name)
+    from .token_scanning import extract_scalar_var_name
+
+    return extract_scalar_var_name(text) is not None

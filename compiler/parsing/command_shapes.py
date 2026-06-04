@@ -1,79 +1,10 @@
-"""Shared command text shape matchers."""
+"""Shared command text shape matchers.
+
+``extract_single_expr_argument`` now lives canonically in
+:mod:`compiler.parsing.token_scanning` (routed through the green-tree tokeniser
+memo); re-exported here so existing import paths stay stable.
+"""
 
 from __future__ import annotations
 
-from shared.tokens import Token, TokenType
-
-from .lexer import TclLexer
-from .token_scanning import word_piece
-
-
-def _word_piece(tok: Token) -> str:
-    """Verbatim word reconstruction for expr-argument matching.
-
-    Thin wrapper over the canonical :func:`token_scanning.word_piece`: no
-    codegen marker, and bare ``$name`` / ``$a(1)`` round-trip *verbatim*
-    (not normalised to ``${…}``) so the extracted expr argument is exactly
-    what the user typed.
-    """
-    return word_piece(tok, array_codegen_marker=False, normalise_var_braces=False)
-
-
-def extract_single_expr_argument(
-    cmd_text: str,
-    *,
-    expr_aliases: frozenset[str] | None = None,
-) -> str | None:
-    """Return expr argument if command text is exactly: ``expr <one-arg>``.
-
-    When *expr_aliases* is provided, command names in that set are also
-    accepted as equivalent to ``expr`` (e.g. for ``interp alias`` aliases).
-
-    Returns ``None`` for multi-command bodies (``expr X; cmd2``) so the
-    caller falls back to a generic value path — without the trailing-EOL
-    check the lexer breaks at the first ``;`` and we'd silently discard
-    the second command, lowering ``set r [expr {…};expr {…}]`` as if
-    only the first ``expr`` existed.
-    """
-    lexer = TclLexer(cmd_text)
-    argv_texts: list[str] = []
-    argv_single: list[bool] = []
-    prev_type = TokenType.EOL
-    saw_eol = False
-
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.EOL:
-            # ``;`` / ``\n`` ends a command.  Set the marker — only a
-            # subsequent **word** token (skipping trailing
-            # whitespace / comments) means we have a real second
-            # command to bail out for.
-            saw_eol = True
-            prev_type = tok.type
-            continue
-        if tok.type in (TokenType.SEP, TokenType.COMMENT):
-            prev_type = tok.type
-            continue
-        if saw_eol:
-            # Real word AFTER the first command ended → this is a
-            # multi-command body, not a single ``expr ARG``.
-            return None
-
-        piece = _word_piece(tok)
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(piece)
-            argv_single.append(True)
-        else:
-            argv_texts[-1] += piece
-            argv_single[-1] = False
-        prev_type = tok.type
-
-    if len(argv_texts) != 2:
-        return None
-    cmd_name = argv_texts[0]
-    is_expr = cmd_name == "expr" or (expr_aliases is not None and cmd_name in expr_aliases)
-    if not is_expr or not argv_single[1]:
-        return None
-    return argv_texts[1]
+from .token_scanning import extract_single_expr_argument  # noqa: F401  (re-export)

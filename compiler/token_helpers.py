@@ -1,86 +1,26 @@
 """Shared token-processing helpers for the compiler pipeline.
 
-Small utilities for extracting word text from tokens and parsing
-decimal integer literals.  Used by lowering, optimiser, and other
-compiler modules that walk raw token streams.
+A thin façade over :mod:`compiler.parsing.token_scanning` (where ``word_piece``
+and the single-command / word-scanning helpers now live canonically) plus the
+decimal-int literal parser.  The token-scanning helpers were moved under
+``compiler.parsing`` so every concern — including ``dialects`` — can import them
+without an import-linter carve-out; the re-exports here keep the historical
+``compiler.token_helpers`` import paths (incl. the dialects XC carve-out and the
+``contains_braced_scalar_marker`` use in ``core_analyses``) stable.
 """
 
 from __future__ import annotations
 
-from compiler.parsing.lexer import TclLexer
-
-# ``word_piece`` and the braced-scalar marker are now defined canonically in
-# ``compiler.parsing.token_scanning``; re-exported here so existing import
-# paths — including the dialects XC ``parse_command_words`` carve-out and the
-# ``contains_braced_scalar_marker`` use in ``core_analyses`` — stay stable.
-# ``parse_command_words`` below still reconstructs words via ``word_piece``.
 from compiler.parsing.token_scanning import (  # noqa: F401  (re-exported façade)
     BRACED_SCALAR_MARKER_PREFIX,
     contains_braced_scalar_marker,
     word_piece,
 )
-from shared.tokens import Token, TokenType
+from compiler.parsing.token_scanning import (  # noqa: F401  (re-exported façade)
+    parse_single_command as parse_command_words,
+)
 
 from .eval_helpers import DECIMAL_INT_RE
-
-
-def parse_command_words(
-    text: str,
-) -> tuple[list[str], list[Token], list[bool]] | None:
-    """Parse a single Tcl command into ``(argv_texts, argv_tokens, argv_single)``.
-
-    Returns ``None`` if *text* contains zero commands or more than one.
-    Each word's text is reconstructed via :func:`word_piece`, so variable
-    references are normalised to ``${name}`` form.
-    """
-    lexer = TclLexer(text)
-    commands: list[tuple[list[str], list[Token], list[bool]]] = []
-    argv_texts: list[str] = []
-    argv_tokens: list[Token] = []
-    argv_single: list[bool] = []
-    prev_type = TokenType.EOL
-
-    def flush() -> None:
-        nonlocal argv_texts, argv_tokens, argv_single
-        if argv_texts:
-            commands.append((argv_texts, argv_tokens, argv_single))
-        argv_texts = []
-        argv_tokens = []
-        argv_single = []
-
-    while True:
-        tok = lexer.get_token()
-        if tok is None:
-            break
-        if tok.type is TokenType.COMMENT:
-            continue
-        if tok.type is TokenType.SEP:
-            prev_type = tok.type
-            continue
-        if tok.type is TokenType.EOL:
-            flush()
-            prev_type = tok.type
-            continue
-
-        piece = word_piece(tok)
-        if prev_type in (TokenType.SEP, TokenType.EOL):
-            argv_texts.append(piece)
-            argv_tokens.append(tok)
-            argv_single.append(True)
-        else:
-            if argv_texts:
-                argv_texts[-1] += piece
-                argv_single[-1] = False
-            else:
-                argv_texts.append(piece)
-                argv_tokens.append(tok)
-                argv_single.append(True)
-        prev_type = tok.type
-
-    flush()
-    if len(commands) != 1:
-        return None
-    return commands[0]
 
 
 def parse_decimal_int(text: str) -> str | None:
