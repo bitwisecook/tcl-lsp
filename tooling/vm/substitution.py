@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import TclLexer
 from compiler.parsing.lexer import _thread_local as _lexer_thread_local
 from shared.tcl_subst import _BACKSLASH_MAP, backslash_subst
 from shared.tokens import TokenType
@@ -126,7 +126,8 @@ def substitute(
     from compiler.parsing.lexer import expand_syntax_disabled_scope
 
     with expand_syntax_disabled_scope():
-        tokens = tokenise(text, 0, 0, 0)[0]
+        lexer = TclLexer(text)
+        tokens = lexer.tokenise_all()
     parts: list[str] = []
 
     for tok in tokens:

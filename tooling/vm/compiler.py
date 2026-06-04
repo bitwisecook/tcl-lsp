@@ -29,7 +29,7 @@ from compiler.ir import (
     IRWhile,
 )
 from compiler.lowering import lower_to_ir
-from compiler.parsing.green_tree import tokenise
+from compiler.parsing.lexer import TclLexer
 from compiler.parsing.lexer import _thread_local as _lexer_thread_local
 from shared.sentinels import _BRACE_CLOSE, _BRACE_OPEN, _RAW_PREFIX
 from shared.tokens import TokenType
@@ -106,9 +106,9 @@ def _value_token_type(source: str, stmt: IRAssignValue | IRAssignConst) -> Token
     old_strict = getattr(_lexer_thread_local, "strict_quoting", False)
     _lexer_thread_local.strict_quoting = False
     try:
-        _toks = tokenise(cmd_text, 0, 0, 0)[0]
+        lexer = TclLexer(cmd_text)
         last_type: TokenType | None = None
-        for tok in _toks:
+        for tok in lexer.tokenise_all():
             if tok.type is TokenType.EOF:
                 break
             if tok.type not in (TokenType.SEP, TokenType.EOL, TokenType.COMMENT):
