@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE | Traits::CSE_CANDIDATE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the local port of a TCP connection.",
-            &["TCP::local_port (clientside | serverside)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the local port of a TCP connection.",
+            synopsis: &["TCP::local_port (clientside | serverside)?"],
+            snippet: "Returns the local port/service number of the specified side, or the current context (client or server) if there is no argument.\nThis command is equivalent to the BIG-IP 4.X variable local_port. When used\nin a clientside context, this command returns the client-side TCP\ndestination port. When used in a serverside context, this command\nreturns the server-side TCP source port.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__local_port.html",
+            examples: "when SERVER_CONNECTED {\n  # This logs information about the TCP connections on *both* sides of the fullproxy\n  set client_remote \"[IP::client_addr]:[TCP::client_port]\"\n  set client_local  \"[IP::local_addr clientside]:[TCP::local_port clientside]\"\n  set server_local  \"[IP::local_addr]:[TCP::local_port]\"\n  set server_remote \"[IP::server_addr]:[TCP::server_port]\"\n  log local0. \"Got connection: Client($client_remote)<->($client_local)LTM($server_local)<->($server_remote)Server\"\n}",
+            return_value: "The local port.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

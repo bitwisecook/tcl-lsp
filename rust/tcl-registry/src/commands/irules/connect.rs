@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "connect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Establishes a sideband connection.",
-            &["connect info ("],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Establishes a sideband connection.",
+            synopsis: &["connect info (", "connect (("],
+            snippet: "This command establishes a sideband connection. It is one of several commands that make up the ability to use sideband connections from iRules.",
+            source: "https://clouddocs.f5.com/api/irules/connect.html",
+            examples: "# Open a sideband connection with a connection timeout of 100 ms and an idle timeout of 30 seconds\n#   to a local virtual server name sideband_virtual_server\nset conn_id [connect -timeout 100 -idle 30 -status conn_status sideband_virtual_server]\n\n# Same as above, but use an external host IP:port instead of a virtual server name\nset conn_id [connect -timeout 100 -idle 30 -status conn_status 10.0.0.10:80]\n\n\nExample with more complete error handling:",
+            return_value: "This command opens a sideband connection to the specified destination.",
+        }),
         // GAP-D2: sideband `connect` is a network sink (SSRF, T104);
         // the address-bearing arg positions are not pinned. Mirrors
         // `irules/connect.py` (`taint_network_sink_args=()`).

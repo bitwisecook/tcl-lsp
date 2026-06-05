@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "X509::whole",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns an X509 certificate in PEM format.",
-            &["X509::whole CERTIFICATE"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns an X509 certificate in PEM format.",
+            synopsis: &["X509::whole CERTIFICATE"],
+            snippet: "Returns the specified X509 certificate, in its entirety, in PEM format.",
+            source: "https://clouddocs.f5.com/api/irules/X509__whole.html",
+            examples: "when CLIENTSSL_CLIENTCERT {\n  set client_cert [SSL::cert 0]\n  log local0. \"[X509::whole $client_cert]\"\n}",
+            return_value: "Returns an X509 certificate in PEM format.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

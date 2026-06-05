@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "NTLM::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables processing for NTLM.",
-            &["NTLM::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disables processing for NTLM.",
+            synopsis: &["NTLM::disable"],
+            snippet: "Disables processing for NTLM",
+            source: "https://clouddocs.f5.com/api/irules/NTLM__disable.html",
+            examples: "when HTTP_RESPONSE {\n    if { [string tolower [HTTP::header values \"WWW-Authenticate\"]] contains \"negotiate\"} {\n        ONECONNECT::detach disable\n        NTLM::disable\n    }\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

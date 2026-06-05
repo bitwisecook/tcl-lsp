@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "AUTH::username_credential",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sets the username credential to a string.",
-            &["AUTH::username_credential AUTH_ID USERNAME_CREDENTIAL"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sets the username credential to a string.",
+            synopsis: &["AUTH::username_credential AUTH_ID USERNAME_CREDENTIAL"],
+            snippet: "Sets the username credential to the specified string, for a future\nAUTH::authenticate call. This command returns an error if\nattempted for a standby system.\n\nAUTH::username_credential authid <string>\n\n     * Sets the username credential to the specified string, for a future\n       AUTH::authenticate call.",
+            source: "https://clouddocs.f5.com/api/irules/AUTH__username_credential.html",
+            examples: "when HTTP_REQUEST {\n  AUTH::username_credential $asid [HTTP::username]\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

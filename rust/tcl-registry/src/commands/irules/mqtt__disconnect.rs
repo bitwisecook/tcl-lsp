@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::disconnect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disconnect the MQTT connection.",
-            &["MQTT::disconnect"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disconnect the MQTT connection.",
+            synopsis: &["MQTT::disconnect"],
+            snippet: "This command disconnects the MQTT connection.",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__disconnect.html",
+            examples: "when MQTT_CLIENT_DATA {\n   set type [MQTT::type]\n   switch $type {\n       \"PUBLISH\" {\n          set payload [MQTT::payload]\n          MQTT::release\n          set found [class match $payload contains blacklisted_keywords_datagroup]\n          if { $found != \"\" } {\n              MQTT::disconnect\n          }\n       }\n   }\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

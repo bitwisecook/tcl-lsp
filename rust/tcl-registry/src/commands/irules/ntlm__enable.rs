@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "NTLM::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Enables processing for NTLM.",
-            &["NTLM::enable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Enables processing for NTLM.",
+            synopsis: &["NTLM::enable"],
+            snippet: "Enables processing for NTLM",
+            source: "https://clouddocs.f5.com/api/irules/NTLM__enable.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

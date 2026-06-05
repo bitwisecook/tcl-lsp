@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ICAP::uri",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sets or returns the ICAP request URI.",
-            &["ICAP::uri (URI_STRING)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sets or returns the ICAP request URI.",
+            synopsis: &["ICAP::uri (URI_STRING)?"],
+            snippet: "The ICAP::uri command sets or returns the ICAP request URI.",
+            source: "https://clouddocs.f5.com/api/irules/ICAP__uri.html",
+            examples: "when ICAP_REQUEST {\n                if {[ICAP::uri] contains \"movie\"} {\n                    ICAP::uri http://icap.mydomain.org/video\n                }\n            }",
+            return_value: "Returns the ICAP request URI.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

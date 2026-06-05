@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DOSL7::profile",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the DOS profile from which the L7-DoS policy is extracted.",
-            &["DOSL7::profile"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the DOS profile from which the L7-DoS policy is extracted.",
+            synopsis: &["DOSL7::profile"],
+            snippet: "This command returns the DOS profile from which the L7-DoS policy is\nextracted.\nNote:\n  * in 11.4, default policy returns empty string and if L7-DoS is\n    disabled, the <no-profile> string is returned.\n  * in 11.5+, default policy returns the one configured with the vip\n    and if L7-DoS is disabled, a null string is returned.",
+            source: "https://clouddocs.f5.com/api/irules/DOSL7__profile.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

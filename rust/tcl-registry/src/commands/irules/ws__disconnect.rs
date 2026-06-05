@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "WS::disconnect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command can be used to disconnect a Websocket connection.",
-            &["WS::disconnect ( CODE (RSN)? )"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command can be used to disconnect a Websocket connection.",
+            synopsis: &["WS::disconnect ( CODE (RSN)? )"],
+            snippet: "WS::disconnect <close-reason> <reason>\n    The Websocket connection is disconnected by sending a close frame to both end-points when the current frame is done. The specified code and reason will be sent in the header and payload of the frame respectively.",
+            source: "https://clouddocs.f5.com/api/irules/WS__disconnect.html",
+            examples: "when WS_CLIENT_FRAME_DONE {\n    WS::disconnect 1000 \"some random reason\"\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

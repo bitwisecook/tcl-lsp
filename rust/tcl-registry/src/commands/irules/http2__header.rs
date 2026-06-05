@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "HTTP2::header",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(1, 3),
-        hover: Some(HoverSnippet::brief(
-            "Queries or modifies HTTP/2 pseudo-headers.",
-            &["HTTP2::header <name>"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Queries or modifies HTTP/2 pseudo-headers.",
+            synopsis: &["HTTP2::header <name>", "HTTP2::header replace <name> ?<string>?", "HTTP2::header remove <name>"],
+            snippet: "Queries or modifies HTTP/2 pseudo-headers.\nThe HTTP/2 pseudo-header names are lowercase and start with a ':' character.\nIntroduced in BIG-IP 16.1.0.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP2__header.html",
+            examples: "when HTTP_REQUEST {\n  if { [HTTP2::header :authority] starts_with \"uat\" }  {\n    pool uat_pool\n  } else {\n    pool main_pool\n  }\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

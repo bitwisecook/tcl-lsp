@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "UDP::respond",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sends data directly to a peer.",
-            &["UDP::respond RESPONSE_STRING"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sends data directly to a peer.",
+            synopsis: &["UDP::respond RESPONSE_STRING"],
+            snippet: "Sends the specified data directly to the peer. This command can be used\nto complete a protocol handshake inside an iRule.",
+            source: "https://clouddocs.f5.com/api/irules/UDP__respond.html",
+            examples: "when CLIENT_ACCEPTED {\n  set packet [binary format S {0x0000}]\n  UDP::respond $packet\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

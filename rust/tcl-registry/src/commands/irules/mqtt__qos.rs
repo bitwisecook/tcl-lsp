@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::qos",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set qos of MQTT PUBLISH message",
-            &["MQTT::qos ('0' | '1' | '2')?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get or set qos of MQTT PUBLISH message",
+            synopsis: &["MQTT::qos ('0' | '1' | '2')?"],
+            snippet: "This command can be used to get or set qos field of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    PUBLISH",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__qos.html",
+            examples: "Changing QoS to 1:\n\nwhen CLIENT_ACCEPTED {\n   set self_pktid 1\n}",
+            return_value: "When called without an argument, this command returns the qos of MQTT message",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

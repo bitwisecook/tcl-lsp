@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "urlcatblindquery",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Query the encrypted URL's hash for URL categorization.",
-            &["urlcatblindquery ENCRYPTED_URL_STRING"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Query the encrypted URL's hash for URL categorization.",
+            synopsis: &["urlcatblindquery ENCRYPTED_URL_STRING"],
+            snippet: "Query the encrypted URL's hash for URL categorization",
+            source: "https://clouddocs.f5.com/api/irules/urlcatblindquery.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

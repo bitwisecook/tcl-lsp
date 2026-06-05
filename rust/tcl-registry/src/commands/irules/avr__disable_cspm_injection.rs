@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "AVR::disable_cspm_injection",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables CSPM injection for the current connection.",
-            &["AVR::disable_cspm_injection"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disables CSPM injection for the current connection.",
+            synopsis: &["AVR::disable_cspm_injection"],
+            snippet: "The CSPM (Client Side Performance Monitoring) feature injects JavaScript into HTTP responses to track the Page Load Time metric. This command disables CSPM JavaScropt injection.",
+            source: "https://clouddocs.f5.com/api/irules/AVR__disable_cspm_injection.html",
+            examples: "when HTTP_RESPONSE {\n    if { [HTTP::status] == 404 } {\n        AVR::disable_cspm_injection\n    }\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

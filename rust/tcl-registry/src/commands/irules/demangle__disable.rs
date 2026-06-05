@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DEMANGLE::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `DEMANGLE::disable`.",
-            &["DEMANGLE::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `DEMANGLE::disable`.",
+            synopsis: &["DEMANGLE::disable"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/DEMANGLE__disable.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

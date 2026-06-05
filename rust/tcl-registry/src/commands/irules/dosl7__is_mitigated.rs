@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DOSL7::is_mitigated",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns TRUE if certain HTTP request was mitigated by DOSL7.",
-            &["DOSL7::is_mitigated"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Returns TRUE if certain HTTP request was mitigated by DOSL7.",
+            synopsis: &["DOSL7::is_mitigated"],
+            snippet: "Returns TRUE if certain HTTP request was mitigated by DOSL7.",
+            source: "https://clouddocs.f5.com/api/irules/DOSL7__is_mitigated.html",
+            examples: "",
+            return_value: "Returns TRUE if request was mitigated",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

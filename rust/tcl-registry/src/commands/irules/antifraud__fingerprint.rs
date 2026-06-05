@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::fingerprint",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns fingerprint data, only in context of ANTIFRAUD_LOGIN event.",
-            &["ANTIFRAUD::fingerprint"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns fingerprint data, only in context of ANTIFRAUD_LOGIN event.",
+            synopsis: &["ANTIFRAUD::fingerprint"],
+            snippet: "Returns fingerprint data collected on client side.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__fingerprint.html",
+            examples: "when ANTIFRAUD_LOGIN {\n                log local0. \"Client fingerprint: [ANTIFRAUD::fingerprint].\"\n            }",
+            return_value: "Returns fingerprint data collected on client side.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

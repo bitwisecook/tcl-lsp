@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "NSH::mocksf",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set option to mock SF functionality for NSH.",
-            &["NSH::mocksf"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Set option to mock SF functionality for NSH.",
+            synopsis: &["NSH::mocksf"],
+            snippet: "Set option to mock SF functionality for NSH.",
+            source: "https://clouddocs.f5.com/api/irules/NSH__mocksf.html",
+            examples: "cksf option for NSH.\n            when FLOW_INIT {\n                NSH::mocksf\n            }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

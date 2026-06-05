@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LB::prime",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Prime server connections.",
-            &["LB::prime"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Prime server connections.",
+            synopsis: &["LB::prime"],
+            snippet: "Prime server connections",
+            source: "https://clouddocs.f5.com/api/irules/LB__prime.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

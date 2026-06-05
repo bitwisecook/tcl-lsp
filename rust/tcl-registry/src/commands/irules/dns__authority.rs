@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DNS::authority",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns, inserts, removes, or clears RRs from the authority section.",
-            &["DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns, inserts, removes, or clears RRs from the authority section.",
+            synopsis: &["DNS::authority ('clear' | (('insert' | 'remove') RR_OBJECT))?"],
+            snippet: "This iRules command returns, inserts, removes, or clears RRs from the\nauthority section.\n\nNote: This command functions only in the context of LTM iRules and\nrequires the DNS Profile, which is only enabled as part of GTM or the\nDNS Services add-on.",
+            source: "https://clouddocs.f5.com/api/irules/DNS__authority.html",
+            examples: "authority record in all responses\n            when DNS_RESPONSE {\n                DNS::authority insert [DNS::rr \"devcentral.f5.com. 88 IN SOA 1.2.3.4\"]\n            }",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

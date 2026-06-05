@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "UDP::server_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the UDP port/service number of a server system.",
-            &["UDP::server_port"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the UDP port/service number of a server system.",
+            synopsis: &["UDP::server_port"],
+            snippet: "Returns the UDP port/service number of the server. This command is\nequivalent to the command serverside { UDP::remote_port }.",
+            source: "https://clouddocs.f5.com/api/irules/UDP__server_port.html",
+            examples: "when SERVER_CONNECTED {\n    set client [IP::client_addr]:[UDP::client_port]\n    set node [IP::server_addr]:[UDP::server_port]\n    log local0. \"client: $client, server: $server\"\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

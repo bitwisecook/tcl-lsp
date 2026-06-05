@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_device_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: Returns flash GUID.",
-            &["ANTIFRAUD::alert_device_id"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Deprecated: Returns flash GUID.",
+            synopsis: &["ANTIFRAUD::alert_device_id"],
+            snippet: "Returns flash GUID.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__alert_device_id.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

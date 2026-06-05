@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LSN::inbound",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable inbound mapping for translation address and port associated with the cur",
-            &["LSN::inbound disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disable inbound mapping for translation address and port associated with the current connection.",
+            synopsis: &["LSN::inbound disable"],
+            snippet: "Disable inbound mapping for translation address and port associated with the current connection.",
+            source: "https://clouddocs.f5.com/api/irules/LSN__inbound.html",
+            examples: "when HTTP_REQUEST {\n    LSN::inbound disable\n}",
+            return_value: "LSN::inbound disable - Inbound connections can be permitted for a particular LSN pool to provide end-point independent filtering, described in RFC 4787.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

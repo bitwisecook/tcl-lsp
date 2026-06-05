@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "TAP::score",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns or updates risk score.",
-            &["TAP::score (SCORE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or updates risk score.",
+            synopsis: &["TAP::score (SCORE)?"],
+            snippet: "If score specified sets supplied score. Returns previous score.",
+            source: "https://clouddocs.f5.com/api/irules/TAP__score.html",
+            examples: "when TAP_REQUEST {\n    if {    ([TAP::score] > 85) } {\n        drop\n    }\n}",
+            return_value: "Returns an integer value from (0 to 100). If supplied score to set function returns previous score.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

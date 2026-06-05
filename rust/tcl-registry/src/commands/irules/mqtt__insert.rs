@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::insert",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Insert an MQTT message",
-            &["MQTT::insert (('before' | 'after') ("],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Insert an MQTT message",
+            synopsis: &["MQTT::insert (('before' | 'after') ("],
+            snippet: "This command can be used to insert an MQTT message before or after current message.\nSince MQTT_CLIENT_SHUTDOWN event does not have current message only 'MQTT::insert after' is supported for it.\n\nThis command is valid for all MQTT message types:\n\n    CONNECT, CONNACK,\n    PUBLISH, PUBACK, PUBREC, PUBREL, PUBCOMP,\n    SUBSCRIBE, SUBACK,\n    UNSUBSCRIBE, UNSUBACK,\n    PINGREQ, PINGRESP,\n    DISCONNECT",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__insert.html",
+            examples: "when MQTT_SERVER_INGRESS {\n    set type [MQTT::type]\n    switch $type {\n       \"SUBACK\" {\n          if { [MQTT::packet_id > 1000] } {\n             MQTT::drop\n          }\n       }\n    }\n}",
+            return_value: "None.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

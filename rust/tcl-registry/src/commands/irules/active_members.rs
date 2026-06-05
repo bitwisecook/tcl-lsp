@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "active_members",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the number or list of active members in the specified pool.",
-            &["active_members ('-list')? POOL_OBJ"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the number or list of active members in the specified pool.",
+            synopsis: &["active_members ('-list')? POOL_OBJ"],
+            snippet: "Returns the number or list of active members in the specified pool.",
+            source: "https://clouddocs.f5.com/api/irules/active_members.html",
+            examples: "when HTTP_REQUEST {\n    if { [active_members http_pool] >= 2 } {\n        pool http_pool\n    }\n}",
+            return_value: "active_members <pool_name> Returns the number of active members in the specified pool.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

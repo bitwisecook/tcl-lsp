@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "HTML::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable the processing of HTML for this transaction.",
-            &["HTML::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disable the processing of HTML for this transaction.",
+            synopsis: &["HTML::disable"],
+            snippet: "Disable the processing of HTML for this transaction.",
+            source: "https://clouddocs.f5.com/api/irules/HTML__disable.html",
+            examples: "when HTTP_RESPONSE {\n    if {$host == \"www.f5.com\"} {\n        HTML::disable\n    }\n    log local0. \"host: $host\"\n}",
+            return_value: "empty return code.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

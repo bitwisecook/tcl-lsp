@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LB::bias",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `LB::bias`.",
-            &["LB::bias (INTEGER)?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `LB::bias`.",
+            synopsis: &["LB::bias (INTEGER)?"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/LB__bias.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

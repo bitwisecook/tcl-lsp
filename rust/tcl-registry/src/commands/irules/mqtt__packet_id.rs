@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::packet_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set packet-id of MQTT message",
-            &["MQTT::packet_id (PACKETID)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get or set packet-id of MQTT message",
+            synopsis: &["MQTT::packet_id (PACKETID)?"],
+            snippet: "This command can be used to get or set packet-id field of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    PUBLISH (if QoS > 0)\n    PUBACK\n    PUBREC\n    PUBREL\n    PUBCOMP\n    SUBSCRIBE\n    SUBACK\n    UNSUBSCRIBE\n    UNSUBACK\n    PINGREQ\n    PINGRESP\n    DISCONNECT",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__packet_id.html",
+            examples: "when SERVER_CONNECTED {\n   set suback_count 0\n   set rclist [list]\n}",
+            return_value: "When called without an argument, this command returns the packet-id of MQTT message",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

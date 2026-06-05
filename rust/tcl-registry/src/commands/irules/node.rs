@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(1, 2),
-        hover: Some(HoverSnippet::brief(
-            "Route traffic directly to a specific node.",
-            &["node ip_addr ?service_port?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Route traffic directly to a specific node.",
+            synopsis: &["node ip_addr ?service_port?"],
+            snippet: "Bypasses pool selection and targets an explicit backend endpoint.",
+            source: "https://clouddocs.f5.com/api/irules/node.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: true,
             server_side: false,

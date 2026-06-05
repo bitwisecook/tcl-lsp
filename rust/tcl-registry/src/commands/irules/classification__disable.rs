@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CLASSIFICATION::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: Disables classification for the current flow.",
-            &["CLASSIFICATION::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Deprecated: Disables classification for the current flow.",
+            synopsis: &["CLASSIFICATION::disable"],
+            snippet: "This command disables classification for the current flow.\n\nCLASSIFICATION::disable",
+            source: "https://clouddocs.f5.com/api/irules/CLASSIFICATION__disabled.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

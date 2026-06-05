@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "IKE::san_dirname",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "something",
-            &["IKE::san_dirname (ANY_CHARS)*"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "something",
+            synopsis: &["IKE::san_dirname (ANY_CHARS)*"],
+            snippet: "something",
+            source: "https://clouddocs.f5.com/api/irules/IKE__san_dirname.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

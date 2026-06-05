@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LDAP::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Enable LDAP STARTTLS.",
-            &["LDAP::enable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Enable LDAP STARTTLS.",
+            synopsis: &["LDAP::enable"],
+            snippet: "Enable LDAP STARTTLS",
+            source: "https://clouddocs.f5.com/api/irules/LDAP__enable.html",
+            examples: "when CLIENT_ACCEPTED {\n                if { !([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    LDAP::enable\n                }\n            }",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

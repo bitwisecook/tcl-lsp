@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "VDI::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable VDI plugin.",
-            &["VDI::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Disable VDI plugin.",
+            synopsis: &["VDI::disable"],
+            snippet: "The VDI::disable command disables VDI plugin in the flow.",
+            source: "https://clouddocs.f5.com/api/irules/VDI__disable.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

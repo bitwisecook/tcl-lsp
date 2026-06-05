@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_license_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns crc32 of the license id in hex.",
-            &["ANTIFRAUD::alert_license_id"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns crc32 of the license id in hex.",
+            synopsis: &["ANTIFRAUD::alert_license_id"],
+            snippet: "Returns crc32 of the license id in hex.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__alert_license_id.html",
+            examples: "when ANTIFRAUD_ALERT {\n                log local0. \"Alert license ID: [ANTIFRAUD::alert_license_id].\"\n            }",
+            return_value: "Returns crc32 of the license id in hex.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

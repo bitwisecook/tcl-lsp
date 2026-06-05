@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CONNECTOR::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable all the connectors on chain.",
-            &["CONNECTOR::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Disable all the connectors on chain.",
+            synopsis: &["CONNECTOR::disable"],
+            snippet: "Disable all the connectors  on chain",
+            source: "https://clouddocs.f5.com/api/irules/CONNECTOR__disable.html",
+            examples: "when CLIENT_ACCEPTED {\n                CONNECTOR::disable\n            }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

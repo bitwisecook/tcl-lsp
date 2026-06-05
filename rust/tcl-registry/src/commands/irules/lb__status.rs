@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LB::status",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the status of a node address or pool member.",
-            &["LB::status (LB_STATUS)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the status of a node address or pool member.",
+            synopsis: &["LB::status (LB_STATUS)?", "LB::status node IP_ADDR (LB_STATUS)?", "LB::status pool POOL_OBJ member IP_ADDR PORT (LB_STATUS)?"],
+            snippet: "Returns the status of a node address or pool member. Possible status values are up, down, session_enabled, and session_disabled. If you supply no arguments, returns the status of the currently-selected pool member.\nSyntax:\n    LB::status\n    LB::status node <address>\n    LB::status pool <pool name> member <IP address> <port>\n    LB::status <up | down | session_enabled | session_disabled>\n    LB::status node <address> <up | down | session_enabled | session_disabled>\n    LB::status pool <pool name> member <address> <port> <up | down | session_enabled | session_disabled>",
+            source: "https://clouddocs.f5.com/api/irules/LB__status.html",
+            examples: "when LB_FAILED {\n    if { [LB::status pool $poolname member $ip $port] eq \"down\" } {\n        log \"Server $ip $port down!\"\n    }\n}",
+            return_value: "LB::status Returns the status of the currently-selected node (after LB_SELECTED event only). Possible values are: up | down | session_enabled | session_disabled",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "XML::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Changes the XML plugin from passthrough to full patching mode.",
-            &["XML::enable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Changes the XML plugin from passthrough to full patching mode.",
+            synopsis: &["XML::enable"],
+            snippet: "Changes the XML plugin from passthrough to full patching mode.",
+            source: "https://clouddocs.f5.com/api/irules/XML__enable.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

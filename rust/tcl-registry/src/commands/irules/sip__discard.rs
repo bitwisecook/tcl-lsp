@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "SIP::discard",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Discards the current SIP message.",
-            &["SIP::discard"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Discards the current SIP message.",
+            synopsis: &["SIP::discard"],
+            snippet:
+                "Discards a SIP message\n\nSIP::discard\n\n     * Discards the current SIP message",
+            source: "https://clouddocs.f5.com/api/irules/SIP__discard.html",
+            examples: "when SIP_RESPONSE {\n  SIP::discard\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "URI::escape",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Percent-encodes a URI string (alias for URI::encode).",
-            &["URI::escape URI_STRING"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Percent-encodes a URI string (alias for URI::encode).",
+            synopsis: &["URI::escape URI_STRING"],
+            snippet: "Percent-encodes *URI_STRING* according to RFC 3986.\nThis is an alias for ``URI::encode``.",
+            source: "https://clouddocs.f5.com/api/irules/URI__encode.html",
+            examples: "",
+            return_value: "Returns a percent-encoded URI string.",
+        }),
         // GAP-D2: URL-encodes its input (and strips CR/LF);
         // re-encoding a URL-encoded value double-encodes (T106).
         // Mirrors `irules/uri__escape.py`.

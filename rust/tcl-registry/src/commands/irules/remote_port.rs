@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "remote_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::any(),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: use TCP::remote_port instead",
-            &["remote_port"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Deprecated: use TCP::remote_port instead",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

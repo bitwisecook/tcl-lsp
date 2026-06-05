@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CACHE::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the HTTP payload of the cache response.",
-            &["CACHE::payload"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the HTTP payload of the cache response.",
+            synopsis: &["CACHE::payload"],
+            snippet: "Returns the HTTP payload of the cache response.\n\nCACHE::payload\n\n     * Returns the HTTP payload of the cache response.",
+            source: "https://clouddocs.f5.com/api/irules/CACHE__payload.html",
+            examples: "when CACHE_RESPONSE {\n  set payload [CACHE::payload]\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

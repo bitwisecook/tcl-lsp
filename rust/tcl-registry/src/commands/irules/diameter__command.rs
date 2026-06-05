@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DIAMETER::command",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Gets or sets the command-code.",
-            &["DIAMETER::command (DIAMETER_COMMAND_CODE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Gets or sets the command-code.",
+            synopsis: &["DIAMETER::command (DIAMETER_COMMAND_CODE)?"],
+            snippet: "The DIAMETER::command gets or sets the command code in the Diameter message header.",
+            source: "https://clouddocs.f5.com/api/irules/DIAMETER__command.html",
+            examples: "when DIAMETER_INGRESS {\n    log local0. \"Received a DIAMETER command, with code [DIAMETER::command]\"\n}",
+            return_value: "If new command-code value is not provided, returns command code of current Diameter message",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

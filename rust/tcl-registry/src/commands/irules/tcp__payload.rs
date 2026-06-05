@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "TCP::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 4),
-        hover: Some(HoverSnippet::brief(
-            "Returns or changes the data collected by TCP::collect.",
-            &["TCP::payload ?<size>?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or changes the data collected by TCP::collect.",
+            synopsis: &["TCP::payload ?<size>?", "TCP::payload replace <offset> <length> <data>", "TCP::payload length"],
+            snippet: "Returns the accumulated TCP data content, or replaces collected payload with the specified data.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__payload.html",
+            examples: "when CLIENT_ACCEPTED {\n  TCP::collect\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

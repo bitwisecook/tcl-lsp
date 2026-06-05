@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CLASSIFICATION::username",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Provides username associated with classification results.",
-            &["CLASSIFICATION::username"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Provides username associated with classification results.",
+            synopsis: &["CLASSIFICATION::username"],
+            snippet: "CLASSIFICATION::username",
+            source: "https://clouddocs.f5.com/api/irules/CLASSIFICATION__username.html",
+            examples: "when CLASSIFICATION_DETECTED {\n        set res [CLASSIFICATION::username]\n        log local0.debug \"DPI username: $res\"\n    }",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

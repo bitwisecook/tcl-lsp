@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CATEGORY::filetype",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get mime type and mime subtype of payload.",
-            &["CATEGORY::filetype HTTP_PAYLOAD"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get mime type and mime subtype of payload.",
+            synopsis: &["CATEGORY::filetype HTTP_PAYLOAD"],
+            snippet: "Checks for the mime type and mime subtype of an HTTP request payload and returns the values to specified variables; use one or both to specify them name of the variable that you want the value to be given to.",
+            source: "https://clouddocs.f5.com/api/irules/CATEGORY__filetype.html",
+            examples: "when HTTP_RESPONSE {\n    # Collect 256 bytes of payload and trigger HTTP_RESPONSE_DATA\n    HTTP::collect 256\n}",
+            return_value: "Sets the specified variables with the mime type or mime subtype",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

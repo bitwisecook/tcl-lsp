@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE | Traits::CSE_CANDIDATE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the remote TCP port number of a connection.",
-            &["TCP::remote_port (clientside | serverside)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the remote TCP port number of a connection.",
+            synopsis: &["TCP::remote_port (clientside | serverside)?"],
+            snippet: "Returns the remote TCP port/service number of a TCP connection. This\ncommand is equivalent to the BIG-IP 4.X variable remote_port. When used\nin a clientside context, this command returns the client-side TCP\nsource port, and is equivalent to the TCP::client_port command.\nWhen used in a serverside context, this command returns the server-side\nTCP destination port, and is equivalent to the TCP::server_port\ncommand.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__remote_port.html",
+            examples: "when SERVER_CONNECTED {\n  if {[TCP::remote_port] != 443} {\n    SSL::disable\n  }\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

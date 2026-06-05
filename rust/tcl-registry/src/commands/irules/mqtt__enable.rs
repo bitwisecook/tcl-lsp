@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Enable MQTT parsing on a connection.",
-            &["MQTT::enable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Enable MQTT parsing on a connection.",
+            synopsis: &["MQTT::enable"],
+            snippet: "This command enables MQTT parsing on a connection.",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__enable.html",
+            examples: "when SERVER_CONNECTED {\n   MQTT::enable\n}",
+            return_value: "None.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

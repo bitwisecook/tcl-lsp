@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LSN::persistence",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set the translation address and port selection mode for the current connection, ",
-            &["LSN::persistence none (TIMEOUT)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Set the translation address and port selection mode for the current connection, and the translation entry timeout.",
+            synopsis: &["LSN::persistence none (TIMEOUT)?", "LSN::persistence (address | address-port) TIMEOUT"],
+            snippet: "Set the translation address and port selection mode for the current connection, and the translation entry timeout.\n\nLSN::persistence <none|address|address-port|strict-address-port> <timeout>",
+            source: "https://clouddocs.f5.com/api/irules/LSN__persistence.html",
+            examples: "",
+            return_value: "LSN::persistence none",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

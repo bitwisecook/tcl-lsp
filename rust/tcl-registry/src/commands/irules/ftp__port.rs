@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "FTP::port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Controls the range of passive mode FTP ephemeral ports.",
-            &["FTP::port FIRST (LAST)?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Controls the range of passive mode FTP ephemeral ports.",
+            synopsis: &["FTP::port FIRST (LAST)?"],
+            snippet:
+                "This command allows control over the range of passive mode FTP\nephemeral ports.",
+            source: "https://clouddocs.f5.com/api/irules/FTP__port.html",
+            examples: "when SERVER_CONNECTED {\n  FTP::port 5000 5999\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

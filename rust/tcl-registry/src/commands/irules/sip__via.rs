@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "SIP::via",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Gets SIP via header information.",
-            &["SIP::via ?field? ?INDEX?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Gets SIP via header information.",
+            synopsis: &["SIP::via ?field? ?INDEX?", "SIP::via (proto | sent_by | received | branch | maddr | ttl) ?INDEX?"],
+            snippet: "This set of commands allows you to get information in the SIP via header.",
+            source: "https://clouddocs.f5.com/api/irules/SIP__via.html",
+            examples: "when SIP_RESPONSE {\n  log local0. [SIP::via 0]\n  SIP::header remove Via 0\n  SIP::response rewrite 123 \"no xxx\"\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

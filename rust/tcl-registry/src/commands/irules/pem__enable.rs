@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "PEM::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "PEM iRule command to enable PEM feature on current flow.",
-            &["PEM::enable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "PEM iRule command to enable PEM feature on current flow.",
+            synopsis: &["PEM::enable"],
+            snippet: "Enable PEM for the current flow. Note that the config must already contain a Policy Enforcement Profile.",
+            source: "https://clouddocs.f5.com/api/irules/PEM__enable.html",
+            examples: "when HTTP_REQUEST {\n    PEM::enable;\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

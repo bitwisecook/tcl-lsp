@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sends the specified data directly to the peer.",
-            &["TCP::respond RESPONSE_STRING"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sends the specified data directly to the peer.",
+            synopsis: &["TCP::respond RESPONSE_STRING"],
+            snippet: "Sends the specified data directly to the peer. This command can be used\nto complete a protocol handshake via an iRule.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__respond.html",
+            examples: "when SERVER_CONNECTED {\n    peer { TCP::collect 4 }\n}",
+            return_value: "None.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

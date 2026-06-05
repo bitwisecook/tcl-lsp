@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "TMM::cmp_groups",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `TMM::cmp_groups`.",
-            &["TMM::cmp_groups"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `TMM::cmp_groups`.",
+            synopsis: &["TMM::cmp_groups"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/TMM__cmp_groups.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

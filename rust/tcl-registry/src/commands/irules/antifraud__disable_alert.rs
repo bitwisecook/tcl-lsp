@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::disable_alert",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables the current alert.",
-            &["ANTIFRAUD::disable_alert"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Disables the current alert.",
+            synopsis: &["ANTIFRAUD::disable_alert"],
+            snippet: "Disables the current alert",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__disable_alert.html",
+            examples:
+                "when ANTIFRAUD_ALERT {\n                ANTIFRAUD::disable_alert\n            }",
+            return_value: "Disables the current alert",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "SCTP::server_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the SCTP port/service number of the specified server.",
-            &["SCTP::server_port"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the SCTP port/service number of the specified server.",
+            synopsis: &["SCTP::server_port"],
+            snippet: "Returns the SCTP port/service number of the specified server. This command is equivalent to the command serverside { SCTP::remote_port }.\n\nSCTP::server_port\n    Returns the SCTP port/service number of the specified server.",
+            source: "https://clouddocs.f5.com/api/irules/SCTP__server_port.html",
+            examples: "when SERVER_CONNECTED {\n    if { [SCTP::server_port] > 1000 } {\n        pool slow_pool\n     }\n      else {\n         pool fast_pool\n       }\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

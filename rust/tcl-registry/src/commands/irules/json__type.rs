@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "JSON::type",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Gets the type of the given JSON element (aka.",
-            &["JSON::type JSON_ELEMENT"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Gets the type of the given JSON element (aka.",
+            synopsis: &["JSON::type JSON_ELEMENT"],
+            snippet: "A JSON value can be one of many types. This command allows you to determine the type of value in the element.",
+            source: "https://clouddocs.f5.com/api/irules/JSON__type.html",
+            examples: "when JSON_REQUEST {\n    set rootval [JSON::root]\n    JSON::set $rootval string HelloWorld\n    set type [JSON::type $rootval]\n}",
+            return_value: "Returns a string representing the JSON type ('null' | 'boolean' | 'integer' | 'literal' | 'string' | 'object' | 'array' | 'invalid').",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

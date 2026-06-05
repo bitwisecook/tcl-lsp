@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "FTP::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable FTP protocol handler.",
-            &["FTP::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disable FTP protocol handler.",
+            synopsis: &["FTP::disable"],
+            snippet: "Disable FTP protocol handler for FTP message processing. This will disable detection of \"AUTH TLS/SSL\" for FTP.",
+            source: "https://clouddocs.f5.com/api/irules/FTP__disable.html",
+            examples: "when CLIENT_ACCEPTED {\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    FTP::disable\n                }\n            }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "html_escape",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "HTML-escape a string (alias for HTML::encode).",
-            &["html_escape STRING"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "HTML-escape a string (alias for HTML::encode).",
+            synopsis: &["html_escape STRING"],
+            snippet: "Replaces HTML-special characters with their entity\nequivalents.  This is a convenience alias for\n``HTML::encode``.",
+            source: "",
+            examples: "",
+            return_value: "Returns an HTML-escaped string.",
+        }),
         // GAP-D2: HTML-escapes its input (and strips CR/LF);
         // re-encoding an HTML-escaped value double-encodes (T106).
         // Mirrors `irules/html_escape.py`.

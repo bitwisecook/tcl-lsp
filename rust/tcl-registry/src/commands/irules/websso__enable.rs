@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "WEBSSO::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Causes APM to do the SSO processing on a request.",
-            &["WEBSSO::enable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Causes APM to do the SSO processing on a request.",
+            synopsis: &["WEBSSO::enable"],
+            snippet: "This command causes APM to do the SSO processing on the HTTP request.\nThis is to allow admin to re-enable WEBSSO processing for a request if\nit was disabled before by doing WEBSSO::disable for the request. The\nscope of this iRule command is per HTTP request. Admin needs to execute\nit for each HTTP request.",
+            source: "https://clouddocs.f5.com/api/irules/WEBSSO__enable.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

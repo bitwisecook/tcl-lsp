@@ -5,11 +5,16 @@ pub fn spec() -> CommandSpec {
         name: "LB::connlimit",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set the connection limit for virtual/node/poolmember.",
-            &["LB::connlimit ('virtual' | 'node' | 'poolmember') ?limit <value>? ?key <value>?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set the connection limit for virtual/node/poolmember.",
+            synopsis: &[
+                "LB::connlimit ('virtual' | 'node' | 'poolmember') ?limit <value>? ?key <value>?",
+            ],
+            snippet: "Set the connection limit for virtual/node/poolmember",
+            source: "https://clouddocs.f5.com/api/irules/LB__connlimit.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

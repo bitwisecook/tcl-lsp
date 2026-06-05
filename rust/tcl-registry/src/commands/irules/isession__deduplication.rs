@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ISESSION::deduplication",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Allows selection of deduplication based on L7 content inspection.",
-            &["ISESSION::deduplication BOOL_VALUE"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Allows selection of deduplication based on L7 content inspection.",
+            synopsis: &["ISESSION::deduplication BOOL_VALUE"],
+            snippet: "Allows selection of deduplication based on L7 content inspection",
+            source: "https://clouddocs.f5.com/api/irules/ISESSION__deduplication.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

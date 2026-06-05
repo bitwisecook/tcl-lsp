@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "PSC::user_name",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set user name.",
-            &["PSC::user_name (USERNAME)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get or set user name.",
+            synopsis: &["PSC::user_name (USERNAME)?"],
+            snippet: "The PSC::user_name command gets the user name or sets the user name when the optional value is given.",
+            source: "https://clouddocs.f5.com/api/irules/PSC__user_name.html",
+            examples: "",
+            return_value: "Return the user name when no argument is given.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

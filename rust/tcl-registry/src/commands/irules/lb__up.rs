@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LB::up",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sets the status of a node or pool member as being up.",
-            &["LB::up"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sets the status of a node or pool member as being up.",
+            synopsis: &["LB::up", "LB::up node <address>", "LB::up pool <pool> member <address> <port>"],
+            snippet: "Sets the status of the specified node or pool member as being up. If you specify no arguments, the status of the currently-selected node is modified.",
+            source: "https://clouddocs.f5.com/api/irules/LB__up.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

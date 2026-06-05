@@ -13,11 +13,14 @@ pub fn spec() -> CommandSpec {
             detail: "Do not propagate the header mutation to subsequent BIG-IP filters.",
             dialects: None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Inspect or mutate HTTP headers in an iRule event.",
-            &["HTTP::header <subcommand> ?arg ...?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Inspect or mutate HTTP headers in an iRule event.",
+            synopsis: &["HTTP::header <subcommand> ?arg ...?"],
+            snippet: "Use subcommands like `value`, `insert`, `replace`, and `remove`.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__header.html",
+            examples: "",
+            return_value: "",
+        }),
         // GAP-D2: `HTTP::header insert|replace` with tainted data →
         // header injection (IRULE3002). Mirrors `irules/http__header.py`.
         // TODO(consumer): GAP-3a — once the iRules subcommands are

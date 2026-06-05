@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ICAP::method",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the ICAP request method.",
-            &["ICAP::method"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the ICAP request method.",
+            synopsis: &["ICAP::method"],
+            snippet: "The ICAP::method command returns the ICAP request method.\nThis will either be \"REQMOD\" or \"RESPMOD\"",
+            source: "https://clouddocs.f5.com/api/irules/ICAP__method.html",
+            examples: "when ICAP_REQUEST {\n                if {[ICAP::method] == \"REQMOD\"} {\n                    ICAP::header add X-Request $seqno\n                }\n            }",
+            return_value: "Returns the ICAP request method.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

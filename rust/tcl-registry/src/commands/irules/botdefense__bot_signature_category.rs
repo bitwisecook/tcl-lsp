@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "BOTDEFENSE::bot_signature_category",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the name of the detected Bot Signature Category.",
-            &["BOTDEFENSE::bot_signature_category"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the name of the detected Bot Signature Category.",
+            synopsis: &["BOTDEFENSE::bot_signature_category"],
+            snippet: "Returns the name of the detected Bot Signature Category, or an empty string if no bot signature was detected.",
+            source: "https://clouddocs.f5.com/api/irules/BOTDEFENSE__bot_signature_category.html",
+            examples: "# EXAMPLE: Log the bot signature category.\nwhen BOTDEFENSE_REQUEST {\n    set log \"botdefense bot_signature_category is\"\n    append log \" [BOTDEFENSE::bot_signature_category]\"\n    HSL::send $hsl $log\n}",
+            return_value: "Returns the name of the detected Bot Signature Category, or an empty string if no bot signature was detected.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

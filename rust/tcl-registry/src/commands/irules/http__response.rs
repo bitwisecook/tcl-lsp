@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "HTTP::response",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the raw HTTP response header block as a single string.",
-            &["HTTP::response"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the raw HTTP response header block as a single string.",
+            synopsis: &["HTTP::response"],
+            snippet: "Returns the raw HTTP response header block as a single string.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__response.html",
+            examples: "when HTTP_RESPONSE {\n    # Send response header block to high speed logging\n    HSL::send $hsl [HTTP::response]\n}",
+            return_value: "Returns the raw HTTP response header block as a single string.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

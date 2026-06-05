@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "FLOWTABLE::count",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns flow counts.",
-            &["FLOWTABLE::count (virtual (VIRTUAL_SERVER_OBJ)?)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns flow counts.",
+            synopsis: &["FLOWTABLE::count (virtual (VIRTUAL_SERVER_OBJ)?)?", "FLOWTABLE::count route_domain (ROUTE_DOMAIN_NAME)?"],
+            snippet: "This iRules command returns flow counts\nNote: When virtual server or route domain name is omitted the commands\nuse virtual or route domain of the current connection. Specifying the\nname incurs significant performance hit.",
+            source: "https://clouddocs.f5.com/api/irules/FLOWTABLE__count.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

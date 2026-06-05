@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LSN::pool",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Explicitly set the LSN pool used for translation.",
-            &["LSN::pool LSN_POOL"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Explicitly set the LSN pool used for translation.",
+            synopsis: &["LSN::pool LSN_POOL"],
+            snippet: "Explicitly set the LSN pool used for translation.\n\nLSN::pool <pool_name>",
+            source: "https://clouddocs.f5.com/api/irules/LSN__pool.html",
+            examples: "",
+            return_value: "LSN::pool",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

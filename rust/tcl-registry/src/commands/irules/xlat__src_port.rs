@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "XLAT::src_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Retrieve the source translation port.",
-            &["XLAT::src_port"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Retrieve the source translation port.",
+            synopsis: &["XLAT::src_port"],
+            snippet: "Retrieve the source translation port.",
+            source: "https://clouddocs.f5.com/api/irules/XLAT__src_port.html",
+            examples: "when SA_PICKED {\n    log local0. \"[XLAT::src_port]\"\n}",
+            return_value: "Return the source translation port.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

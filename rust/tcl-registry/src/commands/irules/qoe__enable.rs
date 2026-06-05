@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "QOE::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: Enables the video QOE filter and allows processing video on a connec",
-            &["QOE::enable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Deprecated: Enables the video QOE filter and allows processing video on a connection basis.",
+            synopsis: &["QOE::enable"],
+            snippet: "This command enables the video QOE filter and allows processing video on a connection basis.",
+            source: "https://clouddocs.f5.com/api/irules/QOE__enable.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

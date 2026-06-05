@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CACHE::fresh",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns state of freshness flag for request.",
-            &["CACHE::fresh"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Returns state of freshness flag for request.",
+            synopsis: &["CACHE::fresh"],
+            snippet: "Returns 1 for cached document fresh, 0 otherwise.",
+            source: "https://clouddocs.f5.com/api/irules/CACHE__fresh.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Re-enables SSL processing.",
-            &["SSL::enable (clientside | serverside)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Re-enables SSL processing.",
+            synopsis: &["SSL::enable (clientside | serverside)?"],
+            snippet: "Re-enables SSL processing.\n\nNote that the proper use of this command is highly protocol dependent and not recommended in the majority of cases. To selectively enable SSL processing, you should instead use an ssl profile and then use SSL::disable to selectively disable SSL processing.\n\nIf a server-side connection is already established, this command will immediately cause the system to generate a Client Hello to a server, even if an iRule subsequently invokes SSL::disable serverside.",
+            source: "https://clouddocs.f5.com/api/irules/SSL__enable.html",
+            examples: "when CLIENT_ACCEPTED {\n    if { !([IP::addr [IP::client_addr] eq 10.0.0.0/8]) } {\n        SSL::enable\n        TCP::release\n        set sslenable 0\n    }\n}",
+            return_value: "SSL::enable [clientside | serverside] Re-enables SSL processing on one side of the LTM. serverside parameter may optionally be specified to indicate the context in which SSL will be enabled. By default, it will be enabled in the current context (i.e.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

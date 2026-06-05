@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DHCPv4::len",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command returns the length of the DHCP packet length.",
-            &["DHCPv4::len"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command returns the length of the DHCP packet length.",
+            synopsis: &["DHCPv4::len"],
+            snippet: "This command returns the length of the DHCP packet length\n\nDetails (syntax):\nDHCPv4::len",
+            source: "https://clouddocs.f5.com/api/irules/DHCPv4__len.html",
+            examples: "when CLIENT_DATA {\n        log local0. \"Len [DHCPv4::len]\"\n    }",
+            return_value: "This command returns the length of the DHCP packet length",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

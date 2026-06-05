@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DHCPv4::hops",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command returns hops (number of hops) field from DHCPv4 message.",
-            &["DHCPv4::hops"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command returns hops (number of hops) field from DHCPv4 message.",
+            synopsis: &["DHCPv4::hops"],
+            snippet: "This command returns hops (number of hops) field from DHCPv4 message\n\nDetails (syntax):\nDHCPv4::hops",
+            source: "https://clouddocs.f5.com/api/irules/DHCPv4__hops.html",
+            examples: "when CLIENT_DATA {\n        log local0. \"Hops [DHCPv4::hops]\"\n    }",
+            return_value: "This command returns hlen (hardware len) field from DHCPv4 message",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

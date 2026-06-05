@@ -29,11 +29,18 @@ pub fn spec() -> CommandSpec {
         // dispatcher's frame — separate from the top-level rule
         // file's evaluation context.
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Declare an iRules event handler block.",
-            &["when EVENT { body }"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Declare an iRules event handler block.",
+            synopsis: &[
+                "when EVENT { body }",
+                "when EVENT priority N { body }",
+                "when EVENT timing enable|disable { body }",
+            ],
+            snippet: "`body` runs whenever the specified BIG-IP event fires.",
+            source: "https://clouddocs.f5.com/api/irules/when.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

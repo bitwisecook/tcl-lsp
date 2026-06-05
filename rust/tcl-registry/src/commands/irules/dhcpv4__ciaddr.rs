@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DHCPv4::ciaddr",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command returns ciaddr (client ip address) from DHCPv4 message.",
-            &["DHCPv4::ciaddr"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command returns ciaddr (client ip address) from DHCPv4 message.",
+            synopsis: &["DHCPv4::ciaddr"],
+            snippet: "This command returns ciaddr (client ip address) from DHCPv4 message\n\nDetails (syntax):\nDHCPv4::ciaddr",
+            source: "https://clouddocs.f5.com/api/irules/DHCPv4__ciaddr.html",
+            examples: "when CLIENT_DATA {\n        log local0. \"Ciaddr [DHCPv4::ciaddr]\"\n    }",
+            return_value: "This command returns ciaddr (client ip address) from DHCPv4 message",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

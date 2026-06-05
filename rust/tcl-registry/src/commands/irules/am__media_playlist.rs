@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "AM::media_playlist",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `AM::media_playlist`.",
-            &["AM::media_playlist"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `AM::media_playlist`.",
+            synopsis: &["AM::media_playlist"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/AM__media_playlist.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

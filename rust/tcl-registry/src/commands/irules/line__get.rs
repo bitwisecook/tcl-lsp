@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LINE::get",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `LINE::get`.",
-            &["LINE::get"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `LINE::get`.",
+            synopsis: &["LINE::get"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/LINE__get.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

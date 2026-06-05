@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_origin",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns or sets the origin of the alert, e.g.",
-            &["ANTIFRAUD::alert_origin (VALUE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or sets the origin of the alert, e.g.",
+            synopsis: &["ANTIFRAUD::alert_origin (VALUE)?"],
+            snippet: "ANTIFRAUD::alert_origin ;\n                Returns the origin of the alert, e.g. clientside, serverside or secure alert cookie.\n\n            ANTIFRAUD::alert_origin VALUE ;\n                Sets the origin of the alert, e.g. clientside, serverside or secure alert cookie.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__alert_origin.html",
+            examples: "when ANTIFRAUD_ALERT {\n                log local0. \"original Alert origin: [ANTIFRAUD::alert_origin].\"\n                ANTIFRAUD::alert_origin new_value\n                log local0. \"new Alert origin: [ANTIFRAUD::alert_origin].\"\n            }",
+            return_value: "ANTIFRAUD::alert_origin ; Returns the origin of the alert, e.g. clientside, serverside or secure alert cookie.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

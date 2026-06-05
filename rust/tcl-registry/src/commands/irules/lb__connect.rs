@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LB::connect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "LB::connect",
-            &["LB::connect"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "LB::connect",
+            synopsis: &["LB::connect"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/LB__connect.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

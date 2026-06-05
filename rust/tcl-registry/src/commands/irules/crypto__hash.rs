@@ -5,7 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CRYPTO::hash",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief("Generates a hash on a piece of data.", &["CRYPTO::hash (('-alg' ('md5' | 'ripemd160' | 'sha1' | 'sha224' | 'sha256' | 'sha384'"], "F5 iRules")),
+hover: Some(HoverSnippet {
+            summary: "Generates a hash on a piece of data.",
+            synopsis: &["CRYPTO::hash (('-alg' ('md5' | 'ripemd160' | 'sha1' | 'sha224' | 'sha256' | 'sha384'"],
+            snippet: "This iRules command generates a hash on a piece of data\n\nCRYPTO::hash [-alg <>] [-ctx <> [-final]] [<data>]\n\n     * Generates a hash on a piece of data\n\nAlgorithm List\n\n     * md5\n     * ripemd160\n     * sha1\n     * sha224\n     * sha256\n     * sha384\n     * sha512",
+            source: "https://clouddocs.f5.com/api/irules/CRYPTO__hash.html",
+            examples: "when HTTP_REQUEST {\nif {[class match [b64encode [CRYPTO::hash -alg sha384 [HTTP::host][HTTP::path]]] equals HASH ]} {\n    log local0. \" this FQDN + PATH is mathing - [HTTP::host][HTTP::path]\"\n}\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

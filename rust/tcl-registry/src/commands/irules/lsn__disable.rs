@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "LSN::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables LSN translation for the current connection if LSN translation has been ",
-            &["LSN::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disables LSN translation for the current connection if LSN translation has been configured.",
+            synopsis: &["LSN::disable"],
+            snippet: "Disables LSN translation for the current connection if LSN translation has been configured.\n\nArguments:\n    LSN::disable - If LSN translation is configured, disables translation for this connection.",
+            source: "https://clouddocs.f5.com/api/irules/LSN__disable.html",
+            examples: "when HTTP_REQUEST {\n    LSN::disable\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

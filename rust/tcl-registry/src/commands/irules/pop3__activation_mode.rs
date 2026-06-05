@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "POP3::activation_mode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set the activation mode.",
-            &["POP3::activation_mode (none | allow | require)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Set the activation mode.",
+            synopsis: &["POP3::activation_mode (none | allow | require)?"],
+            snippet: "Sets the activation mode to none (it will never activate), allow (if the POP3 client sends STARTTLS, we will activate TLS), or require (all commands will be rejected until STARTTLS is received).",
+            source: "https://clouddocs.f5.com/api/irules/POP3__activation_mode.html",
+            examples: "when CLIENT_ACCEPTED {\n                if { !([IP::addr [IP::client_addr] ne 10.0.0.0/8) } {\n                    POP3::activation_mode require\n                }\n            }",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

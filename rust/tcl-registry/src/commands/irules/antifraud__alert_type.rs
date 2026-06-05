@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_type",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns or sets alert type.",
-            &["ANTIFRAUD::alert_type (VALUE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or sets alert type.",
+            synopsis: &["ANTIFRAUD::alert_type (VALUE)?"],
+            snippet: "ANTIFRAUD::alert_type ;\n                Returns alert type.\n\n            ANTIFRAUD::alert_type VALUE ;\n                Sets alert type.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__alert_type.html",
+            examples: "when ANTIFRAUD_ALERT {\n                log local0. \"original Alert type: [ANTIFRAUD::alert_type].\"\n                ANTIFRAUD::alert_type new_value\n                log local0. \"new Alert type: [ANTIFRAUD::alert_type].\"\n            }",
+            return_value: "ANTIFRAUD::alert_type ; Returns alert type.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

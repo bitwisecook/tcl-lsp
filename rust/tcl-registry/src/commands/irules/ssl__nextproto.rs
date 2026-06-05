@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "SSL::nextproto",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set the Next Protocol Negotiation (NPN) string.",
-            &["SSL::nextproto"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get or set the Next Protocol Negotiation (NPN) string.",
+            synopsis: &["SSL::nextproto"],
+            snippet: "Get or set the Next Protocol Negotiation (NPN) string.",
+            source: "https://clouddocs.f5.com/api/irules/SSL__nextproto.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: true,
             server_side: false,

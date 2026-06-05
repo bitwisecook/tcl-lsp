@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "IKE::san_x400",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "something",
-            &["IKE::san_x400 (ANY_CHARS)*"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "something",
+            synopsis: &["IKE::san_x400 (ANY_CHARS)*"],
+            snippet: "something",
+            source: "https://clouddocs.f5.com/api/irules/IKE__san_x400.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -26,11 +26,14 @@ pub fn spec() -> CommandSpec {
             detail: "Return the canonicalised URI (URL evasion patterns rejected).",
             dialects: None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Returns or sets the URI part of the HTTP request.",
-            &["HTTP::uri (URI)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or sets the URI part of the HTTP request.",
+            synopsis: &["HTTP::uri (URI)?"],
+            snippet: "Returns or sets the URI part of the HTTP request. This command replaces\nthe BIG-IP 4.X variable http_uri.\n\nFor the following URL:\nhttp://www.example.com:8080/main/index.jsp?user=test&login=check\nThe URI is: /main/index.jsp?user=test&login=check\n\nNote that in the HTTP_PROXY_REQUEST event, this command returns the complete\nproxy URI. This includes the scheme, host and port, and thus the result would be:\nhttp://www.example.com:8080/main/index.jsp?user=test&login=check",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__uri.html",
+            examples: "when HTTP_PROXY_REQUEST {\n   log local.0 \"This proxy request is:[HTTP::uri]\"\n}",
+            return_value: "Returns the URI part of the HTTP request.",
+        }),
         setter_constraints: SETTER_CONSTRAINTS,
         event_requires: Some(EventRequires {
             client_side: false,

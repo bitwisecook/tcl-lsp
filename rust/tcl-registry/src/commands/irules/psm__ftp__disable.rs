@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "PSM::FTP::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "To disable PSM for FTP traffic.",
-            &["PSM::FTP::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "To disable PSM for FTP traffic.",
+            synopsis: &["PSM::FTP::disable"],
+            snippet: "To disable PSM for FTP traffic",
+            source: "https://clouddocs.f5.com/api/irules/PSM__FTP__disable.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

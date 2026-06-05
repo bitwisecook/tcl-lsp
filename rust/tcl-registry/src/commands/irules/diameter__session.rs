@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DIAMETER::session",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Gets or sets the session-id attribute-value pair.",
-            &["DIAMETER::session (SESSION_ID)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Gets or sets the session-id attribute-value pair.",
+            synopsis: &["DIAMETER::session (SESSION_ID)?"],
+            snippet: "This iRule command gets or sets the value of session-id AVP (code 263)\nin the message.",
+            source: "https://clouddocs.f5.com/api/irules/DIAMETER__session.html",
+            examples: "when DIAMETER_INGRESS {\n    log local0. \"Received a DIAMETER message for session [DIAMETER::session]\"\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

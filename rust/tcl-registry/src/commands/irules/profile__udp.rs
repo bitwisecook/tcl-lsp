@@ -5,11 +5,16 @@ pub fn spec() -> CommandSpec {
         name: "PROFILE::udp",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the value of a UDP profile setting.",
-            &["PROFILE::udp ATTR"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Returns the value of a UDP profile setting.",
+            synopsis: &["PROFILE::udp ATTR"],
+            snippet:
+                "Returns the current value of the specified setting in an assigned UDP profile.",
+            source: "https://clouddocs.f5.com/api/irules/PROFILE__udp.html",
+            examples: "",
+            return_value:
+                "Returns the current value of the specified setting in an assigned UDP profile.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

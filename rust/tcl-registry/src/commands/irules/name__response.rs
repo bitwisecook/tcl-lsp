@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "NAME::response",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: Returns a list of records received in response to a DNS query.",
-            &["NAME::response"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Deprecated: Returns a list of records received in response to a DNS query.",
+            synopsis: &["NAME::response"],
+            snippet: "Returns a list of records received in response to a DNS query made with the NAME_ _lookup command.",
+            source: "https://clouddocs.f5.com/api/irules/NAME__response.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

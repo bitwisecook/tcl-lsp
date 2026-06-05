@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "REST::send",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Send a rest request.",
-            &["REST::send"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Send a rest request.",
+            synopsis: &["REST::send"],
+            snippet: "Send a rest request locally to the Big-IP REST Framework",
+            source: "https://clouddocs.f5.com/api/irules/REST__send.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

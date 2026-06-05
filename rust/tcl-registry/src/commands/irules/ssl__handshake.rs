@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "SSL::handshake",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Halts or resumes SSL activity.",
-            &["SSL::handshake (hold | resume)"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Halts or resumes SSL activity.",
+            synopsis: &["SSL::handshake (hold | resume)"],
+            snippet: "Halts or resumes SSL activity. This is useful for suspending SSL activity while authentication is in progress.",
+            source: "https://clouddocs.f5.com/api/irules/SSL__handshake.html",
+            examples: "when AUTH_ERROR {\n    if {$auth_ldap_sid eq [AUTH::last_event_session_id]} {\n        reject\n    }\n}",
+            return_value: "SSL::handshake hold Halts any SSL activity. Typically used when an authentication request is made.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

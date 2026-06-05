@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "HTTP::fallback",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Specifies or overrides a fallback host specified in the HTTP profile.",
-            &["HTTP::fallback <host>"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Specifies or overrides a fallback host specified in the HTTP profile.",
+            synopsis: &["HTTP::fallback <host>"],
+            snippet: "Specifies or overrides the fallback host specified in the HTTP profile.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__fallback.html",
+            examples:
+                "when LB_FAILED {\n  HTTP::fallback \"http://siteunavailable.mysite.com/\"\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

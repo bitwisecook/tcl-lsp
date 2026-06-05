@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DOSL7::health",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns DOSL7 server health value for current virtual server",
-            &["DOSL7::health"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns DOSL7 server health value for current virtual server",
+            synopsis: &["DOSL7::health"],
+            snippet: "Syntax\n\nDOSL7::health",
+            source: "https://clouddocs.f5.com/api/irules/DOSL7__health.html",
+            examples: "",
+            return_value: "Return health value as integer. Lower values are good health. Bad health is value > 1^23.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

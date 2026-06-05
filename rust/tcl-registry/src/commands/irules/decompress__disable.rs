@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DECOMPRESS::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disable DECOMPRESS feature on current flow.",
-            &["DECOMPRESS::disable (request | response)?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Disable DECOMPRESS feature on current flow.",
+            synopsis: &["DECOMPRESS::disable (request | response)?"],
+            snippet: "Disable DECOMPRESS feature on current flow.",
+            source: "https://clouddocs.f5.com/api/irules/DECOMPRESS__disable.html",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

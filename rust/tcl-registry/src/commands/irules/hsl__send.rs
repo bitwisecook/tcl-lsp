@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "HSL::send",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sends data via High Speed Logging.",
-            &["HSL::send HANDLE DATA"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sends data via High Speed Logging.",
+            synopsis: &["HSL::send HANDLE DATA"],
+            snippet: "Send data via High Speed Logging",
+            source: "https://clouddocs.f5.com/api/irules/HSL__send.html",
+            examples: "when CLIENT_ACCEPTED {\n    set hsl [HSL::open -proto UDP -pool syslog_server_pool]\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

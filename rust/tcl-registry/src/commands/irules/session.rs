@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "session",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Utilizes the persistence table to store arbitrary information based on the same ",
-            &["session add SESSION_MODE"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Utilizes the persistence table to store arbitrary information based on the same keys as persistence.",
+            synopsis: &["session add SESSION_MODE", "session (lookup | delete) SESSION_MODE"],
+            snippet: "Utilizes the persistence table to store arbitrary information based on\nthe same keys as persistence. This information does not affect the\npersistence itself.",
+            source: "https://clouddocs.f5.com/api/irules/session.html",
+            examples: "when HTTP_REQUEST {\nset value [session lookup uie [list $myVar any virtual]]\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: true,
             server_side: false,

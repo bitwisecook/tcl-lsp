@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DNS::len",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the DNS packet message length.",
-            &["DNS::len"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the DNS packet message length.",
+            synopsis: &["DNS::len"],
+            snippet: "This iRules command returns the DNS packet message length.\n\nNote: This command requires the DNS Profile, which is only enabled as\npart of GTM or the DNS Services add-on.",
+            source: "https://clouddocs.f5.com/api/irules/DNS__len.html",
+            examples: "ngth of each packet\n            when DNS_RESPONSE {\n                DNS::log \"PacketLength: \" [DNS::len]\n            }",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

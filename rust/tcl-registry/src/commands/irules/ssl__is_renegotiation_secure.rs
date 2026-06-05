@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "SSL::is_renegotiation_secure",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the current state of SSL Secure Renegotiation.",
-            &["SSL::is_renegotiation_secure"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the current state of SSL Secure Renegotiation.",
+            synopsis: &["SSL::is_renegotiation_secure"],
+            snippet: "Returns the current state of SSL Secure Renegotiation.",
+            source: "https://clouddocs.f5.com/api/irules/SSL__is_renegotiation_secure.html",
+            examples: "when CLIENTSSL_SERVERHELLO_SEND {\n    set secure_renegotiation_enabled [SSL::is_renegotiation_secure]\n}",
+            return_value: "SSL::is_renegotiation_secure",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

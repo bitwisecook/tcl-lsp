@@ -5,7 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CRYPTO::verify",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief("Verifies a signed block of data.", &["CRYPTO::verify (('-alg' ('hmac-md5' | 'hmac-ripemd160' | 'hmac-sha1' | 'hmac-sha224'"], "F5 iRules")),
+hover: Some(HoverSnippet {
+            summary: "Verifies a signed block of data.",
+            synopsis: &["CRYPTO::verify (('-alg' ('hmac-md5' | 'hmac-ripemd160' | 'hmac-sha1' | 'hmac-sha224'"],
+            snippet: "This iRules command is used to verify a signed block of data.\n\nCRYPTO::verify [-alg <>] [-ctx <> [-final]] [-key[hex] [-signature <>] [<data>]\n\n     * Used to provide a digital signature of a block of data. Notes on\n       the flags:\n          + alg - algorithm. ASCII string from a given list (see below)\n            The spelling is lowercase and the iRule will fail for anything\n            not in the list. In ctx mode, alg must be given in the first\n            CRYPTO::command and cannot be modified.",
+            source: "https://clouddocs.f5.com/api/irules/CRYPTO__verify.html",
+            examples: "set secret_key \"foobar1234\"\n\nset data \"This is my data\"\n\nset signed_data [CRYPTO::sign -alg hmac-sha1 -key $secret_key $data]\n\nif { [CRYPTO::verify -alg hmac-sha1 -key $secret_key -signature $signed_data $data] } {\n    log local0. \"Data verified\"\n}\n\nThe secret key will normally be some large string, size generally\ndictated by algorithm. The data is just whatever content you want to\nsign. The result of the CRYPTO::sign command will be a binary value, so",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "RADIUS::subscriber",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "RADIUS::subscriber",
-            &["RADIUS::subscriber (SUBSCRIBER_ID)?"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "RADIUS::subscriber",
+            synopsis: &["RADIUS::subscriber (SUBSCRIBER_ID)?"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/RADIUS__subscriber.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

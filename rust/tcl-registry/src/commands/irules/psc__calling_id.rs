@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "PSC::calling_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set calling id.",
-            &["PSC::calling_id (CALLING_ID)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get or set calling id.",
+            synopsis: &["PSC::calling_id (CALLING_ID)?"],
+            snippet: "The PSC::calling_id command gets the calling station id or sets the\ncalling station id when the optional value is given.",
+            source: "https://clouddocs.f5.com/api/irules/PSC__calling_id.html",
+            examples: "",
+            return_value: "Return the calling station id when no argument is given.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

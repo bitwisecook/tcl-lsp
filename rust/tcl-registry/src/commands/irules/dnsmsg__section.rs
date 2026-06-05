@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "DNSMSG::section",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns a section of a dns_message.",
-            &["DNSMSG::section DNS_MESSAGE ('question' | 'answer' | 'authority' | 'additional' )"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns a section of a dns_message.",
+            synopsis: &["DNSMSG::section DNS_MESSAGE ('question' | 'answer' | 'authority' | 'additional' )"],
+            snippet: "This iRule gets the specified section of a dns_message.",
+            source: "https://clouddocs.f5.com/api/irules/DNSMSG-section.html",
+            examples: "when CLIENT_ACCEPTED {\n        set result [RESOLVER::name_lookup \"/Common/r1\" www.abc.com a]\n        set answer [DNSMSG::section $result answer]\n}",
+            return_value: "Returns a TCL list of resource records from the specified section.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "WS::enabled",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command can be used to turn off WebSocket processing.",
-            &["WS::enabled ( 'false' )?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command can be used to turn off WebSocket processing.",
+            synopsis: &["WS::enabled ( 'false' )?"],
+            snippet: "WS::enabled\n    This can be used to determine whether the Websocket processing is enabled or disabled for a particular connection.\n\nWS::enabled false\n    This can be used to disable the Websocket processing for a particular connection.",
+            source: "https://clouddocs.f5.com/api/irules/WS__enabled.html",
+            examples: "when HTTP_REQUEST {\n    WS::enabled false\n}",
+            return_value: "WS::enabled command returns TRUE if Websocket processing is enabled for a particular connection, FALSE otherwise.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

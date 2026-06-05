@@ -26,11 +26,14 @@ pub fn spec() -> CommandSpec {
             detail: "Return the canonicalised path (URL evasion patterns rejected).",
             dialects: None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Returns or sets the path part of the HTTP request.",
-            &["HTTP::path (PATH_VALUE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns or sets the path part of the HTTP request.",
+            synopsis: &["HTTP::path (PATH_VALUE)?"],
+            snippet: "Returns or sets the path part of the HTTP request. The path is defined\nas the path and filename in a request. It does not include the query string.\nFor the following URL: http://www.example.com:8080/main/index.jsp?user=test&login=check\n\nThe path is: /main/index.jsp\n\nNote that only ? is used as the separator for the query string.\nSo, for the following URL: http://www.example.com:8080/main/index.jsp;session_id=abcdefgh?user=test&login=check\n\nThe path is: /main/index.jsp;session_id=abcdefgh\n\n**Best practice**: Prefer `HTTP::path` over `HTTP::uri` when you\nonly need the path without the query string. Use `-normalized`\nfor consistent matching (prevents URL-encoding evasion).",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__path.html",
+            examples: "when HTTP_REQUEST {\n  log local0. \"\\[HTTP::path\\] original: [HTTP::path]\"\n  HTTP::path [string tolower [HTTP::path]]\n}",
+            return_value: "Returns the path part of the HTTP request.",
+        }),
         setter_constraints: SETTER_CONSTRAINTS,
         event_requires: Some(EventRequires {
             client_side: false,

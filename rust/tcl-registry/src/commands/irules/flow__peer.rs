@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "FLOW::peer",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the TCL flow handle for the peer flow.",
-            &["FLOW::peer ANY_CHARS"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the TCL flow handle for the peer flow.",
+            synopsis: &["FLOW::peer ANY_CHARS"],
+            snippet: "Returns the TCL flow handle for the peer flow.",
+            source: "https://clouddocs.f5.com/api/irules/FLOW__peer.html",
+            examples: "when SERVER_CONNECTED {\n    # Get server side flow handle.\n    set cf [FLOW::this]\n\n    # Get client side flow handle.\n    set peer [FLOW::peer $cf]\n    log local0. \"Peer flow is $peer\"\n    unset cf peer\n}",
+            return_value: "TCL handle for the peer flow. On error an exception is thrown with a message indicating the cause of failure.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

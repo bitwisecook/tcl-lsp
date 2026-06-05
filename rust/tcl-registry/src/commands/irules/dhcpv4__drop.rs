@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "DHCPv4::drop",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command drops DHCPv4 message silently.",
-            &["DHCPv4::drop"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "This command drops DHCPv4 message silently.",
+            synopsis: &["DHCPv4::drop"],
+            snippet:
+                "This command drops DHCPv4 message silently\n\nDetails (syntax):\nDHCPv4::drop",
+            source: "https://clouddocs.f5.com/api/irules/DHCPv4__drop.html",
+            examples: "when CLIENT_DATA {\n        DHCPv4::drop\n    }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

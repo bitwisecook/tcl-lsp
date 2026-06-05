@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "POP3::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Enable POP3 (STARTTLS for POP3).",
-            &["POP3::enable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Enable POP3 (STARTTLS for POP3).",
+            synopsis: &["POP3::enable"],
+            snippet: "Enable POP3 (STARTTLS for POP3)",
+            source: "https://clouddocs.f5.com/api/irules/POP3__enable.html",
+            examples: "when CLIENT_ACCEPTED {\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    POP3::enable\n                }\n            }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

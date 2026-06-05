@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "RTSP::method",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns a method/command from the current RTSP request.",
-            &["RTSP::method"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns a method/command from the current RTSP request.",
+            synopsis: &["RTSP::method"],
+            snippet: "Returns the method/command (for example, DESCRIBE, PLAY) from the\ncurrent RTSP request.",
+            source: "https://clouddocs.f5.com/api/irules/RTSP__method.html",
+            examples: "when RTSP_REQUEST {\n        puts [RTSP::method]\n    }",
+            return_value: "Returns a method/command from the current RTSP request.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

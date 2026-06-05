@@ -5,11 +5,18 @@ pub fn spec() -> CommandSpec {
         name: "PSC::policy",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get/set/remove policies.",
-            &["PSC::policy (POLICY_NAME)*"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get/set/remove policies.",
+            synopsis: &[
+                "PSC::policy (POLICY_NAME)*",
+                "PSC::policy 'add' POLICY_NAME",
+                "PSC::policy 'remove' (POLICY_NAME)?",
+            ],
+            snippet: "The PSC::policy commands get/set/remove the PSC policies.",
+            source: "https://clouddocs.f5.com/api/irules/PSC__policy.html",
+            examples: "",
+            return_value: "Return the list of PSC policies when no argument is given.",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

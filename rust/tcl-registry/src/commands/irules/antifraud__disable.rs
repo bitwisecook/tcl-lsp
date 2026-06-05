@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables the anti-fraud plugin.",
-            &["ANTIFRAUD::disable"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disables the anti-fraud plugin.",
+            synopsis: &["ANTIFRAUD::disable"],
+            snippet: "Disables the anti-fraud plugin.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__disable.html",
+            examples: "when HTTP_REQUEST {\n                # Disable request with Antifraud-Disable header (bypass antifraud plugin)\n                if { [HTTP::header exists \"Antifraud-Disable\" ] } {\n                    ANTIFRAUD::disable\n                }\n            }",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

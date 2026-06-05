@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "GTP::forward",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Forwards GTP message to peer flow.",
-            &["GTP::forward MESSAGE"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Forwards GTP message to peer flow.",
+            synopsis: &["GTP::forward MESSAGE"],
+            snippet: "Forwards GTP message to peer flow.",
+            source: "https://clouddocs.f5.com/api/irules/GTP__forward.html",
+            examples:
+                "when GTP_SIGNALLING_INGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::forward $t2\n}",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "CLASSIFICATION::urlcat",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: provides classification url category name.",
-            &["CLASSIFICATION::urlcat"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Deprecated: provides classification url category name.",
+            synopsis: &["CLASSIFICATION::urlcat"],
+            snippet: "This command provides classification url category name.\n\n* Note: APM / AFM / PEM license is required for functionality to work.\n\nCLASSIFICATION::urlcat",
+            source: "https://clouddocs.f5.com/api/irules/CLASSIFICATION__urlcat.html",
+            examples: "",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

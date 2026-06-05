@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "UDP::drop",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Drops the current UDP packet without removing the flow from the connection table",
-            &["UDP::drop"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Drops the current UDP packet without removing the flow from the connection table.",
+            synopsis: &["UDP::drop"],
+            snippet: "Drops the current UDP packet without removing the flow from the\nconnection table",
+            source: "https://clouddocs.f5.com/api/irules/UDP__drop.html",
+            examples: "when SERVER_DATA {\n    if { [UDP::payload contains \"badstring\"] }{\n        UDP::drop\n    }\n}",
+            return_value: "",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "MESSAGE::proto",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns protocol of the message.",
-            &["MESSAGE::proto"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns protocol of the message.",
+            synopsis: &["MESSAGE::proto"],
+            snippet: "returns protocol of the message. For example, SIP, and DIAMETER.\nThis is valid for messages of the following protocols:\n\n    DIAMETER\n    SIP",
+            source: "https://clouddocs.f5.com/api/irules/MESSAGE__proto.html",
+            examples: "when MR_INGRESS {\n    log local0. \"[MESSAGE::proto]\"\n}",
+            return_value: "returns protocol of the message. For example, SIP, and DIAMETER.",
+        }),
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,
