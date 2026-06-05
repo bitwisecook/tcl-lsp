@@ -160,6 +160,169 @@ fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
     ))
 }
 
+// -- IP / ReDoS leaf scanners (regex-free) ----------------------------
+
+/// A `\w` byte: ASCII alphanumeric or underscore (word boundary basis).
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+/// One dotted-quad match found in a value: the four octet substrings and
+/// the byte offset where it begins (for context checks like a preceding
+/// `/`).
+struct DottedQuad<'a> {
+    octets: [&'a str; 4],
+    start: usize,
+}
+
+/// Find every `\b\d{1,N}.\d{1,N}.\d{1,N}.\d{1,N}\b` dotted quad in
+/// `text` (non-overlapping, left-to-right), replacing the regex scan.
+/// `max_digits` caps each octet's digit count (`3` for the subnet-mask
+/// check, `4` for the invalid-IP one).  Each octet starts at a word
+/// boundary, so a longer digit run (a 4th/5th digit) simply fails to
+/// align with the following `.` and is skipped — matching the regex.
+fn find_dotted_quads(text: &str, max_digits: usize) -> Vec<DottedQuad<'_>> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
+        if boundary_before {
+            if let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
+                out.push(DottedQuad { octets, start: i });
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Match a dotted quad starting at byte `start` (a word boundary), each
+/// octet `1..=max_digits` digits separated by `.`, requiring a trailing
+/// word boundary.  Returns the octet substrings and the end offset.
+fn match_dotted_quad(text: &str, start: usize, max_digits: usize) -> Option<([&str; 4], usize)> {
+    let bytes = text.as_bytes();
+    let mut pos = start;
+    let mut octets: [&str; 4] = [""; 4];
+    for (k, slot) in octets.iter_mut().enumerate() {
+        let run_start = pos;
+        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+            pos += 1;
+        }
+        let len = pos - run_start;
+        if len == 0 || len > max_digits {
+            return None;
+        }
+        *slot = &text[run_start..pos];
+        if k < 3 {
+            if bytes.get(pos) != Some(&b'.') {
+                return None;
+            }
+            pos += 1; // consume the dot
+        }
+    }
+    // Trailing `\b`: end of string or a non-word byte.
+    if pos < bytes.len() && is_word_byte(bytes[pos]) {
+        return None;
+    }
+    Some((octets, pos))
+}
+
+/// Find every IPv6 *candidate* substring — `\b[hex]{1,4}(:[hex]{0,4}){2,7}\b`
+/// — in `text` (the caller validates each via `Ipv6Addr::from_str`).
+/// Replaces the regex; each candidate begins at a word boundary, has a
+/// 1-4 hex-digit first group, 2-7 following `:`-groups (each 0-4 hex),
+/// and ends on a hex digit at a trailing word boundary.
+fn find_ipv6_candidates(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
+        if boundary_before && bytes[i].is_ascii_hexdigit() {
+            if let Some(end) = match_ipv6_candidate(bytes, i) {
+                out.push(&text[i..end]);
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Read up to `max` contiguous hex-digit bytes from `start`, returning
+/// the count.
+fn hex_run_len(bytes: &[u8], start: usize, max: usize) -> usize {
+    let mut k = 0;
+    while k < max && start + k < bytes.len() && bytes[start + k].is_ascii_hexdigit() {
+        k += 1;
+    }
+    k
+}
+
+/// Match an IPv6 candidate starting at `start`, returning the end offset
+/// of the longest `hex(:hex?){2,7}` run that ends on a hex digit and is
+/// followed by a word boundary, or `None`.
+fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
+    let first = hex_run_len(bytes, start, 4);
+    if first == 0 {
+        return None;
+    }
+    let mut pos = start + first;
+    let mut groups = 0usize;
+    let mut best: Option<usize> = None;
+    while groups < 7 && bytes.get(pos) == Some(&b':') {
+        let after_colon = pos + 1;
+        let h = hex_run_len(bytes, after_colon, 4);
+        pos = after_colon + h;
+        groups += 1;
+        // A valid `\b`-terminated end: ≥2 groups, ends on a hex digit,
+        // and is followed by a non-word byte (or end of input).
+        if groups >= 2 && h >= 1 && (pos >= bytes.len() || !is_word_byte(bytes[pos])) {
+            best = Some(pos);
+        }
+    }
+    best
+}
+
+/// True when `pattern` contains a catastrophic-backtracking shape: a
+/// nested quantifier (`…+)+`, `…*)*`, `…+){`) or an overlapping
+/// alternation (`(…|…)` immediately followed by `+` / `*` / `{`).
+/// Hand-written replacement for the `_REDOS_PATTERN` regex.
+fn has_redos_shape(pattern: &str) -> bool {
+    let bytes = pattern.as_bytes();
+    let quant = |b: Option<&u8>| matches!(b, Some(b'+' | b'*' | b'{'));
+    // Nested quantifier: `<+|*> ) <+|*|{>`.
+    for i in 0..bytes.len() {
+        if matches!(bytes[i], b'+' | b'*')
+            && bytes.get(i + 1) == Some(&b')')
+            && quant(bytes.get(i + 2))
+        {
+            return true;
+        }
+    }
+    // Overlapping alternation: `( [^)]* | [^)]* ) <+|*|{>`.
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'(' {
+            let mut j = i + 1;
+            let mut has_pipe = false;
+            while j < bytes.len() && bytes[j] != b')' {
+                has_pipe |= bytes[j] == b'|';
+                j += 1;
+            }
+            if j < bytes.len() && has_pipe && quant(bytes.get(j + 1)) {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
 /// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
 /// Mirrors `_first_token_is_braced`.
 fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
@@ -1322,16 +1485,16 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        let re = regex::Regex::new(r"\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b")
-            .expect("valid dotted-quad regex");
         let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for (tok, text) in arg_tokens.iter().zip(args.iter()) {
             if seen.contains(&tok.span.start()) {
                 continue;
             }
-            for caps in re.captures_iter(text) {
-                let octets: Vec<u32> = (1..=4)
-                    .map(|g| caps[g].parse::<u32>().unwrap_or(999))
+            for quad in find_dotted_quads(text, 3) {
+                let octets: Vec<u32> = quad
+                    .octets
+                    .iter()
+                    .map(|o| o.parse::<u32>().unwrap_or(999))
                     .collect();
                 if octets.iter().any(|&o| o > 255) {
                     continue;
@@ -2957,12 +3120,9 @@ I/O commands."
             return;
         }
         // Nested quantifier `…+)+` / `…*)*` or overlapping alternation
-        // `(a|a)+` — the exact `_REDOS_PATTERN` from `_security.py`.
-        let Ok(redos) = regex::Regex::new(r"(?:[+*]\)[+*{])|(?:\([^)]*\|[^)]*\)[+*{])") else {
-            return;
-        };
+        // `(a|a)+` — the `_REDOS_PATTERN` shape from `_security.py`.
         for (pattern, tok) in patterns {
-            if redos.is_match(&pattern) {
+            if has_redos_shape(&pattern) {
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W303".to_string(),
                     span: tok.span,
@@ -4385,11 +4545,6 @@ file; this call falls through to the 'unknown' handler."
         use std::net::Ipv6Addr;
         use std::str::FromStr;
 
-        let dotted_quad =
-            regex::Regex::new(r"\b(\d{1,4})\.(\d{1,4})\.(\d{1,4})\.(\d{1,4})\b").expect("regex");
-        let ipv6_candidate =
-            regex::Regex::new(r"\b([0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{0,4}){2,7})\b").expect("regex");
-
         let mut seen_offsets: HashSet<u32> = HashSet::new();
         for (key, lv) in &fu.sccp.values {
             let Some(text) = (match lv {
@@ -4400,12 +4555,11 @@ file; this call falls through to the 'unknown' handler."
             };
 
             // ---- IPv4 candidates ----
-            for caps in dotted_quad.captures_iter(text) {
-                let m = caps.get(0).unwrap();
-                if m.start() > 0 && text.as_bytes()[m.start() - 1] == b'/' {
+            for quad in find_dotted_quads(text, 4) {
+                if quad.start > 0 && text.as_bytes()[quad.start - 1] == b'/' {
                     continue;
                 }
-                let octets: Vec<&str> = (1..=4).map(|i| caps.get(i).unwrap().as_str()).collect();
+                let octets = quad.octets;
                 let mut diag: Option<(String, Severity)> = None;
                 for (i, octet) in octets.iter().enumerate() {
                     let v: u32 = octet.parse().unwrap_or(0);
@@ -4442,8 +4596,7 @@ file; this call falls through to the 'unknown' handler."
             }
 
             // ---- IPv6 candidates ----
-            for caps in ipv6_candidate.captures_iter(text) {
-                let candidate = caps.get(1).unwrap().as_str();
+            for candidate in find_ipv6_candidates(text) {
                 if Ipv6Addr::from_str(candidate).is_err() {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");
                     self.emit_ip_diag_at_def(fu, key, &msg, Severity::Error, &mut seen_offsets);
@@ -5957,6 +6110,51 @@ mod tests {
             nearest_valid_mask(255, 255, 255, 1).as_deref(),
             Some("255.255.255.0")
         );
+    }
+
+    #[test]
+    fn dotted_quad_scanner_matches_regex_behaviour() {
+        let q = |t, n| {
+            super::find_dotted_quads(t, n)
+                .into_iter()
+                .map(|q| (q.start, q.octets))
+                .collect::<Vec<_>>()
+        };
+        // A clean quad is found with its octet substrings and start.
+        assert_eq!(q("ip 192.168.1.1!", 3), vec![(3, ["192", "168", "1", "1"])]);
+        // A 4-digit octet defeats the 3-digit cap (no leading boundary
+        // realignment), exactly like `\b\d{1,3}`.
+        assert!(q("1234.1.1.1", 3).is_empty());
+        // The 4-digit cap accepts `999` and a 4-digit octet.
+        assert_eq!(q("192.168.1.999", 4), vec![(0, ["192", "168", "1", "999"])]);
+        // Two quads, non-overlapping; an embedding word char blocks the
+        // boundary (`a10.0.0.1` has no leading `\b`).
+        assert!(q("a10.0.0.1", 3).is_empty());
+    }
+
+    #[test]
+    fn ipv6_candidate_scanner_extracts_runs() {
+        let c = super::find_ipv6_candidates("addr fe80::1 end");
+        assert_eq!(c, vec!["fe80::1"]);
+        // A bare hextet pair (only one colon → <2 groups) is not a
+        // candidate; a full address is.
+        assert!(super::find_ipv6_candidates("ab:cd").is_empty());
+        assert_eq!(
+            super::find_ipv6_candidates("2001:db8::8a2e:370:7334"),
+            vec!["2001:db8::8a2e:370:7334"]
+        );
+    }
+
+    #[test]
+    fn redos_shape_detector() {
+        assert!(super::has_redos_shape("(a+)+"));
+        assert!(super::has_redos_shape("(a*)*"));
+        assert!(super::has_redos_shape("(a|a)+"));
+        assert!(super::has_redos_shape("(foo|bar){2}"));
+        // No nested quantifier / overlapping alternation → safe.
+        assert!(!super::has_redos_shape("^[a-z]+$"));
+        assert!(!super::has_redos_shape("(abc)+"));
+        assert!(!super::has_redos_shape("a|b|c"));
     }
 
     fn w108(src: &str, dialect: &str) -> Vec<(u32, usize)> {

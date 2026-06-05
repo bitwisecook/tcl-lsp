@@ -843,60 +843,6 @@ fn glob_match(pattern: &str, text: &str) -> bool {
     go(pattern.as_bytes(), text.as_bytes())
 }
 
-/// Try to match `text` against a Tcl ARE / BRE pattern via the
-/// native Rust `regex` crate.
-///
-/// Returns `Some(true)` / `Some(false)` when the pattern compiles
-/// under Rust regex syntax and a match is decided. Returns `None`
-/// when the pattern uses ARE/BRE features the Rust engine doesn't
-/// support (backreferences, lookaround, `\y` / `\Y` / `\A` / `\Z`
-/// Tcl word-boundary metacharacters, embedded options, etc.) so
-/// callers fall through to runtime.
-///
-/// Tcl `regexp` semantics are *match-anywhere* — the pattern
-/// doesn't need to match the whole string — so we use
-/// [`regex::Regex::is_match`] rather than attempting a full-match.
-fn regex_matches(pattern: &str, text: &str) -> Option<bool> {
-    if contains_are_only_feature(pattern) {
-        return None;
-    }
-    regex::Regex::new(pattern).ok().map(|re| re.is_match(text))
-}
-
-/// Detect Tcl ARE-specific metacharacters that the Rust `regex`
-/// crate cannot parse. These patterns are left for the runtime
-/// engine to evaluate.
-fn contains_are_only_feature(pattern: &str) -> bool {
-    let bytes = pattern.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() {
-            match bytes[i + 1] {
-                // Tcl word-boundary / string-anchor metacharacters.
-                b'y' | b'Y' | b'A' | b'Z' | b'm' | b'M' => return true,
-                _ => {}
-            }
-            i += 2;
-            continue;
-        }
-        // `(?...)` — embedded options and lookaround.
-        if bytes[i] == b'(' && i + 1 < bytes.len() && bytes[i + 1] == b'?' {
-            if let Some(&next) = bytes.get(i + 2) {
-                if matches!(next, b'=' | b'!' | b'<') {
-                    return true; // lookaround
-                }
-                // Tcl ARE embedded option chars the Rust engine
-                // doesn't recognise.
-                if matches!(next, b'q' | b'c' | b'e' | b'b') {
-                    return true;
-                }
-            }
-        }
-        i += 1;
-    }
-    false
-}
-
 /// Apply an iRules string operator to two rendered string operands.
 fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
     let res = match op {
@@ -905,11 +851,14 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         BinOp::EndsWith => left.ends_with(right),
         BinOp::StrEquals => left == right,
         BinOp::MatchesGlob => glob_match(right, left),
-        BinOp::MatchesRegex => {
-            return regex_matches(right, left).map(|b| TclValue::Int(i64::from(b)))
-        }
         BinOp::In => split_tcl_list(right).iter().any(|e| e == left),
         BinOp::Ni => !split_tcl_list(right).iter().any(|e| e == left),
+        // `matches_regex` is deliberately *not* constant-folded (along
+        // with any other / unsupported operator): the Rust `regex` crate
+        // is not Tcl's ARE engine — classes, anchors, word boundaries,
+        // embedded options and greediness all differ — so folding here
+        // could disagree with runtime.  Decline to evaluate and defer to
+        // the runtime regex engine.
         _ => return None,
     };
     Some(TclValue::Int(i64::from(res)))
@@ -1121,96 +1070,25 @@ mod tests {
         assert_eq!(eval_str("10 ** 100"), None);
     }
 
-    // -- C22i3: matches_regex via the Rust `regex` crate --
+    // -- C22i3: matches_regex is never constant-folded --
 
     #[test]
-    fn irules_matches_regex_basic_match() {
-        assert_eq!(
-            eval_irules(r#""hello world" matches_regex "world""#),
-            Some(TclValue::Int(1))
-        );
-    }
-
-    #[test]
-    fn irules_matches_regex_basic_no_match() {
-        assert_eq!(
-            eval_irules(r#""hello" matches_regex "^bye""#),
-            Some(TclValue::Int(0))
-        );
-    }
-
-    #[test]
-    fn irules_matches_regex_anchors_and_quantifiers() {
-        assert_eq!(
-            eval_irules(r#""abc123" matches_regex "^[a-z]+[0-9]+$""#),
-            Some(TclValue::Int(1))
-        );
-        assert_eq!(
-            eval_irules(r#""hello" matches_regex "^\w{5}$""#),
-            Some(TclValue::Int(1))
-        );
-        assert_eq!(
-            eval_irules(r#""hello" matches_regex "^\w{6}$""#),
-            Some(TclValue::Int(0))
-        );
-    }
-
-    #[test]
-    fn irules_matches_regex_alternation_and_class() {
-        assert_eq!(
-            eval_irules(r#""apple" matches_regex "apple|orange""#),
-            Some(TclValue::Int(1))
-        );
-        assert_eq!(
-            eval_irules(r#""pear" matches_regex "apple|orange""#),
-            Some(TclValue::Int(0))
-        );
-    }
-
-    #[test]
-    fn irules_matches_regex_match_anywhere() {
-        // Tcl `regexp` matches anywhere in the string; the Rust
-        // `regex` crate's is_match semantics agree.
-        assert_eq!(
-            eval_irules(r#""prefix-world-suffix" matches_regex "world""#),
-            Some(TclValue::Int(1))
-        );
-    }
-
-    #[test]
-    fn irules_matches_regex_are_features_bail_to_none() {
-        // ARE-only features bail to None so callers fall through
-        // to the runtime regex engine. The direct regex_matches
-        // unit test below covers `\y` / lookaround / etc.;
-        // here we verify the iRules dispatch path also respects
-        // the None result via a lookaround pattern in a quoted
-        // string (the Tcl expr lexer preserves `(?=` verbatim).
-        assert_eq!(eval_irules(r#""abc" matches_regex "(?=a)abc""#), None);
-    }
-
-    #[test]
-    fn irules_matches_regex_invalid_pattern_is_none() {
-        // Unbalanced `[` — pattern doesn't compile under any
-        // flavor, so we return None.
-        assert_eq!(eval_irules(r#""abc" matches_regex "[unterminated""#), None);
-    }
-
-    #[test]
-    fn regex_matches_returns_none_on_are_patterns() {
-        assert_eq!(regex_matches(r"\ya\y", "a b"), None);
-        assert_eq!(regex_matches(r"(?<=x)abc", "xabc"), None);
-        // Plain pattern works.
-        assert_eq!(regex_matches(r"^a", "abc"), Some(true));
-    }
-
-    #[test]
-    fn contains_are_only_feature_detects_markers() {
-        assert!(contains_are_only_feature(r"\yword\y"));
-        assert!(contains_are_only_feature(r"\Aanchor"));
-        assert!(contains_are_only_feature(r"(?=lookahead)"));
-        assert!(contains_are_only_feature(r"(?<=lookbehind)"));
-        assert!(!contains_are_only_feature(r"^[a-z]+$"));
-        assert!(!contains_are_only_feature(r"a|b"));
+    fn irules_matches_regex_is_not_folded() {
+        // `matches_regex` is deferred to the runtime ARE engine rather
+        // than folded via the Rust `regex` crate (whose syntax/semantics
+        // differ from Tcl ARE), so the constant evaluator returns None
+        // for every pattern — even ones the Rust engine could match.
+        for expr in [
+            r#""hello world" matches_regex "world""#,
+            r#""hello" matches_regex "^bye""#,
+            r#""abc123" matches_regex "^[a-z]+[0-9]+$""#,
+            r#""apple" matches_regex "apple|orange""#,
+            r#""prefix-world-suffix" matches_regex "world""#,
+            r#""abc" matches_regex "(?=a)abc""#,
+            r#""abc" matches_regex "[unterminated""#,
+        ] {
+            assert_eq!(eval_irules(expr), None, "{expr}");
+        }
     }
 
     // -- C22i1: simple iRules string ops --
