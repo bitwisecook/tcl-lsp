@@ -4275,12 +4275,24 @@ following command (`[foo bar\nputs done`) splits into a clean
 the closing `]` the scanner is already looking for, so the change is one
 read-path + one consume site — all 234 existing lexer tests unchanged.
 3 unit tests (zero-width terminate; swallowed-command split with intact
-offsets; empty-ghosts == plain lexing).  **Remaining (strips 3b/3c):**
-the `compute_virtual_insertions` recovery module (reusing the strip-1
-E201 heuristics to derive the ghost offsets) + a
-`segment_commands_with_ghosts`, then routing the analyser body callers
+offsets; empty-ghosts == plain lexing).
+
+**LANDED (strip 3b — the recovery module, 2026-06-05).**
+`build::build_document_with_ghosts` threads a ghost map into the CST
+builder's lexer, and `segmenter::segment_with_recovery(source, config,
+registry)` is the `recovery.py::segment_with_recovery` command-stream
+port: it does a first plain parse, derives ghost `]` offsets from the
+strip-1 E201 heuristics (`syntax_checks::bracket_ghost_insertions` — the
+comment / known-command / brace cases, whose E201 fix offset *is* the
+ghost offset; the bare fallback yields none), and re-lexes with those
+ghosts.  A swallowed following command splits cleanly:
+`set x [foo bar` + `puts done` → `[set x [foo bar]]` + `[puts done]`,
+**byte-identical to Python**; clean input is an exact no-op.  2 unit
+tests.  **Remaining (strip 3c):** route the analyser's body segmentation
 through `segment_with_recovery` so the at-known-command case emits E201 +
-a clean stream instead of E200.
+the clean stream instead of the current E200 — the final integration,
+held separate because it swaps the analyser's recovery substrate and
+warrants a focused differential check.
 
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).

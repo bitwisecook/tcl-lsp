@@ -50,6 +50,18 @@ const fn is_sep_or_eol(t: TokenType) -> bool {
 /// result with [`super::red::SyntaxTree::anchored`].
 #[must_use]
 pub fn build_document(source: &str, config: LexerConfig) -> (GreenNode, Vec<LexWarning>) {
+    build_document_with_ghosts(source, config, std::collections::BTreeMap::new())
+}
+
+/// As [`build_document`], but injects zero-width ghost closing
+/// delimiters (offset → byte) into the lexer for error recovery
+/// (GAP-A1).  An empty map is identical to [`build_document`].
+#[must_use]
+pub fn build_document_with_ghosts(
+    source: &str,
+    config: LexerConfig,
+    ghosts: std::collections::BTreeMap<u32, u8>,
+) -> (GreenNode, Vec<LexWarning>) {
     let config = LexerConfig {
         base_offset: 0,
         base_line: 0,
@@ -57,7 +69,7 @@ pub fn build_document(source: &str, config: LexerConfig) -> (GreenNode, Vec<LexW
         ..config
     };
     let sm = SourceMap::new(source);
-    let lexer = Lexer::with_source_map(SourceMap::new(source), config);
+    let lexer = Lexer::with_source_map(SourceMap::new(source), config).with_ghosts(ghosts);
     let Ok((tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
         return (GreenNode::document(Vec::new(), Vec::new()), Vec::new());
     };

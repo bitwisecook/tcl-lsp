@@ -405,6 +405,47 @@ where
     None
 }
 
+/// Segment `source` with ghost-token error recovery (GAP-A1 strip 3b).
+///
+/// Does a first plain parse, runs the E201 unterminated-`[` heuristics
+/// over it to derive zero-width ghost `]` insertions (the
+/// comment / known-command / brace cases), and — when any are found —
+/// re-lexes with those ghosts so a swallowed following command
+/// (`set x [foo bar` then `puts done`) splits into a clean
+/// `[foo bar]` + `puts done` stream.  Returns the (possibly re-lexed)
+/// commands.  With no recoverable imbalance this is exactly
+/// [`segment_commands_local`] (zero overhead for clean input).
+///
+/// Mirrors `recovery.py::segment_with_recovery`'s command-stream half;
+/// the diagnostic half is emitted separately by the analyser's E201 /
+/// E204-E206 paths.
+#[must_use]
+pub fn segment_with_recovery(
+    source: &str,
+    config: LexerConfig,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> Vec<SegmentedCommand> {
+    let commands = segment_commands_local(source, config);
+    if commands.is_empty() {
+        return commands;
+    }
+    let mut ghosts: std::collections::BTreeMap<u32, u8> = std::collections::BTreeMap::new();
+    for cmd in &commands {
+        for (offset, byte) in
+            crate::analyser::syntax_checks::bracket_ghost_insertions(cmd, source, registry)
+        {
+            ghosts.insert(offset, byte);
+        }
+    }
+    if ghosts.is_empty() {
+        return commands;
+    }
+    let sm = SourceMap::new(source);
+    let (document, _warnings) =
+        crate::parsing::syntax::build::build_document_with_ghosts(source, config, ghosts);
+    crate::parsing::syntax::segment::segments_from_document(document, &sm)
+}
+
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     // The segmenter now derives its `SegmentedCommand`s from the canonical
     // red-green CST (`parsing::syntax`) rather than its own token loop —
@@ -430,6 +471,31 @@ mod tests {
     #[test]
     fn empty_source() {
         assert!(segment_commands("").is_empty());
+    }
+
+    #[test]
+    fn recovery_splits_swallowed_following_command() {
+        // GAP-A1 strip 3b: an unterminated `[` whose next line is a
+        // known command re-lexes into a clean two-command stream.
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let cfg = LexerConfig::default();
+        let rec = segment_with_recovery("set x [foo bar\nputs done\n", cfg.clone(), Some(&reg));
+        assert_eq!(rec.len(), 2);
+        assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
+        assert_eq!(rec[1].texts, vec!["puts", "done"]);
+    }
+
+    #[test]
+    fn recovery_is_a_noop_on_clean_input() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let cfg = LexerConfig::default();
+        let src = "set ok [foo]\nputs hi\n";
+        let rec = segment_with_recovery(src, cfg, Some(&reg));
+        let plain = segment_commands(src);
+        // No recoverable imbalance → byte-identical command words.
+        let words =
+            |cs: &[SegmentedCommand]| cs.iter().map(|c| c.texts.clone()).collect::<Vec<_>>();
+        assert_eq!(words(&rec), words(&plain));
     }
 
     #[test]
