@@ -27,6 +27,7 @@ use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
+use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
@@ -1425,13 +1426,47 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDeclarationParams,
     ) -> jsonrpc::Result<Option<GotoDeclarationResponse>> {
+        // GAP-B3 strip 3: for a `$var`, go-to-declaration resolves the
+        // visible `global` / `variable` / `upvar` scoping statement that
+        // declares the name; for any other symbol it defers to plain
+        // go-to-definition (handled inside `core_declaration`).
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_declaration::declaration(&text, pos.line, pos.character, &dialect, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("declaration worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let locations: Vec<Location> = if ranges.is_empty() {
+            // No in-document declaration / definition — try the
+            // cross-document index (a sibling-file proc / class), the
+            // same fallback go-to-definition uses.
+            self.compute_definition(&uri, pos).await?
+        } else {
+            ranges
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_lsp_range(r),
+                })
+                .collect()
+        };
         if locations.is_empty() {
             return Ok(None);
         }

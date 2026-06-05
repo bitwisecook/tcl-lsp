@@ -388,6 +388,22 @@ fn scope_chain_at(
     chain
 }
 
+/// Return the `body_span`s of the scope chain containing
+/// `byte_offset`, innermost first.  The global scope has no
+/// `body_span`, so an empty result means "the whole file is
+/// visible" — mirrors Python `declaration.py::_collect_scope_ranges`,
+/// whose empty list signals a file-wide walk.
+pub(crate) fn scope_body_spans_at(
+    root: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Vec<tcl_lexer::Span> {
+    scope_chain_at(root, byte_offset)
+        .into_iter()
+        .rev()
+        .filter_map(|s| s.body_span)
+        .collect()
+}
+
 pub(crate) fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
     let start = line_index.position_at(span.start());
     let end = line_index.position_at(span.end());
