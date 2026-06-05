@@ -228,6 +228,45 @@ impl Interp {
                 Ok(obj)
             }
             WordBody::Parts(parts) => {
+                // Object-passthrough fast path (Zig lesson #1/#4): a word that is
+                // *exactly one* substitution returns that value's **object**
+                // (preserving its internal rep), not a stringified copy. This is
+                // what keeps `$list`→`lindex`/`llength` etc. O(1) instead of
+                // re-shimmering the string each access (the hidden-O(N²) seam).
+                if parts.len() == 1 {
+                    match &parts[0] {
+                        WordPart::Variable(v) => {
+                            let index = match &v.index {
+                                Some(p) => Some(self.subst_index(p)?),
+                                None => None,
+                            };
+                            let obj = match index.as_deref() {
+                                Some(key) => self.frames.get_elem(v.name, key),
+                                None => self.frames.get(v.name),
+                            };
+                            return match obj {
+                                Some(o) => {
+                                    // SAFETY: `o` is a live store-owned object;
+                                    // we take an owning +1 to hand to the caller.
+                                    unsafe { obj::incr_ref_count(o) };
+                                    Ok(o)
+                                }
+                                None => Err(self.no_such_variable(v.name, index.as_deref())),
+                            };
+                        }
+                        WordPart::Command(script) => {
+                            if self.eval_str(script) == Code::Error {
+                                return Err(Code::Error);
+                            }
+                            let r = self.result;
+                            // SAFETY: the interp result is live; take an owning +1.
+                            unsafe { obj::incr_ref_count(r) };
+                            return Ok(r);
+                        }
+                        // single Text/Backslash → fall through to the buffer path
+                        _ => {}
+                    }
+                }
                 let mut buf: Vec<u8> = Vec::new();
                 for part in parts {
                     match part {

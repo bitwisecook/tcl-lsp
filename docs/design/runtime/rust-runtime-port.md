@@ -110,6 +110,64 @@ can?"):
   `cfg(target_arch = "wasm32")` (a `size_of::<TclObj>() == 24` static assert
   lands with the wasm build, T1.6).
 
+## Core tenet — low algorithmic complexity from the start
+
+**Every operation gets a target asymptotic complexity, decided when it is
+designed — not retrofitted after a hang.** This is a first-class design tenet,
+not a later optimisation pass, because the recurring failure mode of the Zig
+runtime was *hidden* super-linear complexity (see the lessons below): a list
+that re-parsed its string made `lindex`/`lappend` O(n) each → O(n²) loops; a
+dict without a real index hung (`dict-24.24`); the codegen↔runtime seam called
+an O(idx) helper per element inside an inlined loop → O(n²) invisible to both
+halves.
+
+Concretely, from day one:
+
+- **Name a complexity for each op** in the data-structure method's step 1, and
+  pick the representation that achieves it (the list = contiguous `Vec` for O(1)
+  `lindex`; the dict = ordered `Vec` + hash index for O(1) by-key + O(n) ordered
+  iterate, chosen by experiment).
+- **No hidden re-parse / re-shimmer on the hot path.** A typed value keeps its
+  intrep; the eval loop passes **objects** through (the object-passthrough fast
+  path) rather than stringifying-and-re-shimmering — so `$list` → `lindex` stays
+  O(1), not O(n) per access.
+- **Iterate by cursor/snapshot, never indexed re-access** across the
+  codegen↔runtime seam (lesson #4): `foreach`/`dict for` walk elements once, not
+  `lindex i` in a loop.
+- **No fixed-size buffers that silently truncate** (lesson #5): grow to the heap
+  or raise — never cap (`{*}`/args/list builders). A `Vec` that grows, not a
+  `[T; 128]`.
+- **Build cliffs are correctness bugs, not perf nits** — an O(n²) build loop
+  (`dict set` in a loop, `append`/`lappend` without capacity) hangs on real
+  inputs; treat the asymptotics as part of "correct".
+
+When the right complexity needs an empirical call (constant factors, crossover),
+that is exactly what the [WASM experiments](#choosing-algorithms--data-structures-the-porting-method)
+settle — but the *target* is set up front.
+
+## Lessons from the Zig runtime — the four contracts
+
+The Zig runtime (~82k lines) works and passes a wide upstream slice, but it grew
+bottom-up and its hard bugs trace back to **four contracts left implicit**. This
+port nails all four **on day one**; the table records the Zig pain point, the
+lesson, and where the Rust port stands.
+
+| # | Zig pain point | Lesson | Rust port status |
+|---|---|---|---|
+| a | One string-primary 32-byte `TclObj` with int/float/inline-string/dict-cache/bignum crammed into one shared slot; lists re-parsed their string (O(n²)); ad-hoc shimmer | **Dual-ported obj from day one**: typed intrep with its *own* pointer + lazy cached string rep; shimmer first-class; lists as an element vector | **✅ done.** `#[repr(C)] TclObj` + per-type backing hung off `internalRep` (own pointer, not a shared slot); list = `Vec<*mut TclObj>`; dict = ordered `Vec`+index; shimmer via the `typePtr` free/dup/update-string procs (the keystone) |
+| b | Refcounts + slab allocator + deferred-free queue + slab recycling + parse-cache-keyed-on-raw-pointers; ownership hand-tracked per call site (leaks) | **One ownership discipline**, explicit at every ABI boundary | **✅ done.** Refcount + the `fresh_zero`/`borrowed`/`owned` contract ([`c-api-ownership-contract.md`](c-api-ownership-contract.md)), leak-checked every test. **No** deferred-free queue, **no** slab recycler, **no** parse-cache-on-pointers (the parser borrows `&[u8]`, so that stale-slab bug is a *compile error*) |
+| c | i32 handles vs u32 addresses (`@intCast` panic past 2 GB), tagged-immediate low-bit overloads, `ALIAS_GLOBAL`/`ALIAS_EXT` negative sentinels | **One handle ABI** up front; never `@intCast` | **✅ sidestepped.** Real `*mut TclObj` pointers (no i32-handle/address split → that panic class can't exist); `Var::Link` enum, not sentinels. Tagged immediates deferred; **when added, define the one ABI** (tag bits / width / sentinel space) in a doc first |
+| d | Codegen inlines control flow but calls an O(idx) runtime helper per element → O(n²) hidden in the seam; `_scan.py` a second source of truth for imports | **Runtime ABI is an explicit contract** the codegen targets (which ops are O(1), which take obj handles); iterate by cursor, never indexed re-access; one import source | **⚠️ in progress.** Object-passthrough (this chunk) keeps `$list`→`lindex` O(1); the full codegen↔runtime ABI contract + the "one import source of truth" land with T1.7 / T3.0 (the emit registry). Tracked as a tenet above |
+
+Other Zig lessons folded into the plan: error/traceback via a **real call-frame
+stack carrying source spans** (not after-the-fact synthesis) →
+[`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md); a **uniform
+variable-cell + explicit alias indirection + defined trace re-entrancy** →
+`frame.rs` `Var::Link` (T1.3) + the trace model (later); **byte-exact C-Tcl
+compatibility as the contract**, with the incompatible-by-design set decided up
+front → the [Tcl 9 scoreboard exclusions](#out-of-scope-exclusions-by-design);
+**no silent truncation** → the O() tenet above.
+
 ## Reference implementations (use both freely)
 
 - **Canonical C Tcl 9 source** — `tmp/tcl9.0.3/generic/*.c`
@@ -237,6 +295,12 @@ The structure exists to serve those operations; its shape is dictated by them.
 - For each operation, record: frequency/hotness (loop bodies vs setup),
   complexity demand (random index vs sequential), mutation shape (append-only
   vs middle-insert vs in-place set), and whether it observes order or identity.
+- **Assign each operation a target asymptotic complexity** and choose the
+  representation that meets it (the [low-O() core tenet](#core-tenet--low-algorithmic-complexity-from-the-start)).
+  Watch for the two cliffs the Zig runtime hit: a **build loop** turning O(1)
+  inserts into O(n²) (capacity / index), and **indexed re-access in a loop**
+  (use a cursor/snapshot, and rely on object-passthrough so a typed value isn't
+  re-shimmered per access).
 
 Worked seed — the **list** type drives the choice to a contiguous growable
 `Tcl_Obj*` array (mirroring `tclListObj.c`'s `List` struct), **not** a linked
