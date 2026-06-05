@@ -59,6 +59,9 @@ extern "C" {
     fn mp_mul(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
     fn mp_neg(a: *const MpInt, b: *mut MpInt) -> c_int;
     fn mp_get_double(a: *const MpInt) -> f64;
+    fn mp_div(a: *const MpInt, b: *const MpInt, c: *mut MpInt, d: *mut MpInt) -> c_int;
+    fn mp_sub_d(a: *const MpInt, b: u64, c: *mut MpInt) -> c_int; // b: mp_digit (MP_64BIT)
+    fn mp_cmp(a: *const MpInt, b: *const MpInt) -> c_int; // mp_ord: -1/0/1
 }
 
 // ---------------------------------------------------------------------------
@@ -66,7 +69,8 @@ extern "C" {
 // plus double promotion. Follows `tclExecute.c`'s overflow-checked wide fast
 // path → `ExecuteExtendedBinaryMathOp` bignum path → canonical demote. Operands
 // are `TclObj`s; results are fresh (`rc 0`) `TclObj`s (int / bignum / double).
-// (Floor `/`/`%`, `**`, bit-ops, and the `expr` walker build on this next.)
+// Covers +/-/*/neg, floor `/`/`%` (sign-of-divisor), and numeric comparison;
+// `**`, bit-ops, and the `expr` walker build on this next.
 // ---------------------------------------------------------------------------
 
 /// An RAII libtommath integer: owns its `mp_int`, clearing it on drop.
@@ -204,12 +208,30 @@ fn int_big(op: IntOp, a: *const MpInt, b: *const MpInt) -> Option<NumVal> {
     (unsafe { f(a, b, &mut out.0) } == MP_OKAY).then_some(NumVal::Big(out))
 }
 
+/// Why a tower op could not produce a value — mapped to Tcl's verbatim error
+/// strings by the `expr`/`mathop` layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArithError {
+    /// An operand was not a number (`can't use non-numeric string … as operand`).
+    NonNumeric,
+    /// Integer `/` or `%` by zero (`divide by zero`).
+    DivideByZero,
+    /// A bignum allocation failed (out of memory).
+    Alloc,
+}
+
+/// Read an operand as a number, mapping a non-numeric/parse failure to the
+/// `NonNumeric` error.
+fn num(obj: *mut TclObj) -> Result<NumVal, ArithError> {
+    read(obj).ok_or(ArithError::NonNumeric)
+}
+
 /// The shared dispatch for `+`/`-`/`*`: wide fast path with overflow→bignum, the
 /// bignum path when either operand is big, and double promotion when either is a
-/// float. Returns `None` only on a non-numeric operand or allocation failure.
-fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
-    let x = read(a)?;
-    let y = read(b)?;
+/// float.
+fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let x = num(a)?;
+    let y = num(b)?;
     let v = match (x, y) {
         // Float promotion: mixed or both float → double result.
         (NumVal::Float(p), q) => NumVal::Float(float_op(op, p, as_f64(q))),
@@ -217,16 +239,20 @@ fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
         // Wide fast path: checked op, overflow → bignum.
         (NumVal::Wide(p), NumVal::Wide(q)) => match wide_op(op, p, q) {
             Some(w) => NumVal::Wide(w),
-            None => int_big(op, Mp::from_i64(p)?.ptr(), Mp::from_i64(q)?.ptr())?,
+            None => {
+                let pm = Mp::from_i64(p).ok_or(ArithError::Alloc)?;
+                let qm = Mp::from_i64(q).ok_or(ArithError::Alloc)?;
+                int_big(op, pm.ptr(), qm.ptr()).ok_or(ArithError::Alloc)?
+            }
         },
         // At least one bignum → bignum path.
         (p, q) => {
-            let pm = into_mp(p)?;
-            let qm = into_mp(q)?;
-            int_big(op, pm.ptr(), qm.ptr())?
+            let pm = into_mp(p).ok_or(ArithError::Alloc)?;
+            let qm = into_mp(q).ok_or(ArithError::Alloc)?;
+            int_big(op, pm.ptr(), qm.ptr()).ok_or(ArithError::Alloc)?
         }
     };
-    Some(to_obj(v))
+    Ok(to_obj(v))
 }
 
 #[inline]
@@ -266,53 +292,158 @@ fn into_mp(v: NumVal) -> Option<Mp> {
     }
 }
 
-/// `a + b` over the tower. Returns a fresh object, or `None` on a non-numeric
-/// operand / allocation failure.
-#[must_use]
-pub fn add(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+/// `a + b` over the tower.
+pub fn add(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     arith(IntOp::Add, a, b)
 }
 
 /// `a - b` over the tower.
-#[must_use]
-pub fn sub(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+pub fn sub(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     arith(IntOp::Sub, a, b)
 }
 
 /// `a * b` over the tower.
-#[must_use]
-pub fn mul(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+pub fn mul(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     arith(IntOp::Mul, a, b)
 }
 
 /// `-a` over the tower (wide negation promotes only at `i64::MIN`).
-#[must_use]
-pub fn neg(a: *mut TclObj) -> Option<*mut TclObj> {
-    let v = match read(a)? {
+pub fn neg(a: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let v = match num(a)? {
         NumVal::Wide(w) => match w.checked_neg() {
             Some(n) => NumVal::Wide(n),
-            None => {
-                // i64::MIN — promote to bignum.
-                let mut out = Mp::zero()?;
-                let src = Mp::from_i64(w)?;
-                // SAFETY: live mp_ints.
-                if unsafe { mp_neg(src.ptr(), &mut out.0) } != MP_OKAY {
-                    return None;
-                }
-                NumVal::Big(out)
-            }
+            None => NumVal::Big(mp_negate(&Mp::from_i64(w).ok_or(ArithError::Alloc)?)?),
         },
         NumVal::Float(f) => NumVal::Float(-f),
-        NumVal::Big(mp) => {
-            let mut out = Mp::zero()?;
-            // SAFETY: live mp_ints.
-            if unsafe { mp_neg(mp.ptr(), &mut out.0) } != MP_OKAY {
-                return None;
-            }
-            NumVal::Big(out)
-        }
+        NumVal::Big(mp) => NumVal::Big(mp_negate(&mp)?),
     };
-    Some(to_obj(v))
+    Ok(to_obj(v))
+}
+
+/// `-x` as a fresh bignum.
+fn mp_negate(x: &Mp) -> Result<Mp, ArithError> {
+    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+    // SAFETY: `x` and `out` are live mp_ints.
+    if unsafe { mp_neg(x.ptr(), &mut out.0) } != MP_OKAY {
+        return Err(ArithError::Alloc);
+    }
+    Ok(out)
+}
+
+/// Integer floor `a / b` (quotient toward −∞, sign of divisor) over the tower —
+/// the `tclExecute.c` rule. A float operand makes it float division. Errors
+/// `DivideByZero` on a zero integer divisor.
+pub fn div(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    divmod(a, b, true)
+}
+
+/// Integer floor `a % b` (remainder takes the sign of the divisor) over the
+/// tower. Errors `DivideByZero` on a zero divisor.
+pub fn mod_(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    divmod(a, b, false)
+}
+
+fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut TclObj, ArithError> {
+    let x = num(a)?;
+    let y = num(b)?;
+    // Float division when either operand is a float (`%` on a float is an error
+    // in Tcl, but that surfaces at the expr layer; here `/` floats, `%` would
+    // already be rejected upstream).
+    if matches!(x, NumVal::Float(_)) || matches!(y, NumVal::Float(_)) {
+        let (p, q) = (as_f64(x), as_f64(y));
+        let r = if want_quotient { p / q } else { p % q };
+        return Ok(obj::new_double_obj(r));
+    }
+    // Wide fast path.
+    if let (NumVal::Wide(p), NumVal::Wide(q)) = (&x, &y) {
+        let (p, q) = (*p, *q);
+        if q == 0 {
+            return Err(ArithError::DivideByZero);
+        }
+        // i64::MIN / -1 overflows the wide → bignum path below.
+        if !(p == i64::MIN && q == -1) {
+            let (quot, rem) = wide_floor_divmod(p, q);
+            return Ok(obj::new_wide_int_obj(if want_quotient {
+                quot
+            } else {
+                rem
+            }));
+        }
+    }
+    // Bignum path.
+    let pm = into_mp(x).ok_or(ArithError::Alloc)?;
+    let qm = into_mp(y).ok_or(ArithError::Alloc)?;
+    // SAFETY: `qm` is live; a zero divisor is `used == 0`.
+    if qm.0.used == 0 {
+        return Err(ArithError::DivideByZero);
+    }
+    let (quot, rem) = mp_floor_divmod(&pm, &qm)?;
+    Ok(store((if want_quotient { quot } else { rem }).into_inner()))
+}
+
+/// Floor division for wides: quotient toward −∞, remainder with the divisor's
+/// sign (`a == (a/b)*b + (a%b)`). `b != 0` and not the `MIN/-1` overflow.
+fn wide_floor_divmod(a: i64, b: i64) -> (i64, i64) {
+    let mut q = a / b;
+    let mut r = a % b;
+    if r != 0 && (r < 0) != (b < 0) {
+        q -= 1;
+        r += b;
+    }
+    (q, r)
+}
+
+/// Floor division for bignums via `mp_div` (C-truncation) + the floor adjust:
+/// when the remainder is non-zero and its sign differs from the divisor's,
+/// `q -= 1; r += divisor`.
+fn mp_floor_divmod(a: &Mp, b: &Mp) -> Result<(Mp, Mp), ArithError> {
+    let mut q = Mp::zero().ok_or(ArithError::Alloc)?;
+    let mut r = Mp::zero().ok_or(ArithError::Alloc)?;
+    // SAFETY: all live mp_ints.
+    unsafe {
+        if mp_div(a.ptr(), b.ptr(), &mut q.0, &mut r.0) != MP_OKAY {
+            return Err(ArithError::Alloc);
+        }
+        // `mp_iszero` is `used == 0`; `sign` is 0 (ZPOS) / 1 (NEG). The
+        // floor-adjust (`q -= 1; r += b`) only runs when signs differ — the `&&`
+        // short-circuits before the mutating calls otherwise.
+        let needs_adjust = r.0.used != 0 && r.0.sign != b.0.sign;
+        if needs_adjust
+            && (mp_sub_d(q.ptr(), 1, &mut q.0) != MP_OKAY
+                || mp_add(r.ptr(), b.ptr(), &mut r.0) != MP_OKAY)
+        {
+            return Err(ArithError::Alloc);
+        }
+    }
+    Ok((q, r))
+}
+
+/// Numeric three-way comparison over the tower (for `< > <= >= == !=`). `None`
+/// on a non-numeric operand (NaN compares as the IEEE result via `f64`).
+#[must_use]
+pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<core::cmp::Ordering> {
+    use core::cmp::Ordering;
+    let x = read(a)?;
+    let y = read(b)?;
+    Some(match (x, y) {
+        (NumVal::Wide(p), NumVal::Wide(q)) => p.cmp(&q),
+        // Any float operand → compare as f64 (partial_cmp; NaN → treat as
+        // Greater so it sorts consistently — the expr layer handles NaN rules).
+        (p, q) if matches!(p, NumVal::Float(_)) || matches!(q, NumVal::Float(_)) => as_f64(p)
+            .partial_cmp(&as_f64(q))
+            .unwrap_or(Ordering::Greater),
+        // At least one bignum → mp_cmp.
+        (p, q) => {
+            let pm = into_mp(p)?;
+            let qm = into_mp(q)?;
+            // SAFETY: live mp_ints; mp_cmp returns -1/0/1.
+            match unsafe { mp_cmp(pm.ptr(), qm.ptr()) } {
+                n if n < 0 => Ordering::Less,
+                0 => Ordering::Equal,
+                _ => Ordering::Greater,
+            }
+        }
+    })
 }
 
 /// The `bignum` type descriptor (the shimmer keystone for arbitrary-precision
@@ -545,7 +676,7 @@ mod tests {
     /// Apply a binary op to two operands, returning `(string, type)`; releases
     /// the operands and the result.
     fn binop(
-        f: fn(*mut TclObj, *mut TclObj) -> Option<*mut TclObj>,
+        f: fn(*mut TclObj, *mut TclObj) -> Result<*mut TclObj, ArithError>,
         a: *mut TclObj,
         b: *mut TclObj,
     ) -> (Vec<u8>, &'static str) {
@@ -629,6 +760,65 @@ mod tests {
             rc1(obj::new_string_bytes(b"1")),
         );
         assert_eq!(s, b"256");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn floor_div_and_mod() {
+        crate::counters::reset();
+        // -7 / 2 = -4 (floor), -7 % 2 = 1 (sign of divisor)
+        assert_eq!(binop(div, int_obj(-7), int_obj(2)).0, b"-4");
+        assert_eq!(binop(mod_, int_obj(-7), int_obj(2)).0, b"1");
+        // 7 / -2 = -4, 7 % -2 = -1
+        assert_eq!(binop(div, int_obj(7), int_obj(-2)).0, b"-4");
+        assert_eq!(binop(mod_, int_obj(7), int_obj(-2)).0, b"-1");
+        // positive case unchanged
+        assert_eq!(binop(div, int_obj(7), int_obj(2)).0, b"3");
+        assert_eq!(binop(mod_, int_obj(7), int_obj(2)).0, b"1");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn bignum_floor_div() {
+        crate::counters::reset();
+        // floor(-2**63 / 2**63) = -1 via the bignum path
+        let big = two_pow_63();
+        let neg_big = rc1(neg(big).expect("neg"));
+        drop1(big);
+        let (q, _) = binop(div, neg_big, two_pow_63()); // binop frees both operands
+        assert_eq!(q, b"-1");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn divide_by_zero_errors() {
+        crate::counters::reset();
+        let a = int_obj(5);
+        let z = int_obj(0);
+        assert_eq!(div(a, z), Err(ArithError::DivideByZero));
+        assert_eq!(mod_(a, z), Err(ArithError::DivideByZero));
+        drop1(a);
+        drop1(z);
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn compares_across_rungs() {
+        use core::cmp::Ordering;
+        crate::counters::reset();
+        let big = two_pow_63();
+        let small = int_obj(5);
+        assert_eq!(compare(big, small), Some(Ordering::Greater)); // bignum > wide
+        assert_eq!(compare(small, big), Some(Ordering::Less));
+        let two = int_obj(2);
+        let half = rc1(obj::new_double_obj(2.5));
+        assert_eq!(compare(two, half), Some(Ordering::Less)); // 2 < 2.5
+        let two_eq = int_obj(2);
+        let two_b = int_obj(2);
+        assert_eq!(compare(two_eq, two_b), Some(Ordering::Equal));
+        for o in [big, small, two, half, two_eq, two_b] {
+            drop1(o);
+        }
         assert_eq!(crate::counters::finalize(), 0);
     }
 }
