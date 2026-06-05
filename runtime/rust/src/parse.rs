@@ -18,16 +18,21 @@
 //!   bare/quoted word with no `$` `[` `\\`): the bytes **are** the value. This
 //!   is Tcl's `TCL_TOKEN_SIMPLE_WORD` fast path, zero-allocation (a borrow).
 //! - [`WordBody::Parts`] — components to substitute and concatenate at eval
-//!   time: [`WordPart::Text`] / [`Backslash`](WordPart::Backslash) /
-//!   [`Variable`](WordPart::Variable) / [`Command`](WordPart::Command).
+//!   time: [`WordPart::Text`] (escapes already folded in via the shared
+//!   `tcl_syntax::backslash` decoder) / [`Variable`](WordPart::Variable) /
+//!   [`Command`](WordPart::Command).
 //!
-//! Everything borrows `&'s [u8]` from the source — zero-copy, and the borrow
-//! makes the Zig `parse_cache` stale-slab hazard (memory-management.md MM-B.6)
-//! a compile error. The module is `unsafe`-free.
+//! `Variable`/`Command`/literal-`Text` borrow `&'s [u8]` from the source —
+//! zero-copy on the fast path, and the borrow makes the Zig `parse_cache`
+//! stale-slab hazard (memory-management.md MM-B.6) a compile error. A `Text`
+//! run whose escapes were decoded owns its bytes (`Cow::Owned`). The module is
+//! `unsafe`-free.
 //!
 //! [`scan_parts`] (the component decomposer) is shared with [`crate::subst`].
 
 #![forbid(unsafe_code)]
+
+use std::borrow::Cow;
 
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 
@@ -45,11 +50,13 @@ pub enum WordKind {
 /// One substitution component of a non-literal word (or `subst` input).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WordPart<'s> {
-    /// Verbatim bytes.
-    Text(&'s [u8]),
-    /// A backslash escape — the **full** `\x` span (including the backslash).
-    /// Decode with [`crate::bs::decode_span`] / [`crate::bs::consume_one`].
-    Backslash(&'s [u8]),
+    /// A resolved literal run: text with its backslash escapes already decoded
+    /// (via the canonical [`tcl_syntax::backslash`] decoder) when backslash
+    /// substitution is active. Borrows the source when there was nothing to
+    /// decode (the fast path); owns the decoded bytes otherwise. There is no
+    /// separate "backslash" component — escapes fold into the surrounding run,
+    /// so this matches Tcl's `subst` output with one decoder, not two.
+    Text(Cow<'s, [u8]>),
     /// `$name` / `${name}` / `$arr(index)`.
     Variable(VarRef<'s>),
     /// `[...]` command substitution — the inner script (brackets stripped).
@@ -175,7 +182,7 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
             && i + 1 < len
             && (src[i + 1] == b'{' || is_var_name_byte(src[i + 1]))
         {
-            push_text(&mut parts, src, lit_start, i);
+            flush_text(&mut parts, src, lit_start, i, do_bs);
             i += 1;
             if src[i] == b'{' {
                 // ${name}
@@ -209,7 +216,7 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
                     }
                     // The index is itself substituted at eval time.
                     let index = match scan_parts(&src[ks..ke], do_vars, do_cmds, do_bs) {
-                        WordBody::Literal(b) => vec![WordPart::Text(b)],
+                        WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                         WordBody::Parts(p) => p,
                     };
                     parts.push(WordPart::Variable(VarRef {
@@ -222,7 +229,7 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
             }
             lit_start = i;
         } else if do_cmds && c == b'[' {
-            push_text(&mut parts, src, lit_start, i);
+            flush_text(&mut parts, src, lit_start, i, do_bs);
             let end = skip_command_subst(src, i);
             // inner script = between the brackets; `end` is one past `]`
             let inner_end = if end > i + 1 && src[end - 1] == b']' {
@@ -234,24 +241,36 @@ pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> Word
             i = end;
             lit_start = i;
         } else if do_bs && c == b'\\' && i + 1 < len {
-            push_text(&mut parts, src, lit_start, i);
-            // Reuse the decoder to find the escape span's end.
-            let mut buf = [0u8; 4];
-            let (next, _) = crate::bs::consume_one(src, i + 1, &mut buf);
-            parts.push(WordPart::Backslash(&src[i..next]));
-            i = next;
-            lit_start = i;
+            // Escaped byte: skip the `\` and the byte it escapes so an escaped
+            // `$`/`[` is not a substitution boundary. Only the immediately
+            // following byte matters here (longer escapes' trailing digits are
+            // plain run text); the whole run is decoded once at `flush_text`.
+            i += 2;
         } else {
             i += 1;
         }
     }
-    push_text(&mut parts, src, lit_start, len);
+    flush_text(&mut parts, src, lit_start, len, do_bs);
     WordBody::Parts(parts)
 }
 
-fn push_text<'s>(parts: &mut Vec<WordPart<'s>>, src: &'s [u8], start: usize, end: usize) {
+/// Push the literal run `src[start..end]` as a [`WordPart::Text`], decoding its
+/// backslash escapes via the shared decoder when `do_bs` (borrowing otherwise).
+fn flush_text<'s>(
+    parts: &mut Vec<WordPart<'s>>,
+    src: &'s [u8],
+    start: usize,
+    end: usize,
+    do_bs: bool,
+) {
     if end > start {
-        parts.push(WordPart::Text(&src[start..end]));
+        let run = &src[start..end];
+        let text = if do_bs {
+            tcl_syntax::backslash::decode_bytes(run)
+        } else {
+            Cow::Borrowed(run)
+        };
+        parts.push(WordPart::Text(text));
     }
 }
 
@@ -381,8 +400,17 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
     for &t in toks {
         let bytes = token_content(sm, src, t);
         match t.kind {
-            TokenType::Esc => split_esc(bytes, &mut parts),
-            TokenType::Str => parts.push(WordPart::Text(bytes)), // braced fragment mid-word (rare)
+            // An `Esc` token's content is one literal+backslash run (`$`/`[` are
+            // already separate tokens), so decode it in one shot via the shared
+            // decoder — no per-escape splitting. An empty (quote-marker) `Esc`
+            // contributes nothing.
+            TokenType::Esc => {
+                if !bytes.is_empty() {
+                    parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes(bytes)));
+                }
+            }
+            // A braced fragment mid-word (rare) is verbatim — no substitution.
+            TokenType::Str => parts.push(WordPart::Text(Cow::Borrowed(bytes))),
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
                 bytes,
                 t.content_offset == 2,
@@ -391,50 +419,28 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             _ => {}
         }
     }
-    // Collapse to a borrowed `Literal` (the SIMPLE_WORD fast path): a lone `Text`
-    // covers `plainword` and the no-subst quoted form `"hi there"`; an empty part
-    // list covers the empty quoted word `""`.
-    match parts.as_slice() {
-        [WordPart::Text(b)] => Word {
-            kind,
-            expand,
-            body: WordBody::Literal(b),
-        },
-        [] => Word {
+    // SIMPLE_WORD fast path: an empty word, or a lone *borrowed* `Text` (its run
+    // had no escapes to decode — `plainword` / the no-subst quoted `"hi there"`),
+    // collapses to a borrowed `Literal`. A lone *owned* `Text` (escapes decoded)
+    // stays `Parts` — `substitute_word` resolves it through the buffer path.
+    if parts.is_empty() {
+        return Word {
             kind,
             expand,
             body: WordBody::Literal(b""),
-        },
-        _ => Word {
+        };
+    }
+    if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
+        return Word {
             kind,
             expand,
-            body: WordBody::Parts(parts),
-        },
+            body: WordBody::Literal(b),
+        };
     }
-}
-
-/// Split an `Esc` token's content into `Text`/`Backslash` parts (the `$`/`[`
-/// substitutions are already separate tokens; only backslashes remain). A
-/// trailing lone `\` stays in the `Text` run.
-fn split_esc<'s>(bytes: &'s [u8], parts: &mut Vec<WordPart<'s>>) {
-    let mut lit_start = 0;
-    let mut i = 0;
-    let mut buf = [0u8; 4];
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() {
-            if i > lit_start {
-                parts.push(WordPart::Text(&bytes[lit_start..i]));
-            }
-            let (next, _) = crate::bs::consume_one(bytes, i + 1, &mut buf);
-            parts.push(WordPart::Backslash(&bytes[i..next]));
-            i = next;
-            lit_start = i;
-        } else {
-            i += 1;
-        }
-    }
-    if bytes.len() > lit_start {
-        parts.push(WordPart::Text(&bytes[lit_start..]));
+    Word {
+        kind,
+        expand,
+        body: WordBody::Parts(parts),
     }
 }
 
@@ -447,7 +453,7 @@ fn parse_var_ref(bytes: &[u8], braced: bool) -> VarRef<'_> {
             let name = &bytes[..open];
             let idx = &bytes[open + 1..bytes.len() - 1];
             let index = match scan_parts(idx, true, true, true) {
-                WordBody::Literal(b) => vec![WordPart::Text(b)],
+                WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                 WordBody::Parts(p) => p,
             };
             return VarRef {
@@ -646,12 +652,12 @@ mod tests {
         assert_eq!(
             parts(&c.words[1]),
             &[
-                WordPart::Text(b"x"),
+                WordPart::Text(Cow::Borrowed(b"x")),
                 WordPart::Variable(VarRef {
                     name: b"name",
                     index: None
                 }),
-                WordPart::Text(b"y"),
+                WordPart::Text(Cow::Borrowed(b"y")),
             ]
         );
     }

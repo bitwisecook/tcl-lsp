@@ -11,7 +11,9 @@
 //! at the call (the UTF-8-internal-rep invariant).
 //!
 //! Modules land per the phased extraction plan:
+//! - [`backslash`] — the canonical `TclParseBackslash` decoder (done).
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge` (done).
 //! - `subst`, `expr`, `number`, `format` — to follow.
 
+pub mod backslash;
 pub mod list;

@@ -17,9 +17,10 @@
 //! - [`capi`] — the `#[no_mangle] extern "C"` C-API exports for the above.
 //!
 //! T1.2 — parse/subst (a re-derived borrow-based enum model, all `unsafe`-free):
-//! - [`bs`] — backslash-escape decoding (`TclParseBackslash`).
 //! - [`parse`] — the script/word parser: a `Command`/`Word`/`WordBody` enum
-//!   tree with a literal fast path and a shared component scanner.
+//!   tree with a literal fast path and a shared component scanner. Backslash
+//!   decoding is the shared `tcl_syntax::backslash` (reference `TclParseBackslash`
+//!   via `tcl_lexer::backslash_subst`) — the runtime's old `bs.rs` is retired.
 //! - [`subst`] — the substitution engine over the shared scanner; variable and
 //!   command resolution are supplied as closures (wired to the eval loop in
 //!   T1.3/T1.4).
@@ -28,7 +29,6 @@
 //! in later Track-1 chunks (T1.3–T1.6); the `tcl_*`/`obj_*` codegen-import
 //! re-exports and the wasm `memory`/table exports land in T1.6.
 
-pub mod bs;
 pub mod builtins;
 pub mod capi;
 pub mod cmd_dict;

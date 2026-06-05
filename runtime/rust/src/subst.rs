@@ -17,7 +17,6 @@
 
 #![forbid(unsafe_code)]
 
-use crate::bs;
 use crate::parse::{self, WordBody, WordPart};
 
 /// Which substitution kinds are active (mirrors `subst`'s `-no*` options).
@@ -72,7 +71,6 @@ where
     for part in parts {
         match part {
             WordPart::Text(b) => out.extend_from_slice(b),
-            WordPart::Backslash(span) => out.extend_from_slice(&bs::decode_span(span)),
             WordPart::Variable(v) => {
                 let index = v.index.as_ref().map(|p| resolve_parts(p, var, cmd));
                 if let Some(val) = var(v.name, index.as_deref()) {
@@ -90,9 +88,10 @@ where
 }
 
 /// `subst` with only backslashes active (`-novariables -nocommands`): `$` and
-/// `[` are literal, `\x` decodes. Equivalent to decoding the whole span.
+/// `[` are literal, `\x` decodes. Equivalent to decoding the whole span via the
+/// shared [`tcl_syntax::backslash`] decoder.
 pub fn backslashes_only(src: &[u8]) -> Vec<u8> {
-    bs::decode_span(src)
+    tcl_syntax::backslash::decode_bytes(src).into_owned()
 }
 
 #[cfg(test)]

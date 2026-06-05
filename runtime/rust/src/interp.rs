@@ -20,10 +20,10 @@
 
 use core::ffi::c_char;
 
+use crate::builtins;
 use crate::frame::FrameStack;
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
-use crate::{bs, builtins};
 use std::collections::BTreeMap;
 
 /// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`).
@@ -271,7 +271,6 @@ impl Interp {
                 for part in parts {
                     match part {
                         WordPart::Text(b) => buf.extend_from_slice(b),
-                        WordPart::Backslash(span) => buf.extend_from_slice(&bs::decode_span(span)),
                         WordPart::Variable(v) => {
                             let index = match &v.index {
                                 Some(parts) => Some(self.subst_index(parts)?),
@@ -304,7 +303,6 @@ impl Interp {
         for part in parts {
             match part {
                 WordPart::Text(b) => buf.extend_from_slice(b),
-                WordPart::Backslash(span) => buf.extend_from_slice(&bs::decode_span(span)),
                 WordPart::Variable(v) => {
                     let idx = match &v.index {
                         Some(p) => Some(self.subst_index(p)?),
