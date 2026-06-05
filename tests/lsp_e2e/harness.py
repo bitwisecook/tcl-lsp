@@ -242,20 +242,29 @@ class LspServerClient:
         self.await_log("workspace_state.update", uri, timeout=timeout)
         return diags
 
-    def await_log(self, *needles: str, timeout: float = 30.0) -> str:
+    def notification_cursor(self) -> int:
+        """A marker into the notification log for ``await_log(..., since=)``."""
+        with self._notify_cv:
+            return len(self._notifications)
+
+    def await_log(self, *needles: str, timeout: float = 30.0, since: int = 0) -> str:
         """Block until a ``window/logMessage`` whose text contains all ``needles``.
 
         The packaged server routes its ``[timing] …`` instrumentation through
         ``window/logMessage`` (it emits nothing on stderr), so this is how a
         test observes server-side progress markers such as the analysis-snapshot
-        build.  Returns the matching message text.
+        build.  ``since`` skips log entries recorded before a
+        :meth:`notification_cursor` marker, so a freshly produced marker can be
+        distinguished from identical earlier ones (e.g. the per-edit
+        ``workspace_state.update`` line for a long-lived document).  Returns the
+        matching message text.
         """
         import time as _time
 
         deadline = _time.monotonic() + timeout
         with self._notify_cv:
             while True:
-                for note in self._notifications:
+                for note in self._notifications[since:]:
                     if note.get("method") != "window/logMessage":
                         continue
                     msg = str((note.get("params") or {}).get("message", ""))
@@ -267,6 +276,22 @@ class LspServerClient:
                         f"no window/logMessage containing all of {needles!r} within {timeout}s"
                     )
                 self._notify_cv.wait(remaining)
+
+    def settle_analysis(self, uri: str, version: int, text: str, *, timeout: float = 30.0) -> int:
+        """Force ``uri``'s analysis snapshot to ``text`` and block until it is built.
+
+        Sends a no-op full-replace at ``version`` (the content is unchanged, so
+        the buffer is identical to the post-edit text) and waits for *that*
+        version's diagnostics plus the per-URI ``workspace_state.update`` log
+        recorded after the replace — guaranteeing the analysis-backed features
+        read the final content rather than a snapshot still trailing behind a
+        burst of incremental edits.  Returns ``version``.
+        """
+        cursor = self.notification_cursor()
+        self.replace_document(uri, version, text)
+        self.await_diagnostics(uri, version=version, timeout=timeout)
+        self.await_log("workspace_state.update", uri, since=cursor, timeout=timeout)
+        return version
 
     # -- feature requests --------------------------------------------------
 

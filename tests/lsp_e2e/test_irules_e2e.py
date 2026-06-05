@@ -10,7 +10,12 @@ Ported from the iRules cases in ``tests/test_hover.py``.
 
 from __future__ import annotations
 
-from ._lsp_helpers import completion_items, completion_labels, hover_text
+from ._lsp_helpers import (
+    completion_items,
+    completion_labels,
+    decode_semantic_tokens,
+    hover_text,
+)
 
 
 def _hover(lsp_server, uri, line, char):
@@ -537,3 +542,35 @@ class TestIrulesProfilesHeaderExtended:
         text = _ca_new_texts(sa)[0]
         assert text == "# Profiles: CLIENTSSL\n"
         assert "PERSIST" not in text
+
+
+def _irules_typed(lsp_server_irules, uri):
+    legend = lsp_server_irules.initialize_result["capabilities"]["semanticTokensProvider"][
+        "legend"
+    ]["tokenTypes"]
+    tokens = decode_semantic_tokens(lsp_server_irules.semantic_tokens(uri))
+    for tok in tokens:
+        tok["type"] = legend[tok["type"]]
+    return tokens
+
+
+class TestIrulesSemanticTokens:
+    def test_comment_with_namespace_qualifiers_stays_one_comment(
+        self, lsp_server_irules, uri_factory
+    ):
+        source = "# TCP::collect / TCP::payload / TCP::release\n"
+        uri = _open(lsp_server_irules, uri_factory, source)
+        tokens = _irules_typed(lsp_server_irules, uri)
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "comment"
+        assert tokens[0]["length"] == len(source.rstrip("\n"))
+
+    def test_comment_header_block_all_comments(self, lsp_server_irules, uri_factory):
+        source = (
+            "# Flow:\n"
+            "#   1. CLIENT_ACCEPTED / SERVER_CONNECTED -> TCP::collect\n"
+            "#   2. CLIENT_DATA    / SERVER_DATA      -> TCP::payload ... TCP::release\n"
+        )
+        uri = _open(lsp_server_irules, uri_factory, source)
+        tokens = _irules_typed(lsp_server_irules, uri)
+        assert all(t["type"] == "comment" for t in tokens)
