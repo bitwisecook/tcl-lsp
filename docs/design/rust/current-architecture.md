@@ -97,7 +97,18 @@ retires.
 | Subsystem | Env var | Python fallback module | Notes |
 |---|---|---|---|
 | Background signature scan | `TCL_LSP_RUST_SIGNATURE_SCAN` | `core/analysis/signature_scan.py` | flipped in C40-default-on |
-| Single-pass analyser | `TCL_LSP_RUST_ANALYSER` | `core/analysis/_analyser/__init__.py` | flipped in C41-default-on |
+
+The **single-pass analyser has no env-var gate** any more. The Python
+override it was meant to flip (`_merge_rust_with_python_supplement` in
+`core/analysis/_analyser/__init__.py`) was deleted at #241 when that
+module shrank to a ~47-LOC passthrough, so there is nothing left to
+flip — `TCL_LSP_RUST_ANALYSER` does not exist in the tree. The native
+`tcl-lsp-server` calls `Analyser::analyse()` directly
+(`publish_analyser_diagnostics`), so analyser precision fixes are
+already user-facing on the Rust path. Only four `TCL_LSP_RUST_*` gates
+are live in the Python tree today: `…_SIGNATURE_SCAN` (above) plus
+`…_OPTIMISER`, `…_INTERPROC`, and `…_GVN` (default-off shims, next
+section).
 
 ## Default-off Rust shims
 

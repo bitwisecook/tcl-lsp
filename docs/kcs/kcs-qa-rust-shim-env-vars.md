@@ -25,11 +25,21 @@ the Python implementation if (a) the binding isn't installed or
 (b) the Rust path raises an exception.
 
 The current default for each shim is given in the tables below.
-Default-on shims (`TCL_LSP_RUST_SIGNATURE_SCAN`,
-`TCL_LSP_RUST_ANALYSER`) are **not** opt-in experiments — they ship
-as the canonical path, and the env var is the opt-out knob you set
-to `0` when bisecting a regression or running the Python side as
-the differential oracle.
+The one default-on shim (`TCL_LSP_RUST_SIGNATURE_SCAN`) is **not** an
+opt-in experiment — it ships as the canonical path, and the env var
+is the opt-out knob you set to `0` when bisecting a regression or
+running the Python side as the differential oracle.
+
+Note that there is **no `TCL_LSP_RUST_ANALYSER` env var**. The
+single-pass analyser had a dispatch shim once, but it (and the var)
+were removed at #241 when `core/analysis/_analyser/__init__.py` was
+simplified to a thin passthrough, so there is no Python override left
+to gate. The Rust analyser still exists in
+`rust/tcl-compiler/src/analyser/`, and the native `tcl-lsp-server`
+calls `Analyser::analyse()` directly — so on the Rust LSP path the
+analyser is already authoritative with no opt-out knob. The pure-Python
+`analyse()` mixin chain remains the path the Python zipapp server runs
+until the `S*` server flip retires it.
 
 Each env var is recognised in the same vocabulary: truthy values
 (`1`, `true`, `yes`, `on`, `y`, `t` — case-insensitive) opt the
@@ -52,7 +62,6 @@ knob until the Python implementation retires entirely.
 | Env var                          | Subsystem                 | Module wired                                   | Flipped in |
 |----------------------------------|---------------------------|------------------------------------------------|------------|
 | `TCL_LSP_RUST_SIGNATURE_SCAN`    | Background signature scan | `core/analysis/signature_scan.py`              | C40-default-on |
-| `TCL_LSP_RUST_ANALYSER`          | Single-pass Tcl analyser  | `core/analysis/_analyser/__init__.py`          | C41-default-on |
 
 ### Default-off (opt in via `=1`)
 
