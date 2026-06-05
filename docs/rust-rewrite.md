@@ -5374,11 +5374,15 @@ events"** list — `valid_events` ports `events_matching` + `event_satisfies`
 + `profile_stack_satisfies` + `expand_profile_stack` over the registry's
 event / profile graphs (the `effective_event_requires` namespace-profile
 augmentation is a no-op here — the Rust specs already bake the profiles
-into `event_requires`).  **Still pending (need more than a registry field
-— additional engine/infra):** the GAP-C2 *per-component* regex/format
-**sub-token** taxonomy (the ~1600-LOC sub-tokenisers); and the
-`package_suggestions` fuzzy catalogue (needs a workspace
-`package_resolver`, not the registry).
+into `event_requires`).  Also landed: the **`package_suggestions`** fuzzy catalogue
+(`code_actions::package_require_actions`) — `rank_package_suggestions`
+ranks the registry-derived package catalogue (`required_package` /
+`tcllib_package`) against the cursor word's `::`-prefix and offers
+`Add 'package require <pkg>'` (skipping already-required packages); the
+workspace `package_resolver`'s *installed*-package set is the only
+deferred piece (locally-installed-but-unregistered packages aren't
+suggested).  **Still pending:** only the GAP-C2 *per-component*
+regex/format **sub-token** taxonomy (the ~1600-LOC sub-tokenisers).
 
 ### E. Doc defects corrected in place by this audit
 

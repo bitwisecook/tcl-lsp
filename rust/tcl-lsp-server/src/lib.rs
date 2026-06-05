@@ -2272,9 +2272,15 @@ impl LanguageServer for Backend {
             .await;
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
-        // requested range.  Run analysis on a worker.
+        // requested range, plus fuzzy `package require`
+        // suggestions for the word at the cursor.  Run on a worker.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let actions = tokio::task::spawn_blocking(move || {
-            core_code_actions::code_actions(&doc.text, range, Some(&analysis))
+            let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            actions.extend(core_code_actions::package_require_actions(
+                &doc.text, range, &registry,
+            ));
+            actions
         })
         .await
         .map_err(|err| jsonrpc::Error {
