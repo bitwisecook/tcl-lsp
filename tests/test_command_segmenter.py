@@ -1107,3 +1107,42 @@ class TestStableChunkHashes:
         # The chunk source hashes must match regardless of seed.
         assert chunks1 == chunks2
         assert chunks1  # non-empty
+
+
+class TestPartialCommandHashCoversTail:
+    """Regression: a partial (unclosed) command's ``source_hash`` must cover its
+    whole tile, not just the parsed ``range.end``.
+
+    A partial command's ``range.end`` stops at the parse-failure point, so text
+    edited in the unparsed tail still sits inside the chunk's tile but past
+    ``cmd_end``.  If the hash only covered ``source[start:cmd_end+1]`` an edit
+    there would leave the hash unchanged, ``find_first_dirty_chunk`` would treat
+    the chunk as clean, and the incremental cache would serve stale per-chunk
+    semantic tokens (observed as a token whose length lags the buffer)."""
+
+    def test_edit_in_unparsed_tail_changes_hash(self):
+        # In ``set b [ex\npr {\n1 + x]`` the command is *partial* (the ``[`` opens
+        # a substitution whose ``{`` never closes); its ``range.end`` stops early,
+        # leaving an unparsed tail inside the chunk's tile.  An edit there must
+        # still change the chunk hash.
+        before = "set a 1\nset b [ex\npr {\n1 + x]\nset c 3\n"
+        after = "set a 1\nset b [ex\npr {\n1 + xYYY]\nset c 3\n"
+        c_before = segment_top_level_chunks(before)[1]
+        c_after = segment_top_level_chunks(after)[1]
+        assert c_before.commands[0].is_partial, "expected the broken command to be partial"
+        assert c_before.source_hash != c_after.source_hash, (
+            "editing a partial command's unparsed tail must change its chunk hash"
+        )
+
+    def test_dirty_detection_flags_the_partial_chunk(self):
+        old = segment_top_level_chunks("set a 1\nset b [ex\npr {\n1 + x]\nset c 3\n")
+        new = segment_top_level_chunks("set a 1\nset b [ex\npr {\n1 + xYYY]\nset c 3\n")
+        # Chunk 0 (``set a 1``) is unchanged; the partial chunk (index 1) is dirty.
+        assert find_first_dirty_chunk(old, new) == 1
+
+    def test_well_formed_command_hash_unaffected_by_appended_command(self):
+        # The append-invariant still holds: a well-formed command's hash does not
+        # change when a new command is appended after it.
+        one = segment_top_level_chunks("set a 1\n")[0]
+        two = segment_top_level_chunks("set a 1\nset b 2\n")[0]
+        assert one.source_hash == two.source_hash

@@ -276,9 +276,23 @@ def tile_commands(
     last = final_end if final_end is not None else len(source)
     for i, cmd in enumerate(commands):
         start = cmd.range.start.offset
-        cmd_end = cmd.range.end.offset
         tile_end = commands[i + 1].range.start.offset if i + 1 < n else last
-        cmd_text = source[start : cmd_end + 1]
+        # Hash the whole tile's non-whitespace content, not just
+        # ``source[start:cmd_end+1]``.  A chunk's tile can carry text past the
+        # command's parsed ``range.end`` — the unparsed tail of a *partial*
+        # command (unclosed ``{`` / ``[`` / ``"``), or a trailing comment the
+        # segmenter folds into the preceding command's tile.  That tail is part
+        # of the chunk (it contributes semantic tokens), so an edit there must
+        # change the hash; otherwise ``find_first_dirty_chunk`` treats the chunk
+        # as clean and the incremental cache serves stale per-chunk tokens
+        # (observed as a token whose length/coverage lags the buffer).
+        #
+        # ``rstrip`` drops only *trailing whitespace* up to ``tile_end``, so the
+        # append-invariant still holds: appending a new command (pure whitespace
+        # between this command and the new one until then) does not invalidate
+        # this chunk's hash.  For a well-formed command with nothing but
+        # whitespace before the next command this equals the old tight slice.
+        cmd_text = source[start:tile_end].rstrip()
         chunks.append(
             TopLevelChunk(
                 index=start_index + i,

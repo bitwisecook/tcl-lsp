@@ -43,7 +43,9 @@ def _lsp_build() -> _Build:
     """
     prebuilt = os.environ.get("TCL_LSP_SERVER_PYZ")
     if prebuilt:
-        pyz = Path(prebuilt)
+        # Resolve to absolute: the server subprocess runs with cwd set to a
+        # throwaway workspace, so a relative argv path would not resolve.
+        pyz = Path(prebuilt).resolve()
         if not pyz.exists():
             pytest.fail(f"TCL_LSP_SERVER_PYZ={prebuilt!r} does not exist")
         return _Build(pyz, ensure_build_info())

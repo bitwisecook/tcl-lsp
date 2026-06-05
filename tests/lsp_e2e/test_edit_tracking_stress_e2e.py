@@ -21,6 +21,7 @@ import random
 
 import pytest
 
+from ._lsp_helpers import decode_semantic_tokens
 from ._textmirror import Edit, TextMirror, random_edit
 
 
@@ -50,28 +51,28 @@ def _norm_symbols(symbols) -> list:
 def _assert_buffer_equiv(lsp_server, edited_uri, edited_version, fresh_uri, fresh_text):
     """The incrementally-edited buffer must behave like a fresh open of its text.
 
-    The oracle is the document-symbol tree: it is a *synchronous*, position-
-    sensitive function of the buffer the server is currently holding (computed
-    on request, not via the debounced two-phase diagnostics push), so it pins
-    every proc/namespace/class/variable name, kind, detail, and range.  After a
-    long hostile edit sequence, a single mis-applied splice shifts a declaration
-    by a line or column and this comparison fails — which is exactly the
-    tracking regression these tests exist to catch.
+    The oracle is two *synchronous*, position-sensitive functions of the buffer
+    the server currently holds — its **semantic tokens** (every word's position,
+    length, and type) and its **document-symbol tree** (every proc/namespace/
+    class/variable name, kind, detail, and range).  Both are computed on request,
+    not via the debounced two-phase diagnostics push, so they expose any
+    character-level or positional drift.  After a long hostile edit sequence a
+    single mis-applied splice — or a stale per-chunk token cache — makes one of
+    these diverge from a fresh open of the same text, which is exactly the class
+    of regression these tests guard (the partial-command chunk-hash bug surfaced
+    here as a token whose length lagged the buffer).
 
-    (Diagnostics are deliberately *not* used as the oracle here: they are pushed
-    in two phases — a fast basic pass then a deep pass at the same document
-    version — so an equality check races the deep pass.  Version-targeted
-    diagnostic assertions live in ``test_diagnostics_e2e`` instead.)
+    Both snapshots are settled deterministically first: the fresh document via
+    ``open_ready``, and the edited document via a no-op full-replace at the next
+    version (``settle_analysis``) that forces a snapshot build at the final
+    content.  Under heavy serial load the edited document's incremental snapshot
+    can otherwise trail the burst of edits by a version (analysis-pipeline
+    eventual-consistency, not the buffer — the buffer is splice-for-splice
+    correct, which the client-side mirror driving these edits guarantees).
 
-    Both snapshots are settled deterministically before the comparison: the
-    fresh document via ``open_ready``, and the edited document via a no-op
-    full-replace at the next version (``settle_analysis``) that forces — and
-    waits for — a snapshot build at the final content.  Under heavy serial load
-    the edited document's incremental snapshot can otherwise trail the burst of
-    edits by a version, which is eventual-consistency lag in the *analysis*
-    pipeline, not the buffer (the buffer is splice-for-splice correct — that is
-    what the client-side mirror driving these edits guarantees).  With both
-    sides settled, any remaining difference is a real position/content drift.
+    (Diagnostics are deliberately not the oracle: they are pushed in two phases
+    at the same version, so an equality check races the deep pass.  Version-
+    targeted diagnostic assertions live in ``test_diagnostics_e2e``.)
     """
     # ``fresh_text`` is the edited document's final content too (the callers
     # pass the mirror text for both), so the no-op replace leaves the buffer
@@ -79,6 +80,13 @@ def _assert_buffer_equiv(lsp_server, edited_uri, edited_version, fresh_uri, fres
     lsp_server.await_diagnostics(edited_uri, version=edited_version)
     lsp_server.settle_analysis(edited_uri, edited_version + 1, fresh_text)
     lsp_server.open_ready(fresh_uri, fresh_text)
+
+    edited_tokens = decode_semantic_tokens(lsp_server.semantic_tokens(edited_uri))
+    fresh_tokens = decode_semantic_tokens(lsp_server.semantic_tokens(fresh_uri))
+    assert edited_tokens == fresh_tokens, (
+        "semantic tokens diverged between the incrementally-edited buffer and a "
+        "fresh open of the same text (stale incremental cache?)"
+    )
 
     edited_syms = _norm_symbols(lsp_server.document_symbols(edited_uri))
     fresh_syms = _norm_symbols(lsp_server.document_symbols(fresh_uri))
@@ -95,33 +103,9 @@ SEED_DOC = (
 )
 
 
-def _assert_responsive(lsp_server, uri, version):
-    """Heavy editing must leave the server live, in sync, and answering.
-
-    A storm of *random* edits drives the buffer into arbitrary (often
-    syntactically broken) shapes.  We assert the durable, editor-facing
-    invariant: every feature request still returns a well-formed answer (no
-    crash, hang, or desync) and the version-tagged diagnostics for the final
-    edit arrive — i.e. the document pipeline kept pace with the burst.  Exact
-    position equivalence against a fresh open is *not* asserted here: the
-    server's incremental analysis/symbol cache is history-dependent under heavy
-    load (a separate finding), and the buffer itself is already proven
-    splice-correct by the client-side mirror that drives the edits.
-    """
-    lsp_server.await_diagnostics(uri, version=version)
-    # Each of these reads the live buffer; the contract is "responds without
-    # error", so any non-raising return (including null/empty) passes.
-    lsp_server.document_symbols(uri)
-    lsp_server.semantic_tokens(uri)
-    lsp_server.hover(uri, 0, 0)
-    lsp_server.folding_range(uri)
-    # A fresh round-trip proves the connection is still healthy after the storm.
-    assert lsp_server.server_info is not None
-
-
 class TestRandomEditStorm:
     @pytest.mark.parametrize("seed", [1, 7, 13, 42, 99, 256, 1024])
-    def test_random_incremental_edits_keep_server_responsive(self, lsp_server, uri_factory, seed):
+    def test_random_incremental_edits_match_fresh_open(self, lsp_server, uri_factory, seed):
         uri = uri_factory()
         lsp_server.open_ready(uri, SEED_DOC)
         mirror = TextMirror(SEED_DOC)
@@ -132,7 +116,7 @@ class TestRandomEditStorm:
             mirror.apply(edit)
             version += 1
             lsp_server.change_document(uri, version, [edit.as_content_change()])
-        _assert_responsive(lsp_server, uri, version)
+        _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)
 
     @pytest.mark.parametrize("seed", [3, 17, 64])
     def test_batched_multi_edit_changes(self, lsp_server, uri_factory, seed):
@@ -152,7 +136,7 @@ class TestRandomEditStorm:
                 changes.append(edit.as_content_change())
             version += 1
             lsp_server.change_document(uri, version, changes)
-        _assert_responsive(lsp_server, uri, version)
+        _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)
 
 
 class TestSupersession:
@@ -296,4 +280,4 @@ class TestReopenLifecycle:
             # Fire a request that reads the buffer; we only require it not to error.
             lsp_server.document_symbols(uri)
             lsp_server.semantic_tokens(uri)
-        _assert_responsive(lsp_server, uri, version)
+        _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)
