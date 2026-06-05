@@ -27,6 +27,7 @@ publish = false
 
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
+tcl-syntax = { path = "../../rust/tcl-syntax" }
 
 [lib]
 name = "tcl_runtime"

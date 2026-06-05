@@ -43,6 +43,14 @@ name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
  "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-syntax"
+version = "0.1.0"
+dependencies = [
+ "tcl-lexer",
 ]
 
 [[package]]

@@ -95,74 +95,6 @@ pub struct Command<'s> {
 // Low-level scanners — return byte offsets into `src`.
 // ---------------------------------------------------------------------------
 
-/// A delimited word's interior span `[start, start+len)` plus the offset `end`
-/// just past the closing delimiter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    pub start: usize,
-    pub len: usize,
-    pub end: usize,
-}
-
-/// Parse a `{braced}` word. `pos` must index the opening `{`. `\<any>` inside
-/// does not change brace depth (so `\{` / `\}` are inert), matching
-/// `TclParseBraces`. An unterminated brace runs to end-of-input without
-/// underflow.
-pub fn find_braced(src: &[u8], pos: usize) -> Span {
-    let len = src.len();
-    let start = pos + 1;
-    let mut p = start;
-    let mut depth: usize = 1;
-    while p < len && depth > 0 {
-        if src[p] == b'\\' && p + 1 < len {
-            p += 2;
-            continue;
-        }
-        if src[p] == b'{' {
-            depth += 1;
-        } else if src[p] == b'}' {
-            depth -= 1;
-        }
-        if depth == 0 {
-            break;
-        }
-        p += 1;
-    }
-    // p indexes the closing `}` (depth==0) or len (unterminated).
-    let (wlen, end) = if depth == 0 {
-        (p - start, p + 1)
-    } else {
-        (p - start, p)
-    };
-    Span {
-        start,
-        len: wlen,
-        end,
-    }
-}
-
-/// Parse a `"quoted"` word. `pos` must index the opening `"`. Backslash escapes
-/// any following byte (so `\"` does not close the quote).
-pub fn find_quoted(src: &[u8], pos: usize) -> Span {
-    let len = src.len();
-    let start = pos + 1;
-    let mut p = start;
-    while p < len && src[p] != b'"' {
-        if src[p] == b'\\' && p + 1 < len {
-            p += 2;
-        } else {
-            p += 1;
-        }
-    }
-    let wlen = p - start;
-    let end = if p < len { p + 1 } else { p };
-    Span {
-        start,
-        len: wlen,
-        end,
-    }
-}
-
 /// Advance past one balanced `[...]` command substitution. `pos` must index the
 /// `[`; returns the offset just past the matching `]`. `\<any>` escapes a
 /// bracket. Used by [`scan_parts`].
@@ -332,9 +264,9 @@ fn push_text<'s>(parts: &mut Vec<WordPart<'s>>, src: &'s [u8], start: usize, end
 // (the "parse once" convergence: one scanner shared with the LSP/compiler). The
 // hard edges (`{*}` prefix, `#`-comment-in-command-position, brace/quote/bracket
 // nesting, `$arr(idx)`, line continuation) live in `tcl-lexer`; here we only map
-// its tokens into the eval `Command`/`WordPart` model. `find_braced` /
-// `find_quoted` / `scan_parts` / `split_list` remain for `subst` and list
-// parsing (distinct grammars, converged later).
+// its tokens into the eval `Command`/`WordPart` model. `scan_parts` remains for
+// `subst` (converged next); `split_list` now delegates to the shared
+// `tcl_syntax::list` crate.
 // ---------------------------------------------------------------------------
 
 /// Byte slice of a token's *content* in the source, delimiter-stripped.
@@ -531,70 +463,53 @@ fn parse_var_ref(bytes: &[u8], braced: bool) -> VarRef<'_> {
 }
 
 // ---------------------------------------------------------------------------
-// List parsing — `Tcl_SplitList` (the primitive `{*}` expansion and the list
-// value type need). Distinct from command parsing: no comments, `;`/newline are
-// plain whitespace, and there is no `$`/`[` substitution — only brace/quote
-// grouping and (for bare/quoted elements) backslash decoding.
+// List parsing — `Tcl_SplitList` (the primitive `{*}` expansion + the list
+// value type need). CONVERGED onto the shared [`tcl_syntax::list`] crate (the
+// canonical `FindElement` grammar + `backslash_subst` collapse), so the list
+// grammar lives in one place for the runtime AND the LSP/compiler. The runtime
+// keeps the byte API (`&[u8]` in, owned bytes out); it converts at the boundary
+// on the UTF-8-internal-rep invariant.
 // ---------------------------------------------------------------------------
 
-/// Why splitting a string as a Tcl list failed.
+/// Why splitting a string as a Tcl list failed. Mirrors
+/// [`tcl_syntax::list::ListError`] plus [`ListError::NotUtf8`] for the
+/// byte-boundary case (which cannot occur for a well-formed internal string rep,
+/// since the runtime upholds UTF-8 internally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListError {
     /// An unmatched `{` (`unmatched open brace in list`).
     UnmatchedBrace,
     /// An unmatched `"` (`unmatched open quote in list`).
     UnmatchedQuote,
+    /// Junk directly after a closing `}` (`list element in braces followed by`).
+    BraceFollowedByJunk,
+    /// Junk directly after a closing `"` (`list element in quotes followed by`).
+    QuoteFollowedByJunk,
+    /// The input bytes were not valid UTF-8 (violates the internal-rep invariant).
+    NotUtf8,
 }
 
-#[inline]
-fn is_list_space(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
-
-/// Split `src` into its Tcl list elements, decoding each element's value:
-/// `{braced}` elements are taken verbatim (no substitution); bare and
-/// `"quoted"` elements have backslash escapes decoded. This is the
-/// `Tcl_SplitList` primitive (element *values*, owned).
-pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
-    let len = src.len();
-    let mut out = Vec::new();
-    let mut p = 0;
-    loop {
-        while p < len && is_list_space(src[p]) {
-            p += 1;
-        }
-        if p >= len {
-            break;
-        }
-        if src[p] == b'{' {
-            let s = find_braced(src, p);
-            // find_braced runs to end-of-input on an unterminated brace; detect
-            // that (the byte before `end` is not the closing `}`).
-            if s.end > len || (s.end == len && (len == 0 || src[len - 1] != b'}')) {
-                return Err(ListError::UnmatchedBrace);
-            }
-            out.push(src[s.start..s.start + s.len].to_vec());
-            p = s.end;
-        } else if src[p] == b'"' {
-            let s = find_quoted(src, p);
-            if s.end == len && (len == 0 || src[len - 1] != b'"') {
-                return Err(ListError::UnmatchedQuote);
-            }
-            out.push(crate::bs::decode_span(&src[s.start..s.start + s.len]));
-            p = s.end;
-        } else {
-            let start = p;
-            while p < len && !is_list_space(src[p]) {
-                if src[p] == b'\\' && p + 1 < len {
-                    p += 2;
-                } else {
-                    p += 1;
-                }
-            }
-            out.push(crate::bs::decode_span(&src[start..p]));
+impl From<tcl_syntax::list::ListError> for ListError {
+    fn from(e: tcl_syntax::list::ListError) -> Self {
+        use tcl_syntax::list::ListError as L;
+        match e {
+            L::UnmatchedBrace => ListError::UnmatchedBrace,
+            L::UnmatchedQuote => ListError::UnmatchedQuote,
+            L::BraceFollowedByJunk => ListError::BraceFollowedByJunk,
+            L::QuoteFollowedByJunk => ListError::QuoteFollowedByJunk,
         }
     }
-    Ok(out)
+}
+
+/// Split `src` into its Tcl list element *values* (owned): `{braced}` elements
+/// verbatim, bare/`"quoted"` elements with backslash escapes decoded. The
+/// `Tcl_SplitList` primitive, delegating to [`tcl_syntax::list::split_list`].
+pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
+    let s = core::str::from_utf8(src).map_err(|_| ListError::NotUtf8)?;
+    Ok(tcl_syntax::list::split_list(s)?
+        .into_iter()
+        .map(|c| c.into_owned().into_bytes())
+        .collect())
 }
 
 #[cfg(test)]
@@ -614,33 +529,7 @@ mod tests {
         }
     }
 
-    // ---- low-level scanners (mirror test_tcl_parse.zig) ----
-
-    #[test]
-    fn braced_simple_nested_escaped_unterminated() {
-        let s = find_braced(b"{abc}", 0);
-        assert_eq!((s.start, s.len, s.end), (1, 3, 5));
-        let src = b"{a {b c} d}";
-        let s = find_braced(src, 0);
-        assert_eq!(&src[s.start..s.start + s.len], b"a {b c} d");
-        let src = b"{a\\{b\\}c}";
-        let s = find_braced(src, 0);
-        assert_eq!(&src[s.start..s.start + s.len], b"a\\{b\\}c");
-        // unterminated `{` must not underflow
-        let s = find_braced(b"{", 0);
-        assert_eq!((s.start, s.len), (1, 0));
-    }
-
-    #[test]
-    fn quoted_and_backslash_quote() {
-        let src = b"\"hello world\" tail";
-        let s = find_quoted(src, 0);
-        assert_eq!(&src[s.start..s.start + s.len], b"hello world");
-        assert_eq!(s.end, 13);
-        let src = b"\"a\\\"b\" rest";
-        let s = find_quoted(src, 0);
-        assert_eq!(&src[s.start..s.start + s.len], b"a\\\"b");
-    }
+    // ---- low-level scanners ----
 
     #[test]
     fn command_subst_balances_and_escapes() {
@@ -809,26 +698,13 @@ mod tests {
         assert_eq!(lit(&cmds[1].words[0]), b"set");
     }
 
+    // The list grammar itself is exhaustively tested in `tcl_syntax::list`;
+    // here we only smoke-test the byte-API delegation + error mapping.
     #[test]
-    fn split_list_grouping_and_decode() {
-        assert_eq!(
-            split_list(b"a b c").unwrap(),
-            vec![b"a".to_vec(), b"b".to_vec(), b"c".to_vec()]
-        );
-        // braced elements are verbatim; bare elements decode backslashes
+    fn split_list_delegates_to_tcl_syntax() {
         assert_eq!(
             split_list(b"{a b} c\\td").unwrap(),
             vec![b"a b".to_vec(), b"c\td".to_vec()]
-        );
-        // newlines are plain whitespace in list context
-        assert_eq!(
-            split_list(b"x\ny\tz").unwrap(),
-            vec![b"x".to_vec(), b"y".to_vec(), b"z".to_vec()]
-        );
-        // quoted element
-        assert_eq!(
-            split_list(b"\"a b\" c").unwrap(),
-            vec![b"a b".to_vec(), b"c".to_vec()]
         );
         assert_eq!(split_list(b"   ").unwrap(), Vec::<Vec<u8>>::new());
         assert_eq!(split_list(b"{unmatched"), Err(ListError::UnmatchedBrace));

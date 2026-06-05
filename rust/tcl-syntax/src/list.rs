@@ -1,0 +1,447 @@
+//! Tcl list grammar — `Tcl_SplitList` (split) and `Tcl_Merge` (join), the
+//! canonical pair shared by the compiler's const-folder, the LSP, and the
+//! runtime's list value type + `{*}` expansion.
+//!
+//! Re-derived from reference Tcl 9.0 `tmp/tcl9.0.3/generic/tclUtil.c`:
+//! `Tcl_SplitList`/`TclFindElement`/`FindElement` for the split (including the
+//! `literal` zero-copy flag and `TclCopyAndCollapse`), and
+//! `Tcl_ScanElement`/`Tcl_ConvertElement` (`ConvertFlags`) for the join.
+//!
+//! Backslash decoding is **not** re-implemented here: bare/quoted elements that
+//! need collapsing run through [`tcl_lexer::backslash_subst`] (the one canonical
+//! decoder, matching `TclParseBackslash`).
+//!
+//! ## The list grammar (`FindElement`)
+//!
+//! - Leading/trailing element whitespace is space/tab/newline/CR/FF/VT (note:
+//!   `;` is **not** a list separator — that is command syntax).
+//! - `{braced}` elements group with **nested** braces and are taken **verbatim**
+//!   (no substitution, no backslash collapse — `\}` etc. stay literal).
+//! - `"quoted"` and bare elements have backslash escapes **collapsed**; a
+//!   backslash escapes the next byte (so `\"`/`\{`/`\ ` do not terminate).
+//! - A close brace/quote must be followed by element whitespace or end-of-input,
+//!   else it is "list element in braces/quotes followed by ...".
+//! - An unterminated `{`/`"` is "unmatched open brace/quote in list".
+
+use std::borrow::Cow;
+use std::ops::Range;
+
+use tcl_lexer::backslash_subst;
+
+/// Why splitting a string as a Tcl list failed (the `tclUtil.c` error set).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListError {
+    /// `unmatched open brace in list` — a `{` with no matching `}`.
+    UnmatchedBrace,
+    /// `unmatched open quote in list` — a `"` with no matching `"`.
+    UnmatchedQuote,
+    /// `list element in braces followed by "..." instead of space` — junk
+    /// directly after a closing `}`.
+    BraceFollowedByJunk,
+    /// `list element in quotes followed by "..." instead of space` — junk
+    /// directly after a closing `"`.
+    QuoteFollowedByJunk,
+}
+
+impl ListError {
+    /// The reference Tcl error message (prefix; callers append the offending
+    /// fragment for the "...followed by" cases if they want byte-exact text).
+    #[must_use]
+    pub fn message(self) -> &'static str {
+        match self {
+            ListError::UnmatchedBrace => "unmatched open brace in list",
+            ListError::UnmatchedQuote => "unmatched open quote in list",
+            ListError::BraceFollowedByJunk => "list element in braces followed by",
+            ListError::QuoteFollowedByJunk => "list element in quotes followed by",
+        }
+    }
+}
+
+/// One located list element: the interior byte range in the source, whether it
+/// is `literal` (no backslash collapse needed — Tcl's `literal` flag), and the
+/// offset to resume scanning at (past trailing whitespace).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Element {
+    /// Interior byte range (delimiters stripped).
+    pub value: Range<usize>,
+    /// `true` ⇒ take `s[value]` verbatim; `false` ⇒ collapse its backslashes.
+    pub literal: bool,
+    /// Resume offset for the next [`find_element`] call.
+    pub next: usize,
+}
+
+/// Tcl list-element whitespace (`TclIsSpaceProcM`): space, tab, NL, CR, FF, VT.
+#[inline]
+#[must_use]
+pub fn is_list_space(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+}
+
+/// Locate the next list element in `s` at/after `start`. Returns `Ok(None)` when
+/// only trailing whitespace remains. Mirrors `FindElement` (`tclUtil.c:577`).
+pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError> {
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    let mut pos = start;
+
+    // Skip leading element whitespace.
+    while pos < len && is_list_space(bytes[pos]) {
+        pos += 1;
+    }
+    if pos >= len {
+        return Ok(None);
+    }
+
+    let mut open_braces: usize = 0;
+    let mut in_quotes = false;
+    let mut literal = true;
+    let elem_start;
+    match bytes[pos] {
+        b'{' => {
+            open_braces = 1;
+            pos += 1;
+            elem_start = pos;
+        }
+        b'"' => {
+            in_quotes = true;
+            pos += 1;
+            elem_start = pos;
+        }
+        _ => elem_start = pos,
+    }
+
+    let size;
+    loop {
+        if pos >= len {
+            if open_braces != 0 {
+                return Err(ListError::UnmatchedBrace);
+            }
+            if in_quotes {
+                return Err(ListError::UnmatchedQuote);
+            }
+            size = pos - elem_start;
+            break;
+        }
+        match bytes[pos] {
+            b'{' => {
+                if open_braces != 0 {
+                    open_braces += 1;
+                }
+                // Outside braces a `{` is just a literal char of a bare element.
+            }
+            b'}' => {
+                if open_braces == 1 {
+                    size = pos - elem_start;
+                    pos += 1;
+                    if pos < len && !is_list_space(bytes[pos]) {
+                        return Err(ListError::BraceFollowedByJunk);
+                    }
+                    break;
+                } else if open_braces > 1 {
+                    open_braces -= 1;
+                }
+                // open_braces == 0: literal `}` in a bare element.
+            }
+            b'"' => {
+                if in_quotes {
+                    size = pos - elem_start;
+                    pos += 1;
+                    if pos < len && !is_list_space(bytes[pos]) {
+                        return Err(ListError::QuoteFollowedByJunk);
+                    }
+                    break;
+                }
+                // Not in quotes: a literal `"` mid bare element.
+            }
+            b'\\' => {
+                if open_braces == 0 {
+                    // A backslash outside braces ⇒ the element needs collapsing.
+                    literal = false;
+                }
+                // Skip the escaped byte so `\}` / `\"` / `\<space>` do not
+                // terminate. Only the immediately-following byte matters for
+                // boundary detection (longer escapes' trailing digits are plain
+                // text either way); a trailing lone `\` falls through to EOF.
+                if pos + 1 < len {
+                    pos += 2;
+                    continue;
+                }
+                pos += 1;
+                continue;
+            }
+            ch if open_braces == 0 && !in_quotes && is_list_space(ch) => {
+                size = pos - elem_start;
+                break; // pos stays at the separator; trailing-skip handles it.
+            }
+            _ => {}
+        }
+        pos += 1;
+    }
+
+    // Skip trailing whitespace to the next element.
+    while pos < len && is_list_space(bytes[pos]) {
+        pos += 1;
+    }
+    Ok(Some(Element {
+        value: elem_start..elem_start + size,
+        literal,
+        next: pos,
+    }))
+}
+
+/// Split `s` into its Tcl list elements (`Tcl_SplitList`), collapsing backslash
+/// escapes in bare/quoted elements. Literal elements borrow `s`; collapsed ones
+/// own a fresh `String`.
+pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Some(el) = find_element(s, pos)? {
+        let raw = &s[el.value.clone()];
+        out.push(if el.literal {
+            Cow::Borrowed(raw)
+        } else {
+            // backslash_subst returns Borrowed when there is nothing to do, but
+            // a non-literal element always contains a backslash, so this owns.
+            Cow::Owned(backslash_subst(raw).into_owned())
+        });
+        pos = el.next;
+    }
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
+// ---------------------------------------------------------------------------
+
+/// How a value must be quoted to appear as one Tcl list element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Quote {
+    /// Bare — copy verbatim.
+    None,
+    /// Wrap in `{...}`.
+    Brace,
+    /// Backslash-escape the special bytes.
+    Escape,
+}
+
+/// Decide the quoting for `s` as a list element. `leading_hash_unsafe` is the
+/// `#`-could-start-a-comment case (true for the first element of a list / a
+/// command word; the `TCL_DONT_QUOTE_HASH` inverse).
+fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
+    if s.is_empty() {
+        return Quote::Brace; // the empty element renders as `{}`.
+    }
+    let b = s.as_bytes();
+    let mut needs_quote = leading_hash_unsafe && b[0] == b'#';
+    let mut brace_ok = true;
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b';' | b'"' | b'$' | b'[' | b']' => {
+                needs_quote = true;
+            }
+            b'{' => {
+                needs_quote = true;
+                depth += 1;
+            }
+            b'}' => {
+                needs_quote = true;
+                depth -= 1;
+                if depth < 0 {
+                    brace_ok = false; // unbalanced ⇒ cannot brace.
+                }
+            }
+            b'\\' => {
+                needs_quote = true;
+                // A trailing backslash, or `\<newline>`, cannot be brace-quoted.
+                if i + 1 >= b.len() || b[i + 1] == b'\n' {
+                    brace_ok = false;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    if depth != 0 {
+        brace_ok = false;
+    }
+    if !needs_quote {
+        Quote::None
+    } else if brace_ok {
+        Quote::Brace
+    } else {
+        Quote::Escape
+    }
+}
+
+fn convert_element(s: &str, quote: Quote, leading_hash_unsafe: bool, out: &mut String) {
+    match quote {
+        Quote::None => out.push_str(s),
+        Quote::Brace => {
+            out.push('{');
+            out.push_str(s);
+            out.push('}');
+        }
+        Quote::Escape => {
+            for (i, ch) in s.char_indices() {
+                match ch {
+                    '{' | '}' | '[' | ']' | '$' | ';' | '\\' | '"' | ' ' => {
+                        out.push('\\');
+                        out.push(ch);
+                    }
+                    '\n' => out.push_str("\\n"),
+                    '\t' => out.push_str("\\t"),
+                    '\r' => out.push_str("\\r"),
+                    '\x0b' => out.push_str("\\v"),
+                    '\x0c' => out.push_str("\\f"),
+                    '#' if i == 0 && leading_hash_unsafe => out.push_str("\\#"),
+                    _ => out.push(ch),
+                }
+            }
+        }
+    }
+}
+
+/// Quote a single value as a Tcl list element (`Tcl_ScanElement` +
+/// `Tcl_ConvertElement`). The standalone form treats a leading `#` as unsafe.
+#[must_use]
+pub fn list_element(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    convert_element(s, scan_element(s, true), true, &mut out);
+    out
+}
+
+/// Join values into a Tcl list string (`Tcl_Merge`). Only the first element's
+/// leading `#` is comment-unsafe.
+#[must_use]
+pub fn join_list<I, S>(elems: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut out = String::new();
+    for (idx, e) in elems.into_iter().enumerate() {
+        if idx != 0 {
+            out.push(' ');
+        }
+        let s = e.as_ref();
+        let hash_unsafe = idx == 0;
+        convert_element(s, scan_element(s, hash_unsafe), hash_unsafe, &mut out);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn split(s: &str) -> Vec<String> {
+        split_list(s)
+            .unwrap()
+            .into_iter()
+            .map(Cow::into_owned)
+            .collect()
+    }
+
+    #[test]
+    fn plain_words() {
+        assert_eq!(split("a b c"), ["a", "b", "c"]);
+        assert_eq!(split("   "), Vec::<String>::new());
+        assert_eq!(split(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn whitespace_is_any_list_space() {
+        // newline / tab / FF / VT are list separators (unlike command syntax).
+        assert_eq!(split("x\ny\tz"), ["x", "y", "z"]);
+        assert_eq!(split("a\u{0b}b\u{0c}c"), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn braced_elements_are_verbatim() {
+        assert_eq!(split("{a b} c"), ["a b", "c"]);
+        assert_eq!(split("{a {b c} d}"), ["a {b c} d"]); // nested braces kept
+        assert_eq!(split("{a\\nb}"), ["a\\nb"]); // no collapse inside braces
+        assert_eq!(split("{}"), [""]); // empty braced element
+    }
+
+    #[test]
+    fn quoted_and_bare_collapse_backslashes() {
+        assert_eq!(split("c\\td"), ["c\td"]);
+        assert_eq!(split("\"a b\" c"), ["a b", "c"]);
+        assert_eq!(split("\"a\\tb\""), ["a\tb"]);
+        // a backslash escapes a would-be terminator
+        assert_eq!(split("a\\ b"), ["a b"]);
+        assert_eq!(split("\"a\\\"b\""), ["a\"b"]);
+    }
+
+    #[test]
+    fn errors() {
+        assert_eq!(split_list("{unmatched"), Err(ListError::UnmatchedBrace));
+        assert_eq!(split_list("\"unmatched"), Err(ListError::UnmatchedQuote));
+        assert_eq!(split_list("{a}b"), Err(ListError::BraceFollowedByJunk));
+        assert_eq!(split_list("\"a\"b"), Err(ListError::QuoteFollowedByJunk));
+    }
+
+    #[test]
+    fn literal_flag_borrows() {
+        // A braced element and a backslash-free bare element are literal borrows.
+        let s = "{a b} cd";
+        let e0 = find_element(s, 0).unwrap().unwrap();
+        assert!(e0.literal);
+        let e1 = find_element(s, e0.next).unwrap().unwrap();
+        assert!(e1.literal);
+        // A bare element with a backslash is not literal (needs collapse).
+        let e = find_element("a\\tb", 0).unwrap().unwrap();
+        assert!(!e.literal);
+    }
+
+    #[test]
+    fn split_borrows_when_literal() {
+        let s = "alpha beta";
+        let v = split_list(s).unwrap();
+        assert!(matches!(v[0], Cow::Borrowed(_)));
+        assert!(matches!(v[1], Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn join_basic() {
+        assert_eq!(join_list(["a", "b", "c"]), "a b c");
+        assert_eq!(join_list(["a b", "c"]), "{a b} c");
+        assert_eq!(join_list([""]), "{}");
+        assert_eq!(join_list(["a", ""]), "a {}");
+    }
+
+    #[test]
+    fn join_quoting_choices() {
+        // unbalanced brace ⇒ escape mode
+        assert_eq!(join_list(["a}b"]), "a\\}b");
+        // trailing backslash ⇒ escape mode
+        assert_eq!(join_list(["a\\"]), "a\\\\");
+        // balanced braces ⇒ brace mode
+        assert_eq!(join_list(["a {b} c"]), "{a {b} c}");
+        // leading # only quoted for the first element; brace mode is preferred
+        assert_eq!(join_list(["#c", "#d"]), "{#c} #d");
+        // a leading # that cannot be braced (unbalanced) escapes instead
+        assert_eq!(join_list(["#a}b"]), "\\#a\\}b");
+        // whitespace/specials force quoting
+        assert_eq!(join_list(["a;b"]), "{a;b}");
+    }
+
+    #[test]
+    fn round_trip() {
+        for case in [
+            vec!["a", "b", "c"],
+            vec!["a b", "c d"],
+            vec!["", "x", ""],
+            vec!["a}b", "c{d"],
+            vec!["a\\b", "x\ty"],
+            vec!["#hash", "normal"],
+        ] {
+            let joined = join_list(&case);
+            let back = split(&joined);
+            assert_eq!(back, case, "round-trip failed for {case:?} -> {joined:?}");
+        }
+    }
+}

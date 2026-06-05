@@ -1,0 +1,31 @@
+# Shared Tcl parse-tree + byte-exact-semantics layer.
+#
+# The convergence crate: one home for the pure, dependency-light Tcl parsing
+# primitives that BOTH the LSP/compiler suite and the WASM runtime port need —
+# list split/merge (`Tcl_SplitList`/`Tcl_Merge`), substitution decomposition,
+# the `expr` AST + Pratt parser, the `TclParseNumber` numeric grammar, and the
+# `format`/`scan` spec parsers. See
+# `docs/design/runtime/rust-runtime-port.md` ("the `tcl-syntax` decision").
+#
+# Dependency DAG (no cycles):
+#   tcl-lexer  <-  tcl-syntax  <-  { tcl-registry, tcl-compiler, runtime/rust }
+#
+# It depends ONLY on `tcl-lexer` (itself `thiserror`-only) so it stays
+# `wasm32`-clean — the runtime (a workspace-excluded wasm32 crate) path-deps it.
+# Everything here is `&str`-based (Tcl is UTF-8 internally); byte consumers
+# convert at the call on the UTF-8-internal-rep invariant.
+[package]
+name = "tcl-syntax"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst, expr, format) for the LSP/compiler and the WASM runtime"
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+
+[lints]
+workspace = true
