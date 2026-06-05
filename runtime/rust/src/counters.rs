@@ -1,70 +1,81 @@
 //! Alloc / free / double-free counters — the leak-check instrumentation
-//! (`memory-management.md` MM-C). These back the `tcl_test_*` exports the
-//! sweep harness (`scripts/leak_sweep.py`) reads, and the T1.1 acceptance
-//! gate (a balanced round-trip leaves zero residual).
+//! (`memory-management.md` MM-C). These back the T1.1 acceptance gate (a
+//! balanced round-trip leaves zero residual) and the T1.3 frame/var leak tests,
+//! mirroring the Zig runtime's `tcl_test_*` surface.
 //!
-//! Mirrors the Zig runtime's `tcl_test_alloc_count` / `tcl_test_double_free_count`
-//! / `tcl_test_reset_counters` / `tcl_test_finalize` surface. Always-on here
-//! (the native test build); the eventual wasm build gates them behind a
-//! `leak-check` feature so the production hot path pays nothing (MM-C).
+//! **Thread-local**, not global. The production runtime is a single-threaded
+//! WASM reactor, so per-thread counters are semantically identical there (one
+//! thread) while making the **native `cargo test`** build correct under
+//! parallel test execution: each test thread allocates, frees, and checks its
+//! own counters with no cross-test interference. (Global atomics would race —
+//! one test's `reset` would clobber another's in-flight count.)
+//!
+//! Always-on here; the eventual wasm build gates them behind a `leak-check`
+//! feature so the production hot path pays nothing (MM-C).
 
-use core::sync::atomic::{AtomicI64, Ordering};
+use std::cell::Cell;
 
-// `Relaxed` is sufficient: the runtime is single-threaded (one reactor), and
-// these are pure event counters with no ordering relationship to obj data.
-const ORD: Ordering = Ordering::Relaxed;
+thread_local! {
+    static OBJS_ALLOCED: Cell<i64> = const { Cell::new(0) };
+    static OBJS_FREED: Cell<i64> = const { Cell::new(0) };
+    static BUFS_ALLOCED: Cell<i64> = const { Cell::new(0) };
+    static BUFS_FREED: Cell<i64> = const { Cell::new(0) };
+    static DOUBLE_FREES: Cell<i64> = const { Cell::new(0) };
+    static OOM: Cell<i64> = const { Cell::new(0) };
+}
 
-static OBJS_ALLOCED: AtomicI64 = AtomicI64::new(0);
-static OBJS_FREED: AtomicI64 = AtomicI64::new(0);
-static BUFS_ALLOCED: AtomicI64 = AtomicI64::new(0);
-static BUFS_FREED: AtomicI64 = AtomicI64::new(0);
-static DOUBLE_FREES: AtomicI64 = AtomicI64::new(0);
-static OOM: AtomicI64 = AtomicI64::new(0);
+fn bump(key: &'static std::thread::LocalKey<Cell<i64>>) {
+    key.with(|c| c.set(c.get() + 1));
+}
 
 pub(crate) fn obj_alloced() {
-    OBJS_ALLOCED.fetch_add(1, ORD);
+    bump(&OBJS_ALLOCED);
 }
 pub(crate) fn obj_freed() {
-    OBJS_FREED.fetch_add(1, ORD);
+    bump(&OBJS_FREED);
 }
 pub(crate) fn buf_alloced() {
-    BUFS_ALLOCED.fetch_add(1, ORD);
+    bump(&BUFS_ALLOCED);
 }
 pub(crate) fn buf_freed() {
-    BUFS_FREED.fetch_add(1, ORD);
+    bump(&BUFS_FREED);
 }
 pub(crate) fn double_free() {
-    DOUBLE_FREES.fetch_add(1, ORD);
+    bump(&DOUBLE_FREES);
 }
 pub(crate) fn oom_set() {
-    OOM.store(1, ORD);
+    OOM.with(|c| c.set(1));
+}
+
+fn get(key: &'static std::thread::LocalKey<Cell<i64>>) -> i64 {
+    key.with(|c| c.get())
 }
 
 /// Total `TclObj` headers allocated since the last reset (parity with the Zig
 /// `tcl_test_alloc_count`).
 pub fn alloc_count() -> i64 {
-    OBJS_ALLOCED.load(ORD)
+    get(&OBJS_ALLOCED)
 }
 
 /// Number of `Tcl_DecrRefCount` calls on an already-zero-refcount object — a
 /// contract violation. Must be zero after a correct run.
 pub fn double_free_count() -> i64 {
-    DOUBLE_FREES.load(ORD)
+    get(&DOUBLE_FREES)
 }
 
 /// Whether the allocator has hit OOM since the last reset.
 pub fn oom() -> bool {
-    OOM.load(ORD) != 0
+    get(&OOM) != 0
 }
 
 /// Live (unfreed) `TclObj` headers.
 pub fn live_objs() -> i64 {
-    OBJS_ALLOCED.load(ORD) - OBJS_FREED.load(ORD)
+    get(&OBJS_ALLOCED) - get(&OBJS_FREED)
 }
 
 /// Live (unfreed) owned string buffers.
 pub fn live_bufs() -> i64 {
-    BUFS_ALLOCED.load(ORD) - BUFS_FREED.load(ORD)
+    get(&BUFS_ALLOCED) - get(&BUFS_FREED)
 }
 
 /// Residual = live headers + live buffers. Zero ⇒ leak-free (`tcl_test_finalize`).
@@ -74,7 +85,7 @@ pub fn finalize() -> i64 {
 
 /// Reset all counters (start of a measured run — `tcl_test_reset_counters`).
 pub fn reset() {
-    for c in [
+    for key in [
         &OBJS_ALLOCED,
         &OBJS_FREED,
         &BUFS_ALLOCED,
@@ -82,6 +93,6 @@ pub fn reset() {
         &DOUBLE_FREES,
         &OOM,
     ] {
-        c.store(0, ORD);
+        key.with(|c| c.set(0));
     }
 }

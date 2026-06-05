@@ -385,7 +385,7 @@ any row.
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress; **+ a representation-decision note per structure** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | not-started | eval-loop tcltest sweep no-regress |
-| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | not-started | `test_tcl_frames/ns/procs` parity + namespace-tree doc |
+| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | not-started | `make check-wasm-parity` green |
 | `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | not-started | per-command parity + tcltest sweep per `.test` |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
@@ -508,6 +508,17 @@ the Zig rep.
       — avoids dangling on map reallocation; trades a lookup for memory safety.
     - **Explicit release, no `Drop`** — matches `TclFreeVar`, keeps refcount
       accounting visible to the leak counters.
+  - **Status: partial — frames + var store landed.** `frame.rs`: `Var` enum +
+    `FrameStack` with scalar/array vars, `upvar`/`global` path-resolved links,
+    push/pop with full release, enumeration (`var_names`/`array_names`), and
+    `resolve_var_bytes` — which **closes the variable half of T1.2's subst
+    seam** (a test runs `subst` over a real frame store). Counters made
+    **thread-local** so the leak-checked tests are correct under parallel
+    `cargo test` (and identical on the single-threaded WASM reactor). Gate:
+    `make runtime-rust-test` (43 tests, leak-checked frame round-trips).
+    **Remaining (T1.4):** the eval loop + command dispatch (closing subst's
+    *command* half), namespace var tables, the deferred-free queue, and the
+    `info`/proc-call frame metadata (argv, level).
 - **T1.4 — namespaces + command table.** Port `tcl_ns.zig` + `dispatch/`.
   Gate: `make check-wasm-parity` green; namespace-tree behaviour preserved.
 - **T1.5 — builtins.** Port `cmds/*.zig` incrementally, each command (or small
@@ -846,6 +857,12 @@ it in the same or a follow-up PR.
   replacing the duplicated `parse_bare`/`subst_flagged` scans; the
   `$`-not-a-name-is-literal fix. Zig commits touching these files are diffed for
   *behavioural* changes (not structure) against this baseline.
+- `runtime/rust/src/frame.rs` (T1.3) mirrors `runtime/zig/interp/tcl_frames.zig`
+  + `valtypes/tcl_array.zig` for **semantics**, cross-checked against
+  `tclVar.c`/`tclInt.h`. **Structural divergence:** the `tclInt.h` `Var` union
+  as a Rust `Var` enum (Scalar/Array/Link) replacing the Zig i32-sentinel
+  encoding; `BTreeMap` var/array tables; path-resolved links. Behaviour-diffed
+  against this baseline going forward.
 
 ### Outstanding
 
@@ -888,9 +905,11 @@ compiler/LSP or the Zig runtime.
 4. ✅ **T1.2** — parse/subst port. Landed as a re-derived borrow-based enum
    model (`bs`/`parse`/`subst`, `unsafe`-free); segment evaluation wires into
    the eval loop next.
-5. **T1.3** — eval loop + frames (`tcl_interp.zig` + `tcl_frames.zig`); also
-   supplies the var/command resolver closures `subst` needs and the deferred-free
-   queue T1.1 left for here.
+5. ◐ **T1.3** — frames + variable store **landed** (`frame.rs`: `Var` enum,
+   `FrameStack`, scalar/array/upvar/global, leak-checked; closes subst's
+   variable half). **Next: T1.4** — eval loop + command table + dispatch
+   (closes subst's command half), namespace var tables, and the deferred-free
+   queue.
 6. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work
