@@ -34,3 +34,11 @@ for g in $REG_GROUPS; do
     --json "$OUT/$g.summary.json" >"$OUT/$g.report.txt" 2>>"$OUT/$g.python.err"
   echo "done: $g"
 done
+
+# BIG-IP object registry (GAP-e) — separate object-spec schema, audited
+# by its own dumper/compare. Non-fatal so a transient diff is reported,
+# not silently swallowed.
+"$RUST_BIN" bigip >"$OUT/bigip.rust.jsonl" 2>"$OUT/bigip.rust.err"
+python3 scripts/registry-audit/audit_bigip.py >"$OUT/bigip.report.txt" 2>&1 \
+  && echo "done: bigip (parity OK)" \
+  || echo "done: bigip (DIFFERENCES — see $OUT/bigip.report.txt)" >&2

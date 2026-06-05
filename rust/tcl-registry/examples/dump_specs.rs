@@ -101,6 +101,45 @@ fn main() {
         std::process::exit(2);
     });
 
+    // BIG-IP object registry: one JSON record per object kind.
+    if group == "bigip" {
+        let reg = tcl_registry::bigip::BigipRegistry::build();
+        let mut specs: Vec<_> = reg.specs().to_vec();
+        specs.sort_by_key(|s| s.kind_spec.kind);
+        for spec in specs {
+            let ks = spec.kind_spec;
+            let object_types = json_str_list(ks.object_types);
+            let prop_names: Vec<&str> = spec.properties.iter().map(|p| p.name).collect();
+            let props = json_str_list(&prop_names);
+            // `(name, kind)` pairs as a sorted JSON array — keeps
+            // duplicate property names (the bgp object legitimately
+            // declares e.g. `distance` three times with different
+            // kinds), so the comparison is an order-independent multiset.
+            let prop_pairs: Vec<String> = {
+                let mut pv: Vec<(&str, &str)> = spec
+                    .properties
+                    .iter()
+                    .map(|p| (p.name, p.value_type.as_str()))
+                    .collect();
+                pv.sort_unstable();
+                pv.iter()
+                    .map(|(n, v)| format!("[{},{}]", json_str(n), json_str(v)))
+                    .collect()
+            };
+            println!(
+                "{{\"kind\":{},\"module\":{},\"object_types\":{},\"n_header_types\":{},\"n_properties\":{},\"properties\":{},\"property_pairs\":[{}]}}",
+                json_str(ks.kind),
+                ks.module.map_or_else(|| "null".to_string(), json_str),
+                object_types,
+                spec.header_types.len(),
+                spec.properties.len(),
+                props,
+                prop_pairs.join(","),
+            );
+        }
+        return;
+    }
+
     // Meta registries (events / profiles / namespaces): emit one name per line.
     match group.as_str() {
         "meta-events" => {

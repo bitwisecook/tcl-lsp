@@ -32,6 +32,7 @@
 
 pub mod arg_role;
 pub mod arity;
+pub mod bigip;
 pub mod body_kind;
 pub mod commands;
 pub mod const_fold;
@@ -77,6 +78,7 @@ pub mod prelude {
 // Re-export key types at crate root.
 pub use arg_role::ArgRole;
 pub use arity::Arity;
+pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
