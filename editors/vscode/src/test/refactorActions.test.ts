@@ -2,11 +2,12 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { activate, getDocUri, pollUntil, setTestContent } from "./helper";
 
-// Apply-the-edit refactoring tests.  Unlike codeActions.test.ts (which checks
-// that an action exists), these load source into a scratch document, request
-// the refactoring code action, APPLY its WorkspaceEdit, and assert the exact
-// resulting document text — the only way to catch dropped characters, lost
-// braces, or broken string interpolation end-to-end through VS Code.
+// Apply-the-edit refactoring tests.  Plain "is the action offered?" checks now
+// live in the packaged-server e2e suite (tests/lsp_e2e/test_code_actions_e2e.py);
+// what stays here is VS Code-specific: load source into a scratch document,
+// request the refactoring code action, APPLY its WorkspaceEdit, and assert the
+// exact resulting document text — the only way to catch dropped characters,
+// lost braces, or broken string interpolation end-to-end through VS Code.
 
 suite("Refactor Actions (applied)", () => {
   const docUri = getDocUri("formatting.tcl");

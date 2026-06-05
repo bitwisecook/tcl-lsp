@@ -34,6 +34,16 @@ class TestQuickFixes:
         assert any("brace" in t.lower() for t in _titles(actions))
         assert any("{$a}" in nt for nt in _new_texts(actions))
 
+    def test_w304_offers_option_terminator(self, lsp_server, uri_factory):
+        # Ported from editors/vscode/src/test/codeActions.test.ts: an option-
+        # bearing command fed substituted input gets a `--` terminator fix.
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "regexp -nocase $re $s\n")
+        w304 = [d for d in diags if d.get("code") == "W304"]
+        assert w304, "expected a W304 diagnostic to drive the quick fix"
+        actions = lsp_server.code_actions(uri, (0, 0), (0, 20), diagnostics=w304, only=["quickfix"])
+        assert any("option terminator" in t.lower() for t in _titles(actions))
+
     def test_w302_adds_result_capture_actions(self, lsp_server, uri_factory):
         uri = uri_factory()
         diags = lsp_server.open_ready(uri, "catch {error oops}\n")
