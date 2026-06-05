@@ -602,7 +602,23 @@ fn invoke_cb(
     // wrap).  trace-0.0 / trace-8.1 / 8.2 / 8.3 / 8.5.
     const catch_mod = @import("tcl_catch.zig");
     const err_before = catch_mod.state.error_flag;
+    // Fire the callback under a temporary catch level.  Reference Tcl always
+    // evaluates variable traces under a saved interp state
+    // (tclTrace.c::TclCallVarTraces → Tcl_SaveInterpState), so a callback that
+    // calls ``error`` must be *contained* — it sets the error flag rather than
+    // trapping — regardless of whether the triggering read/write/unset sits
+    // inside a script-level ``catch``.  Without this bump, ``tcl_cmd_error``
+    // takes its ``catch_depth == 0`` branch and traps the interpreter before
+    // the reshape/ignore logic below can run, so ``set x 1; trace add variable
+    // x unset te; unset x`` (te errors, no enclosing catch) aborts instead of
+    // ignoring the error and completing the unset.  The raw depth bump (not
+    // ``catch_enter``) avoids clearing a pre-existing pending error.  For a
+    // read/write error we restore the real depth first, then re-raise the
+    // wrapped message via ``wrap_trace_error`` so an uncaught trace error
+    // still aborts at top level — now with the ``can't read/set …`` wording.
+    catch_mod.state.catch_depth += 1;
     _ = interp.tcl_eval(script_obj);
+    catch_mod.state.catch_depth -= 1;
     tcl_obj_release(script_obj);
     if (err_before == 0 and catch_mod.state.error_flag != 0) {
         if (op_char == 'r' or op_char == 'w') {

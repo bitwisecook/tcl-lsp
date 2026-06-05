@@ -136,6 +136,24 @@ puts [catch {unset x} m]|$m|$info
     assert out == "0||tagged"
 
 
+def test_unset_trace_error_ignored_without_enclosing_catch() -> None:
+    """An erroring unset trace must be ignored even when the triggering
+    ``unset`` is NOT wrapped in a script-level ``catch`` — the callback is
+    fired under a temporary saved interp state, so it cannot trap the
+    interpreter. (Regression for PR #554 review: relying on an existing
+    catch depth let the callback's ``error`` trap before the ignore ran.)"""
+    out = _run(
+        """
+proc te {args} {error "boom"}
+set x 1
+trace add variable x unset te
+unset x
+puts done
+"""
+    )
+    assert out == "done"
+
+
 def test_read_trace_no_error_unaffected() -> None:
     """A read trace that succeeds returns the value normally."""
     out = _run(
