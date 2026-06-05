@@ -15,6 +15,7 @@ use crate::hooks::{
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::side_effects::{SideEffect, StorageType};
+use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::TclType;
 
@@ -155,6 +156,78 @@ pub struct CommandSpec {
     /// `body_arg_implicit_args` (introduced in `e30b6ae9`, closes
     /// `#308`).
     pub body_arg_implicit_args: u8,
+
+    // --- GAP-D2: granular taint / security metadata ---------------------
+    //
+    // Ports the per-command taint fields from the Python `CommandSpec`
+    // (`core/commands/registry/models.py`) and the `TAINT_HINTS` /
+    // `_sinks.py` substrate. The consumer chat
+    // (`tcl_compiler::taint`) reads these to drive the
+    // W102/W103/W300/W301/W303/W309/W310/W312 + T106 + W313 emitters.
+    //
+    /// Output-sink diagnostic code emitted when tainted data reaches
+    /// this command's output position (e.g. `"T101"` for `puts`,
+    /// `"IRULE3001"` for `HTTP::respond`). `None` = not an output sink.
+    /// Mirrors Python `taint_output_sink`.
+    pub taint_output_sink: Option<&'static str>,
+
+    /// When non-empty, restricts [`Self::taint_output_sink`] to apply
+    /// only when the first argument (subcommand) is in this set
+    /// (e.g. `HTTP::header insert|replace`). Empty = applies to every
+    /// invocation. Mirrors Python `taint_output_sink_subcommands`
+    /// (`None` ⇒ empty slice here).
+    pub taint_output_sink_subcommands: &'static [&'static str],
+
+    /// Log-injection sink diagnostic code (e.g. `"IRULE3003"` for the
+    /// iRules `log` command). `None` = not a log sink. Mirrors Python
+    /// `taint_log_sink`.
+    pub taint_log_sink: Option<&'static str>,
+
+    /// Argument indices (0-based after the command name) that take a
+    /// network address — SSRF sinks (`socket`, `HTTP::host`, …).
+    /// `None` = not a network sink; `Some(&[])` = network sink whose
+    /// dangerous-arg positions are unspecified. Mirrors Python
+    /// `taint_network_sink_args`.
+    pub taint_network_sink_args: Option<&'static [u8]>,
+
+    /// Subcommands that evaluate code in another interpreter
+    /// (`interp eval`, `interp invokehidden`) — cross-interpreter
+    /// code-execution sinks (T105). Empty = none. Mirrors Python
+    /// `taint_interp_eval_subcommands`.
+    pub taint_interp_eval_subcommands: &'static [&'static str],
+
+    /// Colour bits this command *adds* to a tainted value it returns —
+    /// a sanitising transform (`uri::encode` ⇒ `URL_ENCODED`,
+    /// `file join` ⇒ `PATH_JOINED`). `None` = no transform. Mirrors
+    /// Python `taint_transform`.
+    pub taint_transform: Option<TaintColour>,
+
+    /// Colour whose presence on the *input* means this command would
+    /// double-encode the value (T106). `None` = no double-encode
+    /// detection. Mirrors Python `taint_double_encode_colour`.
+    pub taint_double_encode_colour: Option<TaintColour>,
+
+    /// Colour that suppresses the dangerous-sink warning (T100) for
+    /// this sink — e.g. `SHELL_ATOM` for `exec`, `LIST_CANONICAL` for
+    /// `eval`/`uplevel`. `None` = no suppression colour. Mirrors Python
+    /// `taint_sink_safe_colour`.
+    pub taint_sink_safe_colour: Option<TaintColour>,
+
+    /// Option flags whose value carries a secret (e.g. `-password`,
+    /// `-headers`) — drives credential-exposure checks. Empty = none.
+    /// Mirrors Python `credential_options`.
+    pub credential_options: &'static [&'static str],
+
+    /// HTTP header names whose values are secrets (e.g.
+    /// `authorization`, `cookie`). Empty = none. Mirrors Python
+    /// `sensitive_headers`.
+    pub sensitive_headers: &'static [&'static str],
+
+    /// Setter-form argument constraints (IRULE3101). Empty = none.
+    /// The registry-driven replacement for the hardcoded
+    /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`. Mirrors the
+    /// Python `TaintHint.setter_constraints`.
+    pub setter_constraints: &'static [SetterConstraint],
 }
 
 impl CommandSpec {
@@ -187,6 +260,17 @@ impl CommandSpec {
         options: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
+        taint_output_sink: None,
+        taint_output_sink_subcommands: &[],
+        taint_log_sink: None,
+        taint_network_sink_args: None,
+        taint_interp_eval_subcommands: &[],
+        taint_transform: None,
+        taint_double_encode_colour: None,
+        taint_sink_safe_colour: None,
+        credential_options: &[],
+        sensitive_headers: &[],
+        setter_constraints: &[],
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -382,6 +466,34 @@ pub struct SubCommand {
     /// Implicit-args count for proc-call arity relaxation.  See
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
+
+    // --- GAP-D2: granular taint / security metadata ---------------------
+    //
+    /// Colour bits this subcommand adds to a tainted value it returns
+    /// (`file join` ⇒ `PATH_JOINED`, `file normalize` ⇒
+    /// `PATH_NORMALISED`). `None` = no transform. Mirrors Python
+    /// `SubCommand.taint_transform`.
+    pub taint_transform: Option<TaintColour>,
+
+    /// Colour whose presence on the input means this subcommand would
+    /// double-encode the value (T106). `None` = none. Mirrors Python
+    /// `SubCommand.taint_double_encode_colour`.
+    pub taint_double_encode_colour: Option<TaintColour>,
+
+    /// Output-sink diagnostic code for a subcommand-shaped XSS /
+    /// header-injection sink (e.g. `"IRULE3002"`). `None` = not a
+    /// sink. Mirrors Python `SubCommand.taint_output_sink`.
+    pub taint_output_sink: Option<&'static str>,
+
+    /// Argument index (0-based after the subcommand word) carrying a
+    /// credential value, for credential-exposure checks. `None` =
+    /// none. Mirrors Python `SubCommand.credential_arg`.
+    pub credential_arg: Option<u8>,
+
+    /// HTTP header names whose values are secrets, for a
+    /// subcommand-shaped header sink. Empty = none. Mirrors Python
+    /// `SubCommand.sensitive_headers`.
+    pub sensitive_headers: &'static [&'static str],
 }
 
 impl SubCommand {
@@ -414,6 +526,11 @@ impl SubCommand {
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
+        taint_transform: None,
+        taint_double_encode_colour: None,
+        taint_output_sink: None,
+        credential_arg: None,
+        sensitive_headers: &[],
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

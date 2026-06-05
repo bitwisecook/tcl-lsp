@@ -138,9 +138,7 @@ fn main() {
                 let p = reg.get_props(n).expect("name from registry");
                 let transport = json_str_list(p.transport);
                 let implied = json_str_list(p.implied_profiles);
-                let setup = p
-                    .setup_event
-                    .map_or_else(|| "null".to_string(), json_str);
+                let setup = p.setup_event.map_or_else(|| "null".to_string(), json_str);
                 println!(
                     "{{\"name\":{},\"client_side\":{},\"server_side\":{},\"transport\":{},\"implied_profiles\":{},\"flow\":{},\"deprecated\":{},\"hot\":{},\"common\":{},\"setup_event\":{}}}",
                     json_str(n),
@@ -176,7 +174,14 @@ fn main() {
         };
         // hover
         let (hover, summary, synopsis, source, examples, return_value) = match &spec.hover {
-            None => (false, String::new(), Vec::new(), String::new(), false, false),
+            None => (
+                false,
+                String::new(),
+                Vec::new(),
+                String::new(),
+                false,
+                false,
+            ),
             Some(h) => (
                 true,
                 h.summary.to_string(),
@@ -245,10 +250,7 @@ fn main() {
         fields.push(format!("\"n_arg_roles\":{}", spec.arg_roles.len()));
         fields.push(format!("\"body_kind\":{}", json_str(&body_kind)));
         // codegen-registry dimensions.
-        fields.push(format!(
-            "\"has_lowering\":{}",
-            spec.lowering_hook.is_some()
-        ));
+        fields.push(format!("\"has_lowering\":{}", spec.lowering_hook.is_some()));
         fields.push(format!("\"has_codegen\":{}", spec.codegen_hook.is_some()));
         fields.push(format!(
             "\"has_const_fold\":{}",

@@ -11,6 +11,86 @@ use crate::dialects::DialectSet;
 use crate::registry::CommandRegistry;
 use crate::traits::Traits;
 use crate::types::TclType;
+use bitflags::bitflags;
+
+bitflags! {
+    /// Properties carried by a tainted value — the taint *colour* lattice.
+    ///
+    /// Mirrors `TaintColour` in
+    /// `core/commands/registry/taint_hints.py`. Colours compose with
+    /// `|`; the lattice *join* of two colours is their intersection
+    /// (`&`): a property only survives a control-flow merge when every
+    /// incoming path proves it.
+    ///
+    /// This is the registry-owned definition of the colour set so spec
+    /// data (`taint_transform`, `taint_double_encode_colour`,
+    /// `taint_sink_safe_colour`) can name colours, and the consumer
+    /// (`tcl_compiler::taint`) re-exports it rather than maintaining a
+    /// parallel copy.
+    ///
+    /// Bit layout matches the existing `tcl_compiler::taint::TaintColour`
+    /// for bits 0..=14; `PATH_JOINED` (`file join` output) and `CHANNEL`
+    /// (I/O channel handle) extend it to the full Python set.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct TaintColour: u32 {
+        /// Value is attacker-controlled.
+        const TAINTED            = 1 << 0;
+        /// Always starts with `/` (`HTTP::uri`, `HTTP::path`).
+        const PATH_PREFIXED      = 1 << 1;
+        /// Provably starts with a non-`-` literal.
+        const NON_DASH_PREFIXED  = 1 << 2;
+        /// Proven to contain no CR/LF characters.
+        const CRLF_FREE          = 1 << 3;
+        /// Token-safe atom (no shell metachar splitting).
+        const SHELL_ATOM         = 1 << 4;
+        /// Canonical Tcl list representation.
+        const LIST_CANONICAL     = 1 << 5;
+        /// Regex-escaped literal payload.
+        const REGEX_LITERAL      = 1 << 6;
+        /// Path has been normalised (no raw traversal form).
+        const PATH_NORMALISED    = 1 << 7;
+        /// Normalised path verified within an intended directory.
+        const PATH_BOUNDED       = 1 << 8;
+        /// Valid HTTP header-token charset.
+        const HEADER_TOKEN_SAFE  = 1 << 9;
+        /// HTML-escaped text context.
+        const HTML_ESCAPED       = 1 << 10;
+        /// URL-encoded text context.
+        const URL_ENCODED        = 1 << 11;
+        /// IPv4 or IPv6 address (digits, dots, colons).
+        const IP_ADDRESS         = 1 << 12;
+        /// Integer 0-65535.
+        const PORT               = 1 << 13;
+        /// Fully qualified domain name.
+        const FQDN               = 1 << 14;
+        /// Assembled via `[file join]` (portable, not canonicalised).
+        const PATH_JOINED        = 1 << 15;
+        /// I/O channel handle (`open`, `socket`, `chan create`, `HSL::open`).
+        const CHANNEL            = 1 << 16;
+    }
+}
+
+/// Constraint on a setter-form argument — the registry-driven
+/// replacement for the hardcoded `SETTER_CONSTRAINTS` table in
+/// `tcl_compiler::taint`.
+///
+/// Mirrors `SetterConstraint` in
+/// `core/commands/registry/taint_hints.py`. Attached to a command via
+/// [`crate::CommandSpec::setter_constraints`]; the consumer's IRULE3101
+/// check reads the table from the registry instead of its 2-entry
+/// hardcode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SetterConstraint {
+    /// Which argument the constraint applies to (0-based after the
+    /// command name).
+    pub arg_index: u8,
+    /// Literal prefix the argument must start with (e.g. `"/"`).
+    pub required_prefix: &'static str,
+    /// Diagnostic code emitted on violation (e.g. `"IRULE3101"`).
+    pub code: &'static str,
+    /// Human-readable explanation for the diagnostic.
+    pub message: &'static str,
+}
 
 /// Namespaces whose commands return attacker-controlled data when
 /// invoked under the iRules dialect.
@@ -117,6 +197,143 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
     is_fixed_numeric(spec.return_type)
 }
 
+/// Single-pass taint-sink classification for a `(command, subcommand)`
+/// pair — the registry-side counterpart of Python
+/// `CommandRegistry.classify_taint_sinks` (`command_registry.py`).
+///
+/// The consumer (`tcl_compiler::taint`) reads this instead of
+/// re-deriving sink categories from command-name sets. Carries every
+/// sink flag the `_sinks._classify_sink` pass needs in one struct so
+/// callers do a single registry lookup.
+///
+/// `dialect`-filtered: pass the active [`DialectSet`]; specs that don't
+/// support it are ignored.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TaintSinkInfo {
+    /// Dangerous code-execution sink (`eval`, `expr`, `exec`,
+    /// `uplevel`, `subst`) — T100. From [`Traits::TAINT_SINK`].
+    pub is_code_sink: bool,
+    /// Output-sink diagnostic code (T101 / IRULE3001 / IRULE3002 /
+    /// IRULE3004), if the matched subcommand qualifies.
+    pub output_sink: Option<&'static str>,
+    /// Whether the output sink is subcommand-qualified — i.e. its label
+    /// should read `"<cmd> <sub>"`. Mirrors
+    /// `output_sink_is_subcommand_qualified`.
+    pub output_sink_is_subcommand_qualified: bool,
+    /// Log-injection sink diagnostic code (IRULE3003).
+    pub log_sink: Option<&'static str>,
+    /// Network-address sink (SSRF) — T104.
+    pub is_network_sink: bool,
+    /// Subcommands that evaluate code in another interpreter (T105),
+    /// empty when none.
+    pub interp_eval_subcommands: &'static [&'static str],
+}
+
+/// Classify all taint-sink properties of `command` (with optional
+/// `subcommand`) in a single pass, filtered to `dialect`.
+///
+/// Ports `CommandRegistry.classify_taint_sinks`. Returns the default
+/// (all-clear) [`TaintSinkInfo`] when the command is unknown.
+#[must_use]
+pub fn classify_taint_sinks(
+    registry: &CommandRegistry,
+    command: &str,
+    subcommand: Option<&str>,
+    dialect: DialectSet,
+) -> TaintSinkInfo {
+    let Some(spec) = registry.get(command) else {
+        return TaintSinkInfo::default();
+    };
+    if !spec.supports_dialect(dialect) {
+        return TaintSinkInfo::default();
+    }
+
+    let mut info = TaintSinkInfo {
+        is_code_sink: spec.traits.contains(Traits::TAINT_SINK),
+        ..TaintSinkInfo::default()
+    };
+
+    if let Some(code) = spec.taint_output_sink {
+        let subs = spec.taint_output_sink_subcommands;
+        if subs.is_empty() || subcommand.is_some_and(|s| subs.contains(&s)) {
+            info.output_sink = Some(code);
+            info.output_sink_is_subcommand_qualified = !subs.is_empty();
+        }
+    }
+    info.log_sink = spec.taint_log_sink;
+    info.is_network_sink = spec.taint_network_sink_args.is_some();
+    info.interp_eval_subcommands = spec.taint_interp_eval_subcommands;
+    info
+}
+
+/// Colour added to a tainted value by `command` (optionally its
+/// `subcommand`) — the sanitising-transform query. Subcommand transform
+/// takes priority over the command-level one.
+///
+/// Registry-side counterpart of `runtime.taint_transform_map`.
+#[must_use]
+pub fn taint_transform(
+    registry: &CommandRegistry,
+    command: &str,
+    subcommand: Option<&str>,
+) -> Option<TaintColour> {
+    let spec = registry.get(command)?;
+    if let Some(sub_name) = subcommand {
+        if let Some(sub) = spec.subcommand(sub_name) {
+            if sub.taint_transform.is_some() {
+                return sub.taint_transform;
+            }
+        }
+    }
+    spec.taint_transform
+}
+
+/// Colour whose presence on the input means `command`/`subcommand`
+/// would double-encode the value (T106). Subcommand takes priority.
+///
+/// Registry-side counterpart of `runtime.taint_double_encode_map`.
+#[must_use]
+pub fn taint_double_encode_colour(
+    registry: &CommandRegistry,
+    command: &str,
+    subcommand: Option<&str>,
+) -> Option<TaintColour> {
+    let spec = registry.get(command)?;
+    if let Some(sub_name) = subcommand {
+        if let Some(sub) = spec.subcommand(sub_name) {
+            if sub.taint_double_encode_colour.is_some() {
+                return sub.taint_double_encode_colour;
+            }
+        }
+    }
+    spec.taint_double_encode_colour
+}
+
+/// Colour that suppresses the T100 dangerous-sink warning for
+/// `command` (e.g. `SHELL_ATOM` for `exec`).
+///
+/// Registry-side counterpart of `runtime.taint_sink_safe_colours`.
+#[must_use]
+pub fn taint_sink_safe_colour(registry: &CommandRegistry, command: &str) -> Option<TaintColour> {
+    registry.get(command)?.taint_sink_safe_colour
+}
+
+/// Setter-form constraints declared on `command` (IRULE3101) — the
+/// registry-driven replacement for the hardcoded `SETTER_CONSTRAINTS`
+/// table in `tcl_compiler::taint`. Empty slice when none.
+///
+// TODO(consumer): GAP-D2 — `tcl_compiler::taint` still carries a 2-entry
+// hardcoded `SETTER_CONSTRAINTS` table (at `taint.rs:~1262`). Replace it
+// with a call to this function over the iRules-loaded registry so the
+// table is data-driven (HTTP::uri / HTTP::path are populated here).
+#[must_use]
+pub fn setter_constraints(
+    registry: &CommandRegistry,
+    command: &str,
+) -> &'static [SetterConstraint] {
+    registry.get(command).map_or(&[], |s| s.setter_constraints)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +435,42 @@ mod tests {
     fn subcommand_default_traits_are_empty() {
         use crate::spec::SubCommand;
         assert!(SubCommand::DEFAULT.traits.is_empty());
+    }
+
+    /// GAP-D2: the new taint/security fields default to clear, so a
+    /// spec that doesn't opt in is never misclassified.
+    #[test]
+    fn default_spec_has_no_taint_metadata() {
+        use crate::spec::{CommandSpec, SubCommand};
+        let c = CommandSpec::DEFAULT;
+        assert!(c.taint_output_sink.is_none());
+        assert!(c.taint_log_sink.is_none());
+        assert!(c.taint_network_sink_args.is_none());
+        assert!(c.taint_transform.is_none());
+        assert!(c.taint_double_encode_colour.is_none());
+        assert!(c.taint_sink_safe_colour.is_none());
+        assert!(c.credential_options.is_empty());
+        assert!(c.sensitive_headers.is_empty());
+        assert!(c.setter_constraints.is_empty());
+        assert!(c.taint_interp_eval_subcommands.is_empty());
+        assert!(c.taint_output_sink_subcommands.is_empty());
+
+        let s = SubCommand::DEFAULT;
+        assert!(s.taint_transform.is_none());
+        assert!(s.taint_double_encode_colour.is_none());
+        assert!(s.taint_output_sink.is_none());
+        assert!(s.credential_arg.is_none());
+        assert!(s.sensitive_headers.is_empty());
+    }
+
+    /// `classify_taint_sinks` returns the all-clear default for an
+    /// unknown command rather than panicking.
+    #[test]
+    fn classify_unknown_command_is_clear() {
+        let registry = CommandRegistry::build_default();
+        let info = classify_taint_sinks(&registry, "no_such_cmd", None, DialectSet::empty());
+        assert_eq!(info, TaintSinkInfo::default());
+        assert!(!info.is_code_sink);
+        assert!(info.output_sink.is_none());
     }
 }

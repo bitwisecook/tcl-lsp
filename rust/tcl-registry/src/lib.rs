@@ -66,6 +66,7 @@ pub mod prelude {
     pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};
+    pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;
 }
@@ -77,6 +78,7 @@ pub use body_kind::BodyKind;
 pub use hover::ArgValue;
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
+pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
 pub use types::TclType;
 
