@@ -590,8 +590,103 @@ fn invoke_cb(
         obj.free_sized(buf, size);
         return;
     }
+    // Reference Tcl (``tclTrace.c::TclCallVarTraces``, ``done:`` label):
+    // when a *read* or *write* variable-trace callback returns an error,
+    // the interp result is rewritten to ``can't read "NAME": MSG`` /
+    // ``can't set "NAME": MSG`` (NAME being the user-facing variable
+    // name — ``arr(key)`` for an element).  Our firing leaves only the
+    // raw callback message behind, so detect the newly-raised error here
+    // and re-wrap it.  Guarding on the before→after transition means only
+    // the trace that actually errored wraps (a later callback whose
+    // ``tcl_eval`` no-ops under the already-set error flag won't double-
+    // wrap).  trace-0.0 / trace-8.1 / 8.2 / 8.3 / 8.5.
+    const catch_mod = @import("tcl_catch.zig");
+    const err_before = catch_mod.state.error_flag;
     _ = interp.tcl_eval(script_obj);
     tcl_obj_release(script_obj);
+    if (err_before == 0 and catch_mod.state.error_flag != 0) {
+        if (op_char == 'r' or op_char == 'w') {
+            wrap_trace_error(name1_ptr, name1_len, name2_ptr, name2_len, op_char);
+        } else if (op_char == 'u') {
+            // Reference Tcl (``tclTrace.c::TclCallVarTraces``) IGNORES
+            // errors raised by *unset* trace callbacks: it disposes the
+            // result, leaves ``code`` at TCL_OK so the remaining unset
+            // traces still fire, and restores the pre-trace interp state.
+            // Clear the flag so the in-flight ``unset`` succeeds and any
+            // later callback in this fire pass runs normally
+            // (trace-8.4 / trace-8.6).
+            catch_mod.state.error_flag = 0;
+            catch_mod.state.error_msg = 0;
+        }
+    }
+}
+
+/// Re-wrap the pending error message from a failed read/write trace
+/// callback into reference Tcl's ``can't <verb> "<name>": <msg>`` form
+/// (``verb`` is ``read`` for a read trace, ``set`` for a write trace).
+/// The original callback message lives in ``tcl_catch.state.error_msg``;
+/// we copy its bytes (the source obj may be reclaimed) before installing
+/// the wrapped string via ``tcl_cmd_error`` — which, since the operation
+/// is in flight under a ``catch`` (``catch_depth > 0``; an uncaught
+/// trace error would already have trapped at the callback's own
+/// ``error``), simply re-stamps ``error_msg`` / ``::errorInfo`` without
+/// trapping.
+fn wrap_trace_error(
+    name1_ptr: u32,
+    name1_len: u32,
+    name2_ptr: u32,
+    name2_len: u32,
+    op_char: u8,
+) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const verb: []const u8 = switch (op_char) {
+        'r' => "read",
+        'w' => "set",
+        else => return,
+    };
+    // Raw callback message bytes (copied below before any reallocation).
+    const cur = catch_mod.state.error_msg;
+    var msg_ptr: u32 = 0;
+    var msg_len: u32 = 0;
+    if (cur != 0) {
+        const cs = obj_ensure_string(cur);
+        msg_ptr = cs.ptr;
+        msg_len = cs.len;
+    }
+    const has_elem = (name2_ptr != 0 or name2_len > 0);
+    // "can't " + verb + " \"" + name1 + ?("(" + name2 + ")") + "\": " + msg
+    var total: u32 = 6 + @as(u32, @intCast(verb.len)) + 2 + name1_len + 3 + msg_len;
+    if (has_elem) total += 2 + name2_len;
+    const buf = alloc(total);
+    if (buf == 0) return;
+    var off: u32 = 0;
+    off = append_lit(buf, off, "can't ");
+    off = append_lit(buf, off, verb);
+    off = append_lit(buf, off, " \"");
+    off = append_mem(buf, off, name1_ptr, name1_len);
+    if (has_elem) {
+        off = append_lit(buf, off, "(");
+        off = append_mem(buf, off, name2_ptr, name2_len);
+        off = append_lit(buf, off, ")");
+    }
+    off = append_lit(buf, off, "\": ");
+    off = append_mem(buf, off, msg_ptr, msg_len);
+    const wrapped = obj.obj_new_string_take(buf, off, total);
+    if (wrapped == 0) {
+        obj.free_sized(buf, total);
+        return;
+    }
+    catch_mod.tcl_cmd_error(wrapped);
+}
+
+inline fn append_lit(buf: u32, off: u32, lit: []const u8) u32 {
+    if (lit.len > 0) memcpy(buf + off, @intFromPtr(lit.ptr), @intCast(lit.len));
+    return off + @as(u32, @intCast(lit.len));
+}
+
+inline fn append_mem(buf: u32, off: u32, src: u32, len: u32) u32 {
+    if (len > 0 and src != 0) memcpy(buf + off, src, len);
+    return off + len;
 }
 
 // --- Phase 6 follow-up: per-frame trace lists --------------------------

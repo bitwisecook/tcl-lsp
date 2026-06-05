@@ -248,6 +248,16 @@ Distilled from the trickiest scars in the WASM runtime history
 - [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
   — the small-int→wide→bignum→double tower and `expr` as a separate
   language with overridable `mathfunc` dispatch.
+- [compiled-scope-and-name-lowering.md](contracts/compiled-scope-and-name-lowering.md)
+  — scope class (local/qualified/global) as an explicit lowering output,
+  the "emits-nothing" trap, token-faithful eval fallback, and why
+  introspection must read live state (`foreach ::v` ran zero times; stale
+  `info exists` after `unset`).
+- [variable-trace-dispatch-and-introspection.md](contracts/variable-trace-dispatch-and-introspection.md)
+  — variable traces as re-entrant interrupts: firing order, the
+  read/write error reshape (`can't read/set "NAME": …`), unset-error
+  ignore, mutation independent of trace outcome, and live `info`/`trace`
+  queries.
 
 ## Templates
 
