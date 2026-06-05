@@ -289,6 +289,64 @@ incompatible-by-design (the W9-internal set →
 frame / trace** chunks ([`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)),
 written **against the C control flow**.
 
+### Command binding & aliasing — the command-layer parallel
+
+The authority is the PR #554 contracts (on `claude/great-euler-2VtXp`, merging
+to `main`): [`command-binding-and-aliasing.md`](../contracts/command-binding-and-aliasing.md),
+[`variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md),
+[`compiled-scope-and-name-lowering.md`](../contracts/compiled-scope-and-name-lowering.md)
+— the as-built companions to the scope/trace lessons above. Every form of
+command-name indirection is **the variable cell/frame model one layer up**: a
+name resolves to a target through a chain that is mutable at runtime, often
+mid-eval. The port-facing directives:
+
+- **A1 — one resolver.** Exactly one way to reach a command:
+  `resolve(currentNs, name) → target`, evaluated against the command tables **at
+  the moment of the call** — never memoised across an eval/trace/sourced-file
+  boundary. `rename`, `interp alias`, `namespace import`/`path`, ensembles, and
+  a `proc` shadowing a builtin are all redirects *through this one function*.
+- **A2 — the resolution order (exactly this, every call).** Parse the name:
+  leading/embedded `::` ⇒ qualified (absolute or ns-relative) → look up directly
+  in that namespace (no path/import fallback). Unqualified → **(a)** current ns
+  table, **(b)** each ns on the current ns's `namespace path` in order, **(c)**
+  global `::`, **(d)** `unknown` (auto-load / ensemble-unknown / `invalid command
+  name "x"`). This is why `namespace path ::tcl::mathop; + 1 2` finds bare `+`.
+- **A3 — per-form contracts** (verbatim error strings are the contract):
+  `rename old ""` deletes + splices the command out of every importer's redirect
+  list (built-ins `return`/`error` protected — `can't rename "X": …`); `interp
+  alias` re-resolves its target **by name on each dispatch, anchored at global**,
+  with frozen prefix args — sees target *deletion* lazily, does **not** follow
+  *rename*, and is **not** unwrapped by lookup; `namespace import` installs a
+  **transparent** (`CMD_IMPORTED`) redirect that lookups unwrap, a **snapshot** at
+  import time (later additions not retroactively imported); `namespace path` is
+  pure search fallback (no redirect); ensembles map `ens sub` → target
+  (default `::ens::sub` or `-map`, unambiguous-prefix unless `-prefix 0`) —
+  **the `dict for`→`::tcl::dict::for` rewrite IS the ensemble alias, generalise
+  it**. `::tcl::mathop`/`::tcl::mathfunc` are real commands; **do not conflate
+  `expr`'s internal op dispatch with the command path** — but `::tcl::mathfunc::X`
+  *is* overridable and `expr`'s function-call path resolves it through the
+  command table (model that one hook).
+- **A4 — the AOT binding lattice (the guard).** `canonical_command` is a
+  *lowering-time snapshot* of `resolve`, sound only while the binding can't have
+  changed by call time. Track a **binding state per name** (`pristine-builtin →
+  user-proc → aliased → renamed-away → shadowed`); **only `pristine-builtin` may
+  inline** — any rebinding op demotes the name to a live-table dispatch (an
+  interpreter **barrier**, never an inlined builtin). This is the command-layer
+  analogue of T-INFO's liveness invalidation: rebinding ops epoch-invalidate the
+  resolution caches **coarsely** (wipe the LRU on any rename — coarse-but-correct
+  beats clever). Keep **both spellings** (issue #246): match patterns on the
+  canonical form, but retain the *source* spelling for eval-fallback (a bare name
+  resolves through the live scope walk; an eagerly-globalised `::name` misses a
+  namespace-local proc — ties to S3's token-faithful fallback).
+- **A5 — aliasing ≍ traces.** Both are re-entrant interrupts that invalidate
+  compile-time assumptions and must funnel through one resolver/dispatcher;
+  resolve by-name per call (lazy) so chains/cycles can't loop at creation.
+  Internal `Command` layout / redirect-list pointers / LRU contents are
+  incompatible-by-design (object-rep probes never match).
+
+These land with the **namespace + command-table + proc** chunks (T1.5/proc),
+built against the C dispatch (`tclNamesp.c`/`tclBasic.c`).
+
 ## Deep Tcl semantics — the design contracts (decide before commands)
 
 Tcl is **homoiconic and late-bound**: `eval`/`uplevel`/`subst`/`source`/`apply`/
@@ -601,6 +659,7 @@ test suite** as ground truth.
 | [`c-api-ownership-contract.md`](c-api-ownership-contract.md) | T2.1 — ownership + error category for every shipped C-API function (the `fresh_zero` convention) |
 | [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) | The call protocol: the two stacks (CallFrame + CmdFrame), exceptions/return-options, stack-trace construction, AOT↔interp interop — **read before the proc chunk**. Conservative-first; dynamic cross-scope (`uplevel`/`upvar`/`namespace`/`eval`) correct before optimising |
 | **The three day-one contracts** (`docs/design/contracts/`, from PR #551 — the from-scratch "if starting over" semantics, authoritative): [`runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md) (cell/frame/namespace resolution), [`parser-and-aot-interpret-boundary.md`](../contracts/parser-and-aot-interpret-boundary.md) (parse-once + the AOT/interpret boundary), [`numeric-tower-and-expr-semantics.md`](../contracts/numeric-tower-and-expr-semantics.md) (the numeric tower + `expr`) | The canonical contracts the Rust port implements; the "Deep Tcl semantics" section below maps port status against them |
+| **The three PR #554 contracts** (`docs/design/contracts/`): [`command-binding-and-aliasing.md`](../contracts/command-binding-and-aliasing.md) (one `resolve(ns,name)` + the binding lattice), [`variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md) (trace fire-order/error-wrap/ignore + live introspection), [`compiled-scope-and-name-lowering.md`](../contracts/compiled-scope-and-name-lowering.md) (scope class as a lowering output, emits-nothing, token-faithful fallback) | The command-layer + scope/trace contracts; captured as port directives in [the scope/trace/info + command-binding lessons](#lessons-from-the-tcl-9-wasm-correctness-campaign--scope--trace--info) |
 | [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) (+ s0..s6) | AOT north star + staircase; the metaprog heuristics extend this |
 | [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md) | The Zig runtime's own roadmap and layering |
 | [`../../../AGENTS.md`](../../../AGENTS.md) | Zig runtime layering, the WASM parity gate (`make check-wasm-parity`), workflow |
