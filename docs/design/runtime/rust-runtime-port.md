@@ -195,10 +195,99 @@ Other Zig lessons folded into the plan: error/traceback via a **real call-frame
 stack carrying source spans** (not after-the-fact synthesis) →
 [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md); a **uniform
 variable-cell + explicit alias indirection + defined trace re-entrancy** →
-`frame.rs` `Var::Link` (T1.3) + the trace model (later); **byte-exact C-Tcl
+`frame.rs` `Var::Link` (T1.3) + the trace model (later — its precise error/ignore/
+stop/LIFO contract is captured in
+[the scope/trace/info lessons](#lessons-from-the-tcl-9-wasm-correctness-campaign--scope--trace--info)
+below); **byte-exact C-Tcl
 compatibility as the contract**, with the incompatible-by-design set decided up
 front → the [Tcl 9 scoreboard exclusions](#out-of-scope-exclusions-by-design);
 **no silent truncation** → the O() tenet above.
+
+## Lessons from the Tcl 9 WASM correctness campaign — scope / trace / info
+
+A second, independent body of hard-won contracts from the Tcl 9 WASM campaign
+(the `foreach`-qualified-var, variable-trace error-wrapping, unset-trace-ignore,
+and `info exists`-after-`unset` bugs). These are **authoritative v2 design
+inputs** — like the four contracts above, they are recorded here so the port is
+built against them, not retrofitted. The reference is the C source
+(`tclTrace.c::TclCallVarTraces` — the `done:` label — and `tclVar.c`), **not
+intuition**; the WASM dispatcher mirrors its control-flow shape.
+
+**Scope / global / namespaces** (extends [meta-system 1](#meta-system-1--resolution--frames-upleveluplevelglobalvariablenamespaces);
+these are mostly **AOT-compiler** contracts — ours to restructure):
+
+- **S1 — scope class is a first-class lowering input, not an afterthought.** A
+  name's class (frame-local / qualified-namespace / global) decides codegen.
+  Make it an **explicit field on the IR op**, and make "must run via the
+  interpreter" an explicit lowering **outcome** — never an emergent side effect
+  of swapping the IR node type (a stale registry flag silently ate exactly that
+  decision: a `::`-qualified loop var that must drop to a generic invoke).
+- **S2 — the "emits-nothing" footgun.** A per-*command-name* `wasm_emits_nothing`
+  flag is a footgun: the same spelling can be both a structural no-op marker
+  (`foreach`'s synthetic loop-header def) **and** a real opaque call (the
+  qualified-var eval-fallback). The global flag swallowed the real invoke → the
+  loop ran zero iterations. v2: attach emits-nothing to the **specific synthetic
+  node instance**, never to the command name in a shared registry.
+- **S3 — eval-fallback must be token-faithful.** When a construct is handed back
+  to the interpreter, carry the **original command tokens** so braces/quoting on
+  varLists, lists, and bodies round-trip exactly. Reconstructing from
+  brace-stripped IR strings pre-substitutes `\n`, mis-parses a leading `[`, and
+  corrupts bodies. v2: thread `tokens` **uniformly** on every IR node that can
+  fall back (`foreach`/`lmap`/`catch`/`while`/`for`/`switch`). (Ties to
+  meta-system 2's parse-once + the contract's "tokens are the eval-fallback
+  payload"; the runtime port's borrowed-`&[u8]` `Command`/`WordPart` model
+  already carries source spans for exactly this.)
+- **S4 — unqualified resolution rule, encoded in the compiler too.** Unqualified
+  ≠ namespace var inside a proc; unqualified = global at script top level. The
+  cell/frame model states this — the compiler's local-tracking must encode the
+  same rule and route `set X`/`$X` through the frame name table **unless it has
+  proven** the local is promotion-safe (no `upvar`/`global`/`variable`/`array`/
+  trace/`eval` reach).
+
+**Info / trace — introspection & re-entrant interrupts** (a subsystem in its own
+right; the trace model the Zig-lessons table deferred):
+
+- **T-INFO — introspection reads LIVE runtime state, never compile-time-folded
+  assumptions.** `set x 1; unset x; info exists x` returned `1` because the
+  compiled `info exists` was answered from "local-was-assigned" and never
+  invalidated by `unset` (the variable *was* gone — a read errored correctly —
+  only the introspection lied). Any const/local-liveness tracking the compiler
+  keeps **must be invalidated** by `unset`, `upvar`, `global`, `variable`,
+  `trace add`, and **every** `eval`/`uplevel`/dispatch boundary. Treat `info
+  exists`/`vars`/`locals`/`level`, `trace info`, `array exists` as **runtime
+  queries against the cell table**, not foldable pure functions. (Reinforces
+  [meta-system 1](#meta-system-1--resolution--frames-upleveluplevelglobalvariablenamespaces)'s
+  "introspection over the cell model" and the contract's invalidation set.)
+- **T-FIRE — variable traces are re-entrant interrupts with a precise error
+  contract; the firing site must PROPAGATE and SHAPE the callback's result
+  code** (evaluating the callback and discarding its code is the bug):
+  - read-trace error → result becomes `can't read "NAME": <msg>`
+  - write-trace error → result becomes `can't set "NAME": <msg>` (verb `set`,
+    `errorInfo` type `write`)
+  - **NAME is the user-facing name** — `arr(key)` for an element even when the
+    trace was installed on the whole array (the *accessed element's* name is
+    carried through, not the matched key)
+  - **unset-trace error is IGNORED**: the unset still succeeds, the pre-trace
+    interp state is restored, and the **remaining** unset traces still fire
+  - read/write trace error **STOPS** firing further traces (`break`); unset does
+    not. Fire order is **newest-first (LIFO)**; **whole-array traces fire before
+    element traces**.
+  - v2: model trace firing as **one shared dispatcher** taking `(op, name,
+    verb-for-errors, leave-err-msg?)` that centralises the wrap/ignore/stop
+    policy — every read/write/unset/array path funnels through it (mirrors
+    `TclCallVarTraces` + `SaveInterpState`/`RestoreInterpState`).
+- **T-COMMIT — the actual operation completes independently of trace outcome
+  where C says so.** The variable is removed during `unset` teardown
+  before/regardless of unset-trace errors; the stored value is committed before
+  write traces run. **Don't gate the mutation on the trace's success.**
+
+**Cross-cutting:** error strings and stack traces **are** the contract (tested
+verbatim — match C's verb, quoting, and the `(read trace on "x")` `errorInfo`
+frame, not an approximation); internal rep / refcounts / bytecode line tables are
+incompatible-by-design (the W9-internal set →
+[exclusions](#out-of-scope-exclusions-by-design)). These land with the **proc /
+frame / trace** chunks ([`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)),
+written **against the C control flow**.
 
 ## Deep Tcl semantics — the design contracts (decide before commands)
 
