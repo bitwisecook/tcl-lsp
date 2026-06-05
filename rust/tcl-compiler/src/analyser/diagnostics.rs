@@ -618,6 +618,11 @@ fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
+/// Credential-bearing option flags whose literal values trip W310
+/// (the generic `_DEFAULT_PASSWORD_OPTIONS` from `_security.py`).
+const DEFAULT_PASSWORD_OPTIONS: [&str; 5] =
+    ["-password", "-pass", "-secret", "-token", "-apikey"];
+
 /// Return `true` when an `uplevel` first argument is a level
 /// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
 /// Python's `args[0].lstrip("#").isdigit() or args[0] == "#0"`: strip
@@ -2959,6 +2964,54 @@ matching time on crafted input."
                     severity: Severity::Warning,
                     fixes: Vec::new(),
                 });
+            }
+        }
+    }
+
+    /// **W310.** Emit "hardcoded credential" when a credential-bearing
+    /// option flag (`-password` / `-pass` / `-secret` / `-token` /
+    /// `-apikey`, case-insensitive) is followed by a *literal* value.
+    /// Mirrors the generic Strategy-1 path of
+    /// `_security.py:507-573::check_hardcoded_credentials` (one
+    /// diagnostic per command).  **Deferred** (registry-gated): the
+    /// per-command credential options unioned from
+    /// `REGISTRY.credential_options` and the Strategy-2 subcommand
+    /// credential headers (`REGISTRY.subcommand_credential_info`) — the
+    /// registry doesn't yet expose those surfaces, so only the
+    /// hardcoded default option set is checked here.
+    pub(super) fn emit_w310_hardcoded_credentials(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        for (i, text) in args.iter().enumerate() {
+            if !DEFAULT_PASSWORD_OPTIONS.contains(&text.to_ascii_lowercase().as_str()) {
+                continue;
+            }
+            let (Some(value), Some(val_tok)) = (args.get(i + 1), arg_tokens.get(i + 1)) else {
+                continue;
+            };
+            // A literal value: not a `$var` / `[cmd]` substitution.
+            let is_literal = !matches!(
+                val_tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            ) && !value.starts_with('$')
+                && !value.contains('[');
+            if is_literal {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W310".to_string(),
+                    span: val_tok.span,
+                    message: format!(
+                        "Hardcoded credential in {text} argument. Store secrets in \
+environment variables or a vault, not in source code."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                return; // one diagnostic per command
             }
         }
     }
@@ -8056,5 +8109,33 @@ foo
         let w303 = r.diagnostics.iter().find(|d| d.code == "W303").unwrap();
         assert_eq!(w303.severity, Severity::Warning);
         assert!(w303.message.contains("catastrophic"), "{w303:?}");
+    }
+
+    #[test]
+    fn w310_hardcoded_credential_option() {
+        // A literal value after a default credential option fires.
+        assert_eq!(sec_codes("mycmd -password literalsecret123\n", "W310"), 1);
+        assert_eq!(sec_codes("mycmd -token abc123\n", "W310"), 1);
+        // Case-insensitive option matching.
+        assert_eq!(sec_codes("mycmd -Password hunter2\n", "W310"), 1);
+        // Only one diagnostic per command.
+        assert_eq!(sec_codes("mycmd -pass a -secret b\n", "W310"), 1);
+        // A `$var` / `[cmd]` value is not a hardcoded credential.
+        assert_eq!(sec_codes("mycmd -password $env_pw\n", "W310"), 0);
+        assert_eq!(sec_codes("mycmd -password [getpw]\n", "W310"), 0);
+        // No credential option → nothing.
+        assert_eq!(sec_codes("mycmd -name literalvalue\n", "W310"), 0);
+    }
+
+    #[test]
+    fn w310_message_names_option() {
+        let mut a = Analyser::new();
+        let r = a.analyse("mycmd -password literalsecret\n", "tcl8.6");
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in -password argument."),
+            "{w310:?}"
+        );
     }
 }

@@ -4367,11 +4367,23 @@ arms or a single braced case list — re-segmented via the existing
 alternation `(a|a)+`) via the `regex` crate.  Variable / command-
 substituted patterns are left alone (the as-written literal text never
 matches the detector — Python's literal-only behaviour).  2 unit tests,
-full compiler suite green (2507).  **Remaining GAP-A2:** only **W310**
-(hardcoded credentials — needs the registry `credential_options` /
-`subcommand_credential_info` surface, which the registry chat / PR #550
-may add).  Seven of the eight previously-absent security checks (W102,
-W103, W300, W301, W303, W309, W312) are now ported.
+full compiler suite green (2507).
+
+**LANDED (W310 hardcoded credentials — generic path, 2026-06-05).**
+`emit_w310_hardcoded_credentials` ports the Strategy-1 generic path of
+`check_hardcoded_credentials`: a default credential option flag
+(`-password` / `-pass` / `-secret` / `-token` / `-apikey`,
+case-insensitive) followed by a *literal* value (not `$var` / `[cmd]`)
+emits one W310 per command, message naming the option as written.  Runs
+for every command (no `cmd_name` guard, like the Python check).
+**Deferred (registry-gated):** the per-command credential options unioned
+from `REGISTRY.credential_options` and the Strategy-2 subcommand
+credential headers (`REGISTRY.subcommand_credential_info`) — the registry
+doesn't yet expose those surfaces (the registry chat / PR #550 may add
+them).  2 unit tests, full compiler suite green (2509).  **GAP-A2 is now
+substantially complete:** all eight previously-absent security checks
+(W102, W103, W300, W301, W303, W309, W310, W312) emit; only W310's
+registry-augmented option set + subcommand-credential path remain.
 
 **GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
 algorithm — absent.**  The 1776-entry Unicode confusables table
