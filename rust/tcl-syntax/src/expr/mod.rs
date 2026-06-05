@@ -6,7 +6,9 @@
 //! type) and live with each consumer.
 
 pub mod ast;
+pub mod eval;
 pub mod parser;
 
 pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
+pub use eval::{eval, ExprOps};
 pub use parser::parse_expr;

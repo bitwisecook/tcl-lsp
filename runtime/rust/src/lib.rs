@@ -34,6 +34,8 @@
 // (`have_tommath`); the rest of the runtime builds without it.
 #[cfg(have_tommath)]
 pub mod bignum;
+// The `expr` evaluator (value-ops impl of the shared `tcl_syntax::expr` walk);
+// needs the bignum tower, so it tracks the same `have_tommath` cfg.
 pub mod builtins;
 pub mod capi;
 pub mod cmd_dict;
@@ -41,6 +43,8 @@ pub mod cmd_list;
 pub mod cmd_string;
 pub mod counters;
 pub mod dict;
+#[cfg(have_tommath)]
+pub mod expr;
 pub mod frame;
 pub mod interp;
 pub mod list;
