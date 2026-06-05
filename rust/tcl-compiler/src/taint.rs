@@ -21,12 +21,6 @@
 //!    `uplevel`, `subst`, `expr`) and **T101** when it reaches an
 //!    output sink (`puts`).
 //!
-//! ## What is not yet implemented
-//!
-//! - **T106 double-encoding** — needs the `taint_double_encode_colour`
-//!   transform check (the registry field now exists; the dataflow side
-//!   is a follow-up).
-//!
 //! ## What is implemented (was previously listed as deferred)
 //!
 //! - **T104 SSRF / T105 cross-interpreter injection** — registry-driven
@@ -34,6 +28,11 @@
 //!   `taint_interp_eval_subcommands` (`interp eval` / `invokehidden`);
 //!   see [`classify_network_interp_sinks`].  Suppressed by a validated
 //!   address colour (T104) / `LIST_CANONICAL` (T105).
+//! - **T106 double-encoding** — [`transform_colour`] stamps a command's
+//!   `taint_transform` colour onto its tainted result during
+//!   propagation, and [`emit_double_encode_warnings`] flags a value that
+//!   re-enters a command whose `taint_double_encode_colour` it already
+//!   carries (e.g. `uri::encode [uri::encode $x]`).
 //!
 //! - Path-concat heuristic (W201) — see [`crate::path_concat`].
 //! - iRules-specific sink codes IRULE3001–3004 / 3101 / 3102 —
@@ -292,6 +291,48 @@ fn is_taint_source(
     tcl_registry::taint::is_taint_source(registry, command, args, dialect_set)
 }
 
+/// Bridge a `tcl_registry::TaintColour` to the compiler's mirror enum.
+/// The bit layouts are identical (registry is the canonical source), so
+/// a `from_bits_truncate` of the raw bits is exact.
+fn reg_colour(c: tcl_registry::TaintColour) -> TaintColour {
+    TaintColour::from_bits_truncate(c.bits())
+}
+
+/// The colour a command stamps on a tainted value it returns — its
+/// `taint_transform` (e.g. `uri::encode` ⇒ `URL_ENCODED`,
+/// `file normalize` ⇒ `PATH_NORMALISED`).  Subcommand transforms take
+/// precedence over the bare-command form.  Mirrors the registry lookup
+/// in `_derive_transform_colours`.
+fn transform_colour(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+) -> Option<TaintColour> {
+    let spec = registry.get(command)?;
+    if let Some(sub_name) = args.first() {
+        if let Some(sub) = spec.subcommand(sub_name) {
+            if let Some(colour) = sub.taint_transform {
+                return Some(reg_colour(colour));
+            }
+        }
+    }
+    spec.taint_transform.map(reg_colour)
+}
+
+/// Human-readable label for a double-encode colour, for the T106
+/// message.  Mirrors `_COLOUR_LABELS`.
+fn double_encode_label(colour: TaintColour) -> &'static str {
+    if colour.contains(TaintColour::URL_ENCODED) {
+        "URL-encoded"
+    } else if colour.contains(TaintColour::HTML_ESCAPED) {
+        "HTML-escaped"
+    } else if colour.contains(TaintColour::REGEX_LITERAL) {
+        "regex-escaped"
+    } else {
+        "encoded"
+    }
+}
+
 /// True when the supplied `dialect` enables iRules-specific taint rules.
 ///
 /// Exposed so adjacent check modules (`compiler_checks`, `irules_checks`)
@@ -376,6 +417,15 @@ fn word_taint(
         let mut t = TaintLattice::clean();
         for arg in &args {
             t = t.join(word_taint(arg, uses, taints, ctx));
+        }
+        // Stamp the encoder/transform colour the command adds to a
+        // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
+        // later pass through the same encoder is detectable as a
+        // double-encode (T106).  Mirrors `_derive_transform_colours`.
+        if t.is_tainted() {
+            if let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs) {
+                t = t.with(colour);
+            }
         }
         return t;
     }
@@ -948,6 +998,53 @@ fn classify_network_interp_sinks(
     out
 }
 
+/// **T106.** Emit a double-encoding warning when a tainted value that
+/// already carries a command's `taint_double_encode_colour` is passed
+/// through that command again (e.g. `uri::encode [uri::encode $x]`).
+/// Mirrors the T106 arm of `_sinks.py::find_taint_warnings` (one warning
+/// per variable).
+fn emit_double_encode_warnings(
+    registry: &CommandRegistry,
+    command: &str,
+    uses: &HashMap<String, u32>,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    span: Span,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let Some(dup_colour) = registry
+        .get(command)
+        .and_then(|s| s.taint_double_encode_colour)
+        .map(reg_colour)
+    else {
+        return;
+    };
+    let label = double_encode_label(dup_colour);
+    let mut emitted: HashSet<String> = HashSet::new();
+    for (name, &ver) in uses {
+        if ver == 0 || emitted.contains(name) {
+            continue;
+        }
+        let t = taints
+            .get(&(name.clone(), ver))
+            .copied()
+            .unwrap_or(TaintLattice::clean());
+        if t.is_tainted() && t.colours.intersects(dup_colour) {
+            warnings.push(TaintWarning {
+                span,
+                variable: name.clone(),
+                sink_command: command.to_owned(),
+                code: "T106".to_owned(),
+                message: format!(
+                    "Variable ${name} is already {label}; passing through {command} \
+                     double-encodes the value"
+                ),
+                replacement: None,
+            });
+            emitted.insert(name.clone());
+        }
+    }
+}
+
 /// Return `true` when a tainted value `lat` is mitigated for the given
 /// iRules sink code. Mirrors `_should_suppress_sink_warning` in
 /// Python for the IRULE3001/3002/3003/3004 branches.
@@ -1114,6 +1211,8 @@ fn emit_statement_warnings(
             warnings,
         );
     }
+    // T106: re-encoding an already-encoded tainted value.
+    emit_double_encode_warnings(registry, command, &ssa_stmt.uses, taints, span, warnings);
 }
 
 /// Emit T100 warnings for every tainted use in an expression context.
@@ -1789,6 +1888,114 @@ mod tests {
         let t105 = w.iter().find(|w| w.code == "T105" && w.variable == "x");
         assert!(t105.is_some(), "expected T105 for interp eval; got {w:?}");
         assert_eq!(t105.unwrap().sink_command, "interp eval");
+    }
+
+    #[test]
+    fn t106_double_encode_through_uri_encode() {
+        // `set x [URI::encode $tainted]` stamps URL_ENCODED on x; passing
+        // x back through `URI::encode` double-encodes → T106.
+        use crate::cfg::{Function, Terminator};
+        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use tcl_lexer::Span;
+
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+
+        // set x [gets stdin]      (taint source)
+        // set y [URI::encode $x]  (x tainted → y URL_ENCODED)
+        // URI::encode $y          (y already URL_ENCODED → T106)
+        let s0 = Statement::AssignValue {
+            span: Span::new(0, 12),
+            name: "x".into(),
+            value: "[gets stdin]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let s1 = Statement::AssignValue {
+            span: Span::new(13, 35),
+            name: "y".into(),
+            value: "[URI::encode $x]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let s2 = call_stmt("URI::encode", &["$y"]);
+
+        let mut cfg = Function::new("::top", "entry");
+        {
+            let b = cfg.blocks.get_mut("entry").unwrap();
+            b.statements.push(s0.clone());
+            b.statements.push(s1.clone());
+            b.statements.push(s2.clone());
+            b.terminator = Some(Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+        }
+        let ssa_s0 = SsaStatement {
+            statement: s0,
+            uses: HashMap::new(),
+            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let ssa_s1 = SsaStatement {
+            statement: s1,
+            uses: [("x".to_owned(), 1u32)].into_iter().collect(),
+            defs: [("y".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let ssa_s2 = SsaStatement {
+            statement: s2,
+            uses: [("y".to_owned(), 1u32)].into_iter().collect(),
+            defs: HashMap::new(),
+        };
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: vec![ssa_s0, ssa_s1, ssa_s2],
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        // The transform colour must have landed on y.
+        assert!(
+            taints
+                .get(&("y".to_string(), 1))
+                .is_some_and(|t| t.colours.intersects(TaintColour::URL_ENCODED)),
+            "y should carry URL_ENCODED after URI::encode; got {:?}",
+            taints.get(&("y".to_string(), 1))
+        );
+        let warnings = find_taint_warnings(
+            &cfg,
+            &ssa,
+            &taints,
+            &sccp.executable_blocks,
+            &registry,
+            Some("f5-irules"),
+        );
+        let t106 = warnings
+            .iter()
+            .find(|w| w.code == "T106" && w.variable == "y");
+        assert!(
+            t106.is_some(),
+            "expected T106 double-encode; got {warnings:?}"
+        );
+        assert!(
+            t106.unwrap().message.contains("already URL-encoded"),
+            "{:?}",
+            t106.unwrap().message
+        );
     }
 
     #[test]
