@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser import analyse
@@ -1148,26 +1150,85 @@ class TestPartialCommandHashCoversTail:
         assert one.source_hash == two.source_hash
 
     def test_trailing_layout_whitespace_is_folded(self):
-        # Trailing ASCII whitespace bears no token, so it must not affect the
-        # hash (this is what keeps the append-invariant; only the lexer's layout
-        # separators are stripped).
+        # When the gap after the last token is pure layout whitespace it is
+        # trivia: ``_chunk_content_end`` drops it, so it must not affect the hash
+        # (this is what keeps the append-invariant).
         plain = segment_top_level_chunks("set a 1\n")[0]
         spaced = segment_top_level_chunks("set a 1   \t\n")[0]
         assert plain.source_hash == spaced.source_hash
 
     def test_trailing_semicolon_is_kept_distinct(self):
-        # ``;`` is a syntactic command terminator, not layout: it must stay in the
-        # hash.  Folding ``set a 1;`` onto ``set a 1`` collides chunks the
-        # incremental builder has to tell apart (a real divergence seen under the
-        # random-edit storm); guard against re-stripping it as "trivia".
+        # ``;`` is a syntactic command terminator, not layout whitespace, so the
+        # gap after the last token is *not* pure-whitespace and the chunk keeps
+        # its whole tile.  Folding ``set a 1;`` onto ``set a 1`` would collide
+        # chunks the incremental builder has to tell apart (a real divergence seen
+        # under the random-edit storm); guard against treating ``;`` as trivia.
         plain = segment_top_level_chunks("set a 1\n")[0]
         semi = segment_top_level_chunks("set a 1;\n")[0]
         assert plain.source_hash != semi.source_hash
 
     def test_trailing_unicode_whitespace_is_not_over_stripped(self):
-        # The strip names the lexer's ASCII set rather than using bare
-        # ``str.rstrip()``, so a trailing non-ASCII space the lexer treats as
-        # word content still changes the hash.
+        # The trivia test names the lexer's ASCII whitespace set, so a trailing
+        # non-ASCII space the lexer treats as word content makes the gap non-empty
+        # and still changes the hash (a bare ``str.rstrip()`` would eat it).
         plain = segment_top_level_chunks("set a 1\n")[0]
         nbsp = segment_top_level_chunks("set a 1\u00a0\n")[0]  # U+00A0 NBSP
         assert plain.source_hash != nbsp.source_hash
+
+
+class TestUnclosedDelimiterSwallowsTrailingWhitespace:
+    """Regression: an unclosed delimiter at EOF consumes trailing whitespace into
+    its token, so that whitespace sets the token's rendered length and is *not*
+    trivia.  ``_chunk_content_end`` extends the hash to the last token's end (the
+    gap after it is empty, not pure whitespace), so editing the swallowed
+    whitespace changes the hash \u2014 otherwise the per-chunk token cache serves a
+    stale length."""
+
+    @pytest.mark.parametrize(
+        "more,less",
+        [
+            ("set x {abc   ", "set x {abc  "),  # unclosed brace
+            ('puts "abc   ', 'puts "abc  '),  # unclosed quote
+            ("set y [abc   ", "set y [abc  "),  # unclosed bracket
+        ],
+    )
+    def test_trailing_ws_inside_unclosed_token_changes_hash(self, more, less):
+        c_more = segment_top_level_chunks(more)[0]
+        c_less = segment_top_level_chunks(less)[0]
+        # The unterminated token reaches (near) EOF \u2014 that's what makes the
+        # trailing whitespace part of a token rather than inter-command trivia.
+        assert c_more.commands[0].all_tokens[-1].end.offset >= len(more) - 2
+        assert c_more.source_hash != c_less.source_hash
+
+    def test_well_formed_trailing_ws_still_folded(self):
+        # The append-invariant is unharmed: with no unclosed token swallowing it,
+        # trailing whitespace is trivia and does not change the hash.
+        a = segment_top_level_chunks("set x 1   \n")[0]
+        b = segment_top_level_chunks("set x 1  \n")[0]
+        assert a.source_hash == b.source_hash
+
+
+class TestEqualLengthLineShiftIsDirty:
+    """Regression: ``find_first_dirty_chunk`` keys reuse on the full start
+    *position*, not just ``start_offset``.  Leading/inter-command whitespace lives
+    outside chunk tiles, so an equal-length edit there (e.g. a space replaced by a
+    newline) shifts every following chunk's line without changing its offset or
+    hash.  Cached tokens are absolute, so such a chunk must be treated as dirty."""
+
+    def test_leading_space_to_newline_flags_first_chunk_dirty(self):
+        a = "  set x 1\nset y 2\n"
+        b = " \nset x 1\nset y 2\n"  # one leading space -> newline (same length)
+        ca, cb = segment_top_level_chunks(a), segment_top_level_chunks(b)
+        assert len(a) == len(b)
+        # offsets and hashes are unchanged; only the start line shifts.
+        assert ca[0].start_offset == cb[0].start_offset
+        assert ca[0].source_hash == cb[0].source_hash
+        assert ca[0].commands[0].range.start.line != cb[0].commands[0].range.start.line
+        assert find_first_dirty_chunk(ca, cb) == 0
+
+    def test_pure_append_stays_clean(self):
+        # The position check must not over-invalidate: appending a command shifts
+        # no existing chunk's position, so all existing chunks stay clean.
+        ca = segment_top_level_chunks("set x 1\nset y 2\n")
+        cb = segment_top_level_chunks("set x 1\nset y 2\nset z 3\n")
+        assert find_first_dirty_chunk(ca, cb) == 2

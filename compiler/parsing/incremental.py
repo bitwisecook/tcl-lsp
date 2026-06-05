@@ -37,6 +37,7 @@ from shared.tokens import Token, TokenType
 from .command_segmenter import (
     SegmentedCommand,
     TopLevelChunk,
+    _chunk_content_end,
     segment_commands,
     tile_commands,
 )
@@ -315,12 +316,18 @@ def _reuse_edit_in_braced_body(
     )
     new_cmd = _dc_replace(cmd, range=new_range, argv=new_argv, all_tokens=new_argv, texts=new_texts)
 
-    new_cmd_end = new_range.end.offset
+    # Hash via the same content-end rule as ``tile_commands`` so this fast-path
+    # chunk is byte-identical to a from-scratch segmentation (the incremental
+    # contract).  Computing it from ``new_cmd``'s own (shifted) tokens keeps the
+    # two in lockstep — e.g. trailing ``;`` separators that ``_chunk_content_end``
+    # keeps but ``cmd.range.end`` excludes.
+    new_tile_end = chunk.end_offset + offset_delta
+    content_end = _chunk_content_end(new_cmd, new_source, chunk.start_offset, new_tile_end)
     new_chunk = TopLevelChunk(
         index=chunk.index,
         start_offset=chunk.start_offset,
-        end_offset=chunk.end_offset + offset_delta,
-        source_hash=stable_text_hash(new_source[chunk.start_offset : new_cmd_end + 1]),
+        end_offset=new_tile_end,
+        source_hash=stable_text_hash(new_source[chunk.start_offset : content_end]),
         commands=(new_cmd,),
     )
 
