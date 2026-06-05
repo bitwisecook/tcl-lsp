@@ -132,6 +132,9 @@ class TclLexer:
         "warnings",
         "_virtuals",
         "_has_virtuals",
+        "_track_levels",
+        "_levels",
+        "_inert",
         "_pending_sep",
         "_line_starts",
     )
@@ -150,6 +153,7 @@ class TclLexer:
         base_col: int = 0,
         virtual_insertions: dict[int, str] | None = None,
         line_starts: list[int] | tuple[int, ...] | None = None,
+        track_levels: bool = False,
     ) -> None:
         self.text = text
         self._len = len(text)
@@ -175,6 +179,13 @@ class TclLexer:
         # error recovery to inject missing delimiters (], }, {).
         self._virtuals: dict[int, str] = dict(virtual_insertions) if virtual_insertions else {}
         self._has_virtuals: bool = bool(self._virtuals)
+        # PROTOTYPE: when set, record bracket-nesting deltas as (local_offset, ±1)
+        # at every effective ``[`` / ``]`` the scan crosses.  The absolute bracket
+        # level at any offset is then the prefix sum of deltas before it (base 0
+        # at top level) — captured during the single first scan, no descent.
+        self._track_levels: bool = track_levels
+        self._levels: list = []
+        self._inert: list[tuple[int, int]] = []
         # Pending synthetic SEP token for iRules }{ word boundary.
         self._pending_sep: Token | None = None
         # Line index for _pos_at().  Shared across lexer instances for the
@@ -306,6 +317,10 @@ class TclLexer:
         in_quotes = False
         self._advance()  # skip opening '['
         self._start = self.pos
+        if self._track_levels:
+            # The opening '[' is one byte before the content start; at that point
+            # the structural state is (bracket level 1, brace 0, not in quote).
+            self._levels.append((self._start - 1, 1, 0, 0, 1))
 
         if not self._has_virtuals:
             # Fast path — direct text scanning.
@@ -319,14 +334,20 @@ class TclLexer:
                 ch = text[pos]
                 if ch == '"' and blevel == 0:
                     in_quotes = not in_quotes
+                    if self._track_levels:
+                        self._levels.append((pos, level, blevel, int(in_quotes), 0))
                     col += 1
                     pos += 1
                 elif ch == "[" and blevel == 0 and not in_quotes:
                     level += 1
+                    if self._track_levels:
+                        self._levels.append((pos, level, blevel, int(in_quotes), 1))
                     col += 1
                     pos += 1
                 elif ch == "]" and blevel == 0 and not in_quotes:
                     level -= 1
+                    if self._track_levels:
+                        self._levels.append((pos, level, blevel, int(in_quotes), -1))
                     if level == 0:
                         break
                     col += 1
@@ -337,6 +358,8 @@ class TclLexer:
                     pos += 1
                     # Skip escaped char.
                     if pos < _len:
+                        if self._track_levels:
+                            self._inert.append((pos, pos + 1))
                         esc = text[pos]
                         if esc == "\n":
                             line += 1
@@ -363,6 +386,7 @@ class TclLexer:
                 elif ch == "$" and not in_quotes and blevel == 0:
                     # ${...} inside command — scan for matching }.
                     if pos + 1 < _len and text[pos + 1] == "{":
+                        _vb_start = pos
                         col += 1
                         pos += 1  # skip $
                         col += 1
@@ -395,16 +419,24 @@ class TclLexer:
                             else:
                                 col += 1
                             pos += 1
+                        if self._track_levels:
+                            # The whole ${...} span is a literal var name: any
+                            # delimiter inside it (incl. an inserted closer) is inert.
+                            self._inert.append((_vb_start, pos))
                     else:
                         col += 1
                         pos += 1
                 elif ch == "{" and not in_quotes:
                     blevel += 1
+                    if self._track_levels:
+                        self._levels.append((pos, level, blevel, int(in_quotes), 0))
                     col += 1
                     pos += 1
                 elif ch == "}" and not in_quotes:
                     if blevel:
                         blevel -= 1
+                    if self._track_levels:
+                        self._levels.append((pos, level, blevel, int(in_quotes), 0))
                     col += 1
                     pos += 1
                 else:
