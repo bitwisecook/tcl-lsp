@@ -39,6 +39,71 @@ The end state, stated as testable claims:
 The Zig runtime (`runtime/zig/`) stays the behavioural **oracle** until Rust
 reaches parity. Do **not** regress the compiler/LSP or the Zig runtime.
 
+## Design levers we own (and constraints we don't)
+
+Two facts shape every representation choice; keep both in mind alongside the
+[algorithm/data-structure method](#choosing-algorithms--data-structures-the-porting-method).
+
+### We compile the extensions — transformation freedom (no source edits)
+
+We own the whole **source → WASM** path for every extension: the authored
+`tcl.h`/`tclOO.h`/`tclTomMath.h`, the C compiler (`zig cc`), the linker flags,
+and any post-link WASM rewriting. So we may apply **any transformation that does
+not require editing the extension's C source** — that is the one hard line
+(`c-extension-abi.md` §1: "unmodified extension source"). This generalises the
+API-not-ABI thesis and the [shim escape-hatch](#the-shim-escape-hatch--decouple-the-internal-rep-from-the-abi-view):
+
+- The `Tcl_Obj` field layout is something **we impose** via the authored header,
+  not something the extension dictates — so we choose it.
+- Extensions only ever hold a `Tcl_Obj *` and touch the **declared** prefix
+  fields (`refCount`/`bytes`/`length`/`typePtr`/`internalRep`) through macros;
+  they never stack-allocate or array `Tcl_Obj` by value (they call
+  `Tcl_NewObj`). So the runtime's actual allocation **may carry private trailing
+  fields** the public header doesn't declare, or — the cleaner, Tcl-native route
+  — keep the header at exactly 24 bytes and hang per-type data off a struct
+  pointed to by `internalRep` (what T1.1 does). Both are open to us; pick per
+  type on the evidence.
+- Header-level, compile-flag-level, link-level, and post-link transforms are all
+  fair game (instrumentation, relocation rewriting, calling-convention choices)
+  as long as the `.c` stays untouched.
+
+The corollary: a transformation that *would* require editing extension source is
+out of bounds — that is exactly the line `c-extension-abi.md` draws, and the
+tier gates (which vendor extensions byte-identical) enforce it.
+
+### Bitness / pointer model — wasm32 addresses, native i64 values
+
+WASM is **not** 64-bit native. The target the entire C-extension toolchain
+supports (`wasm32-wasip1`; `zig cc` + wasi-libc, `wasm-ld --experimental-pic`,
+`dylink.0`) is **wasm32**: linear-memory **addresses are 32-bit** (`i32`
+pointers, 4 GiB cap), and `__indirect_function_table` indices are `i32`. The
+`memory64` proposal exists (and Rust has an experimental `wasm64` target), but
+its PIC / wasi-libc / dynamic-linking story is **not** viable for the
+extension-loading path, so the **ABI is fixed at wasm32 i32 pointers**:
+`Tcl_Size = i32`, `Tcl_Obj *` = i32, `Tcl_Obj` = 24 bytes (§4.2).
+
+What this means for handles/pointers (answering "should we go 64-bit where we
+can?"):
+
+- **Addresses into linear memory must be 32-bit** — anything crossing the
+  C-extension boundary (`Tcl_Obj *`, `char *`, table indices) is `i32`. We can't
+  widen those without leaving wasm32, which the toolchain won't support.
+- **Values can be 64-bit for free.** wasm32 has **native `i64`** locals and
+  arithmetic. Tcl wide ints are already `i64`; the AOT codegen's unboxed
+  fast-path values and any tagged-immediate / NaN-boxed value representation
+  carried in WASM locals (not stored as a linear-memory address) can be 64-bit
+  at no cost. So the rule is: **64-bit for values, 32-bit for addresses.**
+- **Tagged / "packed" pointers work normally.** There is nothing special in
+  WASM here — a pointer is just an `i32` in linear memory; the allocator's
+  8-byte alignment frees the low 3 bits for tags (the Zig S6.4 tagged-immediate
+  small-int trick, low-bit tag). On a hypothetical wasm64 future an `i64` handle
+  would have even more tag room, but that is not today's target.
+- **Native test build caveat.** On the host, `isize`/pointers are 64-bit, so the
+  native `cargo test` build exercises the runtime *logic*, not the wasm32
+  *layout*. Layout fidelity is asserted separately under
+  `cfg(target_arch = "wasm32")` (a `size_of::<TclObj>() == 24` static assert
+  lands with the wasm build, T1.6).
+
 ## Reference implementations (use both freely)
 
 - **Canonical C Tcl 9 source** — `tmp/tcl9.0.3/generic/*.c`
@@ -89,6 +154,8 @@ merge). The Zig sync log below anchors against this same commit (the state of
 Rust targets in use: `wasm32-wasip1` (runtime + host), `wasm32-unknown-unknown`
 (side modules where no WASI is needed). Newer wasip targets are added as the
 shared-memory model adopts them. Record any target change here with rationale.
+The bitness consequences (i32 addresses, native i64 values, fixed wasm32 ABI)
+are in [Design levers we own](#bitness--pointer-model--wasm32-addresses-native-i64-values).
 
 **Linker flags (from `c-extension-abi.md` §8 / §5.2):**
 
@@ -420,6 +487,27 @@ the Zig rep.
     table + eval into the `subst` resolver closures (T1.3/T1.4).
 - **T1.3 — eval loop + frames.** Port `interp/tcl_interp.zig` +
   `tcl_frames.zig`. Gate: eval-loop tcltest sweep no-regress.
+  - **Split for review:** the eval loop needs the command table (T1.4), so
+    **T1.3 = frames + the variable store** (the data-structure foundation, and
+    the half subst's *variable* resolver needs); the eval loop + dispatch +
+    deferred-free queue pair with the command table in T1.4.
+  - **Representation decision (re-derived).** Canonical `Var` (`tclInt.h`) is a
+    tagged union `{scalar objPtr | array tablePtr | linkPtr}`; the Zig PoC
+    encodes it as i32 handles with sentinels (`ALIAS_GLOBAL = -1`, negated heap
+    addresses) — a handle-world artifact. Rust uses the **enum**
+    `Var = Scalar(*mut TclObj) | Array(map) | Link{level,name,elem}`.
+    - **`BTreeMap` (not `HashMap`) for the var-name table and array elements.**
+      Consumers: `set`/`incr` (by-key, hot) + `info vars`/`array names`/`array
+      get` (iterate). The O(1)-`HashMap`-+-fixed-hasher vs O(log n)-`BTreeMap`
+      crossover is real but small-n; `BTreeMap` chosen for **deterministic
+      iteration** (`std::HashMap`'s `RandomState` would make `info vars` /
+      `array names` vary run-to-run — poison for an oracle-diffed port) and
+      **zero deps**. WASM experiment deferred to the perf gate if array/frame-
+      heavy workloads show it matters.
+    - **Links resolved by path** (level+name+elem), not Tcl's direct `linkPtr`
+      — avoids dangling on map reallocation; trades a lookup for memory safety.
+    - **Explicit release, no `Drop`** — matches `TclFreeVar`, keeps refcount
+      accounting visible to the leak counters.
 - **T1.4 — namespaces + command table.** Port `tcl_ns.zig` + `dispatch/`.
   Gate: `make check-wasm-parity` green; namespace-tree behaviour preserved.
 - **T1.5 — builtins.** Port `cmds/*.zig` incrementally, each command (or small
