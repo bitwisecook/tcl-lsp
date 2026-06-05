@@ -15,8 +15,8 @@
 //! - [`spec`] — [`CommandSpec`] and [`SubCommand`] definitions.
 //! - [`registry`] — [`CommandRegistry`] lookup facade.
 //! - [`commands`] — one file per command, one directory per dialect.
-//! - [`events`] — iRules event metadata (247 events, firing order, flow chains).
-//! - [`profiles`] — F5 profile types (57 profiles), protocol namespaces (87),
+//! - [`events`] — iRules event metadata (176 events, firing order, flow chains).
+//! - [`profiles`] — F5 profile types (65 profiles), protocol namespaces (113),
 //!   and stack modification commands.
 //!
 //! ## One file per command
