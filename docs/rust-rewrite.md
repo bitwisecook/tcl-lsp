@@ -5391,10 +5391,12 @@ The **sprintf `format`/`scan`** (`push_sprintf_subtokens` → `formatPercent`
 / `formatSpec` / `formatFlag` / `formatWidth`) and **`clock format`/`scan`**
 (`push_clock_subtokens` → `clockPercent` / `clockSpec` / `clockModifier`,
 the `-format` value) component sub-tokens have also landed — all
-command-name gated since `format_string_type` is never stamped.  **Still
-pending:** the `binary` (`a3`/`Su`) and `regsub`-replacement (`\1`) format
-dialects, and the `BigIP` object taxonomy (`pool` / `profile` /
-`ipAddress` / …).
+command-name gated since `format_string_type` is never stamped.  The
+**`binary format`/`scan`** field strings (`push_binary_subtokens` →
+`binarySpec` / `binaryCount` / `binaryFlag`, with the `u`/`s` modifier
+dialect-gated to 8.5+) have landed too.  **Still pending:** the
+`regsub`-replacement (`\1` / `\&`) format dialect, and the `BigIP` object
+taxonomy (`pool` / `profile` / `ipAddress` / …).
 
 ### E. Doc defects corrected in place by this audit
 

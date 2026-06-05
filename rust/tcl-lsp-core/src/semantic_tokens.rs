@@ -26,9 +26,10 @@
 //!   `RegexpEscape` / `RegexpBackref` / `RegexpAlternation`).
 //! * **Event** — an iRules `when EVENT` event name.
 //! * **Format** — `format` / `scan` conversion strings
-//!   (`FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`)
-//!   and `clock format` / `scan` field strings (`ClockPercent` /
-//!   `ClockSpec` / `ClockModifier`).
+//!   (`FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`),
+//!   `clock format` / `scan` field strings (`ClockPercent` /
+//!   `ClockSpec` / `ClockModifier`), and `binary format` / `scan`
+//!   field strings (`BinarySpec` / `BinaryCount` / `BinaryFlag`).
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -48,9 +49,9 @@
 //! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
 //!
-//! * `binary` (`a3` / `Su`) and `regsub`-replacement (`\1`) component
-//!   highlighting — the sprintf and clock format dialects have landed;
-//!   these two are the remaining format sub-token slices.
+//! * `regsub`-replacement (`\1` / `\&`) component highlighting — the
+//!   sprintf / clock / binary format dialects have landed; this is the
+//!   remaining format sub-token slice.
 //! * The `BigIP` object taxonomy (`pool` / `profile` /
 //!   `ipAddress` / …) for iRules string arguments.
 
@@ -112,7 +113,21 @@ enum TokenKind {
     ClockSpec = 21,
     /// `clock` locale modifier (`E` / `O`).
     ClockModifier = 22,
+    /// `binary format`/`scan` specifier letter (`a` `A` `c` `i` `w` …).
+    BinarySpec = 23,
+    /// `binary` repeat count (numeric).
+    BinaryCount = 24,
+    /// `binary` modifier: `u` / `s` (signed/unsigned) or `*` (all).
+    BinaryFlag = 25,
 }
+
+/// `binary format`/`scan` specifier letters.  Mirrors
+/// `_BINARY_FORMAT_SPECIFIERS`.
+const BINARY_FORMAT_SPECIFIERS: &[u8] = b"aAbBhHcsSiInwWmrRfdxX@t";
+
+/// Integer specifiers that accept a `u`/`s` signed/unsigned modifier
+/// (Tcl 8.5+).  Mirrors `_BINARY_INT_SPECIFIERS`.
+const BINARY_INT_SPECIFIERS: &[u8] = b"csSiIntwWmrR";
 
 /// The token-type / token-modifier legend the server
 /// advertises during `initialize`.
@@ -142,6 +157,9 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "clockPercent",
         "clockSpec",
         "clockModifier",
+        "binarySpec",
+        "binaryCount",
+        "binaryFlag",
     ]
 }
 
@@ -285,6 +303,10 @@ enum ArgOverride {
     /// (`%Y` / `%Ey` / …); falls back to the default classification when
     /// it has no `%` specifiers.
     ClockFormat,
+    /// Sub-tokenise the token as a `binary format`/`scan` field string
+    /// (`a3` / `Su` / `c*` / …); falls back to the default classification
+    /// when no specifier is recognised.
+    BinaryFormat,
 }
 
 /// Per-command argument-token classification overrides, keyed by the
@@ -363,7 +385,109 @@ fn special_arg_kinds(
         }
     }
 
+    // `binary format FMT …` (arg 2) / `binary scan VAL FMT …` (arg 3).
+    // Mirrors `_binary_format_arg_index`.
+    if head == "binary" && seg.texts.len() >= 3 {
+        let bin_word = match seg.texts[1].as_str() {
+            "format" => Some(2),
+            "scan" if seg.texts.len() >= 4 => Some(3),
+            _ => None,
+        };
+        if let Some(w) = bin_word {
+            if let Some(tok) = seg.argv.get(w) {
+                overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
+            }
+        }
+    }
+
     overrides
+}
+
+/// Sub-tokenise a `binary format`/`scan` field string into its
+/// specifiers: digit runs → `BinaryCount`, specifier letters →
+/// `BinarySpec`, a `u`/`s` modifier after an integer specifier (Tcl 8.5+)
+/// or a trailing `*` → `BinaryFlag`.  Whitespace and unrecognised
+/// characters are skipped.  Returns `false` when nothing was emitted.
+/// Mirrors `_collect_binary_format_spec_tokens`.
+fn push_binary_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    dialect: &str,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return false;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    let Some(inner) = source.get(cstart..cend) else {
+        return false;
+    };
+    let bytes = inner.as_bytes();
+    let allow_mod = !matches!(dialect, "tcl8.4" | "f5");
+    let mut i = 0;
+    let mut emitted = false;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        // Digit run → count.
+        let count_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i > count_start {
+            push_subtoken(
+                line_index,
+                cstart + count_start,
+                &inner[count_start..i],
+                TokenKind::BinaryCount,
+                entries,
+            );
+            emitted = true;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let spec = bytes[i];
+        if !BINARY_FORMAT_SPECIFIERS.contains(&spec) {
+            i += 1;
+            continue;
+        }
+        push_subtoken(
+            line_index,
+            cstart + i,
+            &inner[i..=i],
+            TokenKind::BinarySpec,
+            entries,
+        );
+        emitted = true;
+        i += 1;
+        // Signed/unsigned modifier (Tcl 8.5+) after an integer specifier.
+        if i < bytes.len()
+            && matches!(bytes[i], b'u' | b's')
+            && BINARY_INT_SPECIFIERS.contains(&spec)
+            && allow_mod
+        {
+            push_subtoken(
+                line_index,
+                cstart + i,
+                &inner[i..=i],
+                TokenKind::BinaryFlag,
+                entries,
+            );
+            emitted = true;
+            i += 1;
+        }
+        if i < bytes.len() && bytes[i] == b'*' {
+            push_subtoken(line_index, cstart + i, "*", TokenKind::BinaryFlag, entries);
+            emitted = true;
+            i += 1;
+        }
+    }
+    emitted
 }
 
 /// Sub-tokenise a `clock format`/`scan` field string into its `%`
@@ -833,6 +957,13 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
                         }
                     }
                 }
+                Some(ArgOverride::BinaryFormat) => {
+                    if !push_binary_subtokens(&line_index, source, *tok, dialect, &mut entries) {
+                        if let Some(kind) = classify_arg_token(*tok, source) {
+                            push_token(&line_index, source, *tok, kind, 0, &mut entries);
+                        }
+                    }
+                }
                 Some(ArgOverride::Kind(kind)) => {
                     push_token(&line_index, source, *tok, *kind, 0, &mut entries);
                 }
@@ -1272,6 +1403,34 @@ mod tests {
         let ks = kinds("clock format $t -format {plain}\n", "tcl", &reg());
         assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn binary_format_spec_and_count_subtokens() {
+        // `binary format a3 $d` (arg 2) → spec `a`, count `3`.
+        let ks = kinds("binary format a3 $d\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::BinaryCount as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn binary_scan_signed_modifier_and_star() {
+        // `binary scan $d su r` (arg 3) → spec `s`, modifier `u`.
+        let ks = kinds("binary scan $d su r\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
+        // `c*` → spec `c`, `*` flag.
+        let ks = kinds("binary format c* $l\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn binary_signed_modifier_suppressed_in_tcl84() {
+        // The `u`/`s` modifier is 8.5+, so under tcl8.4 the `u` is not a
+        // binaryFlag (no signed/unsigned modifier).
+        let ks = kinds("binary scan $d su r\n", "tcl8.4", &reg());
+        assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
+        assert!(!ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
     }
 
     #[test]
