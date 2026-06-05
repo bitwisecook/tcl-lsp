@@ -4330,9 +4330,18 @@ clamped-last / empty container) drives both `lrange` / `lreplace`
 `string range` / `replace` (W232, with the both-negative-literal
 early-fire even on a dynamic string and the backslash-aware length
 back-off); `describe_index_string` ported.  Verified against the live
-Python analyser; 3 unit tests.  **Remaining:** **W231** (`lset` — needs
-const-var tracking), the default-off **W242**, and the `for`-step
-`_for_is_provably_infinite` heuristic — follow-ups.
+Python analyser; 3 unit tests.
+**LANDED (W241 `for`-step heuristic, 2026-06-05).**  When a `for`
+condition is non-constant, `for_is_provably_infinite` proves the narrow
+`for {set v INT} {$v OP INT} {incr v INT}` shape never terminates —
+step-zero with the condition true on entry, a wrong-direction step, or a
+`!=` bound the step skips — provided the body doesn't write the counter
+or exit.  Ports `parse_simple_for_cond` (the `$v OP n` / `n OP $v`
+counter regexes + the compound-marker guard, with the lone-`!` look-behind
+done manually), `parse_init_var_value`, `parse_step_incr`,
+`body_writes_var`, `cond_true_at`.  Verified against the live Python
+analyser; 2 unit tests.  **Remaining:** **W231** (`lset` — needs
+const-var tracking) and the default-off **W242** — follow-ups.
 
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed

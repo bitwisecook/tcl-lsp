@@ -1,10 +1,11 @@
 //! Loop-termination index-bounds checks (W230-W242) — GAP-A4.
 //!
-//! Port of `core/analysis/checks/_bounds.py`.  This module currently
-//! lands the **loop-termination** family (W240 / W241) over `while` /
-//! `for`; the index-bounds family (W230 / W231 / W232) and the
-//! default-off W242 / the `for`-step infinite-loop heuristic are
-//! follow-ups.
+//! Port of `core/analysis/checks/_bounds.py`.  Lands the
+//! **loop-termination** family (W240 / W241 over `while` / `for`,
+//! including the `for`-step provably-infinite heuristic) and the
+//! **index-bounds** family (W230 over `lindex` / `lrange` / `lreplace`,
+//! W232 over `string index` / `range` / `replace`).  Follow-ups: W231
+//! (`lset`, needs const-var tracking) and the default-off W242.
 //!
 //! The analysis is intentionally shallow — it inspects the literal text
 //! of the condition and body.  A dynamic condition (anything not a
@@ -25,36 +26,216 @@ pub(crate) fn loop_termination_diagnostics(
     args: &[String],
     arg_tokens: &[Token],
 ) -> Vec<Diagnostic> {
-    let (cond_text, body_text, cond_tok) = match cmd_name {
+    // (init, cond, step, body, cond_tok) — init/step empty for `while`.
+    let (init_text, cond_text, step_text, body_text, cond_tok) = match cmd_name {
         "while" if args.len() >= 2 && arg_tokens.len() >= 2 => {
-            (args[0].as_str(), args[1].as_str(), &arg_tokens[0])
+            ("", args[0].as_str(), "", args[1].as_str(), &arg_tokens[0])
         }
-        "for" if args.len() >= 4 && arg_tokens.len() >= 4 => {
-            (args[1].as_str(), args[3].as_str(), &arg_tokens[1])
-        }
+        "for" if args.len() >= 4 && arg_tokens.len() >= 4 => (
+            args[0].as_str(),
+            args[1].as_str(),
+            args[2].as_str(),
+            args[3].as_str(),
+            &arg_tokens[1],
+        ),
         _ => return Vec::new(),
     };
 
     match condition_constant(cond_text) {
-        Some(false) => vec![Diagnostic {
-            code: "W240".to_string(),
-            span: cond_tok.span,
-            message: format!("{cmd_name} condition is constant false; body never executes."),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }],
-        Some(true) if !body_may_exit(body_text) => vec![Diagnostic {
-            code: "W241".to_string(),
-            span: cond_tok.span,
-            message: format!(
-                "{cmd_name} is provably infinite: condition is constant true and body has no \
-                 break/return/error/exit."
-            ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        }],
-        _ => Vec::new(),
+        Some(false) => {
+            return vec![Diagnostic {
+                code: "W240".to_string(),
+                span: cond_tok.span,
+                message: format!("{cmd_name} condition is constant false; body never executes."),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            }]
+        }
+        Some(true) if !body_may_exit(body_text) => {
+            return vec![Diagnostic {
+                code: "W241".to_string(),
+                span: cond_tok.span,
+                message: format!(
+                    "{cmd_name} is provably infinite: condition is constant true and body has no \
+                     break/return/error/exit."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            }]
+        }
+        Some(true) => return Vec::new(),
+        None => {}
     }
+
+    // `for {init} {cond} {step} body` provably-infinite counter shape.
+    if cmd_name == "for" {
+        if let Some(reason) = for_is_provably_infinite(init_text, cond_text, step_text, body_text) {
+            return vec![Diagnostic {
+                code: "W241".to_string(),
+                span: cond_tok.span,
+                message: format!("for loop is provably infinite: {reason}"),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            }];
+        }
+    }
+    Vec::new()
+}
+
+/// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
+/// never terminates (no write to `v` elsewhere); returns the reason.
+/// Mirrors `_for_is_provably_infinite`.
+fn for_is_provably_infinite(init: &str, cond: &str, step: &str, body: &str) -> Option<String> {
+    let (var_c, op, bound) = parse_simple_for_cond(cond)?;
+    let (var_i, start) = parse_init_var_value(init)?;
+    let (var_s, delta) = parse_step_incr(step)?;
+    if var_c != var_i || var_c != var_s {
+        return None;
+    }
+    if body_writes_var(body, &var_c) || body_may_exit(body) {
+        return None;
+    }
+    let counter = format!("${var_c}");
+    // Step of zero with the condition initially true → infinite.
+    if delta == 0 && cond_true_at(&op, start, bound) {
+        return Some("step is zero ('incr' with 0) and condition holds on entry".to_string());
+    }
+    // Wrong-direction step: moving away from the bound.
+    if matches!(op.as_str(), "<" | "<=") && cond_true_at(&op, start, bound) && delta < 0 {
+        return Some(format!(
+            "counter {counter} starts at {start}, moves by {delta} per step, and compares {op} \
+             {bound} (never reached)"
+        ));
+    }
+    if matches!(op.as_str(), ">" | ">=") && cond_true_at(&op, start, bound) && delta > 0 {
+        return Some(format!(
+            "counter {counter} starts at {start}, moves by {delta} per step, and compares {op} \
+             {bound} (never reached)"
+        ));
+    }
+    if matches!(op.as_str(), "!=" | "ne") {
+        if delta == 0 && start != bound {
+            return Some(format!("counter {counter} never changes and !={bound}"));
+        }
+        if delta != 0 && start != bound {
+            let diff = bound - start;
+            if diff * delta < 0 {
+                return Some(format!(
+                    "counter {counter} starts at {start}, moves by {delta} per step, never \
+                     reaches {bound}"
+                ));
+            }
+            if diff % delta != 0 {
+                return Some(format!(
+                    "counter {counter} starts at {start}, moves by {delta} per step, never \
+                     exactly equals {bound}"
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// Evaluate a simple comparison at a concrete value.  Mirrors
+/// `_cond_true_at`.
+fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
+    match op {
+        "<" => value < bound,
+        "<=" => value <= bound,
+        ">" => value > bound,
+        ">=" => value >= bound,
+        "==" | "eq" => value == bound,
+        "!=" | "ne" => value != bound,
+        _ => false,
+    }
+}
+
+/// `(var, op, bound)` when `cond` is exactly `$v OP literal` or
+/// `literal OP $v` (no compound `&&` / `||` / `?` / `!`).  Mirrors
+/// `_parse_simple_for_cond`.
+fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
+    let c = strip_braces(cond);
+    // Compound markers disqualify (Rust regex has no look-behind, so the
+    // lone-`!` case is checked manually: a `!` not part of `!=`).
+    if c.contains("&&") || c.contains("||") || c.contains('?') || has_logical_not(c) {
+        return None;
+    }
+    let fwd = regex::Regex::new(
+        r"^\s*\$\{?(?P<v>\w+)\}?\s*(?P<op><=|>=|<|>|==|!=|eq|ne)\s*(?P<bound>-?\d+)\s*$",
+    )
+    .expect("valid counter regex");
+    if let Some(m) = fwd.captures(c) {
+        return Some((
+            m["v"].to_string(),
+            m["op"].to_string(),
+            m["bound"].parse().ok()?,
+        ));
+    }
+    let rev = regex::Regex::new(
+        r"^\s*(?P<bound>-?\d+)\s*(?P<op><=|>=|<|>|==|!=|eq|ne)\s*\$\{?(?P<v>\w+)\}?\s*$",
+    )
+    .expect("valid reversed counter regex");
+    if let Some(m) = rev.captures(c) {
+        // Flip the operator so the variable is on the left.
+        let op = match &m["op"] {
+            "<" => ">",
+            ">" => "<",
+            "<=" => ">=",
+            ">=" => "<=",
+            other => other,
+        };
+        return Some((m["v"].to_string(), op.to_string(), m["bound"].parse().ok()?));
+    }
+    None
+}
+
+/// True when `c` contains a logical-not `!` that is not part of `!=`
+/// and not preceded by `< > = !`.  Mirrors the `(?<![<>=!])!(?!=)`
+/// alternative of `_COMPOUND_MARKERS_RE`.
+fn has_logical_not(c: &str) -> bool {
+    let b = c.as_bytes();
+    for (i, &ch) in b.iter().enumerate() {
+        if ch != b'!' {
+            continue;
+        }
+        let prev_ok = i == 0 || !matches!(b[i - 1], b'<' | b'>' | b'=' | b'!');
+        let next_ok = b.get(i + 1) != Some(&b'=');
+        if prev_ok && next_ok {
+            return true;
+        }
+    }
+    false
+}
+
+/// `(var, value)` from an init clause `set v INT`.  Mirrors
+/// `_parse_init_var_value`.
+fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
+    let re = regex::Regex::new(r"^\s*set\s+(\w+)\s+(-?\d+)\s*$").expect("valid init regex");
+    let m = re.captures(strip_braces(init).trim())?;
+    Some((m[1].to_string(), m[2].parse().ok()?))
+}
+
+/// `(var, delta)` from a step clause `incr v ?INT?`.  Mirrors
+/// `_parse_step_incr`.
+fn parse_step_incr(step: &str) -> Option<(String, i64)> {
+    let re = regex::Regex::new(r"^\s*incr\s+(\w+)(?:\s+(-?\d+))?\s*$").expect("valid step regex");
+    let m = re.captures(strip_braces(step).trim())?;
+    let delta = m.get(2).map_or(Some(1), |g| g.as_str().parse().ok())?;
+    Some((m[1].to_string(), delta))
+}
+
+/// Shallow scan: does `body` write `var` via `set` / `incr` / `lset` /
+/// `append` / `lappend`?  Mirrors `_body_writes_var`.
+fn body_writes_var(body: &str, var: &str) -> bool {
+    let escaped = regex::escape(var);
+    for kw in ["set", "incr", "lset", "append", "lappend"] {
+        let re =
+            regex::Regex::new(&format!(r"\b{kw}\s+{escaped}\b")).expect("valid body-write regex");
+        if re.is_match(body) {
+            return true;
+        }
+    }
+    false
 }
 
 /// W230: a constant list literal with a constant out-of-range index
@@ -503,6 +684,45 @@ mod tests {
     #[test]
     fn dynamic_condition_is_silent() {
         assert!(codes("while {$x < 10} {incr x}\n").is_empty());
+    }
+
+    #[test]
+    fn w241_for_step_provably_infinite() {
+        // Step 0, wrong-direction step, increment-away, never-equal-skip.
+        assert_eq!(
+            codes("for {set i 0} {$i < 10} {incr i 0} {}\n"),
+            vec!["W241"]
+        );
+        assert_eq!(
+            codes("for {set i 0} {$i < 10} {incr i -1} {}\n"),
+            vec!["W241"]
+        );
+        assert_eq!(codes("for {set i 5} {$i > 0} {incr i} {}\n"), vec!["W241"]);
+        assert_eq!(
+            codes("for {set i 0} {$i != 10} {incr i 3} {}\n"),
+            vec!["W241"]
+        );
+        // A correct counting loop is silent.
+        assert!(codes("for {set i 0} {$i < 10} {incr i} {}\n").is_empty());
+    }
+
+    #[test]
+    fn for_cond_parsers() {
+        assert_eq!(
+            super::parse_simple_for_cond("$i < 10"),
+            Some(("i".into(), "<".into(), 10)),
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("10 > $i"),
+            Some(("i".into(), "<".into(), 10)), // flipped
+        );
+        assert_eq!(super::parse_simple_for_cond("$i < 10 && 0"), None);
+        assert_eq!(
+            super::parse_init_var_value("set i 5"),
+            Some(("i".into(), 5))
+        );
+        assert_eq!(super::parse_step_incr("incr i"), Some(("i".into(), 1)));
+        assert_eq!(super::parse_step_incr("incr i -2"), Some(("i".into(), -2)));
     }
 
     fn idx_codes(src: &str) -> Vec<String> {
