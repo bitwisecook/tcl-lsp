@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["XLAT::src_port"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &["SA_PICKED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

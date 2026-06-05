@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["HA::status (active | standby)"],
             "F5 iRules",
         )),
+        excluded_events: &["RULE_INIT"],
         ..CommandSpec::DEFAULT
     }
 }

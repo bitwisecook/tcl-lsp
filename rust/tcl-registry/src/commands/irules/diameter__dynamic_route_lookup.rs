@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["DIAMETER::dynamic_route_lookup ( connection | message ) ( BOOLEAN )?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["DIAMETER"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

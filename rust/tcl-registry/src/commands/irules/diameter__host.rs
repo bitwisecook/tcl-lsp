@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["DIAMETER::host ( ('origin' | 'dest' ) (DIAMETER_HOST)? )"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["DIAMETER", "MR"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

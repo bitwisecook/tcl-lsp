@@ -10,6 +10,21 @@ pub fn spec() -> CommandSpec {
             &["XLAT::src_nat_valid_range"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[
+                "CLIENT_DATA",
+                "SA_PICKED",
+                "SERVER_CONNECTED",
+                "SERVER_DATA",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

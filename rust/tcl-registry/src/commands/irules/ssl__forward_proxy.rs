@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["SSL::forward_proxy ( (policy (bypass | intercept)?) | cert)"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["CLIENTSSL", "SERVERSSL"],
+            also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

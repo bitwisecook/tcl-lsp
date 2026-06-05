@@ -6,6 +6,16 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief("Returns or updates security token action.", &["TAP::action (allow | alarm | basicPolicy | strictPolicy | jsInjection | captcha | block | tcpReset |"], "F5 iRules")),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["TAP"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

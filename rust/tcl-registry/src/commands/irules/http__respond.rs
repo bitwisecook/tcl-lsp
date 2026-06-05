@@ -37,6 +37,26 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: tainted data in the response body → XSS/content
         // injection (IRULE3001). Mirrors `irules/http__respond.py`.
         taint_output_sink: Some("IRULE3001"),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &[
+                "AUTH_ERROR",
+                "AUTH_FAILURE",
+                "AUTH_RESULT",
+                "AUTH_SUCCESS",
+                "AUTH_WANTCREDENTIAL",
+                "LB_FAILED",
+                "MR_EGRESS",
+                "MR_FAILED",
+                "NAME_RESOLVED",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

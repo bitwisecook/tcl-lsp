@@ -10,6 +10,22 @@ pub fn spec() -> CommandSpec {
             &["LSN::pool LSN_POOL"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["FASTHTTP", "MR", "RTSP", "SIP"],
+            also_in: &[
+                "CLIENT_ACCEPTED",
+                "CLIENT_DATA",
+                "LB_FAILED",
+                "LB_SELECTED",
+                "SA_PICKED",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -11,6 +11,16 @@ pub fn spec() -> CommandSpec {
             &["persist none"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: true,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &["PERSIST_DOWN"],
+            init_only: false,
+            flow: true,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

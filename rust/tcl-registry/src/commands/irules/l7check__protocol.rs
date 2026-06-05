@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["L7CHECK::protocol set VALUE"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["CONNECTOR", "L7CHECK"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["CACHE::expire"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["CACHE"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

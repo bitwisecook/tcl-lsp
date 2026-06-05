@@ -14,6 +14,16 @@ pub fn spec() -> CommandSpec {
         // the address-bearing arg positions are not pinned. Mirrors
         // `irules/connect.py` (`taint_network_sink_args=()`).
         taint_network_sink_args: Some(&[]),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: true,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

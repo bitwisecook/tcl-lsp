@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["XLAT::src_endpoint_reservation create"],
             "F5 iRules",
         )),
+        excluded_events: &["RULE_INIT"],
         ..CommandSpec::DEFAULT
     }
 }

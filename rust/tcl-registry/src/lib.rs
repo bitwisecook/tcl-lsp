@@ -59,6 +59,7 @@ pub mod prelude {
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
     pub use crate::dialects::DialectSet;
+    pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::hooks::{
         ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,

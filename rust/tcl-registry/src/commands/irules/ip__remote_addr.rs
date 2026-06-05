@@ -11,6 +11,16 @@ pub fn spec() -> CommandSpec {
             &["IP::remote_addr (clientside | serverside)?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: true,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &["IP_GTM"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

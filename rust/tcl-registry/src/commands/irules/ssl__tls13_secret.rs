@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["SSL::tls13_secret client (app | hs | early)"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: true,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["CLIENTSSL"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

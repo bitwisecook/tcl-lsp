@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["MR::stream ( 'end' )? (BYTES)"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["MR"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["BOTDEFENSE::cs_possible"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["BOTDEFENSE"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

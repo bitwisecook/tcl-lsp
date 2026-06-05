@@ -11,6 +11,16 @@ pub fn spec() -> CommandSpec {
             &["IP::server_addr"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: true,
+            transport: None,
+            profiles: &[],
+            also_in: &["IP_GTM"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

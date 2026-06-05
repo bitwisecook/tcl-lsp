@@ -25,6 +25,16 @@ pub fn spec() -> CommandSpec {
         // the `insert` / `replace` SubCommand specs.
         taint_output_sink: Some("IRULE3002"),
         taint_output_sink_subcommands: &["insert", "replace"],
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &["MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

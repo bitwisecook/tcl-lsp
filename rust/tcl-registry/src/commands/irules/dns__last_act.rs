@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["DNS"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

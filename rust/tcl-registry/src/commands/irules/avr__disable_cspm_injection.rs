@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["AVR::disable_cspm_injection"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["FASTHTTP"],
+            also_in: &["AVR_CSPM_INJECTION"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

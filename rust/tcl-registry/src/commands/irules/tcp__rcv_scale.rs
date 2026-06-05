@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["TCP::rcv_scale"],
             "F5 iRules",
         )),
+        excluded_events: &["SERVER_INIT"],
         ..CommandSpec::DEFAULT
     }
 }

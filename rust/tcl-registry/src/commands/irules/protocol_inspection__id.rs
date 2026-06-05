@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["PROTOCOL_INSPECTION::id"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["PROTOCOL_INSPECTION"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

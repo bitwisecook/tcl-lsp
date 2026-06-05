@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["QOE::video"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["QOE"],
+            also_in: &["CLIENT_CLOSED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

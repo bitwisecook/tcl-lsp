@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["SIP::message"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["SIP"],
+            also_in: &["MR_EGRESS", "MR_FAILED", "MR_INGRESS"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

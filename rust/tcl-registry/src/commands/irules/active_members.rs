@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["active_members ('-list')? POOL_OBJ"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["DNS"],
+            also_in: &["LB_FAILED", "LB_SELECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

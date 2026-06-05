@@ -32,6 +32,16 @@ pub fn spec() -> CommandSpec {
             "F5 iRules",
         )),
         setter_constraints: SETTER_CONSTRAINTS,
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &["MR_INGRESS", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

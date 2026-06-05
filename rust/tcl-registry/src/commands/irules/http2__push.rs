@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["HTTP2::push <uri> ?-priority num? ?-nohost? <request headers>"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["FASTHTTP"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

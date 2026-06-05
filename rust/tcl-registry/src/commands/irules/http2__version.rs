@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["HTTP2::version"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["HTTP"],
+            also_in: &["MR_INGRESS"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

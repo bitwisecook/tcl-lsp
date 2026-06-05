@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["MQTT::disable"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["MQTT"],
+            also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

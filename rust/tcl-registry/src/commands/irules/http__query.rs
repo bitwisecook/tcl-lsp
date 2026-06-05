@@ -18,6 +18,16 @@ pub fn spec() -> CommandSpec {
             &["HTTP::query (QUERY_STRING)?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &["MR_INGRESS", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

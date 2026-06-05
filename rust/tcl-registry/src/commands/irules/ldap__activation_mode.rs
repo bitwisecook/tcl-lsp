@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["LDAP::activation_mode (none | allow | require)"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

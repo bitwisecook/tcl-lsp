@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["SIPALG::nonregister_subscriber_listener"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["SIP"],
+            also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

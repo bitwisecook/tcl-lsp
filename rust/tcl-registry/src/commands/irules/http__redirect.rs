@@ -14,6 +14,16 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: tainted redirect URL → open-redirect (IRULE3004).
         // Mirrors `irules/http__redirect.py`.
         taint_output_sink: Some("IRULE3004"),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &["LB_FAILED", "NAME_RESOLVED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

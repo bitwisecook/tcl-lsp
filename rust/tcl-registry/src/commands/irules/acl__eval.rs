@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["ACL::eval ('-l7')?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &["CLIENT_ACCEPTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

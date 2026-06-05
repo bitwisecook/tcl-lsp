@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["DATAGRAM::ip6 hop_limit"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["FLOW"],
+            also_in: &["CLIENT_DATA"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

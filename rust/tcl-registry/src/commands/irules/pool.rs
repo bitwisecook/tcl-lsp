@@ -11,6 +11,16 @@ pub fn spec() -> CommandSpec {
             &["pool pool_name ?member_addr member_port?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: true,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

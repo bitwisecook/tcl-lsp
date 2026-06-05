@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["HTTP::class"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["HTTP"],
+            also_in: &["HTTP_CLASS_FAILED", "HTTP_CLASS_SELECTED"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

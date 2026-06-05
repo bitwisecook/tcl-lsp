@@ -10,6 +10,23 @@ pub fn spec() -> CommandSpec {
             &["RADIUS::subscriber (SUBSCRIBER_ID)?"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[
+                "CLIENT_ACCEPTED",
+                "CLIENT_CLOSED",
+                "CLIENT_DATA",
+                "SERVER_CLOSED",
+                "SERVER_CONNECTED",
+                "SERVER_DATA",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }

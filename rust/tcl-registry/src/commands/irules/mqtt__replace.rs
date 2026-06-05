@@ -10,6 +10,16 @@ pub fn spec() -> CommandSpec {
             &["MQTT::replace ( (('type' 'CONNECT') ('client_id' NAME)"],
             "F5 iRules",
         )),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["MQTT"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
         ..CommandSpec::DEFAULT
     }
 }
