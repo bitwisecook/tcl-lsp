@@ -321,6 +321,20 @@ rust-format: ## Auto-format the Rust workspace with cargo fmt
 	@echo "==> Formatting Rust code with cargo fmt"
 	cd $(ROOT) && $(CARGO) fmt --all
 
+# runtime/rust/ is the Rust port of the WASM runtime (Track 1 of
+# docs/design/runtime/rust-runtime-port.md). It is a standalone crate
+# (EXCLUDED from the workspace — it needs raw-pointer `unsafe` over the shared
+# linear memory, c-extension-abi.md §9), so it has its own test/lint targets.
+runtime-rust-test: ## Run the Rust runtime port test suite (cargo test in runtime/rust)
+	@echo "==> Running cargo test on the Rust runtime port (runtime/rust)"
+	cd $(ROOT)/runtime/rust && $(CARGO) test --quiet
+
+runtime-rust-lint: ## Lint the Rust runtime port (fmt --check + clippy -D warnings)
+	@echo "==> Checking Rust runtime port formatting"
+	cd $(ROOT)/runtime/rust && $(CARGO) fmt -- --check
+	@echo "==> Linting Rust runtime port with clippy"
+	cd $(ROOT)/runtime/rust && $(CARGO) clippy --all-targets -- -D warnings
+
 rust-doctest: ## Run doctests on the Rust workspace (cargo test --doc)
 	@echo "==> Running cargo test --doc on Rust workspace"
 	cd $(ROOT) && $(CARGO) test --workspace --doc --quiet

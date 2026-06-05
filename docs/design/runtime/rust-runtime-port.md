@@ -144,7 +144,7 @@ any row.
 
 | Zig module | Files (lines) | Role | Rust target | Status | Gate that proves it |
 |---|---|---|---|---|---|
-| `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | not-started | leak_sweep zero-residual on round-trip + parity |
+| `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | not-started | parse/subst unit parity vs Zig + `tclParse.c` edge cases |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | not-started | eval-loop tcltest sweep no-regress |
@@ -191,12 +191,21 @@ modules land and the tier gates are green on the C engine.
 Goal: a `runtime/rust/` that the AOT codegen links against, parity-green, with
 no leak/tcltest regression vs the Zig baseline.
 
-- **T1.1 — Real `TclObj` + refcount discipline.** Mirror
-  [`memory-management.md`](memory-management.md) +
-  [`refcount-contract.md`](refcount-contract.md), cross-checked against
-  `tclObj.c`. **Not** the leaking spike version. Gate: round-trip
-  (`Tcl_NewObj` → incr → set-result → decr) shows zero residual under leak
-  instrumentation.
+- **T1.1 — Real `TclObj` + refcount discipline.** **Partial — landed.**
+  Created `runtime/rust/` (`tcl-runtime`, a standalone crate excluded from the
+  workspace — §9 needs `unsafe`). Modules: `obj` (the `#[repr(C)]` `TclObj`,
+  ABI-faithful to §4.2, with `fresh_zero` constructors, immediate
+  refcount-driven free per `tclObj.c`'s `TclFreeObj`, and on-demand int→string
+  shimmer), `interp` (result-only `Interp` with the `Tcl_SetObjResult`/
+  `Tcl_GetObjResult` handshake), `counters` (the `tcl_test_*` leak
+  instrumentation, MM-C), `capi` (the `#[no_mangle] extern "C"` exports). Gate:
+  `make runtime-rust-test` — `round_trip_zero_residual` (`Tcl_NewObj` → incr →
+  set-result → decr → interp teardown) leaves **zero residual** and zero
+  double-frees under the counters (6 tests pass). **Remaining for full Track-1
+  obj parity:** lists/dicts/string-append shimmer, the deferred-free queue
+  (`tcl_obj_drain_pending`, lands with the eval loop T1.3), Tcl-faithful
+  `double`→string formatting (T1.5), and the codegen handle / tagged-immediate /
+  inline-string optimisations (T1.5/S6).
 - **T1.2 — parse/subst.** Port `parse/tcl_parse.zig` + `tcl_subst.zig` using
   `tclParse.c` for semantics. Gate: parse/subst unit parity.
 - **T1.3 — eval loop + frames.** Port `interp/tcl_interp.zig` +
@@ -515,10 +524,21 @@ it in the same or a follow-up PR.
 ### SYNC anchor — 2026-06-05 (branch point)
 
 - Last-synced commit: `rust`@`8150eca` (#549, the spike merge).
-- `runtime/rust/` does not exist yet, so **nothing to mirror** — every
-  component is not-started and tracks the Zig source as-of this anchor.
-- Action: the first Track-1 PR that creates `runtime/rust/` records its Zig
-  source baseline (per-module commit) so subsequent diffs are precise.
+- `runtime/rust/` did not exist at the anchor, so there was **nothing to
+  mirror** — every component tracks the Zig source as-of this anchor.
+
+### SYNC baseline — 2026-06-05 (T1.1, `runtime/rust/` created)
+
+- `runtime/rust/src/obj.rs` mirrors `runtime/zig/valtypes/tcl_obj.zig` as of
+  `rust`@`8150eca` — the obj model + refcount semantics
+  (`memory-management.md` MM-A/MM-B/MM-C), cross-checked against
+  `tmp/tcl9.0.3/generic/tclObj.c` (`Tcl_NewObj` rc-0 creation, `TclFreeObj`
+  immediate free, `Tcl_GetStringFromObj` shimmer). Deliberate divergences from
+  the Zig source, all later chunks: the Zig 32-byte handle/tagged-immediate
+  layout (the Rust port uses the ABI-faithful 24-byte `#[repr(C)]` `Tcl_Obj`
+  instead; codegen optimisations layer on at T1.5/S6) and the deferred-free
+  queue (T1.3). Subsequent Zig commits touching `valtypes/tcl_obj.zig` after
+  `8150eca` are diffed against this baseline in the Outstanding table.
 
 ### Outstanding
 
@@ -536,7 +556,7 @@ _(empty — populated as Zig lands behavioural fixes during the port)_
 |---|---|---|
 | WASM command parity | `make check-wasm-parity` | Track 1 (registry/dispatch/builtins) |
 | Tcl 9 tcltest sweep | `scripts/run_tcl9_tcltest_sweep.py` | Track 1, Tier gates, correctness gold standard |
-| Leak sweep | `scripts/leak_sweep.py` / `make leakcheck` | Track 1 (refcount discipline), T2.1 |
+| Leak sweep | `scripts/leak_sweep.py` / `make leakcheck` (Zig); `make runtime-rust-test` (Rust port, T1.1+) | Track 1 (refcount discipline), T2.1 |
 | Tier LOAD+RUN | per-tier `wasmtime` tests | Tier 0/1/2 |
 | C-API annotation | `make check-c-api-ownership` (`scripts/check_c_api_ownership.py --strict`) | Track 2 — **landed**, in `_prep-pr-checks-noty` |
 | AOT coverage | T3.1 coverage harness | Track 3 |
@@ -549,23 +569,26 @@ compiler/LSP or the Zig runtime.
 
 ## Next-up priority queue
 
-1. **This document** (the first deliverable) — establish + keep current.
-2. **T2.1** — C-API ownership/error contract + un-annotated-export gate.
-   **Contract doc + gate landed** ([`c-api-ownership-contract.md`](c-api-ownership-contract.md),
-   `make check-c-api-ownership`); remaining work is encoding the categories in
-   the `runtime/rust/` impls (folds into T1.1) and extending the gate to the
-   real exports.
-3. **T1.1** — real `TclObj` + refcount core in `runtime/rust/` (records its Zig
-   source baseline for the sync log).
-4. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+1. ✅ **This document** (the first deliverable) — established; kept current.
+2. ✅ **T2.1** — C-API ownership/error contract + un-annotated-export gate.
+   Contract doc + gate landed ([`c-api-ownership-contract.md`](c-api-ownership-contract.md),
+   `make check-c-api-ownership`); the categories are now realised in the
+   `runtime/rust/` obj/interp impls (T1.1). Extending the gate to the real
+   `extern "C"` exports happens as the surface grows.
+3. ✅ **T1.1** — real `TclObj` + refcount core in `runtime/rust/`
+   (`make runtime-rust-test`, zero-residual round-trip); Zig source baseline
+   recorded in the sync log.
+4. **T1.2** — parse/subst port (`tcl_parse.zig` + `tcl_subst.zig`), next Track-1
+   chunk now that the obj/refcount foundation is in place.
+5. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work
    builds on).
-5. **T2.3** (de-risk against Zig first) — production loader, validated on
+6. **T2.3** (de-risk against Zig first) — production loader, validated on
    Tier 0 dltest, separating loader risk from port risk.
-6. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+7. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
    harness (seeds the scoreboard).
-7. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+8. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 
