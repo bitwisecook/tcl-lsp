@@ -4261,6 +4261,27 @@ detectors respectively (mirrors `_RECOVERY_HANDLED_MESSAGES`).  Verified
 against the live Python analyser (`{abc}def` → E204, `"abc"def` → E205,
 `${foo` → E206; well-formed input silent); 1 unit test; full suite green.
 
+**LANDED (strip 3a — the lexer ghost-token engine, 2026-06-05).**  The
+`tcl-lexer` `Lexer` now carries a `ghosts: BTreeMap<u32, u8>` of
+zero-width closing delimiters (offset → byte) and a `with_ghosts`
+builder.  `current_byte` / `current_char` report a ghost at `pos` before
+the real byte, and `parse_command`'s `]` close consumes a ghost
+*zero-width* (removes the entry without advancing `pos`), so an
+unterminated `[foo bar` re-lexes as a terminated command and a swallowed
+following command (`[foo bar\nputs done`) splits into a clean
+`[foo bar]` + `puts done` stream **with every downstream offset intact**
+(no source-shifting).  Char access was already concentrated in
+`current_byte` / `current_char` and a recovery ghost only ever appears as
+the closing `]` the scanner is already looking for, so the change is one
+read-path + one consume site — all 234 existing lexer tests unchanged.
+3 unit tests (zero-width terminate; swallowed-command split with intact
+offsets; empty-ghosts == plain lexing).  **Remaining (strips 3b/3c):**
+the `compute_virtual_insertions` recovery module (reusing the strip-1
+E201 heuristics to derive the ghost offsets) + a
+`segment_commands_with_ghosts`, then routing the analyser body callers
+through `segment_with_recovery` so the at-known-command case emits E201 +
+a clean stream instead of E200.
+
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).
 Absent (all verified with zero `rust/` emitter): **W102** subst injection
