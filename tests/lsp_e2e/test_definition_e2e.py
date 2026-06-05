@@ -82,3 +82,16 @@ class TestVariableDefinition:
         uri = uri_factory()
         lsp_server.open_ready(uri, "puts $unknown\n")
         assert locations(lsp_server.definition(uri, 0, 8)) == []
+
+    def test_namespace_var_definition(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            namespace eval myns {
+                variable nsVar 1
+                puts $nsVar
+            }
+        """)
+        lsp_server.open_ready(uri, src)
+        locs = locations(lsp_server.definition(uri, 2, 10))
+        assert len(locs) >= 1
+        assert locs[0]["range"]["start"]["line"] == 1
