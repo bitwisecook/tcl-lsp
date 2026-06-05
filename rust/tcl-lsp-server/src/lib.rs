@@ -33,6 +33,7 @@ use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSym
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
@@ -1457,16 +1458,41 @@ impl LanguageServer for Backend {
         &self,
         params: GotoImplementationParams,
     ) -> jsonrpc::Result<Option<GotoImplementationResponse>> {
+        // GAP-B3 strip 1: go-to-implementation is the TclOO subclass /
+        // method-override fan-out, not the plain definition site it used
+        // to alias.  Resolve in-document via `core_implementation`.
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
-        if locations.is_empty() {
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let text = doc.text.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_implementation::implementation(&text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("implementation worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
             return Ok(None);
         }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
         Ok(Some(GotoImplementationResponse::Array(locations)))
     }
 

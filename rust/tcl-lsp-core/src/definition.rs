@@ -388,7 +388,7 @@ fn scope_chain_at(
     chain
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+pub(crate) fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
     let start = line_index.position_at(span.start());
     let end = line_index.position_at(span.end());
     LspRange {

@@ -21,6 +21,7 @@ pub mod document_symbols;
 pub mod folding;
 pub mod formatting;
 pub mod hover;
+pub mod implementation;
 pub mod inlay_hints;
 pub mod linked_editing_range;
 pub mod minify;
