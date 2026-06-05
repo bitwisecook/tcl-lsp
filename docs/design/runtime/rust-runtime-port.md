@@ -118,10 +118,12 @@ PR **before** the gate that needs it.
   ownership/error contract first (a gate rejects un-annotated exports); move the
   loader from the Python spike into the runtime/host; add the
   external-command-registration dispatch entry.
-- **Track 3 — AOT-first execution + whole-program link**: make AOT the primary
-  path; extend `wasm_link.py` to link extension objects (static Model A where
-  possible, dynamic Model B otherwise); drive AOT coverage up the staircase;
-  add the new metaprogramming-heuristics stage (S7).
+- **Track 3 — AOT-first execution + whole-program link**: factor per-command
+  lowering behind a **backend-agnostic emit protocol/trait + command-emission
+  registry** (one source of truth targeting tclvm / wasm / llvm-ir); make AOT
+  the primary path; extend `wasm_link.py` to link extension objects (static
+  Model A where possible, dynamic Model B otherwise); drive AOT coverage up the
+  staircase; add the new metaprogramming-heuristics stage (S7).
 
 **De-risking (allowed).** The ABI is language-independent
 (`c-extension-abi.md` §9), so the dynamic loader + a tier MAY be validated
@@ -244,6 +246,92 @@ stubs-introspection pattern (`pkgooa.c`). Status: **not-started.**
 
 Make the AOT compiler the primary path and link the whole program (runtime +
 compiled user code + C extensions) into one artifact.
+
+### T3.0 — Codegen command registry + backend-agnostic emit protocol — **foundational**
+
+AOT codegen has to know **how to emit each Tcl command** into the target
+instruction stream, and today that per-command knowledge is split across
+backend-specific code (`core/compiler/codegen/bytecoded/` for the tclvm
+bytecode VM, `core/compiler/codegen/wasm/` for WASM, each with its own
+`_emitter` / `_imports` / `_statements`). The two emitters re-derive the same
+command semantics independently, which is exactly the kind of drift the parity
+gate exists to catch — but parity is a *cross-check*, not a *shared source*.
+
+The port needs a **command-emission registry** distinct from the existing
+command **spec** registry (`core/commands/registry/tcl/`, which is dialect/lint
+metadata): a registry keyed by command (and sub-command) whose entries describe
+how to lower that command, behind a **single backend-agnostic emit
+protocol/trait** so one registration can target **any** backend:
+
+- **tclvm** — the existing bytecode VM (`codegen/bytecoded/` → `opcodes.py`).
+- **wasm** — the AOT WASM emitter (`codegen/wasm/`), the north-star path.
+- **llvm ir** — a future native/JIT backend.
+
+Shape (Rust trait, mirrored by the Python transitional surface):
+
+```
+trait CommandEmitter {                  // one impl per backend
+    fn emit_call(&mut self, cmd: &ResolvedCommand, args: &[IrValue]) -> EmitResult;
+    fn emit_builtin(&mut self, op: BuiltinOp, ...) -> EmitResult;   // set/incr/expr/list/...
+    fn emit_dispatch_fallback(&mut self, name: &IrValue, argv: &[IrValue]) -> EmitResult;
+}
+// CommandEmitRegistry: command -> lowering rule, parameterised over the backend.
+```
+
+Each command registers its lowering **once**, against the trait; the WASM,
+tclvm, and (future) LLVM backends are interchangeable implementations of the
+trait. This is the codegen-side analogue of the runtime's "one command table":
+the AOT compiler resolves a command to a lowering rule the same way the runtime
+resolves it to a `CmdEntry`, and an extension-registered command (no static
+lowering) falls through to `emit_dispatch_fallback` → the runtime command table
+(§4.6 in `c-extension-abi.md`), which is also where the metaprogramming-S7
+fallbacks land.
+
+**Tie it to the editor command registry (single source of truth).** The
+emit-lowering rule must be **bound to the same command registry the editor
+uses** (`core/commands/registry/tcl/` — the spec/lint/hover/completion data),
+so the set of commands the editor knows about and the set the compiler can emit
+**cannot drift**. Preferred shape: the lowering rule *lives in* (or is
+registered against) that registry as one more facet of a command's entry —
+alongside its signature/dialect/lint metadata — rather than in a parallel table
+that has to be kept in sync. This makes the existing `make check-wasm-parity`
+cross-check a *consequence* of one source of truth rather than the thing holding
+two tables together.
+
+**Not every command has an emit impl yet — that's an explicit, well-formed
+error.** A command can exist in the registry (so the editor lints/completes it)
+without yet having a lowering rule for a given backend. Compiling a script that
+*uses* such a command must raise a **clear compile-time error/exception**
+(e.g. `NoEmitImpl{ command, backend }`) naming the command and backend — never
+a silent miscompile, a panic, or a fallthrough that pretends success. This is
+the codegen analogue of the runtime's trapping stub
+(`dispatch/tcl_stub_fallback.zig`): a registry entry with no backing emitter is
+a known-missing capability, surfaced loudly, and is distinct from an
+*extension-/runtime-registered* command (which legitimately has no static
+lowering and instead routes through `emit_dispatch_fallback` → the runtime
+command table). The two must not be conflated: "no emitter for a builtin we
+should support" is an error to fix; "no static lowering for a dynamically
+registered command" is the designed dispatch path.
+
+- Status: **not-started.** Today's per-backend emitters are the starting point;
+  T3.0 factors their shared command knowledge behind the trait and binds it to
+  the editor command registry.
+- Why it belongs in this effort: AOT-first means the WASM emitter is the primary
+  path, and linking C extensions adds a *third* class of command (runtime-/
+  extension-registered) the emitter must dispatch uniformly. A backend-agnostic
+  registry keeps tclvm (the oracle), wasm (the target), and a future llvm-ir
+  backend emitting from **one** source of per-command lowering truth instead of
+  N drifting copies guarded only by the parity cross-check — and binding it to
+  the editor registry guarantees editor/compiler alignment by construction.
+- Gate: WASM and tclvm backends emit from the shared registry with
+  `make check-wasm-parity` green and no tcltest regression; the trait has ≥2
+  live backend impls (wasm + tclvm) so the abstraction is proven, not
+  speculative, before an llvm-ir impl is attempted; compiling a script that uses
+  a command with no lowering rule for the active backend raises the
+  `NoEmitImpl{ command, backend }` error (covered by a test), not a silent
+  miscompile.
+
+### Remaining Track-3 chunks
 
 - **T3.1 — extension linking in `wasm_link.py`.** Extend
   `core/compiler/codegen/wasm_link.py` to also link extension objects — static
@@ -429,11 +517,15 @@ compiler/LSP or the Zig runtime.
    (largest remaining *design* gap; unblocks leak-correct extensions).
 3. **T1.1** — real `TclObj` + refcount core in `runtime/rust/` (records its Zig
    source baseline for the sync log).
-4. **T2.3** (de-risk against Zig first) — production loader, validated on
+4. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+   bound to the editor command registry; `NoEmitImpl` error for unimplemented
+   commands (the codegen-side single-source-of-truth that all later AOT work
+   builds on).
+5. **T2.3** (de-risk against Zig first) — production loader, validated on
    Tier 0 dltest, separating loader risk from port risk.
-5. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+6. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
    harness (seeds the scoreboard).
-6. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+7. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 
