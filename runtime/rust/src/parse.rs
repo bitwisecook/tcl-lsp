@@ -421,24 +421,25 @@ pub fn parse_command(src: &[u8], pos: usize) -> Command<'_> {
             break;
         }
 
-        // `{*}` argument-expansion prefix (Tcl 8.5+): strip it, set the flag.
+        // `{*}` argument-expansion prefix (Tcl 8.5+). It is a prefix **only**
+        // when the three chars `{*}` are *immediately* followed (no space) by a
+        // non-blank, non-terminator character (`parser-and-aot-interpret-boundary.md`).
+        // Otherwise `{*}` is the ordinary braced word whose value is `*`
+        // (standalone, or `{*} x` with a space, or `{*}` at end of command).
         let mut expand = false;
         if src[p] == b'{' && p + 2 < len && src[p + 1] == b'*' && src[p + 2] == b'}' {
-            expand = true;
-            p += 3;
-            p = skip_space(src, p);
-            if p >= len || src[p] == b'\n' || src[p] == b';' || src[p] == b'\r' {
-                // bare `{*}` with nothing following → empty expansion word
-                words.push(Word {
-                    kind: WordKind::Bare,
-                    expand: true,
-                    body: WordBody::Literal(&src[p..p]),
-                });
-                if p < len {
-                    p += 1;
-                }
-                break;
+            let after = p + 3;
+            let immediately_followed = after < len
+                && !matches!(
+                    src[after],
+                    b' ' | b'\t' | b'\n' | b'\r' | b';' | 0x0b | 0x0c
+                );
+            if immediately_followed {
+                expand = true;
+                p += 3; // strip the prefix; the following word is parsed below
             }
+            // else: leave `expand` false and `p` unchanged — `find_braced`
+            // below parses `{*}` as a normal braced word (value `*`).
         }
 
         let word = if src[p] == b'{' {
@@ -689,6 +690,30 @@ mod tests {
         );
         assert!(!c.words[2].expand);
         assert_eq!(lit(&c.words[2]), b"bar");
+    }
+
+    #[test]
+    fn expand_only_when_immediately_followed() {
+        // `{*}` is a prefix only when immediately (no space) followed by a
+        // non-blank, non-terminator char. Otherwise it is the literal word `*`.
+        // standalone `{*}` → literal braced word "*", not an empty expansion
+        let c = parse_command(b"foo {*}", 0);
+        assert_eq!(c.words.len(), 2);
+        assert!(!c.words[1].expand);
+        assert_eq!(c.words[1].kind, WordKind::Braced);
+        assert_eq!(lit(&c.words[1]), b"*");
+        // `{*} x` (space after) → literal `{*}` then `x`, NOT expansion
+        let c = parse_command(b"foo {*} x", 0);
+        assert_eq!(c.words.len(), 3);
+        assert!(!c.words[1].expand);
+        assert_eq!(lit(&c.words[1]), b"*");
+        assert!(!c.words[2].expand);
+        assert_eq!(lit(&c.words[2]), b"x");
+        // `{*}{a b}` → expansion of the braced word `a b`
+        let c = parse_command(b"foo {*}{a b}", 0);
+        assert_eq!(c.words.len(), 2);
+        assert!(c.words[1].expand);
+        assert_eq!(lit(&c.words[1]), b"a b");
     }
 
     #[test]

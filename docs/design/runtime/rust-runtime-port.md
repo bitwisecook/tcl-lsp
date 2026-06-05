@@ -29,6 +29,15 @@ time; the Rust-ported runtime (`runtime/rust/`) is the **support library +
 interpreter fallback** for what can't be proven AOT-safe; C Tcl extensions are
 linked in; and everything links into **one WASM+WASI artifact**.
 
+**The deploy goal, concretely:** take the **runtime `.wasm`** + **any C Tcl
+extension** (`.wasm` from `zig cc`) + the **compiler-output `.wasm`** for the
+user's packages and files (AOT-compiled), and **link them into a single
+runnable `.wasm`** the user executes under `wasmtime` (or any WASI host) — a
+self-contained Tcl program. This is the whole-program static link (Model A,
+`c-extension-abi.md` §5.1); `package require` at runtime is the dynamic Model B
+loader. Track 3's `wasm_link.py` extension linking (T3.1) is the build step that
+produces it.
+
 The end state, stated as testable claims:
 
 1. A program not heavily reliant on metaprogramming (no `eval`/`uplevel`/
@@ -247,12 +256,23 @@ and namespace command/var resolution is the same problem one level up.
 > (one canonical grammar; the compile-vs-interpret disposition table; the
 > compiled ≡ interpreted identity contract; `source`/`package` behind a VFS).
 
-- **One canonical parser → one component model → one evaluator contract** that
-  the compiler lowers from AND the runtime walks. → **done**: `parse.rs` is the
-  single scanner (word splitting, brace/quote/bracket nesting, backslash,
-  `#`-comments-in-command-position, `;`/newline, line continuation, `{*}`),
-  shared by `eval` + `subst` + list parsing. The cross-cutting "parse once" rule
-  is satisfied (one scanner, many clients).
+- **One canonical scanner → two clients (LSP CST + runtime eval tree).**
+  "Parse once" means **one lexer**, not one lexer per consumer. The workspace
+  already has the canonical Rust scanner — **`rust/tcl-lexer`** (lexer +
+  `expr_lexer` + `substitution` + spans; `TokenType` = `Esc`/`Str`/`Cmd`/`Var`/
+  `Sep`/`Eol`/`Comment`/`Expand`, i.e. exactly the runtime's needs incl. `{*}`
+  and comments) — used by the LSP/compiler (which builds a green/red CST over
+  it, `tcl-compiler::parsing`). The runtime's `parse.rs` currently
+  **re-implements** that scanning, which is the contract's "N scanners → N
+  drifts" — and it already cost two real bugs (the `{*}`-prefix and braced
+  `\<newline>` hard edges). **Decision: the runtime converges onto `tcl-lexer`**
+  (verified wasm-buildable — `thiserror`-only) and lowers its tokens into the
+  eval `WordPart`/`Command` tree, dropping `parse.rs`'s scanners + `bs.rs`'s
+  backslash (which `substitution::backslash_subst` already provides). The hard
+  edges then come correct for free. `parse.rs`/`bs.rs` are **interim**; see
+  [Reuse the compiler/analyser suite](#reuse-the-compileranalyser-suite-survey-before-building).
+  (`eval` + `subst` + list parsing already share the one runtime scanner today;
+  the convergence makes that scanner the *same* one the LSP uses.)
 - **"Fall back to interp" is a defined boundary** that `eval`/`uplevel`/`subst`/
   `source`/`apply`/dynamic-name all funnel through, with **source spans threaded
   from the first byte** so `info frame`/line numbers/`errorInfo` survive across
@@ -312,6 +332,38 @@ and namespace command/var resolution is the same problem one level up.
   `binary` operate on the UTF-8 bytes (with the EXP-STRING ASCII fast path for
   char indexing). Non-UTF-8 codecs are an *edge translation* (deferred-WASI), not
   an internal-rep concern.
+
+## Reuse the compiler/analyser suite (survey before building)
+
+**Tenet: before building any subsystem in the runtime, survey the existing
+Rust compiler/analyser suite (`rust/`) for a component to reuse.** Much of what
+the runtime needs (lexing, expr parsing, command metadata, name resolution,
+shimmer rules) is already implemented, tested, and LSP-precise there.
+Reimplementing it in the runtime is the contract's "N implementations → N
+drifts" — the exact failure mode behind the parser bugs found above. The aim
+(per "the AOT compiler is ours to restructure, within the LSP guardrails") is
+**clean shared crates consumed by both the LSP/compiler and the runtime.**
+
+Survey of reuse candidates (`rust/` workspace) and their runtime use:
+
+| Component | Crate / module | Runtime use | Shared-crate status |
+|---|---|---|---|
+| Lexer + spans + `{*}`/comments | `tcl-lexer` (lexer, `substitution`) | the canonical scanner (replaces `parse.rs`/`bs.rs`) | **already a crate**, wasm-buildable (`thiserror`-only) — adopt now |
+| Expr lexer/parser/AST | `tcl-lexer::expr_lexer`, `tcl-compiler::{expr_parser,expr_ast}` | `expr` parsing (meta-system 3) — do **not** reimplement the grammar | extract a shared `tcl-expr` crate (expr_lexer is already in tcl-lexer) |
+| Expr const-eval | `tcl-compiler::tcl_expr_eval` | candidate for the `expr` evaluator over the numeric tower | with `tcl-expr` |
+| Command metadata (spec/arity/forms/arg roles/const-fold/side-effects) | `tcl-registry` | the command table's metadata + the **T3.0 emit registry** (one source of truth) | **already a crate** — the runtime command table binds to it |
+| Name/var resolution | `tcl-compiler::{var_resolve,var_scoping,var_refs,var_observability}` | the variable-frame resolution algorithm (meta-system 1) | extract a shared `tcl-resolve` (or reuse the algorithm) |
+| Shimmer rules, segmenter, naming, types, value-shapes | `tcl-compiler::{shimmer,segmenter,naming,types,value_shapes,subst_nocommands}` | shimmer contract, command segmentation, naming/type model | reuse per-module as needed |
+
+Clean-boundary plan: keep the **shared frontend/semantic crates**
+(`tcl-lexer`, `tcl-registry` today; extract `tcl-expr`, `tcl-resolve`, and a
+`tcl-parser`/CST crate from `tcl-compiler` as the runtime needs them) depending
+only on light deps so they build for `wasm32`; both the LSP/compiler **and**
+`runtime/rust` path-depend on them. `tcl-compiler` proper (IR/passes/codegen,
+host-side) stays out of the runtime. Restructuring to extract these crates is
+allowed under the [LSP guardrails](#the-aot-compiler-is-ours-to-restructure-within-the-lsp-guardrails)
+(no loss of LSP precision/perf). Each runtime chunk's first step is "what in
+`rust/` already does this?"
 
 ## Reference implementations (use both freely)
 
