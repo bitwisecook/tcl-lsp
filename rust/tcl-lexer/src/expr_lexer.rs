@@ -184,17 +184,33 @@ impl<'s> Inner<'s> {
         }
     }
 
+    /// True when a backslash-newline line continuation (`\<LF>`)
+    /// starts at byte `i`.  Tcl 9 collapses it to a single space, so
+    /// the expr lexer treats it as whitespace — otherwise a
+    /// `\`-continued multi-line braced condition (common in tcltest:
+    /// `if {… \<NL><tabs> || …}`) would fall through, set `unknown`,
+    /// and degrade the whole expression to `ExprNode::Raw`.  Mirrors
+    /// the Python `expr_lexer.py` whitespace scan (LF only — a `\`
+    /// before `\r\n` is not a continuation).
+    fn is_backslash_nl(&self, i: usize) -> bool {
+        self.b.get(i) == Some(&b'\\') && self.b.get(i + 1) == Some(&b'\n')
+    }
+
     fn run(&mut self) -> Vec<ExprToken> {
         let irops = irules_ops();
         let mut out = Vec::new();
         while self.i < self.b.len() {
             let ch = self.b[self.i];
-            if matches!(ch, b' ' | b'\t' | b'\n' | b'\r') {
+            if matches!(ch, b' ' | b'\t' | b'\n' | b'\r') || self.is_backslash_nl(self.i) {
                 let start = self.i;
-                while self.i < self.b.len()
-                    && matches!(self.b[self.i], b' ' | b'\t' | b'\n' | b'\r')
-                {
-                    self.i += 1;
+                while self.i < self.b.len() {
+                    if matches!(self.b[self.i], b' ' | b'\t' | b'\n' | b'\r') {
+                        self.i += 1;
+                    } else if self.is_backslash_nl(self.i) {
+                        self.i += 2;
+                    } else {
+                        break;
+                    }
                 }
                 out.push(self.tok(ExprTokenType::Whitespace, start));
             } else if ch.is_ascii_digit()
@@ -457,6 +473,32 @@ mod tests {
     #[test]
     fn integer() {
         assert_eq!(texts("42"), vec!["42"]);
+    }
+
+    #[test]
+    fn backslash_newline_is_whitespace_continuation() {
+        // GAP-B7: `1 \<LF>    + 2` — the backslash-newline is a Tcl 9
+        // line continuation and must lex as whitespace, not an Unknown
+        // token, so the expression stays structured.
+        let src = "1 \\\n    + 2";
+        assert_eq!(
+            types(src),
+            vec![
+                ExprTokenType::Number,
+                ExprTokenType::Operator,
+                ExprTokenType::Number
+            ],
+        );
+        let (_toks, has_unknown) = tokenise_expr_checked(src, None);
+        assert!(!has_unknown, "backslash-newline should not be unknown");
+    }
+
+    #[test]
+    fn lone_backslash_without_newline_stays_unknown() {
+        // A bare `\` not before a newline is still not valid expr
+        // syntax — only the continuation form is whitespace.
+        let (_toks, has_unknown) = tokenise_expr_checked("1 \\ 2", None);
+        assert!(has_unknown);
     }
 
     #[test]

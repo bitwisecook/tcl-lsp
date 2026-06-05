@@ -4537,6 +4537,17 @@ but a real fidelity loss on a common idiom.  **Fix:** add the
 documented** (the doc covers backslash-newline only for folding ranges
 and the CST builder, never the expr sub-lexer).
 
+**LANDED (2026-06-05).**  `tcl-lexer/src/expr_lexer.rs`'s `Inner::run`
+whitespace branch now also enters on — and its inner scan consumes — a
+`\<LF>` line continuation (new `is_backslash_nl` helper, 2-byte advance),
+mirroring the Python `expr_lexer.py` scan (LF only; a `\` before `\r\n` is
+not a continuation).  A `\`-continued multi-line braced condition lexes as
+whitespace instead of an Unknown token, so `parse_expr` keeps the
+structured AST (type inference / const-fold / expr W-codes) rather than
+degrading to `ExprNode::Raw`.  2 unit tests (continuation → structured
+`Number Operator Number`, no unknown; a lone `\` not before LF stays
+unknown).
+
 ### C. Integration gaps (Rust code exists, not surfaced by the server)
 
 **GAP-C1 — the native server publishes ONLY base-analyser diagnostics.**
