@@ -47,10 +47,20 @@ class TestWorkspaceSymbols:
         assert len(matched) == 1
         assert matched[0]["kind"] == FUNCTION
 
+    def test_empty_query_returns_all(self, lsp_server, uri_factory):
+        # An empty query returns every indexed symbol; assert our uniquely-named
+        # procs are present (the shared session holds other tests' docs too).
+        a = uri_factory()
+        b = uri_factory()
+        lsp_server.open_ready(a, "proc foo_empty_q_aaa {} { return }\n")
+        lsp_server.open_ready(b, "proc bar_empty_q_bbb {} { return }\n")
+        names = {s.get("name") for s in (lsp_server.workspace_symbols("") or [])}
+        assert {"foo_empty_q_aaa", "bar_empty_q_bbb"} <= names
+
     def test_partial_match(self, lsp_server, uri_factory):
         uri = uri_factory()
         lsp_server.open_ready(uri, "proc calculate_total_zzz {} { return }\n")
-        result = lsp_server.workspace_symbols("calculate_total_zzz") or []
+        result = lsp_server.workspace_symbols("calc") or []
         assert any(s.get("name") == "calculate_total_zzz" for s in result)
 
     def test_no_match(self, lsp_server, uri_factory):
