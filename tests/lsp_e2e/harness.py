@@ -336,6 +336,11 @@ class LspServerClient:
             "textDocument/semanticTokens/full", {"textDocument": {"uri": uri}}, timeout=timeout
         )
 
+    def prepare_rename(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/prepareRename", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
     def rename(
         self, uri: str, line: int, char: int, new_name: str, *, timeout: float = 30.0
     ) -> Any:

@@ -1,8 +1,10 @@
 """Rename, end-to-end against the packaged server.
 
-Ported from ``tests/test_rename.py``.  An invalid or unsafe rename comes back
-as a ``null`` WorkspaceEdit on the live wire (the ``on_rename`` handler returns
-``None``), so the safety cases assert the result carries no edits.
+Full-parity port of ``tests/test_rename.py``.  An invalid or unsafe rename
+comes back as a ``null`` WorkspaceEdit on the live wire (the ``on_rename``
+handler returns ``None``), so the safety cases assert the result carries no
+edits.  ``prepareRename`` is registered server-side and returns a
+``{range, placeholder}`` (or ``null`` to reject).
 """
 
 from __future__ import annotations
@@ -15,6 +17,39 @@ from ._lsp_helpers import rename_edits
 def _texts(lsp_server, uri, line, char, new_name):
     edits = rename_edits(lsp_server.rename(uri, line, char, new_name))
     return {e["newText"] for e in edits.get(uri, [])}
+
+
+class TestPrepareRename:
+    def test_proc_name(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, 'proc greet {name} { puts "Hello $name" }\ngreet World\n')
+        result = lsp_server.prepare_rename(uri, 0, 6)
+        assert result is not None
+        assert result["placeholder"] == "greet"
+
+    def test_variable(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x 42\nputs $x\n")
+        result = lsp_server.prepare_rename(uri, 1, 7)
+        assert result is not None
+        assert result["placeholder"] == "x"
+
+    def test_variable_from_definition_site(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x 42\nputs $x\n")
+        result = lsp_server.prepare_rename(uri, 0, 4)
+        assert result is not None
+        assert result["placeholder"] == "x"
+
+    def test_builtin_rejected(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "puts hello\n")
+        assert not lsp_server.prepare_rename(uri, 0, 1)
+
+    def test_unknown_rejected(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "something_unknown\n")
+        assert not lsp_server.prepare_rename(uri, 0, 5)
 
 
 class TestRenameProc:
@@ -58,12 +93,33 @@ class TestRenameVariable:
         assert "newvar" in texts
         assert "$newvar" in texts
 
+    def test_rename_var_from_definition_site(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x 42\nputs $x\n")
+        texts = _texts(lsp_server, uri, 0, 4, "newvar")
+        assert "newvar" in texts
+        assert "$newvar" in texts
+
     def test_rename_var_preserves_braced_form(self, lsp_server, uri_factory):
         uri = uri_factory()
         lsp_server.open_ready(uri, "set x 1\nputs ${x}\n")
         texts = _texts(lsp_server, uri, 0, 4, "newvar")
         assert "newvar" in texts
         assert "${newvar}" in texts
+
+    def test_rename_qualified_var_preserves_namespace(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set myns::count 0\nputs $myns::count\n")
+        texts = _texts(lsp_server, uri, 0, 10, "total")
+        assert "myns::total" in texts
+        assert "$myns::total" in texts
+
+    def test_rename_qualified_var_braced_form(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set myns::count 0\nputs ${myns::count}\n")
+        texts = _texts(lsp_server, uri, 0, 10, "total")
+        assert "myns::total" in texts
+        assert "${myns::total}" in texts
 
     def test_rename_preserves_array_index(self, lsp_server, uri_factory):
         uri = uri_factory()
@@ -113,3 +169,15 @@ class TestRenameSafety:
         uri = uri_factory()
         lsp_server.open_ready(uri, 'proc greet {name} { puts "Hello $name" }\ngreet World\n')
         assert rename_edits(lsp_server.rename(uri, 0, 6, "puts")) == {}
+
+    def test_rejects_var_collision_in_same_scope(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc demo {} {
+                set x 1
+                set y 2
+                puts $x
+            }
+        """)
+        lsp_server.open_ready(uri, src)
+        assert rename_edits(lsp_server.rename(uri, 3, 10, "y")) == {}
