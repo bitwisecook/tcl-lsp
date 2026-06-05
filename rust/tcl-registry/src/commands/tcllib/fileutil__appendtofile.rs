@@ -1,15 +1,32 @@
 //! `fileutil::appendToFile` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::FileIo,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fileutil::appendToFile ?options? file data",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::appendToFile",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
-        hover: Some(HoverSnippet::brief(
-            "Append data to a file.",
-            &["fileutil::appendToFile ?options? file data"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Append data to a file.",
+            synopsis: &["fileutil::appendToFile ?options? file data"],
+            snippet: "",
+            source: "tcllib fileutil package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

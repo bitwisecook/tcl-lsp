@@ -1,5 +1,10 @@
 //! `tmsh::get_field_names` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::get_field_names <object>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::get_field_names",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::get_field_names <object>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

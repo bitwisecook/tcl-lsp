@@ -1,5 +1,10 @@
 //! `create_port` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "create_port port_name ?-direction direction?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_port",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["create_port port_name ?-direction direction?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

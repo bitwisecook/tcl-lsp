@@ -1,5 +1,10 @@
 //! `filter_collection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "filter_collection collection filter_expr",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "filter_collection",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["filter_collection collection filter_expr"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

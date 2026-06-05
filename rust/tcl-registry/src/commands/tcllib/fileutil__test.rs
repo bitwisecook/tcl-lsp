@@ -1,15 +1,25 @@
 //! `fileutil::test` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fileutil::test path codes ?msgvar? ?label?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::test",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(2, 4),
-        hover: Some(HoverSnippet::brief(
-            "Test file properties.",
-            &["fileutil::test path codes ?msgvar? ?label?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test file properties.",
+            synopsis: &["fileutil::test path codes ?msgvar? ?label?"],
+            snippet: "",
+            source: "tcllib fileutil package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        arg_roles: &[(2, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `append_to_collection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "append_to_collection collection ?-unique? objects",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append_to_collection",
@@ -16,6 +21,8 @@ pub fn spec() -> CommandSpec {
             &["append_to_collection collection ?-unique? objects"],
             "F5",
         )),
+        forms: FORMS,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `create_timing_netlist` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "create_timing_netlist ?-model model? ?-post_map | -post_fit?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_timing_netlist",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["create_timing_netlist ?-model model? ?-post_map | -post_fit?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `sleep` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "sleep seconds",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sleep",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["sleep seconds"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

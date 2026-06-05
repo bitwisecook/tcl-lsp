@@ -1,5 +1,10 @@
 //! `change` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "change signal_name value",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "change",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["change signal_name value"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

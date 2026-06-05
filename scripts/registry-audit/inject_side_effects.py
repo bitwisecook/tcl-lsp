@@ -19,11 +19,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-GROUPS = {
-    "irules": ("irules", "irules_command_specs"),
-    "tcllib": ("tcllib", "tcllib_command_specs"),
-    "tk": ("tk", "tk_command_specs"),
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _groups import (  # noqa: E402
+    files_by_name,
+    has_field,
+    insert_const,
+    load_specs,
+    rust_dir,
+    set_spec_field,
+)
 
 # Python enum-name (UPPER_SNAKE) -> Rust variant. Generic rule is
 # UPPER_SNAKE -> PascalCase; `ISTATS` is the only irregular case.
@@ -43,41 +47,25 @@ def pascal(upper_snake: str) -> str:
     return "".join(p.capitalize() for p in upper_snake.split("_"))
 
 
-def side_effect_literal(se, indent: str) -> str:
-    inner = indent + "    "
+def side_effect_literal(se) -> str:
     target = pascal(se.target.name)
     side = _SIDE[se.connection_side.name]
     return (
-        f"{inner}SideEffect {{\n"
-        f"{inner}    target: SideEffectTarget::{target},\n"
-        f"{inner}    reads: {str(bool(se.reads)).lower()},\n"
-        f"{inner}    writes: {str(bool(se.writes)).lower()},\n"
-        f"{inner}    connection_side: ConnectionSide::{side},\n"
-        f"{inner}}},"
+        "    SideEffect {\n"
+        f"        target: SideEffectTarget::{target},\n"
+        f"        reads: {str(bool(se.reads)).lower()},\n"
+        f"        writes: {str(bool(se.writes)).lower()},\n"
+        f"        connection_side: ConnectionSide::{side},\n"
+        "    },"
     )
 
 
 def main() -> None:
     group = sys.argv[1] if len(sys.argv) > 1 else "irules"
-    mod_name, factory = GROUPS[group]
-    mod = __import__(f"core.commands.registry.{mod_name}", fromlist=[factory])
-    specs = getattr(mod, factory)()
-    rust_dir = _REPO_ROOT / "rust/tcl-registry/src/commands" / group
-
-    # Anchor on the command-level name (the first `name:` *after*
-    # `CommandSpec {`), so a `const SUBCOMMANDS` whose subcommand
-    # `name:` fields precede `spec()` doesn't shadow the command name.
-    name_re = re.compile(r'CommandSpec\s*\{\s*name:\s*"((?:[^"\\]|\\.)*)"')
-    by_name: dict[str, Path] = {}
-    for p in rust_dir.glob("*.rs"):
-        if p.name == "mod.rs":
-            continue
-        mm = name_re.search(p.read_text())
-        if mm:
-            by_name[mm.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
+    by_name = files_by_name(rust_dir(_REPO_ROOT, group))
 
     count = 0
-    for spec in specs:
+    for spec in load_specs(group):
         hints = getattr(spec, "side_effect_hints", None)
         if not hints:
             continue
@@ -85,15 +73,13 @@ def main() -> None:
         if path is None:
             continue
         text = path.read_text()
-        if re.search(r"^\s*side_effects:", text, re.M):
+        if has_field(text, "side_effects"):
             continue
-        m = re.search(r"^(\s*)\.\.CommandSpec::DEFAULT", text, re.M)
-        if not m:
+        body = "\n".join(side_effect_literal(se) for se in hints)
+        nt = insert_const(text, "SIDE_EFFECTS", "&[SideEffect]", body)
+        if nt is None:
             continue
-        indent = m.group(1)
-        body = "\n".join(side_effect_literal(se, indent) for se in hints)
-        block = f"side_effects: &[\n{body}\n{indent}],"
-        text = text[: m.start()] + f"{indent}{block}\n" + text[m.start():]
+        text = set_spec_field(nt, "side_effects: SIDE_EFFECTS,")
         path.write_text(text)
         count += 1
     print(f"{group}: side_effects -> {count} files")

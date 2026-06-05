@@ -25,7 +25,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-GROUPS = {"irules": ("irules", "irules_command_specs")}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _groups import (  # noqa: E402
+    files_by_name,
+    has_field,
+    insert_const,
+    load_specs,
+    rust_dir,
+    set_spec_field,
+)
 
 _FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
 
@@ -38,18 +46,18 @@ def rust_str(s: str) -> str:
     )
 
 
-def form_literal(form, indent: str) -> str:
+def form_literal(form) -> str:
     kind = _FORMKIND.get(form.kind.name, "Default")
     return (
-        f"{indent}    FormSpec {{ kind: FormKind::{kind}, "
+        f"    FormSpec {{ kind: FormKind::{kind}, "
         f"synopsis: {rust_str(form.synopsis or '')} }},"
     )
 
 
-def option_literal(opt, indent: str) -> str:
+def option_literal(opt) -> str:
     detail = getattr(opt, "detail", "") or ""
     return (
-        f"{indent}    OptionSpec {{ name: {rust_str(opt.name)}, "
+        f"    OptionSpec {{ name: {rust_str(opt.name)}, "
         f"takes_value: {str(bool(opt.takes_value)).lower()}, "
         f"value_hint: {rust_str(getattr(opt, 'value_hint', '') or '')}, "
         f"detail: {rust_str(detail)}, dialects: None }},"
@@ -70,22 +78,10 @@ def collect_options(forms):
 
 def main() -> None:
     group = sys.argv[1] if len(sys.argv) > 1 else "irules"
-    mod_name, factory = GROUPS[group]
-    mod = __import__(f"core.commands.registry.{mod_name}", fromlist=[factory])
-    specs = getattr(mod, factory)()
-    rust_dir = _REPO_ROOT / "rust/tcl-registry/src/commands" / group
-
-    name_re = re.compile(r'^\s*name:\s*"((?:[^"\\]|\\.)*)"', re.M)
-    by_name: dict[str, Path] = {}
-    for p in rust_dir.glob("*.rs"):
-        if p.name == "mod.rs":
-            continue
-        mm = name_re.search(p.read_text())
-        if mm:
-            by_name[mm.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
+    by_name = files_by_name(rust_dir(_REPO_ROOT, group))
 
     f_count = o_count = 0
-    for spec in specs:
+    for spec in load_specs(group):
         forms = spec.forms or ()
         if not forms:
             continue
@@ -93,25 +89,19 @@ def main() -> None:
         if path is None:
             continue
         text = path.read_text()
-        m = re.search(r"^(\s*)\.\.CommandSpec::DEFAULT", text, re.M)
-        if not m:
-            continue
-        indent = m.group(1)
-        has_field = lambda name: re.search(r"^\s*" + name + r":", text, re.M) is not None
-        blocks: list[str] = []
-        if not has_field("forms"):
-            body = "\n".join(form_literal(f, indent) for f in forms)
-            blocks.append(f"forms: &[\n{body}\n{indent}],")
-            f_count += 1
+        if not has_field(text, "forms"):
+            body = "\n".join(form_literal(f) for f in forms)
+            nt = insert_const(text, "FORMS", "&[FormSpec]", body)
+            if nt:
+                text = set_spec_field(nt, "forms: FORMS,")
+                f_count += 1
         opts = collect_options(forms)
-        if opts and not has_field("options"):
-            body = "\n".join(option_literal(o, indent) for o in opts)
-            blocks.append(f"options: &[\n{body}\n{indent}],")
-            o_count += 1
-        if not blocks:
-            continue
-        inject = "".join(f"{indent}{b}\n" for b in blocks)
-        text = text[: m.start()] + inject + text[m.start():]
+        if opts and not has_field(text, "options"):
+            body = "\n".join(option_literal(o) for o in opts)
+            nt = insert_const(text, "OPTIONS", "&[OptionSpec]", body)
+            if nt:
+                text = set_spec_field(nt, "options: OPTIONS,")
+                o_count += 1
         path.write_text(text)
     print(f"{group}: forms -> {f_count} files, options -> {o_count} files")
 

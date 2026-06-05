@@ -20,9 +20,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.commands.registry.irules import irules_command_specs  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _groups import load_specs, rust_dir  # noqa: E402
 
-RUST_DIR = _REPO_ROOT / "rust/tcl-registry/src/commands/irules"
 ANY = sys.maxsize
 
 
@@ -72,9 +72,10 @@ def subcommand_literal(sub) -> str:
 
 
 def main() -> None:
-    name_re = re.compile(r'^\s*name:\s*"((?:[^"\\]|\\.)*)"', re.M)
+    group = sys.argv[1] if len(sys.argv) > 1 else "irules"
+    name_re = re.compile(r'CommandSpec\s*\{\s*name:\s*"((?:[^"\\]|\\.)*)"')
     by_name: dict[str, Path] = {}
-    for p in RUST_DIR.glob("*.rs"):
+    for p in rust_dir(_REPO_ROOT, group).glob("*.rs"):
         if p.name == "mod.rs":
             continue
         mm = name_re.search(p.read_text())
@@ -82,7 +83,7 @@ def main() -> None:
             by_name[mm.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
 
     count = 0
-    for spec in irules_command_specs():
+    for spec in load_specs(group):
         subs = spec.subcommands
         if not subs:
             continue
@@ -95,7 +96,7 @@ def main() -> None:
         # Build the const, preserving Python insertion order.
         body = "\n".join(subcommand_literal(s) for s in subs.values())
         const_block = (
-            "\n/// iRules subcommands ported from the Python source of truth.\n"
+            "\n/// Subcommands ported from the Python source of truth.\n"
             "const SUBCOMMANDS: &[SubCommand] = &[\n" + body + "\n];\n"
         )
         # Insert the const after the `use crate::prelude::*;` line.

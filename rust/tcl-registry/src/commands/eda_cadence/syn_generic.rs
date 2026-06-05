@@ -1,5 +1,10 @@
 //! `syn_generic` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "syn_generic ?-effort effort?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "syn_generic",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["syn_generic ?-effort effort?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

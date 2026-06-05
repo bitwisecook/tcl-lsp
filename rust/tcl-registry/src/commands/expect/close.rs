@@ -1,5 +1,27 @@
 //! `close` command.
 use crate::prelude::*;
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-slave",
+        takes_value: false,
+        value_hint: "",
+        detail: "Close the slave side of the pty.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-i",
+        takes_value: true,
+        value_hint: "spawn_id",
+        detail: "Close the specified spawn id.",
+        dialects: None,
+    },
+];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "close ?-slave? ?-i spawn_id?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
@@ -10,6 +32,8 @@ pub fn spec() -> CommandSpec {
             &["close ?-slave? ?-i spawn_id?"],
             "F5",
         )),
+        forms: FORMS,
+        options: OPTIONS,
         ..CommandSpec::DEFAULT
     }
 }

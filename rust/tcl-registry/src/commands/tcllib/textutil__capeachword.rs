@@ -1,16 +1,25 @@
 //! `textutil::capEachWord` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "textutil::capEachWord sentence",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::capEachWord",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Capitalise each word.",
-            &["textutil::capEachWord sentence"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Capitalise each word.",
+            synopsis: &["textutil::capEachWord sentence"],
+            snippet: "",
+            source: "tcllib textutil package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

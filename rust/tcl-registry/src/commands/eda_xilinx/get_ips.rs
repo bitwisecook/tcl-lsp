@@ -1,5 +1,10 @@
 //! `get_ips` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_ips ?-regexp? ?-nocase? ?-filter expr? ?patterns?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_ips",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_ips ?-regexp? ?-nocase? ?-filter expr? ?patterns?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

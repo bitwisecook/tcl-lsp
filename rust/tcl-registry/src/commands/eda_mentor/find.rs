@@ -1,5 +1,10 @@
 //! `find` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "find",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

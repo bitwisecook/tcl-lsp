@@ -1,5 +1,17 @@
 //! `raise` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "raise window ?aboveThis?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "raise",
@@ -12,6 +24,8 @@ pub fn spec() -> CommandSpec {
         )),
         required_package: Some("Tk"),
         warn_missing_import: false,
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

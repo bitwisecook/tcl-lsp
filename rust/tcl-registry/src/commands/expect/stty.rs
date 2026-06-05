@@ -1,5 +1,10 @@
 //! `stty` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "stty ?args?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "stty",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["stty ?args?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

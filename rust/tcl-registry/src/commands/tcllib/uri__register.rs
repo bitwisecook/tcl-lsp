@@ -1,5 +1,17 @@
 //! `uri::register` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "uri::register schemeList script",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uri::register",
@@ -10,11 +22,16 @@ pub fn spec() -> CommandSpec {
         // uri:: registration namespace, not the caller's scope.
         arg_roles: &[(1, ArgRole::Body)],
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Register a new URI scheme handler.",
-            &["uri::register schemeList script"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Register a new URI scheme handler.",
+            synopsis: &["uri::register schemeList script"],
+            snippet: "",
+            source: "tcllib uri package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

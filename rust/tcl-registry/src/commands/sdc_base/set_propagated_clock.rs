@@ -1,5 +1,10 @@
 //! `set_propagated_clock` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_propagated_clock object_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_propagated_clock",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_propagated_clock object_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

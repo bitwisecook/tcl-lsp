@@ -1,16 +1,25 @@
 //! `ip::type` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "ip::type address",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::type",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the type of an IP address.",
-            &["ip::type address"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the type of an IP address.",
+            synopsis: &["ip::type address"],
+            snippet: "",
+            source: "tcllib ip package",
+            examples: "",
+            return_value: "The address type string.",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `set_max_transition` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_max_transition transition_value ?-clock_path? ?-data_path? object_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_max_transition",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_max_transition transition_value ?-clock_path? ?-data_path? object_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

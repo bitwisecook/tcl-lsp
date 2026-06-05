@@ -1,16 +1,25 @@
 //! `fileutil::relative` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fileutil::relative base dst",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::relative",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Compute a relative path.",
-            &["fileutil::relative base dst"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Compute a relative path.",
+            synopsis: &["fileutil::relative base dst"],
+            snippet: "",
+            source: "tcllib fileutil package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `script::tabc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "script::tabc",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "script::tabc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["script::tabc"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

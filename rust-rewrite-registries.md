@@ -66,18 +66,18 @@ differs · **UNPORTED**: no Rust port exists.
 ### Command registries (Python `core/commands/registry/<g>` ↔ Rust `rust/tcl-registry/src/commands/<g>`)
 
 - [x] **tcl** (1e3a71b7 / 1abc0d35) — **NAMES DIFFER** (104 missing, 16 extra) + thin hover/forms. See §1.
-- [x] **stdlib** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`side_effects` 12→0; `required_package` 110→110 ✅ restored).
-- [x] **tcllib** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`forms`, `side_effects`, `return_value`, `examples` dropped).
+- [x] **stdlib** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `required_package` 110, `side_effects` 12, `forms`, `subcommands`, `options`, `arg_roles` all restored to parity. (`traits` 23→24 is Rust-richer.)
+- [x] **tcllib** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 206, `side_effects` 62, `hover_return_value` 68, `hover_examples` 25, `subcommands` 3, `arg_roles` 17 all restored to parity.
 - [x] **irules** (1e3a71b7 / 1abc0d35) — **OK** ✅ (GAP-3a) — `side_effects` 1002→1002, `forms` 999→999, `hover_source_url`/`examples`/`return_value`/summaries/synopses, `event_requires` 448→448, `subcommands` 47→47, `options` 54→54 all restored to parity. Remaining deltas are Rust-richer (`-noupdate` on `HTTP::header`, extra traits/arg_roles/lowering_hooks) or in the 9 hand-tuned behavioural files (arity on `clientside`/`peer`/`serverside`, `HSL::open` return_type, `after` body_kind). See §2.
-- [x] **iapps** (1e3a71b7 / 1abc0d35) — **minor** (only `forms` 49→0).
-- [x] **tk** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`options`, `side_effects`, `subcommands` dropped; `required_package` 55→55 ✅ restored).
-- [x] **expect** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`forms`, `options` dropped).
-- [x] **sdc-base** (1e3a71b7 / 1abc0d35) — **minor** (`forms`, `arg_roles`).
-- [x] **synopsys** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
-- [x] **cadence** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
-- [x] **xilinx** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
-- [x] **quartus** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
-- [x] **mentor** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
+- [x] **iapps** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 49 restored; all captured dimensions at parity.
+- [x] **tk** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `required_package` 55, `options` 44, `side_effects` 55, `subcommands` 17, `forms` 55 all restored to parity.
+- [x] **expect** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 35, `options` 26, `arg_roles` restored to parity.
+- [x] **sdc-base** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 61, `arg_roles` 3 restored to parity.
+- [x] **synopsys** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 68 restored to parity.
+- [x] **cadence** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 56 restored to parity.
+- [x] **xilinx** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 64 restored to parity.
+- [x] **quartus** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 48 restored to parity.
+- [x] **mentor** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 49 restored to parity.
 
 ### Meta / data registries
 
@@ -269,36 +269,36 @@ Present on both sides; counts noted, deep field diffs deferred:
 | Registry | Python | Rust | Missing in Rust | Extra in Rust | Verdict |
 |---|--:|--:|--:|--:|---|
 | `tcl` | 214 | 126 | 104 | 16 | NAMES DIFFER |
-| `stdlib` | 225 | 225 | 0 | 0 | DATA GAPS |
-| `tcllib` | 206 | 206 | 0 | 0 | DATA GAPS |
+| `stdlib` | 225 | 225 | 0 | 0 | OK |
+| `tcllib` | 206 | 206 | 0 | 0 | OK |
 | `irules` | 1015 | 1015 | 0 | 0 | OK |
-| `iapps` | 49 | 49 | 0 | 0 | DATA GAPS |
-| `tk` | 55 | 55 | 0 | 0 | DATA GAPS |
-| `expect` | 35 | 35 | 0 | 0 | DATA GAPS |
-| `sdc-base` | 61 | 61 | 0 | 0 | DATA GAPS |
-| `synopsys` | 68 | 68 | 0 | 0 | DATA GAPS |
-| `cadence` | 56 | 56 | 0 | 0 | DATA GAPS |
-| `xilinx` | 64 | 64 | 0 | 0 | DATA GAPS |
-| `quartus` | 48 | 48 | 0 | 0 | DATA GAPS |
-| `mentor` | 49 | 49 | 0 | 0 | DATA GAPS |
+| `iapps` | 49 | 49 | 0 | 0 | OK |
+| `tk` | 55 | 55 | 0 | 0 | OK |
+| `expect` | 35 | 35 | 0 | 0 | OK |
+| `sdc-base` | 61 | 61 | 0 | 0 | OK |
+| `synopsys` | 68 | 68 | 0 | 0 | OK |
+| `cadence` | 56 | 56 | 0 | 0 | OK |
+| `xilinx` | 64 | 64 | 0 | 0 | OK |
+| `quartus` | 48 | 48 | 0 | 0 | OK |
+| `mentor` | 49 | 49 | 0 | 0 | OK |
 
 ### Command registries — data completeness (commands carrying each dimension)
 
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
 - **`tcl`** — `forms` 199→1, `hover` 211→125, `hover_synopsis` 196→125, `arity_bounded` 160→119, `side_effects` 84→46, `hover_return_value` 9→0, `options` 19→12, `arg_types` 19→13, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `codegen_hook` 0→7, `return_type` 92→110, `lowering_hook` 0→23, `traits` 42→104
-- **`stdlib`** — `side_effects` 12→0, `forms` 2→0, `subcommands` 2→0, `arg_roles` 1→0, `options` 1→0, `traits` 23→24
-- **`tcllib`** — `forms` 206→0, `hover_return_value` 68→0, `side_effects` 62→0, `hover_examples` 25→0, `arg_roles` 17→3, `subcommands` 3→0
+- **`stdlib`** — `traits` 23→24
+- **`tcllib`** — all captured dimensions at parity.
 - **`irules`** — `arg_roles` 4→5, `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
-- **`iapps`** — `forms` 49→0
-- **`tk`** — `forms` 55→0, `side_effects` 55→0, `options` 44→0, `subcommands` 17→0
-- **`expect`** — `forms` 35→0, `options` 26→0, `arg_roles` 1→0
-- **`sdc-base`** — `forms` 61→0, `arg_roles` 3→0
-- **`synopsys`** — `forms` 68→0
-- **`cadence`** — `forms` 56→0
-- **`xilinx`** — `forms` 64→0, `arity_bounded` 18→19
-- **`quartus`** — `forms` 48→0
-- **`mentor`** — `forms` 49→0
+- **`iapps`** — all captured dimensions at parity.
+- **`tk`** — all captured dimensions at parity.
+- **`expect`** — all captured dimensions at parity.
+- **`sdc-base`** — all captured dimensions at parity.
+- **`synopsys`** — all captured dimensions at parity.
+- **`cadence`** — all captured dimensions at parity.
+- **`xilinx`** — `arity_bounded` 18→19
+- **`quartus`** — all captured dimensions at parity.
+- **`mentor`** — all captured dimensions at parity.
 
 ### Command registries — value mismatches on common commands
 
@@ -314,7 +314,6 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 | `stdlib` | synopsis | 7 | `history`, `http::config`, `http::cookiejar` |
 | `stdlib` | body_kind | 1 | `tcltest::test` |
 | `stdlib` | return_type | 3 | `http::requestHeaders`, `http::responseHeaders`, `http::responseInfo` |
-| `tcllib` | synopsis | 5 | `csv::split`, `mime::initialize`, `smtp::sendmessage` |
 | `tcllib` | body_kind | 5 | `snit::compile`, `snit::macro`, `snit::type` |
 | `tcllib` | return_type | 6 | `ip::collapse`, `ip::is`, `ip::subtract` |
 | `irules` | body_kind | 1 | `after` |

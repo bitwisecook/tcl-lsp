@@ -1,5 +1,10 @@
 //! `read_verilog` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read_verilog ?-sv? ?-library lib? file_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_verilog",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["read_verilog ?-sv? ?-library lib? file_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

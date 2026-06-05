@@ -1,5 +1,41 @@
 //! `tk_chooseColor` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-initialcolor",
+        takes_value: true,
+        value_hint: "colour",
+        detail: "Initial colour to display in the chooser.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-parent",
+        takes_value: true,
+        value_hint: "window",
+        detail: "Parent window for the dialogue.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-title",
+        takes_value: true,
+        value_hint: "titleString",
+        detail: "Title string for the dialogue window.",
+        dialects: None,
+    },
+];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tk_chooseColor ?option value ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_chooseColor",
@@ -12,6 +48,9 @@ pub fn spec() -> CommandSpec {
         )),
         required_package: Some("Tk"),
         warn_missing_import: false,
+        forms: FORMS,
+        options: OPTIONS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `set_implementation_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_implementation_design design_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_implementation_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_implementation_design design_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

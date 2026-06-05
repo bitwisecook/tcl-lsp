@@ -22,10 +22,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 import re  # noqa: E402
 
-GROUPS = {
-    "irules": ("irules", "irules_command_specs"),
-    "tcllib": ("tcllib", "tcllib_command_specs"),
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _groups import files_by_name, load_specs, rust_dir  # noqa: E402
 
 
 def rust_str(s: str) -> str:
@@ -101,19 +99,8 @@ def find_hover_span(text: str) -> tuple[int, int, str] | None:
 
 def main() -> None:
     group = sys.argv[1] if len(sys.argv) > 1 else "irules"
-    mod_name, factory = GROUPS[group]
-    mod = __import__(f"core.commands.registry.{mod_name}", fromlist=[factory])
-    specs = getattr(mod, factory)()
-    rust_dir = _REPO_ROOT / "rust/tcl-registry/src/commands" / group
-
-    name_re = re.compile(r'^\s*name:\s*"((?:[^"\\]|\\.)*)"', re.M)
-    by_name: dict[str, Path] = {}
-    for p in rust_dir.glob("*.rs"):
-        if p.name == "mod.rs":
-            continue
-        mm = name_re.search(p.read_text())
-        if mm:
-            by_name[mm.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
+    specs = load_specs(group)
+    by_name = files_by_name(rust_dir(_REPO_ROOT, group))
 
     changed = 0
     for spec in specs:

@@ -1,5 +1,10 @@
 //! `overlay` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "overlay ?-# spawn_id ...? program ?args ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "overlay",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["overlay ?-# spawn_id ...? program ?args ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

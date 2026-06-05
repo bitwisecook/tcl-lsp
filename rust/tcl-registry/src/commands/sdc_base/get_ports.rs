@@ -1,5 +1,10 @@
 //! `get_ports` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_ports ?-regexp? ?-nocase? ?-filter expr? ?patterns?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_ports",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["get_ports ?-regexp? ?-nocase? ?-filter expr? ?patterns?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

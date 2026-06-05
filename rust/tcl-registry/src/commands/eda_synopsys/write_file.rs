@@ -1,5 +1,10 @@
 //! `write_file` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_file ?-format format? ?-hierarchy? ?-output file?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_file",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_file ?-format format? ?-hierarchy? ?-output file?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `strace` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "strace level",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "strace",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["strace level"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

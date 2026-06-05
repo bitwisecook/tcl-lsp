@@ -1,5 +1,10 @@
 //! `qvhdl` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "qvhdl ?-2008? ?-R? ?-c? file_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "qvhdl",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["qvhdl ?-2008? ?-R? ?-c? file_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

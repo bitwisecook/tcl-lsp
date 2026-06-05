@@ -1,5 +1,10 @@
 //! `add_endcap` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "add_endcap ?-pre_endcap cell? ?-post_endcap cell?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "add_endcap",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["add_endcap ?-pre_endcap cell? ?-post_endcap cell?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

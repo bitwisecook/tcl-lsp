@@ -1,5 +1,10 @@
 //! `opt_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "opt_design ?-post_route? ?-setup? ?-hold? ?-drv?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "opt_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["opt_design ?-post_route? ?-setup? ?-hold? ?-drv?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

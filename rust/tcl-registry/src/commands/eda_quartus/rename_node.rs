@@ -1,5 +1,10 @@
 //! `rename_node` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "rename_node -from old_name -to new_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename_node",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["rename_node -from old_name -to new_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

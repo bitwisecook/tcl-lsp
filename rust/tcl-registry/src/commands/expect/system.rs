@@ -1,5 +1,10 @@
 //! `system` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "system args",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "system",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["system args"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

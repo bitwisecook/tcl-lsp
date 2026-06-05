@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
             "F5",
         )),
         required_package: Some("tcltest"),
+        arg_roles: &[(0, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT
     }
 }

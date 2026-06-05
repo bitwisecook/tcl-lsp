@@ -1,5 +1,10 @@
 //! `disconnect` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "disconnect",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "disconnect",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["disconnect"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

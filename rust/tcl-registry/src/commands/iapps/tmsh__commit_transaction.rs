@@ -1,5 +1,10 @@
 //! `tmsh::commit_transaction` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::commit_transaction",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::commit_transaction",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::commit_transaction"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

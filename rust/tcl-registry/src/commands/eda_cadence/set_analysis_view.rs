@@ -1,5 +1,10 @@
 //! `set_analysis_view` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_analysis_view ?-setup view_list? ?-hold view_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_analysis_view",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_analysis_view ?-setup view_list? ?-hold view_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `open_run` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "open_run ?-name name? run_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open_run",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["open_run ?-name name? run_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

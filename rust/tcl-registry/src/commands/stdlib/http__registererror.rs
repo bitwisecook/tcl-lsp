@@ -1,5 +1,12 @@
 //! `http::registerError` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::registerError",
@@ -11,6 +18,7 @@ pub fn spec() -> CommandSpec {
             "F5",
         )),
         required_package: Some("http"),
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

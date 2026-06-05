@@ -1,5 +1,10 @@
 //! `write_checkpoint` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_checkpoint ?-force? ?-cell cell? file_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_checkpoint",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_checkpoint ?-force? ?-cell cell? file_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,12 @@
 //! `http::cookiejar` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::NetworkIo,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::cookiejar",
@@ -11,6 +18,7 @@ pub fn spec() -> CommandSpec {
             "F5",
         )),
         required_package: Some("cookiejar"),
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `tmsh::create` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::create <component> <name> ?options?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::create",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::create <component> <name> ?options?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

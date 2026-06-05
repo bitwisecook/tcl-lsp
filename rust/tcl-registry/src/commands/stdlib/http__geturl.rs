@@ -1,5 +1,12 @@
 //! `http::geturl` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::NetworkIo,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::geturl",
@@ -16,6 +23,7 @@ pub fn spec() -> CommandSpec {
         taint_network_sink_args: Some(&[0]),
         credential_options: &["-headers"],
         required_package: Some("http"),
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

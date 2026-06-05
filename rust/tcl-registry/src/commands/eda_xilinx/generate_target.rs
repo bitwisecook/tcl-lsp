@@ -1,5 +1,10 @@
 //! `generate_target` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "generate_target target_type ?-force? objects",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "generate_target",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["generate_target target_type ?-force? objects"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

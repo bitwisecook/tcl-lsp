@@ -1,5 +1,10 @@
 //! `link_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "link_design ?-keep_sub_designs?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "link_design",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["link_design ?-keep_sub_designs?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

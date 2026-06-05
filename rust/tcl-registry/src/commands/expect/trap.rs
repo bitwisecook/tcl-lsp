@@ -1,5 +1,10 @@
 //! `trap` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "trap ?command? ?signal ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trap",
@@ -10,6 +15,8 @@ pub fn spec() -> CommandSpec {
             &["trap ?command? ?signal ...?"],
             "F5",
         )),
+        forms: FORMS,
+        arg_roles: &[(0, ArgRole::Body)],
         ..CommandSpec::DEFAULT
     }
 }

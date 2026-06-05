@@ -1,15 +1,24 @@
 //! `logger::servicecmd` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "logger::servicecmd service",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "logger::servicecmd",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the command token for a named logger service.",
-            &["logger::servicecmd service"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the command token for a named logger service.",
+            synopsis: &["logger::servicecmd service"],
+            snippet: "",
+            source: "tcllib logger package",
+            examples: "",
+            return_value: "The logger command for the named service.",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

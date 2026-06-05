@@ -1,16 +1,25 @@
 //! `textutil::strRepeat` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "textutil::strRepeat char num",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::strRepeat",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Repeat a string N times.",
-            &["textutil::strRepeat char num"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Repeat a string N times.",
+            synopsis: &["textutil::strRepeat char num"],
+            snippet: "",
+            source: "tcllib textutil package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

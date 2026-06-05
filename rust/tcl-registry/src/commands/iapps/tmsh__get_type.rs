@@ -1,5 +1,10 @@
 //! `tmsh::get_type` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::get_type <object>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::get_type",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::get_type <object>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

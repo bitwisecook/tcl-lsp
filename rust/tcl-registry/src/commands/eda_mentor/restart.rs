@@ -1,5 +1,10 @@
 //! `restart` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "restart",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

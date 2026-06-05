@@ -1,5 +1,10 @@
 //! `examine` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "examine ?-radix radix? ?-time time? signal_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "examine",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["examine ?-radix radix? ?-time time? signal_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

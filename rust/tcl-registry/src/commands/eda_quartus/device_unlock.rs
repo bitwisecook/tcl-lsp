@@ -1,5 +1,10 @@
 //! `device_unlock` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "device_unlock",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "device_unlock",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["device_unlock"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

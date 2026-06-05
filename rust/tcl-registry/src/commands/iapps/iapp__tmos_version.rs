@@ -1,5 +1,10 @@
 //! `iapp::tmos_version` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::tmos_version ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::tmos_version",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::tmos_version ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

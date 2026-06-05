@@ -1,5 +1,10 @@
 //! `all_outputs` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "all_outputs",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "all_outputs",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["all_outputs"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `remove_from_collection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "remove_from_collection collection objects",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "remove_from_collection",
@@ -16,6 +21,8 @@ pub fn spec() -> CommandSpec {
             &["remove_from_collection collection objects"],
             "F5",
         )),
+        forms: FORMS,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `load_report` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "load_report ?revision_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load_report",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["load_report ?revision_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `report_min_pulse_width` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_min_pulse_width ?-nworst n? ?-file file?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_min_pulse_width",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_min_pulse_width ?-nworst n? ?-file file?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

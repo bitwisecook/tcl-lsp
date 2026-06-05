@@ -1,5 +1,12 @@
 //! `safe::interpCreate` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "safe::interpCreate",
@@ -11,6 +18,7 @@ pub fn spec() -> CommandSpec {
             "F5",
         )),
         required_package: Some("safe"),
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,18 @@
 //! `exp_continue` command.
 use crate::prelude::*;
+const OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-continue_timer",
+    takes_value: false,
+    value_hint: "",
+    detail: "Do not restart the timeout timer.",
+    dialects: None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "exp_continue ?-continue_timer?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exp_continue",
@@ -10,6 +23,8 @@ pub fn spec() -> CommandSpec {
             &["exp_continue ?-continue_timer?"],
             "F5",
         )),
+        forms: FORMS,
+        options: OPTIONS,
         ..CommandSpec::DEFAULT
     }
 }

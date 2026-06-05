@@ -1,5 +1,10 @@
 //! `snit::typemethod` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "snit::typemethod type name arglist body",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "snit::typemethod",
@@ -8,11 +13,15 @@ pub fn spec() -> CommandSpec {
         // SYNC2: snit typemethod bodies run in a dispatch context.
         arg_roles: &[(2, ArgRole::ParamList), (3, ArgRole::Body)],
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Define a type method outside a type definition body.",
-            &["snit::typemethod type name arglist body"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Define a type method outside a type definition body.",
+            synopsis: &["snit::typemethod type name arglist body"],
+            snippet: "",
+            source: "tcllib snit package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

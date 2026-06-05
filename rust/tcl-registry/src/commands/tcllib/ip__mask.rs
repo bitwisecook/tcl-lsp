@@ -1,16 +1,25 @@
 //! `ip::mask` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "ip::mask address",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::mask",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the network mask for an address.",
-            &["ip::mask address"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the network mask for an address.",
+            synopsis: &["ip::mask address"],
+            snippet: "",
+            source: "tcllib ip package",
+            examples: "",
+            return_value: "The network mask string.",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

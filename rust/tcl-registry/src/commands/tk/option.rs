@@ -1,5 +1,50 @@
 //! `option` command.
 use crate::prelude::*;
+
+/// Subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "add",
+        arity: Arity::new(2, 3),
+        detail: "Add an option to the database with optional priority.",
+        synopsis: "option add pattern value ?priority?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "clear",
+        arity: Arity::exact(0),
+        detail: "Clear all options from the database.",
+        synopsis: "option clear",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::exact(3),
+        detail: "Retrieve the value of the option for a window.",
+        synopsis: "option get window name class",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "readfile",
+        arity: Arity::new(1, 2),
+        detail: "Read options from a file and add them to the database.",
+        synopsis: "option readfile fileName ?priority?",
+        ..SubCommand::DEFAULT
+    },
+];
+
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "option option ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "option",
@@ -12,6 +57,9 @@ pub fn spec() -> CommandSpec {
         )),
         required_package: Some("Tk"),
         warn_missing_import: false,
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

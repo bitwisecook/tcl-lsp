@@ -1,15 +1,34 @@
 //! `logger::import` command.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "logger::import ?-all? ?-force? ?-prefix prefix? ?-namespace namespace? service",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "logger::import",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Import logger commands into the current namespace.",
-            &["logger::import ?-all? ?-force? ?-prefix prefix? ?-namespace namespace? service"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Import logger commands into the current namespace.",
+            synopsis: &[
+                "logger::import ?-all? ?-force? ?-prefix prefix? ?-namespace namespace? service",
+            ],
+            snippet: "",
+            source: "tcllib logger package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

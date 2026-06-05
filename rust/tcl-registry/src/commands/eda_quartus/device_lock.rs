@@ -1,5 +1,10 @@
 //! `device_lock` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "device_lock ?-timeout seconds?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "device_lock",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["device_lock ?-timeout seconds?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

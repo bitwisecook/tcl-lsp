@@ -1,16 +1,25 @@
 //! `math::statistics::test-Dunnett` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "math::statistics::test-Dunnett alpha control args",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::test-Dunnett",
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
-        hover: Some(HoverSnippet::brief(
-            "Dunnett multiple comparison test.",
-            &["math::statistics::test-Dunnett alpha control args"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Dunnett multiple comparison test.",
+            synopsis: &["math::statistics::test-Dunnett alpha control args"],
+            snippet: "",
+            source: "tcllib math::statistics package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

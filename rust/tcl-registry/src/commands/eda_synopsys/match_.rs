@@ -1,5 +1,10 @@
 //! `match` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "match",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "match",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["match"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

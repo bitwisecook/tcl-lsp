@@ -1,5 +1,10 @@
 //! `route_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "route_design ?-directive directive? ?-nets net_list? ?-unroute? ?-preserve?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "route_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["route_design ?-directive directive? ?-nets net_list? ?-unroute? ?-preserve?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

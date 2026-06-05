@@ -1,5 +1,10 @@
 //! `tmsh::builtin_tabc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::builtin_tabc ?args?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::builtin_tabc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::builtin_tabc ?args?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

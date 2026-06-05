@@ -1,5 +1,10 @@
 //! `read_lef` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read_lef file_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_lef",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["read_lef file_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

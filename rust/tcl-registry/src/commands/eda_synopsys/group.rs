@@ -1,5 +1,10 @@
 //! `group` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "group ?-design_name name? ?-cell_name name? cell_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "group",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["group ?-design_name name? ?-cell_name name? cell_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `report_area` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_area ?-physical? ?-verbose?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_area",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_area ?-physical? ?-verbose?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

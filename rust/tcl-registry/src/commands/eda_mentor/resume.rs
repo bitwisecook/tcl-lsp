@@ -1,5 +1,10 @@
 //! `resume` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "resume",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "resume",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["resume"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `remove_cell` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "remove_cell cell_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "remove_cell",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["remove_cell cell_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }
