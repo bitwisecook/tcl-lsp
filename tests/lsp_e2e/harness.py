@@ -361,6 +361,58 @@ class LspServerClient:
             "textDocument/semanticTokens/full", {"textDocument": {"uri": uri}}, timeout=timeout
         )
 
+    def implementation(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/implementation", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def document_links(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentLink", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def code_lens(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/codeLens", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def inlay_hints(
+        self, uri: str, start: tuple[int, int], end: tuple[int, int], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+        }
+        return self.request("textDocument/inlayHint", params, timeout=timeout)
+
+    def linked_editing_range(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/linkedEditingRange", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def prepare_call_hierarchy(
+        self, uri: str, line: int, char: int, *, timeout: float = 30.0
+    ) -> Any:
+        return self.request(
+            "textDocument/prepareCallHierarchy", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def incoming_calls(self, item: dict, *, timeout: float = 30.0) -> Any:
+        return self.request("callHierarchy/incomingCalls", {"item": item}, timeout=timeout)
+
+    def outgoing_calls(self, item: dict, *, timeout: float = 30.0) -> Any:
+        return self.request("callHierarchy/outgoingCalls", {"item": item}, timeout=timeout)
+
+    def range_formatting(
+        self, uri: str, start: tuple[int, int], end: tuple[int, int], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+            "options": {"tabSize": 4, "insertSpaces": True},
+        }
+        return self.request("textDocument/rangeFormatting", params, timeout=timeout)
+
     def prepare_rename(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
         return self.request(
             "textDocument/prepareRename", self._doc_pos(uri, line, char), timeout=timeout
