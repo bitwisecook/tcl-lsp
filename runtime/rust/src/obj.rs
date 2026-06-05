@@ -90,10 +90,11 @@ extern "C" fn int_update_string(obj: *mut TclObj) {
 }
 
 extern "C" fn double_update_string(obj: *mut TclObj) {
-    // SAFETY: `obj` is a live double object. Tcl-faithful `%.17g`-style
-    // formatting lands with the numeric value type (T1.6); this is a placeholder.
+    // SAFETY: `obj` is a live double object. The canonical Tcl double→string is
+    // the shared `tcl_syntax::number::format_double` (also used by the compiler's
+    // const-folder) — integer-valued doubles get `.0`, plus `Inf`/`NaN`.
     unsafe {
-        let s = format!("{}", (*obj).double());
+        let s = tcl_syntax::number::format_double((*obj).double());
         set_owned_string(obj, s.as_ptr(), s.len());
     }
 }

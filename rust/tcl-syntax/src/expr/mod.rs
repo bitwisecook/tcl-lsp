@@ -7,6 +7,7 @@
 
 pub mod ast;
 pub mod eval;
+pub mod mathfunc;
 pub mod parser;
 
 pub use ast::{BinOp, ExprNode, ExprOffset, UnaryOp};

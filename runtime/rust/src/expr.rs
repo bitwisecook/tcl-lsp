@@ -120,13 +120,30 @@ impl ExprOps for TowerOps<'_> {
     fn command(&mut self, script: &str) -> Result<Owned, ExprError> {
         self.ctx.eval_command(script)
     }
-    fn call(&mut self, function: &str, _args: Vec<Owned>) -> Result<Owned, ExprError> {
-        // Math functions dispatch through ::tcl::mathfunc — wired with the
-        // command table / namespaces (T1.5); until then, report the miss.
-        let mut m = b"unknown math function \"".to_vec();
-        m.extend_from_slice(function.as_bytes());
-        m.push(b'"');
-        Err(ExprError(m))
+    fn call(&mut self, function: &str, args: Vec<Owned>) -> Result<Owned, ExprError> {
+        use tcl_syntax::expr::mathfunc::{dispatch, Num};
+        // Math functions are the shared `tcl_syntax::expr::mathfunc` dispatch
+        // (the same one the compiler const-folds with). When namespaces land
+        // (T1.5), a user-defined `::tcl::mathfunc::NAME` is resolved through the
+        // command table first; `rand`/`srand` (RNG state) come with that too.
+        let name = function.to_ascii_lowercase();
+        let nums: Option<Vec<Num>> = args
+            .iter()
+            .map(|o| crate::bignum::as_math_num(o.ptr()))
+            .collect();
+        let nums = nums.ok_or_else(|| {
+            ExprError::msg(b"argument to math function didn't have numeric value")
+        })?;
+        match dispatch(&name, &nums) {
+            Some(Num::Int(i)) => Ok(Owned::fresh(obj::new_wide_int_obj(i))),
+            Some(Num::Float(f)) => Ok(Owned::fresh(obj::new_double_obj(f))),
+            None => {
+                let mut m = b"unknown math function \"".to_vec();
+                m.extend_from_slice(function.as_bytes());
+                m.push(b'"');
+                Err(ExprError(m))
+            }
+        }
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
@@ -331,6 +348,20 @@ mod tests {
         assert_eq!(ev("$x * 2", &[("x", 21)]).unwrap(), b"42");
         assert_eq!(ok("3 in {1 2 3 4}"), b"1");
         assert_eq!(ok("9 ni {1 2 3 4}"), b"1");
+    }
+
+    #[test]
+    fn math_functions() {
+        // the shared tcl_syntax::expr::mathfunc dispatch, over the tower
+        assert_eq!(ok("sqrt(4)"), b"2.0");
+        assert_eq!(ok("max(1, 9, 3)"), b"9");
+        assert_eq!(ok("min(5, 2)"), b"2");
+        assert_eq!(ok("abs(-7)"), b"7");
+        assert_eq!(ok("int(3.9)"), b"3");
+        assert_eq!(ok("pow(2, 10)"), b"1024.0");
+        // unknown function / domain error surface as errors
+        assert!(ev("frobnicate(1)", &[]).is_err());
+        assert!(ev("sqrt(-1)", &[]).is_err());
     }
 
     #[test]

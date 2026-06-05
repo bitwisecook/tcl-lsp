@@ -87,6 +87,29 @@ pub struct Parsed {
     pub end: usize,
 }
 
+/// Format an `f64` as Tcl's canonical double string (`Tcl_PrintDouble`-style):
+/// `NaN`, `Inf`/`-Inf`, an integer-valued finite double gets a `.0` suffix
+/// (so it re-parses as a double, e.g. `2.0` not `2`), else the shortest decimal
+/// that round-trips (Rust's `{}` for `f64`). The one shared number→string
+/// formatter for the runtime's `double` rep and the compiler's const-folder.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn format_double(f: f64) -> String {
+    if f.is_nan() {
+        "NaN".to_owned()
+    } else if f.is_infinite() {
+        if f.is_sign_negative() {
+            "-Inf".to_owned()
+        } else {
+            "Inf".to_owned()
+        }
+    } else if f.fract() == 0.0 && f.abs() < 1e16 {
+        format!("{}.0", f as i64)
+    } else {
+        format!("{f}")
+    }
+}
+
 /// Tcl numeric whitespace: space, tab, newline, VT, FF, CR.
 #[inline]
 fn is_ws(c: u8) -> bool {

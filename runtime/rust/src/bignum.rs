@@ -440,6 +440,20 @@ pub fn is_integer(obj: *mut TclObj) -> bool {
     matches!(read(obj), Some(NumVal::Wide(_) | NumVal::Big(_)))
 }
 
+/// Read `obj` as a [`mathfunc::Num`](tcl_syntax::expr::mathfunc::Num) for the
+/// shared math-function dispatch — `None` if non-numeric. A bignum widens to a
+/// double (math functions compute on the double rung, as in C Tcl).
+#[must_use]
+pub fn as_math_num(obj: *mut TclObj) -> Option<tcl_syntax::expr::mathfunc::Num> {
+    use tcl_syntax::expr::mathfunc::Num;
+    Some(match read(obj)? {
+        NumVal::Wide(w) => Num::Int(w),
+        NumVal::Float(f) => Num::Float(f),
+        // SAFETY: `mp` is a live mp_int.
+        NumVal::Big(mp) => Num::Float(unsafe { mp_get_double(mp.ptr()) }),
+    })
+}
+
 /// on a non-numeric operand (NaN compares as the IEEE result via `f64`).
 #[must_use]
 pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<core::cmp::Ordering> {
