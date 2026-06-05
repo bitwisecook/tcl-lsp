@@ -76,7 +76,7 @@ log = logging.getLogger(__name__)
 
 
 try:
-    from ._build_info import FULL_VERSION as _version
+    from shared._build_info import FULL_VERSION as _version
 except ImportError:
     _version = "dev"
 
