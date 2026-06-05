@@ -29,6 +29,8 @@
 
 #![forbid(unsafe_code)]
 
+use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
+
 /// How a word was delimited in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WordKind {
@@ -92,24 +94,6 @@ pub struct Command<'s> {
 // ---------------------------------------------------------------------------
 // Low-level scanners — return byte offsets into `src`.
 // ---------------------------------------------------------------------------
-
-/// Advance past inter-word whitespace: spaces, tabs, and `\<newline>` line
-/// continuations (TIP #9 / `TclParseAllWhiteSpace`). Newline/`;`/CR are command
-/// terminators, **not** whitespace, so they stop the skip.
-pub fn skip_space(src: &[u8], pos: usize) -> usize {
-    let len = src.len();
-    let mut p = pos;
-    while p < len {
-        if src[p] == b' ' || src[p] == b'\t' {
-            p += 1;
-        } else if src[p] == b'\\' && p + 1 < len && src[p + 1] == b'\n' {
-            p += 2;
-        } else {
-            break;
-        }
-    }
-    p
-}
 
 /// A delimited word's interior span `[start, start+len)` plus the offset `end`
 /// just past the closing delimiter.
@@ -179,44 +163,9 @@ pub fn find_quoted(src: &[u8], pos: usize) -> Span {
     }
 }
 
-/// Find the end of a bare (unquoted) word: it terminates on top-level
-/// whitespace / `;` / newline, but keeps nested `[...]` and `${...}` together
-/// (splitting inside them would truncate the inner command/var). A `\<newline>`
-/// ends the word (line continuation acts as a separator); other `\x` escapes
-/// stay in the word.
-pub fn find_bare_end(src: &[u8], pos: usize) -> usize {
-    let len = src.len();
-    let mut p = pos;
-    while p < len {
-        let c = src[p];
-        if c == b' ' || c == b'\t' || c == b'\n' || c == b';' || c == b'\r' {
-            break;
-        }
-        if c == b'\\' && p + 1 < len {
-            if src[p + 1] == b'\n' {
-                break;
-            }
-            p += 2;
-        } else if c == b'[' {
-            p = skip_command_subst(src, p);
-        } else if c == b'$' && p + 1 < len && src[p + 1] == b'{' {
-            p += 2;
-            while p < len && src[p] != b'}' {
-                p += 1;
-            }
-            if p < len {
-                p += 1;
-            }
-        } else {
-            p += 1;
-        }
-    }
-    p
-}
-
 /// Advance past one balanced `[...]` command substitution. `pos` must index the
 /// `[`; returns the offset just past the matching `]`. `\<any>` escapes a
-/// bracket. Shared by [`find_bare_end`] and [`scan_parts`].
+/// bracket. Used by [`scan_parts`].
 pub fn skip_command_subst(src: &[u8], pos: usize) -> usize {
     let len = src.len();
     let mut p = pos + 1;
@@ -378,121 +327,207 @@ fn push_text<'s>(parts: &mut Vec<WordPart<'s>>, src: &'s [u8], start: usize, end
 // Command parser.
 // ---------------------------------------------------------------------------
 
-/// Parse one command starting at `pos`. Skips leading whitespace, blank lines,
-/// and `;`; consumes a leading `#` comment as an empty command. The returned
-/// [`Command::next`] is where the caller resumes for the following command.
-pub fn parse_command(src: &[u8], pos: usize) -> Command<'_> {
-    let len = src.len();
-    let mut p = pos;
+// ---------------------------------------------------------------------------
+// Command/word parsing — LOWERED from the canonical `tcl-lexer` token stream
+// (the "parse once" convergence: one scanner shared with the LSP/compiler). The
+// hard edges (`{*}` prefix, `#`-comment-in-command-position, brace/quote/bracket
+// nesting, `$arr(idx)`, line continuation) live in `tcl-lexer`; here we only map
+// its tokens into the eval `Command`/`WordPart` model. `find_braced` /
+// `find_quoted` / `scan_parts` / `split_list` remain for `subst` and list
+// parsing (distinct grammars, converged later).
+// ---------------------------------------------------------------------------
 
-    // Skip leading whitespace + command terminators (+ line continuations).
-    while p < len {
-        let c = src[p];
-        if c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b';' {
-            p += 1;
-        } else if c == b'\\' && p + 1 < len && src[p + 1] == b'\n' {
-            p += 2;
-        } else {
-            break;
-        }
+/// Byte slice of a token's *content* in the source, delimiter-stripped.
+///
+/// Delegates to `tcl-lexer`'s [`SourceMap::token_text`] — the **one place** that
+/// encodes the "span covers the full token, content strips the wrappers"
+/// convention (the leading `$`/`${`/`[`/`{`/`"` via `content_offset`, the
+/// trailing `}`/`]`/`"` of the degenerate empty forms, and the zero-content
+/// quote-marker `Esc` tokens the scanner emits at a `"…$`/`"…[` boundary). A
+/// naive `content_offset..span.end()` range gets all three edge cases wrong, so
+/// we reuse the canonical helper and recover the byte range from the returned
+/// sub-slice (it borrows the same source buffer as `src`).
+fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
+    let txt = sm.token_text(t);
+    // The empty-clamp cases return a `&'static ""` (not a sub-slice of the
+    // source), so its pointer is unrelated to `src` — short-circuit before the
+    // pointer arithmetic below, which would otherwise underflow.
+    if txt.is_empty() {
+        return b"";
     }
-
-    // A `#` here introduces a comment that runs to end-of-line: empty command.
-    if p < len && src[p] == b'#' {
-        while p < len && src[p] != b'\n' {
-            p += 1;
-        }
-        if p < len {
-            p += 1;
-        }
-        return Command {
-            words: Vec::new(),
-            next: p,
-        };
-    }
-
-    let mut words: Vec<Word> = Vec::new();
-    while p < len {
-        p = skip_space(src, p);
-        if p >= len || src[p] == b'\n' || src[p] == b';' || src[p] == b'\r' {
-            if p < len {
-                p += 1; // consume the terminator
-            }
-            break;
-        }
-
-        // `{*}` argument-expansion prefix (Tcl 8.5+). It is a prefix **only**
-        // when the three chars `{*}` are *immediately* followed (no space) by a
-        // non-blank, non-terminator character (`parser-and-aot-interpret-boundary.md`).
-        // Otherwise `{*}` is the ordinary braced word whose value is `*`
-        // (standalone, or `{*} x` with a space, or `{*}` at end of command).
-        let mut expand = false;
-        if src[p] == b'{' && p + 2 < len && src[p + 1] == b'*' && src[p + 2] == b'}' {
-            let after = p + 3;
-            let immediately_followed = after < len
-                && !matches!(
-                    src[after],
-                    b' ' | b'\t' | b'\n' | b'\r' | b';' | 0x0b | 0x0c
-                );
-            if immediately_followed {
-                expand = true;
-                p += 3; // strip the prefix; the following word is parsed below
-            }
-            // else: leave `expand` false and `p` unchanged — `find_braced`
-            // below parses `{*}` as a normal braced word (value `*`).
-        }
-
-        let word = if src[p] == b'{' {
-            let s = find_braced(src, p);
-            p = s.end;
-            Word {
-                kind: WordKind::Braced,
-                expand,
-                body: WordBody::Literal(&src[s.start..s.start + s.len]),
-            }
-        } else if src[p] == b'"' {
-            let s = find_quoted(src, p);
-            p = s.end;
-            let span = &src[s.start..s.start + s.len];
-            Word {
-                kind: WordKind::Quoted,
-                expand,
-                body: scan_parts(span, true, true, true),
-            }
-        } else {
-            let start = p;
-            let end = find_bare_end(src, p);
-            p = end;
-            let span = &src[start..end];
-            Word {
-                kind: WordKind::Bare,
-                expand,
-                body: scan_parts(span, true, true, true),
-            }
-        };
-        words.push(word);
-    }
-
-    Command { words, next: p }
+    let start = txt.as_ptr() as usize - src.as_ptr() as usize;
+    &src[start..start + txt.len()]
 }
 
-/// Parse a whole script into commands. Empty commands (blank lines, comments)
-/// are dropped so callers see only commands with words.
+/// Parse a whole script into commands via `tcl-lexer`. Empty commands (blank
+/// lines, comments) are dropped. Non-UTF-8 input or a lex error yields no
+/// commands (the UTF-8 internal-rep invariant; richer parse-error surfacing is
+/// tracked with the convergence).
 pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
-    let mut out = Vec::new();
-    let mut p = 0;
-    while p < src.len() {
-        let cmd = parse_command(src, p);
-        // Guard against non-advancement on pathological input.
-        if cmd.next <= p {
-            break;
-        }
-        p = cmd.next;
-        if !cmd.words.is_empty() {
-            out.push(cmd);
+    let Ok(s) = std::str::from_utf8(src) else {
+        return Vec::new();
+    };
+    let toks = match Lexer::new(s).tokenise_all() {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    let sm = SourceMap::new(s);
+    let mut cmds = Vec::new();
+    let mut words: Vec<Word> = Vec::new();
+    let mut word_toks: Vec<Token> = Vec::new();
+    let mut expand = false;
+    for t in toks {
+        match t.kind {
+            TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand),
+            TokenType::Comment => {} // a comment is an empty command
+            TokenType::Expand => expand = true, // the next word is expanded
+            TokenType::Eol | TokenType::Eof => {
+                flush_word(&sm, src, &mut words, &mut word_toks, &mut expand);
+                if !words.is_empty() {
+                    cmds.push(Command {
+                        words: core::mem::take(&mut words),
+                        next: t.span.end() as usize,
+                    });
+                }
+            }
+            _ => word_toks.push(t), // Esc / Str / Cmd / Var → part of the word
         }
     }
-    out
+    cmds
+}
+
+/// Parse the first non-empty command at/after `pos` (for callers that resume by
+/// offset; the eval loop uses [`parse_script`]).
+pub fn parse_command(src: &[u8], pos: usize) -> Command<'_> {
+    let mut cmds = parse_script(&src[pos..]);
+    if cmds.is_empty() {
+        return Command {
+            words: Vec::new(),
+            next: src.len(),
+        };
+    }
+    let mut c = cmds.remove(0);
+    c.next += pos; // make the resume offset absolute
+    c
+}
+
+fn flush_word<'s>(
+    sm: &SourceMap<'s>,
+    src: &'s [u8],
+    words: &mut Vec<Word<'s>>,
+    word_toks: &mut Vec<Token>,
+    expand: &mut bool,
+) {
+    if word_toks.is_empty() {
+        *expand = false; // a stray `{*}` with no following word (shouldn't happen)
+        return;
+    }
+    words.push(build_word(sm, src, word_toks, *expand));
+    word_toks.clear();
+    *expand = false;
+}
+
+fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: bool) -> Word<'s> {
+    // A single braced token is a literal word (no substitution).
+    if toks.len() == 1 && toks[0].kind == TokenType::Str {
+        return Word {
+            kind: WordKind::Braced,
+            expand,
+            body: WordBody::Literal(token_content(sm, src, toks[0])),
+        };
+    }
+    // Quoted iff the word opens with `"`. `in_quote` is unreliable for this (the
+    // scanner clears it on the *last* token of a quoted word and never sets it on
+    // a single-token quoted word), so key off the opening source byte instead —
+    // for a quoted word the first token's span always starts at the `"`.
+    let kind = if src.get(toks[0].span.start() as usize) == Some(&b'"') {
+        WordKind::Quoted
+    } else {
+        WordKind::Bare
+    };
+    let mut parts: Vec<WordPart> = Vec::new();
+    for &t in toks {
+        let bytes = token_content(sm, src, t);
+        match t.kind {
+            TokenType::Esc => split_esc(bytes, &mut parts),
+            TokenType::Str => parts.push(WordPart::Text(bytes)), // braced fragment mid-word (rare)
+            TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
+                bytes,
+                t.content_offset == 2,
+            ))),
+            TokenType::Cmd => parts.push(WordPart::Command(bytes)),
+            _ => {}
+        }
+    }
+    // Collapse to a borrowed `Literal` (the SIMPLE_WORD fast path): a lone `Text`
+    // covers `plainword` and the no-subst quoted form `"hi there"`; an empty part
+    // list covers the empty quoted word `""`.
+    match parts.as_slice() {
+        [WordPart::Text(b)] => Word {
+            kind,
+            expand,
+            body: WordBody::Literal(b),
+        },
+        [] => Word {
+            kind,
+            expand,
+            body: WordBody::Literal(b""),
+        },
+        _ => Word {
+            kind,
+            expand,
+            body: WordBody::Parts(parts),
+        },
+    }
+}
+
+/// Split an `Esc` token's content into `Text`/`Backslash` parts (the `$`/`[`
+/// substitutions are already separate tokens; only backslashes remain). A
+/// trailing lone `\` stays in the `Text` run.
+fn split_esc<'s>(bytes: &'s [u8], parts: &mut Vec<WordPart<'s>>) {
+    let mut lit_start = 0;
+    let mut i = 0;
+    let mut buf = [0u8; 4];
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            if i > lit_start {
+                parts.push(WordPart::Text(&bytes[lit_start..i]));
+            }
+            let (next, _) = crate::bs::consume_one(bytes, i + 1, &mut buf);
+            parts.push(WordPart::Backslash(&bytes[i..next]));
+            i = next;
+            lit_start = i;
+        } else {
+            i += 1;
+        }
+    }
+    if bytes.len() > lit_start {
+        parts.push(WordPart::Text(&bytes[lit_start..]));
+    }
+}
+
+/// Parse a `Var` token's content into name + optional array index. `braced`
+/// (the `${name}` form) suppresses index parsing (the whole content is the
+/// name); for `$arr(idx)` the index is itself substituted.
+fn parse_var_ref(bytes: &[u8], braced: bool) -> VarRef<'_> {
+    if !braced && bytes.last() == Some(&b')') {
+        if let Some(open) = bytes.iter().position(|&c| c == b'(') {
+            let name = &bytes[..open];
+            let idx = &bytes[open + 1..bytes.len() - 1];
+            let index = match scan_parts(idx, true, true, true) {
+                WordBody::Literal(b) => vec![WordPart::Text(b)],
+                WordBody::Parts(p) => p,
+            };
+            return VarRef {
+                name,
+                index: Some(index),
+            };
+        }
+    }
+    VarRef {
+        name: bytes,
+        index: None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -582,13 +617,6 @@ mod tests {
     // ---- low-level scanners (mirror test_tcl_parse.zig) ----
 
     #[test]
-    fn skip_space_spaces_tabs_continuation() {
-        assert_eq!(skip_space(b"  \tabc", 0), 3);
-        assert_eq!(skip_space(b"  \\\n  abc", 0), 6); // `\<nl>` folds
-        assert_eq!(skip_space(b"\nabc", 0), 0); // newline is a terminator
-    }
-
-    #[test]
     fn braced_simple_nested_escaped_unterminated() {
         let s = find_braced(b"{abc}", 0);
         assert_eq!((s.start, s.len, s.end), (1, 3, 5));
@@ -612,15 +640,6 @@ mod tests {
         let src = b"\"a\\\"b\" rest";
         let s = find_quoted(src, 0);
         assert_eq!(&src[s.start..s.start + s.len], b"a\\\"b");
-    }
-
-    #[test]
-    fn bare_end_keeps_substitutions_together() {
-        assert_eq!(find_bare_end(b"foo bar", 0), 3);
-        assert_eq!(find_bare_end(b"[clock seconds]xy more", 0), 17);
-        assert_eq!(find_bare_end(b"x${name}y rest", 0), 9);
-        // `\<nl>` terminates the word
-        assert_eq!(find_bare_end(b"foo\\\nbar", 0), 3);
     }
 
     #[test]

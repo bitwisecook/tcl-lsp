@@ -387,10 +387,34 @@ eval-model mapping (using delimiter-stripped `token_text`):
 
 **Plan (phased):**
 1. ✅ Wire the dependency; verify the crate boundary + wasm build; map the tokens.
-2. Lower `tcl-lexer` tokens → the existing borrowed `Command`/`WordPart` model
-   (so `interp`/`subst`/`cmd_*` are **unchanged**); switch `parse_command`/
-   `parse_script` to it; delete `parse.rs`'s `find_bare_end`/`skip_command_subst`/
-   the `{*}` and word scanning. The **83 eval tests gate equivalence**.
+2. ✅ Lower `tcl-lexer` tokens → the existing borrowed `Command`/`WordPart` model
+   (so `interp`/`subst`/`cmd_*` are **unchanged**); `parse_script`/`parse_command`
+   now run off the token stream; deleted `parse.rs`'s now-dead `find_bare_end` /
+   `skip_space` + their tests. The **81 eval tests pass** (the equivalence gate)
+   plus `make runtime-rust-lint`. Three lowering edges, all confirmed via the
+   probe and now encoded in `parse.rs`:
+   - **Content slicing must use `SourceMap::token_text`, not a naive
+     `content_offset..span.end()` range.** For the degenerate empty forms (`{}`,
+     `[]`, `""`) the scanner *extends the span by one* to cover the closer, so the
+     naive range leaks a trailing `}`/`]`/`"`; and at a `"…$`/`"…[` boundary the
+     scanner emits a **zero-content quote-marker `Esc`** whose raw bytes overlap
+     the following `Var`/`Cmd`. `token_text` is the one place that clamps both to
+     `""`. The runtime recovers the **byte range** from the returned sub-slice by
+     pointer offset (it borrows the same buffer) — but **short-circuits empty
+     first**, because the empty-clamp returns a `&'static ""` whose pointer is
+     unrelated to `src` (else the offset subtraction underflows).
+   - **Quoted-kind detection keys off the opening source byte
+     (`src[first_tok.span.start()] == b'"'`), not `Token::in_quote`.** `in_quote`
+     is cleared on the *last* token of a quoted word and never set on a
+     single-token quoted word, so it is not a reliable "this word is quoted"
+     signal; the first token of a quoted word always starts at the `"`.
+   - **The empty quoted word `""` lowers to `WordBody::Literal(b"")`** (its only
+     token clamps to empty → zero parts → collapse to an empty literal), alongside
+     the existing lone-`Text` → `Literal` `SIMPLE_WORD` fast path.
+
+   (`find_braced`/`find_quoted`/`skip_command_subst`/`scan_parts`/`split_list`
+   stay for now — `subst` and `Tcl_SplitList` are distinct grammars, converged in
+   step 3.)
 3. Converge the remaining grammars (the contract's other "parse once" clients):
    `subst` (with `-no*` flags) and `Tcl_SplitList` are not script-lexing, so they
    need a **co-evolution of `tcl-lexer`** (a subst mode + a list mode) — allowed,
@@ -1320,7 +1344,7 @@ close against them:
 | Contract | Rust port alignment | Gaps to close |
 |---|---|---|
 | variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3) | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar cycle must *error*** (today a 1000-hop guard silently stops — fix); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; **qualified `::a::b::x`** + the "unqualified ≠ namespace var" rule (with namespaces, T1.5) |
-| parser-and-aot-interpret-boundary | one canonical scanner (`parse.rs`) shared by eval/subst/list; object-passthrough; spans from byte 0 | the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
+| parser-and-aot-interpret-boundary | the **LSP/compiler `tcl-lexer` is now the canonical scanner** for command/word parsing (`parse.rs` lowers its tokens → the eval `Command`/`WordPart` model); object-passthrough; spans from byte 0 | converge `subst`/`Tcl_SplitList` onto `tcl-lexer` too (step 3, co-evolving a subst + list mode); the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
 | numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
 ### Outstanding
@@ -1373,8 +1397,10 @@ compiler/LSP or the Zig runtime.
    machinery** (shimmer keystone + custom-`Tcl_ObjType` path); **list** (contiguous
    `Vec`) + list commands; **dict** (ordered `Vec` + FNV index, EXP-DICT) + the
    `dict` ensemble; **string** (capacity-backed append + ASCII-fast char ops,
-   EXP-STRING) + `append` + the `string` ensemble — all leak-checked. **Next:**
-   the **parser convergence** (adopt `tcl-lexer`, drop `parse.rs`/`bs.rs`) and
+   EXP-STRING) + `append` + the `string` ensemble — all leak-checked. **Parser
+   convergence step 2 landed**: command/word parsing now lowers from the shared
+   `tcl-lexer` token stream (step 3 — `subst`/`Tcl_SplitList` — and dropping
+   `bs.rs` follow). **Next:**
    the **numeric tower** (before `expr`); then **procs** (per
    [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)), control
    flow, and **T1.5 namespaces**.
