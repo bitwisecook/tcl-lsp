@@ -62,6 +62,13 @@ extern "C" {
     fn mp_div(a: *const MpInt, b: *const MpInt, c: *mut MpInt, d: *mut MpInt) -> c_int;
     fn mp_sub_d(a: *const MpInt, b: u64, c: *mut MpInt) -> c_int; // b: mp_digit (MP_64BIT)
     fn mp_cmp(a: *const MpInt, b: *const MpInt) -> c_int; // mp_ord: -1/0/1
+    fn mp_expt_n(a: *const MpInt, b: c_int, c: *mut MpInt) -> c_int;
+    fn mp_and(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_or(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_xor(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_complement(a: *const MpInt, b: *mut MpInt) -> c_int;
+    fn mp_mul_2d(a: *const MpInt, b: c_int, c: *mut MpInt) -> c_int;
+    fn mp_signed_rsh(a: *const MpInt, b: c_int, c: *mut MpInt) -> c_int;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +76,8 @@ extern "C" {
 // plus double promotion. Follows `tclExecute.c`'s overflow-checked wide fast
 // path → `ExecuteExtendedBinaryMathOp` bignum path → canonical demote. Operands
 // are `TclObj`s; results are fresh (`rc 0`) `TclObj`s (int / bignum / double).
-// Covers +/-/*/neg, floor `/`/`%` (sign-of-divisor), and numeric comparison;
-// `**`, bit-ops, and the `expr` walker build on this next.
+// Covers +/-/*/neg, floor `/`/`%` (sign-of-divisor), comparison, `**` (TIP 123),
+// the bitwise ops `& | ^ ~`, and shifts `<< >>`. The `expr` walker builds on this.
 // ---------------------------------------------------------------------------
 
 /// An RAII libtommath integer: owns its `mp_int`, clearing it on drop.
@@ -214,8 +221,15 @@ fn int_big(op: IntOp, a: *const MpInt, b: *const MpInt) -> Option<NumVal> {
 pub enum ArithError {
     /// An operand was not a number (`can't use non-numeric string … as operand`).
     NonNumeric,
-    /// Integer `/` or `%` by zero (`divide by zero`).
+    /// An integer-only op (bit-op, `<<`, `>>`) got a float operand
+    /// (`can't use floating-point value as operand of …`).
+    NonInteger,
+    /// Integer `/` or `%` by zero, or `0 ** negative` (`divide by zero`).
     DivideByZero,
+    /// A negative shift count (`negative shift argument`).
+    NegativeShift,
+    /// An exponent / shift too large to compute (`exponent too large`).
+    ExponentTooLarge,
     /// A bignum allocation failed (out of memory).
     Alloc,
 }
@@ -444,6 +458,249 @@ pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<core::cmp::Ordering> {
             }
         }
     })
+}
+
+// ---------------------------------------------------------------------------
+// Exponentiation, bitwise ops, and shifts (integer-only except `**` on floats).
+// ---------------------------------------------------------------------------
+
+/// An integer operand (rejecting floats) for the bit-ops / shifts.
+enum IntVal {
+    Wide(i64),
+    Big(Mp),
+}
+
+/// Read an operand that must be an integer (bit-ops / shifts). A float operand
+/// is `NonInteger`; a non-number is `NonNumeric`.
+fn read_int(obj: *mut TclObj) -> Result<IntVal, ArithError> {
+    match num(obj)? {
+        NumVal::Wide(w) => Ok(IntVal::Wide(w)),
+        NumVal::Big(m) => Ok(IntVal::Big(m)),
+        NumVal::Float(_) => Err(ArithError::NonInteger),
+    }
+}
+
+fn int_to_mp(v: IntVal) -> Result<Mp, ArithError> {
+    match v {
+        IntVal::Wide(w) => Mp::from_i64(w).ok_or(ArithError::Alloc),
+        IntVal::Big(m) => Ok(m),
+    }
+}
+
+#[inline]
+fn mp_is_neg(m: &Mp) -> bool {
+    m.0.sign != 0 // MP_ZPOS == 0, MP_NEG == 1 (libtommath normalises 0 to ZPOS)
+}
+
+#[inline]
+fn mp_is_even(m: &Mp) -> bool {
+    // SAFETY: `m` is a live mp_int; `used == 0` is zero (even), else the low
+    // digit's bit 0 gives parity.
+    m.0.used == 0 || unsafe { *m.0.dp & 1 == 0 }
+}
+
+/// `out = base ** e` (e ≥ 2), via libtommath; guards an absurd exponent.
+fn mp_expt(base: &Mp, e: i64) -> Result<NumVal, ArithError> {
+    if e > i64::from(i32::MAX) {
+        return Err(ArithError::ExponentTooLarge);
+    }
+    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+    // SAFETY: live mp_ints; `e` fits c_int.
+    if unsafe { mp_expt_n(base.ptr(), e as c_int, &mut out.0) } != MP_OKAY {
+        return Err(ArithError::Alloc);
+    }
+    Ok(NumVal::Big(out))
+}
+
+/// `a ** b` over the tower (TIP 123 integer rules + float `pow`).
+pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let base = num(a)?;
+    let exp = num(b)?;
+    // Float exponentiation when either operand is a float.
+    if matches!(base, NumVal::Float(_)) || matches!(exp, NumVal::Float(_)) {
+        let (p, q) = (as_f64(base), as_f64(exp));
+        if p == 0.0 && q < 0.0 {
+            return Err(ArithError::DivideByZero);
+        }
+        return Ok(obj::new_double_obj(p.powf(q)));
+    }
+    let v = match exp {
+        NumVal::Wide(e) => pow_wide_exp(base, e)?,
+        NumVal::Big(eb) => pow_big_exp(base, &eb)?,
+        NumVal::Float(_) => unreachable!(),
+    };
+    Ok(to_obj(v))
+}
+
+/// `base ** e` with a normal (wide) exponent. A bignum `base` always has
+/// magnitude ≥ 2 (smaller values demote to a wide), so the `0`/`±1` special
+/// cases only apply to a wide base.
+fn pow_wide_exp(base: NumVal, e: i64) -> Result<NumVal, ArithError> {
+    if e == 0 {
+        return Ok(NumVal::Wide(1));
+    }
+    if e == 1 {
+        return Ok(base);
+    }
+    match base {
+        NumVal::Wide(0) => {
+            if e < 0 {
+                Err(ArithError::DivideByZero) // 0 ** negative
+            } else {
+                Ok(NumVal::Wide(0))
+            }
+        }
+        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
+        NumVal::Wide(-1) => Ok(NumVal::Wide(if e % 2 == 0 { 1 } else { -1 })),
+        // |base| ≥ 2: a negative exponent floors to 0 (TIP 123); else compute.
+        b if e < 0 => {
+            drop(b);
+            Ok(NumVal::Wide(0))
+        }
+        b => mp_expt(&into_mp(b).ok_or(ArithError::Alloc)?, e),
+    }
+}
+
+/// `base ** e` with a huge (bignum) exponent — only `0`/`±1` bases have a
+/// representable result; any other base with a positive huge exponent is
+/// `ExponentTooLarge`, with a negative one floors to 0.
+fn pow_big_exp(base: NumVal, eb: &Mp) -> Result<NumVal, ArithError> {
+    let neg = mp_is_neg(eb);
+    match base {
+        NumVal::Wide(0) => {
+            if neg {
+                Err(ArithError::DivideByZero)
+            } else {
+                Ok(NumVal::Wide(0))
+            }
+        }
+        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
+        NumVal::Wide(-1) => Ok(NumVal::Wide(if mp_is_even(eb) { 1 } else { -1 })),
+        b if neg => {
+            drop(b);
+            Ok(NumVal::Wide(0))
+        }
+        _ => Err(ArithError::ExponentTooLarge),
+    }
+}
+
+/// The bitwise binary ops.
+#[derive(Clone, Copy)]
+enum BitOp {
+    And,
+    Or,
+    Xor,
+}
+
+fn bitwise(op: BitOp, a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let x = read_int(a)?;
+    let y = read_int(b)?;
+    // Wide fast path — `&`/`|`/`^` of two wides always fits a wide.
+    if let (IntVal::Wide(p), IntVal::Wide(q)) = (&x, &y) {
+        let r = match op {
+            BitOp::And => p & q,
+            BitOp::Or => p | q,
+            BitOp::Xor => p ^ q,
+        };
+        return Ok(obj::new_wide_int_obj(r));
+    }
+    let pm = int_to_mp(x)?;
+    let qm = int_to_mp(y)?;
+    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+    let f = match op {
+        BitOp::And => mp_and,
+        BitOp::Or => mp_or,
+        BitOp::Xor => mp_xor,
+    };
+    // SAFETY: live mp_ints; `out` freshly initialised.
+    if unsafe { f(pm.ptr(), qm.ptr(), &mut out.0) } != MP_OKAY {
+        return Err(ArithError::Alloc);
+    }
+    Ok(store(out.into_inner()))
+}
+
+/// `a & b` over the tower (integer-only).
+pub fn band(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    bitwise(BitOp::And, a, b)
+}
+/// `a | b` over the tower (integer-only).
+pub fn bor(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    bitwise(BitOp::Or, a, b)
+}
+/// `a ^ b` over the tower (integer-only).
+pub fn bxor(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    bitwise(BitOp::Xor, a, b)
+}
+
+/// `~a` over the tower (integer-only; `~a == -a-1`).
+pub fn bnot(a: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    match read_int(a)? {
+        IntVal::Wide(w) => Ok(obj::new_wide_int_obj(!w)),
+        IntVal::Big(m) => {
+            let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+            // SAFETY: live mp_ints.
+            if unsafe { mp_complement(m.ptr(), &mut out.0) } != MP_OKAY {
+                return Err(ArithError::Alloc);
+            }
+            Ok(store(out.into_inner()))
+        }
+    }
+}
+
+/// Read a non-negative shift count (integer-only). A huge bignum count is
+/// `NegativeShift` when negative, else `ExponentTooLarge`.
+fn shift_count(b: *mut TclObj) -> Result<i64, ArithError> {
+    match read_int(b)? {
+        IntVal::Wide(c) if c >= 0 => Ok(c),
+        IntVal::Wide(_) => Err(ArithError::NegativeShift),
+        IntVal::Big(m) if mp_is_neg(&m) => Err(ArithError::NegativeShift),
+        IntVal::Big(_) => Err(ArithError::ExponentTooLarge),
+    }
+}
+
+/// `a << b` over the tower (integer-only). Always via the bignum path
+/// (`mp_mul_2d`); `store` demotes a small result back to a wide.
+pub fn shl(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let count = shift_count(b)?;
+    if count > i64::from(i32::MAX) {
+        return Err(ArithError::ExponentTooLarge);
+    }
+    let base = int_to_mp(read_int(a)?)?;
+    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+    // SAFETY: live mp_ints; `count` fits c_int.
+    if unsafe { mp_mul_2d(base.ptr(), count as c_int, &mut out.0) } != MP_OKAY {
+        return Err(ArithError::Alloc);
+    }
+    Ok(store(out.into_inner()))
+}
+
+/// `a >> b` over the tower (integer-only, arithmetic/sign-extending).
+pub fn shr(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
+    let count = shift_count(b)?;
+    match read_int(a)? {
+        IntVal::Wide(w) => {
+            // Shifting a wide past its width saturates to 0 / -1 (sign).
+            let r = if count >= 64 {
+                if w < 0 {
+                    -1
+                } else {
+                    0
+                }
+            } else {
+                w >> count
+            };
+            Ok(obj::new_wide_int_obj(r))
+        }
+        IntVal::Big(m) => {
+            let n = count.min(i64::from(i32::MAX)) as c_int;
+            let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
+            // SAFETY: live mp_ints.
+            if unsafe { mp_signed_rsh(m.ptr(), n, &mut out.0) } != MP_OKAY {
+                return Err(ArithError::Alloc);
+            }
+            Ok(store(out.into_inner()))
+        }
+    }
 }
 
 /// The `bignum` type descriptor (the shimmer keystone for arbitrary-precision
@@ -819,6 +1076,77 @@ mod tests {
         for o in [big, small, two, half, two_eq, two_b] {
             drop1(o);
         }
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn exponentiation() {
+        crate::counters::reset();
+        assert_eq!(
+            binop(pow, int_obj(2), int_obj(10)),
+            (b"1024".to_vec(), "int/other")
+        );
+        assert_eq!(binop(pow, int_obj(5), int_obj(0)).0, b"1");
+        assert_eq!(binop(pow, int_obj(0), int_obj(5)).0, b"0");
+        assert_eq!(binop(pow, int_obj(-1), int_obj(3)).0, b"-1");
+        assert_eq!(binop(pow, int_obj(-1), int_obj(4)).0, b"1");
+        // |base|>=2 with a negative exponent floors to 0 (TIP 123)
+        assert_eq!(binop(pow, int_obj(2), int_obj(-1)).0, b"0");
+        // 2**64 overflows a wide → bignum
+        let (s, t) = binop(pow, int_obj(2), int_obj(64));
+        assert_eq!(s, b"18446744073709551616");
+        assert_eq!(t, "bignum");
+        // 2**128 (bignum)
+        assert_eq!(
+            binop(pow, int_obj(2), int_obj(128)).0,
+            b"340282366920938463463374607431768211456"
+        );
+        // 0 ** -1 → divide by zero
+        let z = int_obj(0);
+        let m1 = int_obj(-1);
+        assert_eq!(pow(z, m1), Err(ArithError::DivideByZero));
+        drop1(z);
+        drop1(m1);
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn bitwise_ops() {
+        crate::counters::reset();
+        assert_eq!(binop(band, int_obj(0xff), int_obj(0x0f)).0, b"15");
+        assert_eq!(binop(bor, int_obj(12), int_obj(3)).0, b"15");
+        assert_eq!(binop(bxor, int_obj(5), int_obj(3)).0, b"6");
+        // ~a == -a-1
+        let a = int_obj(5);
+        let r = rc1(bnot(a).expect("bnot"));
+        assert_eq!(string_of(r), b"-6");
+        drop1(r);
+        drop1(a);
+        // float operand → NonInteger
+        let f = rc1(obj::new_double_obj(1.5));
+        let two = int_obj(2);
+        assert_eq!(band(f, two), Err(ArithError::NonInteger));
+        drop1(f);
+        drop1(two);
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn shifts() {
+        crate::counters::reset();
+        assert_eq!(binop(shl, int_obj(1), int_obj(4)).0, b"16");
+        assert_eq!(binop(shr, int_obj(256), int_obj(4)).0, b"16");
+        assert_eq!(binop(shr, int_obj(-8), int_obj(1)).0, b"-4"); // arithmetic
+                                                                  // 1 << 64 overflows a wide → bignum 2**64
+        let (s, t) = binop(shl, int_obj(1), int_obj(64));
+        assert_eq!(s, b"18446744073709551616");
+        assert_eq!(t, "bignum");
+        // negative shift → error
+        let a = int_obj(1);
+        let n = int_obj(-1);
+        assert_eq!(shl(a, n), Err(ArithError::NegativeShift));
+        drop1(a);
+        drop1(n);
         assert_eq!(crate::counters::finalize(), 0);
     }
 }
