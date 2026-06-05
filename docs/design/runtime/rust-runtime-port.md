@@ -131,6 +131,7 @@ test suite** as ground truth.
 | [`runtime/rust-spike/README.md`](../../../runtime/rust-spike/README.md) | The three throwaway spikes — reimplement properly, do not derive shape from |
 | [`memory-management.md`](memory-management.md) + [`refcount-contract.md`](refcount-contract.md) | TclObj model + refcount discipline (cross-check vs `tclObj.c`) |
 | [`c-api-ownership-contract.md`](c-api-ownership-contract.md) | T2.1 — ownership + error category for every shipped C-API function (the `fresh_zero` convention) |
+| [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) | The call protocol: the two stacks (CallFrame + CmdFrame), exceptions/return-options, stack-trace construction, AOT↔interp interop — **read before the proc chunk**. Conservative-first; dynamic cross-scope (`uplevel`/`upvar`/`namespace`/`eval`) correct before optimising |
 | [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) (+ s0..s6) | AOT north star + staircase; the metaprog heuristics extend this |
 | [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md) | The Zig runtime's own roadmap and layering |
 | [`../../../AGENTS.md`](../../../AGENTS.md) | Zig runtime layering, the WASM parity gate (`make check-wasm-parity`), workflow |
@@ -593,6 +594,13 @@ the Zig rep.
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
   [representation-decision note](#choosing-algorithms--data-structures-the-porting-method).
+  **Procs are gated on a design**, not started blind:
+  [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) fixes the
+  call protocol (the CallFrame + CmdFrame stacks), the exception/return-options
+  model, stack-trace construction, and AOT↔interp interop — built on the
+  conservative-first principle and "get the dynamic cross-scope core
+  (`uplevel`/`upvar`/`namespace`/`eval`) correct, then optimise". The proc
+  chunk follows that doc's PC-1..PC-7 plan.
 - **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
   `tcl_*`/`obj_*` primitives; the Rust runtime must export the same names/sigs
   so the parity check and the compiled-script harness stay green. Also the wasm
