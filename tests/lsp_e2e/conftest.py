@@ -12,23 +12,27 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
 from .harness import ROOT, LspServerClient, ensure_build_info
 
-# Matches the Makefile's ZIPAPP_LSP := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
-_PYZ_GLOB = "tcl-lsp-server-*.pyz"
+
+class _Build(NamedTuple):
+    pyz: Path
+    version: str
 
 
 @pytest.fixture(scope="session")
-def lsp_pyz() -> Path:
+def _lsp_build() -> _Build:
     """Bring the packaged LSP server zipapp up to date once, via ``make``.
 
     ``make zipapp-lsp`` regenerates ``shared/_build_info.py`` (a ``.FORCE``
     prerequisite) and rebuilds ``build/tcl-lsp-server-<version>.pyz`` from
-    current sources, so the server we then launch reflects the tree under
-    test and reports its real build version.
+    current sources.  Both the file name and the bundled build-info carry the
+    same ``git describe`` version, so we read it back and address the artifact
+    by its exact path rather than guessing from a glob.
     """
     if shutil.which("make") is None:
         pytest.skip("make is required to build the LSP zipapp")
@@ -43,21 +47,26 @@ def lsp_pyz() -> Path:
             "`make zipapp-lsp` failed:\n"
             f"--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
         )
-    built = sorted(
-        (ROOT / "build").glob(_PYZ_GLOB), key=lambda p: p.stat().st_mtime
-    )
-    assert built, f"`make zipapp-lsp` succeeded but no {_PYZ_GLOB} in build/"
-    return built[-1]
+    version = ensure_build_info()  # make just (re)generated shared/_build_info.py
+    pyz = ROOT / "build" / f"tcl-lsp-server-{version}.pyz"
+    if not pyz.exists():
+        available = sorted(p.name for p in (ROOT / "build").glob("tcl-lsp-server-*.pyz"))
+        pytest.fail(
+            f"`make zipapp-lsp` finished but {pyz.name} is missing; build/ has: {available}"
+        )
+    return _Build(pyz, version)
 
 
 @pytest.fixture(scope="session")
-def lsp_full_version(lsp_pyz: Path) -> str:
-    """The build version the running server is expected to report back.
+def lsp_pyz(_lsp_build: _Build) -> Path:
+    """Path to the freshly built LSP server zipapp."""
+    return _lsp_build.pyz
 
-    Read after ``make`` has (re)generated ``shared/_build_info.py`` so it
-    matches the copy bundled into ``lsp_pyz``.
-    """
-    return ensure_build_info()
+
+@pytest.fixture(scope="session")
+def lsp_full_version(_lsp_build: _Build) -> str:
+    """The build version the running server is expected to report back."""
+    return _lsp_build.version
 
 
 @pytest.fixture(scope="session")
