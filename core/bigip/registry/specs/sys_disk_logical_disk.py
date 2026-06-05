@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "disk logical-disk"),),
         properties=(
+            BigipPropertySpec(name="mode", value_type="unknown"),
             BigipPropertySpec(name="vg-reserved", value_type="integer"),
-            BigipPropertySpec(name="mode", value_type="boolean", allow_none=True),
         ),
     )

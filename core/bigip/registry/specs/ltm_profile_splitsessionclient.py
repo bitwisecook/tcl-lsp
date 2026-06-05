@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("profile splitsessionclient",),
         ),
         header_types=(("ltm", "profile splitsessionclient"),),
+        properties=(),
     )

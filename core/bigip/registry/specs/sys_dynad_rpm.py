@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,8 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dynad rpm",),
         ),
         header_types=(("sys", "dynad rpm"),),
-        properties=(
-            BigipPropertySpec(name="install", value_type="string"),
-            BigipPropertySpec(name="uninstall", value_type="string"),
-        ),
+        properties=(),
     )

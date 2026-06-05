@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("firewall on-demand-compilation",),
         ),
         header_types=(("security", "firewall on-demand-compilation"),),
+        properties=(),
     )

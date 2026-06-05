@@ -19,7 +19,10 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "self-allow"),),
         properties=(
             BigipPropertySpec(
-                name="defaults", value_type="enum", allow_none=True, enum_values=("all", "none")
+                name="defaults",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("all", "none"),
             ),
         ),
     )

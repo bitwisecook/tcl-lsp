@@ -18,9 +18,14 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "topology"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="order", value_type="integer"),
             BigipPropertySpec(name="score", value_type="integer"),
-            BigipPropertySpec(name="region", value_type="string"),
         ),
     )

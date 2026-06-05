@@ -22,12 +22,16 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="include", value_type="string"),
             BigipPropertySpec(
                 name="name-servers",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="number-of-dots", value_type="integer"),
             BigipPropertySpec(
-                name="search", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="search",
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
         ),
     )

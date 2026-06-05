@@ -19,16 +19,18 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "management-route"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="gateway", value_type="string", shape_kind="ip-address"),
+            BigipPropertySpec(name="mtu", value_type="unknown"),
             BigipPropertySpec(
-                name="gateway",
-                value_type="reference",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                references=("net_self", "net_route", "ltm_virtual_address"),
+                name="network",
+                value_type="string",
+                shape_kind="ip-address",
+                usage_flags=frozenset(("optional",)),
             ),
-            BigipPropertySpec(name="mtu", value_type="string"),
-            BigipPropertySpec(name="network", value_type="string"),
             BigipPropertySpec(
-                name="type", value_type="enum", enum_values=("interface", "blackhole")
+                name="type",
+                value_type="enum",
+                enum_values=("blackhole", "interface"),
             ),
         ),
     )

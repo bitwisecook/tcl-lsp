@@ -18,37 +18,76 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "ip-intelligence feed-list"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
+            BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="feeds",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="default-blacklist-category",
+                        value_type="string",
+                        in_sections=("feeds",),
+                    ),
+                    BigipPropertySpec(
+                        name="default-list-type",
+                        value_type="enum",
+                        in_sections=("feeds",),
+                        enum_values=("blacklist", "whitelist"),
+                    ),
+                    BigipPropertySpec(
+                        name="poll",
+                        value_type="unknown",
+                        in_sections=("feeds",),
+                        shape_kind="object",
+                    ),
+                ),
             ),
-            BigipPropertySpec(name="name", value_type="string", in_sections=("feeds",)),
             BigipPropertySpec(
-                name="default-blacklist-category", value_type="string", in_sections=("name",)
+                name="default-blacklist-category",
+                value_type="string",
+                in_sections=("feeds",),
             ),
             BigipPropertySpec(
                 name="default-list-type",
                 value_type="enum",
-                in_sections=("name",),
-                enum_values=("whitelist", "blacklist"),
+                in_sections=("feeds",),
+                enum_values=("blacklist", "whitelist"),
             ),
-            BigipPropertySpec(name="poll", value_type="string", in_sections=("name",)),
-            BigipPropertySpec(name="interval", value_type="integer", in_sections=("poll",)),
             BigipPropertySpec(
-                name="user",
-                value_type="reference",
-                in_sections=("poll",),
-                references=("auth_user",),
+                name="poll",
+                value_type="unknown",
+                in_sections=("feeds",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="interval",
+                        value_type="integer",
+                        in_sections=("feeds", "poll"),
+                    ),
+                    BigipPropertySpec(
+                        name="password",
+                        value_type="string",
+                        in_sections=("feeds", "poll"),
+                    ),
+                    BigipPropertySpec(
+                        name="url", value_type="string", in_sections=("feeds", "poll")
+                    ),
+                    BigipPropertySpec(
+                        name="user", value_type="string", in_sections=("feeds", "poll")
+                    ),
+                ),
             ),
-            BigipPropertySpec(name="url", value_type="string", in_sections=("poll",)),
-            BigipPropertySpec(name="password", value_type="string", in_sections=("poll",)),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="load", value_type="list", repeated=True),
-            BigipPropertySpec(name="security", value_type="string"),
-            BigipPropertySpec(name="feeds", value_type="string", in_sections=("security",)),
-            BigipPropertySpec(name="url2", value_type="string", in_sections=("feeds",)),
-            BigipPropertySpec(name="poll", value_type="string", in_sections=("url2",)),
-            BigipPropertySpec(name="description", value_type="string", in_sections=("feeds",)),
+            BigipPropertySpec(name="interval", value_type="integer", in_sections=("feeds", "poll")),
+            BigipPropertySpec(name="password", value_type="string", in_sections=("feeds", "poll")),
+            BigipPropertySpec(name="url", value_type="string", in_sections=("feeds", "poll")),
+            BigipPropertySpec(name="user", value_type="string", in_sections=("feeds", "poll")),
+            BigipPropertySpec(
+                name="load",
+                value_type="unknown",
+                references=("gtm_global_settings_load_balancing", "load"),
+                shape_kind="object",
+            ),
         ),
     )

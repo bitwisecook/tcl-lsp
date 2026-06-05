@@ -23,8 +23,9 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_http3",),
+                default="http3",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="header-table-size", value_type="integer"),
+            BigipPropertySpec(name="header-table-size", value_type="integer", default="4096 bytes"),
         ),
     )

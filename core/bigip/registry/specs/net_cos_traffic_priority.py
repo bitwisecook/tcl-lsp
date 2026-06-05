@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "cos traffic-priority"),),
         properties=(
-            BigipPropertySpec(name="weight", value_type="string"),
-            BigipPropertySpec(name="buffer", value_type="string"),
+            BigipPropertySpec(name="buffer", value_type="unknown"),
+            BigipPropertySpec(name="weight", value_type="unknown"),
         ),
     )

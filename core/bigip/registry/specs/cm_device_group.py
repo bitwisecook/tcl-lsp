@@ -19,29 +19,61 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("cm", "device-group"),),
         properties=(
             BigipPropertySpec(
-                name="asm-sync", value_type="enum", enum_values=("enabled", "disabled")
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
-                name="auto-sync", value_type="enum", enum_values=("enabled", "disabled")
+                name="asm-sync",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
+            BigipPropertySpec(
+                name="auto-sync",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="clear-incremental-config-sync-cache", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="devices",
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+            ),
+            BigipPropertySpec(
+                name="full-load-on-sync",
                 value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
-                name="full-load-on-sync", value_type="enum", enum_values=("true", "false")
-            ),
-            BigipPropertySpec(name="incremental-config-sync-size-max", value_type="integer"),
-            BigipPropertySpec(
-                name="network-failover", value_type="enum", enum_values=("enabled", "disabled")
+                name="incremental-config-sync-size-max",
+                value_type="integer",
+                default="1024 KB",
             ),
             BigipPropertySpec(
-                name="save-on-auto-sync", value_type="enum", enum_values=("true", "false")
+                name="network-failover",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
-                name="type", value_type="enum", enum_values=("sync-only", "sync-failover")
+                name="save-on-auto-sync",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="type",
+                value_type="enum",
+                enum_values=("sync-failover", "sync-only"),
+                default="sync-only",
             ),
         ),
     )

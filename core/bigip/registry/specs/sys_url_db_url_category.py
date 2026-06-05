@@ -18,16 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "url-db url-category"),),
         properties=(
-            BigipPropertySpec(name="display-name", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="display-name", value_type="string"),
             BigipPropertySpec(name="initial-disposition", value_type="integer"),
-            BigipPropertySpec(name="is-security-category", value_type="string"),
+            BigipPropertySpec(
+                name="is-security-category",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
             BigipPropertySpec(name="parent-cat-number", value_type="integer"),
             BigipPropertySpec(name="severity-level", value_type="integer"),
             BigipPropertySpec(
                 name="urls",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

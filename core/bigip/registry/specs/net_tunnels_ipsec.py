@@ -18,8 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels ipsec"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("net_tunnels_ipsec",),
+                default="ipsec",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="traffic-selector", value_type="string"),
+            BigipPropertySpec(
+                name="traffic-selector",
+                value_type="reference",
+                references=("net_ipsec_traffic_selector",),
+            ),
         ),
     )

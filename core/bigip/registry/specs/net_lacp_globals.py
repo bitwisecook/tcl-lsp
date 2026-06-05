@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("lacp-globals",),
         ),
         header_types=(("net", "lacp-globals"),),
+        properties=(),
     )

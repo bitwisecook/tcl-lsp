@@ -19,12 +19,16 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "internal-proxy"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="dns-resolver", value_type="string"),
             BigipPropertySpec(
-                name="proxy-server-pool", value_type="reference", references=("ltm_pool",)
+                name="dns-resolver",
+                value_type="reference",
+                references=("net_dns_resolver",),
             ),
+            BigipPropertySpec(name="proxy-server-pool", value_type="reference"),
             BigipPropertySpec(
-                name="route-domain", value_type="reference", references=("net_route_domain",)
+                name="route-domain",
+                value_type="reference",
+                references=("net_route_domain",),
             ),
         ),
     )

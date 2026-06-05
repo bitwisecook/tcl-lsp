@@ -1,6 +1,191 @@
+"""BIG-IP object spec modules — imported here so each ``@register`` fires.
+
+Reconciled to the canonical ``origin/main`` baseline (GAP-e); the
+245 main-only specs were added and the 539 drifted shared specs
+enriched. The 194 rust-branch-only specs (absent from main) are
+kept as a non-destructive superset."""
+
 from __future__ import annotations
 
 from . import (
+    analytics_afm_sweeper_scheduled_report,  # noqa: F401
+    analytics_application_security_anomalies_scheduled_report,  # noqa: F401
+    analytics_application_security_network_scheduled_report,  # noqa: F401
+    analytics_application_security_scheduled_report,  # noqa: F401
+    analytics_asm_bypass_scheduled_report,  # noqa: F401
+    analytics_asm_cpu_scheduled_report,  # noqa: F401
+    analytics_asm_memory_scheduled_report,  # noqa: F401
+    analytics_asm_violation_scheduled_report,  # noqa: F401
+    analytics_cpu_scheduled_report,  # noqa: F401
+    analytics_device_traffic_scheduled_report,  # noqa: F401
+    analytics_disk_info_scheduled_report,  # noqa: F401
+    analytics_dns_protocol_scheduled_report,  # noqa: F401
+    analytics_dns_scheduled_report,  # noqa: F401
+    analytics_dos_l3_scheduled_report,  # noqa: F401
+    analytics_fw_nat_scheduled_report,  # noqa: F401
+    analytics_global_settings,  # noqa: F401
+    analytics_http_scheduled_report,  # noqa: F401
+    analytics_ip_intelligence_scheduled_report,  # noqa: F401
+    analytics_ip_layer_scheduled_report,  # noqa: F401
+    analytics_lsn_pool_scheduled_report,  # noqa: F401
+    analytics_memory_scheduled_report,  # noqa: F401
+    analytics_network_scheduled_report,  # noqa: F401
+    analytics_pem_scheduled_report,  # noqa: F401
+    analytics_pool_traffic_scheduled_report,  # noqa: F401
+    analytics_proc_cpu_scheduled_report,  # noqa: F401
+    analytics_protocol_security_http_scheduled_report,  # noqa: F401
+    analytics_protocol_security_scheduled_report,  # noqa: F401
+    analytics_sip_dos_scheduled_report,  # noqa: F401
+    analytics_sip_scheduled_report,  # noqa: F401
+    analytics_ssl_orchestrator_scheduled_report,  # noqa: F401
+    analytics_ssl_orchestrator_service_virtual_scheduled_report,  # noqa: F401
+    analytics_swg_blocked_scheduled_report,  # noqa: F401
+    analytics_swg_scheduled_report,  # noqa: F401
+    analytics_tcp_analytics_scheduled_report,  # noqa: F401
+    analytics_tcp_scheduled_report,  # noqa: F401
+    analytics_traffic_classification_scheduled_report,  # noqa: F401
+    analytics_udp_scheduled_report,  # noqa: F401
+    analytics_uri_type,  # noqa: F401
+    analytics_vcmp_scheduled_report,  # noqa: F401
+    analytics_virtual_scheduled_report,  # noqa: F401
+    api_protection_profile_apiprotection,  # noqa: F401
+    api_protection_response,  # noqa: F401
+    api_protection_server,  # noqa: F401
+    apm_aaa_active_directory,  # noqa: F401
+    apm_aaa_active_directory_trusted_domains,  # noqa: F401
+    apm_aaa_crldp,  # noqa: F401
+    apm_aaa_endpoint_management_system,  # noqa: F401
+    apm_aaa_f5_mfa_configuration,  # noqa: F401
+    apm_aaa_f5_service_connector,  # noqa: F401
+    apm_aaa_http,  # noqa: F401
+    apm_aaa_http_connector_request,  # noqa: F401
+    apm_aaa_kerberos,  # noqa: F401
+    apm_aaa_kerberos_keytab_file,  # noqa: F401
+    apm_aaa_ldap,  # noqa: F401
+    apm_aaa_oam,  # noqa: F401
+    apm_aaa_oauth_provider,  # noqa: F401
+    apm_aaa_oauth_request,  # noqa: F401
+    apm_aaa_oauth_server,  # noqa: F401
+    apm_aaa_ocsp,  # noqa: F401
+    apm_aaa_okta_connector,  # noqa: F401
+    apm_aaa_radius,  # noqa: F401
+    apm_aaa_saml,  # noqa: F401
+    apm_aaa_saml_idp_automation,  # noqa: F401
+    apm_aaa_saml_idp_connector,  # noqa: F401
+    apm_aaa_securid,  # noqa: F401
+    apm_aaa_tacacsplus,  # noqa: F401
+    apm_acl,  # noqa: F401
+    apm_apm_avr_config,  # noqa: F401
+    apm_client_image,  # noqa: F401
+    apm_configuration_captcha,  # noqa: F401
+    apm_epsec_epsec_package,  # noqa: F401
+    apm_log_setting,  # noqa: F401
+    apm_ntlm_machine_account,  # noqa: F401
+    apm_ntlm_ntlm_auth,  # noqa: F401
+    apm_oauth_db_instance,  # noqa: F401
+    apm_oauth_jwk_config,  # noqa: F401
+    apm_oauth_jwt_config,  # noqa: F401
+    apm_oauth_jwt_provider_list,  # noqa: F401
+    apm_oauth_oauth_claim,  # noqa: F401
+    apm_oauth_oauth_client_app,  # noqa: F401
+    apm_oauth_oauth_resource_server,  # noqa: F401
+    apm_oauth_oauth_scope,  # noqa: F401
+    apm_policy_agent_aaa_active_directory,  # noqa: F401
+    apm_policy_agent_aaa_client_cert,  # noqa: F401
+    apm_policy_agent_aaa_crldp,  # noqa: F401
+    apm_policy_agent_aaa_http,  # noqa: F401
+    apm_policy_agent_aaa_ldap,  # noqa: F401
+    apm_policy_agent_aaa_oauth,  # noqa: F401
+    apm_policy_agent_aaa_radius,  # noqa: F401
+    apm_policy_agent_aaa_saml,  # noqa: F401
+    apm_policy_agent_aaa_securid,  # noqa: F401
+    apm_policy_agent_acct_radius,  # noqa: F401
+    apm_policy_agent_acct_tacacsplus,  # noqa: F401
+    apm_policy_agent_api_authentication,  # noqa: F401
+    apm_policy_agent_api_server_selection,  # noqa: F401
+    apm_policy_agent_decision_box,  # noqa: F401
+    apm_policy_agent_dynamic_acl,  # noqa: F401
+    apm_policy_agent_ending_allow,  # noqa: F401
+    apm_policy_agent_ending_deny,  # noqa: F401
+    apm_policy_agent_ending_redirect,  # noqa: F401
+    apm_policy_agent_endpoint_check_machine_cert,  # noqa: F401
+    apm_policy_agent_endpoint_check_software,  # noqa: F401
+    apm_policy_agent_endpoint_linux_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_linux_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_mac_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_mac_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_machine_info,  # noqa: F401
+    apm_policy_agent_endpoint_windows_browser_cache_cleaner,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_registry,  # noqa: F401
+    apm_policy_agent_endpoint_windows_group_policy,  # noqa: F401
+    apm_policy_agent_endpoint_windows_info_os,  # noqa: F401
+    apm_policy_agent_endpoint_windows_protected_workspace,  # noqa: F401
+    apm_policy_agent_external_logon_page,  # noqa: F401
+    apm_policy_agent_http_header_modify,  # noqa: F401
+    apm_policy_agent_ip_geolocation_lookup,  # noqa: F401
+    apm_policy_agent_ip_reputation_lookup,  # noqa: F401
+    apm_policy_agent_irule_event,  # noqa: F401
+    apm_policy_agent_kerberos,  # noqa: F401
+    apm_policy_agent_l7_protocol_lookup,  # noqa: F401
+    apm_policy_agent_logging,  # noqa: F401
+    apm_policy_agent_logon_page,  # noqa: F401
+    apm_policy_agent_message_box,  # noqa: F401
+    apm_policy_agent_oam,  # noqa: F401
+    apm_policy_agent_oauth_authz,  # noqa: F401
+    apm_policy_agent_request_classification,  # noqa: F401
+    apm_policy_agent_resource_assign,  # noqa: F401
+    apm_policy_agent_response_selection,  # noqa: F401
+    apm_policy_agent_route_domain_selection,  # noqa: F401
+    apm_policy_agent_server_cert_response_control,  # noqa: F401
+    apm_policy_agent_server_cert_status,  # noqa: F401
+    apm_policy_agent_session_check,  # noqa: F401
+    apm_policy_agent_ssl_check,  # noqa: F401
+    apm_policy_agent_tacacsplus,  # noqa: F401
+    apm_policy_agent_variable_assign,  # noqa: F401
+    apm_profile_access,  # noqa: F401
+    apm_profile_connectivity,  # noqa: F401
+    apm_profile_exchange,  # noqa: F401
+    apm_profile_oauth,  # noqa: F401
+    apm_profile_vdi,  # noqa: F401
+    apm_report_custom_report_field,  # noqa: F401
+    apm_resource_address_space,  # noqa: F401
+    apm_resource_app_tunnel,  # noqa: F401
+    apm_resource_client_rate_class,  # noqa: F401
+    apm_resource_client_traffic_classifier,  # noqa: F401
+    apm_resource_ipv6_leasepool,  # noqa: F401
+    apm_resource_leasepool,  # noqa: F401
+    apm_resource_network_access,  # noqa: F401
+    apm_resource_portal_access,  # noqa: F401
+    apm_resource_remote_desktop_citrix,  # noqa: F401
+    apm_resource_remote_desktop_citrix_client_bundle,  # noqa: F401
+    apm_resource_remote_desktop_citrix_client_package_file,  # noqa: F401
+    apm_resource_remote_desktop_quest,  # noqa: F401
+    apm_resource_remote_desktop_rdp,  # noqa: F401
+    apm_resource_remote_desktop_vmware_view,  # noqa: F401
+    apm_resource_sandbox,  # noqa: F401
+    apm_resource_webtop,  # noqa: F401
+    apm_resource_webtop_link,  # noqa: F401
+    apm_saml_artifact_resolution_service,  # noqa: F401
+    apm_saml_attribute_consuming_service,  # noqa: F401
+    apm_saml_auth_context_class_list,  # noqa: F401
+    apm_session,  # noqa: F401
+    apm_sso_basic,  # noqa: F401
+    apm_sso_form_based,  # noqa: F401
+    apm_sso_form_basedv2,  # noqa: F401
+    apm_sso_kerberos,  # noqa: F401
+    apm_sso_ntlmv1,  # noqa: F401
+    apm_sso_ntlmv2,  # noqa: F401
+    apm_sso_oauth_bearer,  # noqa: F401
+    apm_sso_saml,  # noqa: F401
+    apm_sso_saml_resource,  # noqa: F401
+    apm_sso_saml_sp_automation,  # noqa: F401
+    apm_sso_saml_sp_connector,  # noqa: F401
+    apm_swg_scheme,  # noqa: F401
+    apm_url_filter,  # noqa: F401
+    asm_httpclass_asm,  # noqa: F401
+    asm_policy,  # noqa: F401
     auth_apm_auth,  # noqa: F401
     auth_cert_ldap,  # noqa: F401
     auth_ldap,  # noqa: F401
@@ -15,6 +200,14 @@ from . import (
     auth_source,  # noqa: F401
     auth_tacacs,  # noqa: F401
     auth_user,  # noqa: F401
+    cli_admin_partitions,  # noqa: F401
+    cli_alias_private,  # noqa: F401
+    cli_alias_shared,  # noqa: F401
+    cli_global_settings,  # noqa: F401
+    cli_preference,  # noqa: F401
+    cli_script,  # noqa: F401
+    cli_transaction,  # noqa: F401
+    cli_version,  # noqa: F401
     cm_add_to_trust,  # noqa: F401
     cm_cert,  # noqa: F401
     cm_config_sync,  # noqa: F401
@@ -79,6 +272,7 @@ from . import (
     gtm_monitor_wmi,  # noqa: F401
     gtm_path,  # noqa: F401
     gtm_persist,  # noqa: F401
+    gtm_pool,  # noqa: F401
     gtm_pool_a,  # noqa: F401
     gtm_pool_aaaa,  # noqa: F401
     gtm_pool_cname,  # noqa: F401
@@ -101,6 +295,9 @@ from . import (
     gtm_wideip_naptr,  # noqa: F401
     gtm_wideip_srv,  # noqa: F401
     gtm_wideip_svcb,  # noqa: F401
+    ilx_global_settings,  # noqa: F401
+    ilx_plugin,  # noqa: F401
+    ilx_workspace,  # noqa: F401
     ltm_alg_log_profile,  # noqa: F401
     ltm_auth_crldp_server,  # noqa: F401
     ltm_auth_kerberos_delegation,  # noqa: F401
@@ -135,6 +332,7 @@ from . import (
     ltm_classification_urldb_file,  # noqa: F401
     ltm_clientssl_ocsp_stapling_responses,  # noqa: F401
     ltm_clientssl_proxy_cached_certs,  # noqa: F401
+    ltm_data_group,  # noqa: F401
     ltm_data_group_external,  # noqa: F401
     ltm_data_group_internal,  # noqa: F401
     ltm_default_node_monitor,  # noqa: F401
@@ -247,6 +445,7 @@ from . import (
     ltm_profile_classification,  # noqa: F401
     ltm_profile_client_ldap,  # noqa: F401
     ltm_profile_client_ssl,  # noqa: F401
+    ltm_profile_clientssl,  # noqa: F401
     ltm_profile_connector,  # noqa: F401
     ltm_profile_dhcpv4,  # noqa: F401
     ltm_profile_dhcpv6,  # noqa: F401
@@ -300,6 +499,7 @@ from . import (
     ltm_profile_sctp,  # noqa: F401
     ltm_profile_server_ldap,  # noqa: F401
     ltm_profile_server_ssl,  # noqa: F401
+    ltm_profile_serverssl,  # noqa: F401
     ltm_profile_sip,  # noqa: F401
     ltm_profile_smtp,  # noqa: F401
     ltm_profile_smtps,  # noqa: F401
@@ -335,6 +535,9 @@ from . import (
     ltm_urlcat_query,  # noqa: F401
     ltm_virtual,  # noqa: F401
     ltm_virtual_address,  # noqa: F401
+    mgmt_shared_settings_api_status_availability,  # noqa: F401
+    mgmt_shared_settings_api_status_log_resource,  # noqa: F401
+    mgmt_shared_settings_api_status_log_resource_property,  # noqa: F401
     net_address_list,  # noqa: F401
     net_arp,  # noqa: F401
     net_bwc_policy,  # noqa: F401
@@ -425,6 +628,37 @@ from . import (
     net_vlan_allowed,  # noqa: F401
     net_vlan_group,  # noqa: F401
     net_wccp,  # noqa: F401
+    pem_forwarding_endpoint,  # noqa: F401
+    pem_global_settings_analytics,  # noqa: F401
+    pem_global_settings_gx,  # noqa: F401
+    pem_global_settings_hsl_flow,  # noqa: F401
+    pem_global_settings_hsl_report,  # noqa: F401
+    pem_global_settings_insert_content,  # noqa: F401
+    pem_global_settings_policy,  # noqa: F401
+    pem_global_settings_quota_mgmt,  # noqa: F401
+    pem_global_settings_session_mgmt_attributes,  # noqa: F401
+    pem_global_settings_subscriber_activity_log,  # noqa: F401
+    pem_interception_endpoint,  # noqa: F401
+    pem_irule,  # noqa: F401
+    pem_listener,  # noqa: F401
+    pem_policy,  # noqa: F401
+    pem_profile_diameter_endpoint,  # noqa: F401
+    pem_profile_radius_aaa,  # noqa: F401
+    pem_profile_spm,  # noqa: F401
+    pem_profile_subscriber_mgmt,  # noqa: F401
+    pem_protocol_diameter_avp,  # noqa: F401
+    pem_protocol_profile_gx,  # noqa: F401
+    pem_protocol_profile_radius,  # noqa: F401
+    pem_protocol_radius_avp,  # noqa: F401
+    pem_quota_mgmt_rating_group,  # noqa: F401
+    pem_reporting_format_script,  # noqa: F401
+    pem_service_chain_endpoint,  # noqa: F401
+    pem_subscriber,  # noqa: F401
+    pem_subscriber_attribute,  # noqa: F401
+    saas_ap_ai_profile,  # noqa: F401
+    saas_ati_profile,  # noqa: F401
+    saas_bd_profile,  # noqa: F401
+    saas_csd_profile,  # noqa: F401
     security_analytics_settings,  # noqa: F401
     security_anti_fraud_engine_update,  # noqa: F401
     security_anti_fraud_profile,  # noqa: F401
@@ -744,13 +978,39 @@ from . import (
     sys_url_db_download_schedule,  # noqa: F401
     sys_url_db_url_category,  # noqa: F401
     sys_version,  # noqa: F401
+    util_ipsecalgdb,  # noqa: F401
+    vcmp_guest,  # noqa: F401
+    vcmp_traffic_profile,  # noqa: F401
+    vcmp_virtual_disk,  # noqa: F401
+    vcmp_virtual_disk_template,  # noqa: F401
+    wam_ad_policy,  # noqa: F401
+    wam_application,  # noqa: F401
+    wam_domain_list,  # noqa: F401
+    wam_object_type,  # noqa: F401
+    wam_policy,  # noqa: F401
+    wam_resource_concat_set,  # noqa: F401
+    wam_resource_domain_list,  # noqa: F401
+    wam_resource_url,  # noqa: F401
+    wom_advertised_route,  # noqa: F401
+    wom_deduplication,  # noqa: F401
+    wom_endpoint_discovery,  # noqa: F401
+    wom_local_endpoint,  # noqa: F401
+    wom_profile_cifs,  # noqa: F401
+    wom_profile_isession,  # noqa: F401
+    wom_profile_mapi,  # noqa: F401
+    wom_remote_endpoint,  # noqa: F401
+    wom_server_discovery,  # noqa: F401
 )
-from ._base import _REGISTRY
+from ._base import _REGISTRY, normalise_registry
 
 
 def bigip_object_specs() -> tuple:
     return tuple(_REGISTRY)
 
+
+# Apply curated post-processing overrides (list_operators / value_type
+# corrections that survive a spec regeneration).
+normalise_registry()
 
 OBJECT_SPECS = bigip_object_specs()
 

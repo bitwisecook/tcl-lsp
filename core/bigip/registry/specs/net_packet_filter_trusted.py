@@ -19,17 +19,8 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "packet-filter-trusted"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="ip-addresses", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="mac-addresses", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="vlans", value_type="reference", allow_none=True, references=("net_vlan",)
-            ),
-            BigipPropertySpec(
-                name="vlans",
-                value_type="reference",
-                in_sections=("modify",),
-                repeated=True,
-                references=("net_vlan",),
-            ),
+            BigipPropertySpec(name="ip-addresses", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="mac-addresses", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="vlans", value_type="unknown", allow_none=True),
         ),
     )
