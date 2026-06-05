@@ -1,13 +1,13 @@
 //! Tcl expression evaluator (compile-time constant folding).
 //!
-//! Walks the [`ExprNode`] AST produced by [`crate::expr_parser::parse_expr`]
-//! and evaluates constant expressions, returning `Some(TclValue)` when
-//! the whole expression is determined at compile time. Anything that
-//! touches a variable not in the environment, a command substitution,
-//! a domain error (division by zero, negative base to non-integer
-//! exponent, …), or an unsupported feature (iRules string operators,
-//! most math functions) yields `None` — callers treat that as "give
-//! up, emit the runtime form".
+//! The **tree-walk is shared** with the runtime: [`eval_tcl_expr`] drives the
+//! one [`tcl_syntax::expr::eval`] over the AST and supplies this const-folder's
+//! value ops via [`FoldOps`] (an `ExprOps` impl) — the same way the lexer/parser
+//! are shared. Only the value-type-specific bits (the `i64`/`f64`/`Str`
+//! [`FoldValue`], the operator helpers below, env-var resolution) live here.
+//! `None` means "can't fold" — a variable not in the environment, a command
+//! substitution, a domain error, or a value past a wide — and callers fall
+//! through to the runtime form.
 //!
 //! Semantics follow C Tcl 9.0.2 (`tclExecute.c`, `tclBasic.c`):
 //!
@@ -15,14 +15,13 @@
 //! - Integer modulo: sign follows divisor.
 //! - Exponentiation: special rules for `|base| ≤ 1` and negative
 //!   exponents.
-//! - Comparisons always return `Int(0)` or `Int(1)`.
+//! - Comparisons always return `Int(0)` or `Int(1)`; `eq`/`ne`/`lt`… compare the
+//!   operands' raw text (so `5.00 eq 5.0` → 0).
 //! - `round()` ties away from zero (not Python/Rust banker's rounding).
 //!
-//! Ported from `core/compiler/tcl_expr_eval.py` (C22). This is a
-//! focused subset: iRules-specific word operators (`contains`,
-//! `starts_with`, `matches_glob`, `matches_regex`, `in`, `ni`) and
-//! most math-function dispatches are deferred to follow-up work —
-//! they return `None` and callers fall through to the runtime path.
+//! Originally ported from `core/compiler/tcl_expr_eval.py` (C22); the iRules
+//! word operators (`contains`/`starts_with`/`matches_glob`/`matches_regex`/
+//! `equals`/`in`/`ni`) fold via [`FoldOps::binary_other`].
 
 #![allow(
     clippy::cast_precision_loss,
@@ -94,9 +93,151 @@ const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
 /// Evaluate an expression AST against `env`. Returns `None` when the
 /// expression depends on runtime state or triggers a domain error.
+///
+/// The tree-walk is the **shared** [`tcl_syntax::expr::eval`] (the same one the
+/// runtime evaluates with); this const-folder supplies only its value ops via
+/// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    eval(node, env)
+    let mut ops = FoldOps { env };
+    // The final value must reduce to a number (a bare string like `expr {"x"}`
+    // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
+    tcl_syntax::expr::eval(node, &mut ops).ok()?.to_number()
+}
+
+// ---------------------------------------------------------------------------
+// FoldOps — the const-folder's value ops for the shared expr walk
+// ---------------------------------------------------------------------------
+
+/// A const-fold value. `Str` keeps the operand's **raw text** and is parsed
+/// lazily per context (numeric ops via [`parse_literal`]; string ops use it
+/// verbatim) — exactly the old `eval`-vs-`eval_as_string` split, so the raw-text
+/// string-compare behaviour (`5.00 eq 5.0` → 0, #519) is preserved.
+#[derive(Clone)]
+enum FoldValue {
+    Int(i64),
+    Float(f64),
+    Str(String),
+}
+
+impl FoldValue {
+    /// Interpret as a number, or `None` when the text isn't numeric.
+    fn to_number(&self) -> Option<TclValue> {
+        match self {
+            FoldValue::Int(i) => Some(TclValue::Int(*i)),
+            FoldValue::Float(f) => Some(TclValue::Float(*f)),
+            FoldValue::Str(s) => parse_literal(s),
+        }
+    }
+    /// Render as a string: raw for `Str`, canonical for numbers.
+    fn to_string_val(&self) -> String {
+        match self {
+            FoldValue::Str(s) => s.clone(),
+            FoldValue::Int(i) => format_tcl_value(TclValue::Int(*i)),
+            FoldValue::Float(f) => format_tcl_value(TclValue::Float(*f)),
+        }
+    }
+    fn from_tcl(v: TclValue) -> FoldValue {
+        match v {
+            TclValue::Int(i) => FoldValue::Int(i),
+            TclValue::Float(f) => FoldValue::Float(f),
+        }
+    }
+}
+
+/// The const-folder's [`ExprOps`](tcl_syntax::expr::ExprOps). `Error = ()` is the
+/// "can't fold" signal (mapped to the public `Option`); `$var` resolves from the
+/// `env`, `[cmd]`/`Raw` are opaque.
+struct FoldOps<'a> {
+    env: &'a Env,
+}
+
+impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
+    type Value = FoldValue;
+    type Error = ();
+
+    fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
+        Ok(FoldValue::Str(text.to_owned()))
+    }
+    fn string(&mut self, inner: &str) -> Result<FoldValue, ()> {
+        Ok(FoldValue::Str(inner.to_owned()))
+    }
+    fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
+        match self.env.get(name) {
+            Some(EnvValue::Int(i)) => Ok(FoldValue::Int(*i)),
+            Some(EnvValue::Float(f)) => Ok(FoldValue::Float(*f)),
+            Some(EnvValue::Str(s)) => Ok(FoldValue::Str(s.clone())),
+            None => Err(()), // unbound → can't fold
+        }
+    }
+    fn command(&mut self, _script: &str) -> Result<FoldValue, ()> {
+        Err(()) // command substitution is opaque at compile time
+    }
+    fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
+        let name = function.to_ascii_lowercase();
+        if matches!(name.as_str(), "rand" | "srand") {
+            return Err(()); // non-deterministic
+        }
+        let vals: Option<Vec<TclValue>> = args.iter().map(FoldValue::to_number).collect();
+        dispatch_math(&name, &vals.ok_or(())?)
+            .map(FoldValue::from_tcl)
+            .ok_or(())
+    }
+
+    fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
+        let a = left.to_number().ok_or(())?;
+        let b = right.to_number().ok_or(())?;
+        apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
+    }
+    fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
+        match op {
+            UnaryOp::Not | UnaryOp::WordNot => {
+                let truthy = value.to_number().ok_or(())?.is_truthy();
+                Ok(FoldValue::Int(i64::from(!truthy)))
+            }
+            UnaryOp::Pos => value.to_number().map(FoldValue::from_tcl).ok_or(()),
+            UnaryOp::Neg => match value.to_number().ok_or(())? {
+                TclValue::Int(i) => i.checked_neg().map(FoldValue::Int).ok_or(()),
+                TclValue::Float(f) => Ok(FoldValue::Float(-f)),
+            },
+            UnaryOp::BitNot => match value.to_number().ok_or(())? {
+                TclValue::Int(i) => Ok(FoldValue::Int(!i)),
+                TclValue::Float(_) => Err(()),
+            },
+        }
+    }
+
+    fn compare_numeric(&mut self, left: &FoldValue, right: &FoldValue) -> Option<std::cmp::Ordering> {
+        Some(numeric_cmp(left.to_number()?, right.to_number()?))
+    }
+    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
+        left.to_string_val().cmp(&right.to_string_val())
+    }
+    fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ()> {
+        let n = needle.to_string_val();
+        Ok(split_tcl_list(&list.to_string_val()).contains(&n))
+    }
+
+    fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
+        Ok(value.to_number().ok_or(())?.is_truthy())
+    }
+    fn bool_value(&mut self, b: bool) -> FoldValue {
+        FoldValue::Int(i64::from(b))
+    }
+    fn unsupported(&mut self, _what: &str) {}
+
+    /// The iRules dialect string operators (`contains`/`starts_with`/`equals`/
+    /// `matches_glob`/`matches_regex`/…) — apply to the operands as strings.
+    fn binary_other(
+        &mut self,
+        op: BinOp,
+        left: FoldValue,
+        right: FoldValue,
+    ) -> Result<FoldValue, ()> {
+        apply_irules_string_op(op, &left.to_string_val(), &right.to_string_val())
+            .map(FoldValue::from_tcl)
+            .ok_or(())
+    }
 }
 
 /// Render a `TclValue` as a Tcl source literal. Matches Tcl's
@@ -129,50 +270,9 @@ pub fn format_tcl_value(v: TclValue) -> String {
 // Core dispatch
 // ---------------------------------------------------------------------------
 
-fn eval(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    match node {
-        ExprNode::Literal { text, .. } => parse_literal(text),
-        ExprNode::Var { name, .. } => resolve_var(name, env),
-        ExprNode::Binary { op, left, right } => eval_binary(*op, left, right, env),
-        ExprNode::Unary { op, operand } => eval_unary(*op, operand, env),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            let cv = eval(condition, env)?;
-            if cv.is_truthy() {
-                eval(true_branch, env)
-            } else {
-                eval(false_branch, env)
-            }
-        }
-        ExprNode::Call { function, args, .. } => eval_call(function, args, env),
-        // Command substitutions, quoted strings, and raw fallbacks
-        // are opaque at compile time.
-        ExprNode::Command { .. } | ExprNode::String { .. } | ExprNode::Raw { .. } => None,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Math function calls
 // ---------------------------------------------------------------------------
-
-/// Dispatch a math-function call with already-evaluated operand
-/// nodes. Returns `None` for unknown functions, non-deterministic
-/// ones (`rand`, `srand`), and any call whose argument count or
-/// value doesn't match the function's expected shape.
-fn eval_call(function: &str, args: &[ExprNode], env: &Env) -> Option<TclValue> {
-    let name = function.to_ascii_lowercase();
-    if matches!(name.as_str(), "rand" | "srand") {
-        return None;
-    }
-    let mut vals = Vec::with_capacity(args.len());
-    for arg in args {
-        vals.push(eval(arg, env)?);
-    }
-    dispatch_math(&name, &vals)
-}
 
 /// Math: variadic `min` / `max` — never shrink integer width.
 fn dispatch_min_max(name: &str, vals: &[TclValue]) -> Option<TclValue> {
@@ -356,89 +456,9 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
     }
 }
 
-fn resolve_var(name: &str, env: &Env) -> Option<TclValue> {
-    match env.get(name)? {
-        EnvValue::Int(i) => Some(TclValue::Int(*i)),
-        EnvValue::Float(f) => Some(TclValue::Float(*f)),
-        EnvValue::Str(s) => parse_literal(s),
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Binary operators
 // ---------------------------------------------------------------------------
-
-fn eval_binary(op: BinOp, left: &ExprNode, right: &ExprNode, env: &Env) -> Option<TclValue> {
-    // Short-circuit logical operators.
-    if matches!(op, BinOp::And | BinOp::WordAnd) {
-        let lv = eval(left, env)?;
-        if !lv.is_truthy() {
-            return Some(TclValue::Int(0));
-        }
-        let rv = eval(right, env)?;
-        return Some(TclValue::Int(i64::from(rv.is_truthy())));
-    }
-    if matches!(op, BinOp::Or | BinOp::WordOr) {
-        let lv = eval(left, env)?;
-        if lv.is_truthy() {
-            return Some(TclValue::Int(1));
-        }
-        let rv = eval(right, env)?;
-        return Some(TclValue::Int(i64::from(rv.is_truthy())));
-    }
-
-    // iRules string operators and list-membership — evaluate both
-    // operands as strings, then apply the operator (C22i1/i2/i3).
-    if matches!(
-        op,
-        BinOp::Contains
-            | BinOp::StartsWith
-            | BinOp::EndsWith
-            | BinOp::StrEquals
-            | BinOp::MatchesGlob
-            | BinOp::MatchesRegex
-            | BinOp::In
-            | BinOp::Ni
-    ) {
-        let ls = eval_as_string(left, env)?;
-        let rs = eval_as_string(right, env)?;
-        return apply_irules_string_op(op, &ls, &rs);
-    }
-
-    // Tcl string-comparison ops (`eq`/`ne`/`lt`/`le`/`gt`/`ge`) always
-    // compare their operands *as strings* (unlike `==`/`!=`), so extract
-    // string operands — evaluating a bare string like `"x"` numerically
-    // yields nothing, leaving `"x" ne "y"` (and `5 eq 5.0`) unfolded.
-    // Mirrors `tcl_expr_eval.py::_STRING_COMPARE_OPS` (#519).
-    if matches!(
-        op,
-        BinOp::StrEq | BinOp::StrNe | BinOp::StrLt | BinOp::StrLe | BinOp::StrGt | BinOp::StrGe
-    ) {
-        let ls = eval_as_string(left, env)?;
-        let rs = eval_as_string(right, env)?;
-        return apply_string_compare(op, &ls, &rs);
-    }
-
-    let lv = eval(left, env)?;
-    let rv = eval(right, env)?;
-    apply_binary(op, lv, rv)
-}
-
-/// Apply a Tcl string-comparison operator (`eq`/`ne`/`lt`/`le`/`gt`/`ge`)
-/// to two already-stringified operands. Mirrors Python's
-/// `_apply_string_compare`.
-fn apply_string_compare(op: BinOp, a: &str, b: &str) -> Option<TclValue> {
-    let result = match op {
-        BinOp::StrEq => a == b,
-        BinOp::StrNe => a != b,
-        BinOp::StrLt => a < b,
-        BinOp::StrLe => a <= b,
-        BinOp::StrGt => a > b,
-        BinOp::StrGe => a >= b,
-        _ => return None,
-    };
-    Some(TclValue::Int(i64::from(result)))
-}
 
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     match op {
@@ -651,61 +671,9 @@ fn tcl_pow(a: TclValue, b: TclValue) -> Option<TclValue> {
 // Unary operators
 // ---------------------------------------------------------------------------
 
-fn eval_unary(op: UnaryOp, operand: &ExprNode, env: &Env) -> Option<TclValue> {
-    let v = eval(operand, env)?;
-    match op {
-        UnaryOp::Neg => match v {
-            TclValue::Int(i) => i.checked_neg().map(TclValue::Int),
-            TclValue::Float(f) => Some(TclValue::Float(-f)),
-        },
-        UnaryOp::Pos => Some(v),
-        UnaryOp::Not | UnaryOp::WordNot => Some(TclValue::Int(i64::from(!v.is_truthy()))),
-        UnaryOp::BitNot => match v {
-            TclValue::Int(i) => Some(TclValue::Int(!i)),
-            TclValue::Float(_) => None,
-        },
-    }
-}
-
 // ---------------------------------------------------------------------------
 // iRules string ops (C22i1/i2)
 // ---------------------------------------------------------------------------
-
-/// Strip surrounding `"…"` or `{…}` delimiters from a literal.
-fn strip_string_delimiters(text: &str) -> &str {
-    if text.len() < 2 {
-        return text;
-    }
-    let first = text.as_bytes()[0];
-    let last = text.as_bytes()[text.len() - 1];
-    if (first == b'"' && last == b'"') || (first == b'{' && last == b'}') {
-        &text[1..text.len() - 1]
-    } else {
-        text
-    }
-}
-
-/// Extract a string value from an expression node.
-///
-/// Mirrors Python's `_eval_as_string`:
-/// - `ExprString` → strip delimiters.
-/// - `ExprLiteral` → use the raw text.
-/// - `ExprVar` → look up in `env`, render via [`format_tcl_value`]
-///   for numeric bindings or return the string binding directly.
-/// - Anything else → try to fold via [`eval`] and render the
-///   resulting [`TclValue`].
-fn eval_as_string(node: &ExprNode, env: &Env) -> Option<String> {
-    match node {
-        ExprNode::String { text, .. } => Some(strip_string_delimiters(text).to_owned()),
-        ExprNode::Literal { text, .. } => Some(text.clone()),
-        ExprNode::Var { name, .. } => match env.get(name)? {
-            EnvValue::Int(i) => Some(i.to_string()),
-            EnvValue::Float(f) => Some(format_tcl_value(TclValue::Float(*f))),
-            EnvValue::Str(s) => Some(s.clone()),
-        },
-        _ => eval(node, env).map(format_tcl_value),
-    }
-}
 
 /// Split a simple Tcl list string into elements.
 ///
@@ -1338,14 +1306,8 @@ mod tests {
         assert!(!glob_match("a?c", "abcd"));
     }
 
-    #[test]
-    fn strip_string_delimiters_round_trips_quotes_and_braces() {
-        assert_eq!(strip_string_delimiters("\"abc\""), "abc");
-        assert_eq!(strip_string_delimiters("{abc}"), "abc");
-        assert_eq!(strip_string_delimiters("abc"), "abc");
-        assert_eq!(strip_string_delimiters(""), "");
-        assert_eq!(strip_string_delimiters("\""), "\"");
-    }
+    // (string-delimiter stripping now lives in the shared `tcl_syntax::expr`
+    // walk — `strip_delims` — and is exercised by its tests.)
 
     // -- Math function dispatch --
 
