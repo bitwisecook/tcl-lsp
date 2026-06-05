@@ -268,7 +268,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 | Registry | Python | Rust | Missing in Rust | Extra in Rust | Verdict |
 |---|--:|--:|--:|--:|---|
-| `tcl` | 214 | 126 | 104 | 16 | NAMES DIFFER |
+| `tcl` | 214 | 127 | 102 | 15 | NAMES DIFFER |
 | `stdlib` | 225 | 225 | 0 | 0 | OK |
 | `tcllib` | 206 | 206 | 0 | 0 | OK |
 | `irules` | 1015 | 1015 | 0 | 0 | OK |
@@ -286,7 +286,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
-- **`tcl`** — `forms` 199→109, `hover` 211→125, `hover_synopsis` 196→125, `arity_bounded` 160→119, `hover_return_value` 9→0, `arg_types` 19→13, `options` 19→17, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `return_type` 92→110, `lowering_hook` 0→23, `traits` 42→104
+- **`tcl`** — `forms` 199→109, `hover` 211→126, `hover_synopsis` 196→126, `arity_bounded` 160→120, `hover_return_value` 9→0, `arg_types` 19→13, `options` 19→17, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `return_type` 92→111, `lowering_hook` 0→23, `traits` 42→105
 - **`stdlib`** — `traits` 23→24
 - **`tcllib`** — all captured dimensions at parity.
 - **`irules`** — `arg_roles` 4→5, `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
@@ -305,9 +305,9 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 | Registry | field | # mismatched | examples |
 |---|---|--:|---|
 | `tcl` | summary | 94 | `after`, `append`, `apply` |
-| `tcl` | synopsis | 37 | `apply`, `binary`, `classvariable` |
+| `tcl` | synopsis | 39 | `apply`, `binary`, `classvariable` |
 | `tcl` | body_kind | 3 | `oo::abstract`, `oo::configurable`, `oo::singleton` |
-| `tcl` | return_type | 96 | `after`, `append`, `apply` |
+| `tcl` | return_type | 98 | `after`, `append`, `apply` |
 | `tcl` | arity_min | 8 | `flush`, `oo::abstract`, `oo::class` |
 | `tcl` | arity_max | 3 | `fcopy`, `oo::copy`, `source` |
 | `stdlib` | summary | 3 | `tcltest::limitConstraints`, `tcltest::matchDirectories`, `tcltest::skipDirectories` |

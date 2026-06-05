@@ -1,5 +1,10 @@
 //! Tcl core command specifications — one file per command.
 
+// A few Tcl commands use the `::` namespace separator → double
+// underscores in module names (e.g. `regex__quote` for `regex::quote`).
+// Suppress the snake_case warnings for these.
+#![allow(non_snake_case)]
+
 mod after_;
 mod append_;
 mod apply;
@@ -85,6 +90,7 @@ mod puts_;
 mod re_quote;
 mod read_;
 mod readfile;
+mod regex__quote;
 mod regex_quote;
 mod regexp_;
 mod regexp_quote;
@@ -234,6 +240,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         re_quote::spec(),
         read_::spec(),
         readfile::spec(),
+        regex__quote::spec(),
         regex_quote::spec(),
         regexp_::spec(),
         regexp_quote::spec(),
