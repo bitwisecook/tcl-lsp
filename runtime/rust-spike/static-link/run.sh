@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# ============================================================================
+# SPIKE -- throwaway proof-of-concept. NOT the final design.
+# ============================================================================
 # Build and run the Rust-runtime C-extension spike under wasmtime.
 #
 #   clang  ext/pkga.c (unmodified)  --target=wasm32-wasi -c   ->  pkga.o

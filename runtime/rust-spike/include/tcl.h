@@ -1,4 +1,11 @@
 /*
+ * ============================================================================
+ * SPIKE -- throwaway proof-of-concept. NOT the final design.
+ * This is a hand-cut subset proving the approach; the production tcl.h is much
+ * wider (see README.md "What a production tcl.h needs"). Do not treat this
+ * file's shape as the target shape.
+ * ============================================================================
+ *
  * tcl.h -- minimal, API-compatible subset for the Rust-runtime C-extension spike.
  *
  * This header is authored by the *runtime*, not copied from upstream Tcl.  It

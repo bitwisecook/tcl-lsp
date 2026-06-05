@@ -1,3 +1,8 @@
+// ============================================================================
+// SPIKE -- throwaway proof-of-concept. NOT the final design. Do not derive the
+// production build wiring from this file. See runtime/rust-spike/README.md.
+// ============================================================================
+//
 //! Compile the UNMODIFIED C Tcl extension (`ext/pkga.c`, vendored byte-identical
 //! from Tcl 9.0.3 `unix/dltest/`) to a WebAssembly object with clang, against
 //! our own `include/tcl.h`, then hand the object to rustc's linker so it links
@@ -15,8 +20,9 @@ use std::process::Command;
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let src = manifest.join("ext/pkga.c");
-    let inc = manifest.join("include");
+    // include/ and ext/ are shared by both spikes, one level up.
+    let src = manifest.join("../ext/pkga.c");
+    let inc = manifest.join("../include");
     let obj = out.join("pkga.o");
 
     println!("cargo:rerun-if-changed={}", src.display());

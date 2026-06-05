@@ -1,102 +1,124 @@
-# Rust-runtime C-extension spike
+# Rust-runtime C-extension spikes
 
-**Question this answers:** if the WASM runtime is rewritten in Rust, can we still
-compile an *unmodified* C Tcl extension to WebAssembly and link it against our
-runtime and the compiled user code, with **no per-extension shim** — defining
-the ABI ourselves (API compatibility, not binary ABI compatibility)?
+> **These are throwaway spikes, not the final design.** Every source file here
+> carries a `SPIKE` banner. They prove an approach works end to end; do not
+> derive the production runtime, ABI, or `tcl.h` shape from their code. The
+> durable artifact is the design doc:
+> [`docs/design/runtime/c-extension-abi.md`](../../docs/design/runtime/c-extension-abi.md).
 
-**Answer: yes.** This spike does it end to end.
+**Question:** if the WASM runtime is rewritten in Rust, can we still compile an
+*unmodified* C Tcl extension to WebAssembly and link it against our runtime and
+the compiled user code, with **no per-extension shim**, defining the ABI
+ourselves (API compatibility, not binary ABI)?
 
-## What it proves
+**Answer: yes — proven two ways.**
 
-It takes [`ext/pkga.c`](ext/pkga.c) — a real Tcl extension, vendored
+Both spikes take [`ext/pkga.c`](ext/pkga.c) — a real Tcl extension, vendored
 **byte-identical** from Tcl 9.0.3 `unix/dltest/pkga.c` (the file Tcl's own
-`load.test` uses) — and:
+`load.test` uses) — compile it with **clang** against an authored
+[`include/tcl.h`](include/tcl.h) we own, and run it against a **Rust** runtime
+that implements the Tcl C API. The extension source is never touched.
 
-1. compiles it to a WebAssembly object with **clang**, against an authored
-   [`include/tcl.h`](include/tcl.h) that we (the runtime) own, with the
-   extension source unchanged;
-2. links that clang object against a minimal **Rust** runtime
-   ([`src/main.rs`](src/main.rs)) that implements the slice of the Tcl C API
-   `pkga.c` calls, into a single `wasm32-wasip1` module;
-3. runs it under **wasmtime**, where the Rust driver:
-   - calls the extension's `Pkga_Init(interp)`,
-   - which calls *back* into Rust (`Tcl_PkgProvide`, `Tcl_CreateObjCommand`) to
-     register `pkga_eq` / `pkga_quote`,
-   - then dispatches those commands through the runtime's **own command table**
-     (the path compiled user code takes), which `call_indirect`s into the C
-     extension's `Tcl_ObjCmdProc` through the shared function table,
-   - and reads back the result `Tcl_Obj` the C code built via the Rust obj API.
-
-Expected output: `SPIKE PASS` (exit 0), with `pkga_eq`/`pkga_quote` returning
-correct results, including a multi-byte UTF-8 case (`café`) that exercises
-`Tcl_NumUtfChars` / `Tcl_UtfNcmp`.
-
-## The three roles, one module
+## Layout
 
 ```
-   ext/pkga.c  --clang/wasm-->  pkga.o  ─┐
-                                          ├─ wasm-ld ─► tcl_ext_spike.wasm ─► wasmtime
-   src/main.rs --rustc/wasm--> runtime ──┘   (one shared linear memory,
-   (Rust: Tcl C API + driver)                 one shared function table)
+runtime/rust-spike/
+├── include/tcl.h        authored, API-compatible subset (shared by both spikes)
+├── ext/pkga.c           the unmodified real extension (shared)
+├── static-link/         SPIKE 1: extension + runtime linked into ONE wasm
+│   ├── src/main.rs      minimal Rust runtime (Tcl C API) + driver
+│   ├── build.rs         clang-compiles ext/pkga.c, hands object to rustc
+│   └── run.sh
+└── dynamic-link/        SPIKE 2: extension loaded at runtime as a side module
+    ├── runtime/src/lib.rs  Rust runtime cdylib (exports memory + table + API)
+    ├── loader.py           host loader (dylink.0 + memory/table base wiring)
+    └── run.sh
 ```
 
-The Rust runtime exports the Tcl C API as `#[no_mangle] extern "C"` symbols; the
-clang-compiled extension imports them; `wasm-ld` resolves everything into one
-module. The driver in `main()` stands in for compiled user Tcl code calling a
-command the extension registered.
+## Spike 1 — static link (`static-link/run.sh`)
 
-This is the **static-link** model (everything in one wasm, like the existing
-`core/compiler/codegen/wasm_link.py` whole-program link). It is the simplest
-deployment and conclusively answers the API/ABI-compatibility question.
+Everything in one module: clang compiles `ext/pkga.c` to a wasm object against
+our `tcl.h`; `rustc`/`wasm-ld` links it with the Rust runtime into one
+`wasm32-wasip1` binary; `wasmtime` runs it. This is the whole-program link model
+(like `core/compiler/codegen/wasm_link.py`). It proves API compatibility,
+Rust↔C wasm interop, and the runtime→extension `call_indirect` callback.
 
-## Run it
+## Spike 2 — dynamic link (`dynamic-link/run.sh`)
+
+The real `package require` model. `ext/pkga.c` is built `-fPIC -shared` as a
+separate `dylink.0` **side module**. A host loader:
+
+- parses the side module's `dylink.0` footprint (data bytes + table slots),
+- reserves a memory region (`__memory_base`) and table slots (`__table_base`)
+  from the **runtime's** shared linear memory and shared function table,
+- wires the side module's `Tcl_*` imports to the runtime's exports,
+- runs `__wasm_apply_data_relocs` + `__wasm_call_ctors` + `Pkga_Init`,
+- then dispatches commands through the runtime, which `call_indirect`s back into
+  the dynamically-loaded extension via the shared table.
+
+This proves the genuinely-novel mechanism: cross-module shared memory + shared
+function table, host-driven relocation, and runtime↔extension calls — none of
+which depend on the runtime being Rust vs Zig (clang + `wasm-ld` do the C work).
+
+## Run
 
 ```
-runtime/rust-spike/run.sh
+runtime/rust-spike/static-link/run.sh     # -> SPIKE PASS
+runtime/rust-spike/dynamic-link/run.sh    # -> SPIKE PASS
 ```
 
-Requires (already present in this environment): the repo's `stable` Rust
-toolchain with the `wasm32-wasip1` target, `clang`, `wasm-ld`, and `wasmtime`.
-No network access and **no wasi sysroot** are needed — the extension includes
-no system headers, and `build.rs` compiles it `-ffreestanding` so clang uses its
-own `stddef.h`/`stdint.h`.
+Both print `SPIKE PASS` (exit 0) and exercise `pkga_eq` / `pkga_quote`, including
+a multi-byte UTF-8 case (`café`). Requirements (already present here): the repo's
+`stable` Rust toolchain with `wasm32-wasip1` + `wasm32-unknown-unknown`, `clang`,
+`wasm-ld`, `wasmtime`, and `uv` (the dynamic loader runs via
+`uv run --with wasmtime`). **No wasi sysroot is needed** — the extension includes
+no system headers, and it is compiled `-ffreestanding`.
 
-## Why this is the load-bearing result
+## Why the runtime's language is not the gate
 
-- **The C compiler is clang either way.** `zig cc` (today's runtime) *is* clang
-  underneath. The runtime's language does not decide whether C extensions
-  compile — clang + `wasm-ld` do, and they are language-agnostic.
-- **Rust expresses the whole C ABI surface.** `#[no_mangle] extern "C"`,
-  `#[repr(C)]` `Tcl_Obj`, nullable `extern "C" fn` pointers, and
-  shared-memory/shared-table `call_indirect` all work, as shown.
-- **"API not ABI" removes the hard part.** Because extensions recompile from
-  source against *our* `tcl.h`, we drop the real Tcl 600-slot stubs table and
-  use direct C-ABI imports. The header is the only "shim", written once.
+- The C compiler is **clang** either way (`zig cc` is clang underneath). It, not
+  the runtime language, decides whether C extensions compile to WASM.
+- Rust expresses the whole C ABI surface: `#[no_mangle] extern "C"`,
+  `#[repr(C)] Tcl_Obj`, nullable `extern "C" fn` pointers, exported memory +
+  function table, and shared-table `call_indirect`.
+- **"API not ABI" removes the hard part**: extensions recompile against *our*
+  `tcl.h`, so we drop Tcl's 600-slot binary stubs table and use direct C-ABI
+  imports. The header is the only "shim", written once.
 
-## What this spike does NOT yet prove (deliberate scope)
+## What a production `tcl.h` needs (from the extension survey)
 
-- **Dynamic loading.** Real `package require` loads an extension at runtime. The
-  production path compiles the extension `-fPIC` as a `dylink.0` side module
-  that imports the runtime's memory + function table, with a small loader in the
-  runtime that relocates it and calls `Foo_Init`. That mechanism is
-  toolchain-driven (clang/`wasm-ld`) and **independent of the runtime language**;
-  it is the next spike. The static link here proves the API/ABI and the
-  cross-language link; it does not exercise the side-module loader.
-- **Memory discipline.** `Tcl_Obj`s are leaked; there is no refcount/shimmer
-  model. The real runtime keeps its existing discipline.
-- **API breadth.** Only the ~10 functions `pkga.c` needs are implemented. Per
-  the extension survey (`docs/design/runtime/` write-up), a production `tcl.h`
-  also needs the channel API + `Tcl_ChannelType`, custom `Tcl_ObjType`
-  registration, `Tcl_FSRegister`, the threading primitives, and the NRE entry
-  points, plus the sibling public headers `tclOO.h` and `tclTomMath.h`.
-  `tclInt.h` (internal) is **out of scope** — in a 25-extension survey only
-  TclX and Expect needed it, and both are blocked from WASM by deep POSIX
-  dependencies regardless.
+A survey of 25+ real extensions found **~85–90% are public-`tcl.h`-only** at the
+Tcl level. A production runtime header must cover, beyond the obj/command/eval
+core these spikes already exercise:
+
+| Surface | Why | Public? |
+|---|---|---|
+| Channel API + `Tcl_ChannelType` | TclTLS (transform/stacking), Memchan | yes (`tcl.h`) |
+| Custom `Tcl_ObjType` registration | VecTcl, tcllib `sha1c`/`md5c` | yes (`tcl.h`) |
+| `Tcl_FSRegister` / `Tcl_Filesystem` | tclvfs | yes (`tcl.h`) |
+| Threading (`Tcl_CreateThread`, mutex/cond, `Tcl_GetThreadData`) | Thread | yes (`tcl.h`) |
+| NRE entry points (`Tcl_NRCallObjProc`) | coroutine-aware extensions | yes (`tcl.h`) |
+| `tclOO.h` (+`Tcl_OOInitStubs`) | classes-in-C (e.g. `pkgooa.c`) | yes, sibling header |
+| `tclTomMath.h` | raw `mp_*` bignum arithmetic | yes, sibling header |
+
+`tclInt.h` (internal) is **out of scope**: in the survey only TclX and Expect
+needed it, and both are blocked from WASM by deep POSIX dependencies (ptys,
+chroot) regardless. The practical gate for any extension is almost never the Tcl
+API — it is whether its **third-party native library** (OpenSSL, libcurl, libpq,
+X11, audio, libtcc) can itself reach WASM.
+
+## What these spikes deliberately do NOT cover
+
+- **Memory discipline.** `Tcl_Obj`s are leaked; no refcount/shimmer model. The
+  real runtime keeps its existing discipline.
+- **API breadth.** Only the ~10 functions `pkga.c` needs are implemented.
+- **GOT-heavy side modules.** `pkga.c` produces no `GOT.func`/`GOT.mem` imports;
+  a production loader must also resolve those (data/function address fixups).
+- **One interp / fixed command table** in the dynamic runtime (single-interp
+  simplification).
 
 ## Provenance / licence
 
 `ext/pkga.c` is copied verbatim from Tcl 9.0.3 (`unix/dltest/pkga.c`),
-Copyright © 1995 Sun Microsystems, Inc., distributed under the Tcl licence
-(`license.terms`). Its copyright header is retained. `include/tcl.h` and
-`src/main.rs` are original to this repository.
+Copyright © 1995 Sun Microsystems, Inc., under the Tcl licence; its header is
+retained. `include/tcl.h`, the Rust sources, and `loader.py` are original.

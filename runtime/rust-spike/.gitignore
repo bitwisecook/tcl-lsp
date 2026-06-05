@@ -1,1 +1,5 @@
-/target
+# Build artifacts for all spikes under this tree.
+target/
+**/target/
+build/
+**/build/

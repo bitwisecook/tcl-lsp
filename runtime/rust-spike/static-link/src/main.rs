@@ -1,3 +1,9 @@
+// ============================================================================
+// SPIKE -- throwaway proof-of-concept. NOT the final design.
+// Do not derive the production runtime, ABI, or tcl.h shape from this file; see
+// runtime/rust-spike/README.md and docs/design/runtime/c-extension-abi.md.
+// ============================================================================
+//
 //! Rust-runtime C-extension spike.
 //!
 //! Proves the load-bearing claim behind a Rust rewrite of the WASM runtime:
