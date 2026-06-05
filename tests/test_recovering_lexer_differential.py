@@ -1,18 +1,22 @@
 """Differential oracle: single-pass recovering tokeniser == two-pass recovery.
 
-The single-pass recovering lexer (``compiler.parsing.recovering_lexer``) is being
-grown to replace the existing detect-then-reparse recovery
-(``compute_virtual_insertions`` + ``tokenise(virtual_insertions=...)``).  This
-file is its safety net: for *every* input — well-formed, and each error-recovery
-heuristic, and a recovery-heavy fuzz corpus — the new stream must be identical to
-the old one, token-for-token (type, span, text, quote flag) **and**
-warning-for-warning.  The warnings matter as much as the tokens: they are the
-``missing "`` / ``missing close-brace`` signals the analyser turns into E2xx
-diagnostics, and the two-pass keeps an over-running token + warning whenever a
-heuristic declines, so the single pass must reproduce that too.
+The recovering tokeniser (``compiler.parsing.recovering_lexer``) must produce a
+stream identical to the established detect-then-reparse recovery
+(``compute_virtual_insertions`` + ``tokenise(virtual_insertions=...)``) — token
+for token (type, span, text, quote flag) **and** warning for warning.  The
+warnings matter as much as the tokens: they are the ``missing "`` /
+``missing close-brace`` signals the analyser turns into E2xx diagnostics, and the
+two-pass keeps an over-running token + warning whenever a heuristic declines, so
+the single pass must reproduce that too.
 
-As inline recovery replaces the delegating fallback one delimiter type at a time,
-this oracle catches any divergence the instant it appears.
+This file is a **deterministic** safety net: curated cases per recovery
+heuristic, exact per-heuristic diagnostic characterization, and the minimal
+repros the offline fuzzer has surfaced (``TestPromotedFuzzFindings``).  Live
+random fuzzing is *not* run here — it runs offline via ``make
+test-fuzz-recovery`` (``tests/fuzz_recovery_campaign.py``), and any divergence it
+shrinks is promoted into a deterministic case here or in
+``tests/test_recovery_edge_cases.py``.  That keeps CI fast and reproducible while
+the campaign keeps exploring.
 """
 
 from __future__ import annotations
@@ -193,7 +197,16 @@ class TestRecoveryDiagnosticCharacterization:
         assert got == expected, f"diagnostics drifted for {source!r}\n  got: {got}"
 
 
-# --- fuzz corpora ------------------------------------------------------------
+# --- promoted fuzz findings --------------------------------------------------
+#
+# We do NOT run live random fuzz in CI (it re-checks the same fixed-seed cases
+# every run for ~1 min and explores nothing new).  Instead the campaign runs
+# offline — ``make test-fuzz-recovery`` (tests/fuzz_recovery_campaign.py) — and
+# any divergence it shrinks is promoted to a deterministic case below (or to
+# tests/test_recovery_edge_cases.py).  These are the minimal repros the campaign
+# has surfaced; each must satisfy single-pass == two-pass and carry no duplicate
+# diagnostics.  The generators are kept for the offline campaign and for
+# tests/test_chunk_cache_soundness.py.
 
 _KNOWN_CMDS = [
     "set a 1",
@@ -231,24 +244,34 @@ def _rand_soup_source(rng: random.Random) -> str:
     return "".join(rng.choice(_SOUP) for _ in range(rng.randint(0, 120)))
 
 
-class TestRecoveryDifferentialFuzz:
-    @pytest.mark.parametrize("seed", [1, 7, 42, 1234, 0xC0FFEE])
-    def test_recovery_biased_corpus(self, seed):
-        rng = random.Random(seed)
-        recovered = 0
-        for _ in range(4000):
-            src = _rand_recovery_source(rng)
-            if compute_virtual_insertions(src):
-                recovered += 1
-            _assert_equivalent(src)
-            _assert_no_duplicate_diagnostics(src)
-        # Coverage guard: the corpus must actually drive recovery.
-        assert recovered > 200
+class TestPromotedFuzzFindings:
+    """Minimal repros the offline campaign shrank out — frozen as regressions."""
 
-    @pytest.mark.parametrize("seed", [3, 99, 0x5EED])
-    def test_character_soup(self, seed):
-        rng = random.Random(seed)
-        for _ in range(4000):
-            src = _rand_soup_source(rng)
-            _assert_equivalent(src)
-            _assert_no_duplicate_diagnostics(src)
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Fast-path soundness: a suspicious quote that closes at a *later*
+            # stray quote (nothing reaches EOF in-quote) yet still recovers; and
+            # an unterminated quote whose tail is a VAR/CMD substitution.
+            '"\nforeach"$x',
+            'set y "\nproc q {\n$v',
+            'set y "\nputs [foo]',
+            'set x "\nputs hi\nputs "more\n',
+            # Nested unterminated [ where the inserted ] cannot balance both
+            # levels — must keep the over-running command, not truncate.
+            "set x [foo [bar baz\n",
+            "[foo [bar\n",
+            "set x [a [b [c\nputs hi\n",
+            # Diagnostic de-dup: first parse and recovered re-parse both flag the
+            # same lexer warning for an unchanged region.
+            '{\nif\n""[\nset',
+            'set x "\nif {1} {\n  puts [foo\n}\nset\n',
+            # Character-soup repros that exercised tricky bracket/brace/quote
+            # interleavings (extra closers, ${}, escapes).
+            "]; xt] [}u c [ #cp}ep }\"ooqo1}{c} ersp\n} [rx\np  \nsx;rt{xe }pc#  }   ]c#t  p   # $ee  p{;] ",
+            'a "\nset\n\nb "\nputs\n',
+        ],
+    )
+    def test_promoted(self, source):
+        _assert_equivalent(source)
+        _assert_no_duplicate_diagnostics(source)
