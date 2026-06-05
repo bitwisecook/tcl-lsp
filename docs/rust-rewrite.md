@@ -5208,6 +5208,22 @@ deferred" but understates by ~46 types **and all modifiers**.  **Fix:**
 extend the legend + `classify_arg_token` incrementally; the modifiers are
 cheap and high-value (`defaultLibrary` / `readonly`).
 
+**LANDED (token modifiers — legend + `defaultLibrary` on builtins,
+2026-06-09).**  `legend_token_modifiers` now returns the full Python set
+(`declaration` / `definition` / `readonly` / `defaultLibrary`, order
+load-bearing — `defaultLibrary` = bit 3) and the server advertises it
+unchanged (it builds the capability from this function).  The token-entry
+pipeline (`collect_entries` → `push_token` → `encode_entries`) now threads
+a per-token modifier bitmask instead of hard-coding `0`, and a command
+head that resolves to a registry built-in carries `defaultLibrary`
+(mirrors `_collect.py:913-920`: `is_cmd_name && function && builtin`;
+user-defined procs and language keywords stay unmodified).  5 unit tests.
+**Remaining (need the arg-role-aware classifier the minimal port lacks):**
+`definition` on proc-name args, `declaration` on format-arg captures,
+`defaultLibrary` on expr-function / known-subcommand tokens, plus the ~46
+absent token *types* (the `operator` / `parameter` / `regexp` / `event` /
+`escape` + BigIP / format-string sub-token taxonomies).
+
 **GAP-C3 — code actions: refactors + ~12 quick-fix families dropped,
 `context.only` filtering absent.**  Rust `code_actions.rs` emits only
 `QuickFix` from W302 / W213 / `diag.fixes`.  Beyond the 🔴 `tcl-refactor`

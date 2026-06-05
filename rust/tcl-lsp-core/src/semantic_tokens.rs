@@ -88,13 +88,19 @@ pub fn legend_token_types() -> Vec<&'static str> {
     ]
 }
 
-/// Token-modifiers part of the legend.  The minimal rich
-/// port doesn't use modifiers; this list reserves the
-/// position for future deprecation / readonly / etc.
+/// Token-modifiers part of the legend.  Order is fixed and must
+/// align with the `1 << index` bits in [`MOD_DEFAULT_LIBRARY`] etc.
+/// Mirrors `SEMANTIC_TOKEN_MODIFIERS` in
+/// `lsp/features/_semantic_tokens/_constants.py`.
 #[must_use]
 pub fn legend_token_modifiers() -> Vec<&'static str> {
-    Vec::new()
+    vec!["declaration", "definition", "readonly", "defaultLibrary"]
 }
+
+/// `defaultLibrary` modifier bit (legend index 3) — set on a
+/// command head that resolves to a registry built-in.  Mirrors
+/// `1 << _MOD_INDEX["defaultLibrary"]`.
+const MOD_DEFAULT_LIBRARY: u32 = 1 << 3;
 
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
@@ -177,7 +183,7 @@ pub fn range(
     registry: &CommandRegistry,
 ) -> SemanticTokens {
     let mut entries = collect_entries(source, dialect, registry);
-    entries.retain(|(line, col, _, _)| {
+    entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics (PR #454
         // Copilot review): start is inclusive, end is exclusive.
         let pos = (*line, *col);
@@ -188,15 +194,15 @@ pub fn range(
     encode_entries(&entries)
 }
 
+/// One collected token: `(line, col, length, kind, modifiers)` with
+/// absolute line/column and a token-modifier bitmask (see
+/// [`legend_token_modifiers`]).
+type Entry = (u32, u32, u32, TokenKind, u32);
+
 /// Walk the segmenter + comment scan and return raw
-/// `(line, col, length, kind)` tuples sorted by position.
-/// Shared by `full` and `range`.
-fn collect_entries(
-    source: &str,
-    dialect: &str,
-    registry: &CommandRegistry,
-) -> Vec<(u32, u32, u32, TokenKind)> {
-    let mut entries: Vec<(u32, u32, u32, TokenKind)> = Vec::new();
+/// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
+fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Entry> {
+    let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
 
     // Walk every segmented command and classify each token.
@@ -208,11 +214,27 @@ fn collect_entries(
         if seg.argv.is_empty() {
             continue;
         }
-        // Classify the command-head token.
+        // Classify the command-head token.  A head that resolves to a
+        // registry built-in carries the `defaultLibrary` modifier
+        // (mirrors `_collect.py:913-920`: `is_cmd_name && function &&
+        // builtin`).  User-defined procs aren't in the registry, so they
+        // stay plain `function`.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
         let head_kind = classify_command_head(head_text, registry);
-        push_token(&line_index, source, head_tok, head_kind, &mut entries);
+        let head_mods = if head_kind == TokenKind::Function && registry.get(head_text).is_some() {
+            MOD_DEFAULT_LIBRARY
+        } else {
+            0
+        };
+        push_token(
+            &line_index,
+            source,
+            head_tok,
+            head_kind,
+            head_mods,
+            &mut entries,
+        );
 
         // Walk the remaining tokens (arg-position tokens
         // + nested tokens).  Each contributes a classification
@@ -223,7 +245,7 @@ fn collect_entries(
                 continue;
             }
             if let Some(kind) = classify_arg_token(*tok, source) {
-                push_token(&line_index, source, *tok, kind, &mut entries);
+                push_token(&line_index, source, *tok, kind, 0, &mut entries);
             }
         }
     }
@@ -234,7 +256,7 @@ fn collect_entries(
     push_comment_tokens(source, &line_index, &mut entries);
 
     // Sort by (line, column) so the delta encoding works.
-    entries.sort_by_key(|(line, col, _, _)| (*line, *col));
+    entries.sort_by_key(|(line, col, _, _, _)| (*line, *col));
     entries
 }
 
@@ -307,11 +329,7 @@ fn is_number_literal(text: &str) -> bool {
 
 /// Scan `source` for `#` comment lines and push each one as
 /// a Comment-kind entry.  Mirrors Python's `_collect_comments`.
-fn push_comment_tokens(
-    source: &str,
-    line_index: &LineIndex,
-    entries: &mut Vec<(u32, u32, u32, TokenKind)>,
-) {
+fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
     let mut byte_pos: u32 = 0;
     let mut line_start = true;
     for c in source.chars() {
@@ -341,7 +359,7 @@ fn push_comment_tokens(
                     .count(),
             )
             .unwrap_or(0);
-            entries.push((pos.line, pos.character, len_chars, TokenKind::Comment));
+            entries.push((pos.line, pos.character, len_chars, TokenKind::Comment, 0));
             // Skip past the comment line.
             byte_pos = comment_end;
             line_start = false;
@@ -359,7 +377,8 @@ fn push_token(
     source: &str,
     tok: Token,
     kind: TokenKind,
-    entries: &mut Vec<(u32, u32, u32, TokenKind)>,
+    modifiers: u32,
+    entries: &mut Vec<Entry>,
 ) {
     let span = tok.span;
     let len_bytes = span.end() - span.start();
@@ -377,16 +396,16 @@ fn push_token(
         return;
     }
     let len_chars = u32::try_from(text.chars().count()).unwrap_or(0);
-    entries.push((pos.line, pos.character, len_chars, kind));
+    entries.push((pos.line, pos.character, len_chars, kind, modifiers));
 }
 
 /// Encode entries into the LSP packed integer stream:
 /// `[deltaLine, deltaCol, length, type, modifiers]` per token.
-fn encode_entries(entries: &[(u32, u32, u32, TokenKind)]) -> SemanticTokens {
+fn encode_entries(entries: &[Entry]) -> SemanticTokens {
     let mut data: Vec<u32> = Vec::with_capacity(entries.len() * 5);
     let mut prev_line: u32 = 0;
     let mut prev_col: u32 = 0;
-    for (line, col, len, kind) in entries {
+    for (line, col, len, kind, modifiers) in entries {
         let delta_line = line.saturating_sub(prev_line);
         let delta_col = if delta_line == 0 {
             col.saturating_sub(prev_col)
@@ -397,7 +416,7 @@ fn encode_entries(entries: &[(u32, u32, u32, TokenKind)]) -> SemanticTokens {
         data.push(delta_col);
         data.push(*len);
         data.push(*kind as u32);
-        data.push(0); // No modifiers.
+        data.push(*modifiers);
         prev_line = *line;
         prev_col = *col;
     }
@@ -577,6 +596,43 @@ mod tests {
         assert_eq!(types[TokenKind::Number as usize], "number");
         assert_eq!(types[TokenKind::Comment as usize], "comment");
         assert_eq!(types[TokenKind::Namespace as usize], "namespace");
+    }
+
+    #[test]
+    fn legend_modifiers_match_python_order() {
+        // Order is load-bearing: `defaultLibrary` must be bit index 3.
+        let mods = legend_token_modifiers();
+        assert_eq!(
+            mods,
+            vec!["declaration", "definition", "readonly", "defaultLibrary"]
+        );
+        assert_eq!(MOD_DEFAULT_LIBRARY, 1 << 3);
+    }
+
+    #[test]
+    fn builtin_command_head_gets_default_library_modifier() {
+        // `puts` is a registry built-in classified as `function`, so its
+        // head token carries the `defaultLibrary` modifier (bit 3 = 8).
+        let s = full("puts hi\n", "tcl", &reg());
+        assert_eq!(s.data[3], TokenKind::Function as u32, "{:?}", s.data);
+        assert_eq!(s.data[4], MOD_DEFAULT_LIBRARY, "{:?}", s.data);
+    }
+
+    #[test]
+    fn user_proc_head_has_no_default_library_modifier() {
+        // A user-defined command isn't in the registry → `function`
+        // with no modifier.
+        let s = full("my_custom_cmd 1 2\n", "tcl", &reg());
+        assert_eq!(s.data[3], TokenKind::Function as u32, "{:?}", s.data);
+        assert_eq!(s.data[4], 0, "{:?}", s.data);
+    }
+
+    #[test]
+    fn keyword_head_has_no_default_library_modifier() {
+        // `if` is a language keyword, not a `function` — no defaultLibrary.
+        let s = full("if {1} { puts hi }\n", "tcl", &reg());
+        assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
+        assert_eq!(s.data[4], 0, "{:?}", s.data);
     }
 
     #[test]
