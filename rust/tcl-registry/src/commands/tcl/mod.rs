@@ -68,6 +68,7 @@ mod lseq;
 mod lset;
 mod lsort_;
 mod mathop;
+mod mathop_generated;
 mod namespace_;
 mod oo_abstract;
 mod oo_class;
@@ -140,6 +141,9 @@ use crate::spec::CommandSpec;
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = tcl_specs_a_through_l();
     specs.extend(tcl_specs_m_through_z());
+    // GAP-d: the `tcl::mathop` operator ensemble (every spelling),
+    // restoring name parity with the Python source of truth.
+    specs.extend(mathop_generated::specs());
     specs
 }
 
