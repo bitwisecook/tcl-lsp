@@ -1298,6 +1298,34 @@ the Zig rep.
   namespace-qualified command/var resolution; extend the flat global command
   table to the namespace tree. Gate: `make check-wasm-parity` green;
   namespace-tree behaviour preserved (`namespace-tree.md`).
+  - **Tree + the one resolver — ✅ done.** `namespace.rs`: an arena
+    (`Vec<Namespace>` + `NsId` indices, `GLOBAL = 0`; no `Rc`/parent pointers,
+    wasm-clean) with **one** `resolve(currentNs, name)` (A1/A2): qualified →
+    direct lookup in the named ns (absolute from `::`, else relative); unqualified
+    → current ns → its `namespace path` → global. `Interp` now holds
+    `namespaces: Namespaces` + `current_ns` in place of the flat `BTreeMap`;
+    `register_builtin`/`dispatch`/`command_names` all route through it. A shared
+    `home_of` underlies `resolve`/`delete`/`rename` so they hit the same binding.
+  - **`rename` + `interp alias` — ✅ done** (`cmd_alias.rs`, the rename-alias
+    wave; mirrors [`rename-alias.md`](rename-alias.md) §3–4 and the
+    [alias-resolution contract](../contracts/command-alias-resolution.md)). The
+    `Command` enum grew an `Alias { target, prefix }` variant (so `Command` is now
+    `Clone`, not `Copy` — `resolve` clones the small handle out of the table). The
+    **dispatch trampoline** re-resolves the alias `target` *by name, anchored at
+    global, on each call* — lazily observing the target's **deletion** but **not**
+    following its **rename** (matches C Tcl) — then prepends the frozen `prefix`
+    words. `rename` moves/deletes a binding (built-ins `return`/`error` protected
+    with `can't rename "X": built-in command`; `rename old ""` deletes;
+    self-rename is a no-op); `interp alias {} new {} target ?arg…?` create / `{}
+    new` query / `{} new {}` delete, and `interp aliases {}` lists. Single-interp
+    only (non-empty interp paths → explicit error; child interps deferred). Gate:
+    `make runtime-rust-test` (114 tests) + `make runtime-rust-lint` green.
+  - **Remaining:** the `namespace` command (`eval`/`current`/`path`/`export`/
+    `import`/`forget`/`which`), ensembles (the `dict for`→`::tcl::dict::for`
+    rewrite is the canonical ensemble alias — generalise it), registering
+    `::tcl::mathfunc::*`/`::tcl::mathop::*` as overridable commands, the
+    variable-namespace side (`set ::ns::x`), and per-frame `current_ns` (a proc
+    runs in its defining namespace) — gated on the proc chunk.
 - **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a

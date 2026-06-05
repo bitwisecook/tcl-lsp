@@ -26,6 +26,17 @@ pub type NsId = usize;
 /// The global namespace `::`.
 pub const GLOBAL: NsId = 0;
 
+/// The result of a [`Namespaces::rename`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenameOutcome {
+    /// `old` was moved to `new`.
+    Renamed,
+    /// `rename old ""` removed the command.
+    Deleted,
+    /// `old` did not resolve to any command.
+    NoSuchCommand,
+}
+
 /// One namespace: its simple name, its command table, child namespaces, the
 /// `namespace path` search list, and `export` patterns.
 struct Namespace {
@@ -90,27 +101,14 @@ impl Namespaces {
         self.arena[ns].commands.insert((*simple).to_vec(), command);
     }
 
-    /// The single command resolver, `resolve(currentNs, name)` (A2).
+    /// The single command resolver, `resolve(currentNs, name)` (A2). Returns a
+    /// **clone** of the small command handle (a fn-pointer for `Builtin`; the
+    /// target + frozen prefix for `Alias`) so the caller can dispatch without
+    /// holding a borrow on the table.
     #[must_use]
     pub fn resolve(&self, current: NsId, name: &[u8]) -> Option<Command> {
-        if let Some((ns, simple)) = self.resolve_qualified(current, name) {
-            return self.arena[ns].commands.get(simple).copied();
-        }
-        // Unqualified: current ns → its path → global.
-        if let Some(c) = self.arena[current].commands.get(name) {
-            return Some(*c);
-        }
-        for &p in &self.arena[current].path {
-            if let Some(c) = self.arena[p].commands.get(name) {
-                return Some(*c);
-            }
-        }
-        if current != GLOBAL {
-            if let Some(c) = self.arena[GLOBAL].commands.get(name) {
-                return Some(*c);
-            }
-        }
-        None
+        self.home_of(current, name)
+            .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
     }
 
     /// Sorted command names in namespace `ns` (`info commands`).
@@ -119,13 +117,72 @@ impl Namespaces {
         self.arena[ns].commands.keys().map(Vec::as_slice).collect()
     }
 
-    /// Remove a command (`rename old ""`); returns whether it existed.
+    /// Remove the command bound to `name` (the `rename old ""` / alias-clear
+    /// path); returns whether it existed. Honours the full resolution order so
+    /// `delete` retires the same binding `resolve` would have hit.
     pub fn delete(&mut self, current: NsId, name: &[u8]) -> bool {
-        if let Some((ns, simple)) = self.resolve_qualified(current, name) {
-            return self.arena[ns].commands.remove(simple).is_some();
+        match self.home_of(current, name) {
+            Some((ns, simple)) => self.arena[ns].commands.remove(&simple).is_some(),
+            None => false,
         }
-        self.arena[current].commands.remove(name).is_some()
-            || self.arena[GLOBAL].commands.remove(name).is_some()
+    }
+
+    /// `rename old new`: move the command bound to `old` to `new` (both resolved
+    /// relative to `current`, absolute when `::`-led); `new == ""` deletes it.
+    /// A self-rename is a no-op (remove-then-reinsert under the same key).
+    ///
+    /// Built-in protection lives in the `rename` builtin, not here — this is the
+    /// pure table operation.
+    pub fn rename(&mut self, current: NsId, old: &[u8], new: &[u8]) -> RenameOutcome {
+        let Some((old_ns, old_simple)) = self.home_of(current, old) else {
+            return RenameOutcome::NoSuchCommand;
+        };
+        // SAFETY of unwrap: `home_of` reported the binding exists.
+        let cmd = self.arena[old_ns].commands.remove(&old_simple).unwrap();
+        if new.is_empty() {
+            return RenameOutcome::Deleted;
+        }
+        let absolute = new.starts_with(b"::");
+        let segments = split_qualifier(new);
+        let Some((simple, ns_parts)) = segments.split_last() else {
+            // `new` was `::`-only — nothing nameable; put the command back.
+            self.arena[old_ns].commands.insert(old_simple, cmd);
+            return RenameOutcome::NoSuchCommand;
+        };
+        let mut ns = if absolute { GLOBAL } else { current };
+        for part in ns_parts {
+            ns = self.ensure_child(ns, part);
+        }
+        self.arena[ns].commands.insert((*simple).to_vec(), cmd);
+        RenameOutcome::Renamed
+    }
+
+    /// Every alias command's fully-qualified name across the tree (`interp
+    /// aliases`). Global aliases keep their simple name (aliases are registered
+    /// interpreter-wide); namespaced ones are qualified.
+    #[must_use]
+    pub fn alias_names(&self) -> Vec<Vec<u8>> {
+        let mut found: Vec<(NsId, Vec<u8>)> = Vec::new();
+        for (id, ns) in self.arena.iter().enumerate() {
+            for (key, cmd) in &ns.commands {
+                if matches!(cmd, Command::Alias { .. }) {
+                    found.push((id, key.clone()));
+                }
+            }
+        }
+        found
+            .into_iter()
+            .map(|(id, key)| {
+                if id == GLOBAL {
+                    key
+                } else {
+                    let mut q = self.qualified_name(id);
+                    q.extend_from_slice(b"::");
+                    q.extend_from_slice(&key);
+                    q
+                }
+            })
+            .collect()
     }
 
     /// Set namespace `ns`'s `namespace path` to the given namespaces.
@@ -176,6 +233,30 @@ impl Namespaces {
     }
 
     // -- helpers --------------------------------------------------------------
+
+    /// Locate the namespace + simple name that *holds* the binding `name`
+    /// resolves to, following the full resolution order (qualified → current →
+    /// path → global). The shared core of `resolve`/`delete`/`rename`.
+    fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+        if let Some((ns, simple)) = self.resolve_qualified(current, name) {
+            return self.arena[ns]
+                .commands
+                .contains_key(simple)
+                .then(|| (ns, simple.to_vec()));
+        }
+        if self.arena[current].commands.contains_key(name) {
+            return Some((current, name.to_vec()));
+        }
+        for &p in &self.arena[current].path {
+            if self.arena[p].commands.contains_key(name) {
+                return Some((p, name.to_vec()));
+            }
+        }
+        if current != GLOBAL && self.arena[GLOBAL].commands.contains_key(name) {
+            return Some((GLOBAL, name.to_vec()));
+        }
+        None
+    }
 
     fn ensure_child(&mut self, parent: NsId, name: &[u8]) -> NsId {
         if let Some(&id) = self.arena[parent].children.get(name) {

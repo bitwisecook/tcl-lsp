@@ -22,7 +22,7 @@ use core::ffi::c_char;
 
 use crate::builtins;
 use crate::frame::FrameStack;
-use crate::namespace::{Namespaces, NsId, GLOBAL};
+use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -41,14 +41,28 @@ pub enum Code {
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
 pub type BuiltinFn = fn(&mut Interp, &[*mut TclObj]) -> Code;
 
-/// A registered command. `Builtin` today; `Proc { params, body }` (user procs,
-/// T1.5) and `External { table_index, client_data }` (extension commands via
-/// `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the next variants. Kept
-/// `Copy` while it is only `Builtin`; adding non-`Copy` variants switches the
-/// dispatch lookup to clone the small handle.
-#[derive(Clone, Copy)]
+/// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
+/// params, body }` (user procs, T1.5) and `External { table_index, client_data }`
+/// (extension commands via `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the
+/// next variants.
+///
+/// `Clone` but not `Copy`: the dispatch lookup clones the small handle out of the
+/// command table (a fn-pointer copy for `Builtin`; the target name + frozen
+/// prefix for `Alias`). Cloning detaches the handle from the table so dispatch
+/// can mutate the interp (and the table) without holding a borrow.
+#[derive(Clone)]
 pub enum Command {
+    /// A native Rust handler.
     Builtin(BuiltinFn),
+    /// An `interp alias`: dispatch re-resolves `target` **by name, anchored at
+    /// the global namespace, on every call** (so it lazily observes the target's
+    /// *deletion* but does NOT follow its *rename* — the stored name simply stops
+    /// resolving), then prepends the frozen `prefix` words to the caller's args.
+    /// See `docs/design/runtime/rename-alias.md` §4.
+    Alias {
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    },
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -94,6 +108,38 @@ impl Interp {
     #[must_use]
     pub fn command_names(&self) -> Vec<&[u8]> {
         self.namespaces.command_names(self.current_ns)
+    }
+
+    /// `rename old new` (or `rename old ""` to delete), relative to the current
+    /// namespace. Drives the one command table; see [`Namespaces::rename`].
+    pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        self.namespaces.rename(self.current_ns, old, new)
+    }
+
+    /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
+    pub(crate) fn install_alias(&mut self, name: &[u8], target: Vec<u8>, prefix: Vec<Vec<u8>>) {
+        self.namespaces
+            .register(name, Command::Alias { target, prefix });
+    }
+
+    /// The `(target, prefix)` of the alias bound to `name` (the query form), or
+    /// `None` if `name` resolves to something that isn't an alias.
+    pub(crate) fn alias_info(&self, name: &[u8]) -> Option<(Vec<u8>, Vec<Vec<u8>>)> {
+        match self.namespaces.resolve(self.current_ns, name) {
+            Some(Command::Alias { target, prefix }) => Some((target, prefix)),
+            _ => None,
+        }
+    }
+
+    /// Delete the command bound to `name` (the alias-clear form); returns whether
+    /// it existed.
+    pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        self.namespaces.delete(self.current_ns, name)
+    }
+
+    /// Every alias command's name across the whole tree (`interp aliases`).
+    pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
+        self.namespaces.alias_names()
     }
 
     // -- result ---------------------------------------------------------------
@@ -215,14 +261,55 @@ impl Interp {
     fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
         match self.namespaces.resolve(self.current_ns, &name) {
-            Some(Command::Builtin(f)) => f(self, argv),
-            None => {
-                let mut msg = b"invalid command name \"".to_vec();
-                msg.extend_from_slice(&name);
-                msg.push(b'"');
-                self.error(&msg)
-            }
+            Some(cmd) => self.invoke(cmd, argv),
+            None => self.invalid_command(&name),
         }
+    }
+
+    /// Invoke an already-resolved command handle with `argv`.
+    fn invoke(&mut self, cmd: Command, argv: &[*mut TclObj]) -> Code {
+        match cmd {
+            Command::Builtin(f) => f(self, argv),
+            Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
+        }
+    }
+
+    /// The alias trampoline (`docs/design/runtime/rename-alias.md` §4.2): resolve
+    /// the stored `target` by name **anchored at the global namespace** (so a
+    /// target deleted after the alias was created surfaces lazily here, but a
+    /// *renamed* target is not followed), synthesise
+    /// `[target, *prefix, *caller_tail]`, and invoke. Alias-of-alias chains fall
+    /// out naturally (the resolved target may itself be an `Alias`).
+    fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
+        let Some(target_cmd) = self.namespaces.resolve(GLOBAL, target) else {
+            // Lazily bound: the target was deleted (or never existed).
+            return self.invalid_command(target);
+        };
+        // Build [target, *prefix, *argv[1..]] — each element owned (+1).
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
+        let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
+            // SAFETY: `o` is a live object; take the owning +1 the new argv holds.
+            unsafe { obj::incr_ref_count(o) };
+            v.push(o);
+        };
+        push_owned(&mut new_argv, new_string(target));
+        for p in prefix {
+            push_owned(&mut new_argv, new_string(p));
+        }
+        for &a in &argv[1..] {
+            push_owned(&mut new_argv, a);
+        }
+        let code = self.invoke(target_cmd, &new_argv);
+        release_all(&new_argv);
+        code
+    }
+
+    /// The `invalid command name "X"` error (the resolver miss; `unknown` later).
+    fn invalid_command(&mut self, name: &[u8]) -> Code {
+        let mut msg = b"invalid command name \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.push(b'"');
+        self.error(&msg)
     }
 
     /// Substitute one word's body into an **owned** (`+1`) object.

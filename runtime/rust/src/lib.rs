@@ -38,6 +38,7 @@ pub mod bignum;
 // needs the bignum tower, so it tracks the same `have_tommath` cfg.
 pub mod builtins;
 pub mod capi;
+pub mod cmd_alias;
 pub mod cmd_dict;
 pub mod cmd_list;
 pub mod cmd_string;
