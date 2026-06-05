@@ -161,15 +161,35 @@ def emit_bigip() -> None:
     core_only = sorted(core_stems - main_stems)
     shared = len(main_stems & core_stems)
 
+    # Ported kinds: query the Rust BigIP registry via the dumper.
+    rust_bin = _REPO_ROOT / "target/debug/examples/dump_specs"
+    ported: set[str] = set()
+    if rust_bin.exists():
+        out = subprocess.run(
+            [str(rust_bin), "bigip"], capture_output=True, text=True, cwd=_REPO_ROOT
+        ).stdout
+        for line in out.splitlines():
+            try:
+                ported.add(json.loads(line)["kind"])
+            except (ValueError, KeyError):
+                pass
+    n_ok = sum(1 for k in kinds if k in ported)
+    n_un = len(kinds) - n_ok
+
     print(
         f"<details><summary><b>bigip object registry</b> — {len(kinds)} entries · "
-        f"0 ✅ · {len(kinds)} unported (Rust has no BigIP registry)</summary>\n"
+        f"{n_ok} ✅ · {n_un} unported</summary>\n"
     )
-    print("Every entry is **✗ unported**. Re-run after a Rust BigIP registry lands.\n")
+    if n_un == 0:
+        print(
+            "Every kind is ported to the Rust `bigip` registry "
+            "(`rust/tcl-registry/src/bigip/`); property-level parity is verified by "
+            "`scripts/registry-audit/audit_bigip.py`.\n"
+        )
     print("| object kind | status |")
     print("|---|---|")
     for k in kinds:
-        print(f"| `{k}` | ✗ unported |")
+        print(f"| `{k}` | {'✅' if k in ported else '✗ unported'} |")
     print("\n</details>\n")
 
     print(
