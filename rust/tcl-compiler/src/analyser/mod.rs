@@ -30,6 +30,7 @@
 //! flip to default-on once the differential corpus has baked, same
 //! as ``C40-default-on``).
 
+pub mod bounds_checks;
 pub mod class_hierarchy;
 pub mod commands;
 pub mod diagnostics;

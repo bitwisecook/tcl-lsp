@@ -4274,6 +4274,23 @@ in this tree) to `analyser/diagnostics.rs`; treat the interval-domain
 row as the *eventual* main-parity target, not the present one.  A
 clarifying note was added at the Phase 3 row (§E2).
 
+**LANDED (W240 / W241 loop-termination, 2026-06-05).**  New
+`analyser/bounds_checks.rs::loop_termination_diagnostics` ports the
+constant-condition arm of `check_loop_termination`: a `while` / `for`
+whose condition is a constant-false literal → **W240** (body never
+executes); a constant-true literal whose body has no `break` / `return`
+/ `error` / `exit` → **W241** (provably infinite).  Ports
+`condition_constant` (`_TRUE_LITERALS` / `_FALSE_LITERALS` /
+`strip_braces` + float-parse) and `body_may_exit` (the
+`(break|return|error|exit)` keyword scan; Rust regex has no look-behind,
+so the `:` / `-` prefix exclusion of `_BREAK_RE` is a post-filter on each
+`\b`-anchored match).  Wired into `emit_dispatch_site_diagnostics`;
+verified against the live Python analyser; 4 unit tests.  **Remaining:**
+the index-bounds family **W230 / W231 / W232** (constant list / `lset` /
+string index out of range), the default-off **W242** (unprovable
+termination HINT), and the `for`-step provably-infinite heuristic
+(`_for_is_provably_infinite`) — follow-ups.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
