@@ -344,26 +344,67 @@ drifts" — the exact failure mode behind the parser bugs found above. The aim
 (per "the AOT compiler is ours to restructure, within the LSP guardrails") is
 **clean shared crates consumed by both the LSP/compiler and the runtime.**
 
-Survey of reuse candidates (`rust/` workspace) and their runtime use:
+### Deep survey (four sweeps) + the `tcl-syntax` decision
 
-| Component | Crate / module | Runtime use | Shared-crate status |
+Before convergence step 3, a four-way survey ran: the **compiler/LSP suite** and
+**reference C Tcl 9.0** were each swept for (a) `subst`/list/backslash and (b)
+`expr`/`format`/`scan`/numeric-tower. Findings (paths are `rust/…`):
+
+| Primitive | Already in the compiler suite | C-Tcl ground truth | Verdict |
 |---|---|---|---|
-| Lexer + spans + `{*}`/comments | `tcl-lexer` (lexer, `substitution`) | the canonical scanner (replaces `parse.rs`/`bs.rs`) | **already a crate**, wasm-buildable (`thiserror`-only) — adopt now |
-| Expr lexer/parser/AST | `tcl-lexer::expr_lexer`, `tcl-compiler::{expr_parser,expr_ast}` | `expr` parsing (meta-system 3) — do **not** reimplement the grammar | extract a shared `tcl-expr` crate (expr_lexer is already in tcl-lexer) |
-| Expr const-eval | `tcl-compiler::tcl_expr_eval` | candidate for the `expr` evaluator over the numeric tower | with `tcl-expr` |
-| Command metadata (spec/arity/forms/arg roles/const-fold/side-effects) | `tcl-registry` | the command table's metadata + the **T3.0 emit registry** (one source of truth) | **already a crate** — the runtime command table binds to it |
-| Name/var resolution | `tcl-compiler::{var_resolve,var_scoping,var_refs,var_observability}` | the variable-frame resolution algorithm (meta-system 1) | extract a shared `tcl-resolve` (or reuse the algorithm) |
-| Shimmer rules, segmenter, naming, types, value-shapes | `tcl-compiler::{shimmer,segmenter,naming,types,value_shapes,subst_nocommands}` | shimmer contract, command segmentation, naming/type model | reuse per-module as needed |
+| **Backslash decode** | `tcl-lexer::substitution::backslash_subst(&str)->Cow` — full table incl. `\U`+surrogate pairs, `\<nl>` collapse; public, wasm-clean | `TclParseBackslash` (`tclParse.c:783`) | **canonical exists** — reuse; retire `runtime/src/bs.rs` |
+| **List split** | THREE copies: `tcl-registry::const_fold::split_list` (validating, bails on `\`), `tcl-compiler::codegen::helpers::split_list_simple` (best-effort), `runtime::parse::split_list` | `Tcl_SplitList`/`TclFindElement`/`FindElement` (`tclUtil.c:522/577`) with the **`literal` zero-copy flag** + `TclCopyAndCollapse` | **consolidate** to one canonical splitter |
+| **List merge/quote** | `tcl-compiler::codegen::helpers::tcl_list_element` | `Tcl_ScanElement`/`Tcl_ConvertElement` + `ConvertFlags` (`tclUtil.c:1056/1420`) | consolidate (the inverse) |
+| **Subst decomposition** | `tcl-compiler::codegen::helpers::parse_subst_template`, `subst_nocommands` | `TclSubstParse`/`TclSubstTokens` (`tclParse.c:1902/2098`), `TCL_SUBST_*` flags, the `TCL_TOKEN_{TEXT,BS,COMMAND,VARIABLE}` taxonomy | converge (runtime's `subst.rs` + the literal-passthrough rules for invalid `$`/`[`) |
+| **Expr lexer** | `tcl-lexer::expr_lexer::tokenise_expr` — full number forms, 31 mathfuncs, `eq/ne/in/ni`, iRules dialect | `ParseLexeme` + lexeme/precedence tables (`tclCompExpr.c:1907/154`) | **reuse** (already in tcl-lexer) |
+| **Expr AST + Pratt parser** | `tcl-compiler::{expr_ast,expr_parser}` — `ExprNode`, 38 binops w/ Tcl-9 precedence, right-assoc `**`, `parse_expr`, graceful `Raw` | `ParseExpr`/`OpNode`/`prec[]` (`tclCompExpr.c:544/294`) | **extract** to the shared crate |
+| **Expr evaluator** | `tcl-compiler::tcl_expr_eval` — i64/f64 **const-fold** only (no bignum), C-9-faithful floor-div/mod/`**`/round, `dispatch_math` | bytecode `INST_*` over the **int→wide→bignum→double tower** (`tclExecute.c`) | AST/parser shared; the **tower-aware evaluator stays runtime-side** |
+| **Numeric grammar** | inside `tcl_expr_eval::parse_literal` (+ version-aware wrappers in `format_`) | `TclParseNumber` state machine (`tclStrToD.c:377`): `0x/0o/0b`, underscores, `Inf/NaN`, the tower | **extract** the grammar to the shared crate; both const-fold and the runtime tower build on it |
+| **Format/scan** | `tcl-registry::commands::tcl::{format_,scan_}` — spec parser + version-aware int width/octal; `binary format/scan` **absent everywhere** | `Tcl_AppendFormatToObj` (`tclStringObj.c:1834`), `Tcl_ScanObjCmd` (`tclScan.c`) | **extract** the spec parser; `binary` is net-new |
+| Command metadata | `tcl-registry` (spec/arity/forms/arg-roles/const-fold/side-effects) | — | **already a crate** — runtime command table + T3.0 emit registry bind to it |
+| Name/var resolution | `tcl-compiler::{var_resolve,var_scoping,var_refs,var_observability}` | `tclVar.c`/`tclNamesp.c` | extract later (`tcl-resolve`), meta-system 1 |
 
-Clean-boundary plan: keep the **shared frontend/semantic crates**
-(`tcl-lexer`, `tcl-registry` today; extract `tcl-expr`, `tcl-resolve`, and a
-`tcl-parser`/CST crate from `tcl-compiler` as the runtime needs them) depending
-only on light deps so they build for `wasm32`; both the LSP/compiler **and**
-`runtime/rust` path-depend on them. `tcl-compiler` proper (IR/passes/codegen,
-host-side) stays out of the runtime. Restructuring to extract these crates is
-allowed under the [LSP guardrails](#the-aot-compiler-is-ours-to-restructure-within-the-lsp-guardrails)
-(no loss of LSP precision/perf). Each runtime chunk's first step is "what in
-`rust/` already does this?"
+**Decision (chosen): extract one shared leaf crate `tcl-syntax`.** It path-deps
+only `tcl-lexer` (so it stays `wasm32`-clean) and holds the pure, parse-tree +
+byte-exact-semantics layer: list split/merge, subst token model, the expr
+AST + Pratt parser, the `TclParseNumber` numeric grammar, and the format/scan
+spec parser. Dependency DAG (no cycles):
+
+```
+tcl-lexer  ←  tcl-syntax  ←  { tcl-registry, tcl-compiler, runtime/rust }
+```
+
+`tcl-lexer` stays the **scanner** (command lexer + `expr_lexer` + `backslash_subst`).
+`tcl-compiler` keeps its IR/passes/codegen and its **const-fold evaluator**
+(which becomes a thin consumer of `tcl-syntax`'s AST/grammar); the runtime adds
+its **tower-aware evaluator** over the same AST. Two things are consumer-specific
+by necessity: the **value type** (compiler folds i64/f64; runtime needs the
+bignum tower) and **codegen emit**. The `&str`↔`&[u8]` boundary resolves on the
+UTF-8-internal-rep invariant: `tcl-syntax` is `&str`-based (Tcl is UTF-8), and
+the runtime converts at the call (it already guarantees UTF-8 internally) — so no
+backslash/list/expr logic is duplicated for bytes.
+
+**Phased extraction** (each phase its own gated commit; the workspace
+`cargo test` + the LSP gates **must** stay green; `runtime-rust-test`/`-lint`
+gate the runtime side):
+
+1. ✅ Create `tcl-syntax`; **list** module (canonical `FindElement` w/ `literal`
+   flag + split + `ScanElement`/`ConvertElement` merge), reusing
+   `backslash_subst`. Wire the runtime's `split_list` to it.
+2. **subst** module (token model + decomposition + `TCL_SUBST_*` flags +
+   invalid-`$`/`[` literal passthrough); converge runtime `subst.rs`; drop
+   `runtime/src/bs.rs` (use `backslash_subst`).
+3. **expr**: move `expr_ast` + `expr_parser` + the `TclParseNumber` grammar into
+   `tcl-syntax`; `tcl-compiler` re-points to them (LSP gates prove equivalence).
+4. **format/scan**: move the spec parser in; the runtime renders over its value
+   type; `binary format/scan` designed fresh (no existing impl).
+5. Migrate the LSP-side list/subst consumers (`const_fold`, `codegen::helpers`)
+   onto `tcl-syntax`, deleting the duplicate copies (deliberate, per-caller —
+   `const_fold` intentionally bails on `\`, so its wrapper keeps that policy).
+
+Each runtime chunk's first step remains "what in `rust/` already does this?"
+Restructuring is allowed under the [LSP guardrails](#the-aot-compiler-is-ours-to-restructure-within-the-lsp-guardrails)
+(no loss of LSP precision/perf).
 
 ### Parser convergence — status + plan
 
