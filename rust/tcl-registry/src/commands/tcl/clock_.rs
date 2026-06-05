@@ -62,6 +62,157 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Add duration to a time.",
         synopsis: "clock add timeVal ?count unit ...?",
         return_type: Some(TclType::Int),
+        arg_values: &[
+            (
+                1,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                3,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                5,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                7,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+        ],
+        pure: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -15,6 +15,7 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        deprecated_replacement: Some("file normalize"),
         ..CommandSpec::DEFAULT
     }
 }

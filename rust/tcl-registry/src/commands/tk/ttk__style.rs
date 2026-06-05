@@ -15,6 +15,23 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Manage style elements.",
         synopsis: "ttk::style element subcommand ?args?",
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "create",
+                    detail: "Create a new element.",
+                },
+                ArgValue {
+                    value: "names",
+                    detail: "Return a list of all registered element names.",
+                },
+                ArgValue {
+                    value: "options",
+                    detail: "Return the list of options for an element.",
+                },
+            ],
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -43,6 +60,27 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Manage and query themes.",
         synopsis: "ttk::style theme subcommand ?args?",
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "create",
+                    detail: "Create a new theme.",
+                },
+                ArgValue {
+                    value: "names",
+                    detail: "Return a list of available theme names.",
+                },
+                ArgValue {
+                    value: "settings",
+                    detail: "Evaluate a script in the context of a theme.",
+                },
+                ArgValue {
+                    value: "use",
+                    detail: "Set the current theme.",
+                },
+            ],
+        )],
         ..SubCommand::DEFAULT
     },
 ];

@@ -1,7 +1,7 @@
 //! `ACCESS::acl` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "result",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get ACL match result (Allow/Reject).",
         synopsis: "ACCESS::acl result",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get matched ACL.",
         synopsis: "ACCESS::acl matched",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "List assigned ACLs for the session.",
         synopsis: "ACCESS::acl lookup",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -32,6 +50,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Enforce an ACL by name.",
         synopsis: "ACCESS::acl eval <acl_name>",
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

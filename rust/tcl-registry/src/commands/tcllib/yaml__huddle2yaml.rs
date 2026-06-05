@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "A YAML-formatted string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("yaml"),
+        required_package: Some("yaml"),
         ..CommandSpec::DEFAULT
     }
 }

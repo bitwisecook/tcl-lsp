@@ -1,7 +1,7 @@
 //! `SSL::authenticate` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "once",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Authenticate once per session.",
         synopsis: "SSL::authenticate once",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Authenticate on every connection.",
         synopsis: "SSL::authenticate always",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set max certificate chain traversal depth.",
         synopsis: "SSL::authenticate depth <number>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

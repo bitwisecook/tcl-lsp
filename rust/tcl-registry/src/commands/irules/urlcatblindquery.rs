@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Global,
         }],
+        deprecated_replacement: Some("CATEGORY::lookup"),
         ..CommandSpec::DEFAULT
     }
 }

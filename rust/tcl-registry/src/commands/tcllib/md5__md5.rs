@@ -28,6 +28,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("md5"),
+        required_package: Some("md5"),
         ..CommandSpec::DEFAULT
     }
 }

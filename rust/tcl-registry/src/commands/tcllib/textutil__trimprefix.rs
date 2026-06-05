@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        tcllib_package: Some("textutil"),
+        required_package: Some("textutil"),
         ..CommandSpec::DEFAULT
     }
 }

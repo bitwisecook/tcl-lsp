@@ -27,6 +27,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("mime"),
+        required_package: Some("mime"),
         ..CommandSpec::DEFAULT
     }
 }

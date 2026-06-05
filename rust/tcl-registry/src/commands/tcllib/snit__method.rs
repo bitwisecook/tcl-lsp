@@ -23,6 +23,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        tcllib_package: Some("snit"),
+        required_package: Some("snit"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -27,6 +27,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("base64"),
+        required_package: Some("base64"),
         ..CommandSpec::DEFAULT
     }
 }

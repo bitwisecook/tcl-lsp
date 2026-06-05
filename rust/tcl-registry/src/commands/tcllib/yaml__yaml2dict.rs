@@ -27,6 +27,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("yaml"),
+        required_package: Some("yaml"),
         ..CommandSpec::DEFAULT
     }
 }

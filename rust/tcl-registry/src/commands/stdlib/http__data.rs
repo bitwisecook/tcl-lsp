@@ -14,6 +14,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("http"),
+        deprecated_replacement: Some("http::responseBody"),
         ..CommandSpec::DEFAULT
     }
 }

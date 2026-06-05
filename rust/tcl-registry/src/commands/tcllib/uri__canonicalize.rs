@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The canonicalized URI string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("uri"),
+        required_package: Some("uri"),
         ..CommandSpec::DEFAULT
     }
 }

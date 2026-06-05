@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        deprecated_replacement: Some("IP::remote_addr"),
         ..CommandSpec::DEFAULT
     }
 }

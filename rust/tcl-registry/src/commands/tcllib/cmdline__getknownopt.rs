@@ -24,6 +24,8 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::VarWrite),
             (3, ArgRole::VarWrite),
         ],
+        tcllib_package: Some("cmdline"),
+        required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT
     }
 }

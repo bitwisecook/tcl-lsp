@@ -1,7 +1,7 @@
 //! `SIP::response` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "code",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get response code.",
         synopsis: "SIP::response code",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get response phrase.",
         synopsis: "SIP::response phrase",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Rewrite response code and phrase.",
         synopsis: "SIP::response rewrite <code> ?phrase?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

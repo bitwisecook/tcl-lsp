@@ -19,6 +19,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Global,
         }],
+        deprecated_replacement: Some("PROFILE::http"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Global,
             },
         ],
+        traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT
     }
 }

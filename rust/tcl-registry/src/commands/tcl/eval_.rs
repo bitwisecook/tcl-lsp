@@ -22,7 +22,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
-            | Traits::TAINT_SINK,
+            | Traits::TAINT_SINK | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),
@@ -40,6 +40,7 @@ hover: Some(HoverSnippet {
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        xc_translatable: Some(false),
         ..CommandSpec::DEFAULT
     }
 }

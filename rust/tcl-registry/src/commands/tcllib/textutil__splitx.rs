@@ -19,6 +19,8 @@ hover: Some(HoverSnippet {
     return_value: "A list of substrings.",
 }),
         forms: FORMS,
+        tcllib_package: Some("textutil"),
+        required_package: Some("textutil"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        deprecated_replacement: Some("IP::addr"),
         ..CommandSpec::DEFAULT
     }
 }

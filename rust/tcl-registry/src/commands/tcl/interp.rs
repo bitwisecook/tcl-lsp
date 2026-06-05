@@ -19,7 +19,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Manage command aliases.",
         synopsis: "interp alias path cmd",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::List),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "aliases",
@@ -35,14 +36,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get or set background error handler.",
         synopsis: "interp bgerror path ?cmdPrefix?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "cancel",
         arity: Arity::at_least(0),
         detail: "Cancel a script evaluation.",
         synopsis: "interp cancel ?-unwind? ?--? ?result?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+        options: &[
+            OptionSpec { name: "-unwind", takes_value: false, value_hint: "", detail: "", dialects: None },
+            OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
+        ],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "create",
@@ -50,28 +57,36 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
         return_type: Some(TclType::String),
-        ..SubCommand::DEFAULT
+                options: &[
+            OptionSpec { name: "-safe", takes_value: false, value_hint: "", detail: "", dialects: None },
+            OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
+        ],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "debug",
         arity: Arity::at_least(1),
         detail: "Control debug mode.",
         synopsis: "interp debug path ?-frame ?bool??",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "delete",
         arity: Arity::at_least(0),
         detail: "Delete interpreters.",
         synopsis: "interp delete ?path ...?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "eval",
         arity: Arity::at_least(2),
         detail: "Evaluate script in another interpreter.",
         synopsis: "interp eval path arg ?arg ...?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+        arg_roles: &[(1, ArgRole::Body)],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "exists",
@@ -87,7 +102,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Expose a hidden command.",
         synopsis: "interp expose path hiddenCmdName ?exposedCmdName?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "hidden",
@@ -103,14 +119,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Hide a command.",
         synopsis: "interp hide path exposedCmdName ?hiddenCmdName?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "invokehidden",
         arity: Arity::at_least(2),
         detail: "Invoke a hidden command.",
         synopsis: "interp invokehidden path ?-option ...? hiddenCmdName ?arg ...?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+        options: &[
+            OptionSpec { name: "-global", takes_value: false, value_hint: "", detail: "", dialects: None },
+            OptionSpec { name: "-namespace", takes_value: true, value_hint: "ns", detail: "", dialects: None },
+            OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
+        ],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "issafe",
@@ -126,14 +149,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Get or set resource limits.",
         synopsis: "interp limit path limitType ?-option value ...?",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "marktrusted",
         arity: Arity::exact(1),
         detail: "Mark interpreter as trusted.",
         synopsis: "interp marktrusted path",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "recursionlimit",
@@ -148,7 +173,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Share a channel.",
         synopsis: "interp share srcPath channelId destPath",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "target",
@@ -164,7 +190,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(3),
         detail: "Transfer a channel.",
         synopsis: "interp transfer srcPath channelId destPath",
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::String),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "slaves",
@@ -172,7 +199,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a Tcl list of the names of all the child interpreters.",
         synopsis: "interp slaves ?path?",
         pure: true,
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::List),
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "children",
@@ -180,7 +208,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
         synopsis: "interp children ?path?",
         pure: true,
-        ..SubCommand::DEFAULT
+                return_type: Some(TclType::List),
+..SubCommand::DEFAULT
     },
 ];
 
@@ -190,7 +219,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::HAS_INTERP_EVAL
-            | Traits::HAS_DESTRUCTIVE_OPS,
+            | Traits::HAS_DESTRUCTIVE_OPS | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
 hover: Some(HoverSnippet {

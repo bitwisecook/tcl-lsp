@@ -19,6 +19,8 @@ hover: Some(HoverSnippet {
     return_value: "The adjusted text.",
 }),
         forms: FORMS,
+        tcllib_package: Some("textutil"),
+        required_package: Some("textutil"),
         ..CommandSpec::DEFAULT
     }
 }

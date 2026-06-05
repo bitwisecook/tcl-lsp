@@ -14,6 +14,7 @@ hover: Some(HoverSnippet {
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        deprecated_replacement: Some("tcltest::configure"),
         ..CommandSpec::DEFAULT
     }
 }

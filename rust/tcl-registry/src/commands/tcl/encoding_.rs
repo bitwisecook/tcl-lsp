@@ -30,6 +30,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding convertfrom ?encoding? data",
         pure: true,
         return_type: Some(TclType::String),
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "strict",
+                    detail: "Stop on conversion error. Unicode-conformant.",
+                },
+                ArgValue {
+                    value: "tcl8",
+                    detail: "Map invalid bytes to equivalent code points. Tcl 8 compatible.",
+                },
+                ArgValue {
+                    value: "replace",
+                    detail: "Replace invalid data with U+FFFD. Unicode-conformant.",
+                },
+            ],
+        )],
+        is_unescape: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -39,6 +57,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding convertto ?encoding? string",
         pure: true,
         return_type: Some(TclType::ByteArray),
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "strict",
+                    detail: "Stop on conversion error. Unicode-conformant.",
+                },
+                ArgValue {
+                    value: "tcl8",
+                    detail: "Map invalid bytes to equivalent code points. Tcl 8 compatible.",
+                },
+                ArgValue {
+                    value: "replace",
+                    detail: "Replace invalid data with U+FFFD. Unicode-conformant.",
+                },
+            ],
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -46,6 +81,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Manage encoding search path.",
         synopsis: "encoding dirs ?directoryList?",
+        return_type: Some(TclType::List),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -62,6 +98,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get or set system encoding.",
         synopsis: "encoding system ?encoding?",
+        return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -70,6 +107,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return list of available profiles.",
         synopsis: "encoding profiles",
         pure: true,
+        return_type: Some(TclType::List),
         ..SubCommand::DEFAULT
     },
     SubCommand {

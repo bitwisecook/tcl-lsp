@@ -34,6 +34,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Client,
             },
         ],
+        deprecated_replacement: Some("ANTIFRAUD::alert_details"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Client,
         }],
+        deprecated_replacement: Some("ANTIFRAUD::device_id"),
         ..CommandSpec::DEFAULT
     }
 }

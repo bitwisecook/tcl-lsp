@@ -34,7 +34,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Decode binary data.",
         synopsis: "binary decode format data",
         pure: true,
-        return_type: Some(TclType::String),
+        return_type: Some(TclType::ByteArray),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: None,
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -44,6 +51,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary encode format data",
         pure: true,
         return_type: Some(TclType::String),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: None,
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -53,6 +67,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
         return_type: Some(TclType::ByteArray),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::String),
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -60,6 +81,43 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Parse a binary string.",
         synopsis: "binary scan string formatString ?varName ...?",
+        return_type: Some(TclType::Int),
+        arg_types: &[
+            (
+                0,
+                ArgTypeHint {
+                    expected: None,
+                    shimmers: true,
+                },
+            ),
+            (
+                1,
+                ArgTypeHint {
+                    expected: Some(TclType::String),
+                    shimmers: true,
+                },
+            ),
+        ],
+        arg_roles: &[
+            (2, ArgRole::VarWrite),
+            (3, ArgRole::VarWrite),
+            (4, ArgRole::VarWrite),
+            (5, ArgRole::VarWrite),
+            (6, ArgRole::VarWrite),
+            (7, ArgRole::VarWrite),
+            (8, ArgRole::VarWrite),
+            (9, ArgRole::VarWrite),
+            (10, ArgRole::VarWrite),
+            (11, ArgRole::VarWrite),
+            (12, ArgRole::VarWrite),
+            (13, ArgRole::VarWrite),
+            (14, ArgRole::VarWrite),
+            (15, ArgRole::VarWrite),
+            (16, ArgRole::VarWrite),
+            (17, ArgRole::VarWrite),
+            (18, ArgRole::VarWrite),
+            (19, ArgRole::VarWrite),
+        ],
         ..SubCommand::DEFAULT
     },
 ];

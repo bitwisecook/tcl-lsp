@@ -1,7 +1,7 @@
 //! `DNS::additional` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "clear",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Clear all additional RRs.",
         synopsis: "DNS::additional clear",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert an RR into the additional section.",
         synopsis: "DNS::additional insert <rr_object>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove an RR from the additional section.",
         synopsis: "DNS::additional remove <rr_object>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

@@ -8,6 +8,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Add a new entry to the bottom of the menu.",
         synopsis: "pathName add type ?option value ...?",
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "cascade",
+                    detail: "A cascade entry that posts another menu.",
+                },
+                ArgValue {
+                    value: "checkbutton",
+                    detail: "A checkbutton entry with an on/off indicator.",
+                },
+                ArgValue {
+                    value: "command",
+                    detail: "A command entry that invokes a Tcl command.",
+                },
+                ArgValue {
+                    value: "radiobutton",
+                    detail: "A radiobutton entry with a mutual-exclusion indicator.",
+                },
+                ArgValue {
+                    value: "separator",
+                    detail: "A separator line between groups of entries.",
+                },
+            ],
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -50,6 +75,31 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Insert a new entry before the entry at the given index.",
         synopsis: "pathName insert index type ?option value ...?",
+        arg_values: &[(
+            1,
+            &[
+                ArgValue {
+                    value: "cascade",
+                    detail: "A cascade entry that posts another menu.",
+                },
+                ArgValue {
+                    value: "checkbutton",
+                    detail: "A checkbutton entry with an on/off indicator.",
+                },
+                ArgValue {
+                    value: "command",
+                    detail: "A command entry that invokes a Tcl command.",
+                },
+                ArgValue {
+                    value: "radiobutton",
+                    detail: "A radiobutton entry with a mutual-exclusion indicator.",
+                },
+                ArgValue {
+                    value: "separator",
+                    detail: "A separator line between groups of entries.",
+                },
+            ],
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {

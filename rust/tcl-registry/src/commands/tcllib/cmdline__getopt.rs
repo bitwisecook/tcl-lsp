@@ -27,6 +27,8 @@ hover: Some(HoverSnippet {
 }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("cmdline"),
+        required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT
     }
 }

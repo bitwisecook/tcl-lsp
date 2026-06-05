@@ -93,7 +93,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
-        traits: Traits::CREATES_BARRIER,
+        traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet {

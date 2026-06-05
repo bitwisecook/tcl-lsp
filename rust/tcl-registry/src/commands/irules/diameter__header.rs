@@ -1,7 +1,7 @@
 //! `DIAMETER::header` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "version",
@@ -10,6 +10,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header version ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -18,6 +24,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the message length (read-only).",
         synopsis: "DIAMETER::header length ?value?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -27,6 +39,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header rflag ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -36,6 +54,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header pflag ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -45,6 +69,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header eflag ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -54,6 +84,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header tflag ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -63,6 +99,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header command_code ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -72,6 +114,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header application_id ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -81,6 +129,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header hop_by_hop_id ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -90,6 +144,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::header end_to_end_id ?value?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

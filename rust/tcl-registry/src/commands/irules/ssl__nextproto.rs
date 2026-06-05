@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Both,
         }],
+        deprecated_replacement: Some("SSL::alpn"),
         ..CommandSpec::DEFAULT
     }
 }

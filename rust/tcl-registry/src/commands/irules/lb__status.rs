@@ -1,7 +1,7 @@
 //! `LB::status` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "node",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Query/set node status.",
         synopsis: "LB::status node <addr> ?status?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Query/set pool member status.",
         synopsis: "LB::status pool <pool> member <addr> <port> ?status?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

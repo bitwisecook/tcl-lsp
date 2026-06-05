@@ -12,6 +12,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        traits: Traits::RETURNS_PATH,
         ..CommandSpec::DEFAULT
     }
 }

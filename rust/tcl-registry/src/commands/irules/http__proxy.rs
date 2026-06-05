@@ -1,7 +1,7 @@
 //! `HTTP::proxy` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "enable",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Enable HTTP proxy.",
         synopsis: "HTTP::proxy enable",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Disable HTTP proxy.",
         synopsis: "HTTP::proxy disable",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Control URI rewriting.",
         synopsis: "HTTP::proxy uri-rewrite ?enable|disable?",
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "enable",
+                    detail: "Enable URI rewriting.",
+                },
+                ArgValue {
+                    value: "disable",
+                    detail: "Disable URI rewriting.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +64,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get proxy destination address.",
         synopsis: "HTTP::proxy addr",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -41,6 +78,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get proxy destination port.",
         synopsis: "HTTP::proxy port",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -49,6 +92,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get proxy route domain.",
         synopsis: "HTTP::proxy rtdom",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +106,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if proxy is active.",
         synopsis: "HTTP::proxy exists",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -65,6 +120,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get proxy IP tuple.",
         synopsis: "HTTP::proxy iptuple",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -73,6 +134,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Control proxy chaining.",
         synopsis: "HTTP::proxy chain ?args?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

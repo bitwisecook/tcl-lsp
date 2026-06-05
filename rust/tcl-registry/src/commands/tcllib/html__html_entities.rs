@@ -28,6 +28,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("html"),
+        required_package: Some("html"),
         ..CommandSpec::DEFAULT
     }
 }

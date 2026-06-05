@@ -1,7 +1,7 @@
 //! `LB::connlimit` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "virtual",
@@ -10,6 +10,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit virtual ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -19,6 +25,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit node ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -28,6 +40,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit poolmember ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

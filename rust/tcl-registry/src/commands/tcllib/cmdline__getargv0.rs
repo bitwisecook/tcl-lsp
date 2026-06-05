@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The application name.",
         }),
         forms: FORMS,
+        tcllib_package: Some("cmdline"),
+        required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT
     }
 }

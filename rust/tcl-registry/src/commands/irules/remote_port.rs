@@ -13,6 +13,7 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        deprecated_replacement: Some("TCP::remote_port"),
         ..CommandSpec::DEFAULT
     }
 }

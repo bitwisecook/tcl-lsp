@@ -1,7 +1,7 @@
 //! `MQTT::topic` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "replace",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Replace topic name.",
         synopsis: "MQTT::topic replace <topic> ?index?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get topic count.",
         synopsis: "MQTT::topic count",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "List all topics.",
         synopsis: "MQTT::topic list",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get topic at index.",
         synopsis: "MQTT::topic index <n>",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -41,6 +65,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get/set topic QoS.",
         synopsis: "MQTT::topic qos ?index?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -49,6 +79,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Add a topic.",
         synopsis: "MQTT::topic add <topic> ?qos?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +93,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Delete a topic.",
         synopsis: "MQTT::topic delete <index>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

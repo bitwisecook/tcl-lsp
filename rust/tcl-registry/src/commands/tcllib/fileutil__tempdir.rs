@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The system temporary directory path.",
         }),
         forms: FORMS,
+        tcllib_package: Some("fileutil"),
+        required_package: Some("fileutil"),
         ..CommandSpec::DEFAULT
     }
 }

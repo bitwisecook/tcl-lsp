@@ -1,7 +1,7 @@
 //! `SSL::forward_proxy` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "policy",
@@ -9,6 +9,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set or get forward proxy bypass policy.",
         synopsis: "SSL::forward_proxy policy ?bypass | intercept?",
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "bypass",
+                    detail: "Bypass SSL forward proxy.",
+                },
+                ArgValue {
+                    value: "intercept",
+                    detail: "Intercept SSL forward proxy.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +36,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Retrieve the forged certificate or set cert options.",
         synopsis: "SSL::forward_proxy cert ?response_control? ?status?",
         pure: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "response_control",
+                    detail: "Control response to cert errors.",
+                },
+                ArgValue {
+                    value: "status",
+                    detail: "Set server certificate status.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +63,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Enable, disable, or get verified handshake semantics.",
         synopsis: "SSL::forward_proxy verified_handshake ?enable | disable?",
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "enable",
+                    detail: "Enable verified handshake.",
+                },
+                ArgValue {
+                    value: "disable",
+                    detail: "Disable verified handshake.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +90,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert a certificate extension while forging.",
         synopsis: "SSL::forward_proxy extension <oid> <value>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

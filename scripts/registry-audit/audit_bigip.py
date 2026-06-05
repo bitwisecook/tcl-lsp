@@ -26,6 +26,24 @@ from core.bigip.registry.specs import OBJECT_SPECS  # noqa: E402
 RUST_BIN = ROOT / "target/debug/examples/dump_specs"
 
 
+def prop_sig(p) -> str:
+    """Full-field signature mirroring the Rust `bigip_prop_sig`."""
+    def numfmt(v):
+        if v is None:
+            return ""
+        return str(int(v)) if float(v).is_integer() else repr(v)
+    shape = p.shape_kind or ""
+    secs = ",".join(sorted(p.in_sections or ()))
+    enums = ",".join(sorted(p.enum_values or ()))
+    refs = ",".join(sorted(p.references or ()))
+    flags = ",".join(sorted(p.usage_flags or ()))
+    ops = ",".join(sorted(p.list_operators or ()))
+    block = ";".join(sorted(prop_sig(c) for c in (p.block or ())))
+    return (f"{p.name}~{p.value_type}~{int(p.required)}~{int(p.repeated)}~{int(p.allow_none)}~"
+            f"{secs}~{numfmt(p.min_value)}~{numfmt(p.max_value)}~{p.pattern}~{refs}~"
+            f"{p.description}~{shape}~{p.default or ''}~{enums}~{flags}~{ops}~[{block}]")
+
+
 def py_record(o) -> dict:
     ks = o.kind_spec
     return {
@@ -35,9 +53,9 @@ def py_record(o) -> dict:
         "n_header_types": len(o.header_types or ()),
         "n_properties": len(o.properties or ()),
         "properties": sorted(p.name for p in o.properties),
-        # Sorted (name, value_type) pairs, duplicates kept — the bgp
-        # object legitimately repeats property names with distinct kinds.
-        "property_pairs": sorted([p.name, p.value_type] for p in o.properties),
+        # Full-field per-property signature, sorted multiset (duplicates
+        # kept — the bgp object repeats property names with distinct data).
+        "property_pairs": sorted(prop_sig(p) for p in o.properties),
     }
 
 

@@ -1,7 +1,7 @@
 //! `WS::request` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "protocol",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get Sec-WebSocket-Protocol header value.",
         synopsis: "WS::request protocol",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get Sec-WebSocket-Extensions header value.",
         synopsis: "WS::request extension",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get Sec-WebSocket-Version header value.",
         synopsis: "WS::request version",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get Sec-WebSocket-Key header value.",
         synopsis: "WS::request key",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

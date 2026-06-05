@@ -362,10 +362,10 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
-- **`tcl`** — `arg_types` 19→21, `const_fold` 10→12, `forms` 209→211, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 221→228, `hover_synopsis` 206→213, `arity_bounded` 170→178, `return_type` 102→114, `lowering_hook` 0→23, `traits` 42→105
+- **`tcl`** — `arg_types` 19→21, `const_fold` 10→12, `forms` 209→211, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 221→228, `hover_synopsis` 206→213, `arity_bounded` 170→178, `return_type` 102→114, `lowering_hook` 0→23, `traits` 42→109
 - **`stdlib`** — `traits` 23→24
 - **`tcllib`** — all captured dimensions at parity.
-- **`irules`** — `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `arg_roles` 4→8, `traits` 62→69
+- **`irules`** — `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `arg_roles` 4→8, `traits` 62→72
 - **`iapps`** — all captured dimensions at parity.
 - **`tk`** — all captured dimensions at parity.
 - **`expect`** — all captured dimensions at parity.

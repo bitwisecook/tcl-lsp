@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The list: debug info notice warn error critical alert emergency.",
         }),
         forms: FORMS,
+        tcllib_package: Some("logger"),
+        required_package: Some("logger"),
         ..CommandSpec::DEFAULT
     }
 }

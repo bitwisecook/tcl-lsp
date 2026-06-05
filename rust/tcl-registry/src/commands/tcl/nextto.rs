@@ -13,6 +13,7 @@ hover: Some(HoverSnippet {
     return_value: "",
 }),
         forms: &[FormSpec { kind: FormKind::Default, synopsis: "nextto class ?arg ...?" }],
+        traits: Traits::LANGUAGE_KEYWORD,
         ..CommandSpec::DEFAULT
     }
 }

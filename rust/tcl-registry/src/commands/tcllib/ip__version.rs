@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "4 or 6, or -1 if not a valid IP address.",
         }),
         forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
         ..CommandSpec::DEFAULT
     }
 }

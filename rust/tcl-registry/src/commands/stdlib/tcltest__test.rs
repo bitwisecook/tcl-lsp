@@ -102,6 +102,7 @@ hover: Some(HoverSnippet {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

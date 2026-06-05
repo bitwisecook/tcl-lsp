@@ -1,7 +1,7 @@
 //! `LB::server` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "name",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server name.",
         synopsis: "LB::server name",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get pool name.",
         synopsis: "LB::server pool",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get route domain.",
         synopsis: "LB::server route_domain",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server address.",
         synopsis: "LB::server addr",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -41,6 +65,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server port.",
         synopsis: "LB::server port",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -49,6 +79,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server priority.",
         synopsis: "LB::server priority",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +93,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server ratio.",
         synopsis: "LB::server ratio",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -65,6 +107,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server weight.",
         synopsis: "LB::server weight",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -73,6 +121,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get server ripeness.",
         synopsis: "LB::server ripeness",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

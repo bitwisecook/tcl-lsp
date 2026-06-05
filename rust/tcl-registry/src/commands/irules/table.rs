@@ -1,14 +1,27 @@
 //! `table` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
-        name: "delete",
+        name: "set",
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
         mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +30,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,22 +51,40 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
-        name: "replace",
+        name: "delete",
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
         mutator: true,
-        ..SubCommand::DEFAULT
-    },
-    SubCommand {
-        name: "set",
-        arity: Arity::at_least(0),
-        detail: "",
-        synopsis: "",
-        mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -49,6 +93,40 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -56,6 +134,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -63,13 +154,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        ..SubCommand::DEFAULT
-    },
-    SubCommand {
-        name: "lookup",
-        arity: Arity::at_least(0),
-        detail: "",
-        synopsis: "",
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -77,6 +174,39 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        options: &[OptionSpec {
+            name: "--",
+            takes_value: false,
+            value_hint: "",
+            detail: "",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

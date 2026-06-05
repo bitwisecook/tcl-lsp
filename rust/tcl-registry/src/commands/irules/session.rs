@@ -1,7 +1,7 @@
 //! `session` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

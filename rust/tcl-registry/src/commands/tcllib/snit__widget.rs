@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "snit::widget",
-        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::CREATES_DYNAMIC_BARRIER,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
 hover: Some(HoverSnippet {
@@ -21,6 +21,8 @@ hover: Some(HoverSnippet {
 }),
         forms: FORMS,
         arg_roles: &[(1, ArgRole::Body)],
+        tcllib_package: Some("snit"),
+        required_package: Some("snit"),
         ..CommandSpec::DEFAULT
     }
 }

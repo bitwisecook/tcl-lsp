@@ -1,7 +1,7 @@
 //! `SSL::cipher` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bits",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get number of secret bits used.",
         synopsis: "SSL::cipher bits",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get cipher name.",
         synopsis: "SSL::cipher name",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get cipher version.",
         synopsis: "SSL::cipher version",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get client cipher list.",
         synopsis: "SSL::cipher clientlist",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

@@ -8,7 +8,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach_in_collection",
-        traits: Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY | Traits::NEVER_INLINE_BODY,
+        traits: Traits::CONTROL_FLOW
+            | Traits::HAS_LOOP_BODY
+            | Traits::NEVER_INLINE_BODY
+            | Traits::LOOP_LIST_HEADER,
         dialects: Some(
             DialectSet::SYNOPSYS
                 | DialectSet::CADENCE

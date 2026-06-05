@@ -35,6 +35,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("uri"),
+        required_package: Some("uri"),
         ..CommandSpec::DEFAULT
     }
 }

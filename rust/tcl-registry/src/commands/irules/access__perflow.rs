@@ -1,7 +1,7 @@
 //! `ACCESS::perflow` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "get",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get a perflow variable value.",
         synopsis: "ACCESS::perflow get <key>",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,37 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set a perflow variable value.",
         synopsis: "ACCESS::perflow set <key> <value>",
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "perflow.custom",
+                    detail: "Custom perflow variable.",
+                },
+                ArgValue {
+                    value: "perflow.scratchpad",
+                    detail: "Scratchpad perflow variable.",
+                },
+                ArgValue {
+                    value: "perflow.custom.flow",
+                    detail: "Custom flow perflow variable.",
+                },
+                ArgValue {
+                    value: "perflow.scratchpad.flow",
+                    detail: "Scratchpad flow perflow variable.",
+                },
+                ArgValue {
+                    value: "perflow.l7_protocol_lookup.result",
+                    detail: "L7 protocol lookup result.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

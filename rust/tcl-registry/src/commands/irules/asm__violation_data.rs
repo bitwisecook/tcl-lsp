@@ -34,6 +34,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Client,
             },
         ],
+        deprecated_replacement: Some("ASM::violation"),
         ..CommandSpec::DEFAULT
     }
 }

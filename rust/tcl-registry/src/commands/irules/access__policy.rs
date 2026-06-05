@@ -1,7 +1,7 @@
 //! `ACCESS::policy` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "agent_id",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the agent identifier.",
         synopsis: "ACCESS::policy agent_id",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -16,6 +22,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Evaluate an access policy.",
         synopsis: "ACCESS::policy evaluate ?-sid id?",
+        options: &[OptionSpec {
+            name: "-sid",
+            takes_value: true,
+            value_hint: "SESSION_ID",
+            detail: "Session ID.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -24,6 +43,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the policy result (allow/deny/redirect).",
         synopsis: "ACCESS::policy result ?-sid id?",
         pure: true,
+        options: &[OptionSpec {
+            name: "-sid",
+            takes_value: true,
+            value_hint: "SESSION_ID",
+            detail: "Session ID.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -32,6 +64,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if URI is internal to ACCESS.",
         synopsis: "ACCESS::policy uri",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

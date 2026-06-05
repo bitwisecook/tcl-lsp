@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "A formatted usage string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("cmdline"),
+        required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT
     }
 }

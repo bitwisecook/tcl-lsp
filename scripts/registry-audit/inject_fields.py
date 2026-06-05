@@ -61,6 +61,14 @@ def _field_literal(name: str, spec: object) -> str | None:
     if name == "is_namespace_exported":
         v = getattr(spec, "is_namespace_exported", False)
         return "is_namespace_exported: true," if v else None
+    if name == "deprecated_replacement":
+        v = getattr(spec, "deprecated_replacement_name", None)
+        return f"deprecated_replacement: Some({_rust_str(v)})," if v else None
+    if name == "xc_translatable":
+        v = getattr(spec, "xc_translatable", None)
+        if v is None:
+            return None
+        return f"xc_translatable: Some({str(bool(v)).lower()}),"
     raise SystemExit(f"unsupported field: {name}")
 
 
@@ -72,17 +80,8 @@ def load_specs(group: str):
     return getattr(mod, factory)()
 
 
-def rust_files_by_name(rust_dir: Path) -> dict[str, Path]:
-    """Map `name: "X"` -> file path for every spec file in *rust_dir*."""
-    out: dict[str, Path] = {}
-    name_re = re.compile(r'^\s*name:\s*"((?:[^"\\]|\\.)*)"', re.M)
-    for p in rust_dir.glob("*.rs"):
-        if p.name == "mod.rs":
-            continue
-        m = name_re.search(p.read_text())
-        if m:
-            out[m.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
-    return out
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _groups import files_by_name as rust_files_by_name  # noqa: E402
 
 
 def inject(path: Path, field_lines: list[str]) -> bool:

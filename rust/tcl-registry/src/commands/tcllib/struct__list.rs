@@ -224,6 +224,7 @@ hover: Some(HoverSnippet {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        tcllib_package: Some("struct::list"),
         ..CommandSpec::DEFAULT
     }
 }

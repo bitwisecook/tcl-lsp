@@ -1,7 +1,7 @@
 //! `ACCESS::session` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "create",
@@ -9,6 +9,35 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a new session.",
         synopsis: "ACCESS::session create ?-flow? ?-timeout secs? ?-lifetime secs?",
         mutator: true,
+        options: &[
+            OptionSpec {
+                name: "-flow",
+                takes_value: false,
+                value_hint: "",
+                detail: "Create a flow-scoped session.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-timeout",
+                takes_value: true,
+                value_hint: "SECONDS",
+                detail: "Session timeout in seconds.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-lifetime",
+                takes_value: true,
+                value_hint: "SECONDS",
+                detail: "Session lifetime in seconds.",
+                dialects: None,
+            },
+        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +46,42 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Modify an existing session.",
         synopsis: "ACCESS::session modify ?-sid id? ?-timeout secs? ?-lifetime secs?",
         mutator: true,
+        options: &[
+            OptionSpec {
+                name: "-sid",
+                takes_value: true,
+                value_hint: "SESSION_ID",
+                detail: "Session ID.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-timeout",
+                takes_value: true,
+                value_hint: "SECONDS",
+                detail: "Session timeout in seconds.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-lifetime",
+                takes_value: true,
+                value_hint: "SECONDS",
+                detail: "Session lifetime in seconds.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-remaining",
+                takes_value: true,
+                value_hint: "",
+                detail: "Remaining time.",
+                dialects: None,
+            },
+        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +90,49 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if a session exists.",
         synopsis: "ACCESS::session exists ?-sid id?",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-sid",
+                takes_value: true,
+                value_hint: "SESSION_ID",
+                detail: "Session ID.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-state_allow",
+                takes_value: false,
+                value_hint: "",
+                detail: "Check for allow state.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-state_deny",
+                takes_value: false,
+                value_hint: "",
+                detail: "Check for deny state.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-state_redirect",
+                takes_value: false,
+                value_hint: "",
+                detail: "Check for redirect state.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-state_inprogress",
+                takes_value: false,
+                value_hint: "",
+                detail: "Check for in-progress state.",
+                dialects: None,
+            },
+        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -32,6 +140,62 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Get or set session data.",
         synopsis: "ACCESS::session data <get|set> ?-sid id? <key> ?--? ?value?",
+        options: &[
+            OptionSpec {
+                name: "-sid",
+                takes_value: true,
+                value_hint: "SESSION_ID",
+                detail: "Session ID.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-secure",
+                takes_value: false,
+                value_hint: "",
+                detail: "Access secure session data.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-config",
+                takes_value: false,
+                value_hint: "",
+                detail: "Access config session data.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-ssid",
+                takes_value: true,
+                value_hint: "SESSION_ID",
+                detail: "Sub-session ID.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "get",
+                    detail: "Get session variable value.",
+                },
+                ArgValue {
+                    value: "set",
+                    detail: "Set session variable value.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,6 +204,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove a session.",
         synopsis: "ACCESS::session remove ?-sid id?",
         mutator: true,
+        options: &[OptionSpec {
+            name: "-sid",
+            takes_value: true,
+            value_hint: "SESSION_ID",
+            detail: "Session ID.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -48,6 +225,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the session ID.",
         synopsis: "ACCESS::session sid",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

@@ -1,7 +1,7 @@
 //! `LB::persist` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "key",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get persistence key.",
         synopsis: "LB::persist key",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get persistence cookie.",
         synopsis: "LB::persist cookie",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

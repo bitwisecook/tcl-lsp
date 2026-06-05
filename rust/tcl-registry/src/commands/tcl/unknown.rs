@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unknown",
-        traits: Traits::CREATES_BARRIER,
+        traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
 hover: Some(HoverSnippet {

@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::query",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::UNNORMALISED_HTTP_GETTER,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
         options: &[OptionSpec {

@@ -19,6 +19,8 @@ hover: Some(HoverSnippet {
     return_value: "A dictionary of parsed option values.",
 }),
         forms: FORMS,
+        tcllib_package: Some("cmdline"),
+        required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT
     }
 }

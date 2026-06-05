@@ -1,7 +1,7 @@
 //! `DNS::answer` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "clear",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Clear all answer RRs.",
         synopsis: "DNS::answer clear",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert an RR into the answer section.",
         synopsis: "DNS::answer insert <rr_object>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove an RR from the answer section.",
         synopsis: "DNS::answer remove <rr_object>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

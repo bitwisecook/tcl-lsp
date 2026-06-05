@@ -27,6 +27,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        deprecated_replacement: Some("active_members"),
         ..CommandSpec::DEFAULT
     }
 }

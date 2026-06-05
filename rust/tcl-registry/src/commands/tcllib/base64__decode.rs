@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The decoded binary data.",
         }),
         forms: FORMS,
+        tcllib_package: Some("base64"),
+        required_package: Some("base64"),
         ..CommandSpec::DEFAULT
     }
 }

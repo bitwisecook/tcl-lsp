@@ -21,6 +21,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Expr)],
+        tcllib_package: Some("math::statistics"),
+        required_package: Some("math::statistics"),
         ..CommandSpec::DEFAULT
     }
 }

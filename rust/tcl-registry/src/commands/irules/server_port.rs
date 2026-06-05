@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Server,
             },
         ],
+        deprecated_replacement: Some("TCP::server_port"),
         ..CommandSpec::DEFAULT
     }
 }

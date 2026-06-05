@@ -37,6 +37,7 @@ hover: Some(HoverSnippet {
 }),
         lowering_hook: Some(LoweringHookId::Upvar),
         forms: FORMS,
+        xc_translatable: Some(false),
         ..CommandSpec::DEFAULT
     }
 }

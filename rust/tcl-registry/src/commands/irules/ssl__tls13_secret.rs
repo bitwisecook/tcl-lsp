@@ -1,7 +1,7 @@
 //! `SSL::tls13_secret` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "client",
@@ -9,6 +9,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Client-side TLS 1.3 secret.",
         synopsis: "SSL::tls13_secret client (app | hs | early)",
         pure: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "app",
+                    detail: "Client application traffic secret.",
+                },
+                ArgValue {
+                    value: "hs",
+                    detail: "Client handshake traffic secret.",
+                },
+                ArgValue {
+                    value: "early",
+                    detail: "Client early traffic secret.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +40,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Server-side TLS 1.3 secret.",
         synopsis: "SSL::tls13_secret server (app | hs)",
         pure: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "app",
+                    detail: "Server application traffic secret.",
+                },
+                ArgValue {
+                    value: "hs",
+                    detail: "Server handshake traffic secret.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

@@ -34,6 +34,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        deprecated_replacement: Some("IMID::id"),
         ..CommandSpec::DEFAULT
     }
 }

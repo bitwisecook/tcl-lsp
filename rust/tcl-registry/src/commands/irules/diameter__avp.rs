@@ -1,7 +1,7 @@
 //! `DIAMETER::avp` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "code",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get/set AVP code.",
         synopsis: "DIAMETER::avp code <avp_code> ?vendor_id? ?index?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Count AVPs matching code.",
         synopsis: "DIAMETER::avp count <avp_code> ?vendor_id?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get AVP length.",
         synopsis: "DIAMETER::avp length <avp_code> ?vendor_id? ?index?",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +51,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a new AVP.",
         synopsis: "DIAMETER::avp create <avp_code> <data> ?vendor_id?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -42,6 +66,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::avp data <avp_code> ?vendor_id? ?index?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -50,6 +80,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Delete an AVP.",
         synopsis: "DIAMETER::avp delete <avp_code> ?vendor_id? ?index?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -58,6 +94,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Replace AVP data.",
         synopsis: "DIAMETER::avp replace <avp_code> <data> ?vendor_id? ?index?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -66,6 +108,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert a new AVP at position.",
         synopsis: "DIAMETER::avp insert <position> <avp_code> <data> ?vendor_id?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -74,6 +122,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Append an AVP.",
         synopsis: "DIAMETER::avp append <avp_code> <data> ?vendor_id?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -83,6 +137,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "DIAMETER::avp flags <get|set> <avp_code> ?value? ?vendor_id? ?index?",
         pure: true,
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "get",
+                    detail: "Get AVP flags.",
+                },
+                ArgValue {
+                    value: "set",
+                    detail: "Set AVP flags.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

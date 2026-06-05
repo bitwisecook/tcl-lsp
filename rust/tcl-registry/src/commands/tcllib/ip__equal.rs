@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "1 if equal, 0 otherwise.",
         }),
         forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
         ..CommandSpec::DEFAULT
     }
 }

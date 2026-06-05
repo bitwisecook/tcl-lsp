@@ -1,7 +1,7 @@
 //! `SSL::c3d` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "extension",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert a certificate extension.",
         synopsis: "SSL::c3d extension <oid> <value>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set the C3D client certificate.",
         synopsis: "SSL::c3d cert <certificate>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Modify forged certificate subject CN.",
         synopsis: "SSL::c3d subject <field> <value>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

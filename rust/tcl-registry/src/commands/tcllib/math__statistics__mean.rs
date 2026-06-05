@@ -28,6 +28,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("math::statistics"),
+        required_package: Some("math::statistics"),
         ..CommandSpec::DEFAULT
     }
 }

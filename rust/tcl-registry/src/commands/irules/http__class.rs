@@ -60,6 +60,7 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::Both,
         }],
+        deprecated_replacement: Some("CLASSIFY::application"),
         ..CommandSpec::DEFAULT
     }
 }

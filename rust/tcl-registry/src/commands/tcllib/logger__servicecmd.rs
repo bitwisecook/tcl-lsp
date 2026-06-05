@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The logger command for the named service.",
         }),
         forms: FORMS,
+        tcllib_package: Some("logger"),
+        required_package: Some("logger"),
         ..CommandSpec::DEFAULT
     }
 }

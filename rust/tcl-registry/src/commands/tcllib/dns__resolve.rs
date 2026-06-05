@@ -29,6 +29,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("dns"),
+        required_package: Some("dns"),
         ..CommandSpec::DEFAULT
     }
 }

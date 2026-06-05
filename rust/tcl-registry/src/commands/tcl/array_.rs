@@ -26,7 +26,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
         dialects: Some(DialectSet::TCL90),
-        ..SubCommand::DEFAULT
+                arg_values: &[
+            (0, &[ArgValue { value: "exists", detail: "Returns a boolean indicating whether a default value has been set for the array." }, ArgValue { value: "get", detail: "Returns the current default value for the array." }, ArgValue { value: "set", detail: "Sets the default value for the array to value." }, ArgValue { value: "unset", detail: "Removes the default value for the array." }]),
+        ],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "donesearch",

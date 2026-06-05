@@ -1,7 +1,7 @@
 //! `class` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "match",
@@ -9,6 +9,57 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Match an item against a data group.",
         synopsis: "class match ?options? ?--? <item> <operator> <class>",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-all",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return all matches.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-value",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value instead of name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-name",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-index",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return index.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-element",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return full element.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-nocase",
+                takes_value: false,
+                value_hint: "",
+                detail: "Case-insensitive comparison.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +68,57 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Search a data group for an item.",
         synopsis: "class search ?options? ?--? <class> <operator> <item>",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-all",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return all matches.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-value",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value instead of name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-name",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-index",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return index.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-element",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return full element.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-nocase",
+                takes_value: false,
+                value_hint: "",
+                detail: "Case-insensitive comparison.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +135,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return an element by index.",
         synopsis: "class element ?-value|-name? ?--? <index> <class>",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-value",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value instead of name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-name",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -65,6 +190,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return list of data group names.",
         synopsis: "class names ?-nocase? ?-list? ?--? <class> ?pattern?",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-nocase",
+                takes_value: false,
+                value_hint: "",
+                detail: "Case-insensitive comparison.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-list",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value always as a list.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -73,6 +221,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return all elements as a list.",
         synopsis: "class get ?-nocase? ?-list? ?--? <class> ?pattern?",
         pure: true,
+        options: &[
+            OptionSpec {
+                name: "-nocase",
+                takes_value: false,
+                value_hint: "",
+                detail: "Case-insensitive comparison.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-list",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value always as a list.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -87,6 +258,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get next element during iteration.",
         synopsis: "class nextelement ?options? ?--? <search_id>",
+        options: &[
+            OptionSpec {
+                name: "-value",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return value instead of name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-name",
+                takes_value: false,
+                value_hint: "",
+                detail: "Return name.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "--",
+                takes_value: false,
+                value_hint: "",
+                detail: "",
+                dialects: None,
+            },
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {

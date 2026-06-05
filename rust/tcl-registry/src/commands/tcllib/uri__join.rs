@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "A URI string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("uri"),
+        required_package: Some("uri"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -27,6 +27,8 @@ hover: Some(HoverSnippet {
 }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("json"),
+        required_package: Some("json"),
         ..CommandSpec::DEFAULT
     }
 }

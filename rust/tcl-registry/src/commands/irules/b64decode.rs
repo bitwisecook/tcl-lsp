@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Global,
         }],
+        traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT
     }
 }

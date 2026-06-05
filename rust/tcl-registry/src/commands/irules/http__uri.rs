@@ -16,7 +16,7 @@ const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::uri",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION,
+        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION | Traits::UNNORMALISED_HTTP_GETTER,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
         options: &[OptionSpec {

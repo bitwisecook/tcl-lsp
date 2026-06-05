@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
+        tcllib_package: Some("csv"),
+        required_package: Some("csv"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,7 +1,7 @@
 //! `SSL::cert` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "count",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get certificate count in chain.",
         synopsis: "SSL::cert count",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get issuer info for cert at index.",
         synopsis: "SSL::cert issuer <index>",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -26,6 +38,29 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "SSL::cert mode ?ignore|request|require?",
         pure: true,
         mutator: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "ignore",
+                    detail: "Do not request client cert.",
+                },
+                ArgValue {
+                    value: "request",
+                    detail: "Request client cert.",
+                },
+                ArgValue {
+                    value: "require",
+                    detail: "Require client cert.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

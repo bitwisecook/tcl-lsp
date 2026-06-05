@@ -28,6 +28,7 @@ hover: Some(HoverSnippet {
 }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        traits: Traits::LANGUAGE_KEYWORD,
         ..CommandSpec::DEFAULT
     }
 }

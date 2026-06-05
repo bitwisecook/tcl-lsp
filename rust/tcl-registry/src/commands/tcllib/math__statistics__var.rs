@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The variance.",
         }),
         forms: FORMS,
+        tcllib_package: Some("math::statistics"),
+        required_package: Some("math::statistics"),
         ..CommandSpec::DEFAULT
     }
 }

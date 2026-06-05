@@ -34,6 +34,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Global,
             },
         ],
+        deprecated_replacement: Some("CATEGORY::lookup"),
         ..CommandSpec::DEFAULT
     }
 }

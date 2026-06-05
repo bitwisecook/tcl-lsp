@@ -34,6 +34,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Client,
             },
         ],
+        xc_translatable: Some(true),
         ..CommandSpec::DEFAULT
     }
 }

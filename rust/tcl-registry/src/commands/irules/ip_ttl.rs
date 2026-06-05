@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::Both,
         }],
+        deprecated_replacement: Some("IP::ttl"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -184,7 +184,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info library",
         pure: true,
         return_type: Some(TclType::String),
-        ..SubCommand::DEFAULT
+                returns_path: true,
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "loaded",
@@ -211,7 +212,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info nameofexecutable",
         pure: true,
         return_type: Some(TclType::String),
-        ..SubCommand::DEFAULT
+                returns_path: true,
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "object",
@@ -248,7 +250,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info script ?filename?",
         pure: true,
         return_type: Some(TclType::String),
-        ..SubCommand::DEFAULT
+                returns_path: true,
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "sharedlibextension",

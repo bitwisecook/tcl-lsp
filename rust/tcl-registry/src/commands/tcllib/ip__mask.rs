@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The network mask string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The address type string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
         ..CommandSpec::DEFAULT
     }
 }

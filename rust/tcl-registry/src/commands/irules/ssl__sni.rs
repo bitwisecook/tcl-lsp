@@ -1,7 +1,7 @@
 //! `SSL::sni` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "name",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get SNI name.",
         synopsis: "SSL::sni name",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get SNI required setting.",
         synopsis: "SSL::sni required",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

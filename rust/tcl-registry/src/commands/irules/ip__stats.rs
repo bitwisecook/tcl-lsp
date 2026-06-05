@@ -1,7 +1,7 @@
 //! `IP::stats` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "pkts",
@@ -9,6 +9,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get packet counts.",
         synopsis: "IP::stats pkts ?in|out?",
         pure: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "in",
+                    detail: "Packets received.",
+                },
+                ArgValue {
+                    value: "out",
+                    detail: "Packets sent.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +36,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get byte counts.",
         synopsis: "IP::stats bytes ?in|out?",
         pure: true,
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "in",
+                    detail: "Bytes received.",
+                },
+                ArgValue {
+                    value: "out",
+                    detail: "Bytes sent.",
+                },
+            ],
+        )],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +63,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get all inbound stats.",
         synopsis: "IP::stats in",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -33,6 +77,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get all outbound stats.",
         synopsis: "IP::stats out",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -41,6 +91,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get connection age in ms.",
         synopsis: "IP::stats age",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

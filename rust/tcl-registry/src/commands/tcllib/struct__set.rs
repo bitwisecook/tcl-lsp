@@ -135,6 +135,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        tcllib_package: Some("struct::set"),
         ..CommandSpec::DEFAULT
     }
 }

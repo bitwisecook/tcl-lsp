@@ -1,7 +1,7 @@
 //! `HTTP::cookie` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "names",
@@ -22,35 +22,40 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie value.",
         synopsis: "HTTP::cookie value <name> ?string?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "version",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie version.",
         synopsis: "HTTP::cookie version <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "path",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie path.",
         synopsis: "HTTP::cookie path <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "domain",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie domain.",
         synopsis: "HTTP::cookie domain <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "ports",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie ports.",
         synopsis: "HTTP::cookie ports <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "insert",
@@ -89,35 +94,40 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie max-age.",
         synopsis: "HTTP::cookie maxage <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "expires",
         arity: Arity::new(1, 3),
         detail: "Get/set cookie expires.",
         synopsis: "HTTP::cookie expires <name> ?seconds? ?absolute | relative?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "comment",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie comment.",
         synopsis: "HTTP::cookie comment <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "secure",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie secure flag.",
         synopsis: "HTTP::cookie secure <name> ?enable|disable?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "commenturl",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie comment URL.",
         synopsis: "HTTP::cookie commenturl <name> ?value?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "encrypt",
@@ -138,7 +148,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie httponly flag.",
         synopsis: "HTTP::cookie httponly <name> ?enable|disable?",
-        ..SubCommand::DEFAULT
+                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "attribute",

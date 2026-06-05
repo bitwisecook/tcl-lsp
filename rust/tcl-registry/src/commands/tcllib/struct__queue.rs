@@ -27,6 +27,8 @@ hover: Some(HoverSnippet {
 }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        tcllib_package: Some("struct::queue"),
+        required_package: Some("struct::queue"),
         ..CommandSpec::DEFAULT
     }
 }

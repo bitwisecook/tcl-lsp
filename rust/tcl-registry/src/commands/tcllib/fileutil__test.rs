@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_roles: &[(2, ArgRole::VarWrite)],
+        tcllib_package: Some("fileutil"),
+        required_package: Some("fileutil"),
         ..CommandSpec::DEFAULT
     }
 }

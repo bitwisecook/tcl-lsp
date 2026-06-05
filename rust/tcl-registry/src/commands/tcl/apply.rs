@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "apply",
-        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED,
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         return_type: Some(TclType::String),

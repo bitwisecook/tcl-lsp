@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Client,
             },
         ],
+        deprecated_replacement: Some("HTTP::redirect"),
         ..CommandSpec::DEFAULT
     }
 }

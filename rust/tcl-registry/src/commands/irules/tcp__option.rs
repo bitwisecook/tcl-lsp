@@ -1,7 +1,7 @@
 //! `TCP::option` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "get",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get TCP option value.",
         synopsis: "TCP::option get <kind>",
         pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set TCP option value.",
         synopsis: "TCP::option set <kind> <value> ?all?",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -25,6 +37,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Prevent option from being set.",
         synopsis: "TCP::option noset <kind>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

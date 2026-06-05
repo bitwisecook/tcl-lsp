@@ -21,6 +21,8 @@ pub fn spec() -> CommandSpec {
             return_value: "1 if the address matches the class, 0 otherwise.",
         }),
         forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
         ..CommandSpec::DEFAULT
     }
 }

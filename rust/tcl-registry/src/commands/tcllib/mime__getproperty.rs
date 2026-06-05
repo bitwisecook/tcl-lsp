@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The property value or a key-value list of all properties.",
         }),
         forms: FORMS,
+        tcllib_package: Some("mime"),
+        required_package: Some("mime"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Server,
             },
         ],
+        deprecated_replacement: Some("IP::server_addr"),
         ..CommandSpec::DEFAULT
     }
 }

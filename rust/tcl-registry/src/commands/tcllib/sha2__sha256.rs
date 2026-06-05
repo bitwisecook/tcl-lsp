@@ -22,6 +22,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The SHA-256 hash as a hex or binary string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("sha2"),
+        required_package: Some("sha2"),
         ..CommandSpec::DEFAULT
     }
 }

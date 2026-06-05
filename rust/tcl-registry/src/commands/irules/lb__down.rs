@@ -1,7 +1,7 @@
 //! `LB::down` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "node",
@@ -9,6 +9,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark node as down.",
         synopsis: "LB::down node <address>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -17,6 +23,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark pool member as down.",
         synopsis: "LB::down pool <pool> member <address> <port>",
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

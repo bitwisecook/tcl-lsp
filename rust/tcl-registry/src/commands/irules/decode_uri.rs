@@ -24,6 +24,8 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Global,
             },
         ],
+        deprecated_replacement: Some("URI::decode"),
+        traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT
     }
 }

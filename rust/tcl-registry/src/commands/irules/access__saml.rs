@@ -1,7 +1,7 @@
 //! `ACCESS::saml` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "authn",
@@ -10,6 +10,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "ACCESS::saml authn ?content?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -19,6 +25,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "ACCESS::saml assertion ?content?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -28,6 +40,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "ACCESS::saml slo_req ?content?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -37,6 +55,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "ACCESS::saml slo_resp ?content?",
         pure: true,
         mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..SubCommand::DEFAULT
     },
 ];

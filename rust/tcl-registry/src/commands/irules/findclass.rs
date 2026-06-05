@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Global,
             },
         ],
+        deprecated_replacement: Some("class match / class search"),
         ..CommandSpec::DEFAULT
     }
 }

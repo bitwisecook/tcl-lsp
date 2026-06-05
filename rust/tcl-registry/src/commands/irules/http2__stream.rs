@@ -1,7 +1,7 @@
 //! `HTTP2::stream` iRules command.
 use crate::prelude::*;
 
-/// iRules subcommands ported from the Python source of truth.
+/// Subcommands ported from the Python source of truth.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "id",
@@ -15,6 +15,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get or set the priority of the current stream.",
         synopsis: "HTTP2::stream priority ?<priority>?",
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
         ..SubCommand::DEFAULT
     },
 ];

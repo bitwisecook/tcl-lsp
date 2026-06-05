@@ -20,6 +20,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The text with all HTML tags removed.",
         }),
         forms: FORMS,
+        tcllib_package: Some("html"),
+        required_package: Some("html"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -575,6 +575,27 @@ pub struct SubCommand {
     /// XC operation this subcommand maps to. `None` = no explicit
     /// mapping. Mirrors Python `SubCommand.xc_operation`.
     pub xc_operation: Option<&'static str>,
+
+    // --- content-parity fields (Python `SubCommand` carries data here) ---
+    /// Structured side-effect declarations for this subcommand.
+    /// Mirrors Python `SubCommand.side_effect_hints`.
+    pub side_effects: &'static [SideEffect],
+
+    /// Irreversible operation (`file delete`, …). Mirrors Python
+    /// `SubCommand.destructive`.
+    pub destructive: bool,
+
+    /// Returns a filesystem path. Mirrors Python
+    /// `SubCommand.returns_path`.
+    pub returns_path: bool,
+
+    /// Performs unescaping / decoding. Mirrors Python
+    /// `SubCommand.is_unescape_command`.
+    pub is_unescape: bool,
+
+    /// CFG-lowered command name for ensemble subcommands rewritten by
+    /// the lowering pass. Mirrors Python `SubCommand.cfg_rewrite_name`.
+    pub cfg_rewrite_name: Option<&'static str>,
 }
 
 impl SubCommand {
@@ -615,6 +636,11 @@ impl SubCommand {
         pattern_type: None,
         format_string_type: None,
         xc_operation: None,
+        side_effects: &[],
+        destructive: false,
+        returns_path: false,
+        is_unescape: false,
+        cfg_rewrite_name: None,
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

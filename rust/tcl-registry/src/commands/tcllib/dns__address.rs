@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "A list of IP addresses.",
         }),
         forms: FORMS,
+        tcllib_package: Some("dns"),
+        required_package: Some("dns"),
         ..CommandSpec::DEFAULT
     }
 }

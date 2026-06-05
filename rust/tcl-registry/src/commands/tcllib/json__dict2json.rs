@@ -19,6 +19,8 @@ pub fn spec() -> CommandSpec {
             return_value: "A JSON-encoded string.",
         }),
         forms: FORMS,
+        tcllib_package: Some("json"),
+        required_package: Some("json"),
         ..CommandSpec::DEFAULT
     }
 }
