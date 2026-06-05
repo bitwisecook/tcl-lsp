@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcmset locale src-trans-list"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

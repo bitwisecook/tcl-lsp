@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcltest::normalizeMsg msg"],
             "F5",
         )),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }

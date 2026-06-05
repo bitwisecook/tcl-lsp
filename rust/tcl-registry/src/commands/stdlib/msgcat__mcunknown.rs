@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcunknown locale src-string ?arg ...?"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

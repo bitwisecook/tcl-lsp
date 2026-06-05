@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
             &["http::formatQuery key value ?key value ...?"],
             "F5",
         )),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

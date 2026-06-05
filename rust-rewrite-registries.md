@@ -66,11 +66,11 @@ differs · **UNPORTED**: no Rust port exists.
 ### Command registries (Python `core/commands/registry/<g>` ↔ Rust `rust/tcl-registry/src/commands/<g>`)
 
 - [x] **tcl** (1e3a71b7 / 1abc0d35) — **NAMES DIFFER** (104 missing, 16 extra) + thin hover/forms. See §1.
-- [x] **stdlib** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`required_package` 110→0, `side_effects` 12→0).
+- [x] **stdlib** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`side_effects` 12→0; `required_package` 110→110 ✅ restored).
 - [x] **tcllib** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`forms`, `side_effects`, `return_value`, `examples` dropped).
 - [x] **irules** (1e3a71b7 / 1abc0d35) — **DATA GAPS (severe)** — see §2. Names 1015=1015, but almost all rich data dropped.
 - [x] **iapps** (1e3a71b7 / 1abc0d35) — **minor** (only `forms` 49→0).
-- [x] **tk** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`options`, `required_package`, `side_effects`, `subcommands` dropped).
+- [x] **tk** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`options`, `side_effects`, `subcommands` dropped; `required_package` 55→55 ✅ restored).
 - [x] **expect** (1e3a71b7 / 1abc0d35) — **DATA GAPS** (`forms`, `options` dropped).
 - [x] **sdc-base** (1e3a71b7 / 1abc0d35) — **minor** (`forms`, `arg_roles`).
 - [x] **synopsys** (1e3a71b7 / 1abc0d35) — **minor** (`forms` only).
@@ -287,11 +287,11 @@ Present on both sides; counts noted, deep field diffs deferred:
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
 - **`tcl`** — `forms` 199→1, `hover` 211→125, `hover_synopsis` 196→125, `arity_bounded` 160→119, `side_effects` 84→46, `hover_return_value` 9→0, `options` 19→12, `arg_types` 19→13, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `codegen_hook` 0→7, `return_type` 92→110, `lowering_hook` 0→23, `traits` 42→104
-- **`stdlib`** — `required_package` 110→0, `side_effects` 12→0, `forms` 2→0, `subcommands` 2→0, `arg_roles` 1→0, `options` 1→0, `traits` 23→24
+- **`stdlib`** — `side_effects` 12→0, `forms` 2→0, `subcommands` 2→0, `arg_roles` 1→0, `options` 1→0, `traits` 23→24
 - **`tcllib`** — `forms` 206→0, `hover_return_value` 68→0, `side_effects` 62→0, `hover_examples` 25→0, `arg_roles` 17→3, `subcommands` 3→0
 - **`irules`** — `side_effects` 1002→0, `forms` 999→0, `hover_source_url` 996→0, `hover_examples` 813→0, `hover_return_value` 496→0, `event_requires` 448→0, `event_profiles` 373→0, `options` 54→5, `subcommands` 47→0, `excluded_events` 4→0, `arg_roles` 4→5, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69, `hover_synopsis` 999→1015
 - **`iapps`** — `forms` 49→0
-- **`tk`** — `forms` 55→0, `required_package` 55→0, `side_effects` 55→0, `options` 44→0, `subcommands` 17→0
+- **`tk`** — `forms` 55→0, `side_effects` 55→0, `options` 44→0, `subcommands` 17→0
 - **`expect`** — `forms` 35→0, `options` 26→0, `arg_roles` 1→0
 - **`sdc-base`** — `forms` 61→0, `arg_roles` 3→0
 - **`synopsys`** — `forms` 68→0

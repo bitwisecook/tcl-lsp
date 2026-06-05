@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcltest::testsDirectory ?path?"],
             "F5",
         )),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }

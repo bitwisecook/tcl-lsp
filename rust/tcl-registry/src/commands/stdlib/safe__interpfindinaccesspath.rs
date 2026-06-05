@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["safe::interpFindInAccessPath child directory"],
             "F5",
         )),
+        required_package: Some("safe"),
         ..CommandSpec::DEFAULT
     }
 }

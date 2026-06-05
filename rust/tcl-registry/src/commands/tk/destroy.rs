@@ -10,6 +10,8 @@ pub fn spec() -> CommandSpec {
             &["destroy ?window window ...?"],
             "F5",
         )),
+        required_package: Some("Tk"),
+        warn_missing_import: false,
         ..CommandSpec::DEFAULT
     }
 }

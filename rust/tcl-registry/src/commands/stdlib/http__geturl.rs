@@ -15,6 +15,7 @@ pub fn spec() -> CommandSpec {
         // `stdlib/http_.py`.
         taint_network_sink_args: Some(&[0]),
         credential_options: &["-headers"],
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

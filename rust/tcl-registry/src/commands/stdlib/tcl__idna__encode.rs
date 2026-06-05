@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
             &["tcl::idna::encode hostname"],
             "F5",
         )),
+        required_package: Some("cookiejar"),
         ..CommandSpec::DEFAULT
     }
 }

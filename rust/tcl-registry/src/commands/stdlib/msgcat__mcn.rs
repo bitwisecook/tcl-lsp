@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcn namespace src-string ?arg arg ...?"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

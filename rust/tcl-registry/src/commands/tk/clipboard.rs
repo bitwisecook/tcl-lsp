@@ -10,6 +10,8 @@ pub fn spec() -> CommandSpec {
             &["clipboard append ?-displayof window? ?-format format? ?-type type? data"],
             "F5",
         )),
+        required_package: Some("Tk"),
+        warn_missing_import: false,
         ..CommandSpec::DEFAULT
     }
 }

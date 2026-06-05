@@ -203,8 +203,28 @@ fn main() {
             .unwrap_or_default();
         let body_kind = format!("{:?}", spec.body_kind);
 
-        // Emit JSON. event_* fields are intentionally always empty/false:
-        // the Rust CommandSpec has no event_requires field (see audit).
+        // event_requires (GAP-3a): the Rust CommandSpec now carries an
+        // `event_requires` field; emit the same shape the Python dumper
+        // does so the audit's event_* dimensions compare like-for-like.
+        let (event_profiles, event_also_in, event_requires_any) = match &spec.event_requires {
+            None => (Vec::new(), Vec::new(), false),
+            Some(er) => {
+                let mut profiles: Vec<&str> = er.profiles.to_vec();
+                profiles.sort_unstable();
+                let mut also_in: Vec<&str> = er.also_in.to_vec();
+                also_in.sort_unstable();
+                let any = er.client_side
+                    || er.server_side
+                    || er.transport.is_some()
+                    || !er.profiles.is_empty()
+                    || !er.also_in.is_empty()
+                    || er.init_only
+                    || er.flow
+                    || er.capability.is_some();
+                (profiles, also_in, any)
+            }
+        };
+
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"name\":{}", json_str(spec.name)));
         fields.push(format!("\"dialects_all\":{dialects_all}"));
@@ -226,9 +246,15 @@ fn main() {
             json_str_list(&subcommand_names)
         ));
         fields.push(format!("\"n_side_effects\":{}", spec.side_effects.len()));
-        fields.push("\"event_profiles\":[]".to_string());
-        fields.push("\"event_also_in\":[]".to_string());
-        fields.push("\"event_requires_any\":false".to_string());
+        fields.push(format!(
+            "\"event_profiles\":{}",
+            json_str_list(&event_profiles)
+        ));
+        fields.push(format!(
+            "\"event_also_in\":{}",
+            json_str_list(&event_also_in)
+        ));
+        fields.push(format!("\"event_requires_any\":{event_requires_any}"));
         fields.push(format!(
             "\"excluded_events\":{}",
             json_str_list(spec.excluded_events)

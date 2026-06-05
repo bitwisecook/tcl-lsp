@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcltest::configure ?option? ?value option value ...?"],
             "F5",
         )),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }

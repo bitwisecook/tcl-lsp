@@ -10,6 +10,8 @@ pub fn spec() -> CommandSpec {
             &["font actual font ?-displayof window? ?option?"],
             "F5",
         )),
+        required_package: Some("Tk"),
+        warn_missing_import: false,
         ..CommandSpec::DEFAULT
     }
 }

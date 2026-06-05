@@ -12,6 +12,7 @@ pub fn spec() -> CommandSpec {
             &["http::responseHeaders token"],
             "F5",
         )),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

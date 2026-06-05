@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcpreferences ?locale ...?"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

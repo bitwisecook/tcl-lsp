@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["http::cookiejar create name ?filename?"],
             "F5",
         )),
+        required_package: Some("cookiejar"),
         ..CommandSpec::DEFAULT
     }
 }

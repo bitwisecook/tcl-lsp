@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
             &["http::postError token"],
             "F5",
         )),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

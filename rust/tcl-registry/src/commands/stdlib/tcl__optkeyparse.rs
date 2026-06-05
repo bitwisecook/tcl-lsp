@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcl::OptKeyParse key arglist"],
             "F5",
         )),
+        required_package: Some("opt"),
         ..CommandSpec::DEFAULT
     }
 }

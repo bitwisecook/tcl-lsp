@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcflmset src-trans-list"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

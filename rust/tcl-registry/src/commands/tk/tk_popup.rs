@@ -10,6 +10,8 @@ pub fn spec() -> CommandSpec {
             &["tk_popup menu x y ?entry?"],
             "F5",
         )),
+        required_package: Some("Tk"),
+        warn_missing_import: false,
         ..CommandSpec::DEFAULT
     }
 }

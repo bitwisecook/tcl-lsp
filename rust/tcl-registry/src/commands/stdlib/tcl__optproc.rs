@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcl::OptProc name optlist body"],
             "F5",
         )),
+        required_package: Some("opt"),
         ..CommandSpec::DEFAULT
     }
 }

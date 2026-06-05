@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["http::registerError token"],
             "F5",
         )),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["msgcat::mcexists ?-exactnamespace? ?-exactlocale? src-string"],
             "F5",
         )),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

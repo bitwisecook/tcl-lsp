@@ -132,6 +132,14 @@ pub struct CommandSpec {
     /// Excluded iRules events.
     pub excluded_events: &'static [&'static str],
 
+    /// Layer-based iRules event requirements (transport / profiles /
+    /// `also_in` / side / init-only / flow / capability) used by the
+    /// IRULE1001 event-validity check. `None` = no requirement.
+    /// Mirrors Python `CommandSpec.event_requires`; the
+    /// [`crate::events::EventRequires`] type already existed in
+    /// `events.rs` but was not attached to commands (GAP-3a).
+    pub event_requires: Option<crate::events::EventRequires>,
+
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
@@ -303,6 +311,7 @@ impl CommandSpec {
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
+        event_requires: None,
         options: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,

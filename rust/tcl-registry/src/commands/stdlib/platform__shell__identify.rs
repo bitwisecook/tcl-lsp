@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["platform::shell::identify shell"],
             "F5",
         )),
+        required_package: Some("platform::shell"),
         ..CommandSpec::DEFAULT
     }
 }

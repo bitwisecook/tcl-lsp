@@ -10,6 +10,7 @@ pub fn spec() -> CommandSpec {
             &["tcltest::removeDirectory name ?directory?"],
             "F5",
         )),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }
