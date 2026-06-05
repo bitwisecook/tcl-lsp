@@ -129,6 +129,16 @@ from . import (
     yield_,  # noqa: F401
     yieldto,  # noqa: F401
     zlib,  # noqa: F401
+    const,  # noqa: F401
+    coroinject,  # noqa: F401
+    coroprobe,  # noqa: F401
+    foreachline,  # noqa: F401
+    lpop,  # noqa: F401
+    readfile,  # noqa: F401
+    tcl_idna,  # noqa: F401
+    tcl_process,  # noqa: F401
+    timerate,  # noqa: F401
+    writefile,  # noqa: F401
 )
 from ._base import _REGISTRY
 
