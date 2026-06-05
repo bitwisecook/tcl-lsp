@@ -384,9 +384,9 @@ any row.
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress; **+ a representation-decision note per structure** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
-| `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | not-started | eval-loop tcltest sweep no-regress |
+| `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
-| `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | not-started | `make check-wasm-parity` green |
+| `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4) | `make runtime-rust-test` — `BTreeMap` command table + name dispatch; `make check-wasm-parity` once the builtin surface fills in |
 | `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | not-started | per-command parity + tcltest sweep per `.test` |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
@@ -519,13 +519,35 @@ the Zig rep.
     **Remaining (T1.4):** the eval loop + command dispatch (closing subst's
     *command* half), namespace var tables, the deferred-free queue, and the
     `info`/proc-call frame metadata (argv, level).
-- **T1.4 — namespaces + command table.** Port `tcl_ns.zig` + `dispatch/`.
-  Gate: `make check-wasm-parity` green; namespace-tree behaviour preserved.
-- **T1.5 — builtins.** Port `cmds/*.zig` incrementally, each command (or small
-  group) one PR with its tcltest delta.
-- **T1.6 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
+- **T1.4 — eval loop + command table + dispatch. Partial — landed.**
+  `interp.rs`: `Interp` (frame stack + command table + result), `eval_str` →
+  parse → per-word substitution (with `{*}` expansion via `parse::split_list`)
+  → dispatch; `Code` completion codes (Ok/Error/Return/Break/Continue);
+  `Command` enum (`Builtin` now; `Proc`/`External{table_index}` — the §13.2
+  extension-command entry — are the next variants). **Closes the command half
+  of T1.2's subst seam** (a `[cmd]` recursively evaluates its inner script).
+  Command-table decision: **`BTreeMap` name→`Command`** (deterministic `info
+  commands`, zero deps), same reasoning as the frame tables.
+  **No deferred-free queue** (the Zig `tcl_obj_drain_pending`): immediate
+  `TclFreeObj` + retain-into-result makes argv release safe without it.
+  `builtins.rs`: starter set `set`/`incr`/`return`/`unset` to drive the loop
+  end-to-end. Gate: `make runtime-rust-test` (53 tests, leak-checked:
+  set/read-back, `[cmd]` subst, `incr`, `{*}` expansion, error paths).
+  **Remaining:** the full builtin surface (T1.6), procs + the proc-call frame
+  path, full `return -code`/`expr`/control-flow.
+- **T1.5 — namespaces.** Port `tcl_ns.zig` (the namespace tree) +
+  namespace-qualified command/var resolution; extend the flat global command
+  table to the namespace tree. Gate: `make check-wasm-parity` green;
+  namespace-tree behaviour preserved (`namespace-tree.md`).
+- **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
+  control-flow/proc/…), each command (or small group) one PR with its tcltest
+  delta. The value-type chunks (list/dict/string/array) each carry a
+  [representation-decision note](#choosing-algorithms--data-structures-the-porting-method).
+- **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
   `tcl_*`/`obj_*` primitives; the Rust runtime must export the same names/sigs
-  so the parity check and the compiled-script harness stay green.
+  so the parity check and the compiled-script harness stay green. Also the wasm
+  build: exported `memory` + growable `__indirect_function_table`, and the
+  `cfg(target_arch="wasm32")` `size_of::<TclObj>() == 24` layout assert.
 
 **Track 1 gates:** `make check-wasm-parity` green; the Tcl 9 suite
 (`scripts/run_tcl9_tcltest_sweep.py`) + leak-check
@@ -863,6 +885,14 @@ it in the same or a follow-up PR.
   as a Rust `Var` enum (Scalar/Array/Link) replacing the Zig i32-sentinel
   encoding; `BTreeMap` var/array tables; path-resolved links. Behaviour-diffed
   against this baseline going forward.
+- `runtime/rust/src/{interp,builtins}.rs` (T1.4) mirror
+  `runtime/zig/interp/tcl_interp.zig` (eval loop) + `dispatch/*.zig` for
+  **semantics**, cross-checked against `tclBasic.c` (return codes, eval). **Structural
+  divergence:** `Command` enum + `BTreeMap` command table; eval-loop word
+  substitution walks the T1.2 `WordPart` enum directly (with `&mut self` for
+  recursive `[cmd]` eval) rather than the closure API; **no deferred-free
+  queue** (immediate `TclFreeObj` + retain-into-result). Behaviour-diffed going
+  forward.
 
 ### Outstanding
 
@@ -905,20 +935,22 @@ compiler/LSP or the Zig runtime.
 4. ✅ **T1.2** — parse/subst port. Landed as a re-derived borrow-based enum
    model (`bs`/`parse`/`subst`, `unsafe`-free); segment evaluation wires into
    the eval loop next.
-5. ◐ **T1.3** — frames + variable store **landed** (`frame.rs`: `Var` enum,
-   `FrameStack`, scalar/array/upvar/global, leak-checked; closes subst's
-   variable half). **Next: T1.4** — eval loop + command table + dispatch
-   (closes subst's command half), namespace var tables, and the deferred-free
-   queue.
-6. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+5. ✅ **T1.3** — frames + variable store (`frame.rs`: `Var` enum, `FrameStack`,
+   scalar/array/upvar/global, leak-checked; closed subst's variable half).
+6. ✅ **T1.4** — eval loop + command table + dispatch (`interp.rs`/`builtins.rs`:
+   parse→subst→dispatch, `{*}`, completion codes, starter builtins; **closed
+   subst's command half**; no deferred-free queue needed). **Next: T1.5/T1.6** —
+   namespaces (the ns tree) and the builtin surface (each value-type chunk with
+   its representation-decision note); procs + the proc-call frame path.
+7. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work
    builds on).
-7. **T2.3** (de-risk against Zig first) — production loader, validated on
+8. **T2.3** (de-risk against Zig first) — production loader, validated on
    Tier 0 dltest, separating loader risk from port risk.
-8. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+9. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
    harness (seeds the scoreboard).
-9. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+10. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 

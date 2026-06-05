@@ -29,6 +29,7 @@
 //! re-exports and the wasm `memory`/table exports land in T1.6.
 
 pub mod bs;
+pub mod builtins;
 pub mod capi;
 pub mod counters;
 pub mod frame;

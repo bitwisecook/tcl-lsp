@@ -494,6 +494,73 @@ pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
     out
 }
 
+// ---------------------------------------------------------------------------
+// List parsing — `Tcl_SplitList` (the primitive `{*}` expansion and the list
+// value type need). Distinct from command parsing: no comments, `;`/newline are
+// plain whitespace, and there is no `$`/`[` substitution — only brace/quote
+// grouping and (for bare/quoted elements) backslash decoding.
+// ---------------------------------------------------------------------------
+
+/// Why splitting a string as a Tcl list failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListError {
+    /// An unmatched `{` (`unmatched open brace in list`).
+    UnmatchedBrace,
+    /// An unmatched `"` (`unmatched open quote in list`).
+    UnmatchedQuote,
+}
+
+#[inline]
+fn is_list_space(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+}
+
+/// Split `src` into its Tcl list elements, decoding each element's value:
+/// `{braced}` elements are taken verbatim (no substitution); bare and
+/// `"quoted"` elements have backslash escapes decoded. This is the
+/// `Tcl_SplitList` primitive (element *values*, owned).
+pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
+    let len = src.len();
+    let mut out = Vec::new();
+    let mut p = 0;
+    loop {
+        while p < len && is_list_space(src[p]) {
+            p += 1;
+        }
+        if p >= len {
+            break;
+        }
+        if src[p] == b'{' {
+            let s = find_braced(src, p);
+            // find_braced runs to end-of-input on an unterminated brace; detect
+            // that (the byte before `end` is not the closing `}`).
+            if s.end > len || (s.end == len && (len == 0 || src[len - 1] != b'}')) {
+                return Err(ListError::UnmatchedBrace);
+            }
+            out.push(src[s.start..s.start + s.len].to_vec());
+            p = s.end;
+        } else if src[p] == b'"' {
+            let s = find_quoted(src, p);
+            if s.end == len && (len == 0 || src[len - 1] != b'"') {
+                return Err(ListError::UnmatchedQuote);
+            }
+            out.push(crate::bs::decode_span(&src[s.start..s.start + s.len]));
+            p = s.end;
+        } else {
+            let start = p;
+            while p < len && !is_list_space(src[p]) {
+                if src[p] == b'\\' && p + 1 < len {
+                    p += 2;
+                } else {
+                    p += 1;
+                }
+            }
+            out.push(crate::bs::decode_span(&src[start..p]));
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -696,5 +763,30 @@ mod tests {
         assert_eq!(cmds.len(), 2);
         assert_eq!(lit(&cmds[0].words[0]), b"puts");
         assert_eq!(lit(&cmds[1].words[0]), b"set");
+    }
+
+    #[test]
+    fn split_list_grouping_and_decode() {
+        assert_eq!(
+            split_list(b"a b c").unwrap(),
+            vec![b"a".to_vec(), b"b".to_vec(), b"c".to_vec()]
+        );
+        // braced elements are verbatim; bare elements decode backslashes
+        assert_eq!(
+            split_list(b"{a b} c\\td").unwrap(),
+            vec![b"a b".to_vec(), b"c\td".to_vec()]
+        );
+        // newlines are plain whitespace in list context
+        assert_eq!(
+            split_list(b"x\ny\tz").unwrap(),
+            vec![b"x".to_vec(), b"y".to_vec(), b"z".to_vec()]
+        );
+        // quoted element
+        assert_eq!(
+            split_list(b"\"a b\" c").unwrap(),
+            vec![b"a b".to_vec(), b"c".to_vec()]
+        );
+        assert_eq!(split_list(b"   ").unwrap(), Vec::<Vec<u8>>::new());
+        assert_eq!(split_list(b"{unmatched"), Err(ListError::UnmatchedBrace));
     }
 }

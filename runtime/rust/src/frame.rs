@@ -345,6 +345,22 @@ impl FrameStack {
         }
     }
 
+    /// `unset name(key)` — remove one array element. Returns whether it existed.
+    pub fn unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        let place = self.resolve(self.current_level(), name);
+        if place.elem.is_some() {
+            return false; // `a(b)(c)` is not a thing
+        }
+        if let Some(Var::Array(map)) = self.frames[place.frame].vars.get_mut(&place.name) {
+            if let Some(old) = map.remove(key) {
+                // SAFETY: the array element owned a +1; releasing balances it.
+                unsafe { obj::decr_ref_count(old) };
+                return true;
+            }
+        }
+        false
+    }
+
     // -- links ----------------------------------------------------------------
 
     /// `global name` — alias `name` in the current frame to the same-named
@@ -446,7 +462,9 @@ fn release_frame(frame: Frame) {
 }
 
 /// Split `a(b)` into (`a`, `Some(b)`); a plain name yields (`name`, `None`).
-fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
+/// The command layer uses this to route `set a(k)` / `unset a(k)` to the array
+/// element ops.
+pub(crate) fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
     if name.last() == Some(&b')') {
         if let Some(open) = name.iter().position(|&c| c == b'(') {
             let base = name[..open].to_vec();
