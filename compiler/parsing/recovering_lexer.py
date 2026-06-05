@@ -23,12 +23,13 @@ recovery path, which subsequent commits replace with inline lexer recovery.
 
 from __future__ import annotations
 
+from shared.diagnostic import Diagnostic
 from shared.tokens import Token, TokenType
 
 from .green_tree import tokenise
-from .recovery import compute_virtual_insertions
+from .recovery import assemble_recovery_diagnostics, detect_recovery
 
-__all__ = ["tokenise_recovering"]
+__all__ = ["tokenise_recovering", "tokenise_recovering_with_diagnostics"]
 
 # Delimiter token types whose unterminated form (reaching EOF without a closer)
 # is what error recovery acts on.
@@ -75,38 +76,73 @@ def tokenise_recovering(
     body_token: Token | None = None,
     line_starts: list[int] | None = None,
 ) -> tuple[tuple[Token, ...], object]:
-    """Tokenise *source*, recovering unterminated delimiters inline.
+    """Tokenise *source*, recovering unterminated delimiters.
 
     Drop-in for the two-pass recovery a consumer would otherwise spell out as
-    ``compute_virtual_insertions(source, body_token)`` followed by
+    ``detect_recovery(source, body_token).insertions`` followed by
     ``tokenise(source, ..., virtual_insertions=vi)`` — returns the same
     ``(tokens, warnings)``, verified by the differential oracle.
 
     *body_token* anchors recovery when *source* is a body substring (a braced
     proc/if/while body etc.): its position seeds the base offset the recovery
-    heuristics reason about, exactly as ``compute_virtual_insertions`` uses it.
+    heuristics reason about, exactly as ``detect_recovery`` uses it.
     """
     tokens, warnings = tokenise(source, base_offset, base_line, base_col, line_starts=line_starts)
-    # The single-pass fast path: at top level the bare parse and the recovered
-    # parse coincide whenever nothing is left unterminated, so we can return the
-    # bare stream untouched.  This is the path the differential oracle pins.
-    # Inside a body, segmentation runs under the body's mode/anchoring, which can
-    # surface an unterminated delimiter the bare top-level lex does not — so we
-    # keep computing ``vi`` there (no behaviour change) until the oracle covers
-    # the body case too.
+    # Single-pass fast path: at top level the bare parse and the recovered parse
+    # coincide whenever nothing is left unterminated, so return the bare stream
+    # untouched with no recovery work.  (Mid-stream lexer warnings, e.g. "extra
+    # characters after close-quote", do not change the *tokens*, so they don't
+    # disqualify this path for the token-only caller.)  Inside a body,
+    # segmentation runs under the body's mode/anchoring, which can surface an
+    # unterminated delimiter the bare top-level lex does not — so always detect.
     if body_token is None and not _has_unterminated_delimiter(tokens, source, base_offset):
         return tokens, warnings
-    # Recovery may be needed.  Until inline lexer recovery lands for every
-    # delimiter type, fall back to the proven two-pass so the oracle stays green.
-    vi = compute_virtual_insertions(source, body_token) or None
-    if vi is None:
-        # No insertion after all (heuristics declined) — the bare parse stands.
+    det = detect_recovery(source, body_token)
+    if not det.insertions:
         return tokens, warnings
     return tokenise(
         source,
         base_offset,
         base_line,
         base_col,
-        virtual_insertions=vi,
+        virtual_insertions=det.insertions,
         line_starts=line_starts,
     )
+
+
+def tokenise_recovering_with_diagnostics(
+    source: str,
+    base_offset: int = 0,
+    base_line: int = 0,
+    base_col: int = 0,
+    *,
+    body_token: Token | None = None,
+    line_starts: list[int] | None = None,
+) -> tuple[tuple[Token, ...], object, list[Diagnostic]]:
+    """As :func:`tokenise_recovering`, but also return the recovery diagnostics.
+
+    The recovered token stream and the E2xx diagnostics (with their
+    insert-missing-delimiter quick-fixes) come from a *single* detection pass —
+    so a consumer that wants both pays for recovery once, and the diagnostics are
+    byte-identical to the analyser's ``segment_with_recovery``.
+
+    Unlike :func:`tokenise_recovering` there is no well-formed fast path: even a
+    source with no unterminated delimiter may carry mid-stream lexer warnings
+    (E204/E205/E206) that the diagnostic set must include, so detection always
+    runs.
+    """
+    det = detect_recovery(source, body_token)
+    if not det.insertions:
+        tokens, warnings = tokenise(
+            source, base_offset, base_line, base_col, line_starts=line_starts
+        )
+        return tokens, warnings, assemble_recovery_diagnostics(det, [])
+    rec_tokens, rec_warnings = tokenise(
+        source,
+        base_offset,
+        base_line,
+        base_col,
+        virtual_insertions=det.insertions,
+        line_starts=line_starts,
+    )
+    return rec_tokens, rec_warnings, assemble_recovery_diagnostics(det, list(rec_warnings))

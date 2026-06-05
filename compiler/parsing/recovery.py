@@ -687,27 +687,64 @@ def _detect_all_virtual_tokens(
     return virtuals, fallback_diags
 
 
+@dataclass(frozen=True, slots=True)
+class RecoveryDetection:
+    """The result of one recovery-detection pass over a region.
+
+    A single first parse plus heuristic scan yields *everything* recovery needs,
+    so the token path and the diagnostic path can share it rather than each
+    re-detecting:
+
+    - :attr:`insertions` — ``offset -> closer`` for re-lexing the recovered
+      token/command stream (what the old ``compute_virtual_insertions`` returned).
+    - :attr:`virtuals` — the recovery points, each carrying the rich
+      :class:`VirtualToken.diagnostic` (range + quick-fix) the LSP surfaces.
+    - :attr:`fallback_diags` — diagnostics for unterminated delimiters where no
+      heuristic matched (no insertion, an over-running token is kept).
+    - :attr:`commands` / :attr:`lexer_warnings` — the first-parse commands and
+      raw lexer warnings, reused by :func:`segment_with_recovery` so it need not
+      re-segment for the no-recovery case.
+    """
+
+    commands: list[SegmentedCommand]
+    insertions: dict[int, str]
+    virtuals: list[VirtualToken]
+    fallback_diags: list[Diagnostic]
+    lexer_warnings: list[tuple[SourcePosition, str]]
+
+
+def detect_recovery(
+    source: str,
+    body_token: Token | None = None,
+) -> RecoveryDetection:
+    """Detect unterminated delimiters and decide their recovery in one pass.
+
+    The single detection both the tokeniser and the analyser build on: it parses
+    *source* once, scans for unterminated ``[``/``{``/``"``, and returns the
+    insertions to re-lex with *and* the diagnostics (with quick-fixes) to show.
+    """
+    lexer_warnings: list[tuple[SourcePosition, str]] = []
+    commands = segment_commands(source, body_token, collect_warnings=lexer_warnings)
+    if not commands:
+        return RecoveryDetection([], {}, [], [], lexer_warnings)
+
+    base_offset = _base_offset_for(body_token)
+    virtuals, fallback_diags = _detect_all_virtual_tokens(commands, source, base_offset)
+    insertions = {vt.offset: vt.char for vt in virtuals}
+    return RecoveryDetection(commands, insertions, virtuals, fallback_diags, lexer_warnings)
+
+
 def compute_virtual_insertions(
     source: str,
     body_token: Token | None = None,
 ) -> dict[int, str]:
     """Compute virtual token insertions for error recovery.
 
-    Does a first parse, detects imbalances, and returns the insertions
-    dict that can be passed to :class:`TclLexer`.  Returns an empty dict
-    when no recovery is needed.
+    Thin offset-only view over :func:`detect_recovery`, kept for callers that
+    only need the insertions to re-lex with and not the diagnostics.  Returns an
+    empty dict when no recovery is needed.
     """
-    commands = segment_commands(source, body_token)
-    if not commands:
-        return {}
-
-    base_offset = _base_offset_for(body_token)
-    virtuals, _ = _detect_all_virtual_tokens(commands, source, base_offset)
-
-    if not virtuals:
-        return {}
-
-    return {vt.offset: vt.char for vt in virtuals}
+    return detect_recovery(source, body_token).insertions
 
 
 # Lexer warning messages
@@ -751,16 +788,35 @@ def _lexer_warnings_to_diagnostics(
     return diagnostics
 
 
+def assemble_recovery_diagnostics(
+    det: RecoveryDetection,
+    reparse_warnings: list[tuple[SourcePosition, str]],
+) -> list[Diagnostic]:
+    """Build the LSP diagnostics for a recovery detection.
+
+    The single place the recovery diagnostic set is assembled, so the token path
+    and the analyser path surface byte-identical diagnostics: the rich
+    per-recovery diagnostics (with quick-fixes), the no-heuristic fallbacks, the
+    first-parse lexer warnings, and any warnings the recovered re-lex produced.
+    *reparse_warnings* is empty when nothing was inserted.
+    """
+    diags = list(det.fallback_diags)
+    diags = [vt.diagnostic for vt in det.virtuals] + diags
+    diags += _lexer_warnings_to_diagnostics(det.lexer_warnings)
+    if reparse_warnings:
+        diags += _lexer_warnings_to_diagnostics(reparse_warnings)
+    return diags
+
+
 def segment_with_recovery(
     source: str,
     body_token: Token | None = None,
 ) -> tuple[list[SegmentedCommand], list[Diagnostic]]:
     """Parse source, detect imbalances, re-parse with virtual tokens.
 
-    1. ``segment_commands(source, body_token)`` — first parse
-    2. Scan for unterminated CMD tokens — find virtual tokens
-    3. ``segment_commands(source, body_token, virtual_insertions=...)`` — clean re-parse
-    4. Return ``(clean_commands, diagnostics)``
+    1. ``detect_recovery(source, body_token)`` — first parse + heuristic scan
+    2. ``segment_commands(source, body_token, virtual_insertions=...)`` — clean re-parse
+    3. Return ``(clean_commands, diagnostics)``
 
     When no imbalances are detected, the first parse result is returned
     directly (zero overhead for clean files).
@@ -768,42 +824,17 @@ def segment_with_recovery(
     Lexer warnings (e.g. "extra characters after close-brace") are also
     harvested and converted to diagnostics.
     """
-    lexer_warnings: list[tuple[SourcePosition, str]] = []
-    commands = segment_commands(
-        source,
-        body_token,
-        collect_warnings=lexer_warnings,
-    )
+    det = detect_recovery(source, body_token)
 
-    if not commands:
-        return commands, _lexer_warnings_to_diagnostics(lexer_warnings)
-
-    base_offset = _base_offset_for(body_token)
-    virtuals, fallback_diags = _detect_all_virtual_tokens(
-        commands,
-        source,
-        base_offset,
-    )
-
-    warning_diags = _lexer_warnings_to_diagnostics(lexer_warnings)
-
-    if not virtuals:
-        return commands, fallback_diags + warning_diags
+    if not det.commands or not det.virtuals:
+        return det.commands, assemble_recovery_diagnostics(det, [])
 
     # Re-parse with virtual tokens injected.
-    virtual_insertions = {vt.offset: vt.char for vt in virtuals}
     reparse_warnings: list[tuple[SourcePosition, str]] = []
     clean_commands = segment_commands(
         source,
         body_token,
-        virtual_insertions=virtual_insertions,
+        virtual_insertions=det.insertions,
         collect_warnings=reparse_warnings,
     )
-    diagnostics = (
-        [vt.diagnostic for vt in virtuals]
-        + fallback_diags
-        + warning_diags
-        + _lexer_warnings_to_diagnostics(reparse_warnings)
-    )
-
-    return clean_commands, diagnostics
+    return clean_commands, assemble_recovery_diagnostics(det, reparse_warnings)

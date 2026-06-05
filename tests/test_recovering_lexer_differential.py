@@ -26,8 +26,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.green_tree import tokenise
-from compiler.parsing.recovering_lexer import tokenise_recovering
-from compiler.parsing.recovery import compute_virtual_insertions
+from compiler.parsing.recovering_lexer import (
+    tokenise_recovering,
+    tokenise_recovering_with_diagnostics,
+)
+from compiler.parsing.recovery import compute_virtual_insertions, segment_with_recovery
 
 
 def _two_pass(source: str):
@@ -44,6 +47,32 @@ def _warn_key(warnings) -> list[tuple]:
     return [(w[0].offset, w[1]) for w in (warnings or [])]
 
 
+def _diag_key(diags) -> list[tuple]:
+    """Compare diagnostics by everything the LSP renders, including quick-fixes."""
+    out = []
+    for d in diags or []:
+        fixes = tuple(
+            (
+                f.range.start.offset,
+                f.range.end.offset,
+                f.new_text,
+                f.description,
+            )
+            for f in (d.fixes or ())
+        )
+        out.append(
+            (
+                d.code,
+                d.severity,
+                d.range.start.offset,
+                d.range.end.offset,
+                d.message,
+                fixes,
+            )
+        )
+    return out
+
+
 def _assert_equivalent(source: str) -> None:
     old_toks, old_warns = _two_pass(source)
     new_toks, new_warns = tokenise_recovering(source)
@@ -56,6 +85,23 @@ def _assert_equivalent(source: str) -> None:
         f"warnings diverged for {source!r}\n"
         f"  two-pass:    {_warn_key(old_warns)}\n"
         f"  single-pass: {_warn_key(new_warns)}"
+    )
+
+
+def _assert_diagnostics_match(source: str) -> None:
+    """The token path's recovery diagnostics must equal the analyser's.
+
+    Both flow from the one ``detect_recovery`` pass, so the E201/E202/E203
+    diagnostics and their insert-missing-delimiter quick-fixes that the LSP
+    surfaces are identical whether reached via the recovering tokeniser or via
+    ``segment_with_recovery``.
+    """
+    _toks, _warns, tok_diags = tokenise_recovering_with_diagnostics(source)
+    _cmds, seg_diags = segment_with_recovery(source)
+    assert _diag_key(tok_diags) == _diag_key(seg_diags), (
+        f"recovery diagnostics diverged for {source!r}\n"
+        f"  analyser:  {_diag_key(seg_diags)}\n"
+        f"  tokeniser: {_diag_key(tok_diags)}"
     )
 
 
@@ -86,6 +132,7 @@ class TestRecoveryHeuristicCases:
     )
     def test_heuristic_case(self, source):
         _assert_equivalent(source)
+        _assert_diagnostics_match(source)
 
     @pytest.mark.parametrize(
         "source",
@@ -154,6 +201,7 @@ class TestRecoveryDifferentialFuzz:
             if compute_virtual_insertions(src):
                 recovered += 1
             _assert_equivalent(src)
+            _assert_diagnostics_match(src)
         # Coverage guard: the corpus must actually drive recovery.
         assert recovered > 200
 
@@ -161,4 +209,6 @@ class TestRecoveryDifferentialFuzz:
     def test_character_soup(self, seed):
         rng = random.Random(seed)
         for _ in range(4000):
-            _assert_equivalent(_rand_soup_source(rng))
+            src = _rand_soup_source(rng)
+            _assert_equivalent(src)
+            _assert_diagnostics_match(src)
