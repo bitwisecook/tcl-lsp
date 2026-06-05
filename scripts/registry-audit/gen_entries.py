@@ -14,7 +14,6 @@ Usage: python3 scripts/registry-audit/gen_entries.py >> rust-rewrite-registries.
 
 from __future__ import annotations
 
-import glob
 import json
 import subprocess
 import sys
