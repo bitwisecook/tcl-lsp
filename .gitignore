@@ -1,6 +1,3 @@
-# Override global gitignore rules that conflict with project structure
-!/lsp/
-
 # Python
 __pycache__/
 *.py[cod]
@@ -42,12 +39,6 @@ editors/vscode/.vscode-test/
 .vscode-test/
 shared/_build_info.py
 server/_version.py
-# Generated build metadata under the packaged lsp/ tree (mirrors the
-# shared/_build_info.py + server/_version.py generated files above).
-# Listed after the `!/lsp/` un-ignore at the top so these specific
-# generated files stay untracked even though the lsp/ dir is included.
-/lsp/_build_info.py
-/lsp/_version.py
 tooling/explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock
