@@ -193,6 +193,18 @@ class TestW115CommentContinuation:
         assert "# world" in snippet
         assert "\\" not in snippet
 
+    def test_chained_continuation_fix(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "# line1 \\\nline2 \\\nline3")
+        diag = _diag("W115", "Backslash-newline in comment", (0, 0), (2, 4))
+        actions = lsp_server.code_actions(uri, (0, 0), (2, 4), diagnostics=[diag])
+        fixes = [a for a in actions if "per-line" in a.get("title", "")]
+        assert len(fixes) == 1
+        snippet = _new_texts(fixes)[0]
+        assert "# line1" in snippet
+        assert "# line2" in snippet
+        assert "# line3" in snippet
+
     def test_already_commented_continuation_not_doubled(self, lsp_server, uri_factory):
         uri = uri_factory()
         lsp_server.open_ready(uri, "# line1 \\\n# line2")
@@ -244,6 +256,12 @@ class TestIPConversionActions:
         result = lsp_server.code_actions(uri, (0, 999), (0, 999))
         assert result is None or isinstance(result, list)
 
+    def test_cursor_on_empty_line_does_not_crash(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x 1\n\nset y 2\n")
+        result = lsp_server.code_actions(uri, (1, 0), (1, 0))
+        assert result is None or isinstance(result, list)
+
     def test_cursor_past_last_line_does_not_crash(self, lsp_server, uri_factory):
         uri = uri_factory()
         lsp_server.open_ready(uri, "set x 1\n")
@@ -284,3 +302,13 @@ class TestEvalListQuickFix:
         assert w101
         actions = lsp_server.code_actions(uri, (0, 0), (0, 17), diagnostics=w101)
         assert any("[list process $x]" in s for s in _new_texts(actions))
+
+
+class TestProfilesNotOfferedForTcl:
+    def test_no_profiles_action_for_tcl_dialect(self, lsp_server, uri_factory):
+        # On the plain-Tcl server, a proc gets a docstring source action but no
+        # F5 "# Profiles:" header action.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "proc hello {} { puts hi }\n")
+        sa = _kinds(lsp_server.code_actions(uri, (0, 0), (0, 0)), "source")
+        assert all("Profiles" not in a.get("title", "") for a in sa)

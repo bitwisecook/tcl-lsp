@@ -125,3 +125,415 @@ class TestIrulesCompletion:
         assert any(
             i.get("documentation") is not None for i in items if i["label"] == "HTTP_REQUEST"
         )
+
+
+def _ca_new_texts(actions):
+    out = []
+    for action in actions or []:
+        edit = action.get("edit") or {}
+        for edits in (edit.get("changes") or {}).values():
+            out.extend(e["newText"] for e in edits)
+        for change in edit.get("documentChanges") or []:
+            out.extend(e["newText"] for e in change.get("edits") or [])
+    return out
+
+
+def _ca_titles(actions):
+    return [a.get("title", "") for a in actions or []]
+
+
+def _source_actions(actions):
+    return [a for a in actions or [] if (a.get("kind") or "") == "source"]
+
+
+def _diag(code, message, start, end):
+    return {
+        "range": {
+            "start": {"line": start[0], "character": start[1]},
+            "end": {"line": end[0], "character": end[1]},
+        },
+        "code": code,
+        "message": message,
+        "source": "tcl-lsp",
+    }
+
+
+class TestIrulesCollectCodeActions:
+    def test_irule1005_adds_collect_bootstrap_options(self, lsp_server_irules, uri_factory):
+        uri = _open(
+            lsp_server_irules,
+            uri_factory,
+            "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n",
+        )
+        diag = _diag(
+            "IRULE1005",
+            "'CLIENT_DATA' will never fire without a TCP::collect or UDP::collect call in another event.",
+            (0, 5),
+            (0, 16),
+        )
+        actions = lsp_server_irules.code_actions(uri, (0, 5), (0, 16), diagnostics=[diag])
+        snippets = _ca_new_texts(actions)
+        assert any("when CLIENT_ACCEPTED" in s and "TCP::collect" in s for s in snippets)
+        assert any("when CLIENT_ACCEPTED" in s and "UDP::collect" in s for s in snippets)
+
+    def test_irule1006_prefers_server_ssl_handshake_bootstrap(self, lsp_server_irules, uri_factory):
+        uri = _open(lsp_server_irules, uri_factory, "when SERVERSSL_DATA {\n    SSL::payload\n}\n")
+        diag = _diag(
+            "IRULE1006",
+            "'SSL::payload' without a SSL::collect call. The payload buffer will be empty.",
+            (1, 4),
+            (1, 16),
+        )
+        actions = lsp_server_irules.code_actions(uri, (1, 4), (1, 16), diagnostics=[diag])
+        snippets = _ca_new_texts(actions)
+        assert any("when SERVERSSL_HANDSHAKE" in s and "SSL::collect" in s for s in snippets)
+
+
+class TestIrulesTaintQuickFixes:
+    def _fix(self, lsp_server_irules, uri_factory, source, code, message, start, end):
+        uri = _open(lsp_server_irules, uri_factory, source)
+        diag = _diag(code, message, start, end)
+        return lsp_server_irules.code_actions(
+            uri, start, end, diagnostics=[diag], only=["quickfix"]
+        )
+
+    def test_irule3001_wrap_html_encode(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::respond 200 content $raw\n",
+            "IRULE3001",
+            "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+            (0, 0),
+            (0, 29),
+        )
+        fixes = [a for a in actions if "html_encode" in a.get("title", "")]
+        assert len(fixes) == 1
+        assert any("[html_encode $raw]" in s for s in _ca_new_texts(fixes))
+
+    def test_irule3002_wrap_uri_encode(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::header insert X-Fwd $raw\n",
+            "IRULE3002",
+            "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
+            (0, 0),
+            (0, 29),
+        )
+        fixes = [a for a in actions if "URI::encode" in a.get("title", "")]
+        assert len(fixes) == 1
+        assert any("[URI::encode $raw]" in s for s in _ca_new_texts(fixes))
+
+    def test_t103_wrap_regex_quote(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "regexp $pat $data\n",
+            "T103",
+            "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+            (0, 0),
+            (0, 16),
+        )
+        fixes = [a for a in actions if "regex::quote" in a.get("title", "")]
+        assert len(fixes) == 1
+        assert any("[regex::quote $pat]" in s for s in _ca_new_texts(fixes))
+
+    def test_t102_insert_double_dash(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "regexp $pat $data\n",
+            "T102",
+            "Tainted variable $pat in option position of 'regexp' without '--' terminator; risk of option injection",
+            (0, 0),
+            (0, 16),
+        )
+        fixes = [a for a in actions if "--" in a.get("title", "")]
+        assert len(fixes) == 1
+        assert any("-- " in s for s in _ca_new_texts(fixes))
+
+    def test_braced_variable_wrapped(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::respond 200 content ${raw}\n",
+            "IRULE3001",
+            "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+            (0, 0),
+            (0, 30),
+        )
+        fixes = [a for a in actions if "html_encode" in a.get("title", "")]
+        assert any("[html_encode ${raw}]" in s for s in _ca_new_texts(fixes))
+
+    def test_no_fix_for_unknown_code(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "puts $raw\n",
+            "T101",
+            "Tainted variable $raw flows into puts; output may contain injected content",
+            (0, 0),
+            (0, 8),
+        )
+        assert not [
+            a
+            for a in (actions or [])
+            if any(
+                k in a.get("title", "")
+                for k in ("HTML::encode", "URI::encode", "regex::quote", "--")
+            )
+        ]
+
+    def test_t106_remove_redundant_encode(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "set double [HTML::encode $safe]\n",
+            "T106",
+            "Variable $safe is already HTML-escaped; passing through HTML::encode double-encodes the value",
+            (0, 0),
+            (0, 30),
+        )
+        fixes = [a for a in actions if "Remove redundant" in a.get("title", "")]
+        assert len(fixes) == 1
+        assert any(s == "$safe" for s in _ca_new_texts(fixes))
+
+    def test_irule3004_no_autofix(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::redirect $url\n",
+            "IRULE3004",
+            "Tainted variable $url in redirect URL (HTTP::redirect); risk of open redirect",
+            (0, 0),
+            (0, 18),
+        )
+        assert not [
+            a
+            for a in (actions or [])
+            if any(k in a.get("title", "") for k in ("html_encode", "URI::encode", "regex::quote"))
+        ]
+
+
+class TestIrulesTaintProcInsertion:
+    def _fix(self, lsp_server_irules, uri_factory, source, code, message, start, end):
+        uri = _open(lsp_server_irules, uri_factory, source)
+        diag = _diag(code, message, start, end)
+        return lsp_server_irules.code_actions(
+            uri, start, end, diagnostics=[diag], only=["quickfix"]
+        )
+
+    def test_t103_inserts_regex_quote_proc(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "regexp $pat $data\n",
+            "T103",
+            "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+            (0, 0),
+            (0, 16),
+        )
+        fixes = [a for a in actions if "regex::quote" in a.get("title", "")]
+        snippets = _ca_new_texts(fixes)
+        assert any("[regex::quote $pat]" in s for s in snippets)
+        assert any("proc regex::quote" in s for s in snippets)
+        assert any("regsub" in s for s in snippets)
+
+    def test_irule3001_inserts_html_encode_proc(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::respond 200 content $raw\n",
+            "IRULE3001",
+            "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+            (0, 0),
+            (0, 29),
+        )
+        fixes = [a for a in actions if "html_encode" in a.get("title", "")]
+        snippets = _ca_new_texts(fixes)
+        assert any("[html_encode $raw]" in s for s in snippets)
+        assert any("proc html_encode" in s for s in snippets)
+        assert any("string map" in s for s in snippets)
+
+    def test_irule3002_no_proc_insert(self, lsp_server_irules, uri_factory):
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            "HTTP::header insert X-Fwd $raw\n",
+            "IRULE3002",
+            "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
+            (0, 0),
+            (0, 29),
+        )
+        fixes = [a for a in actions if "URI::encode" in a.get("title", "")]
+        assert not any("proc " in s for s in _ca_new_texts(fixes))
+
+
+class TestIrulesProfilesHeader:
+    def _src(self, lsp_server_irules, uri_factory, source):
+        uri = _open(lsp_server_irules, uri_factory, source)
+        return _source_actions(lsp_server_irules.code_actions(uri, (0, 0), (0, 0)))
+
+    def test_http_event_generates_http_profile(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules, uri_factory, "when HTTP_REQUEST {\n    HTTP::respond 200\n}\n"
+        )
+        assert len(sa) == 1
+        assert _ca_new_texts(sa)[0] == "# Profiles: HTTP\n"
+
+    def test_existing_matching_directive_no_action(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            "# Profiles: HTTP\nwhen HTTP_REQUEST {\n    HTTP::respond 200\n}\n",
+        )
+        assert len(sa) == 0
+
+    def test_dns_event_generates_dns_profile(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            "when DNS_REQUEST {\n    set q [DNS::question name]\n}\n",
+        )
+        assert len(sa) == 1
+        assert _ca_new_texts(sa)[0] == "# Profiles: DNS\n"
+
+    def test_multiple_events_combines_profiles(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            'when HTTP_REQUEST {\n    HTTP::uri\n}\nwhen CLIENTSSL_HANDSHAKE {\n    log local0. "done"\n}\n',
+        )
+        assert len(sa) == 1
+        assert _ca_new_texts(sa)[0] == "# Profiles: CLIENTSSL, HTTP\n"
+
+    def test_existing_outdated_directive_offers_update(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            "# Profiles: HTTP\nwhen HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+        )
+        assert len(sa) == 1
+        assert "Update" in sa[0]["title"]
+        assert "CLIENTSSL" in _ca_new_texts(sa)[0]
+
+    def test_rule_init_only_no_action(self, lsp_server_irules, uri_factory):
+        sa = self._src(lsp_server_irules, uri_factory, "when RULE_INIT {\n    set ::counter 0\n}\n")
+        assert len(sa) == 0
+
+    def test_irule1006_bootstrap_action_is_deduplicated(self, lsp_server_irules, uri_factory):
+        uri = _open(
+            lsp_server_irules,
+            uri_factory,
+            "when CLIENT_DATA {\n    set a [TCP::payload]\n    set b [TCP::payload]\n}\n",
+        )
+        first = _diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (1, 11), (1, 23))
+        second = _diag("IRULE1006", "'TCP::payload' without a TCP::collect call.", (2, 11), (2, 23))
+        actions = lsp_server_irules.code_actions(uri, (1, 11), (1, 23), diagnostics=[first, second])
+        collect = [a for a in (actions or []) if "TCP::collect" in a.get("title", "")]
+        assert len(collect) == 1
+
+
+class TestIrulesTaintProcAlreadyDefined:
+    def _fix(self, lsp_server_irules, uri_factory, source, code, message, start, end):
+        uri = _open(lsp_server_irules, uri_factory, source)
+        diag = _diag(code, message, start, end)
+        return lsp_server_irules.code_actions(
+            uri, start, end, diagnostics=[diag], only=["quickfix"]
+        )
+
+    def test_t103_no_proc_insert_when_already_defined(self, lsp_server_irules, uri_factory):
+        source = (
+            "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }\n"
+            "regexp $pat $data\n"
+        )
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            source,
+            "T103",
+            "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
+            (1, 0),
+            (1, 16),
+        )
+        fixes = [a for a in actions if "regex::quote" in a.get("title", "")]
+        snippets = _ca_new_texts(fixes)
+        assert any("[regex::quote $pat]" in s for s in snippets)
+        assert not any("proc regex::quote" in s for s in snippets)
+
+    def test_irule3001_no_proc_insert_when_already_defined(self, lsp_server_irules, uri_factory):
+        source = (
+            "proc html_encode {str} { string map {& &amp; < &lt;} $str }\n"
+            "HTTP::respond 200 content $raw\n"
+        )
+        actions = self._fix(
+            lsp_server_irules,
+            uri_factory,
+            source,
+            "IRULE3001",
+            "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
+            (1, 0),
+            (1, 29),
+        )
+        fixes = [a for a in actions if "html_encode" in a.get("title", "")]
+        snippets = _ca_new_texts(fixes)
+        assert any("[html_encode $raw]" in s for s in snippets)
+        assert not any("proc html_encode" in s for s in snippets)
+
+
+class TestIrulesProfilesHeaderExtended:
+    def _src(self, lsp_server_irules, uri_factory, source):
+        uri = _open(lsp_server_irules, uri_factory, source)
+        return _source_actions(lsp_server_irules.code_actions(uri, (0, 0), (0, 0)))
+
+    def test_http_event_plus_ssl_command(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            "when HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+        )
+        assert len(sa) == 1
+        text = _ca_new_texts(sa)[0]
+        assert "CLIENTSSL" in text
+        assert "HTTP" in text
+
+    def test_existing_matching_directive_comma_format(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            "# Profiles: CLIENTSSL, HTTP, SERVERSSL\n"
+            "when HTTP_REQUEST {\n    SSL::extensions -type renegotiation\n}\n",
+        )
+        assert len(sa) == 0
+
+    def test_fasthttp_normalised_to_http(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules, uri_factory, "when HTTP_REQUEST {\n    set uri [HTTP::uri]\n}\n"
+        )
+        assert len(sa) == 1
+        text = _ca_new_texts(sa)[0]
+        assert "FASTHTTP" not in text
+        assert "HTTP" in text
+
+    def test_clientssl_event_generates_clientssl_profile(self, lsp_server_irules, uri_factory):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            'when CLIENTSSL_HANDSHAKE {\n    log local0. "TLS done"\n}\n',
+        )
+        assert len(sa) == 1
+        assert _ca_new_texts(sa)[0] == "# Profiles: CLIENTSSL\n"
+
+    def test_clientssl_clienthello_omits_persist_helper_profile(
+        self, lsp_server_irules, uri_factory
+    ):
+        sa = self._src(
+            lsp_server_irules,
+            uri_factory,
+            'when CLIENTSSL_CLIENTHELLO {\n    log local0. "TLS hello"\n}\n',
+        )
+        assert len(sa) == 1
+        text = _ca_new_texts(sa)[0]
+        assert text == "# Profiles: CLIENTSSL\n"
+        assert "PERSIST" not in text
