@@ -25,6 +25,8 @@
 //!   `RegexpCharClass` / `RegexpQuantifier` / `RegexpAnchor` /
 //!   `RegexpEscape` / `RegexpBackref` / `RegexpAlternation`).
 //! * **Event** — an iRules `when EVENT` event name.
+//! * **Format** — `format` / `scan` conversion strings sub-tokenised
+//!   into `FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`.
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -44,11 +46,10 @@
 //! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
 //!
-//! * Format-string component highlighting (`%Y` /
-//!   `\1` / `*.tcl` inside `clock format` / `regsub` /
-//!   `glob`).  Each format helper already has a hover; the
-//!   semantic-token side needs the same cursor-context
-//!   detection plus per-component classification.
+//! * `clock format` (`%Y`) / `binary` (`a3` / `Su`) / `regsub`
+//!   replacement (`\1`) component highlighting — the `format`/`scan`
+//!   sprintf case has landed; these other format dialects are the
+//!   remaining format sub-token slices.
 //! * The `BigIP` object taxonomy (`pool` / `profile` /
 //!   `ipAddress` / …) for iRules string arguments.
 
@@ -96,6 +97,14 @@ enum TokenKind {
     RegexpBackref = 14,
     /// Regex alternation pipe: `|`.
     RegexpAlternation = 15,
+    /// `format`/`scan` `%` introducer and `$` position separator.
+    FormatPercent = 16,
+    /// `format`/`scan` conversion type letter (`d` `s` `f` `x` …).
+    FormatSpec = 17,
+    /// `format`/`scan` flags (`-` `+` `0` `#` space) and length modifier.
+    FormatFlag = 18,
+    /// `format`/`scan` numeric width / precision values.
+    FormatWidth = 19,
 }
 
 /// The token-type / token-modifier legend the server
@@ -119,6 +128,10 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "regexpEscape",
         "regexpBackref",
         "regexpAlternation",
+        "formatPercent",
+        "formatSpec",
+        "formatFlag",
+        "formatWidth",
     ]
 }
 
@@ -254,6 +267,10 @@ enum ArgOverride {
     /// quantifiers / …); falls back to a single `regexp` token when the
     /// pattern has no metacharacters.
     RegexPattern,
+    /// Sub-tokenise the token as a `format`/`scan` conversion string
+    /// (`%[pos$][flags][width][.prec][len]type`); falls back to the
+    /// default classification when it has no `%` specifiers.
+    SprintfFormat,
 }
 
 /// Per-command argument-token classification overrides, keyed by the
@@ -307,7 +324,198 @@ fn special_arg_kinds(
         }
     }
 
+    // `format FMT …` (arg 1) / `scan STR FMT …` (arg 2) — the conversion
+    // string.  Command-name gated, mirroring `_sprintf_format_arg_index`
+    // (the registry's `format_string_type` field is never populated).
+    let fmt_word = match head.as_str() {
+        "format" if seg.argv.len() >= 2 => Some(1),
+        "scan" if seg.argv.len() >= 3 => Some(2),
+        _ => None,
+    };
+    if let Some(w) = fmt_word {
+        if let Some(tok) = seg.argv.get(w) {
+            overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
+        }
+    }
+
     overrides
+}
+
+/// Sub-tokenise a `format`/`scan` conversion string into its `%`
+/// specifier components (`FormatPercent` / `FormatFlag` / `FormatWidth`
+/// / `FormatSpec`), with literal runs classified as `string`.  Returns
+/// `false` (emitting nothing) when there are no `%` specifiers.  Mirrors
+/// `_collect_sprintf_format_spec_tokens` + `_SPRINTF_RE`.
+fn push_sprintf_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return false;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    let Some(inner) = source.get(cstart..cend) else {
+        return false;
+    };
+    let re = regex::Regex::new(concat!(
+        r"%(?:(?P<position>\d+)\\?\$)?(?P<flags>[-+ 0#]*)?",
+        r"(?P<width>\*|\d+)?(?:.(?P<precision>\*|\d+))?",
+        r"(?P<length>[hlLzq])?(?P<type>[aAbBcdieEfgGosuxX%])",
+    ))
+    .expect("valid sprintf regex");
+    let caps_list: Vec<_> = re.captures_iter(inner).collect();
+    if caps_list.is_empty() {
+        return false;
+    }
+    let mut pos_in_text = 0usize;
+    for caps in caps_list {
+        let m = caps.get(0).expect("group 0");
+        if m.start() > pos_in_text {
+            push_subtoken(
+                line_index,
+                cstart + pos_in_text,
+                &inner[pos_in_text..m.start()],
+                TokenKind::String,
+                entries,
+            );
+        }
+        emit_sprintf_spec(line_index, cstart, inner, &caps, entries);
+        pos_in_text = m.end();
+    }
+    if pos_in_text < inner.len() {
+        push_subtoken(
+            line_index,
+            cstart + pos_in_text,
+            &inner[pos_in_text..],
+            TokenKind::String,
+            entries,
+        );
+    }
+    true
+}
+
+/// Emit the component sub-tokens of one `%`-specifier match
+/// (`%[pos$][flags][width][.prec][len]type`).  Split out of
+/// [`push_sprintf_subtokens`] to stay within the line budget.
+fn emit_sprintf_spec(
+    line_index: &LineIndex,
+    cstart: usize,
+    inner: &str,
+    caps: &regex::Captures,
+    entries: &mut Vec<Entry>,
+) {
+    let m = caps.get(0).expect("group 0");
+    let starts_digit = |off: usize| inner.as_bytes().get(off).is_some_and(u8::is_ascii_digit);
+    let mut pos = m.start();
+    emit_part(
+        line_index,
+        cstart,
+        inner,
+        &mut pos,
+        m.start() + 1,
+        TokenKind::FormatPercent,
+        entries,
+    );
+    if let Some(p) = caps.name("position") {
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            p.end(),
+            TokenKind::FormatWidth,
+            entries,
+        );
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            p.end() + 1,
+            TokenKind::FormatPercent,
+            entries,
+        );
+    }
+    if let Some(f) = caps.name("flags") {
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            f.end(),
+            TokenKind::FormatFlag,
+            entries,
+        );
+    }
+    if let Some(w) = caps.name("width") {
+        let kind = if starts_digit(w.start()) {
+            TokenKind::FormatWidth
+        } else {
+            TokenKind::FormatFlag
+        };
+        emit_part(line_index, cstart, inner, &mut pos, w.end(), kind, entries);
+    }
+    if let Some(pr) = caps.name("precision") {
+        // The `.` separator before the precision value.
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            pr.start(),
+            TokenKind::FormatFlag,
+            entries,
+        );
+        let kind = if starts_digit(pr.start()) {
+            TokenKind::FormatWidth
+        } else {
+            TokenKind::FormatFlag
+        };
+        emit_part(line_index, cstart, inner, &mut pos, pr.end(), kind, entries);
+    }
+    if let Some(l) = caps.name("length") {
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            l.end(),
+            TokenKind::FormatFlag,
+            entries,
+        );
+    }
+    if let Some(t) = caps.name("type") {
+        emit_part(
+            line_index,
+            cstart,
+            inner,
+            &mut pos,
+            t.end(),
+            TokenKind::FormatSpec,
+            entries,
+        );
+    }
+}
+
+/// Emit `inner[*pos..end]` (absolute offset `cstart + *pos`) as `kind`
+/// and advance `*pos`, when non-empty.  The sub-token cursor helper for
+/// [`push_sprintf_subtokens`].
+fn emit_part(
+    line_index: &LineIndex,
+    cstart: usize,
+    inner: &str,
+    pos: &mut usize,
+    end: usize,
+    kind: TokenKind,
+    entries: &mut Vec<Entry>,
+) {
+    if end > *pos {
+        push_subtoken(line_index, cstart + *pos, &inner[*pos..end], kind, entries);
+        *pos = end;
+    }
 }
 
 /// Sub-tokenise a regex pattern token into ARE components (groups,
@@ -501,6 +709,15 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
                             0,
                             &mut entries,
                         );
+                    }
+                }
+                Some(ArgOverride::SprintfFormat) => {
+                    // Sub-tokenise the conversion string; if it has no
+                    // `%` specifiers, fall back to the default kind.
+                    if !push_sprintf_subtokens(&line_index, source, *tok, &mut entries) {
+                        if let Some(kind) = classify_arg_token(*tok, source) {
+                            push_token(&line_index, source, *tok, kind, 0, &mut entries);
+                        }
                     }
                 }
                 Some(ArgOverride::Kind(kind)) => {
@@ -886,6 +1103,39 @@ mod tests {
         assert_eq!(classify_regex_component("\\n"), TokenKind::RegexpEscape);
         assert_eq!(classify_regex_component("\\3"), TokenKind::RegexpBackref);
         assert_eq!(classify_regex_component("|"), TokenKind::RegexpAlternation);
+    }
+
+    #[test]
+    fn sprintf_format_spec_subtokens() {
+        // `format {%d}` → `%` percent, `d` spec.
+        let ks = kinds("format {%d} $n\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn sprintf_flags_and_width_subtokens() {
+        // `%-5.2f` → percent, `-` flag, `5` width, `.` flag, `2` width,
+        // `f` spec.
+        let ks = kinds("format {%-5.2f} $x\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::FormatFlag as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::FormatWidth as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn scan_format_arg_subtokenised() {
+        // `scan`'s format string is arg 2.
+        let ks = kinds("scan $s {%d} a\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn format_without_specifiers_stays_string() {
+        let ks = kinds("format {plain} $x\n", "tcl", &reg());
+        assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
 
     #[test]
