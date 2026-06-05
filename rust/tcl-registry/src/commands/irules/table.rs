@@ -1,5 +1,86 @@
 //! `table` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "delete",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "add",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "incr",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "append",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "keys",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lifetime",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "timeout",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "table",
@@ -37,6 +118,7 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-count", takes_value: false, value_hint: "", detail: "Return count of matching keys.", dialects: None },
             OptionSpec { name: "-all", takes_value: false, value_hint: "", detail: "Delete all keys in a subtable.", dialects: None },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

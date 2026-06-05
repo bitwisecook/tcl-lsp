@@ -1,5 +1,26 @@
 //! `ACCESS::perflow` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "get",
+        arity: Arity::exact(1),
+        detail: "Get a perflow variable value.",
+        synopsis: "ACCESS::perflow get <key>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::exact(2),
+        detail: "Set a perflow variable value.",
+        synopsis: "ACCESS::perflow set <key> <value>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::perflow",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ACCESS::perflow <get|set> <key> ?value?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

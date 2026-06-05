@@ -1,5 +1,46 @@
 //! `ACCESS::saml` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "authn",
+        arity: Arity::new(0, 1),
+        detail: "Get/set SAML authentication request.",
+        synopsis: "ACCESS::saml authn ?content?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "assertion",
+        arity: Arity::new(0, 1),
+        detail: "Get/set SAML assertion.",
+        synopsis: "ACCESS::saml assertion ?content?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "slo_req",
+        arity: Arity::new(0, 1),
+        detail: "Get/set SAML single logout request.",
+        synopsis: "ACCESS::saml slo_req ?content?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "slo_resp",
+        arity: Arity::new(0, 1),
+        detail: "Get/set SAML single logout response.",
+        synopsis: "ACCESS::saml slo_resp ?content?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::saml",
@@ -26,6 +67,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ACCESS::saml <subcommand> ?content?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

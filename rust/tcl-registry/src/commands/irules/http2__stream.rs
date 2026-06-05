@@ -1,5 +1,24 @@
 //! `HTTP2::stream` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "id",
+        arity: Arity::exact(0),
+        detail: "Returns the stream id. Returns 0 if HTTP/2 is not active.",
+        synopsis: "HTTP2::stream id",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "priority",
+        arity: Arity::new(0, 1),
+        detail: "Get or set the priority of the current stream.",
+        synopsis: "HTTP2::stream priority ?<priority>?",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::stream",
@@ -27,6 +46,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP2::stream" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

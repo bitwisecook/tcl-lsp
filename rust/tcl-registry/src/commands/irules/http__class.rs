@@ -1,5 +1,16 @@
 //! `HTTP::class` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
+    name: "select",
+    arity: Arity::exact(1),
+    detail: "Select an HTTP class.",
+    synopsis: "HTTP::class select <name>",
+    mutator: true,
+    ..SubCommand::DEFAULT
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::class",
@@ -42,6 +53,7 @@ pub fn spec() -> CommandSpec {
                 synopsis: "HTTP::class <asm | wa>",
             },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

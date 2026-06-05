@@ -1,5 +1,50 @@
 //! `IP::stats` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "pkts",
+        arity: Arity::new(0, 1),
+        detail: "Get packet counts.",
+        synopsis: "IP::stats pkts ?in|out?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "bytes",
+        arity: Arity::new(0, 1),
+        detail: "Get byte counts.",
+        synopsis: "IP::stats bytes ?in|out?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "in",
+        arity: Arity::exact(0),
+        detail: "Get all inbound stats.",
+        synopsis: "IP::stats in",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "out",
+        arity: Arity::exact(0),
+        detail: "Get all outbound stats.",
+        synopsis: "IP::stats out",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "age",
+        arity: Arity::exact(0),
+        detail: "Get connection age in ms.",
+        synopsis: "IP::stats age",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::stats",
@@ -16,6 +61,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "IP::stats ?pkts|bytes|in|out|age? ?in|out?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

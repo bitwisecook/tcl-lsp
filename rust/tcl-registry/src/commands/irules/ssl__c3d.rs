@@ -1,5 +1,34 @@
 //! `SSL::c3d` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "extension",
+        arity: Arity::exact(2),
+        detail: "Insert a certificate extension.",
+        synopsis: "SSL::c3d extension <oid> <value>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cert",
+        arity: Arity::exact(1),
+        detail: "Set the C3D client certificate.",
+        synopsis: "SSL::c3d cert <certificate>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "subject",
+        arity: Arity::exact(2),
+        detail: "Modify forged certificate subject CN.",
+        synopsis: "SSL::c3d subject <field> <value>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::c3d",
@@ -16,6 +45,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::c3d <subcommand> <args>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

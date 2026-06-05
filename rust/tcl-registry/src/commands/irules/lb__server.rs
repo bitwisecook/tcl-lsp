@@ -1,5 +1,82 @@
 //! `LB::server` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "name",
+        arity: Arity::exact(0),
+        detail: "Get server name.",
+        synopsis: "LB::server name",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "pool",
+        arity: Arity::exact(0),
+        detail: "Get pool name.",
+        synopsis: "LB::server pool",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "route_domain",
+        arity: Arity::exact(0),
+        detail: "Get route domain.",
+        synopsis: "LB::server route_domain",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "addr",
+        arity: Arity::exact(0),
+        detail: "Get server address.",
+        synopsis: "LB::server addr",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "port",
+        arity: Arity::exact(0),
+        detail: "Get server port.",
+        synopsis: "LB::server port",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "priority",
+        arity: Arity::exact(0),
+        detail: "Get server priority.",
+        synopsis: "LB::server priority",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ratio",
+        arity: Arity::exact(0),
+        detail: "Get server ratio.",
+        synopsis: "LB::server ratio",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "weight",
+        arity: Arity::exact(0),
+        detail: "Get server weight.",
+        synopsis: "LB::server weight",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ripeness",
+        arity: Arity::exact(0),
+        detail: "Get server ripeness.",
+        synopsis: "LB::server ripeness",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::server",
@@ -16,6 +93,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "LB::server ?field?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

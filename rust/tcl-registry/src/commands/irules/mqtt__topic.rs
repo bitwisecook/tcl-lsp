@@ -1,5 +1,66 @@
 //! `MQTT::topic` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(1, 2),
+        detail: "Replace topic name.",
+        synopsis: "MQTT::topic replace <topic> ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::exact(0),
+        detail: "Get topic count.",
+        synopsis: "MQTT::topic count",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "list",
+        arity: Arity::exact(0),
+        detail: "List all topics.",
+        synopsis: "MQTT::topic list",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Get topic at index.",
+        synopsis: "MQTT::topic index <n>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "qos",
+        arity: Arity::new(0, 1),
+        detail: "Get/set topic QoS.",
+        synopsis: "MQTT::topic qos ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "add",
+        arity: Arity::new(1, 2),
+        detail: "Add a topic.",
+        synopsis: "MQTT::topic add <topic> ?qos?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::exact(1),
+        detail: "Delete a topic.",
+        synopsis: "MQTT::topic delete <index>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::topic",
@@ -26,6 +87,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "MQTT::topic ?subcommand? ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

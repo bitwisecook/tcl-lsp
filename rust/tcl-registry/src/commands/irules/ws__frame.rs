@@ -1,5 +1,82 @@
 //! `WS::frame` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "eom",
+        arity: Arity::exact(0),
+        detail: "Check if frame is end of message.",
+        synopsis: "WS::frame eom",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "drop",
+        arity: Arity::exact(0),
+        detail: "Drop the current frame.",
+        synopsis: "WS::frame drop",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "orig_masked",
+        arity: Arity::exact(0),
+        detail: "Check if frame was masked.",
+        synopsis: "WS::frame orig_masked",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "type",
+        arity: Arity::exact(0),
+        detail: "Get frame type.",
+        synopsis: "WS::frame type",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "mask",
+        arity: Arity::exact(0),
+        detail: "Get frame mask.",
+        synopsis: "WS::frame mask",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::new(2, 3),
+        detail: "Insert a new frame.",
+        synopsis: "WS::frame insert <type> <payload> ?mask?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "prepend",
+        arity: Arity::exact(1),
+        detail: "Prepend data to frame.",
+        synopsis: "WS::frame prepend <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "append",
+        arity: Arity::exact(1),
+        detail: "Append data to frame.",
+        synopsis: "WS::frame append <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::exact(1),
+        detail: "Replace frame contents.",
+        synopsis: "WS::frame replace <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "WS::frame",
@@ -26,6 +103,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "WS::frame <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

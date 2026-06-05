@@ -1,5 +1,34 @@
 //! `SIP::response` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "code",
+        arity: Arity::exact(0),
+        detail: "Get response code.",
+        synopsis: "SIP::response code",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "phrase",
+        arity: Arity::exact(0),
+        detail: "Get response phrase.",
+        synopsis: "SIP::response phrase",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "rewrite",
+        arity: Arity::new(1, 2),
+        detail: "Rewrite response code and phrase.",
+        synopsis: "SIP::response rewrite <code> ?phrase?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::response",
@@ -26,6 +55,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SIP::response <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

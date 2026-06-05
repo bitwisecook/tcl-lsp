@@ -1,5 +1,25 @@
 //! `TCP::payload` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "replace",
+        arity: Arity::exact(3),
+        detail: "Replace bytes in collected payload.",
+        synopsis: "TCP::payload replace <offset> <length> <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "length",
+        arity: Arity::exact(0),
+        detail: "Returns the amount of accumulated TCP data in bytes.",
+        synopsis: "TCP::payload length",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::payload",
@@ -26,6 +46,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Getter, synopsis: "TCP::payload ?<size>?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

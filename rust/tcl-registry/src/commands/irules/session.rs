@@ -1,5 +1,42 @@
 //! `session` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "add",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::at_least(0),
+        detail: "",
+        synopsis: "",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "session",
@@ -26,6 +63,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "session add SESSION_MODE" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,82 @@
 //! `HTTP::proxy` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "enable",
+        arity: Arity::exact(0),
+        detail: "Enable HTTP proxy.",
+        synopsis: "HTTP::proxy enable",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "disable",
+        arity: Arity::exact(0),
+        detail: "Disable HTTP proxy.",
+        synopsis: "HTTP::proxy disable",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "uri-rewrite",
+        arity: Arity::exact(1),
+        detail: "Control URI rewriting.",
+        synopsis: "HTTP::proxy uri-rewrite ?enable|disable?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "addr",
+        arity: Arity::exact(0),
+        detail: "Get proxy destination address.",
+        synopsis: "HTTP::proxy addr",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "port",
+        arity: Arity::exact(0),
+        detail: "Get proxy destination port.",
+        synopsis: "HTTP::proxy port",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "rtdom",
+        arity: Arity::exact(0),
+        detail: "Get proxy route domain.",
+        synopsis: "HTTP::proxy rtdom",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::exact(0),
+        detail: "Check if proxy is active.",
+        synopsis: "HTTP::proxy exists",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "iptuple",
+        arity: Arity::exact(0),
+        detail: "Get proxy IP tuple.",
+        synopsis: "HTTP::proxy iptuple",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "chain",
+        arity: Arity::at_least(0),
+        detail: "Control proxy chaining.",
+        synopsis: "HTTP::proxy chain ?args?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::proxy",
@@ -26,6 +103,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::proxy ?subcommand? ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

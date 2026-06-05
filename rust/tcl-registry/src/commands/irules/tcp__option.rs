@@ -1,5 +1,34 @@
 //! `TCP::option` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "get",
+        arity: Arity::exact(1),
+        detail: "Get TCP option value.",
+        synopsis: "TCP::option get <kind>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::new(2, 3),
+        detail: "Set TCP option value.",
+        synopsis: "TCP::option set <kind> <value> ?all?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "noset",
+        arity: Arity::exact(1),
+        detail: "Prevent option from being set.",
+        synopsis: "TCP::option noset <kind>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::option",
@@ -26,6 +55,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "TCP::option <get|set|noset> <kind> ?value? ?all?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

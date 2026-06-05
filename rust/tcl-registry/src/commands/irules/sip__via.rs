@@ -1,5 +1,58 @@
 //! `SIP::via` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "proto",
+        arity: Arity::new(0, 1),
+        detail: "Get Via protocol.",
+        synopsis: "SIP::via proto ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "sent_by",
+        arity: Arity::new(0, 1),
+        detail: "Get Via sent-by field.",
+        synopsis: "SIP::via sent_by ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "received",
+        arity: Arity::new(0, 1),
+        detail: "Get Via received parameter.",
+        synopsis: "SIP::via received ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "branch",
+        arity: Arity::new(0, 1),
+        detail: "Get Via branch parameter.",
+        synopsis: "SIP::via branch ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "maddr",
+        arity: Arity::new(0, 1),
+        detail: "Get Via maddr parameter.",
+        synopsis: "SIP::via maddr ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ttl",
+        arity: Arity::new(0, 1),
+        detail: "Get Via ttl parameter.",
+        synopsis: "SIP::via ttl ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::via",
@@ -26,6 +79,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SIP::via ?field? ?INDEX?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

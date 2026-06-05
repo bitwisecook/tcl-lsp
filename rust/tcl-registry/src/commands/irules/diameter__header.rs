@@ -1,5 +1,99 @@
 //! `DIAMETER::header` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "version",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the DIAMETER protocol version.",
+        synopsis: "DIAMETER::header version ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "length",
+        arity: Arity::exact(0),
+        detail: "Get the message length (read-only).",
+        synopsis: "DIAMETER::header length ?value?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "rflag",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the request flag (R-bit).",
+        synopsis: "DIAMETER::header rflag ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "pflag",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the proxiable flag (P-bit).",
+        synopsis: "DIAMETER::header pflag ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "eflag",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the error flag (E-bit).",
+        synopsis: "DIAMETER::header eflag ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tflag",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the retransmit flag (T-bit).",
+        synopsis: "DIAMETER::header tflag ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "command_code",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the command code.",
+        synopsis: "DIAMETER::header command_code ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "application_id",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the application ID.",
+        synopsis: "DIAMETER::header application_id ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "hop_by_hop_id",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the hop-by-hop identifier.",
+        synopsis: "DIAMETER::header hop_by_hop_id ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "end_to_end_id",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the end-to-end identifier.",
+        synopsis: "DIAMETER::header end_to_end_id ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::header",
@@ -26,6 +120,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::header <field> ?value?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

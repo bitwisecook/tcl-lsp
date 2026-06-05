@@ -1,5 +1,26 @@
 //! `LB::up` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "node",
+        arity: Arity::exact(1),
+        detail: "Mark node as up.",
+        synopsis: "LB::up node <address>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "pool",
+        arity: Arity::exact(3),
+        detail: "Mark pool member as up.",
+        synopsis: "LB::up pool <pool> member <address> <port>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::up",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "LB::up ?node <addr> | pool <pool> member <addr> <port>?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

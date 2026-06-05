@@ -1,5 +1,34 @@
 //! `SSL::authenticate` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "once",
+        arity: Arity::exact(0),
+        detail: "Authenticate once per session.",
+        synopsis: "SSL::authenticate once",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "always",
+        arity: Arity::exact(0),
+        detail: "Authenticate on every connection.",
+        synopsis: "SSL::authenticate always",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "depth",
+        arity: Arity::exact(1),
+        detail: "Set max certificate chain traversal depth.",
+        synopsis: "SSL::authenticate depth <number>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::authenticate",
@@ -16,6 +45,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::authenticate <once | always | depth <number>>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

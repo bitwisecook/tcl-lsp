@@ -1,5 +1,34 @@
 //! `DNS::additional` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "clear",
+        arity: Arity::exact(0),
+        detail: "Clear all additional RRs.",
+        synopsis: "DNS::additional clear",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(1),
+        detail: "Insert an RR into the additional section.",
+        synopsis: "DNS::additional insert <rr_object>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::exact(1),
+        detail: "Remove an RR from the additional section.",
+        synopsis: "DNS::additional remove <rr_object>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::additional",
@@ -26,6 +55,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DNS::additional ?clear | insert <rr> | remove <rr>?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

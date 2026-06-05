@@ -1,5 +1,111 @@
 //! `class` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "match",
+        arity: Arity::at_least(0),
+        detail: "Match an item against a data group.",
+        synopsis: "class match ?options? ?--? <item> <operator> <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "search",
+        arity: Arity::at_least(0),
+        detail: "Search a data group for an item.",
+        synopsis: "class search ?options? ?--? <class> <operator> <item>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::exact(2),
+        detail: "Return the value paired with a name.",
+        synopsis: "class lookup <name> <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "element",
+        arity: Arity::exact(2),
+        detail: "Return an element by index.",
+        synopsis: "class element ?-value|-name? ?--? <index> <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "type",
+        arity: Arity::exact(1),
+        detail: "Return the data type of a data group.",
+        synopsis: "class type <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::exact(1),
+        detail: "Check if a data group exists.",
+        synopsis: "class exists <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "size",
+        arity: Arity::exact(1),
+        detail: "Return the number of elements.",
+        synopsis: "class size <class>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "names",
+        arity: Arity::new(1, 2),
+        detail: "Return list of data group names.",
+        synopsis: "class names ?-nocase? ?-list? ?--? <class> ?pattern?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::new(1, 2),
+        detail: "Return all elements as a list.",
+        synopsis: "class get ?-nocase? ?-list? ?--? <class> ?pattern?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "startsearch",
+        arity: Arity::exact(1),
+        detail: "Begin iterating over a data group.",
+        synopsis: "class startsearch <class>",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "nextelement",
+        arity: Arity::exact(1),
+        detail: "Get next element during iteration.",
+        synopsis: "class nextelement ?options? ?--? <search_id>",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "anymore",
+        arity: Arity::exact(1),
+        detail: "Check if more elements remain.",
+        synopsis: "class anymore <search_id>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "donesearch",
+        arity: Arity::exact(1),
+        detail: "End a data group iteration.",
+        synopsis: "class donesearch <search_id>",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "class",
@@ -26,6 +132,7 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-nocase", takes_value: false, value_hint: "", detail: "Case-insensitive comparison.", dialects: None },
             OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return value always as a list.", dialects: None },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

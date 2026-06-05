@@ -1,5 +1,41 @@
 //! `ACCESS::acl` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "result",
+        arity: Arity::exact(0),
+        detail: "Get ACL match result (Allow/Reject).",
+        synopsis: "ACCESS::acl result",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "matched",
+        arity: Arity::exact(0),
+        detail: "Get matched ACL.",
+        synopsis: "ACCESS::acl matched",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::exact(0),
+        detail: "List assigned ACLs for the session.",
+        synopsis: "ACCESS::acl lookup",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "eval",
+        arity: Arity::exact(1),
+        detail: "Enforce an ACL by name.",
+        synopsis: "ACCESS::acl eval <acl_name>",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::acl",
@@ -26,6 +62,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ACCESS::acl <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

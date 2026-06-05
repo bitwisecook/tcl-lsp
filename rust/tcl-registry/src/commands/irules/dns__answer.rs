@@ -1,5 +1,34 @@
 //! `DNS::answer` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "clear",
+        arity: Arity::exact(0),
+        detail: "Clear all answer RRs.",
+        synopsis: "DNS::answer clear",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(1),
+        detail: "Insert an RR into the answer section.",
+        synopsis: "DNS::answer insert <rr_object>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::exact(1),
+        detail: "Remove an RR from the answer section.",
+        synopsis: "DNS::answer remove <rr_object>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::answer",
@@ -27,6 +56,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DNS::answer ?clear | insert <rr> | remove <rr>?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

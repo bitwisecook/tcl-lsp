@@ -1,5 +1,35 @@
 //! `SSL::cert` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "count",
+        arity: Arity::exact(0),
+        detail: "Get certificate count in chain.",
+        synopsis: "SSL::cert count",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "issuer",
+        arity: Arity::exact(1),
+        detail: "Get issuer info for cert at index.",
+        synopsis: "SSL::cert issuer <index>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "mode",
+        arity: Arity::new(0, 1),
+        detail: "Get/set certificate mode.",
+        synopsis: "SSL::cert mode ?ignore|request|require?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::cert",
@@ -17,6 +47,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::cert <subcommand|index> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

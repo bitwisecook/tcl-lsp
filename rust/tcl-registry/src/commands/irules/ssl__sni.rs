@@ -1,5 +1,26 @@
 //! `SSL::sni` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "name",
+        arity: Arity::exact(0),
+        detail: "Get SNI name.",
+        synopsis: "SSL::sni name",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "required",
+        arity: Arity::exact(0),
+        detail: "Get SNI required setting.",
+        synopsis: "SSL::sni required",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::sni",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::sni <name | required>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

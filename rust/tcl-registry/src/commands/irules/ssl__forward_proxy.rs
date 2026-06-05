@@ -1,5 +1,42 @@
 //! `SSL::forward_proxy` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "policy",
+        arity: Arity::new(0, 1),
+        detail: "Set or get forward proxy bypass policy.",
+        synopsis: "SSL::forward_proxy policy ?bypass | intercept?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cert",
+        arity: Arity::new(0, 2),
+        detail: "Retrieve the forged certificate or set cert options.",
+        synopsis: "SSL::forward_proxy cert ?response_control? ?status?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "verified_handshake",
+        arity: Arity::new(0, 1),
+        detail: "Enable, disable, or get verified handshake semantics.",
+        synopsis: "SSL::forward_proxy verified_handshake ?enable | disable?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "extension",
+        arity: Arity::exact(2),
+        detail: "Insert a certificate extension while forging.",
+        synopsis: "SSL::forward_proxy extension <oid> <value>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::forward_proxy",
@@ -26,6 +63,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::forward_proxy <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

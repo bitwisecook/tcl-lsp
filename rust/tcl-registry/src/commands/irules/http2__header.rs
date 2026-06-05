@@ -1,5 +1,26 @@
 //! `HTTP2::header` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(1, 2),
+        detail: "Replace pseudo-header value.",
+        synopsis: "HTTP2::header replace <name> ?<string>?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::exact(1),
+        detail: "Remove a pseudo-header.",
+        synopsis: "HTTP2::header remove <name>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::header",
@@ -26,6 +47,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP2::header <name>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

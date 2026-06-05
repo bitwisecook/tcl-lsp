@@ -1,5 +1,42 @@
 //! `MQTT::payload` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "length",
+        arity: Arity::exact(0),
+        detail: "Get payload length.",
+        synopsis: "MQTT::payload length",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(1, 3),
+        detail: "Replace payload data.",
+        synopsis: "MQTT::payload replace <data> ?offset? ?length?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "prepend",
+        arity: Arity::exact(1),
+        detail: "Prepend data to payload.",
+        synopsis: "MQTT::payload prepend <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "append",
+        arity: Arity::exact(1),
+        detail: "Append data to payload.",
+        synopsis: "MQTT::payload append <data>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::payload",
@@ -26,6 +63,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "MQTT::payload ?subcommand? ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

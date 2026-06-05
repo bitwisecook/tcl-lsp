@@ -1,5 +1,136 @@
 //! `DNS::header` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "rcode",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the rcode header field.",
+        synopsis: "DNS::header rcode ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "nscount",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the nscount header field.",
+        synopsis: "DNS::header nscount ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ra",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the ra header field.",
+        synopsis: "DNS::header ra ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "qdcount",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the qdcount header field.",
+        synopsis: "DNS::header qdcount ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "id",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the id header field.",
+        synopsis: "DNS::header id ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "arcount",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the arcount header field.",
+        synopsis: "DNS::header arcount ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ancount",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the ancount header field.",
+        synopsis: "DNS::header ancount ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "rd",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the rd header field.",
+        synopsis: "DNS::header rd ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cd",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the cd header field.",
+        synopsis: "DNS::header cd ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "qr",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the qr header field.",
+        synopsis: "DNS::header qr ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "tc",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the tc header field.",
+        synopsis: "DNS::header tc ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ad",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the ad header field.",
+        synopsis: "DNS::header ad ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "opcode",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the opcode header field.",
+        synopsis: "DNS::header opcode ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "aa",
+        arity: Arity::new(0, 1),
+        detail: "Get/set the aa header field.",
+        synopsis: "DNS::header aa ?value?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::header",
@@ -27,6 +158,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DNS::header <field> ?value?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

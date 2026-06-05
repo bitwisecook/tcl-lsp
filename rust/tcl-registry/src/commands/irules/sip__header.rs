@@ -1,5 +1,82 @@
 //! `SIP::header` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "value",
+        arity: Arity::new(1, 2),
+        detail: "Get header value by name and optional index.",
+        synopsis: "SIP::header value <name> ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::new(1, 2),
+        detail: "Remove a header by name and optional index.",
+        synopsis: "SIP::header remove <name> ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::new(2, 3),
+        detail: "Insert a new header.",
+        synopsis: "SIP::header insert <name> <value> ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "names",
+        arity: Arity::exact(0),
+        detail: "List all header names.",
+        synopsis: "SIP::header names",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "at",
+        arity: Arity::exact(1),
+        detail: "Get header at index.",
+        synopsis: "SIP::header at <index>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::exact(1),
+        detail: "Check if header exists.",
+        synopsis: "SIP::header exists <name>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(2, 3),
+        detail: "Replace header value.",
+        synopsis: "SIP::header replace <name> <value> ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::exact(1),
+        detail: "Count headers with name.",
+        synopsis: "SIP::header count <name>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "values",
+        arity: Arity::exact(1),
+        detail: "Get all values for header.",
+        synopsis: "SIP::header values <name>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::header",
@@ -26,6 +103,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SIP::header <subcommand|name> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

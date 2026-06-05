@@ -1,5 +1,26 @@
 //! `LB::status` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "node",
+        arity: Arity::at_least(1),
+        detail: "Query/set node status.",
+        synopsis: "LB::status node <addr> ?status?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "pool",
+        arity: Arity::at_least(3),
+        detail: "Query/set pool member status.",
+        synopsis: "LB::status pool <pool> member <addr> <port> ?status?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::status",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "LB::status ?node <addr> | pool <pool> member <addr> <port>? ?status?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

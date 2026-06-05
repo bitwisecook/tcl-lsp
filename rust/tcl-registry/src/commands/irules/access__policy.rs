@@ -1,5 +1,41 @@
 //! `ACCESS::policy` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "agent_id",
+        arity: Arity::exact(0),
+        detail: "Get the agent identifier.",
+        synopsis: "ACCESS::policy agent_id",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "evaluate",
+        arity: Arity::at_least(0),
+        detail: "Evaluate an access policy.",
+        synopsis: "ACCESS::policy evaluate ?-sid id?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "result",
+        arity: Arity::at_least(0),
+        detail: "Get the policy result (allow/deny/redirect).",
+        synopsis: "ACCESS::policy result ?-sid id?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "uri",
+        arity: Arity::exact(0),
+        detail: "Check if URI is internal to ACCESS.",
+        synopsis: "ACCESS::policy uri",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::policy",
@@ -26,6 +62,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ACCESS::policy <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

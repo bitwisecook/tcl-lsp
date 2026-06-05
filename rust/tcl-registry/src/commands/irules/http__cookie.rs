@@ -1,5 +1,164 @@
 //! `HTTP::cookie` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "names",
+        arity: Arity::exact(0),
+        detail: "Return list of cookie names.",
+        synopsis: "HTTP::cookie names",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::exact(0),
+        detail: "Return the number of cookies.",
+        synopsis: "HTTP::cookie count",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "value",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie value.",
+        synopsis: "HTTP::cookie value <name> ?string?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "version",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie version.",
+        synopsis: "HTTP::cookie version <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "path",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie path.",
+        synopsis: "HTTP::cookie path <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "domain",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie domain.",
+        synopsis: "HTTP::cookie domain <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "ports",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie ports.",
+        synopsis: "HTTP::cookie ports <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::new(4, 10),
+        detail: "Insert a new cookie.",
+        synopsis: "HTTP::cookie insert name <name> value <value> ?path <path>? ?domain <domain>? ?version <0 | 1 | 2>?",
+        mutator: true,
+        credential_arg: Some(2),
+        sensitive_headers: &["authorization", "proxy-authorization", "x-api-key", "x-auth-token", "x-secret"],
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::exact(1),
+        detail: "Remove a cookie by name.",
+        synopsis: "HTTP::cookie remove <name>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "sanitize",
+        arity: Arity::at_least(1),
+        detail: "Remove all cookies except named ones.",
+        synopsis: "HTTP::cookie sanitize <name-list>",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::exact(1),
+        detail: "Check if a cookie exists.",
+        synopsis: "HTTP::cookie exists <name>",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "maxage",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie max-age.",
+        synopsis: "HTTP::cookie maxage <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "expires",
+        arity: Arity::new(1, 3),
+        detail: "Get/set cookie expires.",
+        synopsis: "HTTP::cookie expires <name> ?seconds? ?absolute | relative?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "comment",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie comment.",
+        synopsis: "HTTP::cookie comment <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "secure",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie secure flag.",
+        synopsis: "HTTP::cookie secure <name> ?enable|disable?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "commenturl",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie comment URL.",
+        synopsis: "HTTP::cookie commenturl <name> ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "encrypt",
+        arity: Arity::new(2, 3),
+        detail: "Encrypt a cookie value.",
+        synopsis: "HTTP::cookie encrypt <name> <passphrase> ?128 | 192 | 256?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "decrypt",
+        arity: Arity::new(2, 3),
+        detail: "Decrypt a cookie value.",
+        synopsis: "HTTP::cookie decrypt <name> <passphrase> ?128 | 192 | 256?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "httponly",
+        arity: Arity::new(1, 2),
+        detail: "Get/set cookie httponly flag.",
+        synopsis: "HTTP::cookie httponly <name> ?enable|disable?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "attribute",
+        arity: Arity::new(1, 4),
+        detail: "Get/set arbitrary cookie attribute.",
+        synopsis: "HTTP::cookie attribute <name> ?insert <attr> ?value? | exists <attr> | value <attr> | remove <attr> | names | count?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::at_least(2),
+        detail: "Replace cookie value.",
+        synopsis: "HTTP::cookie replace <name> <value>",
+        mutator: true,
+        credential_arg: Some(2),
+        sensitive_headers: &["authorization", "proxy-authorization", "x-api-key", "x-auth-token", "x-secret"],
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::cookie",
@@ -16,9 +175,8 @@ hover: Some(HoverSnippet {
         }),
         // GAP-D2: `HTTP::cookie insert|replace` with tainted data →
         // header injection (IRULE3002). Mirrors `irules/http__cookie.py`.
-        // TODO(consumer): GAP-3a — once the iRules subcommands are
-        // re-ported, attach `credential_arg=2` + `sensitive_headers` to
-        // the `insert` / `replace` SubCommand specs.
+        // (`credential_arg` + `sensitive_headers` now live on the
+        // `insert` / `replace` SubCommand specs above — GAP-3a.)
         taint_output_sink: Some("IRULE3002"),
         taint_output_sink_subcommands: &["insert", "replace"],
         event_requires: Some(EventRequires {
@@ -34,6 +192,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::cookie <subcommand> ?arg ...?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

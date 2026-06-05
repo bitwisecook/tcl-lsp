@@ -1,5 +1,26 @@
 //! `ACCESS::user` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "getkey",
+        arity: Arity::exact(1),
+        detail: "Get original SID from hash.",
+        synopsis: "ACCESS::user getkey <sid_hash>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "getsid",
+        arity: Arity::exact(1),
+        detail: "Get external SIDs for key.",
+        synopsis: "ACCESS::user getsid <key>",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::user",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ACCESS::user <subcommand> <arg>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

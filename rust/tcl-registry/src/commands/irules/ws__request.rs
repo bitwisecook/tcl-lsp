@@ -1,5 +1,42 @@
 //! `WS::request` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "protocol",
+        arity: Arity::exact(0),
+        detail: "Get Sec-WebSocket-Protocol header value.",
+        synopsis: "WS::request protocol",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "extension",
+        arity: Arity::exact(0),
+        detail: "Get Sec-WebSocket-Extensions header value.",
+        synopsis: "WS::request extension",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "version",
+        arity: Arity::exact(0),
+        detail: "Get Sec-WebSocket-Version header value.",
+        synopsis: "WS::request version",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "key",
+        arity: Arity::exact(0),
+        detail: "Get Sec-WebSocket-Key header value.",
+        synopsis: "WS::request key",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "WS::request",
@@ -26,6 +63,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "WS::request <field>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

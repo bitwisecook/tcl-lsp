@@ -1,5 +1,26 @@
 //! `SSL::tls13_secret` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "client",
+        arity: Arity::exact(1),
+        detail: "Client-side TLS 1.3 secret.",
+        synopsis: "SSL::tls13_secret client (app | hs | early)",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "server",
+        arity: Arity::exact(1),
+        detail: "Server-side TLS 1.3 secret.",
+        synopsis: "SSL::tls13_secret server (app | hs)",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::tls13_secret",
@@ -26,6 +47,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::tls13_secret <side> <secret_type>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

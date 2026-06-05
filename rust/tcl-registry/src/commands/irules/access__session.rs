@@ -1,5 +1,57 @@
 //! `ACCESS::session` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "create",
+        arity: Arity::at_least(0),
+        detail: "Create a new session.",
+        synopsis: "ACCESS::session create ?-flow? ?-timeout secs? ?-lifetime secs?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "modify",
+        arity: Arity::at_least(0),
+        detail: "Modify an existing session.",
+        synopsis: "ACCESS::session modify ?-sid id? ?-timeout secs? ?-lifetime secs?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "exists",
+        arity: Arity::new(0, 1),
+        detail: "Check if a session exists.",
+        synopsis: "ACCESS::session exists ?-sid id?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "data",
+        arity: Arity::at_least(1),
+        detail: "Get or set session data.",
+        synopsis: "ACCESS::session data <get|set> ?-sid id? <key> ?--? ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "remove",
+        arity: Arity::at_least(0),
+        detail: "Remove a session.",
+        synopsis: "ACCESS::session remove ?-sid id?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "sid",
+        arity: Arity::exact(0),
+        detail: "Get the session ID.",
+        synopsis: "ACCESS::session sid",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::session",
@@ -26,6 +78,7 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-config", takes_value: false, value_hint: "", detail: "Access config session data.", dialects: None },
             OptionSpec { name: "-ssid", takes_value: true, value_hint: "SESSION_ID", detail: "Sub-session ID.", dialects: None },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

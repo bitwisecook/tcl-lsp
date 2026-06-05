@@ -1,5 +1,42 @@
 //! `HTTP::hsts` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "mode",
+        arity: Arity::exact(1),
+        detail: "Enable or disable HSTS on a per-flow basis.",
+        synopsis: "HTTP::hsts mode <enable | disable>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "maximum-age",
+        arity: Arity::exact(1),
+        detail: "Set HSTS maximum-age on a per-flow basis.",
+        synopsis: "HTTP::hsts maximum-age <seconds>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "include-subdomains",
+        arity: Arity::exact(1),
+        detail: "Enable or disable HSTS include-subdomains on a per-flow basis.",
+        synopsis: "HTTP::hsts include-subdomains <enable | disable>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "preload",
+        arity: Arity::exact(1),
+        detail: "Enable or disable HSTS preload on a per-flow basis (v13+).",
+        synopsis: "HTTP::hsts preload <enable | disable>",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::hsts",
@@ -26,6 +63,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::hsts" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,42 @@
 //! `SSL::cipher` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "bits",
+        arity: Arity::exact(0),
+        detail: "Get number of secret bits used.",
+        synopsis: "SSL::cipher bits",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "name",
+        arity: Arity::exact(0),
+        detail: "Get cipher name.",
+        synopsis: "SSL::cipher name",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "version",
+        arity: Arity::exact(0),
+        detail: "Get cipher version.",
+        synopsis: "SSL::cipher version",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "clientlist",
+        arity: Arity::exact(0),
+        detail: "Get client cipher list.",
+        synopsis: "SSL::cipher clientlist",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::cipher",
@@ -17,6 +54,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::cipher <subcommand>" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,26 @@
 //! `LB::persist` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "key",
+        arity: Arity::exact(0),
+        detail: "Get persistence key.",
+        synopsis: "LB::persist key",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cookie",
+        arity: Arity::exact(0),
+        detail: "Get persistence cookie.",
+        synopsis: "LB::persist cookie",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::persist",
@@ -16,6 +37,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "LB::persist ?key | cookie?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }

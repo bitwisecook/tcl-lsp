@@ -1,5 +1,92 @@
 //! `DIAMETER::avp` iRules command.
 use crate::prelude::*;
+
+/// iRules subcommands ported from the Python source of truth.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "code",
+        arity: Arity::new(1, 3),
+        detail: "Get/set AVP code.",
+        synopsis: "DIAMETER::avp code <avp_code> ?vendor_id? ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "count",
+        arity: Arity::new(1, 2),
+        detail: "Count AVPs matching code.",
+        synopsis: "DIAMETER::avp count <avp_code> ?vendor_id?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "length",
+        arity: Arity::new(1, 3),
+        detail: "Get AVP length.",
+        synopsis: "DIAMETER::avp length <avp_code> ?vendor_id? ?index?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "create",
+        arity: Arity::new(2, 3),
+        detail: "Create a new AVP.",
+        synopsis: "DIAMETER::avp create <avp_code> <data> ?vendor_id?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "data",
+        arity: Arity::new(1, 3),
+        detail: "Get/set AVP data.",
+        synopsis: "DIAMETER::avp data <avp_code> ?vendor_id? ?index?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::new(1, 3),
+        detail: "Delete an AVP.",
+        synopsis: "DIAMETER::avp delete <avp_code> ?vendor_id? ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(2, 4),
+        detail: "Replace AVP data.",
+        synopsis: "DIAMETER::avp replace <avp_code> <data> ?vendor_id? ?index?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::new(3, 4),
+        detail: "Insert a new AVP at position.",
+        synopsis: "DIAMETER::avp insert <position> <avp_code> <data> ?vendor_id?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "append",
+        arity: Arity::new(2, 3),
+        detail: "Append an AVP.",
+        synopsis: "DIAMETER::avp append <avp_code> <data> ?vendor_id?",
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "flags",
+        arity: Arity::new(2, 5),
+        detail: "Get/set AVP flags.",
+        synopsis: "DIAMETER::avp flags <get|set> <avp_code> ?value? ?vendor_id? ?index?",
+        pure: true,
+        mutator: true,
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::avp",
@@ -26,6 +113,7 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::avp <subcommand> ?args?" },
         ],
+        subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }
 }
