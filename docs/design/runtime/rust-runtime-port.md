@@ -524,6 +524,22 @@ with only the value type differing. Landed:
   `eval_tcl_expr` maps `FoldValue` → `TclValue` at the boundary, so the 8
   optimiser consumers are unchanged. **All 2343+ `tcl-compiler` tests pass**
   (gated by `cargo test`, not the Python bytecode-compare).
+- **Math functions + double formatting single-sourced.** `tcl_syntax::expr::mathfunc`
+  (a `dispatch(name, &[Num])` over a shared `Num{Int,Float}`) replaces the
+  compiler's `dispatch_math` + 4 helpers; the compiler maps `TclValue`↔`Num`, the
+  runtime maps `Tcl_Obj`↔`Num` (via `bignum::as_math_num`, bignum→double as in
+  C Tcl) — so `expr` math functions work end-to-end in the runtime too.
+  `tcl_syntax::number::format_double` is the one canonical double→string
+  (integer-valued → `.0`, `Inf`/`NaN`), used by the runtime's `double` rep **and**
+  the compiler's `format_tcl_value`.
+- **Remaining (with T1.5 namespaces, registry-backed):** register
+  `::tcl::mathfunc::*` / `::tcl::mathop::*` as real commands (the `tcl::mathop`
+  spec is already in `tcl-registry`; the operator impls are the tower ops,
+  already single-sourced) so user overrides resolve through the command table
+  first (the [A3 contract](#command-binding--aliasing--the-command-layer-parallel)),
+  with `expr`'s `call`/`arith` falling back to the shared dispatch; plus `rand`/
+  `srand` (RNG state). The lexer's `math_functions()` name set stays the lexable
+  list (it is a lower crate than `tcl-syntax`).
 
 ### Deep survey (four sweeps) + the `tcl-syntax` decision
 
