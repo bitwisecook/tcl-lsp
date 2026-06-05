@@ -14,6 +14,7 @@ Each file answers one question (stated in its header).
 | Experiment | Question | Decision |
 |---|---|---|
 | `dict_rep.rs` | Which structure for the insertion-ordered dict? | ordered `Vec` + FNV-hash index (EXP-DICT) |
+| `string_rep.rs` | Char-access + append without an O(n²) cliff? | ASCII fast path + lazy char-offset index; capacity-backed append (EXP-STRING) |
 
 Run an experiment:
 

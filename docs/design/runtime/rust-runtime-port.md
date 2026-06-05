@@ -447,6 +447,36 @@ we are not constrained *to* a structure; we are **free to choose, then make the
 boundary compatible** — which is the general posture for every function-mediated
 value type.
 
+#### EXP-STRING (2026-06) — string char-access + append
+
+Question: two cliffs the low-O() tenet forbids. (1) `string index`/`length`/
+`range` are **character**-indexed, but UTF-8 makes naive char access O(n) → an
+O(n²) char-indexed loop. (2) `append`/`string cat` build strings → an O(n²)
+realloc-each loop. `experiments/string_rep.rs`, on wasm/wasmtime:
+
+| | strategy | @1000 | @4000 | verdict |
+|---|---|---:|---:|---|
+| char | S: scan UTF-8 each access | 751 µs | 12 603 µs | O(n²) — **out** |
+| char | I: lazy char-offset index | 2.6 µs | 10 µs | O(n) |
+| char | A: ASCII fast path (else I) | **0 µs** | **0 µs** (ascii) | **chosen** |
+
+| | strategy | @20 000 | @200 000 | verdict |
+|---|---|---:|---:|---|
+| append | R: realloc exact each | 43 ms | **9.3 s** | O(n²) — **out** |
+| append | V: amortized capacity | 30 µs | **407 µs** | **chosen** |
+
+**Decisions.** (1) Char access = **ASCII fast path** (the common case: byte index
+== char index, O(1), zero overhead) + a **lazily-built char-offset index** for
+non-ASCII (O(n) once, O(1) after) — never scan-per-access. (2) `append`/string
+build = a **capacity-backed string rep** (amortized growth) — never realloc-each
+(the 9.3 s hang is a correctness bug per the tenet). So the **string** type is a
+dual-ported obj like list/dict: a capacity-backed byte buffer (the lazy string
+rep, NUL-terminated for the C ABI) + cached `numChars` and an optional non-ASCII
+char-offset index. C-extension compatible: extensions read bytes via
+`Tcl_GetStringFromObj` (contiguous NUL-terminated — preserved); the char-indexed
+C API (`Tcl_GetCharLength`/`Tcl_GetUniChar`/`Tcl_GetRange`) is function-mediated
+→ free to choose the cache. (Implementation follows; experiment kept as evidence.)
+
 ### The value kinds to reason through (and their two relationships)
 
 Work through **every** value kind below. Each has a representation question and
