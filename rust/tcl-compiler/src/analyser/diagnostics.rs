@@ -87,6 +87,62 @@ use crate::expr_ast::{BinOp, ExprNode};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
+/// The source text covered by `span`, or `None` when the span is out
+/// of bounds / not on char boundaries.
+fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    if start <= end && end <= source.len() {
+        source.get(start..end).map(str::to_owned)
+    } else {
+        None
+    }
+}
+
+/// True when `text` is a simple numeric or boolean literal that needs
+/// no bracing.  Mirrors `_is_safe_literal`.
+fn is_safe_literal(text: &str) -> bool {
+    let t = text.trim();
+    if t.parse::<f64>().is_ok() {
+        return true;
+    }
+    matches!(
+        t.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
+}
+
+/// True when an expr string is substitution-free numeric / boolean /
+/// operator text (safe to leave unbraced).  Mirrors
+/// `_is_safe_literal_expr`.
+fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
+    use tcl_lexer::ExprTokenType as T;
+    if is_safe_literal(text) {
+        return true;
+    }
+    if text.contains('$') || text.contains('[') {
+        return false;
+    }
+    let tokens = tcl_lexer::tokenise_expr(text, Some(dialect));
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.iter().all(|tok| {
+        matches!(
+            tok.kind,
+            T::Number
+                | T::Bool
+                | T::Operator
+                | T::ParenOpen
+                | T::ParenClose
+                | T::Whitespace
+                | T::TernaryQ
+                | T::TernaryC
+                | T::Comma
+        )
+    })
+}
+
 /// Resolve which argument indices (into `args`, command-name excluded)
 /// must be plain variable *names* for `cmd_name`.  Port of
 /// `_NAME_ARG_INDICES` + its four resolvers (`_first_arg_name`,
@@ -789,22 +845,150 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
-    /// **W110.** Emit "use `eq`/`ne` instead of `==`/`!=` for
-    /// string comparison" hints on the EXPR-role argument of
-    /// commands like `if`, `while`, `for`, `expr`.
-    ///
-    /// Mirrors ``check_string_compare_in_expr`` in
-    /// ``core/analysis/checks/_style.py:740-834``.  Fires when at
-    /// least one operand of a `==` / `!=` comparison is a string
-    /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
-    /// comparisons between variables (`$x == $y`) are left alone.
-    ///
-    /// `expr_text` is the post-substitution body of the EXPR-role
-    /// argument (already brace-stripped) — the caller is
-    /// responsible for joining multi-arg `expr` invocations with
-    /// spaces before calling.  `diag_span` is the source span the
-    /// diagnostic anchors to (the source range of the argument
-    /// token, or the full token range for `expr`).
+    /// W100 (GAP-A8): an expression argument (`expr` / `if` / `while`
+    /// / `for` conditions) that is not braced suffers double
+    /// substitution and defeats byte-compilation.  Skips a braced
+    /// (`{…}`) argument and a substitution-free numeric/boolean literal;
+    /// otherwise emits W100 (ERROR when the text carries a `$`/`[`
+    /// substitution, else WARNING) with a brace-wrapping fix.  Mirrors
+    /// `check_unbraced_expr`.  `args` / `arg_tokens` exclude the command
+    /// name.
+    pub(super) fn emit_w100_unbraced_expr(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::Expr,
+        );
+        if indices.is_empty() {
+            return;
+        }
+        indices.sort_unstable();
+
+        let is_expr = cmd_name == "expr";
+        let dialect = self.dialect.clone();
+        // The whole-`expr` argument span (used when the command is
+        // `expr`, whose expression is the remaining words).
+        let expr_full_span = (!arg_tokens.is_empty()).then(|| {
+            tcl_lexer::Span::new(
+                arg_tokens[0].span.start(),
+                arg_tokens[arg_tokens.len() - 1].span.end(),
+            )
+        });
+        let any_sub_token = arg_tokens.iter().any(|t| {
+            matches!(
+                t.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            )
+        });
+
+        let mut pending: Vec<(tcl_lexer::Span, String, bool)> = Vec::new();
+        for idx in indices {
+            let (Some(tok), Some(arg_text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            // A braced word (`{…}`, i.e. a `Str` token) is already safe.
+            if tok.kind == tcl_lexer::TokenType::Str {
+                continue;
+            }
+            // Resolve the diagnostic span + text: for `expr` the whole
+            // remaining-argument span; otherwise the single argument's
+            // source slice (preserving `$var` substitutions).
+            let (span, text) = if is_expr {
+                let sp = expr_full_span.unwrap_or(tok.span);
+                (
+                    sp,
+                    source_slice(&self.source, sp).unwrap_or_else(|| args.join(" ")),
+                )
+            } else {
+                (
+                    tok.span,
+                    source_slice(&self.source, tok.span).unwrap_or_else(|| arg_text.clone()),
+                )
+            };
+            let stripped = text.trim();
+            let safe = if is_expr {
+                is_safe_literal_expr(stripped, &dialect)
+            } else {
+                is_safe_literal(stripped)
+            };
+            if safe {
+                continue;
+            }
+            let has_sub = text.contains('$')
+                || text.contains('[')
+                || if is_expr {
+                    any_sub_token
+                } else {
+                    matches!(
+                        tok.kind,
+                        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                    )
+                };
+            pending.push((span, text, has_sub));
+        }
+
+        for (span, text, has_sub) in pending {
+            self.push_w100(cmd_name, is_expr, span, &text, has_sub);
+        }
+    }
+
+    /// Push one W100 diagnostic for an unbraced expression argument.
+    fn push_w100(
+        &mut self,
+        cmd_name: &str,
+        is_expr: bool,
+        span: tcl_lexer::Span,
+        text: &str,
+        has_sub: bool,
+    ) {
+        let severity = if has_sub {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        let message = if is_expr {
+            "Expression is not braced: may cause double substitution and prevents \
+             byte-compilation. Use expr {...} instead."
+                .to_string()
+        } else {
+            format!(
+                "Expression argument to '{cmd_name}' is not braced: may cause double \
+                 substitution. Use braces: {{{text}}}"
+            )
+        };
+        // Brace-wrapping fix; for a quoted `expr "…"` drop the quotes.
+        let fix_inner = if is_expr {
+            let s = text.trim();
+            if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+                &s[1..s.len() - 1]
+            } else {
+                text
+            }
+        } else {
+            text
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W100".to_string(),
+            span,
+            message,
+            severity,
+            fixes: vec![super::types::CodeFix {
+                span,
+                new_text: format!("{{{fix_inner}}}"),
+                description: "Wrap expression in braces".to_string(),
+            }],
+        });
+    }
+
     /// W212 (GAP-A8): a command argument that must be a variable
     /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
     /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
@@ -879,6 +1063,22 @@ Use braces: {{ \u{2026} }}"
         });
     }
 
+    /// **W110.** Emit "use `eq`/`ne` instead of `==`/`!=` for
+    /// string comparison" hints on the EXPR-role argument of
+    /// commands like `if`, `while`, `for`, `expr`.
+    ///
+    /// Mirrors ``check_string_compare_in_expr`` in
+    /// ``core/analysis/checks/_style.py:740-834``.  Fires when at
+    /// least one operand of a `==` / `!=` comparison is a string
+    /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
+    /// comparisons between variables (`$x == $y`) are left alone.
+    ///
+    /// `expr_text` is the post-substitution body of the EXPR-role
+    /// argument (already brace-stripped) — the caller is
+    /// responsible for joining multi-arg `expr` invocations with
+    /// spaces before calling.  `diag_span` is the source span the
+    /// diagnostic anchors to (the source range of the argument
+    /// token, or the full token range for `expr`).
     pub(super) fn emit_w110_string_eq_ne(&mut self, expr_text: &str, diag_span: tcl_lexer::Span) {
         // Quick bail-out: no equality operator at all.
         if !expr_text.contains("==") && !expr_text.contains("!=") {
@@ -4570,6 +4770,44 @@ mod tests {
             .iter()
             .filter(|d| d.code == "W114")
             .count()
+    }
+
+    fn w100_sev(src: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W100")
+            .map(|d| format!("{:?}", d.severity))
+            .collect()
+    }
+
+    #[test]
+    fn w100_flags_unbraced_expr_with_substitution() {
+        // Matches the live Python analyser (ERROR when a `$`/`[` sub).
+        assert_eq!(w100_sev("if $x {puts hi}\n"), vec!["Error"]);
+        assert_eq!(w100_sev("while $cond {}\n"), vec!["Error"]);
+        assert_eq!(w100_sev("expr $a + $b\n"), vec!["Error"]);
+        assert_eq!(w100_sev("expr \"$a == $b\"\n"), vec!["Error"]);
+        assert_eq!(w100_sev("for {set i 0} $i<10 {incr i} {}\n"), vec!["Error"]);
+    }
+
+    #[test]
+    fn w100_skips_braced_and_safe_literals() {
+        assert!(w100_sev("if {$x} {puts hi}\n").is_empty());
+        assert!(w100_sev("expr {$a + $b}\n").is_empty());
+        assert!(w100_sev("expr 1+2\n").is_empty());
+        assert!(w100_sev("if 1 {puts hi}\n").is_empty());
+        assert!(w100_sev("if {1} {puts hi}\n").is_empty());
+    }
+
+    #[test]
+    fn is_safe_literal_expr_classifies() {
+        assert!(is_safe_literal("42"));
+        assert!(is_safe_literal("true"));
+        assert!(!is_safe_literal("$x"));
+        assert!(is_safe_literal_expr("1 + 2", "tcl8.6"));
+        assert!(!is_safe_literal_expr("$a + $b", "tcl8.6"));
     }
 
     fn w212_count(src: &str) -> usize {

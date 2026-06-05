@@ -4340,8 +4340,17 @@ resolver (port of `_NAME_ARG_INDICES` + `_first_arg_name` /
 into `emit_dispatch_site_diagnostics`; fires when a name-position
 argument (`set $x`, `incr $x`, `info exists $x`, `upvar 1 a $b`) is a
 `Var` token, skipping plain names and `$`-values in value positions —
-verified against the live Python analyser; 3 unit tests.  Still
-absent: **W100** unbraced expr, **W104** string-concat-builds-list,
+verified against the live Python analyser; 3 unit tests.  **W100 LANDED
+(2026-06-05)** — `emit_w100_unbraced_expr` ports `check_unbraced_expr`:
+for each EXPR-role argument that is not braced (`Str` token) and not a
+substitution-free numeric/boolean literal (`is_safe_literal` /
+`is_safe_literal_expr`, the latter via `tokenise_expr`), emit W100 —
+ERROR when a `$`/`[` substitution is present, else WARNING — with a
+brace-wrapping fix (dropping the outer quotes for `expr "…"`).  Wired
+into `dispatch_expr_arguments` (covering the `expr 1 + 2` multi-word
+full-span case and the `if`/`while`/`for` single-arg case); verified
+across a 10-case battery against the live Python analyser; 3 unit tests.
+Still absent: **W104** string-concat-builds-list,
 **W106** dangerous unbraced `switch` body, **W121** non-contiguous subnet
 mask, **W200** (two checks
 share the code — exec-result-not-captured *and* binary-format-modifiers),

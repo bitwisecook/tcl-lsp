@@ -444,6 +444,11 @@ impl Analyser {
         }
         indices.sort_unstable();
 
+        // W100 (GAP-A8): unbraced expression argument. Runs for every
+        // EXPR-role form, including the `expr 1 + 2` multi-word case
+        // handled by the early return below.
+        self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
+
         // Special-case ``expr ...``: when the user wrote multiple
         // arguments (``expr 1 + 2`` instead of the more common
         // ``expr {1 + 2}``), Python anchors the diagnostic at
