@@ -1,0 +1,27 @@
+# tcltest.test — auto-generated WASM baseline.
+# bucket = 'W0-stub-trap'
+# reason = 'unsupported command: file'
+# classification: deferred-wasi
+# rationale: self-test needs file attributes / a writable scratch dir
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["tcltest-1.1", "tcltest-1.2", "tcltest-2.0", "tcltest-2.1", "tcltest-2.2", "tcltest-2.3", "tcltest-2.4", "tcltest-2.5", "tcltest-2.5a", "tcltest-3.1", "tcltest-3.2", "tcltest-3.3", "tcltest-3.4", "tcltest-4.1", "tcltest-4.2", "tcltest-4.3", "tcltest-4.4", "tcltest-4.5", "tcltest-5.1", "tcltest-5.2", "tcltest-6.2", "tcltest-6.3", "tcltest-6.4", "tcltest-7.2", "tcltest-7.3", "tcltest-7.4", "tcltest-7.5"]
+
+[crash]
+type = "Trap"
+msg = "tcl trap: site=188 unsupported command: file attributes"
+commands = ["file"]
