@@ -140,8 +140,10 @@ def main():
 
     print("== Rust-runtime C-extension spike (DYNAMIC side-module loading) ==")
     print(f"side module: {side_path}")
-    print(f"  loaded at  __memory_base={memory_base} __table_base={table_base} "
-          f"(needs {msize}B data, {tsize} table slots)")
+    print(
+        f"  loaded at  __memory_base={memory_base} __table_base={table_base} "
+        f"(needs {msize}B data, {tsize} table slots)"
+    )
     print(f"Pkga_Init(interp) -> {init_rc} (TCL_OK = {init_rc == 0})")
     print()
 

@@ -447,8 +447,7 @@ def resolve_rust_server(override: str | None) -> tuple[str, list[str], str]:
     binary = root / "target" / "debug" / "tcl-lsp-server"
     if not binary.exists():
         print(
-            "Rust server binary not found; building "
-            "(cargo build -p tcl-lsp-server)...",
+            "Rust server binary not found; building (cargo build -p tcl-lsp-server)...",
             file=sys.stderr,
         )
         subprocess.run(
