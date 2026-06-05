@@ -59,6 +59,21 @@ ownership matrices.
   intended `tcl-lsp-core` / `tcl-lsp-server` / `tcl-lsp-py`
   boundaries. Read this before adding a new Rust crate, hook, or
   registry fact.
+- [rust/review-findings.md](rust/review-findings.md) —
+  point-in-time review of the Rust workspace ordered by correctness,
+  then performance (time to first semantic tokens), then memory.
+  File:line-anchored findings plus a prioritised roadmap. Snapshot at
+  #542 / #543.
+- [rust/target-architecture.md](rust/target-architecture.md) —
+  forward-looking target the workspace is converging on: zero-copy,
+  parse-once, single CST spine, positions from the tree, demand-driven
+  cascade/invalidation, and MVCC concurrency. Companion to
+  current-architecture.md; the staged route is in review-findings.md.
+- [rust/feasibility.md](rust/feasibility.md) — evidence-based readiness
+  sweep testing each target goal for hard blockers vs. work-items.
+  Verdict: every goal reachable, no hard blockers, the expensive
+  foundations already in place. Carries the determinism prerequisite
+  and the unlock ordering.
 
 ## Runtime internals
 
