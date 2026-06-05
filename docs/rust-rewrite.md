@@ -4598,6 +4598,22 @@ substantially complete:** all eight previously-absent security checks
 (W102, W103, W300, W301, W303, W309, W310, W312) emit; only W310's
 registry-augmented option set + subcommand-credential path remain.
 
+**LANDED (W310 registry-augmented — GAP-A2 complete, 2026-06-09).**  With
+the registry surface merged, `emit_w310_hardcoded_credentials` takes both
+remaining strategies: **Strategy 1** unions the command's registry
+`credential_options` (e.g. `http::geturl`'s `-headers`) into the default
+flag set; **Strategy 2** reads a subcommand's `credential_arg` +
+`sensitive_headers` to flag a literal value at a sensitive header (e.g.
+`HTTP::header insert authorization "Bearer …"`).  Both verified against
+the live analyser; 2 added unit tests.  **GAP-A2 is complete** — all nine
+`_security.py` checks (W101 + the eight ported) now emit.  (Also fixed a
+latent SSA bug surfaced by the merge: PR #550 correctly added
+`CREATES_DYNAMIC_BARRIER` to `trace` to match Python, exposing that
+`ssa.rs::defs_of_with_registry` gated its `VarWrite`-skip on the
+dynamic-barrier trait instead of `CREATES_SCOPE_ALIAS`.  Python gates on
+`scope_alias_commands()` (`ssa.py:102`), so `trace add variable x` must
+still surface its def; corrected the Rust gate to `CREATES_SCOPE_ALIAS`.)
+
 **GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
 algorithm — absent.**  The 1776-entry Unicode confusables table
 (`CONFUSABLE_TO_ASCII` / `CONFUSABLE_CODEPOINTS`) and the four-mode W108

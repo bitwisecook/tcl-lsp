@@ -622,6 +622,16 @@ fn is_ident_continue(b: u8) -> bool {
 /// (the generic `_DEFAULT_PASSWORD_OPTIONS` from `_security.py`).
 const DEFAULT_PASSWORD_OPTIONS: [&str; 5] = ["-password", "-pass", "-secret", "-token", "-apikey"];
 
+/// True when `value` is a literal (not a `$var` / `[cmd]` substitution)
+/// — the W310 `_is_literal_value` gate.
+fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
+    !matches!(
+        tok.kind,
+        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+    ) && !value.starts_with('$')
+        && !value.contains('[')
+}
+
 /// Return `true` when an `uplevel` first argument is a level
 /// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
 /// Python's `args[0].lstrip("#").isdigit() or args[0] == "#0"`: strip
@@ -2967,39 +2977,48 @@ matching time on crafted input."
         }
     }
 
-    /// **W310.** Emit "hardcoded credential" when a credential-bearing
-    /// option flag (`-password` / `-pass` / `-secret` / `-token` /
-    /// `-apikey`, case-insensitive) is followed by a *literal* value.
-    /// Mirrors the generic Strategy-1 path of
-    /// `_security.py:507-573::check_hardcoded_credentials` (one
-    /// diagnostic per command).  **Deferred** (registry-gated): the
-    /// per-command credential options unioned from
-    /// `REGISTRY.credential_options` and the Strategy-2 subcommand
-    /// credential headers (`REGISTRY.subcommand_credential_info`) — the
-    /// registry doesn't yet expose those surfaces, so only the
-    /// hardcoded default option set is checked here.
+    /// **W310.** Emit "hardcoded credential" for a literal secret value.
+    /// Mirrors both strategies of
+    /// `_security.py:507-573::check_hardcoded_credentials` (one diagnostic
+    /// per command):
+    ///
+    /// * **Strategy 1** — a credential-bearing option flag (the defaults
+    ///   `-password` / `-pass` / `-secret` / `-token` / `-apikey`,
+    ///   case-insensitive, unioned with the command's registry
+    ///   `credential_options`, e.g. `http::geturl`'s `-headers`) followed
+    ///   by a literal value.
+    /// * **Strategy 2** — a subcommand whose registry `credential_arg` /
+    ///   `sensitive_headers` mark a literal value at a sensitive header
+    ///   (e.g. `HTTP::header insert authorization "Bearer …"`).
     pub(super) fn emit_w310_hardcoded_credentials(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
         if args.is_empty() || arg_tokens.is_empty() {
             return;
         }
+        // Registry-augmented credential option flags (all `'static`, so
+        // the `self.registry` borrow ends with this binding).
+        let extra_opts: &'static [&'static str] = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .map_or(&[], |s| s.credential_options);
+
+        // Strategy 1: a credential option flag with a literal value.
         for (i, text) in args.iter().enumerate() {
-            if !DEFAULT_PASSWORD_OPTIONS.contains(&text.to_ascii_lowercase().as_str()) {
+            let lower = text.to_ascii_lowercase();
+            if !DEFAULT_PASSWORD_OPTIONS.contains(&lower.as_str())
+                && !extra_opts.contains(&lower.as_str())
+            {
                 continue;
             }
             let (Some(value), Some(val_tok)) = (args.get(i + 1), arg_tokens.get(i + 1)) else {
                 continue;
             };
-            // A literal value: not a `$var` / `[cmd]` substitution.
-            let is_literal = !matches!(
-                val_tok.kind,
-                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-            ) && !value.starts_with('$')
-                && !value.contains('[');
-            if is_literal {
+            if is_literal_credential_value(value, val_tok) {
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W310".to_string(),
                     span: val_tok.span,
@@ -3011,6 +3030,43 @@ environment variables or a vault, not in source code."
                     fixes: Vec::new(),
                 });
                 return; // one diagnostic per command
+            }
+        }
+
+        // Strategy 2: a subcommand credential header with a literal value.
+        if args.len() >= 3 {
+            let sub = args[0].to_ascii_lowercase();
+            // `(credential_arg, sensitive_headers)` — both copied out so
+            // the registry borrow ends before we mutate `self.result`.
+            let cred_info: Option<(usize, &'static [&'static str])> = self
+                .registry
+                .as_ref()
+                .and_then(|r| r.get(cmd_name))
+                .and_then(|s| s.subcommand(&sub))
+                .and_then(|sc| {
+                    sc.credential_arg
+                        .map(|a| (a as usize, sc.sensitive_headers))
+                });
+            if let Some((cred_arg, sensitive)) = cred_info {
+                let header_name = args[1].to_ascii_lowercase();
+                if sensitive.contains(&header_name.as_str()) && cred_arg < arg_tokens.len() {
+                    if let (Some(value), Some(val_tok)) =
+                        (args.get(cred_arg), arg_tokens.get(cred_arg))
+                    {
+                        if is_literal_credential_value(value, val_tok) {
+                            self.result.diagnostics.push(super::types::Diagnostic {
+                                code: "W310".to_string(),
+                                span: val_tok.span,
+                                message: format!(
+                                    "Hardcoded credential in {header_name} header value. \
+Store secrets in environment variables or a vault, not in source code."
+                                ),
+                                severity: Severity::Warning,
+                                fixes: Vec::new(),
+                            });
+                        }
+                    }
+                }
             }
         }
     }
@@ -8136,5 +8192,53 @@ foo
                 .starts_with("Hardcoded credential in -password argument."),
             "{w310:?}"
         );
+    }
+
+    #[test]
+    fn w310_registry_credential_option() {
+        // `http::geturl`'s registry `credential_options` adds `-headers`
+        // to the default flag set (Strategy 1 augmentation).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "http::geturl $url -headers {Authorization \"Bearer abc123def456\"}\n",
+            "tcl8.6",
+        );
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in -headers argument."),
+            "{w310:?}"
+        );
+    }
+
+    #[test]
+    fn w310_subcommand_sensitive_header() {
+        // `HTTP::header insert authorization <literal>` — the subcommand's
+        // registry credential_arg + sensitive_headers (Strategy 2).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "HTTP::header insert authorization \"Bearer secrettoken123\"\n",
+            "f5-irules",
+        );
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in authorization header value."),
+            "{w310:?}"
+        );
+        // A non-sensitive header is fine; a `$var` value is not literal.
+        assert!(!a
+            .analyse(
+                "HTTP::header insert content-type \"text/html\"\n",
+                "f5-irules"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W310"));
+        assert!(!a
+            .analyse("HTTP::header insert authorization $tok\n", "f5-irules")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W310"));
     }
 }
