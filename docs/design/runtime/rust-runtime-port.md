@@ -59,6 +59,7 @@ test suite** as ground truth.
 | [`c-extension-abi.md`](c-extension-abi.md) | ABI (§4), link models (§5), measured GOT findings (§11), scoped next steps (§13) |
 | [`runtime/rust-spike/README.md`](../../../runtime/rust-spike/README.md) | The three throwaway spikes — reimplement properly, do not derive shape from |
 | [`memory-management.md`](memory-management.md) + [`refcount-contract.md`](refcount-contract.md) | TclObj model + refcount discipline (cross-check vs `tclObj.c`) |
+| [`c-api-ownership-contract.md`](c-api-ownership-contract.md) | T2.1 — ownership + error category for every shipped C-API function (the `fresh_zero` convention) |
 | [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) (+ s0..s6) | AOT north star + staircase; the metaprog heuristics extend this |
 | [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md) | The Zig runtime's own roadmap and layering |
 | [`../../../AGENTS.md`](../../../AGENTS.md) | Zig runtime layering, the WASM parity gate (`make check-wasm-parity`), workflow |
@@ -230,9 +231,25 @@ transcribed from `tmp/tcl9.0.3/doc/*.3` + the C source, mapped onto
 `refcount-contract.md`. Plus a **gate that rejects a new C-API export lacking
 an ownership annotation**.
 
-- Status: **not-started.**
-- Acceptance: every shipped C-API function carries an ownership category; the
-  round-trip extension shows zero residual under the `-Dleak-check` counter.
+- Status: **partial — contract doc + gate landed; runtime impl pending.**
+  - [`c-api-ownership-contract.md`](c-api-ownership-contract.md) annotates all
+    81 shipped C-API functions (the `tcl.h`/`tclOO.h`/`tclTomMath.h` surface)
+    with an ownership category **and** an error-path category. It fixes the
+    **`fresh_zero`** convention (C-API constructors return refCount **0**,
+    unlike the internal `obj_new_*` which return rc=1) — the single biggest
+    extension-author correctness subtlety.
+  - `scripts/check_c_api_ownership.py` (+ `make check-c-api-ownership`, wired
+    into `_prep-pr-checks-noty`) is the parity-style gate: a header-declared
+    C-API function with no contract row — or a stale row — fails prep-pr. It
+    correctly excludes `#define` macros and the nominal stub-table data
+    symbols.
+  - **Remaining:** encode the categories in the `runtime/rust/` C-API impls and
+    extend the gate to cross-check the real `#[no_mangle] extern "C"` exports
+    once they land.
+- Acceptance: every shipped C-API function carries an ownership category
+  (**done**, gated); the round-trip extension (`Tcl_NewObj` →
+  `Tcl_IncrRefCount` → `Tcl_SetObjResult` → `Tcl_DecrRefCount`) shows zero
+  residual under the `-Dleak-check` counter (**pending the impl**).
 
 ### T2.2 — Shipped headers (§4.1, §7, §11)
 
@@ -521,7 +538,7 @@ _(empty — populated as Zig lands behavioural fixes during the port)_
 | Tcl 9 tcltest sweep | `scripts/run_tcl9_tcltest_sweep.py` | Track 1, Tier gates, correctness gold standard |
 | Leak sweep | `scripts/leak_sweep.py` / `make leakcheck` | Track 1 (refcount discipline), T2.1 |
 | Tier LOAD+RUN | per-tier `wasmtime` tests | Tier 0/1/2 |
-| C-API annotation | T2.1 export-annotation gate | Track 2 |
+| C-API annotation | `make check-c-api-ownership` (`scripts/check_c_api_ownership.py --strict`) | Track 2 — **landed**, in `_prep-pr-checks-noty` |
 | AOT coverage | T3.1 coverage harness | Track 3 |
 
 No `.test` file that passes on the Zig baseline may regress. `make
@@ -533,8 +550,11 @@ compiler/LSP or the Zig runtime.
 ## Next-up priority queue
 
 1. **This document** (the first deliverable) — establish + keep current.
-2. **T2.1** — C-API ownership/error contract + un-annotated-export gate
-   (largest remaining *design* gap; unblocks leak-correct extensions).
+2. **T2.1** — C-API ownership/error contract + un-annotated-export gate.
+   **Contract doc + gate landed** ([`c-api-ownership-contract.md`](c-api-ownership-contract.md),
+   `make check-c-api-ownership`); remaining work is encoding the categories in
+   the `runtime/rust/` impls (folds into T1.1) and extending the gate to the
+   real exports.
 3. **T1.1** — real `TclObj` + refcount core in `runtime/rust/` (records its Zig
    source baseline for the sync log).
 4. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry

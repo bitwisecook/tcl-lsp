@@ -437,6 +437,10 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 	@echo "==> Snapshotting WASM command parity baseline"
 	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --snapshot
 
+check-c-api-ownership: $(UV_STAMP) ## Check every shipped C-API function carries an ownership/error annotation (T2.1)
+	@echo "==> Checking C-API ownership contract"
+	cd $(ROOT) && $(UV) run python scripts/check_c_api_ownership.py --strict
+
 # Phase targets for parallel prep-pr execution.
 #
 # typecheck-py uninstalls the rust wheel + clears the rust-build
@@ -445,7 +449,7 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 # parallel phase that runs tests — otherwise test-py-rust would
 # race with the wheel uninstall. rust-build is invoked between the
 # two phases to reinstall the wheel for the differential tests.
-_prep-pr-checks-noty: lint-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
+_prep-pr-checks-noty: lint-py lint-ts typecheck-ts check-editor-settings check-wasm-parity check-c-api-ownership
 _prep-pr-tests: test-py-rust test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
