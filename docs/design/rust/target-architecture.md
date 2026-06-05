@@ -15,7 +15,10 @@
 >   the portions of derived data that depend on it and rebuilds them on
 >   demand;
 > - use **MVCC** where concurrent reads and writes need a consistent
->   view.
+>   view;
+> - apply all of the above to **every embedded grammar** — BIG-IP
+>   config, format and `scan` strings, regexps, globs, expr — not just
+>   the Tcl surface.
 >
 > The current-state critique and the staged route from here are in
 > [`review-findings.md`](review-findings.md); this doc is the
@@ -149,6 +152,67 @@ This is the structural fix for C2 (no document-version guard,
 unrelated readers (`lib.rs:125`), and for the snapshot deep-clones. It
 is "MVCC **where necessary**": the document and its derived snapshots,
 not every small map.
+
+## Embedded sub-languages — one model, applied everywhere
+
+Tcl is a host for a dozen embedded grammars, and nothing above is
+specific to the Tcl surface — it applies to each of them equally. A
+`format` template, a `regexp` pattern, a `string match` glob, an `expr`
+expression, a `clock` / `scan` specifier, a BIG-IP `.conf` stanza, a
+data-group body — every one is a small language sitting in a span of the
+same source.
+
+**Today each is an ad-hoc re-scanner.** Sub-languages are parsed by
+scattered functions that take a raw `&str` and return owned copies,
+re-deriving from text and duplicating it: format-spec parsing in three
+places (`tcl/format_.rs`, `codegen/helpers.rs::try_format_fold`,
+`hover.rs`); regexp / pattern handling across ~10 modules (`taint`,
+`optimiser/structure_elimination`, `codegen/helpers::regexp_to_glob`,
+`uri_split`, …); `var_refs::scan_word` / `scan_var_ref_forms` and
+`gvn::scan_bracketed_commands` each returning fresh `Vec<String>` /
+`BTreeSet<String>`; and a second expr entry point in the PyO3 crate
+(`expr_parser.rs`) beside the compiler's `expr_ast`. This is the
+two-parse-tree and re-derivation problem from
+[`review-findings.md`](review-findings.md#cross-layer-integration-and-data-duplication),
+repeated once per sub-language.
+
+**Target — typed sub-trees, injected, sharing the spine.** Each
+embedded grammar is parsed *once* into a typed sub-tree hanging off its
+host CST node, with the same guarantees as the host:
+
+- **Dispatched by the registry.** Which sub-grammar a word belongs to is
+  a command-shape fact the registry already carries (`arg_roles`, plus
+  the `pattern_type` / `format_string_type` / `options` fields the
+  GAP-AUDIT flagged as missing). This is D4's shape-directed descent
+  generalised from script / expr to regexp / format / glob / config:
+  the host parser sees `regexp $re` and descends `$re` into a regexp
+  sub-tree, `format $fmt` into a format sub-tree — once, memoised, and
+  re-parsed only when the typing or the text changes.
+- **Zero-copy.** Sub-parsers yield spans into the one `Arc<str>`, not
+  owned `String`s: `scan_var_ref_forms` yields var-ref spans;
+  `regexp_to_glob` reads the regexp sub-tree instead of re-scanning a
+  slice.
+- **Positions from the sub-tree.** Because the sub-tree carries spans
+  into the shared buffer, a diagnostic like "unknown conversion `%q` at
+  column 7 of the format string" resolves through the *same* position
+  service to a correct LSP range *inside* the embedded language — which
+  unlocks per-sub-language diagnostics, hover, and semantic-token
+  colouring (capture groups in a regexp, conversions in a format
+  string) that ad-hoc scanners cannot place.
+- **In the cascade.** A sub-tree is a query keyed on its span and
+  typing, so editing one regexp invalidates only that sub-tree, and a
+  discovered proc-shape that retypes an argument (D4) re-parses just
+  that argument into the right sub-grammar.
+
+**Injection runs both ways.** BIG-IP config is itself a host: a `.conf`
+file is config syntax with Tcl (iRules) injected inside `ltm rule { … }`,
+and within that Tcl the sub-grammars above are injected again. The
+model is therefore a single CST of typed nodes joined by
+language-injection edges (the tree-sitter injection model) — every node
+spanning the one source, every position resolved by the one service,
+every node a participant in the one cascade. One parser per language,
+no duplicates: the format-spec triplet and the twin expr parsers
+converge exactly as the segmenter and the CST do.
 
 ## Key decisions to confirm
 
