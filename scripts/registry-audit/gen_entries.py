@@ -27,6 +27,44 @@ if str(_REPO_ROOT) not in sys.path:
 OUT = _REPO_ROOT / "tmp" / "registry-audit"
 ORDER = "tcl stdlib tcllib irules iapps tk expect sdc-base synopsys cadence xilinx quartus mentor".split()
 
+_RUST_BIN = _REPO_ROOT / "target" / "debug" / "examples" / "dump_specs"
+
+
+def ensure_rust_bin() -> str:
+    """(Re)build the Rust dumper so meta dumps reflect current registry data.
+
+    cargo is incremental, so this is cheap when up to date and guarantees the
+    meta-registry comparison below never reads a stale binary.
+    """
+    subprocess.run(
+        ["cargo", "build", "-q", "--example", "dump_specs", "-p", "tcl-registry"],
+        cwd=_REPO_ROOT / "rust", check=True,
+    )
+    return str(_RUST_BIN)
+
+
+def rust_meta_names(binpath: str, kind: str) -> set[str]:
+    """Names emitted by `dump_specs meta-<kind>` (events/profiles/namespaces)."""
+    out = subprocess.run(
+        [binpath, f"meta-{kind}"], cwd=_REPO_ROOT,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def rust_event_props(binpath: str) -> dict[str, dict]:
+    """Per-event props from `dump_specs meta-events-props`."""
+    out = subprocess.run(
+        [binpath, "meta-events-props"], cwd=_REPO_ROOT,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    props = {}
+    for line in out.splitlines():
+        if line.strip():
+            rec = json.loads(line)
+            props[rec["name"]] = rec
+    return props
+
 # Data-loss dimensions we surface per entry, with short status codes. Only
 # "py has it, rust lacks it" counts as a gap (modelling-diff dims excluded).
 GAP_DIMS: list[tuple[str, str]] = [
@@ -156,16 +194,71 @@ def emit_bigip() -> None:
     print("</details>\n")
 
 
-def emit_meta_simple(title: str, names: list[str], note: str) -> None:
+def _name_status(n: str, py: set[str], rust: set[str]) -> str:
+    if n in py and n in rust:
+        return "✅"
+    if n in py:
+        return "✗ missing in rust"
+    return "➕ rust-only"
+
+
+def emit_meta_names(title: str, py_names: set[str], rust_names: set[str], note: str) -> None:
+    """Per-entry name parity for a meta registry, diffed against the Rust dump."""
+    names = sorted(py_names | rust_names)
+    statuses = {n: _name_status(n, py_names, rust_names) for n in names}
+    ok = sum(1 for s in statuses.values() if s == "✅")
     print(
         f"<details><summary><b>{title}</b> — {len(names)} entries · "
-        f"{len(names)} ✅</summary>\n"
+        f"{ok} ✅ · {len(names) - ok} need work</summary>\n"
     )
     print(f"{note}\n")
     print("| entry | status |")
     print("|---|---|")
-    for n in sorted(names):
-        print(f"| `{n}` | ✅ |")
+    for n in names:
+        print(f"| `{n}` | {statuses[n]} |")
+    print("\n</details>\n")
+
+
+def _norm_transport(t) -> list[str]:
+    if t is None:
+        return []
+    if isinstance(t, str):
+        return [t]
+    return sorted(t)
+
+
+def emit_events(py_props: dict, rust_props: dict[str, dict]) -> None:
+    """Per-event name **and** EventProps-field parity, diffed against Rust."""
+    names = sorted(set(py_props) | set(rust_props))
+    statuses: dict[str, str] = {}
+    for n in names:
+        if n in py_props and n in rust_props:
+            p, r = py_props[n], rust_props[n]
+            checks = {
+                "client_side": (p.client_side, r["client_side"]),
+                "server_side": (p.server_side, r["server_side"]),
+                "transport": (_norm_transport(p.transport), sorted(r["transport"])),
+                "implied_profiles": (sorted(p.implied_profiles), sorted(r["implied_profiles"])),
+                "flow": (p.flow, r["flow"]),
+                "deprecated": (p.deprecated, r["deprecated"]),
+                "hot": (p.hot, r["hot"]),
+                "common": (p.common, r["common"]),
+                "setup_event": (p.setup_event, r["setup_event"]),
+            }
+            diffs = [k for k, (a, b) in checks.items() if a != b]
+            statuses[n] = "✅" if not diffs else "`props≠` " + ", ".join(diffs)
+        else:
+            statuses[n] = _name_status(n, set(py_props), set(rust_props))
+    ok = sum(1 for s in statuses.values() if s == "✅")
+    print(
+        f"<details><summary><b>iRule events</b> — {len(names)} entries · "
+        f"{ok} ✅ · {len(names) - ok} need work</summary>\n"
+    )
+    print("Names **and** all 9 `EventProps` fields compared Python↔Rust.\n")
+    print("| event | status |")
+    print("|---|---|")
+    for n in names:
+        print(f"| `{n}` | {statuses[n]} |")
     print("\n</details>\n")
 
 
@@ -187,16 +280,19 @@ def main() -> int:
     emit_bigip()
     import core.commands.registry.namespace_data as nd  # type: ignore
 
-    emit_meta_simple(
-        "iRule events", list(nd.EVENT_PROPS),
-        "Names **and** all 9 `EventProps` fields verified equal Python↔Rust.",
+    # Build the Rust dumper and diff the meta registries against its output —
+    # so this section is a real drift detector for events/profiles/namespaces,
+    # not a Python-only self-report.
+    binpath = ensure_rust_bin()
+    emit_events(dict(nd.EVENT_PROPS), rust_event_props(binpath))
+    emit_meta_names(
+        "F5 profiles", set(nd.PROFILE_SPECS), rust_meta_names(binpath, "profiles"),
+        "Names compared Python↔Rust (prop-level diff is a follow-up).",
     )
-    emit_meta_simple(
-        "F5 profiles", list(nd.PROFILE_SPECS), "Names verified equal Python↔Rust.",
-    )
-    emit_meta_simple(
-        "Protocol namespaces", list(nd.PROTOCOL_NAMESPACE_SPECS),
-        "Names verified equal Python↔Rust.",
+    emit_meta_names(
+        "Protocol namespaces", set(nd.PROTOCOL_NAMESPACE_SPECS),
+        rust_meta_names(binpath, "namespaces"),
+        "Names compared Python↔Rust (prop-level diff is a follow-up).",
     )
     return 0
 

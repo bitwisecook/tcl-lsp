@@ -263,6 +263,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 ## Appendix — generated data tables
 
 <!-- BEGIN generated: scripts/registry-audit/gen_report_md.py -->
+
 ### Command registries — name parity & verdict
 
 | Registry | Python | Rust | Missing in Rust | Extra in Rust | Verdict |
@@ -3364,11 +3365,11 @@ The rust-branch `core/bigip/registry/specs` and `origin/main` `dialects/f5/bigip
 
 </details>
 
-<details><summary><b>iRule events</b> — 176 entries · 176 ✅</summary>
+<details><summary><b>iRule events</b> — 176 entries · 176 ✅ · 0 need work</summary>
 
-Names **and** all 9 `EventProps` fields verified equal Python↔Rust.
+Names **and** all 9 `EventProps` fields compared Python↔Rust.
 
-| entry | status |
+| event | status |
 |---|---|
 | `ACCESS2_POLICY_EXPRESSION_EVAL` | ✅ |
 | `ACCESS_ACL_ALLOWED` | ✅ |
@@ -3549,9 +3550,9 @@ Names **and** all 9 `EventProps` fields verified equal Python↔Rust.
 
 </details>
 
-<details><summary><b>F5 profiles</b> — 65 entries · 65 ✅</summary>
+<details><summary><b>F5 profiles</b> — 65 entries · 65 ✅ · 0 need work</summary>
 
-Names verified equal Python↔Rust.
+Names compared Python↔Rust (prop-level diff is a follow-up).
 
 | entry | status |
 |---|---|
@@ -3623,9 +3624,9 @@ Names verified equal Python↔Rust.
 
 </details>
 
-<details><summary><b>Protocol namespaces</b> — 113 entries · 113 ✅</summary>
+<details><summary><b>Protocol namespaces</b> — 113 entries · 113 ✅ · 0 need work</summary>
 
-Names verified equal Python↔Rust.
+Names compared Python↔Rust (prop-level diff is a follow-up).
 
 | entry | status |
 |---|---|
