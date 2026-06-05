@@ -48,6 +48,7 @@ pub mod expr;
 pub mod frame;
 pub mod interp;
 pub mod list;
+pub mod namespace;
 pub mod obj;
 pub mod parse;
 pub mod subst;

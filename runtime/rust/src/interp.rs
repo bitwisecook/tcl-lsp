@@ -22,9 +22,9 @@ use core::ffi::c_char;
 
 use crate::builtins;
 use crate::frame::FrameStack;
+use crate::namespace::{Namespaces, NsId, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
-use std::collections::BTreeMap;
 
 /// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +56,12 @@ pub enum Command {
 #[repr(C)]
 pub struct Interp {
     pub(crate) frames: FrameStack,
-    commands: BTreeMap<Vec<u8>, Command>,
+    /// The command-table-as-core-service: the namespace tree + the one
+    /// `resolve(currentNs, name)` resolver (T1.5).
+    namespaces: Namespaces,
+    /// The current namespace for command resolution (the eval context; a proc
+    /// runs in its *defining* namespace — wired with procs). Global at top level.
+    current_ns: NsId,
     result: *mut TclObj,
 }
 
@@ -69,7 +74,8 @@ impl Interp {
         unsafe { obj::incr_ref_count(result) };
         let mut interp = Box::new(Interp {
             frames: FrameStack::new(),
-            commands: BTreeMap::new(),
+            namespaces: Namespaces::new(),
+            current_ns: GLOBAL,
             result,
         });
         builtins::install(&mut interp);
@@ -78,14 +84,16 @@ impl Interp {
 
     // -- command registry -----------------------------------------------------
 
-    /// Register a built-in command (overwrites any existing command of `name`).
+    /// Register a built-in command (a possibly-qualified `name`, creating
+    /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
-        self.commands.insert(name.to_vec(), Command::Builtin(f));
+        self.namespaces.register(name, Command::Builtin(f));
     }
 
-    /// Command names, sorted (`info commands`).
+    /// Command names in the current namespace, sorted (`info commands`).
+    #[must_use]
     pub fn command_names(&self) -> Vec<&[u8]> {
-        self.commands.keys().map(|k| k.as_slice()).collect()
+        self.namespaces.command_names(self.current_ns)
     }
 
     // -- result ---------------------------------------------------------------
@@ -206,7 +214,7 @@ impl Interp {
     /// Look up `argv[0]` and invoke it.
     fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
-        match self.commands.get(&name).copied() {
+        match self.namespaces.resolve(self.current_ns, &name) {
             Some(Command::Builtin(f)) => f(self, argv),
             None => {
                 let mut msg = b"invalid command name \"".to_vec();
@@ -469,6 +477,20 @@ mod tests {
         leak_free(|i| {
             assert_eq!(i.eval_str(b"frobnicate a b"), Code::Error);
             assert_eq!(i.result_bytes(), b"invalid command name \"frobnicate\"");
+        });
+    }
+
+    #[test]
+    fn absolute_qualified_command_resolves() {
+        leak_free(|i| {
+            // `::set` is the global `set`, reached via the namespace resolver.
+            assert_eq!(i.eval_str(b"::set x 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            assert_eq!(i.eval_str(b"set y $x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            // an unknown namespace qualifier is an error
+            assert_eq!(i.eval_str(b"::nosuch::cmd a"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"::nosuch::cmd\"");
         });
     }
 
