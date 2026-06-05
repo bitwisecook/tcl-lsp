@@ -156,9 +156,29 @@ any row.
 | `sched/` | 7 (1660) | scheduler, coro, timer, vwait, fileevent, ready, asyncify | `runtime/rust/` sched | not-started | coroutine/after/vwait tcltest |
 | `stubs/` | 6 (609) | env/fmt/fs/io/time stub surfaces | `runtime/rust/` stubs | not-started | covered by dependent command parity |
 | `tcl_runtime.zig` (root) | 1 | export-aggregation root | `runtime/rust/` lib root | not-started | runtime builds + exports the `tcl_*`/`obj_*` symbol set codegen imports |
-| `regex_include/` (C) | — | Henry Spencer ARE engine (C, vendored) | **kept as C** (`c-extension-abi.md` §10) | n/a | first C library compiled against the runtime; ARE fidelity |
+| `regex_include/` (C) | — | Henry Spencer ARE engine (C, vendored) | **C at start → port to Rust near the end** (see note) | not-started | start: ARE-fidelity corpus passes via the C engine; end: same corpus passes against the Rust port, zero diff |
 
 `data/tzdata.bin` is a data asset consumed by the clock/tz port, not code.
+
+**Regex engine — use the C ARE engine at the start, port to Rust near the
+end.** `c-extension-abi.md` §10 keeps Tcl's Henry Spencer ARE engine as the
+*first C library compiled against the runtime* (bit-for-bit ARE fidelity for
+free). **Phasing: start on the C engine — it is fine, even preferred, for the
+early stages** (it lets the rest of the runtime port and the tier gates proceed
+without regex risk). **Near the end of the effort, port the ARE engine from C
+Tcl to Rust** so the runtime has no C-language core dependency and the whole
+support library is one language. The bar is unchanged: the Rust port must
+reproduce ARE semantics — backreferences, lookahead, and POSIX leftmost-longest
+— which no off-the-shelf pure-Rust regex crate matches (`regex` /
+`regex-automata` are deliberately non-backtracking and reject
+backreferences/lookaround), so this is a *port of the ARE engine's algorithm*
+(transcribed from `tmp/tcl9.0.3/generic/regc*.c` / `rege_*.c` / `regexec.c`),
+not a swap to an existing crate. Gate: the ARE-fidelity corpus passes against
+the C-ARE baseline with zero behavioural diff at the time of the swap. If the
+Rust port proves materially harder than budgeted, the §10 keep-as-C path
+remains the standing fallback (the C-extension toolchain keeps it available
+either way). Sequencing: this is a **late** chunk — after Track 1's core
+modules land and the tier gates are green on the C engine.
 
 > Update this table every PR: flip a row to **partial**/**landed** with its gate
 > the moment it lands. Add new rows if a Zig refactor introduces a module.
