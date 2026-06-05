@@ -60,6 +60,11 @@ class TestSignatureHelpBuiltins:
         lsp_server.open_ready(uri, "nonexistent_command arg ")
         assert not lsp_server.signature_help(uri, 0, 24)
 
+    def test_empty_file(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "")
+        assert not lsp_server.signature_help(uri, 0, 0)
+
 
 class TestSignatureHelpDocumentation:
     def test_set_has_documentation(self, lsp_server, uri_factory):
@@ -67,6 +72,19 @@ class TestSignatureHelpDocumentation:
         lsp_server.open_ready(uri, "set x ")
         result = lsp_server.signature_help(uri, 0, 6)
         assert "With one argument" in _doc(result["signatures"][0])
+
+    def test_socket_has_documentation(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "socket localhost ")
+        result = lsp_server.signature_help(uri, 0, 17)
+        doc = _doc(result["signatures"][0])
+        assert "listening socket" in doc or "server" in doc.lower()
+
+    def test_proc_still_has_documentation(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, 'proc greet {name} { puts "Hello $name" }\ngreet World ')
+        result = lsp_server.signature_help(uri, 1, 12)
+        assert result["signatures"][0]["label"].startswith("greet")
 
     def test_proc_doc_comment_in_signature_help(self, lsp_server, uri_factory):
         uri = uri_factory()
@@ -82,6 +100,13 @@ class TestSignatureHelpSubcommands:
         result = lsp_server.signature_help(uri, 0, 14)
         assert result is not None
         assert any(s["label"] == "string length string" for s in result["signatures"])
+
+    def test_string_index_subcommand(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "string index ")
+        result = lsp_server.signature_help(uri, 0, 13)
+        assert result is not None
+        assert any(s["label"] == "string index string charIndex" for s in result["signatures"])
 
     def test_string_unknown_subcommand_no_signature(self, lsp_server, uri_factory):
         uri = uri_factory()

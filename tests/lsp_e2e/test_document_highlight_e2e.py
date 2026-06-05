@@ -26,6 +26,7 @@ class TestDocumentHighlightProc:
         lsp_server.open_ready(uri, src)
         hls = _highlights(lsp_server, uri, 0, 6)
         assert len(hls) >= 2
+        assert all(h.get("kind", TEXT) == TEXT for h in hls)
 
     def test_highlights_include_declaration(self, lsp_server, uri_factory):
         uri = uri_factory()
@@ -55,6 +56,20 @@ class TestDocumentHighlightProc:
 
 
 class TestDocumentHighlightVariable:
+    def test_highlights_variable_uses(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc sum {} {
+                set x 1
+                set y [expr {$x + 2}]
+                return $x
+            }
+        """)
+        lsp_server.open_ready(uri, src)
+        hls = _highlights(lsp_server, uri, 3, 12)
+        assert len(hls) >= 1
+        assert all(h["range"]["start"]["line"] >= 1 for h in hls)
+
     def test_write_kind_on_definition_read_kind_on_use(self, lsp_server, uri_factory):
         uri = uri_factory()
         src = textwrap.dedent("""\
