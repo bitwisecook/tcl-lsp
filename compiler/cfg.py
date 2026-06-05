@@ -886,15 +886,29 @@ class _CFGBuilder:
                         # Top-level or qualified loop vars: emit as opaque
                         # invokeStk call.  tclsh 9.0 falls back to generic
                         # invoke when a loop variable is namespace-qualified.
+                        #
+                        # This must be an IRBarrier, not an IRCall: ``foreach``
+                        # carries ``wasm_emits_nothing=True`` in the registry
+                        # (the *inlined* loop's synthetic header def-marker is a
+                        # no-op because ``_emit_foreach_loop`` emits the body
+                        # structurally).  An IRCall(command="foreach") here would
+                        # hit that same ``command_emits_nothing`` short-circuit
+                        # in ``_emit_call_stmt`` and silently emit nothing — the
+                        # loop would run zero iterations.  The IRBarrier path
+                        # bypasses that fast-path and routes through the
+                        # eval-fallback, mirroring the ``dict for``/``dict map``
+                        # sibling case above.  ``tokens`` preserves the source
+                        # braces so the reconstructed script's varLists / lists /
+                        # body re-parse exactly as written.
                         cmd = "lmap" if stmt.is_lmap else "foreach"
-                        loop_vars = tuple(v for var_list, _ in stmt.iterators for v in var_list)
                         block.statements.append(
-                            IRCall(
+                            IRBarrier(
                                 range=stmt.range,
+                                reason="foreach with namespace-qualified loop var",
                                 command=cmd,
                                 canonical_command=f"::{cmd}",
                                 args=stmt.raw_args,
-                                defs=loop_vars,
+                                tokens=stmt.tokens,
                             )
                         )
                     else:

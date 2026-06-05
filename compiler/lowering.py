@@ -1249,6 +1249,7 @@ class _Lowerer:
             body_range=range_from_token(body_tok),
             is_lmap=is_lmap,
             raw_args=tuple(args),
+            tokens=cmd.cmd_tokens,
         )
 
     def _lower_stub_loop(
