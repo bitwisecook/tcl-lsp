@@ -45,6 +45,15 @@ const memcpy = rt.memcpy;
 /// Parse an optional decimal count from ``fmt`` at position ``*fi``.
 /// Returns the count (or ``null`` for ``*`` which means "all remaining").
 /// If no digits, returns 1.
+///
+/// A count whose digits exceed ``u32`` saturates to ``maxInt(u32)`` rather
+/// than wrapping.  This mirrors C Tcl's ``GetFormatSpec``, which parses the
+/// count with ``strtoull`` and clamps an out-of-range value to
+/// ``TCL_SIZE_MAX`` (tclBinary.c).  A saturated count is always larger than
+/// any real buffer, so the per-specifier "count exceeds remaining bytes"
+/// guards turn it into the same no-op / ``goto done`` C produces — instead of
+/// the integer-overflow panic the naive ``n*10`` accumulation used to trap on
+/// (e.g. ``binary scan x a[format %ld 0x100000000] r``, binary-37.10..37.13).
 fn parse_count(fmt: [*]const u8, fmt_len: u32, fi: *u32) ?u32 {
     if (fi.* >= fmt_len) return 1;
     if (fmt[fi.*] == '*') {
@@ -53,9 +62,18 @@ fn parse_count(fmt: [*]const u8, fmt_len: u32, fi: *u32) ?u32 {
     }
     if (fmt[fi.*] < '0' or fmt[fi.*] > '9') return 1;
     var n: u32 = 0;
+    var overflowed = false;
     while (fi.* < fmt_len and fmt[fi.*] >= '0' and fmt[fi.*] <= '9') : (fi.* += 1) {
-        n = n * 10 + @as(u32, fmt[fi.*] - '0');
+        const digit: u32 = fmt[fi.*] - '0';
+        const mul = @mulWithOverflow(n, 10);
+        const add = @addWithOverflow(mul[0], digit);
+        if (mul[1] != 0 or add[1] != 0) {
+            overflowed = true; // keep consuming digits, but stop accumulating
+        } else {
+            n = add[0];
+        }
     }
+    if (overflowed) n = std.math.maxInt(u32);
     return n;
 }
 
@@ -586,8 +604,22 @@ fn eval_binary_scan(words: []const i32) i32 {
                 }
             },
             'a', 'A' => {
-                const cnt: u32 = count_or_null orelse (src_len -| off);
-                const take = @min(cnt, src_len -| off);
+                const remaining = src_len -| off;
+                // C contract (tclBinary.c BinaryScanCmd, case 'a'/'A'/'C'):
+                // ``*`` consumes everything left; an explicit count larger
+                // than the bytes remaining stops the scan via ``goto done``
+                // (the variable is *not* assigned) rather than clamping to a
+                // short read.  ``parse_count`` returns 1 for a bare specifier,
+                // which follows the same > remaining gate as any explicit
+                // count.  This is what makes the count-overflow cases
+                // (binary-37.10..37.13) return 0.
+                var take: u32 = undefined;
+                if (count_or_null) |cnt| {
+                    if (cnt > remaining) break;
+                    take = cnt;
+                } else {
+                    take = remaining; // ``*`` = all remaining
+                }
                 var end = off + take;
                 if (spec == 'A') {
                     // Strip trailing spaces/nulls from result.
@@ -667,16 +699,33 @@ fn eval_binary_scan(words: []const i32) i32 {
                 off += take_bytes;
             },
             'x' => {
-                const cnt: u32 = count_or_null orelse 1;
-                off += @min(cnt, src_len -| off);
+                // Skip forward.  ``x*`` (and an explicit count past the end)
+                // advances to the end of the data; otherwise skip ``cnt``
+                // bytes.  ``@min`` makes an oversized explicit count clamp to
+                // the end, matching C's ``offset = length`` branch.
+                if (count_or_null) |cnt| {
+                    off += @min(cnt, src_len -| off);
+                } else {
+                    off = src_len; // ``x*`` = skip everything remaining
+                }
             },
             'X' => {
-                const cnt: u32 = count_or_null orelse 1;
-                off -|= cnt;
+                // Move back.  ``X*`` (and an explicit count past the start)
+                // rewinds to the beginning; otherwise back up ``cnt`` bytes.
+                if (count_or_null) |cnt| {
+                    off -|= cnt;
+                } else {
+                    off = 0; // ``X*`` = rewind to the start
+                }
             },
             '@' => {
-                const cnt: u32 = count_or_null orelse 0;
-                off = @min(cnt, src_len);
+                // Absolute seek.  ``@*`` seeks to the end of the data; an
+                // explicit count seeks there, clamped to the data length.
+                if (count_or_null) |cnt| {
+                    off = @min(cnt, src_len);
+                } else {
+                    off = src_len; // ``@*`` = seek to end (BINARY_ALL)
+                }
             },
             else => {},
         }

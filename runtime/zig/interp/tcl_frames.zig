@@ -2430,8 +2430,12 @@ fn ensure_local_obj_owned(o: i32) i32 {
     // :func:`tcl_ns.ensure_var_obj_owned` for the rationale.
     if (obj.is_immediate(o)) return o;
     const addr: u32 = @bitCast(o);
+    // TYPE_LIST keeps its canonical list string in the OBJ_STR_* slots
+    // too, so it shares the borrowed-buffer concern and must reach the
+    // cap check (it is always created owning today, but don't rely on
+    // that invariant here — see tcl_ns.ensure_var_obj_owned).
     const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
-    if (tag != obj.TYPE_STRING) return o;
+    if (tag != obj.TYPE_STRING and tag != obj.TYPE_LIST) return o;
     const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
     if (cap > 0) return o;
     const sptr: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_PTR));
