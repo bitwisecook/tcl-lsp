@@ -5,8 +5,8 @@
 //! find_partial_redundancies_for_cu, find_loop_invariants_for_cu}`:
 //!
 //! - `gvn_redundancies(source, dialect)` — full redundancies (O105)
-//! - `gvn_partial_redundancies(source, dialect)` — partial (O106)
-//! - `gvn_loop_invariants(source, dialect)` — loop invariants (O107)
+//! - `gvn_partial_redundancies(source, dialect)` — partial (O105)
+//! - `gvn_loop_invariants(source, dialect)` — loop invariants (O106)
 //!
 //! Each returns a list of tuples
 //! `(code, span_start, span_end, first_span_start, first_span_end,
@@ -52,7 +52,8 @@ pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
         .collect()
 }
 
-/// Partial-redundancy detection (O106).
+/// Partial-redundancy detection (O105 — GVN-PRE shares the
+/// full-redundancy code; see GAP-B2).
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
@@ -64,7 +65,8 @@ pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnT
         .collect()
 }
 
-/// Loop-invariant detection (O107).
+/// Loop-invariant detection (O106 — canonical loop-invariant
+/// code motion; see GAP-B2).
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn gvn_loop_invariants(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {

@@ -86,13 +86,31 @@ pub struct WorkspaceInvocation {
     pub range: Span,
 }
 
-/// Cross-document aggregate of proc / class definitions and
-/// command-invocation sites.
+/// One `source FILE` reference recorded in the index (GAP-A9).
+///
+/// Tracks where a document loads another file so a file rename can
+/// rewrite the dependent's `source` literal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceSource {
+    /// Document containing the `source` statement.
+    pub uri: String,
+    /// Verbatim path text as written (with `${var}` / `[cmd]` markers
+    /// preserved for substituted words).
+    pub raw_path: String,
+    /// Byte span of the path argument in `uri`'s source.
+    pub range: Span,
+    /// `true` when the path is a plain literal (no `$` / `[`).
+    pub is_literal: bool,
+}
+
+/// Cross-document aggregate of proc / class definitions,
+/// command-invocation sites, and `source` references.
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndex {
     procs: Vec<WorkspaceProc>,
     classes: Vec<WorkspaceClass>,
     invocations: Vec<WorkspaceInvocation>,
+    sources: Vec<WorkspaceSource>,
 }
 
 impl WorkspaceIndex {
@@ -146,6 +164,14 @@ impl WorkspaceIndex {
                 range: inv.range,
             });
         }
+        for target in &analysis.source_targets {
+            self.sources.push(WorkspaceSource {
+                uri: uri.to_owned(),
+                raw_path: target.raw_path.clone(),
+                range: target.range,
+                is_literal: target.is_literal,
+            });
+        }
     }
 
     /// Drop every entry that came from `uri` (used before
@@ -154,6 +180,13 @@ impl WorkspaceIndex {
         self.procs.retain(|p| p.uri != uri);
         self.classes.retain(|c| c.uri != uri);
         self.invocations.retain(|i| i.uri != uri);
+        self.sources.retain(|s| s.uri != uri);
+    }
+
+    /// Every indexed `source FILE` reference.
+    #[must_use]
+    pub fn sources(&self) -> &[WorkspaceSource] {
+        &self.sources
     }
 
     /// Every indexed proc.

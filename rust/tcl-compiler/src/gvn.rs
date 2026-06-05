@@ -57,8 +57,12 @@ pub struct RedundantComputation {
     pub first_span: Span,
     /// Human-readable expression text for diagnostic messages.
     pub expression_text: String,
-    /// Diagnostic code (e.g. `"O105"` for full redundancy,
-    /// `"O106"` for partial, `"O107"` for loop-invariant).
+    /// Diagnostic code: `"O105"` for full **and** partial redundancy
+    /// (GVN/CSE + GVN-PRE), `"O106"` for loop-invariant code motion.
+    /// Matches the canonical KCS codes and Python `gvn.py` (full /
+    /// partial both default to O105; loop-invariant sets O106).
+    /// `O107` is *unreachable dead code* and is owned by the
+    /// elimination pass, never emitted here.
     pub code: String,
     /// Formatted diagnostic message.
     pub message: String,
@@ -1144,7 +1148,7 @@ fn loop_defined_variables(ssa: &SsaFunction, loop_blocks: &HashSet<String>) -> H
 
 /// Detect loop-invariant pure computations.
 ///
-/// Returns a [`RedundantComputation`] with code `"O107"` for each
+/// Returns a [`RedundantComputation`] with code `"O106"` for each
 /// pure-expression occurrence inside a loop whose variable
 /// references are all defined *outside* the loop (so the
 /// computation produces the same value on every iteration).
@@ -1221,7 +1225,7 @@ pub fn find_loop_invariants(
                         span: occ.span,
                         first_span: occ.span,
                         expression_text: text.clone(),
-                        code: "O107".into(),
+                        code: "O106".into(),
                         message: loop_invariant_message(&text),
                     });
                 }
@@ -1313,7 +1317,7 @@ fn transfer_occurrence_keys(
 }
 
 /// Detect path-partial redundancies via may/must availability
-/// dataflow. Returns `RedundantComputation { code: "O106", … }`
+/// dataflow. Returns `RedundantComputation { code: "O105", … }`
 /// for each occurrence that is *may-available* on entry (some
 /// path has already computed it) but not *must-available* (so
 /// hoisting before the merge point would save the computation
@@ -1500,7 +1504,7 @@ pub fn find_partial_redundancies(
                                     span: occ.span,
                                     first_span: first.span,
                                     expression_text: text.clone(),
-                                    code: "O106".into(),
+                                    code: "O105".into(),
                                     message: partial_redundancy_message(&text),
                                 });
                             }
@@ -2336,7 +2340,9 @@ mod tests {
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].code, "O107");
+        // Canonical: loop-invariant code motion is O106 (not O107,
+        // which is unreachable dead code) — GAP-B2.
+        assert_eq!(results[0].code, "O106");
         assert!(results[0].expression_text.contains("llength"));
     }
 
@@ -2586,7 +2592,10 @@ mod tests {
 
         let results = find_partial_redundancies(&registry, &cfg, &ssa, None);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].code, "O106");
+        // Canonical: partial redundancy (GVN-PRE) shares O105 with
+        // full redundancy — the loop-invariant code O106 was wrong
+        // here (GAP-B2).
+        assert_eq!(results[0].code, "O105");
         assert_eq!(results[0].span.start(), 200);
         assert_eq!(results[0].first_span.start(), 100);
     }

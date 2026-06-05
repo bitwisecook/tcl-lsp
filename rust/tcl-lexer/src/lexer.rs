@@ -271,6 +271,15 @@ pub struct Lexer<'src> {
     /// Once true, [`Iterator::next`] returns `None`.
     done: bool,
     config: LexerConfig,
+    /// GAP-A1: zero-width "ghost" closing delimiters injected for error
+    /// recovery, keyed by source byte offset (value is the delimiter
+    /// byte, e.g. `b']'`).  When the scanner reaches a ghost offset it
+    /// *sees* the ghost byte before the real one; consuming a ghost is
+    /// zero-width (it removes the entry without advancing `pos`), so an
+    /// unterminated `[foo bar` re-lexes as a terminated command without
+    /// shifting any downstream offsets.  Mirrors the Python lexer's
+    /// `virtual_insertions`.  Empty on the normal lexing path.
+    ghosts: std::collections::BTreeMap<u32, u8>,
 }
 
 impl<'src> Lexer<'src> {
@@ -302,7 +311,25 @@ impl<'src> Lexer<'src> {
             last_kind: TokenType::Eol,
             done: false,
             config,
+            ghosts: std::collections::BTreeMap::new(),
         }
+    }
+
+    /// Attach zero-width ghost closing delimiters (offset → delimiter
+    /// byte) for error recovery; see the `ghosts` field.  Builder form,
+    /// chains after [`Lexer::new`] / [`Lexer::with_source_map`].
+    #[must_use]
+    pub fn with_ghosts(mut self, ghosts: std::collections::BTreeMap<u32, u8>) -> Self {
+        self.ghosts = ghosts;
+        self
+    }
+
+    /// The ghost delimiter byte active at `offset`, if any.
+    fn ghost_at(&self, offset: u32) -> Option<u8> {
+        if self.ghosts.is_empty() {
+            return None;
+        }
+        self.ghosts.get(&offset).copied()
     }
 
     /// Borrow the lexer's source map without consuming the lexer.
@@ -375,13 +402,23 @@ impl<'src> Lexer<'src> {
 
     #[inline]
     fn current_byte(&self) -> Option<u8> {
+        // A ghost closing delimiter at `pos` is seen before the real
+        // byte (GAP-A1).
+        if let Some(g) = self.ghost_at(self.pos) {
+            return Some(g);
+        }
         self.source().as_bytes().get(self.pos as usize).copied()
     }
 
     /// Return the character starting at `self.pos`, or `None` at EOF.
     #[inline]
     fn current_char(&self) -> Option<char> {
-        self.source()[self.pos as usize..].chars().next()
+        if let Some(g) = self.ghost_at(self.pos) {
+            return Some(char::from(g));
+        }
+        self.source()
+            .get(self.pos as usize..)
+            .and_then(|s| s.chars().next())
     }
 
     /// Emit a warning (non-strict) or return an error (strict).
@@ -1118,14 +1155,21 @@ impl<'src> Lexer<'src> {
 
         // At this point `self.pos` is at the closing `]` or at EOF.
         let content_empty = self.pos == content_start;
+        // `current_byte` reports a ghost `]` too; distinguish so the
+        // ghost is consumed zero-width (GAP-A1).
+        let close_is_ghost = self.ghost_at(self.pos) == Some(b']');
         let has_close_bracket = self.current_byte() == Some(b']');
-        let span_end = if content_empty && has_close_bracket {
-            self.pos + 1 // include the `]` so the end position lands on it
+        let span_end = if content_empty && has_close_bracket && !close_is_ghost {
+            self.pos + 1 // include the real `]` so the end lands on it
         } else {
             self.pos
         };
         if has_close_bracket {
-            self.pos += 1;
+            if close_is_ghost {
+                self.ghosts.remove(&self.pos); // zero-width: don't advance
+            } else {
+                self.pos += 1;
+            }
         } else {
             self.warn_or_error("missing close-bracket")?;
         }
@@ -2564,5 +2608,67 @@ mod tests {
         let default = LexerConfig::default();
         assert_eq!(cfg.expand_syntax, default.expand_syntax);
         assert_eq!(cfg.irules_brace_separator, default.irules_brace_separator);
+    }
+
+    // -- GAP-A1: ghost-token recovery -------------------------------
+
+    #[test]
+    fn ghost_bracket_terminates_unclosed_command() {
+        // `set x [foo` — inject a ghost `]` at offset 10 (one past
+        // "foo"). The lexer should lex a terminated Cmd token spanning
+        // `[foo` and emit no "missing close-bracket" warning.
+        let src = "set x [foo";
+        let mut ghosts = std::collections::BTreeMap::new();
+        ghosts.insert(10u32, b']');
+        let lexer = Lexer::new(src).with_ghosts(ghosts);
+        let (tokens, warnings) = lexer.tokenise_all_with_warnings().expect("lex ok");
+        let cmd = tokens
+            .iter()
+            .find(|t| t.kind == TokenType::Cmd)
+            .expect("a Cmd token");
+        // The ghost `]` is zero-width, so the Cmd span ends at the ghost
+        // offset (no extra byte consumed) and no real char is skipped.
+        assert_eq!(cmd.span.start(), 6);
+        assert_eq!(cmd.span.end(), 10);
+        assert!(
+            warnings
+                .iter()
+                .all(|w| w.message != "missing close-bracket"),
+            "ghost should suppress the unterminated warning: {warnings:?}",
+        );
+    }
+
+    #[test]
+    fn ghost_bracket_splits_swallowed_following_command() {
+        // `[foo bar\nputs done` with a ghost `]` after "bar" re-lexes as
+        // a terminated `[foo bar]` followed by a clean `puts done`.
+        let src = "[foo bar\nputs done";
+        let mut ghosts = std::collections::BTreeMap::new();
+        ghosts.insert(8u32, b']'); // one past "bar", at the '\n'
+        let lexer = Lexer::new(src).with_ghosts(ghosts);
+        let (tokens, _) = lexer.tokenise_all_with_warnings().expect("lex ok");
+        // The first Cmd token covers `[foo bar` (zero-width close at 8).
+        let cmd = tokens.iter().find(|t| t.kind == TokenType::Cmd).unwrap();
+        assert_eq!((cmd.span.start(), cmd.span.end()), (0, 8));
+        // `puts` and `done` are lexed as ordinary words after the split,
+        // with their original absolute offsets intact.
+        let words: Vec<&str> = tokens
+            .iter()
+            .filter(|t| t.kind == TokenType::Esc)
+            .map(|t| &src[t.span.start() as usize..t.span.end() as usize])
+            .collect();
+        assert!(words.contains(&"puts"), "{words:?}");
+        assert!(words.contains(&"done"), "{words:?}");
+    }
+
+    #[test]
+    fn no_ghosts_is_identical_to_plain_lexing() {
+        let src = "set x [foo]\nputs $x\n";
+        let plain = Lexer::new(src).tokenise_all().unwrap();
+        let with_empty = Lexer::new(src)
+            .with_ghosts(std::collections::BTreeMap::new())
+            .tokenise_all()
+            .unwrap();
+        assert_eq!(plain, with_empty);
     }
 }

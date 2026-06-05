@@ -156,14 +156,19 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 return args[0].split_whitespace().map(String::from).collect();
             }
             // SYNC4 + SYNC5: registry-driven VarWrite walk.  Skips
-            // specs whose dynamic-barrier trait says the analyser's
-            // `var_scoping` pass handles the per-arg list (`global`,
-            // `variable`, `upvar`); without the skip we'd produce
-            // partial defs for the vararg forms (`global x y z`
-            // would mark only `x`).
+            // *scope-alias* commands (`global`, `variable`, `upvar`)
+            // whose variable bindings are tracked separately by the
+            // `var_scoping` pass; without the skip we'd produce partial
+            // defs for the vararg forms (`global x y z` would mark only
+            // `x`).  Mirrors Python's `command not in
+            // scope_alias_commands()` gate (`ssa.py:102`) — the
+            // discriminator is `CREATES_SCOPE_ALIAS`, *not*
+            // `CREATES_DYNAMIC_BARRIER`: `trace` is a dynamic barrier
+            // but not a scope alias, so `trace add variable x` must
+            // still surface its `VarWrite` def.
             if let Some(reg) = registry {
                 if let Some(spec) = reg.get(command) {
-                    if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER) {
+                    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
                         return Vec::new();
                     }
                 }

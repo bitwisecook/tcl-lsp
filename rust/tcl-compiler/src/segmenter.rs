@@ -405,6 +405,66 @@ where
     None
 }
 
+/// Segment `source` with ghost-token error recovery (GAP-A1 strip 3b).
+///
+/// Does a first plain parse, runs the E201 unterminated-`[` heuristics
+/// over it to derive zero-width ghost `]` insertions (the
+/// comment / known-command / brace cases), and — when any are found —
+/// re-lexes with those ghosts so a swallowed following command
+/// (`set x [foo bar` then `puts done`) splits into a clean
+/// `[foo bar]` + `puts done` stream.  Returns the (possibly re-lexed)
+/// commands **and** the E201 diagnostics for each applied ghost; an
+/// empty diagnostic list means no recovery was applied and the commands
+/// are exactly [`segment_commands_local`] (the strip-3c caller then
+/// keeps its own scan-to-next stream).
+///
+/// Mirrors `recovery.py::segment_with_recovery` (the
+/// `(clean_commands, diagnostics)` shape).  The E204-E206 lexer-warning
+/// codes are emitted separately by the analyser.
+#[must_use]
+pub fn segment_with_recovery(
+    source: &str,
+    config: LexerConfig,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) -> (
+    Vec<SegmentedCommand>,
+    Vec<crate::analyser::types::Diagnostic>,
+) {
+    let commands = segment_commands_local(source, config);
+    if commands.is_empty() {
+        return (commands, Vec::new());
+    }
+    let mut ghosts: std::collections::BTreeMap<u32, u8> = std::collections::BTreeMap::new();
+    let mut diagnostics = Vec::new();
+    for cmd in &commands {
+        for diag in
+            crate::analyser::syntax_checks::unterminated_bracket_diagnostics(cmd, source, registry)
+        {
+            // A heuristic case carries a `]`-insertion fix whose offset
+            // is the ghost offset; a bare fallback has no fix and stays
+            // unterminated after the re-lex.  Collect *every* E201 here
+            // (with its original-source span) so the caller can skip its
+            // own detector entirely once recovery applies — a
+            // ghost-terminated command would otherwise look unterminated
+            // against the original bytes and double-report.
+            if let Some(fix) = diag.fixes.first() {
+                ghosts.insert(fix.span.start(), b']');
+            }
+            diagnostics.push(diag);
+        }
+    }
+    if ghosts.is_empty() {
+        // No heuristic insertion → no re-lex.  The caller keeps its
+        // scan-to-next stream and its own (fallback) E201 detector.
+        return (commands, Vec::new());
+    }
+    let sm = SourceMap::new(source);
+    let (document, _warnings) =
+        crate::parsing::syntax::build::build_document_with_ghosts(source, config, ghosts);
+    let clean = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    (clean, diagnostics)
+}
+
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     // The segmenter now derives its `SegmentedCommand`s from the canonical
     // red-green CST (`parsing::syntax`) rather than its own token loop —
@@ -430,6 +490,35 @@ mod tests {
     #[test]
     fn empty_source() {
         assert!(segment_commands("").is_empty());
+    }
+
+    #[test]
+    fn recovery_splits_swallowed_following_command() {
+        // GAP-A1 strip 3b: an unterminated `[` whose next line is a
+        // known command re-lexes into a clean two-command stream and
+        // yields an E201 diagnostic.
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let cfg = LexerConfig::default();
+        let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, Some(&reg));
+        assert_eq!(rec.len(), 2);
+        assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
+        assert_eq!(rec[1].texts, vec!["puts", "done"]);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, "E201");
+    }
+
+    #[test]
+    fn recovery_is_a_noop_on_clean_input() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let cfg = LexerConfig::default();
+        let src = "set ok [foo]\nputs hi\n";
+        let (rec, diags) = segment_with_recovery(src, cfg, Some(&reg));
+        let plain = segment_commands(src);
+        // No recoverable imbalance → byte-identical words, no diagnostics.
+        let words =
+            |cs: &[SegmentedCommand]| cs.iter().map(|c| c.texts.clone()).collect::<Vec<_>>();
+        assert_eq!(words(&rec), words(&plain));
+        assert!(diags.is_empty());
     }
 
     #[test]

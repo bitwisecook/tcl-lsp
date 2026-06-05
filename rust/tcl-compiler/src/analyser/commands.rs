@@ -408,6 +408,38 @@ impl Analyser {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
+        // W102 / W103 / W300 / W301 / W309 / W312 security-injection
+        // checks (GAP-A2), ported from `core/analysis/checks/_security.py`.
+        self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
+        self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w300_source_variable(cmd_name, args, arg_tokens);
+        self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
+        self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w303_redos(cmd_name, args, arg_tokens);
+        // W310 runs for every command (it scans args for credential
+        // option flags), so it takes no cmd_name guard.
+        self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
+        // IRULE2002: deprecated iRules command (f5-irules only).
+        self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
+        self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
+        self.emit_w104_append_list(cmd_name, args, arg_tokens);
+        self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
+        self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
+        self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
+        self.emit_w121_invalid_subnet_mask(args, arg_tokens);
+        self.emit_w108_non_ascii(arg_tokens);
+        // W240 / W241 loop-termination + W230 / W232 index-bounds (GAP-A4).
+        let loop_diags =
+            super::bounds_checks::loop_termination_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(loop_diags);
+        let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(idx_diags);
+        let lset_diags =
+            super::bounds_checks::lset_index_diagnostics(cmd_name, args, arg_tokens, &self.source);
+        self.result.diagnostics.extend(lset_diags);
+        let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(str_diags);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(
@@ -443,6 +475,11 @@ impl Analyser {
         }
         indices.sort_unstable();
 
+        // W100 (GAP-A8): unbraced expression argument. Runs for every
+        // EXPR-role form, including the `expr 1 + 2` multi-word case
+        // handled by the early return below.
+        self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
+
         // Special-case ``expr ...``: when the user wrote multiple
         // arguments (``expr 1 + 2`` instead of the more common
         // ``expr {1 + 2}``), Python anchors the diagnostic at
@@ -472,6 +509,7 @@ impl Analyser {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
                 self.emit_w110_string_eq_ne(text, tok.span);
                 self.emit_w003_dialect_invalid_expr_operator(text, tok.span);
+                self.emit_w114_redundant_nested_expr(text, tok.span);
             }
         }
     }
