@@ -651,6 +651,91 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
     (template_idx, nocommands, novariables)
 }
 
+/// Return `(pattern_text, token)` pairs for every regex pattern
+/// argument in a `regexp` / `regsub` / `switch -regexp` command.
+/// Mirrors `core/analysis/checks/_helpers.py::
+/// _find_regex_patterns_in_command`: `regexp` / `regsub` contribute
+/// their first positional (option-skipping) argument; `switch -regexp`
+/// contributes every non-`default` pattern arm — inline pairs (form 1)
+/// or a single braced case list (form 2, re-segmented via
+/// [`super::handlers::parse_switch_body_elements`]).
+fn find_regex_patterns_in_command(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+) -> Vec<(String, tcl_lexer::Token)> {
+    if args.is_empty() || arg_tokens.is_empty() {
+        return Vec::new();
+    }
+    match cmd_name {
+        "regexp" | "regsub" => {
+            // Skip leading flags to the pattern argument (`-start`
+            // consumes its value; `--` ends the option section).
+            let mut idx = 0;
+            while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
+                if args[idx] == "-start" && idx + 1 < args.len() {
+                    idx += 2;
+                } else {
+                    idx += 1;
+                }
+            }
+            if idx < args.len() && args[idx] == "--" {
+                idx += 1;
+            }
+            match (args.get(idx), arg_tokens.get(idx)) {
+                (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
+                _ => Vec::new(),
+            }
+        }
+        "switch" => {
+            let mut is_regexp = false;
+            let mut i = 0;
+            while i < args.len() && args[i].starts_with('-') {
+                if args[i] == "-regexp" {
+                    is_regexp = true;
+                }
+                if args[i] == "--" {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            if !is_regexp {
+                return Vec::new();
+            }
+            // Skip the `string` argument.
+            i += 1;
+            let mut results = Vec::new();
+            if i < args.len() && i == args.len() - 1 {
+                // Form 2: single braced case list.
+                if let Some(case_tok) = arg_tokens.get(i) {
+                    let elements = super::handlers::parse_switch_body_elements(&args[i], *case_tok);
+                    let mut j = 0;
+                    while j + 1 < elements.len() {
+                        let (text, tok) = &elements[j];
+                        if text != "default" {
+                            results.push((text.clone(), *tok));
+                        }
+                        j += 2;
+                    }
+                }
+            } else {
+                // Form 1: inline pattern/body pairs.
+                while i + 1 < args.len() {
+                    if let (Some(text), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                        if text != "default" {
+                            results.push((text.clone(), *tok));
+                        }
+                    }
+                    i += 2;
+                }
+            }
+            results
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Walk `node` and collect every `==`/`!=` operator whose at least
 /// one operand is a string literal ([`ExprNode::String`]).
 ///
@@ -2833,6 +2918,48 @@ I/O commands."
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
+        }
+    }
+
+    /// **W303.** Emit "regexp vulnerable to catastrophic backtracking
+    /// (`ReDoS`)" when a *literal* regex pattern in `regexp` / `regsub` /
+    /// `switch -regexp` contains a nested quantifier (`(a+)+`) or an
+    /// overlapping alternation (`(a|a)+`).  Mirrors
+    /// `_security.py:451-475::check_redos` driven by
+    /// `_find_regex_patterns_in_command`; variable / command-substituted
+    /// patterns are left alone (the literal text never matches the
+    /// detector), matching Python's literal-only behaviour.
+    pub(super) fn emit_w303_redos(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "regexp" | "regsub" | "switch") {
+            return;
+        }
+        let patterns = find_regex_patterns_in_command(cmd_name, args, arg_tokens);
+        if patterns.is_empty() {
+            return;
+        }
+        // Nested quantifier `…+)+` / `…*)*` or overlapping alternation
+        // `(a|a)+` — the exact `_REDOS_PATTERN` from `_security.py`.
+        let Ok(redos) = regex::Regex::new(r"(?:[+*]\)[+*{])|(?:\([^)]*\|[^)]*\)[+*{])") else {
+            return;
+        };
+        for (pattern, tok) in patterns {
+            if redos.is_match(&pattern) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W303".to_string(),
+                    span: tok.span,
+                    message: "Regular expression may be vulnerable to catastrophic \
+backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential \
+matching time on crafted input."
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
         }
     }
 
@@ -7902,5 +8029,32 @@ foo
         assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
         // A literal filename is fine.
         assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
+    }
+
+    #[test]
+    fn w303_redos_nested_quantifiers() {
+        // Nested quantifier and overlapping alternation, in regexp /
+        // regsub and a `switch -regexp` braced case list.
+        assert_eq!(sec_codes("regexp {(a+)+} $str\n", "W303"), 1);
+        assert_eq!(sec_codes("regexp {(a|a)+} $str\n", "W303"), 1);
+        assert_eq!(sec_codes("regsub {(x*)*} $s y out\n", "W303"), 1);
+        assert_eq!(
+            sec_codes("switch -regexp $x {(a+)+ {body} default {x}}\n", "W303"),
+            1
+        );
+        // Option flags before the pattern are skipped.
+        assert_eq!(sec_codes("regexp -nocase {(a+)+} $s\n", "W303"), 1);
+        // Safe patterns don't fire.
+        assert_eq!(sec_codes("regexp {abc} $str\n", "W303"), 0);
+        assert_eq!(sec_codes("regexp {[0-9]+} $s\n", "W303"), 0);
+    }
+
+    #[test]
+    fn w303_message_and_severity() {
+        let mut a = Analyser::new();
+        let r = a.analyse("regexp {(a+)+} $s\n", "tcl8.6");
+        let w303 = r.diagnostics.iter().find(|d| d.code == "W303").unwrap();
+        assert_eq!(w303.severity, Severity::Warning);
+        assert!(w303.message.contains("catastrophic"), "{w303:?}");
     }
 }

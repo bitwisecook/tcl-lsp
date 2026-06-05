@@ -4355,11 +4355,23 @@ exactly the substitution kinds still active and is suppressed when both
 `|`-pipeline → HINT, bare `$var` argument → WARNING).  Both reuse the
 shared `args_have_substitution` probe; messages are byte-identical to
 Python and cross-checked against the live analyser.  4 unit tests, full
-compiler suite green (2505).  **Remaining GAP-A2:** **W303** (regexp ReDoS
-— needs the `_find_regex_patterns_in_command` + nested-quantifier-pattern
-port) and **W310** (hardcoded credentials — needs the registry
-`credential_options` / `subcommand_credential_info` surface, which the
-registry chat / PR #550 may add).
+compiler suite green (2505).
+
+**LANDED (W303 regexp ReDoS, 2026-06-05).**  Ports
+`check_redos` + `_find_regex_patterns_in_command`: `emit_w303_redos`
+collects every *literal* regex pattern from `regexp` / `regsub` (the
+option-skipping first positional) and `switch -regexp` (inline pattern
+arms or a single braced case list — re-segmented via the existing
+`parse_switch_body_elements`), then flags any pattern matching the exact
+`_REDOS_PATTERN` (a nested quantifier `…+)+` / `…*)*` or an overlapping
+alternation `(a|a)+`) via the `regex` crate.  Variable / command-
+substituted patterns are left alone (the as-written literal text never
+matches the detector — Python's literal-only behaviour).  2 unit tests,
+full compiler suite green (2507).  **Remaining GAP-A2:** only **W310**
+(hardcoded credentials — needs the registry `credential_options` /
+`subcommand_credential_info` surface, which the registry chat / PR #550
+may add).  Seven of the eight previously-absent security checks (W102,
+W103, W300, W301, W303, W309, W312) are now ported.
 
 **GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
 algorithm — absent.**  The 1776-entry Unicode confusables table

@@ -416,6 +416,7 @@ impl Analyser {
         self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
         self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w303_redos(cmd_name, args, arg_tokens);
         self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
         self.emit_w104_append_list(cmd_name, args, arg_tokens);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
