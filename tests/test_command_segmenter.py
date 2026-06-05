@@ -1146,3 +1146,28 @@ class TestPartialCommandHashCoversTail:
         one = segment_top_level_chunks("set a 1\n")[0]
         two = segment_top_level_chunks("set a 1\nset b 2\n")[0]
         assert one.source_hash == two.source_hash
+
+    def test_trailing_layout_whitespace_is_folded(self):
+        # Trailing ASCII whitespace bears no token, so it must not affect the
+        # hash (this is what keeps the append-invariant; only the lexer's layout
+        # separators are stripped).
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        spaced = segment_top_level_chunks("set a 1   \t\n")[0]
+        assert plain.source_hash == spaced.source_hash
+
+    def test_trailing_semicolon_is_kept_distinct(self):
+        # ``;`` is a syntactic command terminator, not layout: it must stay in the
+        # hash.  Folding ``set a 1;`` onto ``set a 1`` collides chunks the
+        # incremental builder has to tell apart (a real divergence seen under the
+        # random-edit storm); guard against re-stripping it as "trivia".
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        semi = segment_top_level_chunks("set a 1;\n")[0]
+        assert plain.source_hash != semi.source_hash
+
+    def test_trailing_unicode_whitespace_is_not_over_stripped(self):
+        # The strip names the lexer's ASCII set rather than using bare
+        # ``str.rstrip()``, so a trailing non-ASCII space the lexer treats as
+        # word content still changes the hash.
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        nbsp = segment_top_level_chunks("set a 1\u00a0\n")[0]  # U+00A0 NBSP
+        assert plain.source_hash != nbsp.source_hash

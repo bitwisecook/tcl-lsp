@@ -29,6 +29,16 @@ from shared.tokens import SourcePosition, Token, TokenType
 
 log = logging.getLogger(__name__)
 
+# Trailing layout trivia stripped before hashing a chunk's tile.  This is the
+# lexer's inter-command separator set (``lexer._SEPARATOR_CHARS``) *minus* ``;``:
+# the ASCII-whitespace members are pure layout and never bear a token, so
+# dropping a trailing run of them is what preserves the append-invariant.  ``;``
+# is deliberately kept — it is a syntactic command terminator, not layout, and
+# folding ``set x 1;`` onto ``set x 1`` collides chunks the incremental builder
+# must still tell apart.  Kept as a string (not a frozenset) for ``str.rstrip``
+# and deliberately narrower than ``str.rstrip()``'s Unicode-whitespace default.
+_TRAILING_TRIVIA = " \t\n\r\x0b\x0c"
+
 
 class UnclosedDelimiter(Enum):
     """Which delimiter was left unclosed in a partial command."""
@@ -277,22 +287,31 @@ def tile_commands(
     for i, cmd in enumerate(commands):
         start = cmd.range.start.offset
         tile_end = commands[i + 1].range.start.offset if i + 1 < n else last
-        # Hash the whole tile's non-whitespace content, not just
-        # ``source[start:cmd_end+1]``.  A chunk's tile can carry text past the
-        # command's parsed ``range.end`` — the unparsed tail of a *partial*
-        # command (unclosed ``{`` / ``[`` / ``"``), or a trailing comment the
-        # segmenter folds into the preceding command's tile.  That tail is part
-        # of the chunk (it contributes semantic tokens), so an edit there must
-        # change the hash; otherwise ``find_first_dirty_chunk`` treats the chunk
-        # as clean and the incremental cache serves stale per-chunk tokens
-        # (observed as a token whose length/coverage lags the buffer).
+        # Hash the chunk's *tile* (``[start, tile_end)``) minus trailing
+        # inter-command separators, rather than a node range.  The tile — the
+        # span up to the next command's start — is the segmenter's authoritative
+        # chunk boundary, and neither node range on a recovered *partial* command
+        # gives the chunk's significant extent: ``cmd.range.end`` is deliberately
+        # truncated to the error-recovery point (so diagnostics anchor there),
+        # while its last ``all_tokens`` entry is an *unterminated* delimiter token
+        # that over-runs past ``tile_end`` into the next command.  So a tile can
+        # carry significant text past ``cmd.range.end`` — the unparsed tail of a
+        # partial command, or a trailing comment folded into the tile — that
+        # contributes semantic tokens.  Hashing only ``source[start:cmd_end+1]``
+        # left that out, so an edit there did not change the hash,
+        # ``find_first_dirty_chunk`` saw the chunk as clean, and the incremental
+        # cache served stale per-chunk tokens (a token whose length/coverage lags
+        # the buffer).
         #
-        # ``rstrip`` drops only *trailing whitespace* up to ``tile_end``, so the
-        # append-invariant still holds: appending a new command (pure whitespace
-        # between this command and the new one until then) does not invalidate
-        # this chunk's hash.  For a well-formed command with nothing but
-        # whitespace before the next command this equals the old tight slice.
-        cmd_text = source[start:tile_end].rstrip()
+        # Stripping the *trailing* layout whitespace (``_TRAILING_TRIVIA``) is the
+        # trivia removal: that whitespace is what the lexer skips between commands
+        # and bears no token, so what remains is precisely the chunk's
+        # token-bearing content.  It preserves the append-invariant — appending a
+        # new command (pure whitespace between this command and the next until
+        # then) does not invalidate this chunk — and, by naming the lexer's set
+        # rather than using ``str.rstrip()``'s broader Unicode-whitespace default,
+        # never strips a character the lexer would treat as word content.
+        cmd_text = source[start:tile_end].rstrip(_TRAILING_TRIVIA)
         chunks.append(
             TopLevelChunk(
                 index=start_index + i,
