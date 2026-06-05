@@ -4306,10 +4306,29 @@ all other input is byte-unchanged (full suite green, 2496).  3 unit /
 integration tests across the segmenter + analyser.  **GAP-A1 is
 complete** for the in-pipeline behaviour: E201 + E204-E206 diagnostics,
 the zero-width ghost lexer engine, the recovery module, and the analyser
-integration.  The E202 / E203 *heuristic* detectors (the conservative
-unterminated-`"` / `{` cases that don't fire in the live pipeline) and
-the `SegmentedCommand.partial_delimiter` precise-E200-suffix field remain
-as low-value follow-ups.
+integration.
+
+**LANDED (E202 / E203 unterminated-`"` / `{` detectors, 2026-06-05).**
+`syntax_checks::unterminated_delimiter_diagnostics` ports the E202 /
+E203 detectors of `recovery.py` (`_is_suspicious_quote` +
+`_detect_missing_quote_*`, `_is_suspicious_str` +
+`_detect_missing_brace_*`).  An unterminated `"` at end-of-line that
+swallows the rest of the document emits **E202** (`missing "`) — with a
+`"`-after-the-opener insertion fix when the next non-blank line starts
+with a known command, else the fix-less fallback; an unterminated
+multi-line `{` with no closing `}` emits **E203** (`missing close-brace`)
+— with a `}`-insertion fix at the newline before a de-indented
+known-command line (gated on balanced preceding braces), else the
+fallback.  Wired into the analyser for both the partial-command path
+(replacing the generic E200 when a delimiter-recovery diagnostic applies)
+and the non-partial path (for quote runs below the segmenter's
+recovery line threshold), honouring the disable set.  Cross-checked
+against the live analyser (heuristic + fallback for each); 3 unit tests,
+full compiler suite green (2512).  **Remaining (low-value):** nested-body
+E202/E203 (the detectors run top-level only today, mirroring the E201
+nesting scope) and the `SegmentedCommand.partial_delimiter`
+precise-E200-suffix field.  **GAP-A1 recovery is now feature-complete at
+the top level** (E201/E202/E203 + E204-E206 + the ghost engine).
 
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).

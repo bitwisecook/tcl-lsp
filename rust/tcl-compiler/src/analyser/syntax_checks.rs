@@ -199,6 +199,229 @@ fn e201_at_brace(content: &str, content_start: u32, bracket_off: u32) -> Option<
     ))
 }
 
+/// E202 / E203 (GAP-A1): unterminated `"` / `{` recovery diagnostics.
+///
+/// Mirrors the E202 / E203 detectors of `core/parsing/recovery.py`
+/// (`_is_suspicious_quote` + `_detect_missing_quote_*`,
+/// `_is_suspicious_str` + `_detect_missing_brace_*`).  For each
+/// genuinely unterminated quote / brace token in the command it emits one
+/// diagnostic: the known-command heuristic with a closing-delimiter
+/// insertion fix when one can be located, else the fix-less fallback.
+/// Returns an empty vector for well-formed input.
+pub(crate) fn unterminated_delimiter_diagnostics(
+    cmd: &SegmentedCommand,
+    source: &str,
+    registry: Option<&CommandRegistry>,
+) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for tok in &cmd.all_tokens {
+        if is_suspicious_quote(tok, cmd, source) {
+            out.push(detect_e202(tok, source, registry));
+        } else if is_suspicious_str(tok, source) {
+            out.push(detect_e203(tok, source, registry));
+        }
+    }
+    out
+}
+
+/// The inner text of `tok` (past its opening delimiter), or `None` for
+/// an out-of-bounds span.
+fn token_inner<'a>(source: &'a str, tok: &Token) -> Option<&'a str> {
+    let start = tok.span.start() as usize + tok.content_offset as usize;
+    let end = tok.span.end() as usize;
+    if start <= end && end <= source.len() {
+        source.get(start..end)
+    } else {
+        None
+    }
+}
+
+/// True when `tok` is an `Esc` from an unterminated `"` at end-of-line
+/// that swallows the rest of the document.  Mirrors `_is_suspicious_quote`:
+/// the token starts at a `"`, its inner text begins with a newline with
+/// non-blank content after it, and the command reaches EOF.
+fn is_suspicious_quote(tok: &Token, cmd: &SegmentedCommand, source: &str) -> bool {
+    if tok.kind != TokenType::Esc {
+        return false;
+    }
+    if source.as_bytes().get(tok.span.start() as usize) != Some(&b'"') {
+        return false;
+    }
+    let Some(text) = token_inner(source, tok) else {
+        return false;
+    };
+    if !text.starts_with('\n') || text[1..].trim().is_empty() {
+        return false;
+    }
+    // A properly closed quote wouldn't run to EOF.
+    if let Some(last) = cmd.all_tokens.last() {
+        if (last.span.end() as usize) < source.len().saturating_sub(1) {
+            return false;
+        }
+    }
+    true
+}
+
+/// True when `tok` is a `Str` from an unterminated `{` spanning multiple
+/// lines with no closing `}`.  Mirrors `_is_suspicious_str`: a token
+/// text containing `}` is E103 territory (brace closed at the wrong
+/// nesting level), not a truly missing brace.
+fn is_suspicious_str(tok: &Token, source: &str) -> bool {
+    if tok.kind != TokenType::Str {
+        return false;
+    }
+    if source.as_bytes().get(tok.span.start() as usize) != Some(&b'{') {
+        return false;
+    }
+    // Properly closed: the byte at the inner end is the `}`.
+    if source.as_bytes().get(tok.span.end() as usize) == Some(&b'}') {
+        return false;
+    }
+    let Some(text) = token_inner(source, tok) else {
+        return false;
+    };
+    if text.contains('}') {
+        return false;
+    }
+    // Must span at least two lines.
+    if text.bytes().filter(|&b| b == b'\n').count() < 2 {
+        return false;
+    }
+    true
+}
+
+/// Build the E202 diagnostic for an unterminated `"`: the known-command
+/// heuristic (insert `"` right after the opener) or the fix-less
+/// fallback.  Mirrors `_detect_missing_quote_at_newline` /
+/// `_detect_missing_quote_no_heuristic`.
+fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) -> Diagnostic {
+    let quote_off = tok.span.start();
+    let diag_span = Span::new(quote_off, quote_off);
+    if let Some(reg) = registry {
+        let text = token_inner(source, tok).unwrap_or("");
+        let lines: Vec<&str> = text.split('\n').collect();
+        if lines.len() >= 2 {
+            for (i, line) in lines.iter().enumerate() {
+                if i == 0 {
+                    continue;
+                }
+                let stripped = line.trim_start();
+                if stripped.is_empty() {
+                    continue;
+                }
+                if reg.get(extract_first_word(stripped)).is_some() {
+                    // Virtual `"` right after the opening `"`.
+                    let insert_off = quote_off + 1;
+                    return Diagnostic {
+                        code: "E202".to_string(),
+                        span: diag_span,
+                        message: "missing \"".to_string(),
+                        severity: Severity::Error,
+                        fixes: vec![CodeFix {
+                            span: Span::new(insert_off, insert_off),
+                            new_text: "\"".to_string(),
+                            description: "Insert missing '\"' to close string".to_string(),
+                        }],
+                    };
+                }
+                // First non-blank line isn't a known command — stop.
+                break;
+            }
+        }
+    }
+    Diagnostic {
+        code: "E202".to_string(),
+        span: diag_span,
+        message: "missing \"".to_string(),
+        severity: Severity::Error,
+        fixes: Vec::new(),
+    }
+}
+
+/// Build the E203 diagnostic for an unterminated `{`: the de-indented
+/// known-command heuristic (insert `}` at the newline before that line)
+/// or the fix-less fallback.  Mirrors `_detect_missing_brace_at_command`
+/// / `_detect_missing_brace_no_heuristic`.
+fn detect_e203(tok: &Token, source: &str, registry: Option<&CommandRegistry>) -> Diagnostic {
+    let brace_off = tok.span.start();
+    let diag_span = Span::new(brace_off, brace_off);
+    let content_start = brace_off + u32::from(tok.content_offset);
+    if let Some(reg) = registry {
+        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg) {
+            return Diagnostic {
+                code: "E203".to_string(),
+                span: diag_span,
+                message: "missing close-brace".to_string(),
+                severity: Severity::Error,
+                fixes: vec![fix],
+            };
+        }
+    }
+    Diagnostic {
+        code: "E203".to_string(),
+        span: diag_span,
+        message: "missing close-brace".to_string(),
+        severity: Severity::Error,
+        fixes: Vec::new(),
+    }
+}
+
+/// Locate the `}`-insertion fix for E203: scan the brace body for a
+/// de-indented line starting with a known command whose preceding brace
+/// content is balanced, and insert `}` at the newline before it.
+/// Mirrors the scan in `_detect_missing_brace_at_command`.
+fn e203_brace_fix(
+    tok: &Token,
+    source: &str,
+    content_start: u32,
+    registry: &CommandRegistry,
+) -> Option<CodeFix> {
+    let text = token_inner(source, tok)?;
+    let lines: Vec<&str> = text.split('\n').collect();
+    if lines.len() < 3 {
+        return None;
+    }
+    // Indentation of the first content line.
+    let first_indent = lines[1..]
+        .iter()
+        .find(|l| !l.trim_start().is_empty())
+        .map(|l| l.len() - l.trim_start().len())?;
+
+    let mut cumulative: usize = 0;
+    for (i, line) in lines.iter().enumerate() {
+        if i == 0 {
+            cumulative += line.len() + 1;
+            continue;
+        }
+        let stripped = line.trim_start();
+        if stripped.is_empty() {
+            cumulative += line.len() + 1;
+            continue;
+        }
+        let indent = line.len() - stripped.len();
+        if indent < first_indent && registry.get(extract_first_word(stripped)).is_some() {
+            // The brace content before this line must be balanced —
+            // otherwise a single `}` can't recover it.  (The token is
+            // already known to contain no `}`, so balance reduces to
+            // "no unmatched `{` before this point".)
+            let before = &text[..cumulative];
+            let opens = before.bytes().filter(|&b| b == b'{').count();
+            let closes = before.bytes().filter(|&b| b == b'}').count();
+            if opens == closes {
+                let newline_idx = cumulative - 1;
+                let insert_off = content_start + u32::try_from(newline_idx).unwrap_or(0);
+                return Some(CodeFix {
+                    span: Span::new(insert_off, insert_off),
+                    new_text: "}".to_string(),
+                    description: "Insert missing '}' before command".to_string(),
+                });
+            }
+        }
+        cumulative += line.len() + 1;
+    }
+    None
+}
+
 /// Content-text index of the end of the content on line `i-1` (its
 /// length with trailing whitespace trimmed), counted from the start of
 /// the content.  Mirrors the `insert_text_idx` computation.
@@ -571,5 +794,81 @@ mod tests {
         // A balanced `[llength $x]` is a command substitution, not a
         // stray closer.
         assert!(!codes("set n [llength $x]\n").contains(&"E100".to_string()));
+    }
+
+    // -- GAP-A1 E202 / E203 recovery detectors -----------------------
+    //
+    // Cross-checked against the live Python analyser.
+
+    fn recovery_diags(src: &str, code: &str) -> Vec<(String, usize)> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .map(|d| (d.message.clone(), d.fixes.len()))
+            .collect()
+    }
+
+    fn codes_eq(src: &str, prefix: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.starts_with(prefix))
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn e202_unterminated_quote() {
+        // Known command on the next line → E202 with an insert fix.
+        assert_eq!(
+            recovery_diags("set x \"\nputs hello\n", "E202"),
+            vec![("missing \"".to_string(), 1)]
+        );
+        // No known command → fix-less fallback.
+        assert_eq!(
+            recovery_diags("set x \"\nblah blah\n", "E202"),
+            vec![("missing \"".to_string(), 0)]
+        );
+        // The unterminated quote emits E202, not the generic E200.
+        assert_eq!(codes_eq("set x \"\nputs hello\n", "E20"), vec!["E202"]);
+        // A well-formed quoted string is silent.
+        assert!(recovery_diags("set x \"hello\"\n", "E202").is_empty());
+    }
+
+    #[test]
+    fn e203_unterminated_brace() {
+        // De-indented known command → E203 with an insert fix.
+        assert_eq!(
+            recovery_diags("set x {\n    aaa\n    bbb\nputs done\n", "E203"),
+            vec![("missing close-brace".to_string(), 1)]
+        );
+        // No de-indented command → fix-less fallback.
+        assert_eq!(
+            recovery_diags("set y {\n    aaa\n    bbb\n", "E203"),
+            vec![("missing close-brace".to_string(), 0)]
+        );
+        // E203 replaces the generic E200 for the unterminated brace.
+        assert_eq!(
+            codes_eq("set x {\n    aaa\n    bbb\nputs done\n", "E20"),
+            vec!["E203"]
+        );
+        // A balanced brace body is silent.
+        assert!(recovery_diags("set x {a b c}\n", "E203").is_empty());
+    }
+
+    #[test]
+    fn e203_fix_lands_before_the_deindented_command() {
+        let src = "set x {\n    aaa\n    bbb\nputs done\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let e203 = r.diagnostics.iter().find(|d| d.code == "E203").unwrap();
+        let fix = &e203.fixes[0];
+        // The `}` is inserted at the newline after `    bbb`.
+        let off = fix.span.start() as usize;
+        assert_eq!(&src[..off], "set x {\n    aaa\n    bbb");
+        assert_eq!(fix.new_text, "}");
     }
 }

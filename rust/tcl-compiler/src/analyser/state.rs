@@ -398,7 +398,13 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // GAP-A1: an unterminated `"` / `{` emits E202 / E203
+                // (with a closing-delimiter fix) instead of the generic
+                // E200; only fall through to E103 / E200 when no
+                // delimiter-recovery diagnostic applies.
+                if !self.emit_unterminated_delimiter_diagnostics(cmd_ref)
+                    && !self.detect_stolen_close_brace(cmd_ref)
+                {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
@@ -537,6 +543,35 @@ impl Analyser {
             );
             self.result.diagnostics.extend(e201);
         }
+        // GAP-A1: E202 / E203 fire for unterminated `"` / `{` whose
+        // token wasn't split into a partial command (e.g. a quote run
+        // below the segmenter's recovery line threshold).
+        self.emit_unterminated_delimiter_diagnostics(cmd);
+    }
+
+    /// Emit the E202 (unterminated `"`) / E203 (unterminated `{`)
+    /// recovery diagnostics for one command, honouring the disable set.
+    /// Returns `true` when at least one was emitted — the partial-command
+    /// path uses this to suppress the generic E200.  Mirrors the E202 /
+    /// E203 slice of `recovery.py::_detect_all_virtual_tokens`.
+    fn emit_unterminated_delimiter_diagnostics(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+    ) -> bool {
+        let diags = super::syntax_checks::unterminated_delimiter_diagnostics(
+            cmd,
+            &self.source,
+            self.registry.as_ref(),
+        );
+        let mut emitted = false;
+        for d in diags {
+            if self.disabled_diagnostics.contains(&d.code) {
+                continue;
+            }
+            self.result.diagnostics.push(d);
+            emitted = true;
+        }
+        emitted
     }
 
     /// GAP-A1 strip 2: emit the lexer-warning recovery codes E204

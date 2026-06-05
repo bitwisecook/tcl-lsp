@@ -620,8 +620,7 @@ fn is_ident_continue(b: u8) -> bool {
 
 /// Credential-bearing option flags whose literal values trip W310
 /// (the generic `_DEFAULT_PASSWORD_OPTIONS` from `_security.py`).
-const DEFAULT_PASSWORD_OPTIONS: [&str; 5] =
-    ["-password", "-pass", "-secret", "-token", "-apikey"];
+const DEFAULT_PASSWORD_OPTIONS: [&str; 5] = ["-password", "-pass", "-secret", "-token", "-apikey"];
 
 /// Return `true` when an `uplevel` first argument is a level
 /// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
