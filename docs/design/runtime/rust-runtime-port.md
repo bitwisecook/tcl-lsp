@@ -365,6 +365,43 @@ allowed under the [LSP guardrails](#the-aot-compiler-is-ours-to-restructure-with
 (no loss of LSP precision/perf). Each runtime chunk's first step is "what in
 `rust/` already does this?"
 
+### Parser convergence — status + plan
+
+**Started.** `runtime/rust` now path-depends on `tcl-lexer` (verified: the
+**workspace-excluded** runtime crate builds against the workspace lexer, and
+`tcl-lexer` builds for `wasm32` — `thiserror`-only). A probe
+(`runtime/rust/examples/probe.rs`) dumped the token stream for the hard cases
+and confirms `tcl-lexer` already handles the edges the runtime's `parse.rs` got
+wrong — `{*} x` → `STR("{*")` (literal `*`, not expansion); `# comment` vs
+`set x #y` (comment only in command position); `$arr($i)` as one `Var`. Token →
+eval-model mapping (using delimiter-stripped `token_text`):
+
+| `tcl-lexer` token | runtime lowering |
+|---|---|
+| `Sep` / `Eol` | word / command boundaries |
+| `Esc` (literal + escapes) | split into `Text`/`Backslash` `WordPart`s (borrow `src`) |
+| `Str` (braced, stripped) | `WordBody::Literal` (a whole braced word) |
+| `Var` (`$x`/`${x}`/`$arr(i)`) | `WordPart::Variable` (parse name + index; re-lex the index) |
+| `Cmd` (`[...]`, stripped) | `WordPart::Command` (inner script) |
+| `Expand` (`{*}`) | the next word's `expand` flag |
+
+**Plan (phased):**
+1. ✅ Wire the dependency; verify the crate boundary + wasm build; map the tokens.
+2. Lower `tcl-lexer` tokens → the existing borrowed `Command`/`WordPart` model
+   (so `interp`/`subst`/`cmd_*` are **unchanged**); switch `parse_command`/
+   `parse_script` to it; delete `parse.rs`'s `find_bare_end`/`skip_command_subst`/
+   the `{*}` and word scanning. The **83 eval tests gate equivalence**.
+3. Converge the remaining grammars (the contract's other "parse once" clients):
+   `subst` (with `-no*` flags) and `Tcl_SplitList` are not script-lexing, so they
+   need a **co-evolution of `tcl-lexer`** (a subst mode + a list mode) — allowed,
+   since nothing external uses it and we design a common surface that suits both
+   consumers (within the LSP guardrails). Then drop the runtime's `scan_parts` +
+   `split_list` + `bs.rs`.
+4. Likewise resolve the `&str`-vs-runtime-`&[u8]` boundary by co-designing
+   `tcl-lexer` (a bytes entry point, or the runtime upholds its UTF-8 internal-rep
+   invariant and converts at the call) — the spans are byte offsets either way,
+   so lowered `WordPart`s still borrow the original `&[u8]`.
+
 ## Reference implementations (use both freely)
 
 - **Canonical C Tcl 9 source** — `tmp/tcl9.0.3/generic/*.c`

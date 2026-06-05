@@ -25,6 +25,9 @@ repository = "https://github.com/bitwisecook/tcl-lsp"
 description = "Rust port of the Tcl WASM runtime support library + interpreter fallback"
 publish = false
 
+[dependencies]
+tcl-lexer = { path = "../../rust/tcl-lexer" }
+
 [lib]
 name = "tcl_runtime"
 # rlib for `cargo test`; cdylib/staticlib for the eventual whole-program link
