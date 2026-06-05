@@ -507,6 +507,30 @@ the lexer/parser/AST. Same shape applies to future shared semantics
 (name-resolution, shimmer): one algorithm, a trait for the value/store, two
 impls.
 
+**Convergence status + the const-folder design.** The runtime uses the shared
+`eval<ExprOps>` (✅). The compiler's const-folder (`tcl_expr_eval`, 1477 lines,
+8 optimiser consumers) is converging onto it — gated by `cargo test
+-p tcl-compiler` (the Rust const-folder is **not** on the Python bytecode-compare
+path, so it is fully gatable). Done: `parse_literal` → `tcl_syntax::number`; the
+shared `ExprOps::binary_other` hook (default = unsupported) so the compiler keeps
+its **iRules dialect ops** (`contains`/`starts_with`/`matches_glob`/`equals`/…).
+The remaining step is the `FoldOps: ExprOps` impl, with this **de-risked design**:
+- **`FoldValue { Int(i64), Float(f64), Str(raw_text) }`** — literals/strings/
+  string-env-vars become `Str` keeping their *raw text*, parsed lazily
+  per-context (numeric ops parse via `parse_literal`; string ops use the raw
+  text). This reproduces the const-folder's `eval`-vs-`eval_as_string` split
+  exactly, so the raw-text string-compare behaviour (`5.00 eq 5.0` → 0, #519) is
+  **preserved**, not changed.
+- `FoldOps` reuses the existing operator helpers (`apply_binary`/`dispatch_math`/
+  `apply_irules_string_op`/`apply_string_compare`); only the *walk*
+  (`eval`/`eval_binary`/`eval_unary`/`eval_call`) is deleted in favour of the
+  shared one. `Error = ()` = "can't fold" (maps to the existing `Option`);
+  `eval_tcl_expr` maps `FoldValue` → `TclValue` at the boundary so the 8
+  consumers are unchanged.
+- Expected (correct) gain: the const-folder folds a few more cases (e.g.
+  `"5" + 3` → `8`, which the conservative `eval`-returns-`None`-on-`String` path
+  skipped today); any test pinning the old non-fold gets updated.
+
 ### Deep survey (four sweeps) + the `tcl-syntax` decision
 
 Before convergence step 3, a four-way survey ran: the **compiler/LSP suite** and

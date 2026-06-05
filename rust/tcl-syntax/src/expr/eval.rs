@@ -49,6 +49,19 @@ pub trait ExprOps {
     /// A unary op (`-`/`+`/`~`/`!`).
     fn unary(&mut self, op: UnaryOp, value: Self::Value) -> Result<Self::Value, Self::Error>;
 
+    /// A binary op the shared core does not handle — the dialect operators
+    /// (`contains`/`starts_with`/`matches_glob`/…). Standard consumers leave the
+    /// default (`unsupported`); a dialect-aware consumer (the compiler's
+    /// const-folder) overrides this. Operands are already evaluated.
+    fn binary_other(
+        &mut self,
+        _op: BinOp,
+        _left: Self::Value,
+        _right: Self::Value,
+    ) -> Result<Self::Value, Self::Error> {
+        Err(self.unsupported("operator"))
+    }
+
     /// Numeric three-way comparison, or `None` when an operand is non-numeric
     /// (the walker then falls back to [`ExprOps::compare_string`] — the Tcl
     /// `==`/`<`… "numeric when both look numeric, else string" rule).
@@ -177,9 +190,10 @@ fn eval_binary<O: ExprOps>(
         // List membership.
         BinOp::In => ops.in_list(&l, &r)?,
         BinOp::Ni => !ops.in_list(&l, &r)?,
-        // `&&`/`||` handled above; iRules dialect string ops are consumer-
-        // specific and not part of the shared core.
-        _ => return Err(ops.unsupported("operator")),
+        // `&&`/`||` handled above; the remaining (dialect) operators go to the
+        // consumer's `binary_other` hook — which returns a value directly, so
+        // short-circuit out of the boolean path here.
+        _ => return ops.binary_other(op, l, r),
     };
     Ok(ops.bool_value(b))
 }
