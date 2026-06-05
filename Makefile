@@ -158,7 +158,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust test-vm test-opt test-fuzz test-fuzz-full fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -869,6 +869,10 @@ test-fuzz: $(UV_STAMP) ## Run differential fuzz tests (generator + campaign + co
 test-fuzz-full: $(UV_STAMP) ## test-fuzz PLUS the full saved-findings regression sweep (hundreds of differential runs vs tclsh)
 	@echo "==> Running differential fuzz tests + full saved-findings sweep"
 	cd $(ROOT) && FUZZ_FULL=1 $(UV) run --extra dev pytest tooling/fuzzing/tests/test_fuzz_differential.py -v
+
+test-fuzz-recovery: $(UV_STAMP) ## Error-recovery fuzz campaign: single-pass == two-pass + no-dup diagnostics (N=cases, SEED=base_seed)
+	@echo "==> Running error-recovery fuzz campaign ($(or $(N),200000) cases)"
+	cd $(ROOT) && $(UV) run python tests/fuzz_recovery_campaign.py --cases $(or $(N),200000) $(if $(SEED),--seed $(SEED))
 
 fuzz: $(UV_STAMP) ## Run a standalone fuzz campaign (N=iterations, SEED=base_seed)
 	@echo "==> Running fuzz campaign ($(or $(N),1000) iterations)"
