@@ -390,21 +390,43 @@ gate the runtime side):
 
 1. ✅ Create `tcl-syntax`; **list** module (canonical `FindElement` w/ `literal`
    flag + split + `ScanElement`/`ConvertElement` merge), reusing
-   `backslash_subst`. Wire the runtime's `split_list` to it.
-2. **subst** module (token model + decomposition + `TCL_SUBST_*` flags +
-   invalid-`$`/`[` literal passthrough); converge runtime `subst.rs`; drop
-   `runtime/src/bs.rs` (use `backslash_subst`).
-3. **expr**: move `expr_ast` + `expr_parser` + the `TclParseNumber` grammar into
-   `tcl-syntax`; `tcl-compiler` re-points to them (LSP gates prove equivalence).
-4. **format/scan**: move the spec parser in; the runtime renders over its value
-   type; `binary format/scan` designed fresh (no existing impl).
-5. Migrate the LSP-side list/subst consumers (`const_fold`, `codegen::helpers`)
-   onto `tcl-syntax`, deleting the duplicate copies (deliberate, per-caller —
-   `const_fold` intentionally bails on `\`, so its wrapper keeps that policy).
+   `backslash_subst`. Wired the runtime's `split_list` to it.
+2. ✅ **backslash/subst**: added `tcl_syntax::backslash` (re-exports the canonical
+   `backslash_subst` + a `decode_bytes`); **retired `runtime/src/bs.rs`** (a
+   second decoder, buggy on `\xff` → invalid UTF-8). Dropped `WordPart::Backslash`
+   — escapes fold into the `Text` run, decoded once (`subst.rs`/`interp.rs`
+   converged; one decoder, not two). Full subst-token-model + `TCL_SUBST_*`
+   convergence onto a shared `tcl-syntax::subst` is the remaining sub-step.
+3. ✅ **expr**: moved `expr_ast` + `expr_parser` (+ `naming`) into `tcl-syntax`;
+   `tcl-compiler` re-exports them under the original paths (the ~45 consumers +
+   LSP bindings unchanged). The `TclParseNumber` grammar + the tower-aware
+   evaluator land with the runtime numeric-tower chunk (the const-fold evaluator
+   stays in `tcl-compiler`).
+4. ✅ **format**: moved the conversion-specifier **grammar** (`FmtFlags` + `Spec`
+   + `parse_spec`) into `tcl_syntax::format`; the registry keeps its version-aware
+   renderers (output byte-identical, `parse` delegates). `scan` + the runtime
+   renderer follow; **`binary format/scan` is designed fresh with the
+   dual-ported byte-array value type** (see below) — it is byte-domain, not the
+   UTF-8 string domain `format`/`subst`/lists live in.
+5. ✅ **list quoter convergence**: `const_fold::list_element` (registry) +
+   `codegen::helpers::tcl_list_element` (compiler) now delegate to
+   `tcl_syntax::list::list_element` (also a correctness fix: leading-`#` +
+   control chars). The two `split_list` variants stay distinct **on purpose**
+   (documented): `const_fold::split_list` is a conservative fold-safety splitter,
+   `codegen::split_list_simple` is non-decoding (raw round-trip) — converging
+   either would change optimiser/codegen output.
 
 Each runtime chunk's first step remains "what in `rust/` already does this?"
 Restructuring is allowed under the [LSP guardrails](#the-aot-compiler-is-ours-to-restructure-within-the-lsp-guardrails)
 (no loss of LSP precision/perf).
+
+**`binary` ⇒ a dual-ported byte-array value type.** `binary format`/`binary
+scan` (and `Tcl_GetByteArrayFromObj`/`Tcl_NewByteArrayObj`) operate on a raw
+*bucket of bytes*, not a UTF-8 string — so they need a `TCL_BYTEARRAY_TYPE`
+internal rep, **dual-ported** like the other value types (`#[repr(C)]` `TclObj`
+with the byte buffer as the internal rep) so C extensions interoperate. This is
+a value-type chunk (alongside list/dict/string), co-designed with the `binary`
+template parser, not a parser extraction — tracked for the value-types track.
 
 ### Parser convergence — status + plan
 
