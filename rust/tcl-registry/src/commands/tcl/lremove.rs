@@ -12,11 +12,14 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL90),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
-        hover: Some(HoverSnippet::brief(
-            "Remove elements from a list.",
-            &["lremove list ?index ...?"],
-            "Tcl lremove(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Remove elements from a list",
+    synopsis: &["lremove list ?index ...?"],
+    snippet: "The lremove command returns a new list formed by removing the elements at the given indices from list.",
+    source: "Tcl man page lremove.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

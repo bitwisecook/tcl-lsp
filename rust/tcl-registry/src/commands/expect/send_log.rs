@@ -18,11 +18,14 @@ pub fn spec() -> CommandSpec {
         name: "send_log",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Send a string to the log file only (not to the process or user).",
-            &["send_log ?--? string"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Send a string to the log file only (not to the process or user).",
+            synopsis: &["send_log ?--? string"],
+            snippet: "",
+            source: "Expect send_log(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

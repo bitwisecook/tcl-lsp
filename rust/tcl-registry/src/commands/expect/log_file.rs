@@ -48,11 +48,14 @@ pub fn spec() -> CommandSpec {
         name: "log_file",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Control logging of session output to a file.",
-            &["log_file ?-option ...? ?file?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Control logging of session output to a file.",
+            synopsis: &["log_file ?-option ...? ?file?", "log_file -info"],
+            snippet: "",
+            source: "Expect log_file(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

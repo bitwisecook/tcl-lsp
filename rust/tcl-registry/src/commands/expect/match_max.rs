@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "match_max",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set or query the maximum match buffer size.",
-            &["match_max ?-d | -i spawn_id? ?size?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set or query the maximum match buffer size.",
+            synopsis: &["match_max ?-d | -i spawn_id? ?size?"],
+            snippet: "",
+            source: "Expect match_max(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

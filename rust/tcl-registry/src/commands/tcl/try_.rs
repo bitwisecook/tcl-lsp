@@ -54,11 +54,14 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(try_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Try),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Trap and process errors and exceptions.",
-            &["try body ?handler...? ?finally script?"],
-            "Tcl try(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Trap and process errors and exceptions",
+    synopsis: &["try body ?handler...? ?finally script?"],
+    snippet: "This command executes the script body and, depending on what the outcome of that script is (normal exit, error, or some other exceptional result), runs a handler script to deal with the case.",
+    source: "Tcl man page try.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

@@ -38,11 +38,14 @@ pub fn spec() -> CommandSpec {
         name: "tcl::tm::path",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Manage the list of paths searched for Tcl modules.",
-            &["tcl::tm::path add ?path ...?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Manage the list of paths searched for Tcl modules.",
+            synopsis: &["tcl::tm::path add ?path ...?", "tcl::tm::path remove ?path ...?", "tcl::tm::path list"],
+            snippet: "The ``add`` subcommand prepends paths to the module search list, ``remove`` deletes them, and ``list`` returns the current list.",
+            source: "Tcl stdlib tm module system",
+            examples: "",
+            return_value: "",
+        }),
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT

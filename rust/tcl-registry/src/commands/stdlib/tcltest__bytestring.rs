@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::bytestring",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Convert a string to its byte representation (Tcl < 9.0).",
-            &["tcltest::bytestring string"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Convert a string to its byte representation (Tcl < 9.0).",
+            synopsis: &["tcltest::bytestring string"],
+            snippet: "Equivalent to ``encoding convertfrom identity``.  Not exported in Tcl 9.0+.",
+            source: "Tcl stdlib tcltest package (deprecated)",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

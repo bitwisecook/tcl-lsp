@@ -24,6 +24,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        arg_roles: &[(0, ArgRole::Channel)],
         ..CommandSpec::DEFAULT
     }
 }

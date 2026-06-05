@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "gettimes",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get timing information for performance testing.",
-            &["gettimes"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get timing information for performance testing.",
+            synopsis: &["gettimes"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

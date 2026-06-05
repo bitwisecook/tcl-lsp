@@ -240,6 +240,75 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan truncate channelId ?length?",
         ..SubCommand::DEFAULT
     },
+    SubCommand {
+        name: "isbinary",
+        arity: Arity::exact(1),
+        detail: "Test whether channel is binary.",
+        synopsis: "chan isbinary channelId",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "postevent",
+        arity: Arity::exact(2),
+        detail: "Post an event to a reflected channel.",
+        synopsis: "chan postevent channelId eventSpec",
+        ..SubCommand::DEFAULT
+    },
+];
+
+/// Command-level `chan configure` options (mirrors `tcl/chan.py`
+/// form options) — surfaced at the command level for completion parity.
+const CMD_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-blocking",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Set blocking mode.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-buffering",
+        takes_value: true,
+        value_hint: "mode",
+        detail: "Set buffering mode (full, line, none).",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-buffersize",
+        takes_value: true,
+        value_hint: "size",
+        detail: "Set buffer size in bytes.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-encoding",
+        takes_value: true,
+        value_hint: "encoding",
+        detail: "Set character encoding.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-eofchar",
+        takes_value: true,
+        value_hint: "chars",
+        detail: "Set end-of-file character(s).",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-profile",
+        takes_value: true,
+        value_hint: "profile",
+        detail: "Set encoding profile (strict, tcl8, replace).",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-translation",
+        takes_value: true,
+        value_hint: "mode",
+        detail: "Set line-ending translation mode.",
+        dialects: None,
+    },
 ];
 
 pub fn spec() -> CommandSpec {
@@ -249,11 +318,15 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Channel operations.",
-            &["chan subcommand ?arg ...?"],
-            "Tcl chan(1)",
-        )),
+        options: CMD_OPTIONS,
+hover: Some(HoverSnippet {
+    summary: "Read, write and manipulate channels.",
+    synopsis: &["chan subcommand ?arg ...?"],
+    snippet: "Unified interface for channel operations (`configure`, `gets`, `puts`, `read`, etc.).",
+    source: "Tcl man page chan.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

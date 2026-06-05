@@ -148,11 +148,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Manipulate array variables.",
-            &["array option arrayName ?arg arg ...?"],
-            "Tcl array(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Manipulate array variables",
+    synopsis: &["array option arrayName ?arg arg ...?"],
+    snippet: "This command performs one of several operations on the variable given by arrayName.",
+    source: "Tcl man page array.n",
+    examples: "",
+    return_value: "",
+}),
         codegen_hook: Some(CodegenHookId::Array),
         forms: FORMS,
         ..CommandSpec::DEFAULT

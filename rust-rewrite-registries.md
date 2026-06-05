@@ -344,7 +344,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 | Registry | Python | Rust | Missing in Rust | Extra in Rust | Verdict |
 |---|--:|--:|--:|--:|---|
-| `tcl` | 224 | 229 | 0 | 5 | DATA GAPS |
+| `tcl` | 224 | 229 | 0 | 5 | OK |
 | `stdlib` | 225 | 225 | 0 | 0 | OK |
 | `tcllib` | 206 | 206 | 0 | 0 | OK |
 | `irules` | 1015 | 1015 | 0 | 0 | OK |
@@ -362,10 +362,10 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
-- **`tcl`** — `forms` 209→109, `hover_return_value` 9→0, `arg_types` 19→13, `options` 19→17, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 221→228, `hover_synopsis` 206→213, `arity_bounded` 170→178, `return_type` 102→113, `lowering_hook` 0→23, `traits` 42→105
+- **`tcl`** — `arg_types` 19→21, `const_fold` 10→12, `forms` 209→211, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 221→228, `hover_synopsis` 206→213, `arity_bounded` 170→178, `return_type` 102→114, `lowering_hook` 0→23, `traits` 42→105
 - **`stdlib`** — `traits` 23→24
 - **`tcllib`** — all captured dimensions at parity.
-- **`irules`** — `arg_roles` 4→5, `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
+- **`irules`** — `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `arg_roles` 4→8, `traits` 62→69
 - **`iapps`** — all captured dimensions at parity.
 - **`tk`** — all captured dimensions at parity.
 - **`expect`** — all captured dimensions at parity.
@@ -380,14 +380,12 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 
 | Registry | field | # mismatched | examples |
 |---|---|--:|---|
-| `tcl` | summary | 94 | `after`, `append`, `apply` |
-| `tcl` | synopsis | 39 | `apply`, `binary`, `classvariable` |
+| `tcl` | summary | 3 | `exec`, `lsearch`, `lsort` |
+| `tcl` | synopsis | 38 | `apply`, `binary`, `classvariable` |
 | `tcl` | body_kind | 3 | `oo::abstract`, `oo::configurable`, `oo::singleton` |
 | `tcl` | return_type | 110 | `::tcl::build-info`, `after`, `append` |
 | `tcl` | arity_min | 8 | `flush`, `oo::abstract`, `oo::class` |
 | `tcl` | arity_max | 3 | `fcopy`, `oo::copy`, `source` |
-| `stdlib` | summary | 3 | `tcltest::limitConstraints`, `tcltest::matchDirectories`, `tcltest::skipDirectories` |
-| `stdlib` | synopsis | 7 | `history`, `http::config`, `http::cookiejar` |
 | `stdlib` | body_kind | 1 | `tcltest::test` |
 | `stdlib` | return_type | 3 | `http::requestHeaders`, `http::responseHeaders`, `http::responseInfo` |
 | `tcllib` | body_kind | 5 | `snit::compile`, `snit::macro`, `snit::type` |
@@ -396,9 +394,6 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 | `irules` | return_type | 1 | `HSL::open` |
 | `irules` | arity_min | 1 | `peer` |
 | `irules` | arity_max | 3 | `clientside`, `peer`, `serverside` |
-| `tk` | synopsis | 15 | `bind`, `clipboard`, `event` |
-| `expect` | summary | 1 | `fork` |
-| `expect` | synopsis | 8 | `exit`, `expect`, `interact` |
 | `sdc-base` | synopsis | 12 | `all_registers`, `create_generated_clock`, `group_path` |
 | `synopsys` | synopsis | 5 | `compile`, `compile_ultra`, `create_floorplan` |
 | `cadence` | synopsis | 1 | `create_floorplan` |

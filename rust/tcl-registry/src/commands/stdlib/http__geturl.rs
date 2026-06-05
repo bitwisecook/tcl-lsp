@@ -12,11 +12,14 @@ pub fn spec() -> CommandSpec {
         name: "http::geturl",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Retrieve a URL — the primary command for the http package.",
-            &["http::geturl url ?options?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Retrieve a URL — the primary command for the http package.",
+            synopsis: &["http::geturl url ?options?"],
+            snippet: "Retrieves the resource at *url* and returns a token that can be passed to the other ``http::`` commands.  Options include ``-query``, ``-headers``, ``-handler``, ``-command``, ``-timeout``, ``-type``, ``-method``, ``-keepalive`` and more.",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
         // GAP-D2: `url` (arg 0) is a network-address arg — SSRF sink
         // (T104); `-headers` can carry credentials. Mirrors
         // `stdlib/http_.py`.

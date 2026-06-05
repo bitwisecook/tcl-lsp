@@ -33,20 +33,31 @@ def rust_dir(repo_root, group: str):
 
 import re as _re  # noqa: E402
 
-# Command-level name anchored on `CommandSpec {`, so a preceding
-# `const SUBCOMMANDS`/etc. with its own `name:` fields can't shadow it.
-_NAME_RE = _re.compile(r'CommandSpec\s*\{\s*name:\s*"((?:[^"\\]|\\.)*)"')
+# Command-level name = the first `name: "..."` *after* the `CommandSpec {`
+# opener (so a preceding `const SUBCOMMANDS` with its own subcommand
+# `name:` fields can't shadow it), tolerating intervening comments/fields.
+_CMDSPEC_RE = _re.compile(r"CommandSpec\s*\{")
+_NAME_AFTER_RE = _re.compile(r'name:\s*"((?:[^"\\]|\\.)*)"')
 _USE_RE = _re.compile(r"^use crate::prelude::\*;\s*$", _re.M)
 
 
 def files_by_name(rdir):
+    # Only consider modules actually declared in mod.rs — orphan/duplicate
+    # `*.rs` files (e.g. an unused `fcopy_.rs` shadowing the registered
+    # `fcopy.rs`) must never be the injection target.
+    mod_text = (rdir / "mod.rs").read_text()
+    declared = set(_re.findall(r"^\s*(?:pub )?mod (\w+);", mod_text, _re.M))
     out = {}
     for p in rdir.glob("*.rs"):
-        if p.name == "mod.rs":
+        if p.name == "mod.rs" or p.stem not in declared:
             continue
-        m = _NAME_RE.search(p.read_text())
-        if m:
-            out[m.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
+        text = p.read_text()
+        m = _CMDSPEC_RE.search(text)
+        if not m:
+            continue
+        nm = _NAME_AFTER_RE.search(text, m.end())
+        if nm:
+            out[nm.group(1).replace('\\"', '"').replace("\\\\", "\\")] = p
     return out
 
 

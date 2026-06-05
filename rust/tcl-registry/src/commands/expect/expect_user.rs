@@ -62,11 +62,14 @@ pub fn spec() -> CommandSpec {
         name: "expect_user",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Expect input from the user (standard input).",
-            &["expect_user ?-opts? pattern body ?pattern body ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Expect input from the user (standard input).",
+            synopsis: &["expect_user ?-opts? pattern body ?pattern body ...?"],
+            snippet: "",
+            source: "Expect expect_user(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

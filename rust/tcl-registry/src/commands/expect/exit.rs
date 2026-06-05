@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "exit",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Exit Expect, optionally running an onexit handler.",
-            &["exit ?-onexit command? ?status?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Exit Expect, optionally running an onexit handler.",
+            synopsis: &["exit ?-onexit command? ?status?", "exit ?-noexit? ?status?"],
+            snippet: "With ``-onexit``, registers a handler to run at exit. With ``-noexit``, prepares for exit but does not actually exit (useful for cleaning up in libraries).",
+            source: "Expect exit(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

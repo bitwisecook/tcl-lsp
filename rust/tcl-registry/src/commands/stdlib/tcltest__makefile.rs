@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::makeFile",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(2, 3),
-        hover: Some(HoverSnippet::brief(
-            "Create a temporary test file with the given contents.",
-            &["tcltest::makeFile contents name ?directory?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Create a temporary test file with the given contents.",
+            synopsis: &["tcltest::makeFile contents name ?directory?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

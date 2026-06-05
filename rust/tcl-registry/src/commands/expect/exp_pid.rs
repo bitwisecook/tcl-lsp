@@ -19,11 +19,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Return the process id of a spawned process.",
-            &["exp_pid ?-i spawn_id?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the process id of a spawned process.",
+            synopsis: &["exp_pid ?-i spawn_id?"],
+            snippet: "",
+            source: "Expect exp_pid(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

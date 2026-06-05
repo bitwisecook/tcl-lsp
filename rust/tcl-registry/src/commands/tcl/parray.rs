@@ -17,11 +17,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Print array contents.",
-            &["parray arrayName ?pattern?"],
-            "Tcl parray(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Print an array's keys and values",
+            synopsis: &["parray arrayName ?pattern?"],
+            snippet: "",
+            source: "Tcl man page library.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

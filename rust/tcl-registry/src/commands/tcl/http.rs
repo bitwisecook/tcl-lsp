@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http",
         arity: Arity::any(),
-        hover: Some(HoverSnippet::brief(
-            "HTTP client implementation (package http)",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "HTTP client implementation (package http)",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

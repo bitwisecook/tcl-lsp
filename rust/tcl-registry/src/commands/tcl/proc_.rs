@@ -42,11 +42,14 @@ pub fn spec() -> CommandSpec {
         // structural-body command without a string-match special
         // case.
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Define a procedure.",
-            &["proc name args body"],
-            "Tcl proc(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Create a Tcl procedure.",
+            synopsis: &["proc name args body"],
+            snippet: "`args` is a formal parameter list; `body` executes in a new call frame.",
+            source: "Tcl proc(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

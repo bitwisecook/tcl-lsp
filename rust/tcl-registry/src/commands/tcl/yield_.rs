@@ -18,11 +18,14 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Yield a value from a coroutine.",
-            &["yield ?value?"],
-            "Tcl yield(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Create and produce values from coroutines",
+    synopsis: &["yield ?value?"],
+    snippet: "The coroutine command creates a new coroutine context (with associated command) named name and executes that context by calling command, passing in the other remaining arguments without further interpretation.",
+    source: "Tcl man page coroutine.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

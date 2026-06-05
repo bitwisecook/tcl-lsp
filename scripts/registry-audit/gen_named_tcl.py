@@ -29,6 +29,7 @@ _TYPE = {
     "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
     "CHANNEL": "Channel",
 }
+_FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
 
 
 def rust_str(s: str) -> str:
@@ -72,27 +73,41 @@ def file_text(spec) -> str:
     if rt is not None and rt.name in _TYPE:
         lines.append(f"        return_type: Some(TclType::{_TYPE[rt.name]}),")
     if h is not None:
+        inner = "            "
         syn = ", ".join(rust_str(s) for s in (h.synopsis or ()))
-        lines.append(
-            "        hover: Some(HoverSnippet::brief(\n"
-            f"            {rust_str(h.summary or '')},\n"
-            f"            &[{syn}],\n"
-            f"            {rust_str(h.source or 'Tcl')},\n"
-            "        )),"
+        lines += [
+            "        hover: Some(HoverSnippet {",
+            f"{inner}summary: {rust_str(h.summary or '')},",
+            f"{inner}synopsis: &[{syn}],",
+            f"{inner}snippet: {rust_str(h.snippet or '')},",
+            f"{inner}source: {rust_str(h.source or 'Tcl')},",
+            f"{inner}examples: {rust_str(h.examples or '')},",
+            f"{inner}return_value: {rust_str(h.return_value or '')},",
+            "        }),",
+        ]
+    forms = spec.forms or ()
+    if forms:
+        items = ", ".join(
+            f"FormSpec {{ kind: FormKind::{_FORMKIND.get(f.kind.name, 'Default')}, "
+            f"synopsis: {rust_str(f.synopsis or '')} }}"
+            for f in forms
         )
+        lines.append(f"        forms: &[{items}],")
     lines += ["        ..CommandSpec::DEFAULT", "    }", "}", ""]
     return "\n".join(lines)
 
 
 def main() -> None:
     py = {s.name: s for s in load_specs("tcl")}
-    ru = {json.loads(l)["name"] for l in open(_REPO_ROOT / "tmp/registry-audit/tcl.rust.jsonl")}
-    missing = sorted(set(py) - ru)
-
-    def is_op(n: str) -> bool:
-        return "mathop" in n or not n[:1].isalpha() or n in {"eq", "ne", "in", "ni", "max", "min"}
-
-    named = [n for n in missing if not is_op(n)]
+    # The fixed set of named commands this generator owns (stable —
+    # regenerated idempotently from Python, not from the Rust diff so
+    # re-runs refresh the file *contents* even once they're wired in).
+    named = [
+        "auto_execok", "auto_import", "auto_load", "auto_mkindex",
+        "auto_mkindex_old", "auto_qualify", "auto_reset", "bgerror",
+        "filename", "http", "memory", "nextto", "pkg::create",
+        "pkg_mkindex", "pwd", "tcl::build-info", "tcl_findLibrary",
+    ]
     mods = []
     for cmd in named:
         mod = module_name(cmd)
@@ -100,11 +115,12 @@ def main() -> None:
         mods.append(mod)
 
     text = MOD.read_text()
-    # Insert `mod` decls after the mathop_generated decl.
+    # Insert `mod` decls after the mathop_generated decl (skip ones
+    # already declared, so re-runs only refresh file contents).
     anchor = "mod mathop_generated;\n"
-    decls = "".join(f"mod {m};\n" for m in sorted(mods))
-    text = text.replace(anchor, anchor + decls, 1)
-    # Append a third extend block with the named specs.
+    new_decls = "".join(f"mod {m};\n" for m in sorted(mods) if f"mod {m};" not in text)
+    text = text.replace(anchor, anchor + new_decls, 1)
+    # Append a third extend block with the named specs (skip if present).
     calls = "\n        ".join(f"{m}::spec()," for m in sorted(mods))
     ext = "    specs.extend(mathop_generated::specs());\n    specs\n"
     new_ext = (

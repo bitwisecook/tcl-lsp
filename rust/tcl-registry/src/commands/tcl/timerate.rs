@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
+}];
+
 /// Command spec for `timerate`.
 ///
 /// Ported from `dialects/tcl/timerate.py` (main #522). Like its
@@ -37,11 +42,17 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Measure the rate of execution of a script.",
-            &["timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??"],
-            "Tcl timerate(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Measure the rate of execution of a script.",
+            synopsis: &[
+                "timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
+            ],
+            snippet: "",
+            source: "Tcl timerate(1)",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

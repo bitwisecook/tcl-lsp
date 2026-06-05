@@ -197,11 +197,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Create and manipulate contexts for commands and variables.",
-            &["namespace subcommand ?arg ...?"],
-            "Tcl namespace(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "create and manipulate contexts for commands and variables",
+    synopsis: &["namespace subcommand ?arg ...?"],
+    snippet: "The namespace command lets you create, access, and destroy separate contexts for commands and variables.",
+    source: "Tcl man page namespace.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

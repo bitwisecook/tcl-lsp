@@ -311,6 +311,38 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         ..SubCommand::DEFAULT
     },
+    SubCommand {
+        name: "info",
+        arity: Arity::exact(1),
+        detail: "This returns information (intended for display to people) about the given dictionary though the format of this data is dependent on the implementation of the dictionary.",
+        synopsis: "dict info dictionaryValue",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "getd",
+        arity: Arity::at_least(3),
+        detail: "Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
+        synopsis: "dict getd dictionaryValue ?key ...? key default",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "getdef",
+        arity: Arity::at_least(3),
+        detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
+        synopsis: "dict getdef dictionaryValue ?key ...? key default",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "getwithdefault",
+        arity: Arity::at_least(3),
+        detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
+        synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
 ];
 
 /// Command spec for `dict`.
@@ -325,11 +357,14 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         inferred_storage_type: Some(StorageType::Dict),
-        hover: Some(HoverSnippet::brief(
-            "Manipulate Tcl dictionaries.",
-            &["dict subcommand ?arg ...?"],
-            "Tcl dict(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Manipulate dictionaries",
+    synopsis: &["dict option arg ?arg ...?", "dict subcommand ?arg ...?"],
+    snippet: "Performs one of several operations on dictionary values or variables containing dictionary values (see the DICTIONARY VALUES section below for a description), depending on option.",
+    source: "Tcl man page dict.n",
+    examples: "",
+    return_value: "",
+}),
         codegen_hook: Some(CodegenHookId::Dict),
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
         forms: FORMS,

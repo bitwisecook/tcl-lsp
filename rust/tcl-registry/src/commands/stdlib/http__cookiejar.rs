@@ -12,11 +12,14 @@ pub fn spec() -> CommandSpec {
         name: "http::cookiejar",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Create or configure an HTTP cookie jar (TclOO class).",
-            &["http::cookiejar create name ?filename?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Create or configure an HTTP cookie jar (TclOO class).",
+            synopsis: &["http::cookiejar create name ?filename?", "http::cookiejar new ?filename?"],
+            snippet: "A TclOO class implementing RFC 6265 cookie management.  Instances track cookies received in HTTP responses and automatically attach them to subsequent requests.",
+            source: "Tcl stdlib cookiejar package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("cookiejar"),
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

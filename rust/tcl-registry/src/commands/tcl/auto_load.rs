@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load",
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Auto-load a command from the library",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Auto-load a command from the library",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

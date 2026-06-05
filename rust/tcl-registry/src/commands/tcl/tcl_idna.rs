@@ -8,6 +8,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tcl::idna subcommand ?arg ...?",
+}];
+
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
@@ -16,6 +21,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),
+        forms: FORMS,
         hover: Some(HoverSnippet::brief(
             "Internationalised Domain Name (IDNA/Punycode) helpers.",
             &["tcl::idna subcommand ?arg ...?"],

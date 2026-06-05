@@ -18,11 +18,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::CREATES_BARRIER,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Handle unknown command names.",
-            &["unknown cmdName ?arg ...?"],
-            "Tcl unknown(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Handle attempts to use non-existent commands",
+    synopsis: &["unknown cmdName ?arg arg ...?", "unknown cmdName ?arg ...?"],
+    snippet: "This command is invoked by the Tcl interpreter whenever a script tries to invoke a command that does not exist.",
+    source: "Tcl man page unknown.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

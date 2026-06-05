@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::testConstraint",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
-        hover: Some(HoverSnippet::brief(
-            "Get or set a named test constraint boolean.",
-            &["tcltest::testConstraint constraint ?value?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get or set a named test constraint boolean.",
+            synopsis: &["tcltest::testConstraint constraint ?value?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

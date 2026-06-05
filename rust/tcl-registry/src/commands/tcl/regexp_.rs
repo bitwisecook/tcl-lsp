@@ -8,6 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Command spec for `regexp`.
+#[allow(clippy::too_many_lines)] // data-heavy: full hover + 11 options
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
@@ -99,11 +100,14 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Match a regular expression against a string.",
-            &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
-            "Tcl regexp(1)",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Match a regular expression against a string.",
+            synopsis: &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
+            snippet: "Returns 1 if *exp* matches part of *string*, 0 otherwise. Matching substrings are stored in *matchVar* and *subMatchVar*.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. Avoid nested quantifiers like `(a+)+` which can cause catastrophic backtracking (ReDoS) on crafted input.",
+            source: "Tcl regexp(1)",
+            examples: "",
+            return_value: "1 if the pattern matches, 0 otherwise.",
+        }),
         // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation. Mirrors `tcl/regexp_.py`.
         pattern_type: Some(PatternType::Regex),

@@ -29,11 +29,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Create and initialise a namespace variable.",
-            &["variable name", "variable ?name value...?"],
-            "Tcl variable(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "create and initialize a namespace variable",
+    synopsis: &["variable name", "variable ?name value...?"],
+    snippet: "This command is normally used within a namespace eval command to create one or more variables within a namespace.",
+    source: "Tcl man page variable.n",
+    examples: "",
+    return_value: "",
+}),
         lowering_hook: Some(LoweringHookId::Variable),
         forms: FORMS,
         ..CommandSpec::DEFAULT

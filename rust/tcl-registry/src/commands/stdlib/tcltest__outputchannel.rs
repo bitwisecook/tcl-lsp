@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::outputChannel",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
-        hover: Some(HoverSnippet::brief(
-            "Get or set the channel for test output.",
-            &["tcltest::outputChannel ?channelID?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get or set the channel for test output.",
+            synopsis: &["tcltest::outputChannel ?channelID?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

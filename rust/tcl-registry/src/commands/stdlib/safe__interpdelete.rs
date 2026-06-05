@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "safe::interpDelete",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Delete a safe interpreter and release its resources.",
-            &["safe::interpDelete child"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Delete a safe interpreter and release its resources.",
+            synopsis: &["safe::interpDelete child"],
+            snippet: "",
+            source: "Tcl stdlib Safe Base",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("safe"),
         ..CommandSpec::DEFAULT
     }

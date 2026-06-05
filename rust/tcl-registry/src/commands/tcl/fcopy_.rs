@@ -22,11 +22,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Copy data from one channel to another.",
-            &["fcopy inputChan outputChan ?-size size? ?-command callback?"],
-            "Tcl fcopy(1)",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Copy data from one channel to another",
+            synopsis: &["fcopy inputChan outputChan ?-size size? ?-command callback?"],
+            snippet: "The fcopy command copies data from one I/O channel, inchan, to another I/O channel, outchan.",
+            source: "Tcl man page fcopy.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

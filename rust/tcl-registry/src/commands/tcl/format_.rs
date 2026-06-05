@@ -608,11 +608,17 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),
-        hover: Some(HoverSnippet::brief(
-            "Format a string.",
-            &["format formatString ?arg ...?"],
-            "Tcl format(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Format a string in the style of sprintf",
+            synopsis: &[
+                "format formatString ?arg arg ...?",
+                "format formatString ?arg ...?",
+            ],
+            snippet: "",
+            source: "Tcl man page format.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

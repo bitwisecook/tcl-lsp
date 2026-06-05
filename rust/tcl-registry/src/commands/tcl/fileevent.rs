@@ -21,14 +21,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Execute a script when a channel becomes readable or writable.",
-            &[
-                "fileevent channel readable ?script?",
-                "fileevent channel writable ?script?",
-            ],
-            "Tcl fileevent(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Execute a script when a channel becomes readable or writable",
+    synopsis: &["fileevent channel readable ?script?", "fileevent channel writable ?script?"],
+    snippet: "The fileevent command has been superseded by the chan event command which supports the same syntax and options.",
+    source: "Tcl man page fileevent.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

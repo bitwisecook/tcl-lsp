@@ -19,11 +19,14 @@ pub fn spec() -> CommandSpec {
                 shimmers: true,
             },
         )],
-        hover: Some(HoverSnippet::brief(
-            "Join list elements into a string.",
-            &["join list ?joinString?"],
-            "Tcl join(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Create a string by joining together list elements",
+            synopsis: &["join list ?joinString?"],
+            snippet: "The list argument must be a valid Tcl list.",
+            source: "Tcl man page join.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -1202,11 +1202,15 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Perform one of several string operations.",
-            &["string option arg ?arg ...?"],
-            "Tcl string(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Perform one of several string operations.",
+            synopsis: &["string option arg ?arg ...?"],
+            snippet:
+                "Use subcommands like `length`, `match`, `is`, `compare`, `map`, `range`, etc.",
+            source: "Tcl man page string.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Evaluate a Tcl script.",
-            &["eval arg ?arg ...?"],
-            "Tcl eval(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Evaluate a Tcl script.",
+    synopsis: &["eval arg ?arg ...?"],
+    snippet: "Concatenates its arguments and executes the result as a Tcl script.\n\n**Security**: If any argument contains user-controlled data, this enables arbitrary code injection. Prefer `{*}$cmdList` (Tcl 8.5+) to expand pre-built command lists safely, or use direct invocation.",
+    source: "Tcl man page eval.n",
+    examples: "",
+    return_value: "",
+}),
         // GAP-D2: a `LIST_CANONICAL` value preserves element
         // boundaries and suppresses T100. Mirrors `tcl/eval.py`.
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),

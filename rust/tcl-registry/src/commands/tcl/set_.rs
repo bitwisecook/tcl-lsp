@@ -37,11 +37,15 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(set_arg_roles),
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Read or write a variable.",
-            &["set varName ?newValue?"],
-            "Tcl set(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Read or write a variable value.",
+            synopsis: &["set varName ?newValue?"],
+            snippet:
+                "With one argument, returns the value. With two, assigns and returns the new value.",
+            source: "Tcl set(1)",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::Set),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

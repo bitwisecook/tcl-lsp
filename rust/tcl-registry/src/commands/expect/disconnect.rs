@@ -10,11 +10,14 @@ pub fn spec() -> CommandSpec {
         name: "disconnect",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::exact(0),
-        hover: Some(HoverSnippet::brief(
-            "Disconnect the process from the controlling terminal (daemonise).",
-            &["disconnect"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Disconnect the process from the controlling terminal (daemonise).",
+            synopsis: &["disconnect"],
+            snippet: "Disconnects the forked process from the terminal. Typically used after ``fork`` in the child process.",
+            source: "Expect disconnect(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

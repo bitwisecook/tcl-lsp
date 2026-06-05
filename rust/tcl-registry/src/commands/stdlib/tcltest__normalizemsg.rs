@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::normalizeMsg",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Normalise an error message for comparison (lowercase, strip trailing newline).",
-            &["tcltest::normalizeMsg msg"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary:
+                "Normalise an error message for comparison (lowercase, strip trailing newline).",
+            synopsis: &["tcltest::normalizeMsg msg"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package (deprecated)",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

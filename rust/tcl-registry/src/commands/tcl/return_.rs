@@ -25,11 +25,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Return from the current procedure/script with optional control-code metadata.",
-            &["return ?-code code? ?-level level? ?result?"],
-            "Tcl return(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary:
+                "Return from the current procedure/script with optional control-code metadata.",
+            synopsis: &["return ?-code code? ?-level level? ?result?"],
+            snippet: "Advanced forms can emulate `break`, `continue`, or custom return codes.",
+            source: "Tcl return(1)",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::Return),
         forms: FORMS,
         ..CommandSpec::DEFAULT

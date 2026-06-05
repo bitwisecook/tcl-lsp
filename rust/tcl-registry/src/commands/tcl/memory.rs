@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "memory",
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Memory debugging (debug builds only)",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Memory debugging (debug builds only)",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

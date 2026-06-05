@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testfilesystem",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test the virtual file system.",
-            &["testfilesystem"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test the virtual file system.",
+            synopsis: &["testfilesystem"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,11 +23,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Generate an error.",
-            &["error message ?info? ?code?"],
-            "Tcl error(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Generate an error",
+            synopsis: &["error message ?info? ?code?"],
+            snippet: "Returns a TCL_ERROR code, which causes command interpretation to be unwound.",
+            source: "Tcl man page error.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

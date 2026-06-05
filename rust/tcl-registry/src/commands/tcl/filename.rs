@@ -4,7 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "filename",
         arity: Arity::any(),
-        hover: Some(HoverSnippet::brief("File name conventions", &[], "Tcl")),
+        hover: Some(HoverSnippet {
+            summary: "File name conventions",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

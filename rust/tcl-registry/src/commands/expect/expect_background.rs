@@ -48,11 +48,14 @@ pub fn spec() -> CommandSpec {
         name: "expect_background",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Non-blocking expect: run pattern matching in the background.",
-            &["expect_background ?-opts? pattern body ?pattern body ...?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Non-blocking expect: run pattern matching in the background.",
+            synopsis: &["expect_background ?-opts? pattern body ?pattern body ...?"],
+            snippet: "Like ``expect`` but does not block. Whenever new data arrives the patterns are tested and the matching body is executed.",
+            source: "Expect expect_background(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

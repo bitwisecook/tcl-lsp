@@ -39,11 +39,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Delete variables.",
-            &["unset ?-nocomplain? ?--? ?name name name ...?"],
-            "Tcl unset(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Delete variables",
+            synopsis: &["unset ?-nocomplain? ?--? ?name name name ...?"],
+            snippet: "This command removes one or more variables.",
+            source: "Tcl man page unset.n",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::Unset),
         forms: FORMS,
         ..CommandSpec::DEFAULT

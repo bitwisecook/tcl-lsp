@@ -30,11 +30,14 @@ pub fn spec() -> CommandSpec {
             detail: "",
             dialects: None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Evaluate a file or resource as a Tcl script.",
-            &["source ?-encoding name? fileName"],
-            "Tcl source(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Evaluate a file or resource as a Tcl script.",
+            synopsis: &["source ?-encoding name? fileName"],
+            snippet: "",
+            source: "Tcl source(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

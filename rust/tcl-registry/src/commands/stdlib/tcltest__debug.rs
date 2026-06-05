@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::debug",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
-        hover: Some(HoverSnippet::brief(
-            "Get or set debug level.  Deprecated: use ``configure -debug``.",
-            &["tcltest::debug ?level?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get or set debug level.  Deprecated: use ``configure -debug``.",
+            synopsis: &["tcltest::debug ?level?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package (deprecated)",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::limitConstraints",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
-        hover: Some(HoverSnippet::brief(
-            "Get or set constraint limiting.  Deprecated: use ``configure -limitconstraints``",
-            &["tcltest::limitConstraints ?boolean?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary:
+                "Get or set constraint limiting.  Deprecated: use ``configure -limitconstraints``.",
+            synopsis: &["tcltest::limitConstraints ?boolean?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package (deprecated)",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

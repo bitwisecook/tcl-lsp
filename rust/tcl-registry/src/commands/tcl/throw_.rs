@@ -21,11 +21,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Generate a machine-readable error.",
-            &["throw type message"],
-            "Tcl throw(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Generate a machine-readable error",
+            synopsis: &["throw type message"],
+            snippet: "This command causes the current evaluation to be unwound with an error.",
+            source: "Tcl man page throw.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

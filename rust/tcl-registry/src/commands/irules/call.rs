@@ -28,6 +28,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Global,
             },
         ],
+        arg_roles: &[(0, ArgRole::Name)],
         ..CommandSpec::DEFAULT
     }
 }

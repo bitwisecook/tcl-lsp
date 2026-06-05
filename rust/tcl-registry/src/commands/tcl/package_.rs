@@ -139,15 +139,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Facilities for package loading and version control.",
-            &[
-                "package require package ?requirement...?",
-                "package provide package ?version?",
-                "package names",
-            ],
-            "Tcl package(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Facilities for package loading and version control",
+    synopsis: &["package files package", "package forget ?package package ...?", "package ifneeded package version ?script?", "package names", "package provide package ?version?", "package require package ?requirement...?"],
+    snippet: "This command keeps a simple database of the packages available for use by the current interpreter and how to load them into the interpreter.",
+    source: "Tcl man page package.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

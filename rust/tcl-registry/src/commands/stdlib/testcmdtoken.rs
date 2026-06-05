@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testcmdtoken",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test command token operations.",
-            &["testcmdtoken"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test command token operations.",
+            synopsis: &["testcmdtoken"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

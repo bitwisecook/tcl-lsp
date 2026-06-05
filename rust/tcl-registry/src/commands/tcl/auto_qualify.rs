@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_qualify",
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Compute fully-qualified names for auto-loading",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Compute fully-qualified names for auto-loading",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "remove_nulls",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Control whether null bytes are removed from spawned process output.",
-            &["remove_nulls ?-d | -i spawn_id? ?0 | 1?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Control whether null bytes are removed from spawned process output.",
+            synopsis: &["remove_nulls ?-d | -i spawn_id? ?0 | 1?"],
+            snippet: "",
+            source: "Expect remove_nulls(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

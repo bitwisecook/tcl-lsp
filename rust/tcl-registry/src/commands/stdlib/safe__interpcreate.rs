@@ -12,11 +12,14 @@ pub fn spec() -> CommandSpec {
         name: "safe::interpCreate",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Create a safe child interpreter with restricted capabilities.",
-            &["safe::interpCreate ?child? ?options...?"],
-            "F5",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Create a safe child interpreter with restricted capabilities.",
+            synopsis: &["safe::interpCreate ?child? ?options...?"],
+            snippet: "Creates a safe interpreter.  Options include ``-accessPath``, ``-statics``, ``-noStatics``, ``-nested``, ``-noNested``, ``-deleteHook``.",
+            source: "Tcl stdlib Safe Base",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("safe"),
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

@@ -120,17 +120,68 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+/// Command-level `clock format`/`scan` options (mirrors `tcl/clock.py`
+/// form options) — surfaced at the command level for completion parity.
+const CMD_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-base",
+        takes_value: true,
+        value_hint: "timeVal",
+        detail: "Base time for relative scanning.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-format",
+        takes_value: true,
+        value_hint: "format",
+        detail: "strftime-style format string.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-gmt",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Use GMT instead of local time.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-locale",
+        takes_value: true,
+        value_hint: "locale",
+        detail: "Locale for month/day names.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-timezone",
+        takes_value: true,
+        value_hint: "zone",
+        detail: "Time zone for conversion.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-validate",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Validate date fields strictly.",
+        dialects: None,
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock",
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Time and date operations.",
-            &["clock subcommand ?arg ...?"],
-            "Tcl clock(1)",
-        )),
+        options: CMD_OPTIONS,
+hover: Some(HoverSnippet {
+    summary: "Obtain and manipulate dates and times.",
+    synopsis: &["clock add timeVal count unit ?...?", "clock format timeVal ?-option value ...?", "clock scan inputString ?-option value ...?", "clock seconds", "clock subcommand ?arg ...?"],
+    snippet: "Use `clock seconds` for epoch time, `clock format` to display, `clock scan` to parse.",
+    source: "Tcl man page clock.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

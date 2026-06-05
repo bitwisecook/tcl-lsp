@@ -166,6 +166,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp transfer srcPath channelId destPath",
         ..SubCommand::DEFAULT
     },
+    SubCommand {
+        name: "slaves",
+        arity: Arity::new(0, 1),
+        detail: "Returns a Tcl list of the names of all the child interpreters.",
+        synopsis: "interp slaves ?path?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "children",
+        arity: Arity::new(0, 1),
+        detail: "Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
+        synopsis: "interp children ?path?",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
 ];
 
 pub fn spec() -> CommandSpec {
@@ -177,11 +193,14 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Create and manipulate Tcl interpreters.",
-            &["interp subcommand ?arg ...?"],
-            "Tcl interp(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Create and manipulate Tcl interpreters",
+    synopsis: &["interp subcommand ?arg arg ...?", "interp subcommand ?arg ...?"],
+    snippet: "This command makes it possible to create one or more new Tcl interpreters that co-exist with the creating interpreter in the same application.",
+    source: "Tcl man page interp.n",
+    examples: "",
+    return_value: "",
+}),
         // GAP-D2: `interp eval` / `interp invokehidden` run code in
         // another interpreter — cross-interp code injection (T105).
         // Mirrors `tcl/interp.py`.

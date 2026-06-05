@@ -10,11 +10,14 @@ pub fn spec() -> CommandSpec {
         name: "sleep",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Pause execution for the specified number of seconds.",
-            &["sleep seconds"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Pause execution for the specified number of seconds.",
+            synopsis: &["sleep seconds"],
+            snippet: "Accepts integer or decimal values (e.g. ``sleep 0.5``).",
+            source: "Expect sleep(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

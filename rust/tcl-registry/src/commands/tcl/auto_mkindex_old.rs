@@ -4,7 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_mkindex_old",
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief("Legacy tclIndex generator", &[], "Tcl")),
+        hover: Some(HoverSnippet {
+            summary: "Legacy tclIndex generator",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

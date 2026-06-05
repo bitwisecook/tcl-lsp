@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_import",
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Import auto-loaded commands into namespace",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Import auto-loaded commands into namespace",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

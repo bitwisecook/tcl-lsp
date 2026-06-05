@@ -174,26 +174,46 @@ pub fn spec() -> CommandSpec {
         name: "scan",
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(2),
+        // Documented return is the int conversion count (`scan str fmt
+        // var ...`), matching the Python reference spec. The inline
+        // `scan str fmt` form (folded by `fold_scan`) actually yields the
+        // *list* of converted values — a per-form refinement Python does
+        // not capture either; deferred to per-form return typing.
+        return_type: Some(TclType::Int),
+        const_fold: Some(fold_scan),
+        hover: Some(HoverSnippet {
+            summary: "Parse string using conversion specifiers in the style of sscanf",
+            synopsis: &[
+                "scan string format ?varName varName ...?",
+                "scan string format ?varName ...?",
+            ],
+            snippet: "",
+            source: "Tcl man page scan.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         arg_roles: &[
             (2, ArgRole::VarWrite),
             (3, ArgRole::VarWrite),
             (4, ArgRole::VarWrite),
             (5, ArgRole::VarWrite),
+            (6, ArgRole::VarWrite),
+            (7, ArgRole::VarWrite),
+            (8, ArgRole::VarWrite),
+            (9, ArgRole::VarWrite),
+            (10, ArgRole::VarWrite),
+            (11, ArgRole::VarWrite),
+            (12, ArgRole::VarWrite),
+            (13, ArgRole::VarWrite),
+            (14, ArgRole::VarWrite),
+            (15, ArgRole::VarWrite),
+            (16, ArgRole::VarWrite),
+            (17, ArgRole::VarWrite),
+            (18, ArgRole::VarWrite),
+            (19, ArgRole::VarWrite),
         ],
-        // Arity-dependent return: `scan str fmt var ...` returns the int count,
-        // but the inline `scan str fmt` (which `fold_scan` folds) returns the
-        // *list* of converted values.  The registry can't express that yet, so
-        // leave the type overdefined (`None`) rather than wrongly claim `Int`
-        // for the inline form.
-        return_type: None,
-        const_fold: Some(fold_scan),
-        hover: Some(HoverSnippet::brief(
-            "Parse a string using scanf-style conversion.",
-            &["scan string format ?varName ...?"],
-            "Tcl scan(1)",
-        )),
-        forms: FORMS,
-        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "send_tty",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Send a string to the controlling terminal (tty).",
-            &["send_tty ?-flags? string"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Send a string to the controlling terminal (tty).",
+            synopsis: &["send_tty ?-flags? string"],
+            snippet: "",
+            source: "Expect send_tty(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

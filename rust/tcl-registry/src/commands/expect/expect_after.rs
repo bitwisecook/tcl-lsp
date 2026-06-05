@@ -55,11 +55,14 @@ pub fn spec() -> CommandSpec {
         name: "expect_after",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Define patterns tested after each expect command.",
-            &["expect_after ?-opts? pattern body ?pattern body ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Define patterns tested after each expect command.",
+            synopsis: &["expect_after ?-opts? pattern body ?pattern body ...?"],
+            snippet: "",
+            source: "Expect expect_after(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

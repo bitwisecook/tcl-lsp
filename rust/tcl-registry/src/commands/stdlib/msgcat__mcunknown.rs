@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mcunknown",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
-        hover: Some(HoverSnippet::brief(
-            "Called when a translation is not found; override for custom behaviour.",
-            &["msgcat::mcunknown locale src-string ?arg ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Called when a translation is not found; override for custom behaviour.",
+            synopsis: &["msgcat::mcunknown locale src-string ?arg ...?"],
+            snippet: "",
+            source: "Tcl stdlib msgcat package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }

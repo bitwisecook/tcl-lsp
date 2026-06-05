@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "safe::setSyncMode",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 2),
-        hover: Some(HoverSnippet::brief(
-            "Set or query the synchronous-source mode for a safe interpreter.",
-            &["safe::setSyncMode ?child? ?boolean?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set or query the synchronous-source mode for a safe interpreter.",
+            synopsis: &["safe::setSyncMode ?child? ?boolean?"],
+            snippet: "",
+            source: "Tcl stdlib Safe Base",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("safe"),
         ..CommandSpec::DEFAULT
     }

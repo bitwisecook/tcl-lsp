@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "lstring",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "String-backed list command for testing (9.0+).",
-            &["lstring"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "String-backed list command for testing (9.0+).",
+            synopsis: &["lstring"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

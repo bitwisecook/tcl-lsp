@@ -4,11 +4,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_mkindex",
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Generate tclIndex from Tcl source files",
-            &[],
-            "Tcl",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Generate tclIndex from Tcl source files",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

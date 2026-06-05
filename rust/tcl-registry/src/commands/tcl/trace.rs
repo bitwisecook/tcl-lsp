@@ -67,6 +67,27 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver: Some(trace_remove_arg_roles),
         ..SubCommand::DEFAULT
     },
+    SubCommand {
+        name: "variable",
+        arity: Arity::exact(3),
+        detail: "Arrange for command to be executed whenever variable name is accessed. Deprecated in favour of trace add variable.",
+        synopsis: "trace variable name ops command",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "vdelete",
+        arity: Arity::exact(3),
+        detail: "Delete a variable trace. Deprecated in favour of trace remove variable.",
+        synopsis: "trace vdelete name ops command",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "vinfo",
+        arity: Arity::exact(1),
+        detail: "Return trace information for the given variable. Deprecated in favour of trace info variable.",
+        synopsis: "trace vinfo name",
+        ..SubCommand::DEFAULT
+    },
 ];
 
 pub fn spec() -> CommandSpec {
@@ -75,11 +96,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::CREATES_BARRIER,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Monitor variable accesses, command usages and executions.",
-            &["trace option ?arg arg ...?"],
-            "Tcl trace(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Monitor variable accesses, command usages and command executions",
+            synopsis: &["trace option ?arg arg ...?"],
+            snippet:
+                "Arranges for commands to be executed whenever certain operations are invoked.",
+            source: "Tcl man page trace.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

@@ -411,11 +411,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Manipulate file names and attributes.",
-            &["file option name ?arg arg ...?"],
-            "Tcl file(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Manipulate file names and attributes",
+            synopsis: &["file option name ?arg arg ...?"],
+            snippet: "This command provides several operations on a file's name or attributes.",
+            source: "Tcl man page file.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

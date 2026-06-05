@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "parity",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set or query whether parity is retained on spawned process output.",
-            &["parity ?-d | -i spawn_id? ?value?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set or query whether parity is retained on spawned process output.",
+            synopsis: &["parity ?-d | -i spawn_id? ?value?"],
+            snippet: "",
+            source: "Expect parity(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

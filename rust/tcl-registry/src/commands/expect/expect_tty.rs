@@ -41,11 +41,14 @@ pub fn spec() -> CommandSpec {
         name: "expect_tty",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Expect input from the controlling terminal (tty).",
-            &["expect_tty ?-opts? pattern body ?pattern body ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Expect input from the controlling terminal (tty).",
+            synopsis: &["expect_tty ?-opts? pattern body ?pattern body ...?"],
+            snippet: "",
+            source: "Expect expect_tty(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

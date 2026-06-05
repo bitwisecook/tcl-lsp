@@ -16,19 +16,31 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        arg_types: &[(
-            0,
-            ArgTypeHint {
-                expected: Some(TclType::List),
-                shimmers: true,
-            },
-        )],
-        hover: Some(HoverSnippet::brief(
-            "Retrieve an element from a list.",
-            &["lindex list ?index ...?"],
-            "Tcl lindex(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Retrieve an element from a list",
+            synopsis: &["lindex list ?index ...?"],
+            snippet: "The lindex command accepts a parameter, list, which it treats as a Tcl list.",
+            source: "Tcl man page lindex.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
+        arg_types: &[
+            (
+                0,
+                ArgTypeHint {
+                    expected: Some(TclType::List),
+                    shimmers: true,
+                },
+            ),
+            (
+                1,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                },
+            ),
+        ],
         ..CommandSpec::DEFAULT
     }
 }

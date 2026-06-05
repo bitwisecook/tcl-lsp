@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testseterrorcode",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test Tcl_SetErrorCode.",
-            &["testseterrorcode"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test Tcl_SetErrorCode.",
+            synopsis: &["testseterrorcode"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

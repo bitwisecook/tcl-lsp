@@ -19,11 +19,14 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL90),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Define a singleton TclOO class.",
-            &["oo::singleton create name ?definition?"],
-            "Tcl oo::singleton(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "metaclass for singleton classes",
+    synopsis: &["oo::singleton method ?arg ...?", "oo::singleton create name ?definition?"],
+    snippet: "The oo::singleton command creates a class that will only ever have one instance. Attempts to create more instances will return the existing instance.",
+    source: "Tcl man page singleton.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

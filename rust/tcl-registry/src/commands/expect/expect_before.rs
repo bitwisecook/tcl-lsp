@@ -55,11 +55,14 @@ pub fn spec() -> CommandSpec {
         name: "expect_before",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Define patterns tested before each expect command.",
-            &["expect_before ?-opts? pattern body ?pattern body ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Define patterns tested before each expect command.",
+            synopsis: &["expect_before ?-opts? pattern body ?pattern body ...?"],
+            snippet: "",
+            source: "Expect expect_before(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

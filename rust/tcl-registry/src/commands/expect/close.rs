@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "close",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Close the connection to the current spawned process.",
-            &["close ?-slave? ?-i spawn_id?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Close the connection to the current spawned process.",
+            synopsis: &["close ?-slave? ?-i spawn_id?"],
+            snippet: "",
+            source: "Expect close(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

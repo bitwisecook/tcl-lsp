@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testcmdinfo",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test Tcl_GetCommandInfo / Tcl_SetCommandInfo.",
-            &["testcmdinfo"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test Tcl_GetCommandInfo / Tcl_SetCommandInfo.",
+            synopsis: &["testcmdinfo"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

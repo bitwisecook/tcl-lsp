@@ -19,11 +19,14 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "The root TclOO object.",
-            &["oo::object"],
-            "Tcl oo::object(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "root class of the class hierarchy",
+    synopsis: &["oo::object method ?arg ...?", "oo::object"],
+    snippet: "The oo::object class is the root class of the object hierarchy; every object is an instance of this class.",
+    source: "Tcl man page object.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

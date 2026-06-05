@@ -99,11 +99,17 @@ pub fn spec() -> CommandSpec {
                 shimmers: true,
             },
         )],
-        hover: Some(HoverSnippet::brief(
-            "Conditional execution.",
-            &["if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"],
-            "Tcl if(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Conditional execution with optional elseif/else branches.",
+            synopsis: &[
+                "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
+                "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?",
+            ],
+            snippet: "Expressions are evaluated left-to-right until a true branch is selected.",
+            source: "Tcl if(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

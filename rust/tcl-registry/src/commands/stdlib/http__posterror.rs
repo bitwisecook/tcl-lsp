@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the post-request error message, if any.",
-            &["http::postError token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the post-request error message, if any.",
+            synopsis: &["http::postError token"],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }

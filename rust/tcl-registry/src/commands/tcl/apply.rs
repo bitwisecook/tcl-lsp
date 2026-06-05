@@ -19,11 +19,14 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Apply an anonymous procedure.",
-            &["apply func ?arg ...?"],
-            "Tcl apply(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Apply an anonymous function",
+            synopsis: &["apply func ?arg1 arg2 ...?", "apply func ?arg ...?"],
+            snippet: "The command apply applies the function func to the arguments arg1 arg2 ...",
+            source: "Tcl man page apply.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

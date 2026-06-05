@@ -10,11 +10,14 @@ pub fn spec() -> CommandSpec {
         name: "system",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Execute a command string via the system shell (/bin/sh -c).",
-            &["system args"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Execute a command string via the system shell (/bin/sh -c).",
+            synopsis: &["system args"],
+            snippet: "",
+            source: "Expect system(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -292,11 +292,14 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Information about the state of the Tcl interpreter.",
-            &["info option ?arg arg ...?"],
-            "Tcl info(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Information about the state of the Tcl interpreter",
+    synopsis: &["info option ?arg arg ...?"],
+    snippet: "Available commands: info args procname Returns the names of the parameters to the procedure named procname.",
+    source: "Tcl man page info.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

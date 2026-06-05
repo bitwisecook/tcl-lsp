@@ -43,12 +43,18 @@ def str_slice(items) -> str:
     return "&[" + ", ".join(rust_str(x) for x in items) + "]"
 
 
-def hover_literal(h, indent: str) -> str:
+def hover_literal(h, indent: str, extra_synopsis: list[str] | None = None) -> str:
     inner = indent + "    "
+    # Synopsis is the *union* of Python's and any Rust-only lines, so the
+    # regen never reduces a Rust hover that carried more synopsis lines.
+    syn = list(h.synopsis or ())
+    for s in extra_synopsis or []:
+        if s not in syn:
+            syn.append(s)
     return (
         "hover: Some(HoverSnippet {\n"
         f"{inner}summary: {rust_str(h.summary or '')},\n"
-        f"{inner}synopsis: {str_slice(list(h.synopsis or ()))},\n"
+        f"{inner}synopsis: {str_slice(syn)},\n"
         f"{inner}snippet: {rust_str(h.snippet or '')},\n"
         f"{inner}source: {rust_str(h.source or '')},\n"
         f"{inner}examples: {rust_str(h.examples or '')},\n"
@@ -102,6 +108,16 @@ def main() -> None:
     specs = load_specs(group)
     by_name = files_by_name(rust_dir(_REPO_ROOT, group))
 
+    # Current Rust synopsis per command (from the latest dump), so the
+    # union-merge can preserve Rust-only synopsis lines.
+    rust_syn: dict[str, list[str]] = {}
+    dump = _REPO_ROOT / "tmp/registry-audit" / f"{group}.rust.jsonl"
+    if dump.exists():
+        import json
+        for line in dump.read_text().splitlines():
+            d = json.loads(line)
+            rust_syn[d["name"]] = d.get("synopsis") or []
+
     changed = 0
     for spec in specs:
         h = getattr(spec, "hover", None)
@@ -115,7 +131,7 @@ def main() -> None:
         if span is None:
             continue
         start, end, indent = span
-        new_hover = hover_literal(h, indent)
+        new_hover = hover_literal(h, indent, rust_syn.get(spec.name))
         new_text = text[:start] + new_hover + text[end:]
         if new_text != text:
             path.write_text(new_text)

@@ -175,11 +175,15 @@ pub fn spec() -> CommandSpec {
         name: "label",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Create and manipulate a label widget.",
-            &["label pathName ?option value ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Create and manipulate a label widget.",
+            synopsis: &["label pathName ?option value ...?"],
+            snippet:
+                "Displays a textual string, bitmap, or image. A label is a non-interactive widget.",
+            source: "Tk man page label.n",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("Tk"),
         warn_missing_import: false,
         forms: FORMS,

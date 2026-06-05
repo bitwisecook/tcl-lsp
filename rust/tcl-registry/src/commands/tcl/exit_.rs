@@ -19,11 +19,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "End the application.",
-            &["exit ?returnCode?"],
-            "Tcl exit(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "End the application",
+            synopsis: &["exit ?returnCode?"],
+            snippet:
+                "Terminate the process, returning returnCode to the system as the exit status.",
+            source: "Tcl man page exit.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -10,11 +10,14 @@ pub fn spec() -> CommandSpec {
         name: "overlay",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Replace the Expect process with another program (exec-style).",
-            &["overlay ?-# spawn_id ...? program ?args ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Replace the Expect process with another program (exec-style).",
+            synopsis: &["overlay ?-# spawn_id ...? program ?args ...?"],
+            snippet: "",
+            source: "Expect overlay(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -40,11 +40,18 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(foreach_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Iterate over one or more lists.",
-            &["foreach varlist1 list1 ?varlist2 list2 ...? body"],
-            "Tcl foreach(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Iterate over list elements with one or more loop variables.",
+            synopsis: &[
+                "foreach varList list ?varList list ...? body",
+                "foreach varlist1 list1 ?varlist2 list2 ...? body",
+            ],
+            snippet:
+                "Variables are assigned from list elements; `body` runs once per assignment group.",
+            source: "Tcl foreach(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

@@ -10,11 +10,14 @@ pub fn spec() -> CommandSpec {
         name: "stty",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Set or query terminal modes (raw, echo, rows, columns, etc.).",
-            &["stty ?args?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set or query terminal modes (raw, echo, rows, columns, etc.).",
+            synopsis: &["stty ?args?", "stty raw -echo", "stty -raw echo"],
+            snippet: "",
+            source: "Expect stty(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

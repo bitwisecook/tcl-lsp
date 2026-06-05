@@ -54,6 +54,35 @@ _TYPE = {
     "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
     "CHANNEL": "Channel",
 }
+_FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
+
+
+def hover_lines(h, indent: str) -> list[str]:
+    """Full `HoverSnippet { .. }` (keeps snippet/examples/return_value)."""
+    inner = indent + "    "
+    syn = ", ".join(rust_str(s) for s in (h.synopsis or ()))
+    return [
+        f"{indent}hover: Some(HoverSnippet {{",
+        f"{inner}summary: {rust_str(h.summary or '')},",
+        f"{inner}synopsis: &[{syn}],",
+        f"{inner}snippet: {rust_str(h.snippet or '')},",
+        f"{inner}source: {rust_str(h.source or 'Tcl')},",
+        f"{inner}examples: {rust_str(h.examples or '')},",
+        f"{inner}return_value: {rust_str(h.return_value or '')},",
+        f"{indent}}}),",
+    ]
+
+
+def forms_line(spec, indent: str) -> str | None:
+    forms = spec.forms or ()
+    if not forms:
+        return None
+    items = ", ".join(
+        f"FormSpec {{ kind: FormKind::{_FORMKIND.get(f.kind.name, 'Default')}, "
+        f"synopsis: {rust_str(f.synopsis or '')} }}"
+        for f in forms
+    )
+    return f"{indent}forms: &[{items}],"
 
 
 def spec_literal(spec) -> str:
@@ -68,14 +97,10 @@ def spec_literal(spec) -> str:
     if rt is not None and rt.name in _TYPE:
         lines.append(f"        return_type: Some(TclType::{_TYPE[rt.name]}),")
     if h is not None:
-        syn = ", ".join(rust_str(s) for s in (h.synopsis or ()))
-        lines.append(
-            "        hover: Some(HoverSnippet::brief(\n"
-            f"            {rust_str(h.summary or '')},\n"
-            f"            &[{syn}],\n"
-            f"            {rust_str(h.source or 'Tcl')},\n"
-            "        )),"
-        )
+        lines.extend(hover_lines(h, "        "))
+    fl = forms_line(spec, "        ")
+    if fl:
+        lines.append(fl)
     lines.append("        ..CommandSpec::DEFAULT")
     lines.append("    },")
     return "\n".join(lines)
@@ -83,10 +108,10 @@ def spec_literal(spec) -> str:
 
 def main() -> None:
     py = {s.name: s for s in load_specs("tcl")}
-    ru = {json.loads(l)["name"] for l in open(f"{AUDIT}.rust.jsonl")}
-    missing = sorted(set(py) - ru)
-    # Only the mathop ensemble + bare/word operators belong in this file;
-    # genuinely-named commands get their own files.
+    # Regenerate from the canonical Python set directly (idempotent — does
+    # not depend on the current Rust state). Only the mathop ensemble +
+    # bare/word operators belong in this file; named commands get their
+    # own files via gen_named_tcl.py.
     def is_op(n: str) -> bool:
         return (
             "mathop" in n
@@ -94,7 +119,7 @@ def main() -> None:
             or n in {"eq", "ne", "in", "ni", "max", "min"}
         )
 
-    ops = [py[n] for n in missing if is_op(n)]
+    ops = [s for n, s in sorted(py.items()) if is_op(n)]
     body = "\n".join(spec_literal(s) for s in ops)
     text = (
         "//! `tcl::mathop` operator ensemble — name-parity reconcile (GAP-d).\n"
@@ -116,9 +141,7 @@ def main() -> None:
         "}\n"
     )
     OUT.write_text(text)
-    print(f"wrote {OUT.name}: {len(ops)} operator specs")
-    named = [n for n in missing if not is_op(n)]
-    print(f"named (not generated here): {named}")
+    print(f"wrote {OUT.name}: {len(ops)} operator specs (forms + full hover)")
 
 
 if __name__ == "__main__":

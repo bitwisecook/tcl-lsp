@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::customMatch",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Register a custom matching command for test results.",
-            &["tcltest::customMatch mode command"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Register a custom matching command for test results.",
+            synopsis: &["tcltest::customMatch mode command"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }

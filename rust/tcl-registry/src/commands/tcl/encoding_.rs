@@ -64,6 +64,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding system ?encoding?",
         ..SubCommand::DEFAULT
     },
+    SubCommand {
+        name: "profiles",
+        arity: Arity::exact(0),
+        detail: "Return list of available profiles.",
+        synopsis: "encoding profiles",
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "user",
+        arity: Arity::exact(0),
+        detail: "Return user encoding.",
+        synopsis: "encoding user",
+        ..SubCommand::DEFAULT
+    },
 ];
 
 pub fn spec() -> CommandSpec {
@@ -72,11 +87,20 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Manipulate character encodings.",
-            &["encoding subcommand ?arg ...?"],
-            "Tcl encoding(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Convert between character encodings.",
+            synopsis: &[
+                "encoding convertfrom ?-profile profile? ?encoding? data",
+                "encoding convertto ?-profile profile? ?encoding? string",
+                "encoding names",
+                "encoding system ?encoding?",
+                "encoding subcommand ?arg ...?",
+            ],
+            snippet: "Use `encoding names` to list available encodings.",
+            source: "Tcl man page encoding.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,

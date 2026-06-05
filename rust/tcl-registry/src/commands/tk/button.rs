@@ -252,11 +252,15 @@ pub fn spec() -> CommandSpec {
         name: "button",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Create and manipulate a button widget.",
-            &["button pathName ?option value ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Create and manipulate a button widget.",
+            synopsis: &["button pathName ?option value ...?"],
+            snippet:
+                "Displays a textual string, bitmap, or image. When pressed, invokes a Tcl command.",
+            source: "Tk man page button.n",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("Tk"),
         warn_missing_import: false,
         forms: FORMS,

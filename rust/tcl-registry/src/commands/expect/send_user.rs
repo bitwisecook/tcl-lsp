@@ -27,11 +27,14 @@ pub fn spec() -> CommandSpec {
         name: "send_user",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Send a string to the user (standard output).",
-            &["send_user ?-flags? string"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Send a string to the user (standard output).",
+            synopsis: &["send_user ?-flags? string"],
+            snippet: "",
+            source: "Expect send_user(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

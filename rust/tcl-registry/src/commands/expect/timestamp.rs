@@ -34,11 +34,14 @@ pub fn spec() -> CommandSpec {
         name: "timestamp",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Return the current time or format a timestamp.",
-            &["timestamp ?-seconds N? ?-format fmt? ?-gmt?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the current time or format a timestamp.",
+            synopsis: &["timestamp ?-seconds N? ?-format fmt? ?-gmt?", "timestamp"],
+            snippet: "",
+            source: "Expect timestamp(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         ..CommandSpec::DEFAULT

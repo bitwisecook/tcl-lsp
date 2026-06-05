@@ -70,11 +70,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Manipulate binary data.",
-            &["binary subcommand ?arg ...?"],
-            "Tcl binary(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Manipulate binary data",
+    synopsis: &["binary format formatString ?arg arg ...?", "binary scan string formatString ?varName varName ...?", "binary encode format ?-option value ...? data", "binary decode format ?-option value ...? data", "binary subcommand ?arg ...?"],
+    snippet: "This command provides facilities for manipulating binary data. The principal operations are inserting values into a binary string and extracting values from a binary string.",
+    source: "Tcl man page binary.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

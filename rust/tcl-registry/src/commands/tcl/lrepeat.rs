@@ -14,12 +14,16 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
-        hover: Some(HoverSnippet::brief(
-            "Build a list by repeating elements.",
-            &["lrepeat count ?element ...?"],
-            "Tcl lrepeat(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Build a list by repeating elements",
+    synopsis: &["lrepeat count ?element ...?"],
+    snippet: "The lrepeat command creates a list of size count * number of elements by repeating count times the sequence of elements element ....",
+    source: "Tcl man page lrepeat.n",
+    examples: "",
+    return_value: "",
+}),
         forms: FORMS,
+        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Int), shimmers: true })],
         ..CommandSpec::DEFAULT
     }
 }

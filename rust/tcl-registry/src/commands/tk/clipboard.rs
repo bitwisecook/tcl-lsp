@@ -67,11 +67,18 @@ pub fn spec() -> CommandSpec {
         name: "clipboard",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-        hover: Some(HoverSnippet::brief(
-            "Manipulate the Tk clipboard.",
-            &["clipboard append ?-displayof window? ?-format format? ?-type type? data"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Manipulate the Tk clipboard.",
+            synopsis: &[
+                "clipboard append ?-displayof window? ?-format format? ?-type type? data",
+                "clipboard clear ?-displayof window?",
+                "clipboard get ?-displayof window? ?-type type?",
+            ],
+            snippet: "",
+            source: "Tk man page clipboard.n",
+            examples: "",
+            return_value: "",
+        }),
         required_package: Some("Tk"),
         warn_missing_import: false,
         forms: FORMS,
