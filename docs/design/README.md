@@ -59,6 +59,11 @@ ownership matrices.
   intended `tcl-lsp-core` / `tcl-lsp-server` / `tcl-lsp-py`
   boundaries. Read this before adding a new Rust crate, hook, or
   registry fact.
+- [rust/review-findings.md](rust/review-findings.md) —
+  point-in-time review of the Rust workspace ordered by correctness,
+  then performance (time to first semantic tokens), then memory.
+  File:line-anchored findings plus a prioritised roadmap. Snapshot at
+  #542 / #543.
 
 ## Runtime internals
 
