@@ -800,12 +800,39 @@ def assemble_recovery_diagnostics(
     first-parse lexer warnings, and any warnings the recovered re-lex produced.
     *reparse_warnings* is empty when nothing was inserted.
     """
-    diags = list(det.fallback_diags)
-    diags = [vt.diagnostic for vt in det.virtuals] + diags
+    diags = [vt.diagnostic for vt in det.virtuals] + list(det.fallback_diags)
     diags += _lexer_warnings_to_diagnostics(det.lexer_warnings)
     if reparse_warnings:
         diags += _lexer_warnings_to_diagnostics(reparse_warnings)
-    return diags
+    return _dedupe_diagnostics(diags)
+
+
+def _dedupe_diagnostics(diags: list[Diagnostic]) -> list[Diagnostic]:
+    """Drop exact-duplicate diagnostics, preserving first-seen order.
+
+    The first parse and the recovered re-parse can each emit the same lexer
+    warning (e.g. "extra characters after close-quote") for an unchanged region,
+    which would otherwise surface as two identical squiggles.  Two diagnostics
+    that match in code, range, message *and* quick-fixes are the same diagnostic.
+    """
+    seen: set[tuple] = set()
+    out: list[Diagnostic] = []
+    for d in diags:
+        key = (
+            d.code,
+            d.range.start.offset,
+            d.range.end.offset,
+            d.message,
+            tuple(
+                (f.range.start.offset, f.range.end.offset, f.new_text, f.description)
+                for f in (d.fixes or ())
+            ),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
 
 
 def segment_with_recovery(

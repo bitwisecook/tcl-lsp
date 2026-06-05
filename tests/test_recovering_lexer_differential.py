@@ -26,10 +26,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from compiler.parsing.green_tree import tokenise
-from compiler.parsing.recovering_lexer import (
-    tokenise_recovering,
-    tokenise_recovering_with_diagnostics,
-)
+from compiler.parsing.recovering_lexer import tokenise_recovering
 from compiler.parsing.recovery import compute_virtual_insertions, segment_with_recovery
 
 
@@ -88,20 +85,18 @@ def _assert_equivalent(source: str) -> None:
     )
 
 
-def _assert_diagnostics_match(source: str) -> None:
-    """The token path's recovery diagnostics must equal the analyser's.
+def _assert_no_duplicate_diagnostics(source: str) -> None:
+    """The recovery diagnostic set must never contain exact duplicates.
 
-    Both flow from the one ``detect_recovery`` pass, so the E201/E202/E203
-    diagnostics and their insert-missing-delimiter quick-fixes that the LSP
-    surfaces are identical whether reached via the recovering tokeniser or via
-    ``segment_with_recovery``.
+    The first parse and the recovered re-parse can each emit the same lexer
+    warning for an unchanged region; ``assemble_recovery_diagnostics`` dedupes
+    them so the editor never shows two identical squiggles.  This fuzzes that
+    invariant over the whole analyser recovery path.
     """
-    _toks, _warns, tok_diags = tokenise_recovering_with_diagnostics(source)
-    _cmds, seg_diags = segment_with_recovery(source)
-    assert _diag_key(tok_diags) == _diag_key(seg_diags), (
-        f"recovery diagnostics diverged for {source!r}\n"
-        f"  analyser:  {_diag_key(seg_diags)}\n"
-        f"  tokeniser: {_diag_key(tok_diags)}"
+    _cmds, diags = segment_with_recovery(source)
+    keys = _diag_key(diags)
+    assert len(keys) == len(set(keys)), (
+        f"duplicate recovery diagnostics for {source!r}\n  {keys}"
     )
 
 
@@ -132,7 +127,7 @@ class TestRecoveryHeuristicCases:
     )
     def test_heuristic_case(self, source):
         _assert_equivalent(source)
-        _assert_diagnostics_match(source)
+        _assert_no_duplicate_diagnostics(source)
 
     @pytest.mark.parametrize(
         "source",
@@ -151,6 +146,51 @@ class TestRecoveryHeuristicCases:
     )
     def test_well_formed_unchanged(self, source):
         _assert_equivalent(source)
+
+
+class TestRecoveryDiagnosticCharacterization:
+    """Pin the exact recovery diagnostic (code, span, message, quick-fix) each
+    heuristic produces, so the suggestions the LSP surfaces can't silently drift.
+    """
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            (
+                "set x [foo bar\nset y 2\n",
+                [("E201", 6, 13, "missing close-bracket", (("]", "Insert missing ']' before command"),))],
+            ),
+            (
+                "set x [foo bar\n# comment\nset y 2\n",
+                [("E201", 6, 13, "missing close-bracket", (("]", "Insert missing ']' before comment"),))],
+            ),
+            (
+                "set x [foo {a b}\n",
+                [("E201", 6, 9, "missing close-bracket", (("]", "Insert missing ']' before '{'"),))],
+            ),
+            (
+                'set x "\nset y 2\n',
+                [("E202", 6, 6, 'missing "', (('"', "Insert missing '\"' to close string"),))],
+            ),
+            (
+                "proc p {x y} {\nputs hi\nset z 3\n",
+                [("E203", 13, 13, "missing close-brace", ())],
+            ),
+        ],
+    )
+    def test_exact_diagnostics(self, source, expected):
+        _cmds, diags = segment_with_recovery(source)
+        got = [
+            (
+                d.code,
+                d.range.start.offset,
+                d.range.end.offset,
+                d.message,
+                tuple((f.new_text, f.description) for f in (d.fixes or ())),
+            )
+            for d in diags
+        ]
+        assert got == expected, f"diagnostics drifted for {source!r}\n  got: {got}"
 
 
 # --- fuzz corpora ------------------------------------------------------------
@@ -201,7 +241,7 @@ class TestRecoveryDifferentialFuzz:
             if compute_virtual_insertions(src):
                 recovered += 1
             _assert_equivalent(src)
-            _assert_diagnostics_match(src)
+            _assert_no_duplicate_diagnostics(src)
         # Coverage guard: the corpus must actually drive recovery.
         assert recovered > 200
 
@@ -211,4 +251,4 @@ class TestRecoveryDifferentialFuzz:
         for _ in range(4000):
             src = _rand_soup_source(rng)
             _assert_equivalent(src)
-            _assert_diagnostics_match(src)
+            _assert_no_duplicate_diagnostics(src)

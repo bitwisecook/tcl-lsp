@@ -23,46 +23,49 @@ recovery path, which subsequent commits replace with inline lexer recovery.
 
 from __future__ import annotations
 
-from shared.diagnostic import Diagnostic
 from shared.tokens import Token, TokenType
 
 from .green_tree import tokenise
-from .recovery import assemble_recovery_diagnostics, detect_recovery
+from .recovery import detect_recovery
 
-__all__ = ["tokenise_recovering", "tokenise_recovering_with_diagnostics"]
+__all__ = ["tokenise_recovering"]
 
-# Delimiter token types whose unterminated form (reaching EOF without a closer)
-# is what error recovery acts on.
-_DELIMITER_TYPES = (TokenType.CMD, TokenType.STR, TokenType.ESC)
+# Structural tokens that are never the swallowing tail of an open delimiter.
+_NON_CONTENT_TYPES = (TokenType.SEP, TokenType.EOL, TokenType.EOF)
 
 
-def _has_unterminated_delimiter(
+def _recovery_possible(
     tokens: tuple[Token, ...],
     source: str,
     base_offset: int,
 ) -> bool:
-    """Cheap superset test: could this stream need recovery?
+    """Sound (over-approximate) test: could this stream need recovery?
 
-    An unterminated delimiter always shows up as a token group that runs to the
-    end of *source* (the lexer consumes to EOF when no closer is found).  If no
-    token reaches EOF inside an open delimiter, ``compute_virtual_insertions``
-    would find nothing, so the bare parse already equals the recovered parse.
+    Every recovery detector — unterminated ``[`` (``_is_unterminated_cmd``),
+    suspicious ``"`` (``_is_suspicious_quote``) and suspicious ``{``
+    (``_is_suspicious_str``) — has a necessary precondition that the offending
+    *command* runs to the end of the region: the lexer only fails to find a
+    closer at EOF, and the quote/brace heuristics explicitly require the command
+    to reach EOF.  So if no content token reaches EOF, ``detect_recovery`` is
+    guaranteed to find nothing and the bare parse already equals the recovered
+    parse.
 
-    The EOF-reaching token may not itself be a delimiter token: an unterminated
-    ``"`` whose tail is a substitution ends in a ``VAR``/``CMD`` token carrying
-    ``in_quote`` (the quote is still open), and an unterminated ``[`` ends in a
-    ``CMD``.  So the signal is "an EOF-reaching token that is a delimiter type
-    *or* still inside a quote".  This is a deliberate *superset*: it may answer
-    ``True`` for a bare word that merely ends at EOF, which only routes to the
-    precise recovery path (that then inserts nothing) — never a false negative.
+    Checking "some content token reaches EOF" is therefore a *sound* superset:
+    never a false negative (it cannot skip a real recovery), and at worst a
+    false positive for a word that legitimately ends at EOF (e.g. a file with no
+    trailing newline) — which only routes to the precise detection that then
+    inserts nothing.  Note the tail need not be a delimiter token: an
+    unterminated ``"`` can end in a ``VAR``/``CMD`` substitution, and a
+    suspicious ``"`` may even close at a later stray quote yet still leave the
+    command reaching EOF.
     """
     if not source:
         return False
     eof_local = len(source) - 1
     for tok in tokens:
-        if tok.end.offset - base_offset < eof_local:
+        if tok.type in _NON_CONTENT_TYPES:
             continue
-        if tok.type in _DELIMITER_TYPES or tok.in_quote:
+        if tok.end.offset - base_offset >= eof_local:
             return True
     return False
 
@@ -95,7 +98,7 @@ def tokenise_recovering(
     # disqualify this path for the token-only caller.)  Inside a body,
     # segmentation runs under the body's mode/anchoring, which can surface an
     # unterminated delimiter the bare top-level lex does not — so always detect.
-    if body_token is None and not _has_unterminated_delimiter(tokens, source, base_offset):
+    if body_token is None and not _recovery_possible(tokens, source, base_offset):
         return tokens, warnings
     det = detect_recovery(source, body_token)
     if not det.insertions:
@@ -108,41 +111,3 @@ def tokenise_recovering(
         virtual_insertions=det.insertions,
         line_starts=line_starts,
     )
-
-
-def tokenise_recovering_with_diagnostics(
-    source: str,
-    base_offset: int = 0,
-    base_line: int = 0,
-    base_col: int = 0,
-    *,
-    body_token: Token | None = None,
-    line_starts: list[int] | None = None,
-) -> tuple[tuple[Token, ...], object, list[Diagnostic]]:
-    """As :func:`tokenise_recovering`, but also return the recovery diagnostics.
-
-    The recovered token stream and the E2xx diagnostics (with their
-    insert-missing-delimiter quick-fixes) come from a *single* detection pass —
-    so a consumer that wants both pays for recovery once, and the diagnostics are
-    byte-identical to the analyser's ``segment_with_recovery``.
-
-    Unlike :func:`tokenise_recovering` there is no well-formed fast path: even a
-    source with no unterminated delimiter may carry mid-stream lexer warnings
-    (E204/E205/E206) that the diagnostic set must include, so detection always
-    runs.
-    """
-    det = detect_recovery(source, body_token)
-    if not det.insertions:
-        tokens, warnings = tokenise(
-            source, base_offset, base_line, base_col, line_starts=line_starts
-        )
-        return tokens, warnings, assemble_recovery_diagnostics(det, [])
-    rec_tokens, rec_warnings = tokenise(
-        source,
-        base_offset,
-        base_line,
-        base_col,
-        virtual_insertions=det.insertions,
-        line_starts=line_starts,
-    )
-    return rec_tokens, rec_warnings, assemble_recovery_diagnostics(det, list(rec_warnings))
