@@ -5326,9 +5326,8 @@ traits + `taint.rs` subcommand facts, losing Python's `taint_output_sink`
 `credential_options` / `credential_arg` / `sensitive_headers`.  (Most of
 these granular fields have since been merged into the registry and are now
 consumed — see the registry-unblocked LANDED note below — including
-**T106** double-encoding, now implemented.)  Still absent: **W313**
-destructive file ops on a tainted path
-(`compiler/taint/_sinks.py::_find_destructive_file_warnings`).  The setter
+**T106** double-encoding *and* **W313** destructive-file-on-tainted-path,
+both now implemented.)  The setter
 -constraint table is also hardcoded (2 entries, `taint.rs:1262`) vs
 Python's registry-driven `TAINT_HINTS`.  **Fix:** these are the data
 substrate for GAP-A2's security checks — port the granular fields first,
@@ -5349,9 +5348,13 @@ missing engine piece too: `transform_colour` now stamps a command's
 `taint_transform` colour onto its tainted result during `propagate_taints`
 (e.g. `uri::encode` → `URL_ENCODED`), and `emit_double_encode_warnings`
 flags a value re-entering a command whose `taint_double_encode_colour` it
-already carries.  **Still pending (need more than a registry field —
-additional engine/infra):** **W313** destructive-file-on-tainted-
-path; the GAP-C2 regex/format **sub-token** taxonomy (the ~1600-LOC
+already carries; and **W313** destructive-file-on-tainted-path
+(`find_destructive_file_warnings`: `file delete`/`rename`/`mkdir` with a
+variable path, suppressed when the path is normalised *and* bounds-checked
+via the `[string match …]` branch-guard analysis — `taint`-diagnostic
+severity is uniformly `Error` in Rust, a pre-existing convention).
+**Still pending (need more than a registry field — additional
+engine/infra):** the GAP-C2 regex/format **sub-token** taxonomy (the ~1600-LOC
 per-component sub-tokenisers, with `pattern_type`/`format_string_type` as
 the registry input); the hover **"Valid events"** list (needs an
 `events_matching` / `effective_event_requires` port); and the

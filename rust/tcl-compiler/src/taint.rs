@@ -33,6 +33,12 @@
 //!   propagation, and [`emit_double_encode_warnings`] flags a value that
 //!   re-enters a command whose `taint_double_encode_colour` it already
 //!   carries (e.g. `uri::encode [uri::encode $x]`).
+//! - **W313 destructive-file-on-tainted-path** —
+//!   [`find_destructive_file_warnings`] flags `file delete` / `rename` /
+//!   `mkdir` (registry `destructive` subcommands) with a variable path,
+//!   suppressed when the path is normalised *and* bounds-checked (the
+//!   `[string match …]` branch-guard analysis in
+//!   [`compute_branch_guard_map`]).
 //!
 //! - Path-concat heuristic (W201) — see [`crate::path_concat`].
 //! - iRules-specific sink codes IRULE3001–3004 / 3101 / 3102 —
@@ -69,7 +75,8 @@ use tcl_lexer::Span;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg::Function as CfgFunction;
+use crate::cfg::{Function as CfgFunction, Terminator};
+use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
@@ -996,6 +1003,349 @@ fn classify_network_interp_sinks(
         }
     }
     out
+}
+
+/// **W313.** Flag destructive `file` operations (`file delete` /
+/// `rename` / `mkdir` — the registry's `destructive` subcommands) whose
+/// path argument is a variable, since the path may carry user-controlled
+/// content (path-traversal).  Suppressed when the path variable is both
+/// normalised (`PATH_NORMALISED` colour, or its SSA def is
+/// `[file normalize …]`) *and* bounds-checked — the latter via
+/// branch-guard analysis ([`compute_branch_guard_map`]) or a
+/// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
+/// normalised-but-unguarded path.  Mirrors
+/// `core/compiler/taint/_sinks.py::_find_destructive_file_warnings`.
+pub(crate) fn find_destructive_file_warnings(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    executable_blocks: &HashSet<String>,
+    registry: &CommandRegistry,
+) -> Vec<TaintWarning> {
+    let destructive = destructive_file_subs(registry);
+    if destructive.is_empty() {
+        return Vec::new();
+    }
+    let guard_map = compute_branch_guard_map(cfg, registry);
+
+    let mut warnings: Vec<TaintWarning> = Vec::new();
+    for bn in cfg_order(cfg) {
+        if !executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(ssa_block) = ssa.blocks.get(&bn) else {
+            continue;
+        };
+        let empty = HashSet::new();
+        let block_guarded = guard_map.get(&bn).unwrap_or(&empty);
+        for ssa_stmt in &ssa_block.statements {
+            let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                span,
+                ..
+            } = &ssa_stmt.statement
+            else {
+                continue;
+            };
+            if canonical_command.as_deref() != Some("::file") && command != "file" {
+                continue;
+            }
+            let Some(sub) = args.first() else {
+                continue;
+            };
+            if !destructive.contains(sub.as_str()) {
+                continue;
+            }
+            // Skip `-force` / `--` to find the path arguments.
+            let mut path_start = 1;
+            while path_start < args.len() && matches!(args[path_start].as_str(), "-force" | "--") {
+                path_start += 1;
+            }
+            // One W313 per statement (first offending path variable).
+            for (name, &ver) in &ssa_stmt.uses {
+                let in_path = args
+                    .iter()
+                    .skip(path_start)
+                    .any(|a| arg_var_names(a).contains(name));
+                if !in_path {
+                    continue;
+                }
+                let t = taints
+                    .get(&(name.clone(), ver))
+                    .copied()
+                    .unwrap_or(TaintLattice::clean());
+                let is_normalised = (t.is_tainted()
+                    && t.colours.contains(TaintColour::PATH_NORMALISED))
+                    || is_normalised_def(name, ver, ssa);
+                let is_bounded = (t.is_tainted() && t.colours.contains(TaintColour::PATH_BOUNDED))
+                    || (is_normalised && block_guarded.contains(name));
+                if is_bounded {
+                    continue;
+                }
+                let message = if is_normalised {
+                    format!(
+                        "file {sub} with normalised path (${name}) — verify it stays \
+                         within the intended directory (e.g. [string match \"$base/*\" \
+                         ${{name}}])."
+                    )
+                } else {
+                    format!(
+                        "file {sub} with a variable path (${name}) risks path-traversal. \
+                         Normalise with [file normalize] and verify it stays within the \
+                         intended directory."
+                    )
+                };
+                warnings.push(TaintWarning {
+                    span: *span,
+                    variable: name.clone(),
+                    sink_command: format!("file {sub}"),
+                    code: "W313".to_owned(),
+                    message,
+                    replacement: None,
+                });
+                break;
+            }
+        }
+    }
+    warnings
+}
+
+/// The `file` subcommands flagged `destructive` in the registry
+/// (`delete` / `rename` / `mkdir`).
+fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
+    registry.get("file").map_or_else(HashSet::new, |spec| {
+        spec.subcommands
+            .iter()
+            .filter(|s| s.destructive)
+            .map(|s| s.name)
+            .collect()
+    })
+}
+
+/// Variable names referenced (via `$name` / `${name}`) anywhere in `arg`.
+/// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
+/// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
+fn arg_var_names(arg: &str) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let bytes = arg.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            i += 1;
+            continue;
+        }
+        if bytes.get(i + 1) == Some(&b'{') {
+            if let Some(rel) = arg[i + 2..].find('}') {
+                names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
+                i = i + 2 + rel + 1;
+                continue;
+            }
+        }
+        let start = i + 1;
+        let mut j = start;
+        while j < bytes.len()
+            && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
+        {
+            j += 1;
+        }
+        if j > start {
+            names.insert(normalise_var_name(&arg[start..j]).to_owned());
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    names
+}
+
+/// True when the SSA def of `name`@`ver` is a `[file normalize …]`
+/// command substitution.  Mirrors `_is_normalised_def`.
+fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
+    for ssa_block in ssa.blocks.values() {
+        for ssa_stmt in &ssa_block.statements {
+            if ssa_stmt.defs.get(name) == Some(&ver) {
+                if let Statement::AssignValue { value, .. } = &ssa_stmt.statement {
+                    return value.trim().starts_with("[file normalize ");
+                }
+                return false;
+            }
+        }
+    }
+    false
+}
+
+/// Build a `block → {bounds-checked var}` map: a `Branch` whose condition
+/// is `[string match|first|equal … $var]` marks `$var` as `PATH_BOUNDED`
+/// in the guarded successor (and its exclusive successors).  Mirrors
+/// `_compute_branch_guard_map`.
+fn compute_branch_guard_map(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+) -> HashMap<String, HashSet<String>> {
+    let mut guarded: HashMap<String, HashSet<String>> = HashMap::new();
+    for block in cfg.blocks.values() {
+        let Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        let (negated, var) = extract_guard_var(condition, false);
+        let Some(var) = var else {
+            continue;
+        };
+        let (guarded_target, other_target) = if negated {
+            (false_target, true_target)
+        } else {
+            (true_target, false_target)
+        };
+        propagate_guard(
+            cfg,
+            guarded_target,
+            other_target,
+            &var,
+            registry,
+            &mut guarded,
+        );
+    }
+    guarded
+}
+
+/// Extract `(negated, path-var)` from a branch condition.  Mirrors
+/// `_extract_guard_var`: a unary operator flips negation; a binary
+/// operator checks both sides; a `[string …]` command sub yields the
+/// bounds-checked variable.
+fn extract_guard_var(expr: &ExprNode, negated: bool) -> (bool, Option<String>) {
+    match expr {
+        ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated),
+        ExprNode::Binary { left, right, .. } => {
+            let (n, r) = extract_guard_var(left, negated);
+            if r.is_some() {
+                return (n, r);
+            }
+            extract_guard_var(right, negated)
+        }
+        ExprNode::Command { text, .. } => (negated, guard_var_from_string_command(text)),
+        _ => (negated, None),
+    }
+}
+
+/// Parse `[string match|first|equal … $var]` and return the path
+/// variable it bounds-checks.  Mirrors the `string` arm of
+/// `_extract_guard_var`.
+fn guard_var_from_string_command(text: &str) -> Option<String> {
+    let (command, args) = parse_command_substitution(text.trim())?;
+    if command != "string" || args.is_empty() {
+        return None;
+    }
+    match args[0].as_str() {
+        "match" if args.len() >= 3 => extract_var_name(args.last().unwrap()),
+        "first" if args.len() >= 3 => extract_var_name(&args[2]),
+        "equal" => {
+            let mut skip_next = false;
+            for arg in &args[1..] {
+                if skip_next {
+                    skip_next = false;
+                    continue;
+                }
+                if arg == "-length" {
+                    skip_next = true;
+                    continue;
+                }
+                if arg.starts_with('-') {
+                    continue;
+                }
+                if let Some(name) = extract_var_name(arg) {
+                    return Some(name);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Extract a variable name from a `$name` / `${name}` word.  Mirrors
+/// `_extract_var_name` (identifier chars only — no `::` qualification).
+fn extract_var_name(arg: &str) -> Option<String> {
+    let text = arg.trim();
+    if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        return Some(inner.to_owned());
+    }
+    if let Some(name) = text.strip_prefix('$') {
+        if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            return Some(name.to_owned());
+        }
+    }
+    None
+}
+
+/// True when `block_name` executes a block-terminating command
+/// (`error` / `return` / `exit` — the `TERMINATES_BLOCK` trait) so its
+/// successors are unreachable from this path.  Mirrors
+/// `_is_dead_end_block`.
+fn is_dead_end_block(cfg: &CfgFunction, block_name: &str, registry: &CommandRegistry) -> bool {
+    let Some(block) = cfg.blocks.get(block_name) else {
+        return false;
+    };
+    block.statements.iter().any(|stmt| {
+        matches!(stmt, Statement::Call { command, .. }
+            if registry.get(command).is_some_and(|s| s.traits.contains(Traits::TERMINATES_BLOCK)))
+    })
+}
+
+/// Mark `guarded_target` and its successors that aren't also reachable
+/// from `other_target` (i.e. before the merge point) as guarding `var`.
+/// When `other_target` is a dead-end (error/return), the merge is only
+/// reachable through the guard, so the guard extends through it.  Mirrors
+/// `_propagate_guard`.
+fn propagate_guard(
+    cfg: &CfgFunction,
+    guarded_target: &str,
+    other_target: &str,
+    var: &str,
+    registry: &CommandRegistry,
+    guarded: &mut HashMap<String, HashSet<String>>,
+) {
+    let mut other_reachable: HashSet<String> = HashSet::new();
+    if !is_dead_end_block(cfg, other_target, registry) {
+        let mut stack = vec![other_target.to_owned()];
+        while let Some(b) = stack.pop() {
+            if other_reachable.contains(&b) {
+                continue;
+            }
+            let Some(block) = cfg.blocks.get(&b) else {
+                continue;
+            };
+            other_reachable.insert(b.clone());
+            for succ in block.terminator.iter().flat_map(Terminator::successors) {
+                stack.push(succ.to_owned());
+            }
+        }
+    }
+    let mut visit = vec![guarded_target.to_owned()];
+    let mut visited: HashSet<String> = HashSet::new();
+    while let Some(b) = visit.pop() {
+        if visited.contains(&b) {
+            continue;
+        }
+        if other_reachable.contains(&b) && b != guarded_target {
+            continue;
+        }
+        let Some(block) = cfg.blocks.get(&b) else {
+            continue;
+        };
+        visited.insert(b.clone());
+        guarded.entry(b.clone()).or_default().insert(var.to_owned());
+        for succ in block.terminator.iter().flat_map(Terminator::successors) {
+            visit.push(succ.to_owned());
+        }
+    }
 }
 
 /// **T106.** Emit a double-encoding warning when a tainted value that
@@ -1995,6 +2345,142 @@ mod tests {
             t106.unwrap().message.contains("already URL-encoded"),
             "{:?}",
             t106.unwrap().message
+        );
+    }
+
+    /// Run W313 over a single-block function built from `ssa_stmts`.
+    fn w313_warnings(ssa_stmts: Vec<crate::ssa::SsaStatement>) -> Vec<TaintWarning> {
+        use crate::cfg::{Function, Terminator};
+        use crate::ssa::{SsaBlock, SsaFunction};
+
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::top", "entry");
+        {
+            let b = cfg.blocks.get_mut("entry").unwrap();
+            for s in &ssa_stmts {
+                b.statements.push(s.statement.clone());
+            }
+            b.terminator = Some(Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+        }
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: ssa_stmts,
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
+    }
+
+    fn file_call(args: &[&str]) -> Statement {
+        Statement::Call {
+            span: tcl_lexer::Span::new(0, 20),
+            command: "file".into(),
+            canonical_command: Some("::file".into()),
+            args: args.iter().map(|a| (*a).to_string()).collect(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        }
+    }
+
+    #[test]
+    fn w313_variable_path_to_file_delete() {
+        use crate::ssa::SsaStatement;
+        let ssa = SsaStatement {
+            statement: file_call(&["delete", "$p"]),
+            uses: [("p".to_owned(), 1u32)].into_iter().collect(),
+            defs: HashMap::new(),
+        };
+        let w = w313_warnings(vec![ssa]);
+        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        assert_eq!(d.variable, "p");
+        assert!(
+            d.message
+                .contains("file delete with a variable path ($p) risks path-traversal"),
+            "{}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w313_normalised_path_gets_softer_message() {
+        use crate::ssa::SsaStatement;
+        use tcl_lexer::Span;
+        // set p [file normalize $base]; file delete $p
+        let assign = Statement::AssignValue {
+            span: Span::new(0, 25),
+            name: "p".into(),
+            value: "[file normalize $base]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let s0 = SsaStatement {
+            statement: assign,
+            uses: [("base".to_owned(), 0u32)].into_iter().collect(),
+            defs: [("p".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let s1 = SsaStatement {
+            statement: file_call(&["delete", "$p"]),
+            uses: [("p".to_owned(), 1u32)].into_iter().collect(),
+            defs: HashMap::new(),
+        };
+        let w = w313_warnings(vec![s0, s1]);
+        let d = w.iter().find(|w| w.code == "W313").expect("W313");
+        assert!(
+            d.message.contains("file delete with normalised path ($p)"),
+            "{}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn w313_silent_for_literal_path() {
+        use crate::ssa::SsaStatement;
+        // `file delete /tmp/foo` has no variable path argument.
+        let ssa = SsaStatement {
+            statement: file_call(&["delete", "/tmp/foo"]),
+            uses: HashMap::new(),
+            defs: HashMap::new(),
+        };
+        assert!(w313_warnings(vec![ssa]).is_empty());
+    }
+
+    #[test]
+    fn w313_helpers_parse_vars_and_guards() {
+        assert!(arg_var_names("$p").contains("p"));
+        assert!(arg_var_names("${dir}/$file").contains("dir"));
+        assert!(arg_var_names("${dir}/$file").contains("file"));
+        assert_eq!(extract_var_name("$p").as_deref(), Some("p"));
+        assert_eq!(extract_var_name("${p}").as_deref(), Some("p"));
+        assert_eq!(
+            guard_var_from_string_command("[string match \"$base/*\" $p]").as_deref(),
+            Some("p")
+        );
+        assert_eq!(
+            guard_var_from_string_command("[string equal -length 4 $a $p]").as_deref(),
+            Some("a")
         );
     }
 
