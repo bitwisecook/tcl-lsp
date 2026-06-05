@@ -31,6 +31,7 @@ use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
+use tcl_lsp_core::file_ops as core_file_ops;
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
@@ -72,28 +73,30 @@ use tower_lsp::lsp_types::{
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DidOpenTextDocumentParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
     DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
     FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
-    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
-    PrepareRenameResponse, Range, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
-    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
+    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
     TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -2530,6 +2533,82 @@ impl LanguageServer for Backend {
         }))
     }
 
+    /// `workspace/willRenameFiles` (GAP-A9): when `.tcl` files are
+    /// renamed in the editor, rewrite every dependent file's `source`
+    /// literal so the workspace still loads.  The pure core
+    /// (`core_file_ops::compute_rename_edits`) returns byte-span edits
+    /// keyed by dependent URI; here we resolve each span to an LSP
+    /// range against the dependent's current text and assemble a
+    /// `WorkspaceEdit` (one `TextDocumentEdit` per dependent, matching
+    /// the Python `compute_batch_rename_edits`).
+    async fn will_rename_files(
+        &self,
+        params: RenameFilesParams,
+    ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        // Collect the byte-span edits for every rename in the batch.
+        let raw_edits: Vec<core_file_ops::RenameEdit> = {
+            let index = self.workspace_index.lock().await;
+            params
+                .files
+                .iter()
+                .flat_map(|f| core_file_ops::compute_rename_edits(&f.old_uri, &f.new_uri, &index))
+                .collect()
+        };
+        if raw_edits.is_empty() {
+            return Ok(None);
+        }
+        // Group by dependent URI, resolving each span against that
+        // document's source (open buffer or on-disk fallback).
+        let mut by_dep: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        for edit in raw_edits {
+            let Ok(dep_url) = Url::parse(&edit.uri) else {
+                continue;
+            };
+            let Some(doc) = self.read_document(&dep_url).await else {
+                continue;
+            };
+            let line_index = tcl_lexer::LineIndex::new(&doc.text);
+            by_dep.entry(dep_url).or_default().push(TextEdit {
+                range: lift_span(&line_index, edit.span),
+                new_text: edit.new_text,
+            });
+        }
+        if by_dep.is_empty() {
+            return Ok(None);
+        }
+        let document_changes: Vec<TextDocumentEdit> = by_dep
+            .into_iter()
+            .map(|(uri, edits)| TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+                edits: edits.into_iter().map(OneOf::Left).collect(),
+            })
+            .collect();
+        Ok(Some(WorkspaceEdit {
+            changes: None,
+            document_changes: Some(DocumentChanges::Edits(document_changes)),
+            change_annotations: None,
+        }))
+    }
+
+    /// `workspace/didRenameFiles` (GAP-A9): after the client applies a
+    /// rename on disk, refresh the workspace index — drop the old URI's
+    /// entries and re-index the renamed file from its new path so
+    /// cross-document features (including future renames) stay current.
+    /// Mirrors the Python `on_did_rename_files`.
+    async fn did_rename_files(&self, params: RenameFilesParams) {
+        for f in &params.files {
+            if let Ok(old_url) = Url::parse(&f.old_uri) {
+                self.workspace_index
+                    .lock()
+                    .await
+                    .remove_document(old_url.as_str());
+            }
+            if let Ok(new_url) = Url::parse(&f.new_uri) {
+                self.reindex_index_from_disk(&new_url).await;
+            }
+        }
+    }
+
     async fn signature_help(
         &self,
         params: SignatureHelpParams,
@@ -3081,7 +3160,35 @@ fn build_server_capabilities() -> ServerCapabilities {
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
+        // `S-workspace-file-ops` (GAP-A9): advertise willRename /
+        // didRename so the editor consults us before/after a `.tcl`
+        // rename — the willRename handler rewrites dependents' `source`
+        // literals, the didRename handler reindexes the moved file.
+        workspace: Some(WorkspaceServerCapabilities {
+            workspace_folders: None,
+            file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                will_rename: Some(rename_file_operation_options()),
+                did_rename: Some(rename_file_operation_options()),
+                ..WorkspaceFileOperationsServerCapabilities::default()
+            }),
+        }),
         ..ServerCapabilities::default()
+    }
+}
+
+/// File-operation filter for `willRename` / `didRename`: match the Tcl
+/// source extensions (`.tcl` / `.tm` / `.itcl` / `.irule` / `.irul`),
+/// mirroring the Python `_RENAME_FILE_OPERATION_OPTIONS` glob.
+fn rename_file_operation_options() -> FileOperationRegistrationOptions {
+    FileOperationRegistrationOptions {
+        filters: vec![FileOperationFilter {
+            scheme: Some("file".to_owned()),
+            pattern: FileOperationPattern {
+                glob: "**/*.{tcl,tm,itcl,irule,irul}".to_owned(),
+                matches: None,
+                options: None,
+            },
+        }],
     }
 }
 
@@ -4157,6 +4264,78 @@ mod tests {
         };
         let result = backend.rename(params).await.expect("ok");
         assert!(result.is_none(), "rename to a built-in should be refused");
+    }
+
+    #[tokio::test]
+    async fn will_rename_rewrites_dependent_source_literal() {
+        let backend = test_backend();
+        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        // main.tcl sources lib/old.tcl via a relative literal.
+        register(&backend, &main, "source lib/old.tcl\nputs hi\n").await;
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: "file:///proj/lib/old.tcl".to_owned(),
+                new_uri: "file:///proj/lib/new.tcl".to_owned(),
+            }],
+        };
+        let edit = backend
+            .will_rename_files(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let DocumentChanges::Edits(doc_edits) = edit.document_changes.expect("document_changes")
+        else {
+            panic!("expected Edits");
+        };
+        assert_eq!(doc_edits.len(), 1);
+        assert_eq!(doc_edits[0].text_document.uri, main);
+        assert_eq!(doc_edits[0].edits.len(), 1);
+        let OneOf::Left(text_edit) = &doc_edits[0].edits[0] else {
+            panic!("expected plain TextEdit");
+        };
+        assert_eq!(text_edit.new_text, "lib/new.tcl");
+        // The edit range covers the original `lib/old.tcl` literal on
+        // the first line.
+        assert_eq!(text_edit.range.start.line, 0);
+    }
+
+    #[tokio::test]
+    async fn will_rename_returns_none_without_dependents() {
+        let backend = test_backend();
+        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        register(&backend, &main, "source other.tcl\n").await;
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: "file:///proj/lib/old.tcl".to_owned(),
+                new_uri: "file:///proj/lib/new.tcl".to_owned(),
+            }],
+        };
+        // Nothing sources lib/old.tcl → no edit.
+        assert!(backend
+            .will_rename_files(params)
+            .await
+            .expect("ok")
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn did_rename_reindexes_moved_document() {
+        let backend = test_backend();
+        let old = Url::parse("file:///gone.tcl").unwrap();
+        register(&backend, &old, "proc helper {} {}\n").await;
+        assert_eq!(backend.workspace_index.lock().await.procs().len(), 1);
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: old.to_string(),
+                // New path doesn't exist on disk (test env) — reindex
+                // drops the stale old entry and finds nothing to add.
+                new_uri: "file:///moved.tcl".to_owned(),
+            }],
+        };
+        backend.did_rename_files(params).await;
+        // The old document's proc is gone from the index.
+        let index = backend.workspace_index.lock().await;
+        assert!(index.procs().iter().all(|p| p.uri != old.as_str()));
     }
 
     #[tokio::test]

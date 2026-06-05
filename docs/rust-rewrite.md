@@ -4569,6 +4569,34 @@ index), the `package_suggestions` fuzzy-catalogue code action (needs the
 registry `required_package` surface the registry chat is restoring), and
 the `irules_context` hover/completion enrichment (folds into GAP-C5).
 
+**LANDED (workspace_file_ops — source-rewrite on rename, 2026-06-05).**
+Ports `workspace_file_ops.py` (the `willRename` / `didRename` rename-edit
+provider) in two strips.  **Strip 1** (core): `WorkspaceIndex` now records
+every `source FILE` target (`WorkspaceSource { uri, raw_path, range,
+is_literal }`, seeded from `AnalysisResult.source_targets` in
+`add_document`), and `tcl-lsp-core/src/file_ops.rs::compute_rename_edits`
+(old_uri, new_uri, index) → `Vec<RenameEdit { uri, span, new_text }>`
+scans every *literal* `source` target, resolves it against its own
+document's path, and — when it points at the renamed file — emits a
+byte-span edit replacing the literal with the new path (preserving
+absolute-vs-relative style via posix `dirname` / `join` / `normpath` /
+`relpath` reimplemented for the Linux test env; substituted `$var` /
+`[cmd]` paths are left alone).  **Strip 2** (server): the
+`will_rename_files` handler runs `compute_rename_edits` for every
+`FileRename` in the batch, resolves each byte span to an LSP range against
+the dependent's current text (open buffer or on-disk fallback), and
+assembles a `WorkspaceEdit` of `document_changes` (one `TextDocumentEdit`
+per dependent — matching Python's `compute_batch_rename_edits`); the
+`did_rename_files` handler reindexes the moved file (drop old URI, re-scan
+new path from disk).  `build_server_capabilities` now advertises
+`workspace.fileOperations.{willRename,didRename}` with the
+`**/*.{tcl,tm,itcl,irule,irul}` glob (`file` scheme), matching the Python
+`_RENAME_FILE_OPERATION_OPTIONS`.  4 core unit tests + 3 server handler
+tests (relative + absolute rewrite, no-dependent → `None`, didRename
+reindex).  **Remaining GAP-A9:** the iRules event snippet templates, the
+`package_suggestions` fuzzy catalogue (registry-gated), and the
+`irules_context` enrichment (folds into GAP-C5).
+
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
 **GAP-B1 — O127 store-to-load forwarding — functionally absent,
@@ -7786,9 +7814,12 @@ following chunks landed:
     capability advertised, returns `None` (snippets folded
     into completion).
 15. **S-symbol-resolution / S-irules-context /
-    S-package-suggestions / S-workspace-file-ops** —
+    S-package-suggestions** —
     no-op rollup (pieces already live inside other chunks
     or are deferred to per-feature `*-rich` follow-ups).
+    **S-workspace-file-ops now landed** (GAP-A9): `willRename`
+    rewrites dependents' `source` literals + `didRename`
+    reindexes; `workspace.fileOperations` capability advertised.
 16. **S-diagnostics / S-lifecycle / S-commands /
     S-settings / S-workspace-init / S-state /
     S-diagnostics-pipeline / S-async-diagnostics** —
