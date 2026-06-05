@@ -32,6 +32,7 @@ pub mod bs;
 pub mod builtins;
 pub mod capi;
 pub mod counters;
+pub mod dict;
 pub mod frame;
 pub mod interp;
 pub mod list;

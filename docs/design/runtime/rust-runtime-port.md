@@ -338,6 +338,50 @@ shim's materialisation cost amortised over the boundary-crossing frequency**
 Record a shimmed type's two reps and the materialise-on-demand contract in its
 representation-decision note.
 
+### Experiment log
+
+Concrete experiments that settled a structure (the method's step 2, on the real
+WASM target). Each lives under `runtime/rust/experiments/` and is throwaway; the
+**decision** is what's kept.
+
+#### EXP-DICT (2026-06) — dict internal representation
+
+Question: the dict needs by-key get/set (hot, incl. `dict set` build loops) and
+**insertion-ordered** iteration (`dict keys`/`dict for`). Its rep is free to
+choose (the dict C ABI is function-mediated — see below). Five candidates,
+built to `wasm32-wasip1`, run under `wasmtime` (`experiments/dict_rep.rs`):
+
+| cand | structure | build | lookup | iter | verdict |
+|---|---|---:|---:|---:|---|
+| A | linear `Vec` | **23.5 s** | 24 s | 52 µs | O(n²) build — **out** |
+| B | `Vec` + `BTreeMap` index | 85 ms | 47 ms | 65 µs | ok; btree by-key slower |
+| C | `BTreeMap`+seq, sort-on-iter | 82 ms | 46 ms | 1233 µs | sort kills iter — out |
+| D | `HashMap`+seq, sort-on-iter | 11 ms | 12 ms | 3979 µs | sort kills iter — out |
+| **E** | **`Vec` + FNV-hash index** | **15 ms** | **14 ms** | **68 µs** | **chosen** |
+
+(N=65536; small-N all within noise.) **Decision: E** — an insertion-ordered
+`Vec` of `(key,value)` object pairs (O(n) ordered iteration, no sort) + a
+`HashMap<key-bytes, index>` with a fixed FNV hasher (O(1) by-key). Deterministic
+(output order = `Vec` order; the hash is never iterated for output), zero-dep.
+The linear `Vec` (A) showed the **`dict set` build-loop cliff** is real (23.5 s);
+sort-on-iterate (C/D) is 18–60× slower on the very common `dict for`.
+
+**C-extension compatibility (explicitly checked).** Compatible — and a good
+illustration of the shim escape-hatch. The dict C API
+(`Tcl_DictObjGet`/`Put`/`Remove`/`First`/`Next`) is **function-mediated**: an
+extension *never* observes the dict's internal structure (contrast
+`Tcl_HashTable`, embedded by value with its bucket layout a hard contract), so
+the rep is ours to choose. The two ABI touch-points are honoured by
+construction: keys/values cross as `Tcl_Obj *`, so we store the **key objects**
+(not just bytes) for `Tcl_DictObjFirst` fidelity (the byte-keyed index is just
+for lookup — dicts compare keys by string); and `Tcl_DictObjFirst`/`Next`
+iterate via an opaque `Tcl_DictSearch` struct the runtime fills with a `Vec`
+index + an `epoch` (added with that C API) for modify-during-iteration
+detection — and insertion order is exactly what the ordered `Vec` provides. So
+we are not constrained *to* a structure; we are **free to choose, then make the
+boundary compatible** — which is the general posture for every function-mediated
+value type.
+
 ### The value kinds to reason through (and their two relationships)
 
 Work through **every** value kind below. Each has a representation question and
@@ -388,7 +432,7 @@ any row.
 | Zig module | Files (lines) | Role | Rust target | Status | Gate that proves it |
 |---|---|---|---|---|---|
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
-| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** type, T1.6) | `make runtime-rust-test` — list build/index/length/append/shimmer leak-checked; dict/string/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
+| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** types, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) build/get/set/iter/shimmer leak-checked; string/array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
@@ -907,6 +951,13 @@ it in the same or a follow-up PR.
   shimmer keystone, also the path extension custom types take), and the list
   backing is `Vec<*mut TclObj>` (the contiguous array the ABI forces) hung off
   `internalRep`. Behaviour-diffed going forward.
+- `runtime/rust/src/dict.rs` (T1.6) mirrors `runtime/zig/valtypes/tcl_dict.zig`
+  for **semantics**, cross-checked against `tclDictObj.c` (insertion order,
+  `k v k v` string form). **Structural choice (EXP-DICT, WASM-benchmarked):**
+  an insertion-ordered `Vec` of `(key,value)` objects + an FNV-hashed
+  `key-bytes → index` map — *not* the Zig list-rep-plus-hash-side-cache.
+  Function-mediated dict ABI ⇒ compatible (key objects stored for
+  `Tcl_DictObjFirst`). Behaviour-diffed going forward.
 
 ### Outstanding
 
@@ -954,12 +1005,13 @@ compiler/LSP or the Zig runtime.
 6. ✅ **T1.4** — eval loop + command table + dispatch (`interp.rs`/`builtins.rs`:
    parse→subst→dispatch, `{*}`, completion codes, starter builtins; **closed
    subst's command half**; no deferred-free queue needed).
-7. ◐ **T1.6 (value types)** — the obj **typed-internal-rep machinery**
-   (free/dup/update-string via `typePtr` — the shimmer keystone + the custom-
-   `Tcl_ObjType` path) + the **list** type (`list.rs`: `Vec<*mut TclObj>`
-   backing, shimmer, leak-checked) landed. **Next:** list *commands*
-   (`list`/`llength`/`lindex`/`lappend`/`lrange`/…), then dict/string value
-   types, `proc` + the proc-call frame path, and **T1.5 namespaces**.
+7. ◐ **T1.6 (value types)** — obj **typed-internal-rep machinery** (shimmer
+   keystone + custom-`Tcl_ObjType` path) + the **list** type (contiguous
+   `Vec`, ABI-forced) + the **dict** type (ordered `Vec` + FNV-hash index,
+   chosen by WASM experiment EXP-DICT; extension-compatible via the
+   function-mediated dict ABI) — all leak-checked. **Next:** list/dict
+   *commands*, the string value type, `proc` + the proc-call frame path, and
+   **T1.5 namespaces**.
 8. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work

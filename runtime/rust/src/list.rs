@@ -182,7 +182,8 @@ const LIST_SPECIAL: &[u8] = b" \t\n\r\x0b\x0c{}\\\"";
 /// A pragmatic `TclConvertElement`: covers empty, whitespace/brace/backslash/
 /// quote content, brace-balance and trailing-backslash. The leading-`#` and
 /// COMPAT-mask edge cases are refined when the list commands land (T1.6b).
-fn append_list_element(buf: &mut Vec<u8>, elem: &[u8]) {
+/// Shared with `dict` (key/value quoting).
+pub(crate) fn append_list_element(buf: &mut Vec<u8>, elem: &[u8]) {
     if elem.is_empty() {
         buf.extend_from_slice(b"{}");
         return;
