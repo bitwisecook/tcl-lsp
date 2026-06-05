@@ -110,6 +110,29 @@ can?"):
   `cfg(target_arch = "wasm32")` (a `size_of::<TclObj>() == 24` static assert
   lands with the wasm build, T1.6).
 
+### The AOT compiler is ours to restructure (within the LSP guardrails)
+
+We may make **any architectural change to the AOT compiler**
+(`core/compiler/codegen/wasm/`, the IR/lowering it owns, the codegen↔runtime
+ABI) to make this port easier — **provided two guardrails hold**:
+
+1. **No loss of LSP precision/accuracy.** The frontend the LSP shares (lexer,
+   parser, analyser, the registry/spec data, diagnostics) must keep producing
+   the same results. Restructure the *backend* (lowering → WASM, the emit path,
+   the runtime ABI it targets) freely; treat the shared frontend as the line.
+2. **No tremendous LSP performance cost.** Changes must not materially slow the
+   LSP hot paths (parse/analyse/respond).
+
+This is the latitude behind T3.0 (the backend-agnostic emit registry) and the
+codegen↔runtime ABI contract (Zig lesson #4): the emit path and the runtime ABI
+can be redesigned to align cleanly with the runtime — e.g. one canonical
+parser→component-model→evaluator contract the codegen lowers from and the
+runtime walks, an explicit O()-annotated runtime ABI the codegen targets, and a
+single source of truth for runtime imports — as long as the LSP-facing frontend
+stays precise and fast. (This sits alongside the standing rule: do **not**
+regress the compiler/LSP *behaviour* or the Zig runtime; this note clarifies
+that *backend architecture* is nonetheless free to change.)
+
 ## Core tenet — low algorithmic complexity from the start
 
 **Every operation gets a target asymptotic complexity, decided when it is
@@ -167,6 +190,108 @@ variable-cell + explicit alias indirection + defined trace re-entrancy** →
 compatibility as the contract**, with the incompatible-by-design set decided up
 front → the [Tcl 9 scoreboard exclusions](#out-of-scope-exclusions-by-design);
 **no silent truncation** → the O() tenet above.
+
+## Deep Tcl semantics — the design contracts (decide before commands)
+
+Tcl is **homoiconic and late-bound**: `eval`/`uplevel`/`subst`/`source`/`apply`/
+runtime-built proc bodies / `$dynamic_cmd` / `{*}$computed` all mean *the code to
+run does not exist at compile time*. So the AOT compiler is **always half of a
+pair** — it must ship a complete runtime parser+evaluator that is byte-for-byte
+identical to the compiled path. The Zig runtime's hard semantic bugs all came
+from a deep subsystem being designed bottom-up instead of as a contract. The
+wisdom distils to **three meta-systems to design as contracts before any
+command**, and the port's stance on each:
+
+### Meta-system 1 — resolution + frames (`uplevel`/`upvar`/`global`/`variable`/namespaces)
+
+`uplevel`/`upvar`/`global`/`variable` are all facets of **one variable model**,
+and namespace command/var resolution is the same problem one level up.
+
+- **Two stacks** — the *call* stack (`info level`) and the *var* frame (where
+  `set` looks); `uplevel N` runs a script in a caller's var frame, `upvar` links
+  a local **name** to a cell in another frame/namespace. → designed in
+  [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) (the
+  `caller`/`caller_var` split).
+- **One variable-cell layer**: a frame is a name→cell table; a cell is
+  refcounted and **may be an alias** (points at another cell); **traces hang off
+  cells**; every var op goes through it; non-aliased hot locals are optimised
+  later behind a guard. → **partial**: `frame.rs` has `Var::Scalar|Array|Link`
+  (the alias) with path resolution (T1.3). **Gaps to design in**: independent
+  *cell* refcounting (Tcl `VarInHash`), the **trace** hook on cells +
+  re-entrancy/ordering model, and the single documented resolution order
+  (local → upvar link → namespace → global). These are designed before traces
+  and namespaces land, **not appended**.
+- **Namespaces**: hierarchical `::a::b` with own var+command tables, `namespace
+  path`, `import`/`rename`, `which`/`origin`, **ensembles**, `namespace
+  eval/code/inscope` (capture/restore current-ns). Command resolution =
+  current-ns → `namespace path` → global, modified by import/rename, then the
+  **`unknown` handler**; var resolution is the parallel algorithm. → **T1.5**,
+  built as a *core service* (the two resolution algorithms + `unknown` +
+  ensembles as first-class dispatch) **before** the bulk of commands. The flat
+  global table used by the list/dict commands so far is the degenerate case.
+
+### Meta-system 2 — parse-once + the AOT/interpreter duality (`eval`/`source`/`package`)
+
+- **One canonical parser → one component model → one evaluator contract** that
+  the compiler lowers from AND the runtime walks. → **done**: `parse.rs` is the
+  single scanner (word splitting, brace/quote/bracket nesting, backslash,
+  `#`-comments-in-command-position, `;`/newline, line continuation, `{*}`),
+  shared by `eval` + `subst` + list parsing. The cross-cutting "parse once" rule
+  is satisfied (one scanner, many clients).
+- **"Fall back to interp" is a defined boundary** that `eval`/`uplevel`/`subst`/
+  `source`/`apply`/dynamic-name all funnel through, with **source spans threaded
+  from the first byte** so `info frame`/line numbers/`errorInfo` survive across
+  eval/source. → designed in `proc-call-and-stack-traces.md` (the `CmdFrame`
+  source stack); the S7 staircase stage compiles the static metaprogramming
+  cases, everything else funnels to the interpreter.
+- **`source`/`package`/auto-load** sit behind a **VFS + loader interface** so
+  WASI being absent is a *missing impl*, not a missing design. → noted; the
+  loader is Track 2 / a VFS shim; `source` threads `info script` + relative-path
+  resolution through the `Source` frame kind.
+
+### Meta-system 3 — the numeric tower + `expr` (a second language)
+
+- **One numeric tower** — tagged-small-int → `i64` → **bignum** → `double` —
+  with **one** promotion/demotion/normalisation path and **one** compare/equality
+  used by `expr` and every numeric command; **canonicalise on every op** (a
+  bignum that fits a wide demotes back, so equality/hashing/string-rep are
+  stable); **no command rolls its own int parse**; **integer overflow promotes
+  to bignum, never wraps**. → **gap, flagged now**: today `obj` has `i64` int +
+  `double` but **no bignum**, and `incr` had its own `parse_i64` + `wrapping_add`
+  (the two anti-patterns this warns of). Fixed the silently-wrong wrap (→ checked
+  + explicit error pending bignum); the **numeric-tower module** (one parse, one
+  promote/normalise, one compare, bignum via a ported `tclTomMath`) is a
+  dedicated chunk **before `expr`**, and every numeric command routes through it.
+- **`expr` is a separate language** — own grammar/precedence (`**` right-assoc),
+  own operators (`eq`/`ne`/`in`/`ni`, ternary, short-circuit), own numeric rules
+  (int `/` truncates, `%` follows divisor sign, numeric-vs-string `==`,
+  `0x`/`0o`/`0b`/`1_000` literals, NaN/Inf, locale-free); functions dispatch
+  through the overridable `tcl::mathfunc::*` namespace (ties to meta-system 1);
+  only braced `expr {...}` is safe/compilable, unbraced double-substitutes. →
+  its own lexer+parser+evaluator over the numeric tower, mathfunc through the
+  command table; **braced compiles to guarded native ops, unbraced interprets**.
+  A dedicated chunk after the numeric tower.
+
+### Cross-cutting contracts
+
+- **Parse once, canonically** — one scanner (done, above).
+- **Traces are re-entrant interrupts** on ordinary var/command ops (fire during
+  access/dispatch, through upvar/namespace links, can error and re-enter). →
+  define dispatch order + re-entrancy + error propagation **before commands rely
+  on them** (with meta-system 1's cell model).
+- **The result is not a string** — a return code + an options dict
+  (`-errorinfo`/`-errorcode`/`-level`/`-errorstack`); `catch`/`try`/`return
+  -options`/`error` manipulate it. → designed (`Code` + the `ExceptionState`/
+  options model in `proc-call-and-stack-traces.md`); the universal return type
+  from day one.
+- **Encoding — UTF-8 is THE internal string rep.** Decision: strings are stored
+  **UTF-8** (the obj's `bytes`); `encoding convertto/convertfrom` and channel
+  encodings **translate to/from UTF-8 at the boundary**. Rationale: the vast
+  majority of WASM use cases are UTF-8 already, and a single internal rep avoids
+  the dual UTF-8/UTF-16 cache complexity Tcl 9 carries; `string`/`regexp`/
+  `binary` operate on the UTF-8 bytes (with the EXP-STRING ASCII fast path for
+  char indexing). Non-UTF-8 codecs are an *edge translation* (deferred-WASI), not
+  an internal-rep concern.
 
 ## Reference implementations (use both freely)
 

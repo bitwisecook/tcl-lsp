@@ -113,7 +113,15 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         1
     };
 
-    let sum = cur.wrapping_add(amount); // bignum promotion on overflow is T1.5
+    // Tcl integers NEVER wrap: on overflow they promote to bignum. Until the
+    // numeric tower lands, fail loudly rather than return a silently-wrong wrap
+    // (the low-O()/no-silent-wrong tenet; Zig "numeric tower" lesson).
+    let sum = match cur.checked_add(amount) {
+        Some(s) => s,
+        None => {
+            return interp.set_error(b"integer overflow (bignum promotion not yet implemented)")
+        }
+    };
     let obj = obj::new_wide_int_obj(sum); // rc 0
     let stored = match &elem {
         Some(k) => interp.frames.set_elem(&base, k, obj),
