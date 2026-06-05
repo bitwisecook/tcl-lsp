@@ -120,9 +120,7 @@ class LspServerClient:
             {
                 "processId": os.getpid(),
                 "rootUri": root_uri,
-                "workspaceFolders": (
-                    [{"uri": root_uri, "name": "e2e"}] if root_uri else None
-                ),
+                "workspaceFolders": ([{"uri": root_uri, "name": "e2e"}] if root_uri else None),
                 "capabilities": capabilities or {},
                 "clientInfo": {"name": "tcl-lsp-e2e", "version": "1.0"},
             },
@@ -172,7 +170,9 @@ class LspServerClient:
     def notify(self, method: str, params: Any = None) -> None:
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
 
-    def open_document(self, uri: str, text: str, *, language_id: str = "tcl", version: int = 1) -> None:
+    def open_document(
+        self, uri: str, text: str, *, language_id: str = "tcl", version: int = 1
+    ) -> None:
         self.notify(
             "textDocument/didOpen",
             {

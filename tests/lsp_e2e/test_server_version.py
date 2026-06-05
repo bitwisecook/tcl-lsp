@@ -21,9 +21,7 @@ from __future__ import annotations
 def test_initialize_reports_packaged_build_version(lsp_server, lsp_full_version):
     """serverInfo.version from the live server is the build version, not 'dev'."""
     info = lsp_server.server_info
-    assert info is not None, (
-        "initialize result had no serverInfo — cannot read the version banner"
-    )
+    assert info is not None, "initialize result had no serverInfo — cannot read the version banner"
     reported = info.get("version")
     # The banner is f"v{FULL_VERSION}"; a broken build-info import yields "vdev".
     assert reported == f"v{lsp_full_version}", (
