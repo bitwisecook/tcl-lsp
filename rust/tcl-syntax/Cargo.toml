@@ -26,6 +26,7 @@ description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst,
 
 [dependencies]
 tcl-lexer = { path = "../tcl-lexer" }
+bitflags = "2"
 
 [lints]
 workspace = true

@@ -15,9 +15,11 @@
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge` (done).
 //! - [`naming`] — variable/command name normalisation (done).
 //! - [`expr`] — the `expr` AST + Pratt parser (done).
-//! - `subst`, `number`, `format` — to follow.
+//! - [`format`] — the `format` conversion-specifier grammar (done).
+//! - `subst`, `number` — to follow.
 
 pub mod backslash;
 pub mod expr;
+pub mod format;
 pub mod list;
 pub mod naming;
