@@ -4285,11 +4285,22 @@ executes); a constant-true literal whose body has no `break` / `return`
 `(break|return|error|exit)` keyword scan; Rust regex has no look-behind,
 so the `:` / `-` prefix exclusion of `_BREAK_RE` is a post-filter on each
 `\b`-anchored match).  Wired into `emit_dispatch_site_diagnostics`;
-verified against the live Python analyser; 4 unit tests.  **Remaining:**
-the index-bounds family **W230 / W231 / W232** (constant list / `lset` /
-string index out of range), the default-off **W242** (unprovable
-termination HINT), and the `for`-step provably-infinite heuristic
-(`_for_is_provably_infinite`) — follow-ups.
+verified against the live Python analyser; 4 unit tests.
+**LANDED (W230 lindex + W232 string-index, 2026-06-05).**
+`list_index_diagnostics` ports the `lindex` arm of
+`check_list_index_out_of_range` (a constant list literal indexed by a
+constant out-of-range index → **W230**), and `string_index_diagnostics`
+the `string index` arm of `check_string_index_out_of_range` (a literal
+string indexed out of range, or a plain negative literal → **W232**, with
+the backslash-aware runtime-length back-off).  Ports the shared index
+helpers `is_literal_index` / `resolve_index` (`end` / `end±N` / strict
+`-?\d+`) / `describe_index` / `is_braced_or_esc` / `has_subst`, reusing
+`tcl_expr_eval::split_tcl_list` (now `pub(crate)`); verified across a
+battery against the live Python analyser; 3 unit tests.  **Remaining:**
+the `lrange` / `lreplace` arm of W230, **W231** (`lset`), the
+`string range` / `replace` / `insert` arms of W232, the default-off
+**W242**, and the `for`-step `_for_is_provably_infinite` heuristic —
+follow-ups.
 
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed

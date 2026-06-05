@@ -414,10 +414,14 @@ impl Analyser {
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
-        // W240 / W241 loop-termination (GAP-A4).
+        // W240 / W241 loop-termination + W230 / W232 index-bounds (GAP-A4).
         let loop_diags =
             super::bounds_checks::loop_termination_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(loop_diags);
+        let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(idx_diags);
+        let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(str_diags);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(

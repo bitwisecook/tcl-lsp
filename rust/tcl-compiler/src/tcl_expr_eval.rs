@@ -727,7 +727,7 @@ fn eval_as_string(node: &ExprNode, env: &Env) -> Option<String> {
 /// Does not handle the full Tcl list-quoting grammar (backslash
 /// continuations, nested braces within quoted strings) but covers
 /// the constant inputs seen by `in` / `ni` at compile time.
-fn split_tcl_list(text: &str) -> Vec<String> {
+pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
