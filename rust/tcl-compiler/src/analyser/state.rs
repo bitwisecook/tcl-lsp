@@ -467,6 +467,7 @@ impl Analyser {
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 
@@ -492,6 +493,41 @@ impl Analyser {
             self.registry.as_ref(),
         );
         self.result.diagnostics.extend(e201);
+    }
+
+    /// GAP-A1 strip 2: emit the lexer-warning recovery codes E204
+    /// (extra characters after a close-brace), E205 (after a
+    /// close-quote), and E206 (missing close-brace for a `${…}`
+    /// variable name).  These are surfaced from the dialect-aware
+    /// lexer's `LexWarning`s; the E201 / E202 / E203 "missing closer"
+    /// messages are deliberately skipped here (the recovery detectors
+    /// own those with better positions + fixes).  Mirrors
+    /// `recovery.py::_lexer_warnings_to_diagnostics` (the E204-E206
+    /// slice).
+    fn emit_lexer_warning_diagnostics(&mut self) {
+        let lexer = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(&self.source),
+            self.lexer_config(),
+        );
+        let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
+            return;
+        };
+        for w in warnings {
+            let code = match w.message.as_str() {
+                "extra characters after close-brace" => "E204",
+                "extra characters after close-quote" => "E205",
+                "missing close-brace for variable name" => "E206",
+                // E200 / E201 / E202 / E203 are owned by other paths.
+                _ => continue,
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: code.to_string(),
+                span: Span::new(w.offset, w.offset),
+                message: w.message,
+                severity: super::types::Severity::Error,
+                fixes: Vec::new(),
+            });
+        }
     }
 
     /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
@@ -580,6 +616,7 @@ impl Analyser {
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 

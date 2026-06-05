@@ -493,11 +493,38 @@ mod tests {
             .collect()
     }
 
+    fn lexer_recovery_codes(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "E204" | "E205" | "E206"))
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn e204_e205_e206_from_lexer_warnings() {
+        // Matches the live Python analyser.
+        assert_eq!(lexer_recovery_codes("set x {abc}def\n"), vec!["E204"]);
+        assert_eq!(lexer_recovery_codes("set y \"abc\"def\n"), vec!["E205"]);
+        assert_eq!(lexer_recovery_codes("puts ${foo\n"), vec!["E206"]);
+        // Well-formed input → none.
+        assert!(lexer_recovery_codes("set ok {abc}\n").is_empty());
+        assert!(lexer_recovery_codes("set q \"abc\"\n").is_empty());
+    }
+
     #[test]
     fn e201_unterminated_bracket_fallback() {
         // EOF cases → E201, no fix (matches the live Python analyser).
-        assert_eq!(e201("set x [foo\n"), vec![("missing close-bracket".into(), 0)]);
-        assert_eq!(e201("set y [llength $a\n"), vec![("missing close-bracket".into(), 0)]);
+        assert_eq!(
+            e201("set x [foo\n"),
+            vec![("missing close-bracket".into(), 0)]
+        );
+        assert_eq!(
+            e201("set y [llength $a\n"),
+            vec![("missing close-bracket".into(), 0)]
+        );
         assert_eq!(e201("set z [\n"), vec![("missing close-bracket".into(), 0)]);
         // A balanced `[foo]` is fine.
         assert!(e201("set ok [foo]\n").is_empty());
@@ -506,8 +533,14 @@ mod tests {
     #[test]
     fn e201_heuristics_attach_a_fix() {
         // A following comment / brace → E201 with a `]`-insertion fix.
-        assert_eq!(e201("set b [foo\n# comment\n"), vec![("missing close-bracket".into(), 1)]);
-        assert_eq!(e201("set c [foo bar {body}\n"), vec![("missing close-bracket".into(), 1)]);
+        assert_eq!(
+            e201("set b [foo\n# comment\n"),
+            vec![("missing close-bracket".into(), 1)]
+        );
+        assert_eq!(
+            e201("set c [foo bar {body}\n"),
+            vec![("missing close-bracket".into(), 1)]
+        );
     }
 
     #[test]

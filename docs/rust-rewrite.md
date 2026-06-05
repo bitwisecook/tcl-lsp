@@ -4246,9 +4246,20 @@ before the detector sees the full token — closing this needs the
 ghost-token re-lex so the split produces a clean stream (and suppresses
 the E200), which is also (3) the `virtual_insertions` lexer engine +
 `compute_virtual_insertions` recovery module; (4) the E202 / E203
-detectors (conservative, rarely fire in the live pipeline) and the
-E204 / E205 / E206 lexer-warning codes; (5) the `SegmentedCommand.
-partial_delimiter` field.
+detectors (conservative, rarely fire in the live pipeline); (5) the
+`SegmentedCommand.partial_delimiter` field.
+
+**LANDED (strip 2 — E204 / E205 / E206 lexer-warning codes,
+2026-06-05).**  `Analyser::emit_lexer_warning_diagnostics` runs the
+dialect-aware lexer's `tokenise_all_with_warnings` over the document and
+maps each `LexWarning` to its recovery code: "extra characters after
+close-brace" → **E204**, "… after close-quote" → **E205**, "missing
+close-brace for variable name" → **E206** (the `_lexer_warnings_to_
+diagnostics` E204-E206 slice).  The E200 / E201-E203 "missing closer"
+messages are skipped — owned by the existing E200 path and the recovery
+detectors respectively (mirrors `_RECOVERY_HANDLED_MESSAGES`).  Verified
+against the live Python analyser (`{abc}def` → E204, `"abc"def` → E205,
+`${foo` → E206; well-formed input silent); 1 unit test; full suite green.
 
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).
