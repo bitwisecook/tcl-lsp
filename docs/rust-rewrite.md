@@ -5396,9 +5396,19 @@ command-name gated since `format_string_type` is never stamped.  The
 `binaryCount` / `binaryFlag`, `u`/`s` modifier dialect-gated to 8.5+) and
 **`regsub`-replacement** (`push_regsub_subtokens` → `\1`-`\9` → `number`,
 `\&` → `operator`) sub-tokens have landed too — every format / regex
-dialect is now done.  **Only remaining GAP-C2 piece:** the `BigIP` object
-taxonomy (`pool` / `profile` / `ipAddress` / …) for iRules string
-arguments.
+dialect is now done.  The **BIG-IP object taxonomy** (the code-relevant
+half) has also landed: a new `irules_object_refs` module ports
+`extract_irules_object_references` (the recursive walk recognising
+`pool` / `snatpool` / `virtual` / `node` / `class` / `persist` / …
+references by name + arg shape, recursing into `when`/`if` bodies and
+`[…]` substitutions), and the semantic-tokens provider overlays an
+`object` token at each name span under the `f5-irules` dialect (skipping
+any that would overlap an existing token, so the stream stays
+overlap-free).  **GAP-C2 sub-tokens are complete** for Tcl/iRules *code*;
+the only remaining piece is the separate BIG-IP **config-file** /
+**APL** document mode (`is_bigip_conf` — partition paths / IP / port
+literals in `.conf` text + embedded-Tcl detection), which runs on a
+different document type, not on command arguments.
 
 ### E. Doc defects corrected in place by this audit
 

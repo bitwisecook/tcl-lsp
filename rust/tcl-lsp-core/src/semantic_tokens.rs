@@ -31,6 +31,9 @@
 //!   `ClockSpec` / `ClockModifier`), `binary format` / `scan`
 //!   field strings (`BinarySpec` / `BinaryCount` / `BinaryFlag`), and
 //!   `regsub` replacement backrefs (`\1` → `Number`, `\&` → `Operator`).
+//! * **Object** — BIG-IP object names (pools, data groups, virtuals,
+//!   nodes, …) referenced from iRules code, under the `f5-irules`
+//!   dialect (see [`crate::irules_object_refs`]).
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -47,12 +50,15 @@
 //!   edit list when nothing changed); a stale / unknown previous
 //!   id falls back to a fresh full stream.
 //!
-//! What is *still deferred* (planned as further
-//! `S-semantic-tokens-rich` sub-strips):
+//! What is *still deferred* (a separate document-mode feature, not a
+//! per-argument sub-token slice):
 //!
-//! * The `BigIP` object taxonomy (`pool` / `profile` /
-//!   `ipAddress` / …) for iRules string arguments — the last
-//!   sub-token family; all the format / regex dialects have landed.
+//! * BIG-IP **config-file** mode (`is_bigip_conf`) — partition paths
+//!   (`/Common/…`), IPv4 / route-domain / port literals in `.conf`
+//!   text — and **APL** embedded-Tcl detection.  These run on whole
+//!   documents of a different type, not on Tcl/iRules command
+//!   arguments; the iRules object-reference highlighting (the
+//!   code-relevant half of the BIG-IP taxonomy) has landed.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -120,6 +126,9 @@ enum TokenKind {
     BinaryFlag = 25,
     /// Operator — the `regsub` whole-match replacement backref `\&`.
     Operator = 26,
+    /// BIG-IP object name referenced from iRules code (pool, data group,
+    /// virtual, node, …).
+    Object = 27,
 }
 
 /// `binary format`/`scan` specifier letters.  Mirrors
@@ -162,6 +171,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "binaryCount",
         "binaryFlag",
         "operator",
+        "object",
     ]
 }
 
@@ -1057,9 +1067,42 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
     // separately.
     push_comment_tokens(source, &line_index, &mut entries);
 
+    // BIG-IP object references (iRules dialect): overlay `object` tokens
+    // at recognised pool / data-group / virtual / … name positions.
+    // Skipped when an entry already covers the position (e.g. a
+    // single-line body's enclosing `string` token) so the token stream
+    // never carries overlaps.  Multi-line bodies aren't tokenised by the
+    // main walk, so refs inside them surface cleanly.
+    if dialect == "f5-irules" {
+        for span in crate::irules_object_refs::object_ref_spans(source, registry) {
+            push_object_token(&line_index, span, &mut entries);
+        }
+    }
+
     // Sort by (line, column) so the delta encoding works.
     entries.sort_by_key(|(line, col, _, _, _)| (*line, *col));
     entries
+}
+
+/// Push a BIG-IP `object` token for `span`, unless an existing entry on
+/// the same line already overlaps its column range (keeps the stream
+/// overlap-free).
+fn push_object_token(line_index: &LineIndex, span: tcl_lexer::Span, entries: &mut Vec<Entry>) {
+    let start = line_index.position_at(span.start());
+    let end = line_index.position_at(span.end());
+    if start.line != end.line {
+        return;
+    }
+    let len = end.character.saturating_sub(start.character);
+    if len == 0 {
+        return;
+    }
+    let overlaps = entries.iter().any(|(l, c, ln, _, _)| {
+        *l == start.line && *c < start.character + len && start.character < *c + *ln
+    });
+    if !overlaps {
+        entries.push((start.line, start.character, len, TokenKind::Object, 0));
+    }
 }
 
 /// Classify a non-head token by its lexer-assigned kind.
@@ -1358,6 +1401,26 @@ mod tests {
             ks.contains(&(TokenKind::Event as u32)),
             "expected an event token; got {ks:?}"
         );
+    }
+
+    #[test]
+    fn bigip_object_ref_token_in_irules_body() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        // `pool web_pool` inside a multi-line `when` body → `object`.
+        let ks = kinds(
+            "when HTTP_REQUEST {\n  pool web_pool\n}\n",
+            "f5-irules",
+            &registry,
+        );
+        assert!(ks.contains(&(TokenKind::Object as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn bigip_object_ref_not_emitted_in_plain_tcl() {
+        // The object overlay is iRules-only.
+        let ks = kinds("when HTTP_REQUEST {\n  pool web_pool\n}\n", "tcl", &reg());
+        assert!(!ks.contains(&(TokenKind::Object as u32)), "{ks:?}");
     }
 
     #[test]

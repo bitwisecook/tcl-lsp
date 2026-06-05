@@ -25,6 +25,7 @@ pub mod formatting;
 pub mod hover;
 pub mod implementation;
 pub mod inlay_hints;
+pub mod irules_object_refs;
 pub mod linked_editing_range;
 pub mod minify;
 pub mod references;
