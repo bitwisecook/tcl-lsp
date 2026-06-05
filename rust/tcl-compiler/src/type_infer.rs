@@ -121,38 +121,23 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         ExprNode::Binary {
             op, left, right, ..
         } => {
-            let lt = infer_expr_type(left, var_types);
-            let rt = infer_expr_type(right, var_types);
             match op {
-                // Numeric arithmetic → promote operand types.
-                BinOp::Add
-                | BinOp::Sub
-                | BinOp::Mul
-                | BinOp::Div
-                | BinOp::Mod
-                | BinOp::Pow
-                | BinOp::LShift
-                | BinOp::RShift
-                | BinOp::BitAnd
-                | BinOp::BitOr
-                | BinOp::BitXor => {
-                    // Prefer Int when both operands are integrally typed.
-                    let both_int = matches!(
-                        (&lt, &rt),
-                        (t, u)
-                        if t.kind == TypeKind::Known && u.kind == TypeKind::Known
-                            && matches!(t.tcl_type, Some(TclType::Int | TclType::Boolean))
-                            && matches!(u.tcl_type, Some(TclType::Int | TclType::Boolean))
-                    );
-                    if both_int {
-                        TypeLattice::of(TclType::Int)
-                    } else {
-                        TypeLattice::of(TclType::Numeric)
-                    }
+                // BITWISE / shift → always Int (Tcl `expr` coerces the
+                // operands to integers).  GAP-B4(c): these were grouped
+                // with arithmetic and degraded to Numeric.
+                BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
+                    TypeLattice::of(TclType::Int)
                 }
-                // Boolean comparisons.
+
+                // LOGICAL / COMPARISON → always Boolean.  GAP-B4(b): the
+                // six iRules string predicates (`contains` / `starts_with`
+                // / `ends_with` / `equals` / `matches_glob` /
+                // `matches_regex`) plus the word-logical `and` / `or` used
+                // to fall through `_ => overdefined()`.
                 BinOp::And
                 | BinOp::Or
+                | BinOp::WordAnd
+                | BinOp::WordOr
                 | BinOp::Eq
                 | BinOp::Ne
                 | BinOp::Lt
@@ -166,9 +151,26 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
                 | BinOp::StrGt
                 | BinOp::StrGe
                 | BinOp::In
-                | BinOp::Ni => TypeLattice::of(TclType::Boolean),
-                // iRules string predicates.
-                _ => TypeLattice::overdefined(),
+                | BinOp::Ni
+                | BinOp::Contains
+                | BinOp::StartsWith
+                | BinOp::EndsWith
+                | BinOp::StrEquals
+                | BinOp::MatchesGlob
+                | BinOp::MatchesRegex => TypeLattice::of(TclType::Boolean),
+
+                // ARITHMETIC / DIVISION → `_arithmetic_result` over the
+                // operand types, but only when both are `Known`;
+                // otherwise Numeric (mirrors `expr_types.py`).
+                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
+                    let lt = infer_expr_type(left, var_types);
+                    let rt = infer_expr_type(right, var_types);
+                    if lt.kind == TypeKind::Known && rt.kind == TypeKind::Known {
+                        arithmetic_result(&lt, &rt)
+                    } else {
+                        TypeLattice::of(TclType::Numeric)
+                    }
+                }
             }
         }
 
@@ -187,14 +189,80 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             type_join(&tt, &ft)
         }
 
-        // Command substitutions, raw/unrecognised expression text, and
-        // function calls inside expressions all need the registry (or
-        // runtime context) to resolve. Without it we over-approximate to
-        // overdefined; the outer evaluate_type_def handles command-sub
-        // type resolution where the registry is in scope.
-        ExprNode::Command { .. } | ExprNode::Raw { .. } | ExprNode::Call { .. } => {
-            TypeLattice::overdefined()
+        // Math-function calls resolve through the expr-function table
+        // (GAP-B4(a)) — `sqrt($x)` is Double, `int(...)` is Int, etc.,
+        // where they previously degraded to overdefined.
+        ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types),
+
+        // Command substitutions and raw/unrecognised expression text
+        // need the registry (or runtime context) to resolve. Without it
+        // we over-approximate to overdefined; the outer
+        // evaluate_type_def handles command-sub type resolution where the
+        // registry is in scope.
+        ExprNode::Command { .. } | ExprNode::Raw { .. } => TypeLattice::overdefined(),
+    }
+}
+
+/// Port of `expr_types.py::_arithmetic_result`: INT op INT → INT
+/// (boolean counts as int), DOUBLE anywhere → DOUBLE, otherwise
+/// NUMERIC.  Callers guarantee both operand types are `Known`.
+fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
+    match (lt.tcl_type, rt.tcl_type) {
+        (Some(TclType::Int | TclType::Boolean), Some(TclType::Int | TclType::Boolean)) => {
+            TypeLattice::of(TclType::Int)
         }
+        (Some(TclType::Double), _) | (_, Some(TclType::Double)) => TypeLattice::of(TclType::Double),
+        _ => TypeLattice::of(TclType::Numeric),
+    }
+}
+
+/// Port of `core/compiler/expr_registry.py::EXPR_FUNC_REGISTRY` —
+/// resolve a Tcl `expr` math-function call to its result type.
+///
+/// Mirrors `expr_types.py`'s `ExprCall` arm: `abs` is identity
+/// (preserves its operand's type), `max` / `min` join their operand
+/// types, every other built-in returns its declared type, and an
+/// unknown function is conservatively `Numeric` (an `expr` function
+/// always yields a number).
+fn expr_call_type(
+    function: &str,
+    args: &[ExprNode],
+    var_types: &HashMap<String, TypeLattice>,
+) -> TypeLattice {
+    // Identity: `abs` preserves the operand type (Int fallback).
+    if function == "abs" {
+        return match args.first() {
+            Some(a) => infer_expr_type(a, var_types),
+            None => TypeLattice::of(TclType::Int),
+        };
+    }
+    // Variadic join: `max` / `min` join all operand types.
+    if function == "max" || function == "min" {
+        let mut it = args.iter();
+        return match it.next() {
+            Some(first) => {
+                let mut acc = infer_expr_type(first, var_types);
+                for a in it {
+                    acc = type_join(&acc, &infer_expr_type(a, var_types));
+                }
+                acc
+            }
+            None => TypeLattice::of(TclType::Numeric),
+        };
+    }
+    match function {
+        // Integer-returning conversions.
+        "int" | "round" | "ceil" | "floor" | "isqrt" | "wide" | "entier" => {
+            TypeLattice::of(TclType::Int)
+        }
+        // Double-returning math.
+        "double" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" | "sinh" | "cosh"
+        | "tanh" | "sqrt" | "exp" | "log" | "log10" | "pow" | "hypot" | "fmod" | "rand"
+        | "srand" => TypeLattice::of(TclType::Double),
+        // Boolean-returning predicates.
+        "bool" | "isnan" | "isinf" => TypeLattice::of(TclType::Boolean),
+        // Unknown function — conservative (matches Python's NUMERIC).
+        _ => TypeLattice::of(TclType::Numeric),
     }
 }
 
@@ -683,5 +751,77 @@ mod tests {
             .iter()
             .any(|((name, _), t)| name == "n" && t.tcl_type == Some(TclType::Int));
         assert!(n_is_int, "expected n to be Int (llength return type)");
+    }
+
+    // ----- GAP-B4: expr type-inference precision -------------------
+
+    /// Infer the type of a standalone expression string (no SSA
+    /// context — variable refs stay `Unknown`).
+    fn infer_str(src: &str) -> TypeLattice {
+        infer_str_dialect(src, None)
+    }
+
+    /// As [`infer_str`] but parses under `dialect` (the iRules string
+    /// predicates only tokenise as operators in the iRules dialect).
+    fn infer_str_dialect(src: &str, dialect: Option<&str>) -> TypeLattice {
+        let node = crate::parse_expr(src, dialect);
+        infer_expr_type(&node, &HashMap::new())
+    }
+
+    #[test]
+    fn math_function_calls_infer_their_return_type() {
+        // (a) sqrt → Double, int → Int, bool → Boolean.
+        assert_eq!(infer_str("sqrt(2.0)").tcl_type, Some(TclType::Double));
+        assert_eq!(infer_str("sin($x)").tcl_type, Some(TclType::Double));
+        assert_eq!(infer_str("int($x)").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("wide($x)").tcl_type, Some(TclType::Int));
+        assert_eq!(infer_str("isnan($x)").tcl_type, Some(TclType::Boolean));
+        // abs is identity: abs(2) keeps the operand's Int type.
+        assert_eq!(infer_str("abs(2)").tcl_type, Some(TclType::Int));
+        // max/min join operands: max(1, 2) stays Int.
+        assert_eq!(infer_str("max(1, 2)").tcl_type, Some(TclType::Int));
+        // Unknown function → Numeric (conservative, matches Python).
+        assert_eq!(infer_str("nope($x)").tcl_type, Some(TclType::Numeric));
+    }
+
+    #[test]
+    fn bitwise_and_shift_ops_infer_int() {
+        // (c) bitwise / shift force Int even with untyped operands.
+        for src in ["$x & $y", "$x | $y", "$x ^ $y", "$x << 2", "$x >> 2"] {
+            assert_eq!(
+                infer_str(src).tcl_type,
+                Some(TclType::Int),
+                "expected Int for `{src}`",
+            );
+        }
+    }
+
+    #[test]
+    fn irules_string_predicates_infer_boolean() {
+        // (b) the iRules string predicates were falling through to
+        // overdefined; they are Boolean.
+        for src in [
+            "$s contains \"x\"",
+            "$s starts_with \"x\"",
+            "$s ends_with \"x\"",
+            "$s equals \"x\"",
+            "$s matches_glob \"x*\"",
+            "$s matches_regex \"x.\"",
+        ] {
+            let t = infer_str_dialect(src, Some("f5-irules"));
+            assert_eq!(
+                t.tcl_type,
+                Some(TclType::Boolean),
+                "expected Boolean for `{src}`, got {t:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn arithmetic_promotes_double() {
+        // `_arithmetic_result`: int + double → Double (was Numeric).
+        assert_eq!(infer_str("3 + 2.0").tcl_type, Some(TclType::Double));
+        // int + int → Int.
+        assert_eq!(infer_str("3 + 4").tcl_type, Some(TclType::Int));
     }
 }
