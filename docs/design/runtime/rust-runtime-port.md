@@ -198,11 +198,22 @@ runtime-built proc bodies / `$dynamic_cmd` / `{*}$computed` all mean *the code t
 run does not exist at compile time*. So the AOT compiler is **always half of a
 pair** — it must ship a complete runtime parser+evaluator that is byte-for-byte
 identical to the compiled path. The Zig runtime's hard semantic bugs all came
-from a deep subsystem being designed bottom-up instead of as a contract. The
-wisdom distils to **three meta-systems to design as contracts before any
-command**, and the port's stance on each:
+from a deep subsystem being designed bottom-up instead of as a contract.
+
+> **The authority is the three day-one contracts** in `docs/design/contracts/`
+> (from PR #551, written first-principles from the Zig experience):
+> [`runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md),
+> [`parser-and-aot-interpret-boundary.md`](../contracts/parser-and-aot-interpret-boundary.md),
+> [`numeric-tower-and-expr-semantics.md`](../contracts/numeric-tower-and-expr-semantics.md).
+> Each marks **Contract** vs **incompatible-by-design** behaviours. This section
+> does **not** re-derive them — it maps the **Rust port's status** against the
+> **three meta-systems** they define. (Until #551 lands on `rust`, those links
+> point forward; see the sync log.)
 
 ### Meta-system 1 — resolution + frames (`uplevel`/`upvar`/`global`/`variable`/namespaces)
+
+> Contract: [`runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md)
+> (frame → name → cell indirection; resolution algorithm; alias/trace/cycle rules).
 
 `uplevel`/`upvar`/`global`/`variable` are all facets of **one variable model**,
 and namespace command/var resolution is the same problem one level up.
@@ -232,6 +243,10 @@ and namespace command/var resolution is the same problem one level up.
 
 ### Meta-system 2 — parse-once + the AOT/interpreter duality (`eval`/`source`/`package`)
 
+> Contract: [`parser-and-aot-interpret-boundary.md`](../contracts/parser-and-aot-interpret-boundary.md)
+> (one canonical grammar; the compile-vs-interpret disposition table; the
+> compiled ≡ interpreted identity contract; `source`/`package` behind a VFS).
+
 - **One canonical parser → one component model → one evaluator contract** that
   the compiler lowers from AND the runtime walks. → **done**: `parse.rs` is the
   single scanner (word splitting, brace/quote/bracket nesting, backslash,
@@ -250,6 +265,11 @@ and namespace command/var resolution is the same problem one level up.
   resolution through the `Source` frame kind.
 
 ### Meta-system 3 — the numeric tower + `expr` (a second language)
+
+> Contract: [`numeric-tower-and-expr-semantics.md`](../contracts/numeric-tower-and-expr-semantics.md)
+> (the small→wide→bignum→double tower with one promote/normalise/compare;
+> `expr`'s grammar/precedence/operators; the braced-compile/unbraced-interpret
+> split; verbatim numeric error wording).
 
 - **One numeric tower** — tagged-small-int → `i64` → **bignum** → `double` —
   with **one** promotion/demotion/normalisation path and **one** compare/equality
@@ -315,6 +335,7 @@ test suite** as ground truth.
 | [`memory-management.md`](memory-management.md) + [`refcount-contract.md`](refcount-contract.md) | TclObj model + refcount discipline (cross-check vs `tclObj.c`) |
 | [`c-api-ownership-contract.md`](c-api-ownership-contract.md) | T2.1 — ownership + error category for every shipped C-API function (the `fresh_zero` convention) |
 | [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) | The call protocol: the two stacks (CallFrame + CmdFrame), exceptions/return-options, stack-trace construction, AOT↔interp interop — **read before the proc chunk**. Conservative-first; dynamic cross-scope (`uplevel`/`upvar`/`namespace`/`eval`) correct before optimising |
+| **The three day-one contracts** (`docs/design/contracts/`, from PR #551 — the from-scratch "if starting over" semantics, authoritative): [`runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md) (cell/frame/namespace resolution), [`parser-and-aot-interpret-boundary.md`](../contracts/parser-and-aot-interpret-boundary.md) (parse-once + the AOT/interpret boundary), [`numeric-tower-and-expr-semantics.md`](../contracts/numeric-tower-and-expr-semantics.md) (the numeric tower + `expr`) | The canonical contracts the Rust port implements; the "Deep Tcl semantics" section below maps port status against them |
 | [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) (+ s0..s6) | AOT north star + staircase; the metaprog heuristics extend this |
 | [`zig-runtime-roadmap.md`](zig-runtime-roadmap.md) | The Zig runtime's own roadmap and layering |
 | [`../../../AGENTS.md`](../../../AGENTS.md) | Zig runtime layering, the WASM parity gate (`make check-wasm-parity`), workflow |
@@ -1190,6 +1211,24 @@ it in the same or a follow-up PR.
   `tclCmdIL.c`/`tclDictObj.c`. `lappend`/`dict set`/`dict unset` do
   copy-on-write via `Tcl_IsShared`/`Tcl_DuplicateObj` (`obj::is_shared`/
   `obj::duplicate`). Behaviour-diffed going forward.
+
+### SYNC inbound — 2026-06-05 (the three day-one contracts, PR #551)
+
+PR #551 (against `main`) adds the three first-principles "if starting over"
+contracts under `docs/design/contracts/` —
+`runtime-variable-frame-model.md`, `parser-and-aot-interpret-boundary.md`,
+`numeric-tower-and-expr-semantics.md` — which are the **authoritative** design
+for the from-scratch runtime this port *is*. They are **not yet on `rust`**
+(the contract links above point forward until #551 merges + `rust` syncs).
+**Action:** when they land, re-verify the Rust port against each contract's
+*Contract*/*incompatible-by-design* tables. Current alignment + known gaps to
+close against them:
+
+| Contract | Rust port alignment | Gaps to close |
+|---|---|---|
+| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3) | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar cycle must *error*** (today a 1000-hop guard silently stops — fix); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; **qualified `::a::b::x`** + the "unqualified ≠ namespace var" rule (with namespaces, T1.5) |
+| parser-and-aot-interpret-boundary | one canonical scanner (`parse.rs`) shared by eval/subst/list; object-passthrough; spans from byte 0 | the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
+| numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
 ### Outstanding
 
