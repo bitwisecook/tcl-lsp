@@ -258,6 +258,11 @@ Distilled from the trickiest scars in the WASM runtime history
   read/write error reshape (`can't read/set "NAME": …`), unset-error
   ignore, mutation independent of trace outcome, and live `info`/`trace`
   queries.
+- [command-binding-and-aliasing.md](contracts/command-binding-and-aliasing.md)
+  — the one resolution model behind `rename`, `interp alias`, `namespace
+  import`/`export`/`forget`/`path`, ensembles, and `::tcl::mathop` /
+  `::tcl::mathfunc`; the binding lattice that gates compile-time
+  resolution (the command-layer parallel of the variable-frame model).
 
 ## Templates
 
