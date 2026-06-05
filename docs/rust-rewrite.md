@@ -4524,6 +4524,22 @@ is never removed.  Noted in `docs/design/rust/rust-optimiser-parity.md`
 but **not in this doc**.  **Fix:** add a bounded multipass driver around
 the pass list.
 
+**ASSESSED — deferred as architecturally N/A in the current Rust
+optimiser (2026-06-05).**  Python's fixpoint exists because it *applies*
+transforms (mutating the IR) for codegen, so each iteration exposes new
+cascading opportunities.  The Rust optimiser is a **suggestion engine**:
+`run_passes(&mut ctx, cu, …)` takes `cu` *immutably* and every pass only
+*reports* `Optimisation`s into `ctx.optimisations` — nothing rewrites the
+IR between passes.  A bounded multipass loop over the same unchanged `cu`
+would therefore re-emit byte-identical suggestions (modulo the existing
+`select_non_overlapping` dedup), not find new ones — the `set` left dead
+after a fold is never *applied* dead in the first place, so DCE could not
+see it regardless of iteration count.  A genuine fixpoint requires first
+making the passes IR-mutating (apply → rebuild CFG/SSA → re-run), which is
+the WASM/bytecode-codegen redesign that is explicitly deferred elsewhere.
+Recorded as a deliberate non-port until that workstream lands, rather than
+adding a loop that cannot change output.
+
 **GAP-B7 — expr sub-lexer drops Tcl 9 backslash-newline continuation.**
 Python's expr whitespace scanner treats `\<newline>` as whitespace
 (`expr_lexer.py:147` — Tcl 9 collapses it to a single space; matters for
