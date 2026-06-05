@@ -181,13 +181,19 @@ embedded grammar is parsed *once* into a typed sub-tree hanging off its
 host CST node, with the same guarantees as the host:
 
 - **Dispatched by the registry.** Which sub-grammar a word belongs to is
-  a command-shape fact the registry already carries (`arg_roles`, plus
-  the `pattern_type` / `format_string_type` / `options` fields the
-  GAP-AUDIT flagged as missing). This is D4's shape-directed descent
-  generalised from script / expr to regexp / format / glob / config:
-  the host parser sees `regexp $re` and descends `$re` into a regexp
-  sub-tree, `format $fmt` into a format sub-tree — once, memoised, and
-  re-parsed only when the typing or the text changes.
+  a command-shape fact the registry's schema already carries
+  (`arg_roles`, `body_kind`, `options`, `forms`). The registry parity
+  audit (#548, `rust-rewrite-registries.md`) shows the schema is largely
+  present but the Rust port has **systematically dropped the data** —
+  `forms` / `options` / `subcommands` / `side_effects` are empty on most
+  commands, and the BigIP object registry is entirely unported. So the
+  dispatch *mechanism* exists; what it needs is the per-command typing
+  *data* populated (any regexp- / format-specific role included),
+  tracked entry-by-entry in that audit. This is D4's shape-directed
+  descent generalised from script / expr to regexp / format / glob /
+  config: the host parser sees `regexp $re` and descends `$re` into a
+  regexp sub-tree, `format $fmt` into a format sub-tree — once,
+  memoised, and re-parsed only when the typing or the text changes.
 - **Zero-copy.** Sub-parsers yield spans into the one `Arc<str>`, not
   owned `String`s: `scan_var_ref_forms` yields var-ref spans;
   `regexp_to_glob` reads the regexp sub-tree instead of re-scanning a
@@ -212,7 +218,10 @@ language-injection edges (the tree-sitter injection model) — every node
 spanning the one source, every position resolved by the one service,
 every node a participant in the one cascade. One parser per language,
 no duplicates: the format-spec triplet and the twin expr parsers
-converge exactly as the segmenter and the CST do.
+converge exactly as the segmenter and the CST do. BigIP is the
+greenfield case — its registry is still unported (#548), so the config
+host and its injection can be built on this model from the start rather
+than retrofitted.
 
 ## Key decisions to confirm
 
@@ -314,5 +323,9 @@ re-runs the whole file on every keystroke and buys nothing.
   graph and ownership rules this builds on.
 - [`review-findings.md`](review-findings.md) — current-state findings,
   the duplication map, and the staged convergence plan.
+- [`rust-rewrite-registries.md`](../../../rust-rewrite-registries.md) —
+  per-entry registry parity audit (#548): the source of truth for which
+  command-shape data each dialect still needs ported, and the dispatch
+  typing the sub-language spine depends on.
 - [`docs/rust-rewrite.md`](../../rust-rewrite.md) — chunking strategy
   and chunk log.
