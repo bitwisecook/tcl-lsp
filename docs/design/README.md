@@ -64,6 +64,11 @@ ownership matrices.
   then performance (time to first semantic tokens), then memory.
   File:line-anchored findings plus a prioritised roadmap. Snapshot at
   #542 / #543.
+- [rust/target-architecture.md](rust/target-architecture.md) —
+  forward-looking target the workspace is converging on: zero-copy,
+  parse-once, single CST spine, positions from the tree, demand-driven
+  cascade/invalidation, and MVCC concurrency. Companion to
+  current-architecture.md; the staged route is in review-findings.md.
 
 ## Runtime internals
 
