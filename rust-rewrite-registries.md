@@ -65,7 +65,7 @@ differs · **UNPORTED**: no Rust port exists.
 
 ### Command registries (Python `core/commands/registry/<g>` ↔ Rust `rust/tcl-registry/src/commands/<g>`)
 
-- [x] **tcl** (1e3a71b7 / 1abc0d35) — **NAMES DIFFER** (104 missing, 16 extra) + thin hover/forms. See §1.
+- [x] **tcl** (1e3a71b7 / 1abc0d35) — **mostly OK** — names now **0 missing** (mathop ensemble + auto_* family + named cmds restored); 5 Rust-extra are internal/namespace-qualified dups. `forms` 109, `side_effects` 84, `pattern_type` restored. Residual value-deltas (summary/synopsis text, `return_type`) are hand-authored phrasing or Rust-richer (`return_type` 92→110); tcl hover text deliberately **not** machine-overwritten to preserve the VERIFIED annotations. Python gained the Tcl 8.7/9.0 commands (GAP-f). See §1.
 - [x] **stdlib** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `required_package` 110, `side_effects` 12, `forms`, `subcommands`, `options`, `arg_roles` all restored to parity. (`traits` 23→24 is Rust-richer.)
 - [x] **tcllib** (1e3a71b7 / 1abc0d35) — **OK** ✅ — `forms` 206, `side_effects` 62, `hover_return_value` 68, `hover_examples` 25, `subcommands` 3, `arg_roles` 17 all restored to parity.
 - [x] **irules** (1e3a71b7 / 1abc0d35) — **OK** ✅ (GAP-3a) — `side_effects` 1002→1002, `forms` 999→999, `hover_source_url`/`examples`/`return_value`/summaries/synopses, `event_requires` 448→448, `subcommands` 47→47, `options` 54→54 all restored to parity. Remaining deltas are Rust-richer (`-noupdate` on `HTTP::header`, extra traits/arg_roles/lowering_hooks) or in the 9 hand-tuned behavioural files (arity on `clientside`/`peer`/`serverside`, `HSL::open` return_type, `after` body_kind). See §2.
@@ -268,7 +268,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 | Registry | Python | Rust | Missing in Rust | Extra in Rust | Verdict |
 |---|--:|--:|--:|--:|---|
-| `tcl` | 214 | 229 | 0 | 15 | NAMES DIFFER |
+| `tcl` | 224 | 229 | 0 | 5 | DATA GAPS |
 | `stdlib` | 225 | 225 | 0 | 0 | OK |
 | `tcllib` | 206 | 206 | 0 | 0 | OK |
 | `irules` | 1015 | 1015 | 0 | 0 | OK |
@@ -286,7 +286,7 @@ Present on both sides; counts noted, deep field diffs deferred:
 
 Only dimensions where Python and Rust differ are shown. `py→rust`.
 
-- **`tcl`** — `forms` 199→109, `hover_return_value` 9→0, `arg_types` 19→13, `options` 19→17, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 211→228, `hover_synopsis` 196→213, `arity_bounded` 160→178, `return_type` 92→113, `lowering_hook` 0→23, `traits` 42→105
+- **`tcl`** — `forms` 209→109, `hover_return_value` 9→0, `arg_types` 19→13, `options` 19→17, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `side_effects` 84→90, `codegen_hook` 0→7, `hover` 221→228, `hover_synopsis` 206→213, `arity_bounded` 170→178, `return_type` 102→113, `lowering_hook` 0→23, `traits` 42→105
 - **`stdlib`** — `traits` 23→24
 - **`tcllib`** — all captured dimensions at parity.
 - **`irules`** — `arg_roles` 4→5, `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
@@ -307,7 +307,7 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 | `tcl` | summary | 94 | `after`, `append`, `apply` |
 | `tcl` | synopsis | 39 | `apply`, `binary`, `classvariable` |
 | `tcl` | body_kind | 3 | `oo::abstract`, `oo::configurable`, `oo::singleton` |
-| `tcl` | return_type | 100 | `::tcl::build-info`, `after`, `append` |
+| `tcl` | return_type | 110 | `::tcl::build-info`, `after`, `append` |
 | `tcl` | arity_min | 8 | `flush`, `oo::abstract`, `oo::class` |
 | `tcl` | arity_max | 3 | `fcopy`, `oo::copy`, `source` |
 | `stdlib` | summary | 3 | `tcltest::limitConstraints`, `tcltest::matchDirectories`, `tcltest::skipDirectories` |
