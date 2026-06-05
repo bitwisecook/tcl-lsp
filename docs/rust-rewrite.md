@@ -3943,6 +3943,200 @@ change — its own strip with its own behavioural bar, not folded in here.
 **Strand 3 (incremental reparse)** — N/A (no Rust path yet; deferred to
 the `S*` document-store rows).
 
+## SYNC-JUN09 family — main audit (2026-06-05, PRs #540/#541/#546/#547)
+
+Re-audited `origin/main` against the prior anchor
+`origin/main`@`de6e9815` (SYNC-JUN08).  `main` landed **4** commits;
+advances the anchor to `origin/main`@`08babde2` (#546, the last of the
+four merged — #540 → #541 → #547 → #546 in merge order).  Histories still
+diverge fully (no merge-base) — per-file audit.
+
+**Two in-scope rows, both parsing-frontend / IDE-feature and both
+behaviour-preserving *alignments* rather than new analyses: #540
+(`SYNC-JUN09-1` / `-2` — lowering body-descent unification + closer-geometry
+consolidation) and #541 (`SYNC-JUN09-3` — depth-recursive line-continuation
+folding).  The other two commits are out of scope (LSP-server / infra and
+Tcl 9 WASM-runtime).**
+
+- **#540** (`a268b143`) — *Consolidate command parsing and fix switch
+  pattern span bugs.*  **In scope** (parsing frontend → `shared/ranges.py`
+  + `compiler/parsing/**` + lowering body-descent).  Six sub-changes — two
+  with an in-scope Rust mirror to update, four already-satisfied / N/A:
+  - **Closer geometry consolidated onto one helper (→ `SYNC-JUN09-2`).**
+    `word_closer_offset` gains a region-relative `base_offset`, and a new
+    boolean sibling `closer_present_in_region` becomes the single source of
+    "is this delimited word terminated"; `descend._terminated` and
+    `green_tree._delimiter_terminated` both delegate to it (three hand-rolled
+    copies → one).  The motivating bug — `iter_switch_case_list` deriving a
+    braced/quoted pattern's raw-span end as `tok.end+1`, landing *on* the
+    closer so the exclusive slice dropped it and the **minifier** re-emitted
+    `switch $x {}` (tclsh "missing close-brace") — is fixed by deriving the
+    end from `word_closer_offset`.  **Rust state:** `rust/tcl-lexer/src/
+    ranges.rs::word_closer_offset(sm, tok)` has no `base_offset` and no
+    `closer_present_in_region`; `rust/.../syntax/descend.rs::terminated`
+    rolls its own length-based check (`span.start()+1+token_text.len()`)
+    instead of delegating.  The minifier itself is **not ported** (Python
+    `tooling/`), so the switch-pattern span *bug* has no Rust consumer — and
+    the Rust CST already derives switch spans via `command_span` /
+    `word_end_position` with the empty-`{}` non-overshoot pinned by CST-PORT
+    strip 1 (`widen_word_end_does_not_overshoot_empty_brace_before_enclosing_
+    closer`).  So the only in-scope work is the **dedup/parity** convergence
+    — see `SYNC-JUN09-2`.
+  - **Lowering body re-parse routed through `descend_token` (→ `SYNC-JUN09-1`).**
+    Python `_Lowerer._segment_body` now descends a real **braced `STR`** body
+    token through `descend_token` — the same entry point the analyser's
+    `compiler_checks` uses — instead of a second `segment_commands` call, so
+    lowering and the checks share one body-descent path; `CMD` (`[…]` command
+    substitution) / `VAR` / quoted / top-level / synthesised bodies fall back
+    to `segment_commands`.  The full document source is threaded onto
+    `_Lowerer` (via `lower` / `lower_commands`) so a body token's absolute
+    offsets resolve.  Byte-identical by construction (recovery is skipped for
+    bodies).  **Rust state:** `rust/tcl-compiler/src/lowering/mod.rs::
+    {lower_script,lower_body}` always re-segment via
+    `segment_commands_with_offset_and_config` — lowering and the analyser run
+    *different* body-descent paths.  In-scope alignment — see `SYNC-JUN09-1`.
+  - **`{*}` modelled as a word-prefix marker in the `token_scanning`
+    fallback grouping helpers** (`parse_single_command` / `iter_region_words`):
+    treat EXPAND as a word boundary so the following real token is the word's
+    representative with `single=True` + `expand_word=True`, matching the CST
+    (C Tcl `tclParse.c` `TCL_TOKEN_EXPAND_WORD`).  **No active Rust gap:** the
+    Rust CST / segmenter already models `{*}` as a separate `Expand` marker
+    with `single_token_word=true` (CST-PORT strip 5, `expand_word_flags`
+    test).  The fallback `_parse_single_command_from_range` /
+    `_parse_cmd_token_contents` are **deliberately not yet ported** (the Rust
+    `optimiser/helpers` pulls token-parsing helpers in per-consumer) —
+    recorded so that when they land they treat EXPAND as a word boundary, not
+    a folded fragment.
+  - **`GreenNode` → `TokenRegion` rename** in `green_tree.py` (the
+    tokenisation **memo** node, disambiguated from the CST's structural
+    `GreenNode` in `syntax/green.py`).  **N/A for Rust:** the shared
+    tokenisation memo (`SYNC-MAY31-6`) was superseded by `CST-PORT` and never
+    ported, so no Rust naming collision exists; the Rust CST `GreenNode`
+    (`syntax/green.rs`) is already unambiguous.
+  - The `optimiser/_helpers` + `optimiser/_pattern_recognition` + `var_refs`
+    re-pointing onto the canonical `token_scanning` helpers (the `piece` /
+    `base_offset` injectables on `parse_single_command`) is a Python-internal
+    dedup (~64 fewer lines, byte-identical) continuing #536; the Rust
+    optimiser already centralises through the segmenter / CST.  No row.
+- **#541** (`1e3a71b7`) — *Add regression tests and line continuation
+  folding support.*  **In scope** (IDE feature → folding).  Adds
+  `_collect_continuation_folds`, which folds a command stretched across
+  physical lines by `\`-continuations (issue #493) **at every nesting depth**
+  — it tokenises each level and **recurses into multi-line `STR` / `CMD`
+  tokens**, anchoring content one byte past the opener, so a continuation
+  inside a braced/bracketed body folds too; `_is_continuation_sep` matches
+  both `\<LF>` and `\<CRLF>` joins; `_emit_continuation_run` trims trailing
+  blank / past-EOF lines so a dangling `foo \` at EOF doesn't fold over empty
+  space.  **Rust state:** `rust/tcl-lsp-core/src/folding.rs::
+  collect_continuation_folds` (SYNC-MAY31-8) scans only the **top-level**
+  token stream — continuations inside nested bodies are invisible — and always
+  emits `prev+1` (no dangling-tail trim).  CRLF is already handled (the Rust
+  check keys on the leading `\` byte).  In-scope extension — see
+  `SYNC-JUN09-3`.  (The two-sided issue-regression suite riding along —
+  `tests/test_issue_regressions_two_sided.py` — is Python test infra; the
+  behaviours it pins are existing, no new Rust mirror.)
+- **#547** (`36470ac6`) — *Remove lsp/ directory from gitignore and update
+  import path.*  **Out of scope.**  A `.gitignore` cleanup (the historical
+  `lsp/` ignore predated the seven-concern move to `server/`), a one-line
+  import-path fix in `server/server.py`, and a new pytest **LSP end-to-end
+  harness** (`tests/lsp_e2e/{harness,conftest}.py` + a server-version smoke
+  test) that drives the Python server over stdio JSON-RPC.  LSP-server / test
+  infra; closes with the `S*` server port.  No analyser / compiler / registry
+  / optimiser surface, no `rust/` change.
+- **#546** (`08babde2`) — *Add Tcl 9 WASM full-suite classification and
+  failure analysis.*  **Out of scope.**  Two dev scripts
+  (`scripts/dev/{classify_tcl9_wasm_failures,gen_tcl9_wasm_classification}.py`)
+  plus the per-category `tests/.../baselines/tcl9-tcltest-wasm/categories/
+  *.toml` classification tables over the Tcl 9 tcltest WASM suite.  Tcl 9
+  WASM-runtime / Zig workstream; the mirror is the future Rust WASM emitter,
+  not the analyser.  No `rust/` analyser hook.
+
+### SYNC-JUN09-1 — lowering body re-parse via the CST descent (#540)
+
+**In scope, alignment (byte-identical target).**  Python #540 gave lowering
+and the analyser's `compiler_checks` **one** body-descent path:
+`_Lowerer._segment_body(text, body_token)` descends a real **braced `STR`**
+body token (`type is STR`, opener `{`, token indexes into the threaded
+document `self._source`) through `descend_token` and reads
+`segments_from_tree(...)`; every other body — `CMD` (`[…]` command
+substitution, whose inner text is *not* a script), `VAR`, quoted, the top
+level (no token), and synthesised const-mapped / `[list]`-built bodies whose
+token doesn't index into the document — falls back to `segment_commands`.
+The braced-`STR`-only guard (PR #540 review fix) mirrors the analyser's
+`descend_command`, which skips non-`STR` bodies; admitting a `[foo bar]` body
+would read it as the script `foo bar` and emit phantom diagnostics.
+
+**Rust state.**  `rust/tcl-compiler/src/lowering/mod.rs::lower_script` and
+`::lower_body` re-segment unconditionally via
+`segment_commands_with_offset_and_config(text, base_offset, self.config)`;
+the descent (`descend_token` / `descend_command`, CST-PORT strip 6) has the
+analyser as its only caller (`CST-CONSUMERS`).  So lowering and the analyser
+run two body-descent paths in Rust just as Python did pre-#540.
+
+**Port.**  Thread the document `&str` onto `Lowerer` (mirroring Python's
+`_source`), add `Lowerer::segment_body(text, base_offset, body_tok)` that
+descends a braced-`STR` body token through `descend_token` (the lowerer
+already works in absolute-`base_offset` space via `lower_body_from_tok`, so it
+has the offset and needs only the source), gated identically (kind `Str`,
+source byte at the token start is `{`, offset in range), and route
+`lower_script` / `lower_body`'s `segment_commands*` calls through it.  CMD /
+VAR / quoted / top-level / synthesised bodies keep `segment_commands*`.
+Target: byte-identical segments — recovery is skipped for bodies, so the CST
+descent equals `segment_commands(body_text, body_token)`, the per-token
+property CST-PORT strip 6 already proved.  Medium-touch; depends only on
+`descend_token` (landed) and the dialect `config` it already threads.
+
+### SYNC-JUN09-2 — delimited-word closer-geometry consolidation (#540)
+
+**In scope, parity / dedup (behaviour-preserving).**  Python #540 collapsed
+three copies of the delimited-word closer geometry onto one helper:
+`shared.ranges.word_closer_offset` gained a region-relative `base_offset`, and
+`closer_present_in_region(tok, text, base_offset)` is the boolean sibling that
+`descend._terminated` (and `green_tree._delimiter_terminated`) now delegate to,
+so "where is the closer" and "is the word terminated" can never drift apart.
+
+**Rust state.**  `rust/tcl-lexer/src/ranges.rs::word_closer_offset(sm, tok)`
+returns an absolute offset only (no `base_offset`); there is no
+`closer_present_in_region`; and `rust/.../syntax/descend.rs::terminated`
+computes its own length-based check (`span.start()+1+token_text.len()`, with a
+`}`/`]` discriminant).  This is the same "three independent copies" shape #540
+removed on the Python side — the Rust `terminated` agrees with
+`word_closer_offset` today by construction, not by delegation.
+
+**Port.**  Add `closer_present_in_region` to `tcl-lexer::ranges` as the
+boolean sibling — the Rust `word_closer_offset` already keys emptiness on
+`SourceMap::token_text` (the faithful predicate landed in CST-PORT strip 1),
+so it is a thin wrapper — give `word_closer_offset` the region-relative
+`base_offset` if/when a substring caller needs it, and have
+`descend.rs::terminated` delegate.  Pure parity; pin with the existing
+empty-`{}` / unterminated-braced cases (`descend_empty_brace_is_terminated`,
+`descend_unterminated_brace_is_recovered`).  Small; land alongside
+`SYNC-JUN09-1` (touches the same two files).
+
+### SYNC-JUN09-3 — nested + dangling-tail line-continuation folding (#541)
+
+**In scope, IDE-feature extension.**  The Rust continuation folder
+(`collect_continuation_folds`, SYNC-MAY31-8, mirroring #494) folds runs of
+top-level `\`-continued lines, but #541 makes the Python folder **depth-
+recursive**: a continuation join inside a braced/bracketed body is one opaque
+`STR` / `CMD` token at the enclosing level, so `_collect_continuation_folds`
+re-tokenises each multi-line `STR` / `CMD` token (anchored one byte past the
+opener, like the segmenter) and emits continuation folds at every depth (cap
+20, matching `_collect_body_folds`).  It also trims trailing blank / past-EOF
+lines so a dangling `foo \` at EOF folds to its last real line instead of over
+empty space.
+
+**Port.**  Make `collect_continuation_folds` recurse: after collecting the
+top-level continued-line runs, iterate the lexed tokens and, for each
+multi-line `Str` / `Cmd` token, recurse into `token_text` anchored at
+`tok.span.start()+1` (depth-capped at 20), reusing the existing `push_unique`
+dedup so an inner run already claimed at the outer level is skipped; add the
+dangling-tail trim (walk the run end down past blank / past-EOF lines) to
+match `_emit_continuation_run`.  CRLF needs no change (the Rust check keys on
+the leading `\` byte, covering `\<LF>` and `\<CRLF>`).  Self-contained, off
+the hot keystroke path; pin with a nested-body continuation case + a
+dangling-`\`-at-EOF case.
+
 ## CST-CONSUMERS — give the landed CST descent a production caller (candidate a)
 
 **Opened 2026-06-04 (post-CST-PORT; the #538 review's L1 finding).**  The
@@ -4575,6 +4769,9 @@ to the chunk-log entry that has the full spec.
 | — | `GAP-B4` (expr type inference — `EXPR_FUNC_REGISTRY`) | Small, self-contained: math-function / iRules-predicate / bitwise exprs degrade to `Overdefined` (`type_infer.rs:171`/`:195`), hurting hover / inlay / type-def in the core iRules dialect.  See §B4. |
 | — | `GAP-AUDIT-JUN05` (remainder: A1, A3-A9, B5-B7, C2-C5, D1) | Structural gaps with full context + fix steps in the GAP-AUDIT-JUN05 section — ghost-token E201-E206 recovery, confusables/bounds/syntax/style checks, four absent LSP providers (snippet / package-suggest / irules-context / file-ops), semantic-token taxonomy + modifiers, code-action families, formatter config knobs, hover/completion iRules enrichment, registry `pattern_type`/`format_string_type`/`options`, `auto_path` static eval, expr backslash-newline, multipass fixpoint. |
 | — | `SYNC-JUN08-1` (lexer lone-CR line tracking) | **Opened 2026-06-04 by `SYNC-JUN08` / #537; strip 1 LANDED.**  In scope, **soundness**: post-fix main counts only `\n` in every line index (a lone `\r` is horizontal whitespace, not an EOL), but the Rust `rust/tcl-lexer/src/line_index.rs::LineIndex::new` counted a bare `\r` as a line break — disagreeing with both post-fix Python (`_build_line_starts` / `shared/source_map.py`) and the red CST overlay's `build_line_starts`, so a token after a lone CR resolved to the wrong line (the position-equivalence inconsistency #537's CST fuzzing exposed).  **Strip 1:** `LineIndex::new` is now `\n`-only (mirrors `red.rs::build_line_starts` byte-for-byte; CRLF still breaks on its LF); the two unit tests are inverted to pin the post-fix-Python positions; a cross-layer test (`red.rs::lexer_line_index_agrees_with_red_overlay_on_lone_cr`) asserts the lexer's `SourceMap` positions equal the red overlay's **independent** index over bare-CR / CRLF / mixed sources (FAILS pre-fix).  Remaining candidate: **strand 2** (CST build quoted `\<newline>` content in `build.rs::handle_trivia`) pending a behaviour audit; **strand 3** (incremental reparse) N/A.  See the `SYNC-JUN08` family section + `SYNC-JUN08-1`. |
+| — | `SYNC-JUN09-1` (lowering body re-parse via the CST descent) | **Opened 2026-06-05 by `SYNC-JUN09` / #540.**  In scope, **alignment** (byte-identical target): Python #540 routed lowering's braced-`STR` body re-segmentation through `descend_token` — the analyser's `compiler_checks` body-descent path — so the two share one descent; the Rust `rust/tcl-compiler/src/lowering/mod.rs::{lower_script,lower_body}` still re-segment via `segment_commands_with_offset_and_config`, a second path the `descend_token` (CST-PORT strip 6) caller-set doesn't include.  Thread the document `&str` onto `Lowerer`, add `segment_body` gated to braced-`STR` body tokens (kind `Str`, source byte `{`, offset in range — CMD/VAR/quoted/top-level/synthesised fall back), route the two `segment_commands*` body sites through it.  Recovery is skipped for bodies ⇒ byte-identical to today.  See the `SYNC-JUN09` family section + `SYNC-JUN09-1`. |
+| — | `SYNC-JUN09-2` (delimited-word closer-geometry consolidation) | **Opened 2026-06-05 by `SYNC-JUN09` / #540.**  In scope, **parity / dedup** (behaviour-preserving): Python #540 collapsed three copies of the closer geometry onto `word_closer_offset` (now region-relative via `base_offset`) + a boolean sibling `closer_present_in_region` that `descend._terminated` delegates to; the Rust `rust/.../syntax/descend.rs::terminated` still rolls its own length-based check (`span.start()+1+token_text.len()`) independent of `tcl-lexer::ranges::word_closer_offset`.  Add `closer_present_in_region` to `tcl-lexer::ranges`, have `terminated` delegate (the Rust `word_closer_offset` already keys emptiness on `token_text`, so this is a thin wrapper).  Pin with the existing empty-`{}` / unterminated cases.  Pairs with `SYNC-JUN09-1` (same two files).  See the `SYNC-JUN09` family section + `SYNC-JUN09-2`. |
+| — | `SYNC-JUN09-3` (nested + dangling-tail line-continuation folding) | **Opened 2026-06-05 by `SYNC-JUN09` / #541.**  In scope, **IDE-feature extension**: Python #541 made `\`-continuation folding depth-recursive (a continuation inside a braced/bracketed body — one opaque `STR`/`CMD` token at the enclosing level — re-tokenised one byte past the opener, cap 20) with trailing blank/past-EOF trimming for a dangling `foo \` at EOF; the Rust `rust/tcl-lsp-core/src/folding.rs::collect_continuation_folds` (SYNC-MAY31-8) scans only top-level tokens and always emits `prev+1`.  Make it recurse into multi-line `Str`/`Cmd` tokens (reusing `push_unique`) and add the dangling-tail trim.  CRLF needs no change (keys on the leading `\` byte).  Self-contained, off the hot path.  See the `SYNC-JUN09` family section + `SYNC-JUN09-3`. |
 | — | `CST-CONSUMERS` (candidate a — give the CST descent / ranges accessors a production caller) | **Opened 2026-06-04 (the #538 L1 finding); strips 1-3 + 5-6 LANDED — L1 resolved for the descent; `command_invocations` now `==` main across the exercised battery.**  `descend_token` / `descend_command` and the `tcl-lexer::ranges` accessors landed with the CST but had **no production caller**.  The nested cmd-sub invocation walker in `analyser/commands.rs` (consumed by the LSP server's references / call-hierarchy via `analysis.command_invocations`) was a hand-rolled first-head-only scan; rebased onto the CST descent across six strips: **(1)** `descend_token` + `segments_from_tree` records every command in a substitution (`[foo; bar]` → `{foo, bar}`) — first caller of `descend_token`; **(2)** head fidelity via `texts[0]` (`$cmd`→`${cmd}`, `"q"`→`q`); **(3)** `descend_command` resolves body args (`[if {$c} {puts hi}]` → `if, puts`) — first caller of `descend_command`, `switch` list-bodies skipped; **(5)** expr-arg substitutions (`[if {[chk]} …]` → `chk`, `[expr {[bar]+1}]` → `bar`) via `collect_expr_substitutions` (`_recurse_expression_subcommands`); **(6)** fixed the last over-record — a braced *data* word (`set x {[noeval]}`) is no longer scanned (role-gated dispatch), and a `Cmd` **head** (`[x] hi`) is now descended; **(7)** switch-arm bodies inside a substitution (`[switch $v {a {cmd1} …}]` → `cmd1`/`cmd2`) via `parse_switch_body_elements` (`_recurse_switch_list_body`), patterns / `default` / `-` not descended; **(8)** record a `[subst]` / `{braced}` **head** name (`[[gen] arg]` → `[gen]`+`gen`) — main records `argv_texts[0]` for every command.  **`command_invocations` is now Rust-`==`-main (exact) over the entire combined battery** (substitution / every head kind / body / expr / switch / data / head-as-subst).  **Strip 4** (the `ranges` accessors) is **blocked**: no faithful Rust caller until the irules quick-fixes / `_style.py` W108 land.  Only optional structural folds remain (`analyse_body` / `rename.rs` body re-segmentation onto the descent — not a parity gap).  See the `CST-CONSUMERS` section. |
 | — | `CST-PORT` (red-green concrete syntax tree) | **Opened 2026-06-05 by `SYNC-JUN06` / #533; all six strips LANDED 2026-06-04 on `claude/awesome-newton`.**  The full Rust red-green CST lives in `rust/tcl-compiler/src/parsing/syntax/{green,red,build,segment,descend}.rs` (+ `rust/tcl-lexer/src/ranges.rs`), and `segment_commands_local` is rebased onto it (the ~150-line token loop is gone), byte-identical over all 256 Tcl 8.4/8.5/8.6/9.0 corpus files (`tests/differential_segment.rs`).  Main landed the canonical lossless red-green CST (`compiler/parsing/syntax/{green,red,build,segment,descend}.py`) and rebased the segmenter onto it (the 150-line token loop is gone).  In scope, unported.  Port target: a Rust green/red split + `build` (reshapes the existing dialect-configured `Lexer` stream, no second parser) + `segment` (derives `SegmentedCommand` byte-identically) + `descend` (lazy body / cmd-sub children), then rebase `segment_commands*` onto it — the `_and_config` dialect plumbing carries over.  Large + foundational, but **not urgent**: the Rust token-loop segmenter works and was just made dialect-aware, and main proved the migration byte-identical.  Supersedes the deferred token-cache direction (`SYNC-MAY31-6`) and is the natural incremental-edit substrate for the `S*` document store.  See the `SYNC-JUN06` family section + `docs/design/compiler/syntax-tree.md`.  **Strip sequence (smallest-first):** (1) `shared/ranges.py` authoritative-closer accessors **— DONE** (2026-06-04); (2) green tree **— DONE** (2026-06-04); (3) red tree **— DONE** (2026-06-04); (4) `build` **— DONE** (2026-06-04); (5) `segment` + rebase `segment_commands*` **— DONE** (2026-06-04); (6) `descend` **— DONE** (2026-06-04).  **Strip 6 landed:** `rust/tcl-compiler/src/parsing/syntax/descend.rs` ports `descend.py` — lazy descent into braced bodies / `[…]` substitutions.  `descend_token(sm, token, config)` re-lexes an opaque `Str` / `Cmd` token's inner text as a child CST anchored **one byte past the opener** (`start.offset+1`, `character+1`) via `build_document` + `SyntaxTree::with_parts`, so the child owns the delimiter-excluding interior with absolute positions; a length-based `terminated` check (`start+1+text.len()`, not `end+1`) classifies an empty `{}`/`[]` correctly (#527) and flags an unterminated region as *recovered*.  `descend_command(registry, sm, cmd_name, args, arg_tokens, config)` resolves `ArgRole::Body` arguments through `CommandRegistry::arg_indices_for_role` (the Rust `iter_body_arguments`) and descends each non-empty `Str` body — `Expr` args stay with the expr lexer.  Python's `insidequote` param is not threaded (no production caller descends a quoted region).  6 tests: braced/cmd-sub/empty/unterminated descent, multi-level descent (a `[…]` inside a descended body, positions absolute), and `for`-loop body-vs-expr resolution.  **Strip 5 landed:** `rust/tcl-compiler/src/parsing/syntax/segment.rs` ports `segment.py` (adapted to the Rust `SegmentedCommand` shape) and **rebases `segment_commands_local` onto the CST** — the ~150-line `SegmenterState` token loop + `flush_eol_or_eof` are gone, replaced by `build_document` + `segments_from_document`.  `segments_from_tree` walks the red tree and derives every field: `argv` (compound-word merge — kind/`content_offset`/`in_quote` from the first fragment, span widened to the last), `texts` (`word_piece` per fragment), `single_token_word`, `all_tokens` (fragments + `{*}` markers in document order via `cmd.tokens()`), `expand_word`, `preceding_comment`.  **Key divergence handled:** the Rust oracle derives the command **span** via `command_span`/`widen_word_end` (which deliberately does *not* widen a quoted `"…"` final word over its closing quote), whereas main's `segment.py` uses the green `range_end_rel` (`word_boundary` rule, which *does* include the quote) — the two differ by one byte only for a quoted last word.  To keep the public behaviour byte-identical, the Rust derivation computes the span with `command_span` over the derived `all_tokens` (same fn + inputs as the oracle ⇒ identical by construction); `range_end_rel` stays in the green tree as the main-faithful range for future consumers.  **Differential harness** `tests/differential_segment.rs` asserts the production (CST) segmenter == an **independent oracle** field-for-field + losslessness + position-equivalence over an edge table (×3 dialects), a non-zero-base shift, and **all 256 Tcl 8.4/8.5/8.6/9.0 corpus files**.  Post-review (H2): the oracle is a **frozen byte-for-byte copy of the pre-CST token loop** (snapshotted from `3410dd4e` into the test's `frozen_oracle` module) — not the live `segment_commands_local`, which is now CST-backed and would make the test a tautology — so the byte-identity is a genuine cross-check, not a self-comparison.  The recovery post-process (`segment_commands_with_recovery`) is unchanged and re-verified.  Full `cargo test --workspace` byte-identical.  `command_span` made `pub(crate)`.  **Strip 4 landed:** `rust/tcl-compiler/src/parsing/syntax/build.rs` ports `build.py` — `build_document(source, config)` reshapes the dialect-configured `Lexer` stream into the green tree (no second parser) via start-to-start tiling (`raw = source[tok[i].start .. tok[i+1].start]`, delimiters included, sidestepping the inner-end/#527 convention).  Lexes in local-offset space (base 0, like `segment_commands_local`) since green is position-independent — anchoring is the red layer's job.  A `Builder` mirrors the segmenter's `nonlocal` state: command/word grouping, `{*}` marker handling (stale-boundary quirk — EXPAND advances `prev_type` to SEP without touching `word_boundary`), backslash-newline continuation, comment accumulation across dangling-`{*}` commands + blank-line reset, the `word_boundary` range rule (token-only `start, boundary-1`, making the #527 overshoot structural), and terminator-trivia attachment.  Verified **byte-lossless over all 256 Tcl 8.4/8.5/8.6/9.0 source files** (`full_text == source`) plus 12 unit tests.  Added `with_trailing` / `with_last_child_trailing` green mutation helpers (recompute cached width) and exported `tcl_lexer::LexWarning`.  **Strip 3 landed:** `rust/tcl-compiler/src/parsing/syntax/red.rs` ports `red.py` — the lazy red overlay: `SyntaxTree` anchors a green root at `(base_offset, base_line, base_col)` and resolves a region offset to an absolute `SourcePosition` via a line index built from the tree's *own* reconstructed text (`build_line_starts`), reproducing the lexer's `_pos_at` (region-relative line bisect, then shift line by `base_line` and the first line's column by `base_col`).  `SyntaxToken` / `SyntaxNode` are cheap borrowed views (no `parent` back-pointer — Python's is unused); `raw_start` skips leading trivia, `start_position` / `end_position` reproduce the lexer's `Token.start` / inner-end `Token.end` (#527) via `end_rel`, and `to_token` rebuilds the exact span-based Rust `Token` (span = `raw_start..raw_start+end_rel+1`, with the `{*}` `Expand` marker special-cased to its zero-width ghost span).  Required carrying `content_offset` on `GreenToken` (the Rust `Token` is span+`content_offset` where Python's is text+start+end) — a justified Rust-specific addition.  12 tests including cross-checks that `to_token` byte-matches `Lexer` output (braced/empty-brace/var/braced-var/cmd-sub/bare/quoted/multiline/expand) field-for-field.  **Strip 2 landed:** `rust/tcl-compiler/src/parsing/syntax/green.rs` ports `green.py` — the position-independent green layer: `TriviaKind` / `SyntaxKind` enums, `GreenTrivia`, `GreenToken` (twin `text`/`raw` fields + `end_rel` + attached leading/trailing trivia + cached `full_width`), `GreenElement` (`Node`|`Token`), and `GreenNode` (`Document`/`Command`/`Word` with `expand_markers`, dangling `trailing`, `range_end_rel`, `preceding_comment`).  `full_text` round-trips byte-for-byte (losslessness); cached widths are pure functions of the other fields so they don't perturb structural equality (the shareability property).  Widths are byte lengths (matching the Rust lexer's byte-offset convention) where Python uses codepoint `len`.  Module tree `parsing/syntax/` mirrors the Python package layout.  10 tests.  **Strip 1 landed:** `rust/tcl-lexer/src/ranges.rs` ports `word_closer_offset` / `word_end_position` (derive the closing `}` / `]` / `"` from the lexer's content geometry — correct for empty `{}` / `[]` / `""` and backslash-bearing quoted `"a\"b"` / escaped-brace `{a\}}` words; emptiness keys on `SourceMap::token_text`, the Python `tok.text` discriminator, not a source byte), exported from `tcl-lexer`, 16 tests.  Audit of the segmenter's `widen_word_end` / `command_span`: the prior byte-check (`source[span.end()] == closer`) was robust for the *current* local-slice segmenter (an empty `{}` never sees an enclosing closer at `span.end()`) but would re-introduce the #527 overshoot once the CST rebase computes command spans against the full buffer (`a {}}` → the byte one past the empty `{}` *is* the enclosing `}`); rebased onto the faithful text-empty predicate (mirrors `range_from_word_token`'s `span_extra`) — behaviour-preserving for every existing input, robust for the rebase, pinned by `widen_word_end_does_not_overshoot_empty_brace_before_enclosing_closer`.  `cargo test --workspace` green (3337), clippy/fmt clean.  **CST-PORT complete.** |
 | — | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Landed via PR #389 — SYNC1 (minimum-viable, multi-role via duplicate rows; full `ArgRoleSet` type widening deferred), SYNC2 (`BodyKind`), SYNC3 (`body_arg_implicit_args`), SYNC4 (registry-driven trace defs), SYNC5 (`CREATES_DYNAMIC_BARRIER` guard), SYNC6 (`reads_own_def` for dict), SYNC7 (canonical-command field, type surface only), SYNC8 (GVN trace-aware purity), SYNC9 (Module trace facts), SYNC10 (LRU-cached `parse_expr`).  SYNC11 (hover debounce / cache / worker-offload contract) is deferred to `S-hover-sync11` since it builds on the cached-analysis surface that `S-diagnostics` lands later — see the `S-hover` chunk-log row. |
@@ -4893,6 +5090,24 @@ priority queue:
   consolidation + seg memo) carries no behavioural delta; #539 (docs/KCS +
   I230/I231 catalog metadata, emitters already ported) is out of scope.
   See the `SYNC-JUN08` family section.
+* **`SYNC-JUN09` family** — opened 2026-06-05 (PRs #540/#541/#546/#547);
+  advances the anchor from `origin/main`@`de6e9815` to
+  `origin/main`@`08babde2` (+4 commits).  **Two in-scope rows, both
+  behaviour-preserving alignments.**  #540 (`SYNC-JUN09-1` / `-2`)
+  consolidates command parsing: lowering now descends braced bodies through
+  the shared `descend_token` (the analyser's path) instead of a second
+  `segment_commands`, and the delimited-word closer geometry collapses onto
+  `word_closer_offset` + a new `closer_present_in_region` sibling — the Rust
+  lowerer still re-segments via `segment_commands*`, and `descend.rs::terminated`
+  still rolls its own closer check.  #541 (`SYNC-JUN09-3`) makes
+  line-continuation folding depth-recursive (continuations inside nested
+  bodies) with dangling-tail trimming — the Rust `collect_continuation_folds`
+  scans only top-level tokens.  The `{*}`-fallback-parse and
+  `GreenNode`→`TokenRegion` strands of #540 are already-satisfied / N/A on the
+  Rust side (the CST models `{*}` as a separate marker; the tokenisation memo
+  was never ported).  #547 (LSP-server gitignore / import-path / e2e harness)
+  and #546 (Tcl 9 WASM-suite classification) are out of scope.  See the
+  `SYNC-JUN09` family section.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
