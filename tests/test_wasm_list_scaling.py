@@ -85,3 +85,45 @@ def test_lappend_still_validates_malformed_list() -> None:
 )
 def test_lappend_marker_is_scalar_transparent(body: str, expected: str) -> None:
     assert _run(body) == expected
+
+
+def test_foreach_over_large_list_is_linear() -> None:
+    # The compiled foreach calls tcl_cmd_list_index(L, i) per element with
+    # monotonically increasing i.  Without the forward cursor cache each
+    # call re-derived element i from the string (O(i)), making the loop
+    # O(N^2) — foreach {k v} over a 20k list was ~35 s.  Now O(N).
+    body = (
+        "set s 0\n"
+        "foreach {k v} [lseq 1 20000] { incr s [expr {$k * $v}] }\n"
+        "puts $s\n"
+    )
+    assert _run(body) == "1333433330000"
+
+
+def test_forward_lindex_loop_is_linear() -> None:
+    # The same cursor cache covers a forward ``lindex $L $i`` loop.
+    body = (
+        "set L [lseq 0 19999]\n"
+        "set s 0\n"
+        "for {set i 0} {$i < 20000} {incr i} { incr s [lindex $L $i] }\n"
+        "puts $s\n"
+    )
+    assert _run(body) == str(sum(range(20000)))
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        # Cursor cache correctness: random / backward / repeated access and
+        # nested loops must all return the right element.
+        ("puts [lindex {a b c d e} 3]", "d"),
+        ("puts [lindex {a b c d e} end]", "e"),
+        ("set L {a b c d}\nputs \"[lindex $L 3][lindex $L 0][lindex $L 2]\"", "dac"),
+        (
+            "set o {}\nforeach a {1 2 3} {foreach b {x y} {append o $a$b}}\nputs $o",
+            "1x1y2x2y3x3y",
+        ),
+    ],
+)
+def test_list_index_cache_correctness(body: str, expected: str) -> None:
+    assert _run(body) == expected

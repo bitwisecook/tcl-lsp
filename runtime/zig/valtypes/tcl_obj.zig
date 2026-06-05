@@ -1167,6 +1167,10 @@ fn release_now(addr: u32) void {
             // cmdIL.test.
             const parse_cache = @import("parse_cache.zig");
             parse_cache.invalidate_for_buffer(sp);
+            // Drop the list-index forward cursor cache if it points at
+            // this buffer, so a recycled slab can't yield a stale element.
+            const tcl_list = @import("tcl_list.zig");
+            tcl_list.list_index_cache_invalidate(sp);
             free_sized(sp, cap);
         }
     }

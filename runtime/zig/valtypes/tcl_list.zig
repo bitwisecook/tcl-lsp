@@ -19,6 +19,38 @@ const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
+const list_parse = @import("tcl_list_parse.zig");
+
+// ─── forward cursor cache for tcl_cmd_list_index ─────────────────────────────
+// The compiled ``foreach`` / forward ``lindex`` loops call
+// ``tcl_cmd_list_index(L, i)`` with monotonically increasing ``i`` on the
+// same list object.  Re-deriving element ``i`` from the string each time is
+// O(i) (plus an O(N) ``list_count_elements`` for index resolution), so a loop
+// over an N-element list is O(N^2) — ``foreach {k v} $huge`` was ~35 s at 20k
+// elements and trapped at 40k.  Caching the last (object, buffer, element
+// index, cursor position, count) lets a forward step advance the cursor in
+// O(1), making the loop O(N).  Random / cold access falls back to a full
+// walk (no worse than before).  The cache is validated by object handle +
+// buffer pointer + length + count, and invalidated whenever that buffer is
+// freed (see ``list_index_cache_invalidate``, called from
+// ``tcl_obj.release_now``), so a recycled slab can never produce a stale hit.
+var lic_obj: i32 = 0;
+var lic_buf: u32 = 0;
+var lic_len: u32 = 0;
+var lic_count: i64 = 0;
+var lic_idx: i64 = -1; // element index the cursor currently sits *after*
+var lic_cursor: list_parse.Cursor = .{ .pos = 0 };
+
+/// Drop the cursor cache if it refers to ``buf`` (a buffer about to be
+/// freed).  Pointer-keyed so the obj module can call it without knowing the
+/// cache layout.
+pub fn list_index_cache_invalidate(buf: u32) void {
+    if (buf != 0 and buf == lic_buf) {
+        lic_obj = 0;
+        lic_buf = 0;
+        lic_idx = -1;
+    }
+}
 
 // Exported: list length — count elements by whitespace-splitting.
 //
@@ -666,10 +698,29 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
 // Exported: list index — extract the nth element (0-based).
 pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     const s = obj_ensure_string(list);
-    const n = list_count_elements(s.ptr, s.len);
+    // Forward cursor cache: when this is the same list buffer we just
+    // walked, reuse the cached element count (skip the O(N) re-count) and,
+    // for the very common forward step (i == cached_i + 1), advance the
+    // cached cursor in O(1) instead of re-scanning from the start.
+    const cache_hit = lic_buf != 0 and list == lic_obj and s.ptr == lic_buf and s.len == lic_len;
+    const n = if (cache_hit) lic_count else list_count_elements(s.ptr, s.len);
     const i_val = resolve_list_index(idx, n);
     if (i_val < 0 or i_val >= n) return obj_new_string(0, 0);
-    const elem = list_element_at(s.ptr, s.len, i_val);
+    var elem: list_parse.Element = undefined;
+    if (cache_hit and i_val == lic_idx + 1) {
+        elem = list_parse.cursor_next(s.ptr, s.len, &lic_cursor);
+        lic_idx = i_val;
+    } else {
+        var cur = list_parse.Cursor{ .pos = 0 };
+        if (i_val > 0) list_parse.cursor_skip(s.ptr, s.len, &cur, @intCast(i_val));
+        elem = list_parse.cursor_next(s.ptr, s.len, &cur);
+        lic_obj = list;
+        lic_buf = s.ptr;
+        lic_len = s.len;
+        lic_count = n;
+        lic_idx = i_val;
+        lic_cursor = cur;
+    }
     if (elem.braced) return obj_new_string_copy(s.ptr + elem.start, elem.len);
     // Unbraced element: process backslash escapes.  Issue #317:
     // ``obj_new_string_take`` so the resulting TclObj owns its
