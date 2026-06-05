@@ -621,7 +621,17 @@ class LspServerClient:
         method = msg.get("method", "")
         if method == "workspace/configuration":
             items = (msg.get("params") or {}).get("items") or []
-            result: Any = [None] * len(items)
+            # Reply per requested section.  For the ``tclLsp`` section, model an
+            # editor that has opted into the features the schema leaves off by
+            # default (linked editing inherits ``editor.linkedEditing``, which is
+            # off in VS Code) so those providers are exercised in e2e.  Every
+            # other section falls back to ``null`` (server defaults).
+            result: Any = [
+                {"features": {"linkedEditingRange": True}}
+                if (item or {}).get("section") == "tclLsp"
+                else None
+                for item in items
+            ]
         else:
             result = None
         self._send({"jsonrpc": "2.0", "id": msg["id"], "result": result})
