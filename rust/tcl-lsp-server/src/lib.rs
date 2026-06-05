@@ -2853,6 +2853,14 @@ fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range 
     }
 }
 
+/// Diagnostic codes that are *default-off* in the editor catalogue —
+/// the analyser emits them (matching the Python `analyse` contract) but
+/// the LSP layer is the consuming filter, so they are dropped from the
+/// published set unless explicitly enabled.  Mirrors Python's
+/// default-disabled code handling; the Rust server has no per-code
+/// enable config yet, so these are simply never published.
+const DEFAULT_OFF_CODES: &[&str] = &["W242"];
+
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
@@ -2860,6 +2868,7 @@ fn lift_analyser_diagnostics(
     let line_index = tcl_lexer::LineIndex::new(text);
     diagnostics
         .iter()
+        .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
         .map(|d| tower_lsp::lsp_types::Diagnostic {
             range: lift_span(&line_index, d.span),
@@ -3361,6 +3370,28 @@ mod tests {
     use tower_lsp::lsp_types::{
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    #[test]
+    fn default_off_w242_is_not_published() {
+        // `while {$x < 10} {puts hi}` emits the default-off W242 hint
+        // from the analyser, which the lift layer must drop (no consuming
+        // config exists in the Rust server) while keeping other codes.
+        let src = "while {$x < 10} {puts hi}\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == "W242"),
+            "analyser should still emit W242"
+        );
+        let lifted = lift_analyser_diagnostics(src, &analysis.diagnostics);
+        assert!(
+            !lifted.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "W242"
+            )),
+            "W242 must be filtered from the published set"
+        );
+    }
 
     /// GAP-C1: the constant-true `if` is folded by SCCP and surfaced
     /// as an `O100` constant-branch diagnostic from `run_all_checks`.

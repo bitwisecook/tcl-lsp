@@ -57,13 +57,36 @@ pub fn compute_rename_edits(
             continue;
         }
         let new_text = compute_new_literal(&src.raw_path, &dep_path, &new_path);
+        // `src.range` is the path word's lexer span, which for a braced
+        // (`{…}`) or quoted (`"…"`) literal covers the *opening*
+        // delimiter + content but not the closing one (the inner-end
+        // span convention).  Replacing it with the bare new path would
+        // drop the opener and orphan the closer (`{old}` → `new}`), so
+        // narrow the edit to the path content only — the range length
+        // minus the (delimiter-free) `raw_path` length is the opening
+        // delimiter width, and the closing delimiter sits past
+        // `range.end()`.  Both delimiters are then preserved.
         edits.push(RenameEdit {
             uri: src.uri.clone(),
-            span: src.range,
+            span: content_span(src.range, &src.raw_path),
             new_text,
         });
     }
     edits
+}
+
+/// The span covering only the path *content* of a `source` literal,
+/// given the word's full lexer span and its delimiter-free `raw_path`.
+/// For a braced / quoted literal the leading delimiter width is
+/// `range_len - raw_path_len`; the trailing delimiter lies past
+/// `range.end()` and is left untouched, so a rewrite preserves both.
+/// For a bare word the delimiter width is zero (the span is returned
+/// unchanged).
+fn content_span(range: Span, raw_path: &str) -> Span {
+    let range_len = range.end().saturating_sub(range.start());
+    let raw_len = u32::try_from(raw_path.len()).unwrap_or(range_len);
+    let lead = range_len.saturating_sub(raw_len);
+    Span::new(range.start() + lead, range.end())
 }
 
 /// Convert a `file://` URI to a filesystem path, or `None` for a
@@ -220,6 +243,32 @@ mod tests {
         assert_eq!(edits.len(), 1);
         assert_eq!(edits[0].uri, "file:///proj/main.tcl");
         assert_eq!(edits[0].new_text, "lib/new.tcl");
+    }
+
+    #[test]
+    fn braced_and_quoted_literals_rewrite_content_only() {
+        // A braced `source {lib/old.tcl}` must rewrite only the path
+        // content, leaving the `{` / `}` delimiters intact (else the
+        // edit would orphan the closing brace).
+        for src in [
+            "source {lib/old.tcl}\n",
+            "source \"lib/old.tcl\"\n",
+            "source lib/old.tcl\n",
+        ] {
+            let idx = index_of("file:///proj/main.tcl", src);
+            let edits =
+                compute_rename_edits("file:///proj/lib/old.tcl", "file:///proj/lib/new.tcl", &idx);
+            assert_eq!(edits.len(), 1, "{src:?}");
+            // The edit's span must cover exactly the old path content.
+            let covered = &src[edits[0].span.as_range()];
+            assert_eq!(covered, "lib/old.tcl", "span content for {src:?}");
+            assert_eq!(edits[0].new_text, "lib/new.tcl", "{src:?}");
+            // Applying the edit preserves any surrounding delimiters.
+            let mut applied = src.to_string();
+            applied.replace_range(edits[0].span.as_range(), &edits[0].new_text);
+            let expected = src.replace("lib/old.tcl", "lib/new.tcl");
+            assert_eq!(applied, expected, "rewrite for {src:?}");
+        }
     }
 
     #[test]
