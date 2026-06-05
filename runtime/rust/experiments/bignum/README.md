@@ -30,10 +30,33 @@ heap digit array widens to 8-byte/60-bit limbs) → native-i64 arithmetic with t
 `mp_int` ABI unchanged for extensions (they compile against the same
 `tclTomMath.h`). libtommath also compiles + runs on wasm32 (this probe did).
 
-## `lt_arith.c` — arithmetic + floor-division sanity
+## `lt_arith.c` — arithmetic + floor-division (builds + runs, native **and** wasm32)
 
 Computes `2**100`, inspects `used`/`fits_i64`, and shows raw `mp_div(-7,2)`
-(C-truncation → q=-3 r=-1; Tcl floor-adjusts to q=-4 r=1). The full multi-file
-link needs libtommath's per-file `#ifdef BN_*_C` build toggle (a Track-3
-whole-program-link recipe detail), so this is kept as the arithmetic-shape
-reference, not a CI gate.
+(C-truncation → q=-3 r=-1; Tcl floor-adjusts to q=-4 r=1).
+
+### The build recipe (solved)
+
+Tcl's bundled libtommath is wired into Tcl's stubs (`tclTomMath.h` renames every
+`mp_*` to `TclBN_*` and tangles the `MP_INIT_INT` code-gen templates when its own
+`.c` files are compiled). Build **pristine** instead, with
+`-DTCL_WITH_EXTERNAL_TOMMATH` (switches `tommath_private.h` to the real
+`tommath.h` and skips the `TclBN_*` renaming) and `-DLTM_ALL` (enables every
+file's `BN_*_C` guard):
+
+```sh
+cd tmp/tcl9.0.3
+SRCS=$(ls libtommath/*.c | grep -vE 'bn_deprecated|rand|prime')   # 139 files
+# native (defaults to MP_64BIT) — `mp_*` symbols, no stubs:
+clang -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Ilibtommath lt_arith.c $SRCS -o a && ./a
+# wasm32, forcing 60-bit limbs:
+zig cc --target=wasm32-wasi -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -DMP_64BIT \
+    -Ilibtommath lt_arith.c $SRCS -o a.wasm && wasmtime a.wasm
+```
+
+Both print `2**100 = 1267650600228229401496703205376` with **2 limbs**
+(confirming MP_64BIT's 60-bit limbs). `rand`/`prime` are excluded — the integer
+tower needs no RNG/primality (they pull `s_read_arc4random`/`mp_rand` externals);
+they're added back, with the right RNG config, only if an extension needs them in
+the whole-program-link build. This recipe is what the runtime's `build.rs` drives
+to link `mp_*` for the `TCL_BIGNUM_TYPE` FFI.

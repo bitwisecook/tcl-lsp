@@ -958,15 +958,25 @@ and the `**`/shift/bit-op rules follow `tclExecute.c`'s
 `ExecuteExtendedBinaryMathOp` exactly. `WIDE_MIN` negation and `WIDE_MIN / -1`
 are the wide-path overflow escapes into bignum.
 
-**Status.** Representation decided + validated; the full multi-file libtommath
-*link* (its per-file `#ifdef BN_*_C` separate/combined build toggle) is a
-build-recipe task for the whole-program-link chunk (Track 3), not a blocker on
-the rep. Implementation order: (1) the shared **`tcl_syntax::number`** grammar
-(the `TclParseNumber` port — pure, string → `Int(i64)` / `Big{neg,radix,digits}`
-/ `Double` / `Nan`, with `0x/0o/0b`, `_` separators, `Inf`/`NaN`, leading-zero =
-**decimal** in 9.0); (2) the `TCL_BIGNUM_TYPE` obj rep + the `TclBN_*` FFI; (3)
-the tower arithmetic + the `expr` evaluator over it (reusing
-`tcl_syntax::expr`).
+**Status.** Representation decided + **validated end-to-end on both targets** —
+`2**100` computes correctly under both `clang` (native) and `zig cc
+--target=wasm32-wasi` + `wasmtime`, with MP_64BIT giving 2 limbs (60-bit). The
+build recipe is **solved** (it had looked blocked): Tcl's bundled libtommath is
+wired into Tcl's stubs (`tclTomMath.h` renames `mp_*`→`TclBN_*` and tangles the
+`MP_INIT_INT` code-gen templates when its own `.c` is compiled), so build
+**pristine** with `-DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Ilibtommath`, all
+`libtommath/*.c` except `bn_deprecated`/`*rand*`/`*prime*` (139 files; the
+integer tower needs no RNG/primality). See
+[`runtime/rust/experiments/bignum/`](../../../runtime/rust/experiments/bignum/).
+This is what the runtime's `build.rs` drives to link `mp_*` for the
+`TCL_BIGNUM_TYPE` FFI (source vendoring for a fresh-checkout-reproducible build
+is the one remaining follow-up).
+
+Implementation order: ✅ (1) the shared **`tcl_syntax::number`** grammar (done);
+(2) the `TCL_BIGNUM_TYPE` obj rep + the `mp_*` FFI (the `Big`→`mp_int` wiring +
+the demote-when-fits canonicalisation); (3) the tower arithmetic + the `expr`
+evaluator over it (reusing `tcl_syntax::expr`). The C-extension boundary
+(`Tcl_GetBignumFromObj` + the `TclBN_*` stubs table) lands with Track 2/3.
 
 ### The value kinds to reason through (and their two relationships)
 

@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "tclTomMath.h"
+#include "tommath.h"
 int main(void){
   mp_int a,b,q,r;
   mp_init_multi(&a,&b,&q,&r,NULL);
