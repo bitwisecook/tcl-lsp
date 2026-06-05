@@ -465,8 +465,12 @@ fn ensure_array_value_owned(o: i32) i32 {
     // S6.4 — tagged immediates have no header to read.
     if (obj.is_immediate(o)) return o;
     const addr: u32 = @bitCast(o);
+    // TYPE_LIST stores its canonical list string in the OBJ_STR_* slots,
+    // so it shares the borrowed-buffer concern and must reach the cap
+    // check (always owning today; don't depend on that invariant — see
+    // tcl_ns.ensure_var_obj_owned).
     const tag = read_i32(addr + obj.OBJ_TYPE_TAG);
-    if (tag != obj.TYPE_STRING) return o;
+    if (tag != obj.TYPE_STRING and tag != obj.TYPE_LIST) return o;
     const cap: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_CAP));
     if (cap > 0) return o;
     const sptr: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_PTR));
