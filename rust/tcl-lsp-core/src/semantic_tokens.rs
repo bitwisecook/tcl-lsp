@@ -871,7 +871,12 @@ fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>>
         cuts.push((j, kind));
     }
 
-    // Precision `.` then `*` | digits.
+    // Precision `.` then `*` | digits.  Python's `_SPRINTF_RE` writes the
+    // separator as a regex `.` (any char), so it would also treat e.g.
+    // `%5,3d` as width-5 / precision-3.  We intentionally narrow to a
+    // literal `.` — the actual sprintf precision separator — so a
+    // malformed `%5,3d` stays a plain string rather than being mis-split;
+    // this only diverges on invalid format strings (highlighting only).
     if b.get(j) == Some(&b'.') {
         let value_start = j + 1;
         let mut k = value_start;

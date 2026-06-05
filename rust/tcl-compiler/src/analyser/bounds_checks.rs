@@ -281,29 +281,56 @@ fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
     None
 }
 
-/// A single `Variable` token slice → its scalar name.
+/// A single `Variable` token slice → its scalar name, but only for a
+/// plain `$name` / `${name}` token.  Array (`$a(i)`) and namespace-
+/// qualified (`$ns::v`) forms are rejected, matching the `fullmatch` of
+/// Python's `\$\{?(\w+)\}?` on the comparison's variable side.
 fn tokens_as_scalar_var(tokens: &[&ExprToken]) -> Option<String> {
     match tokens {
-        [v] if v.kind == ExprTokenType::Variable => var_scalar_name(&v.text),
+        [v] if v.kind == ExprTokenType::Variable => strict_scalar_name(&v.text),
         _ => None,
     }
 }
 
+/// The scalar name when `text` is exactly `$name`, `${name}`, `${name`
+/// or `$name}` (the `\$\{?(\w+)\}?` fullmatch shape — leading `{` and
+/// trailing `}` each independently optional), with nothing trailing.
+fn strict_scalar_name(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'$') {
+        return None;
+    }
+    let mut i = 1;
+    if bytes.get(i) == Some(&b'{') {
+        i += 1;
+    }
+    let start = i;
+    while i < bytes.len() && is_word_byte(bytes[i]) {
+        i += 1;
+    }
+    if i == start {
+        return None; // no word
+    }
+    let name = text[start..i].to_string();
+    if bytes.get(i) == Some(&b'}') {
+        i += 1;
+    }
+    (i == bytes.len()).then_some(name) // reject any trailing chars
+}
+
 /// A signed-integer token slice — a `Number`, optionally preceded by a
-/// unary `+` / `-` operator (the expression lexer tokenises `-5` as two
-/// tokens).  Returns the value when the slice is exactly that shape.
+/// unary `-` operator (the expression lexer tokenises `-5` as two
+/// tokens).  A leading `+` is *not* accepted, matching Python's `-?\d+`
+/// bound pattern.  Returns the value when the slice is exactly that shape.
 fn tokens_as_int(tokens: &[&ExprToken]) -> Option<i64> {
     match tokens {
         [num] if num.kind == ExprTokenType::Number => parse_decimal(&num.text),
         [sign, num]
-            if sign.kind == ExprTokenType::Operator && num.kind == ExprTokenType::Number =>
+            if sign.kind == ExprTokenType::Operator
+                && sign.text == "-"
+                && num.kind == ExprTokenType::Number =>
         {
-            let value = parse_decimal(&num.text)?;
-            match sign.text.as_str() {
-                "-" => Some(-value),
-                "+" => Some(value),
-                _ => None,
-            }
+            parse_decimal(&num.text).map(|value| -value)
         }
         _ => None,
     }
@@ -394,6 +421,13 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
 /// the segmenter (recursing into braced/quoted word bodies) rather than
 /// a flat-text scan, so writes inside string arguments don't count and
 /// nested-body writes still do.
+///
+/// This is a deliberate *semantic* upgrade over Python's
+/// `\bset\s+var\b` flat regex, not a bug-for-bug port: it counts a write
+/// only in command position (Python's regex also matched `set var(i)`
+/// array writes and matches inside strings), which can shift W241/W242
+/// counts versus the Python source of truth.  The new behaviour is the
+/// more correct one (full-fidelity parsing rather than text matching).
 fn body_writes_var(body: &str, var: &str) -> bool {
     any_command_recursive(body, &mut |cmd| {
         WRITE_COMMANDS.contains(&cmd.name()) && cmd.args().first().map(String::as_str) == Some(var)
@@ -612,6 +646,13 @@ pub(crate) fn lset_index_diagnostics(
 /// assignment shares the `lset`'s (flat) scope.  Mirrors
 /// `_infer_list_length_from_recent_set` (only brace-free braced literals
 /// are trusted, so the captured literal can't hide nested braces).
+///
+/// Two deliberate divergences from Python's `_LIST_SET_RE` (a
+/// line-anchored regex): the segmenter recognises a `set` after a `;`
+/// separator on the same line (not just at a line start), and a list
+/// whose `split_tcl_list` is malformed has no failure signal to reset
+/// the recovered length on (Python cleared `best_length`).  Both are
+/// narrow and the segmenter form is the more faithful parse.
 fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
@@ -1055,6 +1096,11 @@ mod tests {
         assert_eq!(super::parse_simple_for_cond("!$done"), None);
         assert_eq!(super::parse_simple_for_cond("$i ? 1 : 0"), None);
         assert_eq!(super::parse_simple_for_cond("$i < 10.5"), None);
+        // Fidelity with Python's `-?\d+` bound and `\$\{?(\w+)\}?` var:
+        // a leading `+`, an array index, or a namespace qualifier reject.
+        assert_eq!(super::parse_simple_for_cond("$i < +5"), None);
+        assert_eq!(super::parse_simple_for_cond("$arr(i) < 5"), None);
+        assert_eq!(super::parse_simple_for_cond("$ns::v < 5"), None);
         assert_eq!(
             super::parse_init_var_value("set i 5"),
             Some(("i".into(), 5))
