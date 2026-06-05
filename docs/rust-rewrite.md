@@ -4658,6 +4658,24 @@ Rust), `min_body_commands_for_expansion`, `align_comments_to_code`, and
 `enforce_braced_expr`; `BraceStyle` carries only `KAndR`.  **Fix:** add
 the missing config fields + thread them through `formatting/engine.rs`.
 
+**LANDED (2026-06-05) — with a correction to the gap framing.**  All four
+fields are now on the Rust `FormatterConfig` with Python-matching defaults
+(`enforce_braced_expr=false`, `align_comments_to_code=true`,
+`min_body_commands_for_expansion=2`, `replace_semicolons_with_newlines=
+true`).  **Correction:** these four are **config-surface-only in Python
+too** — declared in `config.py` and exposed in the editor settings JSON
+schema, but *never consumed by the Python formatter engine* (verified:
+zero `config.<field>` reads across `core/formatting/`).  The behaviours
+are hardcoded on **both** sides, so the original "hardcoded-on in Rust"
+framing was half-right: Rust matched Python's *behaviour* and only lagged
+its *config surface*.  Adding the fields restores surface parity (and
+keeps settings deserialisation forward-compatible); **threading them is
+deliberately not done** — it would diverge from Python.  Real behaviour
+for any of these is a future formatter feature to land on both sides at
+once.  `BraceStyle` needs no new variant — Python's enum is also
+`K_AND_R`-only (the audit overstated that).  Docstring-reflow fields stay
+acknowledged-deferred.
+
 **GAP-C5 — hover / completion iRules enrichment + `HoverSnippet::brief()`
 field loss.**  (a) Python hover appends a "**Valid events**" list and
 `when EVENT` event-ordering / multiplicity notes (`hover.py:1039-1164`);

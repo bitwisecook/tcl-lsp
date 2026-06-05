@@ -53,12 +53,35 @@ pub struct FormatterConfig {
     pub trim_trailing_whitespace: bool,
     /// Rewrite `$var` as `${var}` for consistency.
     pub enforce_braced_variables: bool,
+    /// Rewrite a bare expression argument as a braced `{ … }` expr.
+    /// Config-surface parity with Python `enforce_braced_expr`
+    /// (GAP-C4): declared and serialised, but — like the Python
+    /// field — not yet consumed by the engine (the behaviour is
+    /// hardcoded on both sides).
+    pub enforce_braced_expr: bool,
+    /// Align trailing inline comments to a consistent column.
+    /// Config-surface parity with Python `align_comments_to_code`
+    /// (GAP-C4): declared and serialised, not yet engine-consumed on
+    /// either side.
+    pub align_comments_to_code: bool,
     /// Line ending for formatted output.
     pub line_ending: String,
     /// Ensure the file ends with a newline.
     pub ensure_final_newline: bool,
     /// Expand single-line command bodies onto multiple lines.
     pub expand_single_line_bodies: bool,
+    /// Minimum number of commands a body must contain before
+    /// `expand_single_line_bodies` forces it onto multiple lines.
+    /// Config-surface parity with Python
+    /// `min_body_commands_for_expansion` (GAP-C4): declared and
+    /// serialised, not yet engine-consumed on either side.
+    pub min_body_commands_for_expansion: usize,
+    /// Split `;`-separated commands onto their own lines.
+    /// Config-surface parity with Python
+    /// `replace_semicolons_with_newlines` (GAP-C4): declared and
+    /// serialised, but semicolon-splitting is hardcoded-on in both
+    /// the Python and Rust engines, so the flag is not yet consumed.
+    pub replace_semicolons_with_newlines: bool,
     /// Blank lines between proc definitions.
     pub blank_lines_between_procs: usize,
     /// Blank lines between top-level blocks.
@@ -80,9 +103,13 @@ impl Default for FormatterConfig {
             space_after_comment_hash: true,
             trim_trailing_whitespace: true,
             enforce_braced_variables: false,
+            enforce_braced_expr: false,
+            align_comments_to_code: true,
             line_ending: "\n".to_owned(),
             ensure_final_newline: true,
             expand_single_line_bodies: false,
+            min_body_commands_for_expansion: 2,
+            replace_semicolons_with_newlines: true,
             blank_lines_between_procs: 1,
             blank_lines_between_blocks: 1,
             max_consecutive_blank_lines: 2,
