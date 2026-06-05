@@ -4347,7 +4347,27 @@ Rust (the apparent "O127 present" is a range comment, `mod.rs:66` /
 `gvn.rs:60`).  The C30f-final chunk-log row calls this "ported (O102…)",
 hiding the algorithm + code change.  **Fix:** port the computed-expr
 forwarding with its memory-SSA/effect gating and emit O127; keep the
-literal path as O102.  (Related code-identity drift: Python's
+literal path as O102.
+
+**LANDED (2026-06-05).**  `optimiser/propagation.rs::run_store_to_load_forwarding`
+ports the O127 path (`_propagation.py:716-1046`) alongside the existing
+literal-only O102 `run_load_forwarding`.  For a *computed* assignment
+(`set x [cmd]` — `AssignValue` with `[` or `AssignExpr` whose expr
+`expr_has_command_subst`) with exactly one `Operand` use of `$x` later in
+the same executable block, it emits a grouped rewrite: **O127** inline
+`[set x [cmd]]` at the use word + **O127** delete of the store (empty
+replacement, shared group id).  The safety gates mirror Python: single
+operand use; same block; use after def; not SCCP-`Const`; the def name and
+every name the expr reads are non-aliased (memory-SSA `aliased_names`, with
+a `compute_aliases` fallback); no intervening barrier / impure call
+(`is_pure_command_with_traces`, trace-aware via `Module.traced_commands` /
+`has_dynamic_trace`) / command-sub assignment / redefinition of a read
+name; and no command substitution before `$x` in the use word list unless
+the expr reads nothing.  Runs on procedure bodies only (Python's
+`is_top_level` guard).  4 unit tests (positive forward; intervening
+side-effect; multiple uses; literal→no O127).  Now also surfaces through
+the GAP-C1 server diagnostics path.  **Note** the literal path stays O102.
+(Related code-identity drift: Python's
 `optimise_expr_substitutions` **O116** `[list …]` and **O118**
 `[lindex …]` folds are now performed generically under Rust's
 new **O129** rather than their canonical codes; the chunk-log notes
@@ -4679,7 +4699,7 @@ to the chunk-log entry that has the full spec.
 |---|---|---|
 | — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05; strip 1 LANDED 2026-06-05.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs`) now merges `lift_compiler_diagnostics` — `compiler_checks::run_all_checks` (taint / iRules-flow / shimmer / thunking / GVN / SCCP) **and** `optimiser::optimise_with_dialect` (O-codes, HINT severity) — over the per-document dialect-aware registry, alongside the base `Analyser::analyse()` set.  Two unit tests pin it (O100 fold; IRULE3001 taint flow).  **Strip 2 remaining:** the source-style pass (line-length / trailing-whitespace / line-endings / comment-continuation / missing-`package require`) lands with the GAP-A8 `_style.py` port; feature-config toggles (checks currently run unconditionally — Python default); CU-sharing to avoid the double lowering.  See GAP-AUDIT-JUN05 §C1. |
 | — | `GAP-B3` (DONE) | **LANDED in full 2026-06-05 (strips 1-3).**  `goto_implementation` (`implementation.rs` — TclOO subclass / method-override fan-out), `goto_type_definition` (`type_definition.rs` — `$obj`→inferred class via `instance_classes`, method→owning class), and `goto_declaration` (`declaration.rs` — visible `global`/`variable`/`upvar`/`namespace upvar` declaration walk via the `var_scoping` index helpers, with cross-doc fallback) are all real; none aliases `compute_definition`.  12 unit tests.  Cross-document subclass/override fan-out for `goto_implementation` is the only follow-up.  See §B3. |
-| — | `GAP-B1` (O127 forwarding) | **`GAP-B2` LANDED 2026-06-05; B1 remaining.**  GVN code relabel is done — loop-invariant → **O106**, partial redundancy → **O105**, O107 reserved for elimination's dead-code (matches canonical KCS + Python `gvn.py`; fixed a cross-layer differential where the `_rust_gvn_*` bridge disagreed with the Python fallback).  **Still open (B1):** O127 store-to-load forwarding is literal-only under **O102** — the computed-expr forwarding (`set x [cmd]` inlined to the single use site with memory-SSA / effect / version gating, emitting O127) is absent.  See §B2 / §B1. |
+| — | `GAP-B1` / `GAP-B2` (DONE) | **Both LANDED 2026-06-05.**  B2: canonical GVN codes (loop-invariant→O106, partial→O105, O107 = elimination dead-code only; fixed a cross-layer differential).  B1: `run_store_to_load_forwarding` ports the O127 computed-expr forward — `set x [cmd]` with a single same-block operand use inlines `[set x [cmd]]` and deletes the store (grouped), gated on single-use / alias / intervening-effect / SSA-version safety (memory-SSA + `is_pure_command_with_traces`); literal path stays O102.  4+2 unit tests; surfaces via GAP-C1.  See §B1 / §B2. |
 | — | `GAP-A2` + `GAP-D2` (security-check family + granular taint fields) | **Highest-severity checks silently absent** (injection / ReDoS / hardcoded credentials).  Port the granular taint-sink `CommandSpec` fields, then the W102/W103/W300/W301/W303/W309/W310/W312 emitters (+ T106 / W313).  See §A2 / §D2. |
 | — | `GAP-B4` (expr type inference — `EXPR_FUNC_REGISTRY`) | **LANDED 2026-06-05.**  `type_infer.rs::infer_expr_type` now ports `EXPR_FUNC_REGISTRY` (`expr_call_type` — Int/Double/Boolean families + `abs` identity + `max`/`min` join), gives the iRules string predicates + word-logical ops the Boolean arm (`BinOp` match now exhaustive — no `overdefined()` fall-through), forces Int for bitwise/shift, and ports `_arithmetic_result` (DOUBLE promotion).  Four unit tests; lib suite green.  See §B4. |
 | — | `GAP-AUDIT-JUN05` (remainder: A1, A3-A9, B5-B7, C2-C5, D1) | Structural gaps with full context + fix steps in the GAP-AUDIT-JUN05 section — ghost-token E201-E206 recovery, confusables/bounds/syntax/style checks, four absent LSP providers (snippet / package-suggest / irules-context / file-ops), semantic-token taxonomy + modifiers, code-action families, formatter config knobs, hover/completion iRules enrichment, registry `pattern_type`/`format_string_type`/`options`, `auto_path` static eval, expr backslash-newline, multipass fixpoint. |

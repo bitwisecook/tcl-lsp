@@ -82,6 +82,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for fu in cu.procedures.values() {
         run_load_forwarding(ctx, fu);
     }
+    // GAP-B1: O127 store-to-load forwarding for *computed* single-use
+    // assignments (`set x [cmd]` inlined to its sole use site, then the
+    // store deleted).  Skips the top-level body, matching Python's
+    // `is_top_level` guard.
+    for fu in cu.procedures.values() {
+        run_store_to_load_forwarding(ctx, fu);
+    }
 }
 
 /// Forward a single reaching literal definition to each of its
@@ -186,6 +193,380 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             ctx.report(opt);
         }
     }
+}
+
+/// O127 — store-to-load forwarding for a *computed* single-use
+/// assignment.
+///
+/// Port of `optimise_load_forwarding`'s O127 path
+/// (`_propagation.py:716-1046`).  When `set x [cmd]` (a command
+/// substitution or a command-bearing expr) has exactly one
+/// `Operand` use of `$x` later in the same block, and nothing
+/// between the def and the use can change the value the expression
+/// would recompute, emit a grouped rewrite: inline `[set x [cmd]]`
+/// at the use site (`O127`) and delete the original store (`O127`,
+/// empty replacement).
+///
+/// Safety gates mirror the Python pass: single operand use; same
+/// executable block; use after def; the value is not SCCP-constant
+/// (those are O100/O102); neither the defined name nor any name the
+/// expression reads is memory-SSA aliased (upvar / global /
+/// variable); no intervening barrier, side-effecting call, or
+/// command-substitution assignment; no intervening redefinition of a
+/// read name; and, intra-statement, no command substitution appears
+/// before `$x` in the use word list unless the inlined expression
+/// reads nothing.
+fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+    use crate::memory_ssa::compute_aliases;
+    use std::collections::BTreeSet;
+
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+
+    // Names whose writes may be visible through an alias (upvar /
+    // global / variable). Prefer the on-demand memory-SSA annotation;
+    // fall back to a direct alias computation.
+    let aliased: BTreeSet<String> = match &fu.memory_ssa {
+        Some(m) => m.aliased_names(),
+        None => compute_aliases(&fu.ssa)
+            .iter()
+            .flat_map(crate::memory_ssa::AliasSet::names)
+            .collect(),
+    };
+
+    // Trace context: a traced command is never pure (its write set is
+    // unknown), so the intervening-effect check must see it.
+    let (traced, has_dynamic_trace) = match ctx.ir_module {
+        Some(m) => (m.traced_commands.clone(), m.has_dynamic_trace),
+        None => (BTreeSet::new(), false),
+    };
+
+    // Source ranges already targeted by earlier passes — O127 must not
+    // overlap them. Snapshot before we start emitting.
+    let rewritten: Vec<(u32, u32)> = ctx
+        .optimisations
+        .iter()
+        .map(|o| (o.span.start(), o.span.end()))
+        .collect();
+
+    // Collect emissions first; group ids + ctx pushes happen after the
+    // immutable walk over `fu`.
+    let env = ForwardEnv {
+        ctx,
+        fu,
+        registry,
+        aliased: &aliased,
+        traced: &traced,
+        has_dynamic_trace,
+        rewritten: &rewritten,
+    };
+    let pending: Vec<(Optimisation, Optimisation)> = fu
+        .def_use
+        .chains
+        .values()
+        .filter_map(|chain| forward_candidate(&env, chain))
+        .collect();
+
+    // Emit, allocating a shared group id per inline/delete pair so the
+    // two edits apply all-or-nothing.
+    for (mut inline, mut delete) in pending {
+        let group = ctx.alloc_group();
+        inline.group = Some(group);
+        delete.group = Some(group);
+        ctx.report(inline);
+        ctx.report(delete);
+    }
+}
+
+/// Read-only context threaded into [`forward_candidate`] so the
+/// per-chain evaluation stays a pure function over the borrowed
+/// analysis state.
+struct ForwardEnv<'a> {
+    ctx: &'a PassContext<'a>,
+    fu: &'a FunctionUnit,
+    registry: &'a tcl_registry::CommandRegistry,
+    aliased: &'a std::collections::BTreeSet<String>,
+    traced: &'a std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+    rewritten: &'a [(u32, u32)],
+}
+
+/// Evaluate one def-use chain as an O127 store-to-load-forwarding
+/// candidate, returning the `(inline, delete)` edit pair when every
+/// safety gate passes (see [`run_store_to_load_forwarding`] for the
+/// gate list). Returns `None` for any chain that doesn't qualify.
+fn forward_candidate(
+    env: &ForwardEnv<'_>,
+    chain: &crate::def_use::DefUseChain,
+) -> Option<(Optimisation, Optimisation)> {
+    use crate::def_use::{DefKind, UseKind};
+    use std::collections::BTreeSet;
+
+    let (ctx, fu) = (env.ctx, env.fu);
+
+    // Exactly one operand use.
+    if chain.use_count() != 1 {
+        return None;
+    }
+    let use_site = &chain.uses[0];
+    if use_site.kind != UseKind::Operand {
+        return None;
+    }
+    let def = &chain.definition;
+    if def.kind != DefKind::Statement {
+        return None;
+    }
+    // Same executable block; use strictly after def.
+    if def.block != use_site.block || !fu.sccp.executable_blocks.contains(&def.block) {
+        return None;
+    }
+    let (Ok(def_idx), Ok(use_idx)) = (
+        usize::try_from(def.statement_index),
+        usize::try_from(use_site.statement_index),
+    ) else {
+        return None;
+    };
+    if use_idx <= def_idx {
+        return None;
+    }
+    let block = fu.cfg.blocks.get(&def.block)?;
+    let ssa_block = fu.ssa.blocks.get(&def.block)?;
+    let (def_stmt, use_stmt) = (
+        block.statements.get(def_idx)?,
+        block.statements.get(use_idx)?,
+    );
+
+    // The def must be a *computed* assignment — a command substitution
+    // or a command-bearing expr. Literal / constant assignments are the
+    // O102 / O100 path.
+    if !is_computed_assignment(def_stmt) {
+        return None;
+    }
+
+    let def_key = chain.key.clone();
+    // Skip SCCP constants (O100 owns those).
+    if matches!(fu.sccp.values.get(&def_key), Some(LatticeValue::Const(_))) {
+        return None;
+    }
+    // Skip statements another pass already rewrote / consumed.
+    if ctx
+        .propagated_expr_stmts
+        .contains(&(def.block.clone(), def_idx))
+        || ctx
+            .propagated_expr_stmts
+            .contains(&(use_site.block.clone(), use_idx))
+        || ctx.propagated_branch_uses.contains(&def_key)
+    {
+        return None;
+    }
+
+    let def_name = chain.key.0.as_str();
+    if ctx.cross_event_vars.contains(def_name) || env.aliased.contains(def_name) {
+        return None;
+    }
+    // Names the def expression reads — used for alias + version safety.
+    let def_read_names: BTreeSet<String> =
+        ssa_block.statements[def_idx].uses.keys().cloned().collect();
+    if def_read_names.iter().any(|n| env.aliased.contains(n)) {
+        return None;
+    }
+
+    // Intervening statements must not change the value the inlined
+    // expression would recompute.
+    if !intervening_is_safe(
+        block,
+        ssa_block,
+        def_idx,
+        use_idx,
+        &def_read_names,
+        env.registry,
+        ctx.dialect,
+        env.traced,
+        env.has_dynamic_trace,
+    ) {
+        return None;
+    }
+
+    // The use must be a `Call` with tokens so we can pinpoint the `$x`
+    // word and check intra-statement evaluation order.
+    let Statement::Call {
+        tokens: Some(tokens),
+        ..
+    } = use_stmt
+    else {
+        return None;
+    };
+    let (var_span, has_earlier_effect) = locate_use_var(tokens, def_name)?;
+    // A command substitution before `$x` runs first; inlining a
+    // state-reading expression after it would reorder effects.
+    if has_earlier_effect && !def_read_names.is_empty() {
+        return None;
+    }
+
+    build_forward_edits(ctx.source, def_stmt, def_name, var_span, env.rewritten)
+}
+
+/// Construct the grouped O127 `(inline, delete)` edits for a resolved
+/// forwarding candidate, or `None` when the def span is degenerate or
+/// would collide with an earlier pass's rewrite.
+fn build_forward_edits(
+    source: &str,
+    def_stmt: &Statement,
+    def_name: &str,
+    var_span: tcl_lexer::Span,
+    rewritten: &[(u32, u32)],
+) -> Option<(Optimisation, Optimisation)> {
+    let def_span = def_stmt.span();
+    let (ds, de) = (def_span.start(), def_span.end());
+    if de as usize > source.len() || ds >= de {
+        return None;
+    }
+    let target = full_word_span(source, var_span);
+    // Don't collide with an earlier pass's rewrite (def line or use word).
+    if ranges_overlap(rewritten, ds, de) || ranges_overlap(rewritten, target.start(), target.end())
+    {
+        return None;
+    }
+    let stmt_text = &source[ds as usize..de as usize];
+    let inline = Optimisation::new(
+        "O127",
+        format!("Inline single-use variable `${def_name}`"),
+        target,
+        format!("[{stmt_text}]"),
+    );
+    let delete = Optimisation::new(
+        "O127",
+        "Remove inlined assignment",
+        line_delete_span(source, def_span),
+        "",
+    );
+    Some((inline, delete))
+}
+
+/// True when `stmt` is a `set`-style assignment whose value is
+/// *computed* — an `AssignValue` carrying a `[command substitution]`
+/// or an `AssignExpr` whose expression contains one.  Literal
+/// assignments are handled by the O100 / O102 paths instead.
+fn is_computed_assignment(stmt: &Statement) -> bool {
+    use super::helpers::expr_simplify::expr_has_command_subst;
+    match stmt {
+        Statement::AssignValue { value, .. } => value.contains('['),
+        Statement::AssignExpr { expr, .. } => expr_has_command_subst(expr),
+        _ => false,
+    }
+}
+
+/// Check the statements strictly between `def_idx` and `use_idx` for
+/// anything that could change the value the inlined expression would
+/// recompute: a barrier, a side-effecting call, a
+/// command-substitution assignment, or a redefinition of a name the
+/// expression reads.
+#[allow(clippy::too_many_arguments)]
+fn intervening_is_safe(
+    block: &crate::cfg::Block,
+    ssa_block: &crate::ssa::SsaBlock,
+    def_idx: usize,
+    use_idx: usize,
+    def_read_names: &std::collections::BTreeSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    traced: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    use super::helpers::expr_simplify::expr_has_command_subst;
+    use crate::gvn::is_pure_command_with_traces;
+
+    for idx in (def_idx + 1)..use_idx {
+        let Some(stmt) = block.statements.get(idx) else {
+            break;
+        };
+        match stmt {
+            // A barrier (incl. lowered eval / uplevel) may mutate any
+            // name — always a kill.
+            Statement::Barrier { .. } => return false,
+            Statement::AssignValue { value, .. } if value.contains('[') => return false,
+            Statement::AssignExpr { expr, .. } => {
+                if expr_has_command_subst(expr) {
+                    return false;
+                }
+            }
+            Statement::Call { command, args, .. } => {
+                if !is_pure_command_with_traces(
+                    registry,
+                    command,
+                    args,
+                    dialect,
+                    traced,
+                    has_dynamic_trace,
+                ) {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+        // A redefinition of any read name invalidates the forward.
+        if let Some(sb) = ssa_block.statements.get(idx) {
+            if def_read_names.iter().any(|n| sb.defs.contains_key(n)) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Find the `$var` word in a use-site command's tokens and report
+/// whether a command substitution appears before it.
+///
+/// Returns `(var_word_span, has_earlier_command_subst)`. The match
+/// requires a single-token `$var` / `${var}` word (a `$var` embedded
+/// in a larger word is not a clean inline target).
+fn locate_use_var(tokens: &CommandTokens, var_name: &str) -> Option<(tcl_lexer::Span, bool)> {
+    use tcl_lexer::TokenType;
+    let mut has_earlier_effect = false;
+    for (i, span) in tokens.argv.iter().enumerate() {
+        let text = tokens.argv_texts.get(i)?;
+        let kind = tokens.argv_kinds.get(i).copied();
+        if kind == Some(TokenType::Var) && simple_var_ref_matches(text, var_name) {
+            // Multi-token words (e.g. `$x$y`) aren't a clean target.
+            if tokens.single_token_word.get(i).copied().unwrap_or(true) {
+                return Some((*span, has_earlier_effect));
+            }
+            continue;
+        }
+        if kind == Some(TokenType::Cmd) {
+            has_earlier_effect = true;
+        }
+    }
+    None
+}
+
+/// Extend a statement span to cover the whole source line — the
+/// leading indentation back to the previous newline and the trailing
+/// newline — so deleting the store removes its line cleanly.
+fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
+    let bytes = source.as_bytes();
+    let mut start = span.start() as usize;
+    // Walk back over leading spaces / tabs on the line.
+    while start > 0 && matches!(bytes[start - 1], b' ' | b'\t') {
+        start -= 1;
+    }
+    let mut end = span.end() as usize;
+    // Consume a single trailing newline (and a preceding CR).
+    if end < bytes.len() && bytes[end] == b'\n' {
+        end += 1;
+    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
+        end += 2;
+    }
+    tcl_lexer::Span::new(
+        u32::try_from(start).unwrap_or(span.start()),
+        u32::try_from(end).unwrap_or(span.end()),
+    )
+}
+
+/// True when `[start, end)` overlaps any of the recorded ranges.
+fn ranges_overlap(ranges: &[(u32, u32)], start: u32, end: u32) -> bool {
+    ranges.iter().any(|&(s, e)| start < e && s < end)
 }
 
 /// True when `text` is the bare word `$name` / `${name}` and the
@@ -1207,6 +1588,55 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    /// Run the whole optimiser (raw, unfiltered) so the registry is
+    /// threaded — needed for the O127 store-to-load-forwarding pass,
+    /// which bails without a registry.
+    fn o127(source: &str) -> Vec<Optimisation> {
+        crate::optimiser::optimise_raw(source, &registry(), None)
+            .into_iter()
+            .filter(|o| o.code == "O127")
+            .collect()
+    }
+
+    #[test]
+    fn o127_forwards_single_use_computed_assignment() {
+        // `set x [llength $y]` is computed and used once → inline at the
+        // use site + delete the store, both O127 in one group.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
+        let opts = o127(src);
+        assert_eq!(opts.len(), 2, "{opts:?}");
+        // Both edits share a group id (all-or-nothing).
+        assert_eq!(opts[0].group, opts[1].group);
+        assert!(opts[0].group.is_some());
+        // One edit inlines `[set x [llength $y]]`; the other deletes.
+        assert!(opts
+            .iter()
+            .any(|o| o.replacement.contains("[set x [llength $y]]")));
+        assert!(opts.iter().any(|o| o.replacement.is_empty()));
+    }
+
+    #[test]
+    fn o127_skips_intervening_side_effect() {
+        // The intervening `puts` is impure → forwarding past it is
+        // unsafe.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts hi\n    puts $x\n}\n";
+        assert!(o127(src).is_empty(), "{:?}", o127(src));
+    }
+
+    #[test]
+    fn o127_skips_multiple_uses() {
+        // Two uses of `$x` → not single-use, no forwarding.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n    puts $x\n}\n";
+        assert!(o127(src).is_empty(), "{:?}", o127(src));
+    }
+
+    #[test]
+    fn o127_skips_literal_assignment() {
+        // A literal `set x 5` is the O102 path, not O127.
+        let src = "proc p {} {\n    set x 5\n    puts $x\n}\n";
+        assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 
     // -- internal helpers ---------------------------------------------------
