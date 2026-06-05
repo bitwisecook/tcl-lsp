@@ -84,6 +84,28 @@ def lsp_server(
         client.shutdown()
 
 
+@pytest.fixture(scope="session")
+def lsp_server_irules(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A second server dedicated to F5 iRules-dialect documents.
+
+    The server's active command/signature pack is process-global: opening an
+    iRules document auto-switches the whole server into the ``f5-irules``
+    dialect, which would then resolve a plain-Tcl ``socket`` hover in iRules
+    context.  Rather than fight that statefulness, dialect-sensitive iRules
+    tests run against their own server so the main ``lsp_server`` stays Tcl.
+    """
+    workspace = tmp_path_factory.mktemp("lsp-irules-workspace")
+    client = LspServerClient([sys.executable, str(lsp_pyz)], cwd=workspace)
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
 @pytest.fixture
 def uri_factory(request: pytest.FixtureRequest):
     """Return a callable producing a fresh, unique ``file://`` URI per call.

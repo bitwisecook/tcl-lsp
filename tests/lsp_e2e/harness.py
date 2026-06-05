@@ -225,15 +225,48 @@ class LspServerClient:
     ) -> list[dict]:
         """Open ``text`` and block until its analysis is ready, then return diags.
 
-        Feature handlers that read the cached analysis (hover, completion,
-        document symbols, …) return an empty result until the first
-        ``publishDiagnostics`` lands for the document — the server signals
-        "analysis ready" by pushing diagnostics (even an empty list for a
-        clean file).  Opening through this helper removes the per-test
-        retry-until-ready boilerplate.
+        Analysis-backed handlers (hover, definition, references, …) read the
+        per-document *analysis snapshot*, which is built on the main thread.
+        The first ``publishDiagnostics`` can arrive *before* that snapshot
+        exists — the fast diagnostics pass runs in a subprocess — so waiting on
+        diagnostics alone leaves a window where hover returns ``None``.  Block
+        on both: the diagnostics publish (for the version handshake and the
+        returned diagnostics) and the ``workspace_state.update`` log line that
+        the server emits for this URI once the snapshot is populated.
         """
         self.open_document(uri, text, language_id=language_id, version=version)
-        return self.await_diagnostics(uri, version=version, timeout=timeout)
+        diags = self.await_diagnostics(uri, version=version, timeout=timeout)
+        # The snapshot-built marker carries ``uri=<uri>``; for a fresh unique
+        # URI there is exactly one, so a substring match can't catch a stale
+        # earlier build.
+        self.await_log("workspace_state.update", uri, timeout=timeout)
+        return diags
+
+    def await_log(self, *needles: str, timeout: float = 30.0) -> str:
+        """Block until a ``window/logMessage`` whose text contains all ``needles``.
+
+        The packaged server routes its ``[timing] …`` instrumentation through
+        ``window/logMessage`` (it emits nothing on stderr), so this is how a
+        test observes server-side progress markers such as the analysis-snapshot
+        build.  Returns the matching message text.
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        with self._notify_cv:
+            while True:
+                for note in self._notifications:
+                    if note.get("method") != "window/logMessage":
+                        continue
+                    msg = str((note.get("params") or {}).get("message", ""))
+                    if all(n in msg for n in needles):
+                        return msg
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    raise AssertionError(
+                        f"no window/logMessage containing all of {needles!r} within {timeout}s"
+                    )
+                self._notify_cv.wait(remaining)
 
     # -- feature requests --------------------------------------------------
 
