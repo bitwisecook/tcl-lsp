@@ -134,6 +134,142 @@ and the Tcl 9 gold-standard suite.
 
 ---
 
+## Choosing algorithms & data structures (the porting method)
+
+Porting is **not** transliterating the Zig source line-by-line. Every
+data-structure-bearing chunk — the value types above all (`obj` internal-rep
+union, list, dict, string, array, hash table, the parse cache) — must
+**re-derive** the right representation from first principles and prove the
+choice empirically. A faithful port can still pick a bad structure; this
+discipline stops that. It is the runtime-port analogue of `rust-rewrite.md`'s
+"what a good port looks like", specialised for the runtime's performance- and
+ABI-critical data structures.
+
+Apply these three steps to every such chunk, in order, and record the outcome
+(see *Recording the decision*). Treat it as a hard checklist, not advice.
+
+### 1. Investigate the commands/subcommands that exercise the structure
+
+Before choosing a representation, enumerate **every command and subcommand**
+that reads or mutates it, and classify the resulting access-pattern profile.
+The structure exists to serve those operations; its shape is dictated by them.
+
+- Read both sources: the Zig handlers (`runtime/zig/cmds/*.zig` — e.g. list
+  ops span `list.zig`, `dict.zig`, `string.zig`, `loop.zig`, `tcl_cmd_*.zig`)
+  **and** the canonical C (`tmp/tcl9.0.3/generic/tcl{ListObj,DictObj,Hash}.c`,
+  `tclCmd*.c`). The C source is ground truth for *what operations must be
+  cheap* and *what invariants the value model guarantees* (ordering, sharing,
+  shimmering).
+- For each operation, record: frequency/hotness (loop bodies vs setup),
+  complexity demand (random index vs sequential), mutation shape (append-only
+  vs middle-insert vs in-place set), and whether it observes order or identity.
+
+Worked seed — the **list** type drives the choice to a contiguous growable
+`Tcl_Obj*` array (mirroring `tclListObj.c`'s `List` struct), **not** a linked
+list:
+
+| Operation | Demand | Implication |
+|---|---|---|
+| `lindex` / `lset` | O(1) random access | array indexing, not list traversal |
+| `lappend` (hot, loop bodies) | amortised O(1) append | growable with spare capacity + end pointer |
+| `linsert` / `lreplace` / `lrange` | block shift / slice | contiguous storage; share-on-write for unshared tail |
+| `lsort` / `lsearch` | build a working array | already an array — sort in place / over a copy |
+| `foreach` / `lmap` | sequential scan | cache-friendly contiguous walk |
+
+Worked seed — the **dict** type must be an **insertion-ordered** hash map
+(Tcl 8.5+ semantics, `tclDictObj.c` chains entries in insertion order):
+`dict for`, `dict keys`, `dict map` iterate in insertion order, so a plain
+unordered map is wrong; the representation needs a hash index **plus** an order
+chain. Subcommands `get/set/exists/keys/values/append/lappend/incr/unset/`
+`merge/filter/map/for/update/with/size/replace/remove/create/info` define the
+full op set to satisfy.
+
+### 2. Run WASM-compiled experiments to verify
+
+Do **not** settle constant-factor or crossover questions by intuition — wasm
+changes them. Under `wasm32` there is no native SIMD by default, the allocator
+is libc-`malloc` (~100 ns/alloc since MM-A, vs ~5 ns for the retired bump
+allocator), linear memory is a single growable region, and branch/indirect-call
+costs differ from native. A structure that wins on the host can lose under
+wasmtime.
+
+- Build the candidate(s) into a small experiment, compile to `wasm32-wasip1`,
+  and run under `wasmtime` — the **actual target**, not a host `cargo bench`.
+  Experiments live under `runtime/rust/experiments/` (throwaway, each with a
+  one-line "what question does this answer"); keep the *decision*, discard the
+  code (like the spikes).
+- Measure what the op profile from step 1 says matters: e.g. for the list,
+  append throughput at N = 10/1e3/1e6, `lindex` random-access latency, and the
+  alloc count per op (the MM-A cost makes alloc count, not just wall time, a
+  first-class metric — fewer allocations usually beats a cleverer structure).
+- Reuse the existing harnesses where they fit (`scripts/bench_wasm_runtime.py`,
+  `scripts/perf_microbench.py`, the S6 microbench baseline) so numbers are
+  comparable to the Zig runtime and the staircase gates.
+
+### 3. Reason through C-extension support (the ABI constraint)
+
+The representation is **not free to choose** — it must satisfy what extensions
+observe through the public C API (`c-extension-abi.md` §4, `tcl.h`). This often
+*forces* the structure outright, and it is the step most easily missed:
+
+- **The obj stays `#[repr(C)]`.** Whatever internal rep a value type uses hangs
+  off `Tcl_Obj.internalRep` / `typePtr`; the 24-byte header layout (§4.2) is
+  fixed because extensions dereference it.
+- **`Tcl_ListObjGetElements` hands back a `Tcl_Obj **` array** the extension
+  indexes directly — so the list **must** be able to materialise a contiguous
+  `Tcl_Obj*` array. This alone rules out a rep that can't produce one cheaply.
+- **`Tcl_HashTable` is ABI-visible.** Extensions (e.g. `pkgua.c`) embed a
+  `Tcl_HashTable` **by value**, set `Tcl_HashEntry` fields, and walk buckets via
+  `Tcl_FirstHashEntry`/`Tcl_NextHashEntry`. We cannot substitute an arbitrary
+  Rust `HashMap` for that surface — the chained-bucket layout and entry struct
+  are part of the contract. (An internal-only table *can* use a better
+  structure; the ABI-exposed one cannot.)
+- **Custom `Tcl_ObjType`** means the internal rep is *pluggable* by extensions —
+  our types coexist with extension-registered ones, so type dispatch goes
+  through `typePtr`, never a closed enum that assumes only built-in types.
+- **Shimmering + sharing** (`Tcl_Obj` shared across references, string rep
+  generated on demand) constrain mutation: an unshared (`refCount == 1`) value
+  may mutate in place; a shared one must copy. The structure must support both.
+
+### The value kinds to reason through (and their two relationships)
+
+Work through **every** value kind below. Each has a representation question and
+**two relationships that constrain it from opposite sides** — the AOT-compiled
+code (which wants values unboxed and shimmer-free) and the C extensions (which
+observe values through the `#[repr(C)]` `Tcl_Obj` + the public C API). A
+representation that serves one but not the other is wrong.
+
+| Value kind | Representation question | Relationship to AOT-compiled code | Relationship to C extensions (ABI) |
+|---|---|---|---|
+| **String** (the canonical rep — EIAS) | owned vs borrowed vs inline (≤N-byte) buffer; Tcl 9 internal encoding; NUL-termination; append capacity | literals interned once; the compiler keeps `(ptr,len)` when it can prove no mutation | `Tcl_GetStringFromObj` returns the buffer pointer **directly** → must be contiguous, stable, NUL-terminated |
+| **Scalar variable** (one value) | var slot → single `Tcl_Obj` handle (+ a retain) | a non-escaping scalar local can become a WASM local holding an *unboxed* value or an obj handle (S2 frame elision) | `Tcl_ObjSetVar2`/`Tcl_SetVar2` read/write the slot; the var holds a `Tcl_Obj` the extension may retain |
+| **Number — int (wide)** | `internalRep.wideValue` (i64), `typePtr=int`; overflow → bignum | the hot path: tagged immediates (S6.4) keep small ints unboxed in WASM i32/i64 — no alloc, no shimmer; `expr` runs on unboxed i64 | `Tcl_NewWideIntObj` / `Tcl_GetIntFromObj` / `Tcl_GetWideIntFromObj` read `internalRep` |
+| **Number — float** | `internalRep.doubleValue` (f64), `typePtr=double`; `%.17g` string gen | unboxed f64 in WASM locals for `expr` | `Tcl_NewDoubleObj` / `Tcl_GetDoubleFromObj` |
+| **Number — bignum** | `internalRep` → `mp_int` (pointer to a digit array), `typePtr=bignum` | rare; falls to runtime arithmetic (libtommath) — not unboxed | `Tcl_NewBignumObj`/`Tcl_GetBignumFromObj` + the `mp_*` ABI; digits **must** allocate through `Tcl_Alloc` (single-allocator invariant §4.4) |
+| **List / arrays of scalars / of lists / of objects** | contiguous growable `Tcl_Obj*` array (`tclListObj.c` `List`); elements are scalars, nested lists, or arbitrary-typed objs | `foreach`/`lmap` walk; a proven-non-escaping list can live as a WASM-side array | `Tcl_ListObjGetElements` hands back a `Tcl_Obj **` → the rep must materialise a contiguous array; append retains into the list |
+| **Tcl array variable (assoc array)** | name → hash(element-key → `Tcl_Obj`); **nesting** ("array of arrays") is modelled via dicts / flattened `a(b,c)` keys — Tcl arrays don't nest, and an array is **not** a first-class `Tcl_Obj` | `arr(key)` compiles to a hash lookup against the frame/ns-resident array | `Tcl_SetVar2(name, key, …)` addresses elements; an array **cannot** be passed as a value — the rep must honour that asymmetry |
+| **Dict** (ordered map) | hash index **plus** an insertion-order chain (Tcl 8.5+ `tclDictObj.c`); key obj → value obj | `dict for`/`dict get` iterate in insertion order; may stay an obj | `Tcl_DictObjGet`/`Put`/`First`/`Next` expose ordered iteration — a plain unordered map is wrong |
+| **Object (TclOO)** | instance record: command + namespace + class ptr + method table + instance vars | method dispatch is **dynamic** (through OO resolution, like extension commands — never inlined) | `tclOO.h`: `Tcl_NewObjectInstance` / `Tcl_GetObjectFromObj` / `Tcl_ObjectContextInvokeNext` |
+| **Shimmer + dual representation** | every `Tcl_Obj` carries a string rep **and** an optional internal rep; converting the internal rep on demand = shimmer; the string rep is regenerated lazily | the AOT compiler's *whole job* is to **avoid** shimmer — prove the type statically and keep the value unboxed; fall back to the dual-rep obj only when a value escapes into dynamic use. Minimising shimmer minimises both allocs and string regen | extensions depend on the dual rep: `Tcl_GetString` always returns a valid string (regenerating if needed); `Tcl_Get*FromObj` may shimmer; a **custom `Tcl_ObjType`** supplies the four procs (`freeIntRep`/`dupIntRep`/`updateString`/`setFromAny`) our shimmer/free/dup machinery **must** call through `typePtr` — so type handling is open, never a closed enum of built-ins |
+
+The **dual-rep / shimmer** row is the cross-cutting keystone: it is simultaneously
+the thing the compiler works hardest to avoid (unboxing, type proofs, immediates)
+and the thing extensions most rely on (lazy string regen, pluggable `Tcl_ObjType`).
+Get its contract right first — `free_string_buffer`/`get_string` shimmer in
+`obj.rs` (T1.1) is the seed; extension-typed objs extend it to dispatch through
+`typePtr` to the extension's procs.
+
+### Recording the decision
+
+Each data-structure chunk lands with a **representation-decision note** in its
+component-table row (and, when substantive, a short `docs/design/runtime/`
+KCS/design doc): the op profile (step 1), the WASM experiment numbers that
+settled it (step 2), and the ABI constraints that bound it (step 3). A chunk
+that picks a non-obvious structure without these three is not done. The gate for
+such a chunk includes its experiment evidence, not just green tests.
+
+---
+
 ## Component status table — `runtime/zig/` → Rust
 
 Status vocabulary: **not-started** / **partial** / **landed**. "Gate" is the
@@ -145,7 +281,7 @@ any row.
 | Zig module | Files (lines) | Role | Rust target | Status | Gate that proves it |
 |---|---|---|---|---|---|
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
-| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress |
+| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress; **+ a representation-decision note per structure** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | not-started | parse/subst unit parity vs Zig + `tclParse.c` edge cases |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | not-started | eval-loop tcltest sweep no-regress |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | not-started | `test_tcl_frames/ns/procs` parity + namespace-tree doc |
@@ -189,7 +325,11 @@ modules land and the tier gates are green on the C engine.
 ## Track 1 — Rust runtime port
 
 Goal: a `runtime/rust/` that the AOT codegen links against, parity-green, with
-no leak/tcltest regression vs the Zig baseline.
+no leak/tcltest regression vs the Zig baseline. Every value-type chunk (T1.2
+onward) applies the [algorithm/data-structure method](#choosing-algorithms--data-structures-the-porting-method)
+— derive the representation from the command op-profile + WASM experiments +
+the C-extension ABI, and land the decision note — rather than transliterating
+the Zig rep.
 
 - **T1.1 — Real `TclObj` + refcount discipline.** **Partial — landed.**
   Created `runtime/rust/` (`tcl-runtime`, a standalone crate excluded from the
@@ -596,6 +736,10 @@ compiler/LSP or the Zig runtime.
 
 - Keep **this doc and `c-extension-abi.md` current every PR** (flip §13 items
   as they land; log every upstream Zig sync).
+- **Re-derive every data structure** via the three-step method above
+  (investigate the commands/subcommands → run WASM-compiled experiments →
+  reason through C-extension ABI support); never transliterate a representation
+  from Zig without it. Land the representation-decision note with the chunk.
 - Add KCS / design docs per [`AGENTS.md`](../../../AGENTS.md); commits scoped
   and gated.
 - Never merge a tier or stage without its gate green.
