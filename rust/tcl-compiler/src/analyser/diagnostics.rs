@@ -99,6 +99,60 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
+/// Integer format specifiers for `binary format` / `binary scan` that
+/// accept the Tcl 8.5+ `u` / `s` modifier.  Mirrors
+/// `_BINARY_INT_SPECIFIERS`.
+const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
+
+/// Mask-octet values that can appear in a contiguous subnet mask.
+/// Mirrors `_VALID_MASK_OCTETS`.
+const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
+
+/// True when the four octets form a valid contiguous subnet mask
+/// (all-1s then all-0s).  Mirrors `_is_valid_subnet_mask`.
+fn is_valid_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    if val == 0 {
+        return true;
+    }
+    let inverted = val ^ 0xFFFF_FFFF;
+    (inverted & inverted.wrapping_add(1)) == 0
+}
+
+/// Heuristic: the dotted-quad plausibly *intends* to be a mask.
+/// Mirrors `_looks_like_subnet_mask`.
+fn looks_like_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    if a == 255 && !(b == 255 && c == 255 && d == 255) {
+        return true;
+    }
+    a >= 128 && [a, b, c, d].iter().all(|o| VALID_MASK_OCTETS.contains(o))
+}
+
+/// Suggest the nearest valid contiguous mask, or `None`.  Mirrors
+/// `_nearest_valid_mask`.
+fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    let mut leading = 0u32;
+    for bit in (0..32).rev() {
+        if val & (1 << bit) != 0 {
+            leading += 1;
+        } else {
+            break;
+        }
+    }
+    if leading == 0 || leading == 32 {
+        return None;
+    }
+    let candidate = 0xFFFF_FFFFu32 << (32 - leading);
+    Some(format!(
+        "{}.{}.{}.{}",
+        (candidate >> 24) & 0xFF,
+        (candidate >> 16) & 0xFF,
+        (candidate >> 8) & 0xFF,
+        candidate & 0xFF
+    ))
+}
+
 /// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
 /// Mirrors `_first_token_is_braced`.
 fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
@@ -1004,6 +1058,173 @@ Use braces: {{ \u{2026} }}"
                 description: "Wrap expression in braces".to_string(),
             }],
         });
+    }
+
+    /// W311 (GAP-A8): a channel configured with `-encoding binary` *and*
+    /// a non-binary `-translation` is contradictory (binary implies no
+    /// translation) and can corrupt data / enable encoding-differential
+    /// attacks.  Handles `fconfigure` and `chan configure`.  Mirrors
+    /// `check_encoding_mismatch`.
+    pub(super) fn emit_w311_encoding_mismatch(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let opt_start = if cmd_name == "fconfigure" {
+            1
+        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
+            2
+        } else {
+            return;
+        };
+        if args.len() <= opt_start {
+            return;
+        }
+        let mut binary_tok = None;
+        let mut translation_tok = None;
+        let mut i = opt_start;
+        while i + 1 < args.len() {
+            let (opt, val) = (&args[i], &args[i + 1]);
+            if opt == "-encoding" && val == "binary" {
+                binary_tok = arg_tokens.get(i + 1);
+            } else if opt == "-translation" && val != "binary" {
+                translation_tok = arg_tokens.get(i + 1);
+            }
+            i += 2;
+        }
+        if binary_tok.is_some() && translation_tok.is_some() {
+            let target = translation_tok
+                .or(binary_tok)
+                .or_else(|| arg_tokens.first());
+            if let Some(tok) = target {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W311".to_string(),
+                    span: tok.span,
+                    message: "Channel configured with -encoding binary and a non-binary \
+                              -translation. Binary encoding implies no translation; the \
+                              conflicting -translation may silently corrupt data or enable \
+                              encoding-differential attacks."
+                        .to_string(),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W200 (GAP-A8): a `u` / `s` modifier on a `binary format` / `binary
+    /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
+    /// dialects (incl. F5 iRules / iApps) it is unavailable.  Mirrors
+    /// `check_binary_format_modifiers`.
+    pub(super) fn emit_w200_binary_format_modifiers(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "binary" || args.is_empty() {
+            return;
+        }
+        let fmt_idx = match args[0].as_str() {
+            "format" if args.len() >= 2 => 1,
+            "scan" if args.len() >= 3 => 2,
+            _ => return,
+        };
+        if !matches!(self.dialect.as_str(), "tcl8.4" | "f5-irules" | "f5-iapps") {
+            return;
+        }
+        let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
+            return;
+        };
+        let fmt = args[fmt_idx].as_bytes();
+        let mut i = 0;
+        while i < fmt.len() {
+            if fmt[i].is_ascii_whitespace() {
+                i += 1;
+                continue;
+            }
+            while i < fmt.len() && fmt[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= fmt.len() {
+                break;
+            }
+            let spec = fmt[i];
+            i += 1;
+            if BINARY_INT_SPECIFIERS.contains(&spec)
+                && i < fmt.len()
+                && (fmt[i] == b'u' || fmt[i] == b's')
+            {
+                let modifier = fmt[i] as char;
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W200".to_string(),
+                    span: fmt_tok.span,
+                    message: format!(
+                        "signed/unsigned modifier '{modifier}' on binary format specifier \
+                         requires Tcl 8.5+"
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                i += 1;
+            }
+            if i < fmt.len() && fmt[i] == b'*' {
+                i += 1;
+            }
+        }
+    }
+
+    /// W121 (GAP-A8): a dotted-quad literal that looks like a subnet mask
+    /// but has non-contiguous bits (`255.255.255.1`, `255.0.255.0`) is
+    /// almost certainly a mistake.  Mirrors `check_invalid_subnet_mask`.
+    pub(super) fn emit_w121_invalid_subnet_mask(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let re = regex::Regex::new(r"\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b")
+            .expect("valid dotted-quad regex");
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for (tok, text) in arg_tokens.iter().zip(args.iter()) {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            for caps in re.captures_iter(text) {
+                let octets: Vec<u32> = (1..=4)
+                    .map(|g| caps[g].parse::<u32>().unwrap_or(999))
+                    .collect();
+                if octets.iter().any(|&o| o > 255) {
+                    continue;
+                }
+                let (a, b, c, d) = (octets[0], octets[1], octets[2], octets[3]);
+                if !looks_like_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                if is_valid_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                seen.insert(tok.span.start());
+                let quad = format!("{a}.{b}.{c}.{d}");
+                let mut message = format!(
+                    "'{quad}' looks like a subnet mask but has non-contiguous bits. A valid \
+                     mask must be contiguous leading 1-bits followed by 0-bits."
+                );
+                if let Some(s) = nearest_valid_mask(a, b, c, d) {
+                    if s != quad {
+                        use std::fmt::Write as _;
+                        let _ = write!(message, " Did you mean '{s}'?");
+                    }
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W121".to_string(),
+                    span: tok.span,
+                    message,
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
     }
 
     /// W104 (GAP-A8): `append` used with a space-padded value looks
@@ -4933,6 +5154,67 @@ mod tests {
             .filter(|d| d.code == code)
             .map(|d| format!("{:?}", d.severity))
             .collect()
+    }
+
+    fn has_code(src: &str, dialect: &str, code: &str) -> bool {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .any(|d| d.code == code)
+    }
+
+    #[test]
+    fn w311_flags_binary_encoding_with_translation() {
+        assert!(has_code(
+            "fconfigure $ch -encoding binary -translation lf\n",
+            "tcl8.6",
+            "W311",
+        ));
+        assert!(has_code(
+            "chan configure $ch -encoding binary -translation crlf\n",
+            "tcl8.6",
+            "W311",
+        ));
+        // `-translation binary` is consistent — no warning.
+        assert!(!has_code(
+            "fconfigure $ch -encoding binary -translation binary\n",
+            "tcl8.6",
+            "W311",
+        ));
+    }
+
+    #[test]
+    fn w200_binary_modifier_is_dialect_gated() {
+        // `cu` / `su` modifiers need Tcl 8.5+; flagged under 8.4 only.
+        assert!(has_code("binary format cu1 $x\n", "tcl8.4", "W200"));
+        assert!(has_code("binary scan $d su v\n", "tcl8.4", "W200"));
+        assert!(!has_code("binary format cu1 $x\n", "tcl8.6", "W200"));
+        // No modifier — never flagged.
+        assert!(!has_code("binary format c1 $x\n", "tcl8.4", "W200"));
+    }
+
+    #[test]
+    fn w121_flags_noncontiguous_subnet_mask() {
+        assert!(has_code("set m 255.255.255.1\n", "tcl8.6", "W121"));
+        assert!(has_code("set m 255.0.255.0\n", "tcl8.6", "W121"));
+        // Valid contiguous masks are fine.
+        assert!(!has_code("set m 255.255.255.0\n", "tcl8.6", "W121"));
+        assert!(!has_code("set m 255.255.254.0\n", "tcl8.6", "W121"));
+    }
+
+    #[test]
+    fn subnet_mask_helpers() {
+        assert!(is_valid_subnet_mask(255, 255, 255, 0));
+        assert!(is_valid_subnet_mask(0, 0, 0, 0));
+        assert!(!is_valid_subnet_mask(255, 255, 255, 1));
+        assert!(looks_like_subnet_mask(255, 255, 255, 1));
+        assert!(!looks_like_subnet_mask(10, 0, 0, 1)); // ordinary IP
+                                                       // 24 leading 1-bits → /24.
+        assert_eq!(
+            nearest_valid_mask(255, 255, 255, 1).as_deref(),
+            Some("255.255.255.0")
+        );
     }
 
     #[test]

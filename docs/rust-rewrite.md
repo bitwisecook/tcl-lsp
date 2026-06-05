@@ -4359,9 +4359,20 @@ braced bodies and `-` fall-through skipped), with shared `is_braced_word`
 / `has_substitution` helpers; verified against the live Python analyser;
 2 unit tests.  **Note:** the W200 *exec-result-not-captured* half is a
 no-op stub in Python too (`check_exec_not_captured` returns `[]`), so it
-is intentionally **not** ported.  Still absent: **W121** non-contiguous
-subnet mask, **W200** binary-format signed/unsigned modifiers (8.4),
-**W311** unsafe channel encoding mismatch.  The doc gestures at "the `_style.py` port"
+is intentionally **not** ported.  **W121 + W200 + W311 LANDED
+(2026-06-05)** — `emit_w121_invalid_subnet_mask` (a dotted-quad that
+looks like a mask but has non-contiguous bits → WARNING, with a
+`nearest_valid_mask` "did you mean" suggestion; `is_valid_subnet_mask` /
+`looks_like_subnet_mask` / `nearest_valid_mask` ported), `emit_w200_binary_format_modifiers`
+(a `u`/`s` modifier on a `binary format`/`scan` integer specifier under
+8.4-based dialects → WARNING — dialect-gated to `tcl8.4`/`f5-irules`/
+`f5-iapps`), and `emit_w311_encoding_mismatch` (`-encoding binary` with a
+non-binary `-translation` on `fconfigure`/`chan configure` → WARNING);
+verified against the live Python analyser (W121/W311) and the documented
+8.5 semantics (W200); 5 unit tests.  **GAP-A8 is now complete** — all
+eight mid-tier `_style.py` codes (W100/W104/W106/W114/W121/W200/W212/W311)
+are ported (the W200 exec-result-not-captured half is a no-op in Python
+and intentionally skipped).  The doc gestures at "the `_style.py` port"
 generically (tied to W108) but none of these is itemised, so they are
 easy to drop.  **Fix:** itemise + port each as a `diagnostics.rs`
 emitter.
