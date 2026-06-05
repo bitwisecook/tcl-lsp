@@ -19,6 +19,9 @@
 //! * **Comment** — `# ...` comment lines.
 //! * **Namespace** — namespace-qualified names containing
 //!   `::`.
+//! * **Regexp** — the regex-pattern argument of `regexp` / `regsub`
+//!   (registry `pattern_type == Regex`, option-skipped positional).
+//! * **Event** — an iRules `when EVENT` event name.
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -43,7 +46,8 @@
 //!   `glob`).  Each format helper already has a hover; the
 //!   semantic-token side needs the same cursor-context
 //!   detection plus per-component classification.
-//! * `BigIP` URI segments / iRules-specific event names.
+//! * `BigIP` URI segments, and the per-component regex sub-token
+//!   taxonomy (`regexpGroup` / `regexpCharClass` / …).
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -71,6 +75,10 @@ enum TokenKind {
     Number = 4,
     Comment = 5,
     Namespace = 6,
+    /// Regular-expression pattern argument (`regexp` / `regsub`).
+    Regexp = 7,
+    /// iRules event name (`when EVENT`).
+    Event = 8,
 }
 
 /// The token-type / token-modifier legend the server
@@ -85,6 +93,8 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "number",
         "comment",
         "namespace",
+        "regexp",
+        "event",
     ]
 }
 
@@ -199,6 +209,72 @@ pub fn range(
 /// [`legend_token_modifiers`]).
 type Entry = (u32, u32, u32, TokenKind, u32);
 
+/// True when `s` looks like an iRules event name (`^[A-Z][A-Z0-9_]+$`).
+/// Mirrors `_EVENT_RE`.
+fn is_event_name(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    bytes.len() >= 2
+        && bytes[0].is_ascii_uppercase()
+        && bytes[1..]
+            .iter()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || *b == b'_')
+}
+
+/// Per-command argument-token classification overrides, keyed by the
+/// representative token's start offset.  Two registry-driven cases:
+///
+/// * a `regexp` / `regsub` regex-pattern argument (the spec's
+///   `pattern_type == Regex`, option-skipped first positional) →
+///   [`TokenKind::Regexp`];
+/// * a `when EVENT` event-name argument → [`TokenKind::Event`].
+///
+/// The per-component regex / format-string / `BigIP` sub-token taxonomy
+/// (`regexpGroup`, format flags, `pool` / `profile`, …) is the deferred
+/// bulk of `S-semantic-tokens-rich`.
+fn special_arg_kinds(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> std::collections::HashMap<u32, TokenKind> {
+    let mut overrides = std::collections::HashMap::new();
+    let head = &seg.texts[0];
+
+    // `when EVENT` — the literal event-name argument.
+    if head == "when" {
+        if let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1)) {
+            if matches!(tok.kind, TokenType::Esc) && is_event_name(text) {
+                overrides.insert(tok.span.start(), TokenKind::Event);
+            }
+        }
+    }
+
+    // Regex pattern argument of a `pattern_type == Regex` command.
+    if registry
+        .get(head)
+        .and_then(|s| s.pattern_type)
+        .is_some_and(|p| p == tcl_registry::patterns::PatternType::Regex)
+    {
+        let args = &seg.texts[1..];
+        let mut idx = 0;
+        while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
+            if args[idx] == "-start" && idx + 1 < args.len() {
+                idx += 2;
+            } else {
+                idx += 1;
+            }
+        }
+        if idx < args.len() && args[idx] == "--" {
+            idx += 1;
+        }
+        // `args[idx]` is the pattern; its representative token is
+        // `seg.argv[idx + 1]` (argv[0] is the command head).
+        if let Some(tok) = seg.argv.get(idx + 1) {
+            overrides.insert(tok.span.start(), TokenKind::Regexp);
+        }
+    }
+
+    overrides
+}
+
 /// Walk the segmenter + comment scan and return raw
 /// [`Entry`] tuples sorted by position.  Shared by `full` and `range`.
 fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Entry> {
@@ -236,15 +312,23 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
             &mut entries,
         );
 
+        // Registry-driven per-argument overrides (regex patterns / event
+        // names) keyed by the representative token's start offset.
+        let overrides = special_arg_kinds(&seg, registry);
+
         // Walk the remaining tokens (arg-position tokens
         // + nested tokens).  Each contributes a classification
-        // based on its `TokenType`.
+        // based on its `TokenType`, unless an override applies.
         for tok in &seg.all_tokens {
             // Skip the head token (already pushed).
             if tok.span == head_tok.span {
                 continue;
             }
-            if let Some(kind) = classify_arg_token(*tok, source) {
+            let kind = overrides
+                .get(&tok.span.start())
+                .copied()
+                .or_else(|| classify_arg_token(*tok, source));
+            if let Some(kind) = kind {
                 push_token(&line_index, source, *tok, kind, 0, &mut entries);
             }
         }
@@ -509,6 +593,61 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    fn kinds(src: &str, dialect: &str, registry: &CommandRegistry) -> Vec<u32> {
+        full(src, dialect, registry)
+            .data
+            .chunks(5)
+            .map(|c| c[3])
+            .collect()
+    }
+
+    #[test]
+    fn legend_includes_regexp_and_event() {
+        let types = legend_token_types();
+        assert_eq!(types[TokenKind::Regexp as usize], "regexp");
+        assert_eq!(types[TokenKind::Event as usize], "event");
+    }
+
+    #[test]
+    fn regexp_pattern_classified_as_regexp() {
+        // `regexp {abc} $s` — the `{abc}` pattern argument is `regexp`,
+        // not `string`.
+        let ks = kinds("regexp {abc} $s\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Regexp as u32)),
+            "expected a regexp token; got {ks:?}"
+        );
+        // `regsub -all {x+} $s y out` — option-skip finds the pattern.
+        let ks = kinds("regsub -all {x+} $s y out\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::Regexp as u32)),
+            "expected a regexp token after -all; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn event_name_classified_as_event() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        let ks = kinds(
+            "when HTTP_REQUEST {\n  set x 1\n}\n",
+            "f5-irules",
+            &registry,
+        );
+        assert!(
+            ks.contains(&(TokenKind::Event as u32)),
+            "expected an event token; got {ks:?}"
+        );
+    }
+
+    #[test]
+    fn is_event_name_matches_event_shape() {
+        assert!(is_event_name("HTTP_REQUEST"));
+        assert!(is_event_name("CLIENT_ACCEPTED"));
+        assert!(!is_event_name("lowercase"));
+        assert!(!is_event_name("X")); // single char — needs 2+
     }
 
     #[test]

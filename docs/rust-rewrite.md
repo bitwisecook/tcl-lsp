@@ -5240,9 +5240,23 @@ head that resolves to a registry built-in carries `defaultLibrary`
 user-defined procs and language keywords stay unmodified).  5 unit tests.
 **Remaining (need the arg-role-aware classifier the minimal port lacks):**
 `definition` on proc-name args, `declaration` on format-arg captures,
-`defaultLibrary` on expr-function / known-subcommand tokens, plus the ~46
-absent token *types* (the `operator` / `parameter` / `regexp` / `event` /
-`escape` + BigIP / format-string sub-token taxonomies).
+`defaultLibrary` on expr-function / known-subcommand tokens, plus the
+absent token *types* — see the next note.
+
+**LANDED (token types — `regexp` + `event`, 2026-06-09).**  Two more
+token types join the legend (indices 7 / 8): the regex-pattern argument of
+a `pattern_type == Regex` command (`regexp` / `regsub`, option-skipped
+positional) classifies as **`regexp`**, and an iRules `when EVENT`
+event-name argument (ESC token matching `^[A-Z][A-Z0-9_]+$`) as
+**`event`** — both via a registry-driven `special_arg_kinds` override map
+keyed on the representative token's offset (mirrors `_collect.py`'s event
+arm + the `pattern_type` taxonomy).  4 unit tests.  **Remaining (the
+~1600-LOC deferred bulk):** the per-component regex sub-tokens
+(`regexpGroup` / `regexpCharClass` / …), the format-string component
+highlighting (`%Y` / `\1` inside `clock format` / `regsub`), the full
+`BigIP` object taxonomy (`pool` / `profile` / `ipAddress` / …), and the
+`operator` / `parameter` / `escape` / `decorator` types — all needing
+per-component sub-tokenisation the minimal port doesn't do.
 
 **GAP-C3 — code actions: refactors + ~12 quick-fix families dropped,
 `context.only` filtering absent.**  Rust `code_actions.rs` emits only
