@@ -96,7 +96,7 @@ pub fn dict_destroy_ext(ext_addr: u32) void {
 pub fn dict_invalidate_cache(dict_obj: i32) void {
     if (dict_obj == 0) return;
     if (obj.is_immediate(dict_obj)) return;
-    const addr: u32 = @intCast(dict_obj);
+    const addr: u32 = @bitCast(dict_obj);
     const ext: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_DICT_EXT));
     if (ext == 0) return;
     obj.write_i32(addr + obj.OBJ_DICT_EXT, 0);
@@ -343,7 +343,7 @@ fn dict_hash_insert(ext_addr: u32, kp: u32, kl: u32, h: u32, value: i32) void {
 fn dict_ensure_cache(dict_obj: i32) u32 {
     if (dict_obj == 0) return 0;
     if (obj.is_immediate(dict_obj)) return 0;
-    const addr: u32 = @intCast(dict_obj);
+    const addr: u32 = @bitCast(dict_obj);
     var ext: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_DICT_EXT));
     if (ext != 0) return ext;
     ext = dict_ext_alloc();
@@ -479,7 +479,7 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     // already cope with immediates; the in-place path needs the same
     // guard.
     if (sd.len > 0 and dict != 0 and !obj.is_immediate(dict)) {
-        const addr: u32 = @intCast(dict);
+        const addr: u32 = @bitCast(dict);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
@@ -540,8 +540,8 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     // just-appended (k, v) pair, so the next mutation on the new
     // dict starts cache-warm.
     if (new != 0 and !obj.is_immediate(new) and ext != 0 and dict != 0 and !obj.is_immediate(dict)) {
-        const dict_addr: u32 = @intCast(dict);
-        const new_addr: u32 = @intCast(new);
+        const dict_addr: u32 = @bitCast(dict);
+        const new_addr: u32 = @bitCast(new);
         const dict_rc = obj.read_i32(dict_addr + obj.OBJ_REFCOUNT);
         var target_ext: u32 = 0;
         if (dict_rc <= 1) {

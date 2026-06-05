@@ -65,3 +65,20 @@ _ECHO = "proc tp {args} {return $args}\n"
 )
 def test_expand_operator(source: str, expected: str) -> None:
     assert _run(source) == expected
+
+
+@pytest.mark.parametrize("n", [127, 128, 129, 500, 2000])
+def test_expand_does_not_truncate_large_lists(n: int) -> None:
+    # The compiled ``{*}`` slow path assembled words into a fixed 128-slot
+    # stack array and silently dropped every word past 127, so any command
+    # with more than ~127 expanded args was truncated (e.g.
+    # ``tcl::mathop::+ {*}[lseq 1 1000]`` summed only 1..127).  WordBuf now
+    # grows onto the heap; the full argument list must reach the command.
+    src = _COUNT + f"puts [tp {{*}}[lseq 1 {n}]]"
+    assert _run(src) == str(n)
+
+
+def test_expand_large_sum_is_exact() -> None:
+    # End-to-end: a >128-element {*} into a variadic builtin produces the
+    # full sum (dict-24.24's wrong value came from this truncation).
+    assert _run("puts [tcl::mathop::+ {*}[lseq 1 1000]]") == str(1000 * 1001 // 2)
