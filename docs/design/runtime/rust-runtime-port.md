@@ -892,6 +892,82 @@ amortised; ASCII fast-path char ops in `cmd_string.rs`. The non-ASCII
 char-offset cache stays deferred (object-passthrough keeps the obj, so it can be
 added later without re-shimmering); experiment kept as evidence.
 
+#### EXP-BIGNUM (2026-06) — the numeric tower's bignum representation
+
+Question: the integer tower is `small → wide (i64) → bignum → double` with
+overflow-promotion and demote-when-fits ([the numeric-tower
+contract](#meta-system-3--the-numeric-tower--expr-a-second-language)). `wide`
+and `double` already exist in `obj.rs` (`TCL_INT_TYPE` = i64 in `internal_rep`,
+`TCL_DOUBLE_TYPE` = `f64::to_bits`). The open decision is the **bignum** rep, and
+it is the one numeric piece with a hard **C-extension ABI** constraint:
+extensions get a bignum via `Tcl_GetBignumFromObj` **by value as an `mp_int`**,
+and they call `mp_*` on it.
+
+**Who controls the bignum ABI? — we do, entirely** (verified against the Tcl 9
+headers). Extensions do **not** bundle libtommath: `tclTomMathDecls.h` is
+`#define mp_add TclBN_mp_add …`, so extension `mp_*` calls are macros routing to
+`TclBN_*` functions the runtime **exports via the stubs table**
+(`tclTomMathStubsPtr`), and the `mp_int` struct comes from **`tclTomMath.h`,
+which the runtime ships**. So we own the header (the `mp_int` layout) *and* the
+implementation (the `TclBN_*` symbols). There is no external libtommath to
+match — only internal consistency between our header, our exported `TclBN_*`,
+and our `Tcl_GetBignumFromObj`. And we need those `TclBN_*` exported *anyway*
+(extensions call them on objs we hand out), so **libtommath must be in the
+artifact regardless** — which makes a second, separate Rust bignum a pure
+liability (two reps + a conversion at every C boundary, the contract's
+"N implementations → N drifts"). **Decision: libtommath `mp_int` *is* our
+bignum**, exactly as C Tcl does.
+
+**The wasm-matched representation (measured).** libtommath picks its limb width
+from the *pointer* width, so on wasm32 it defaults to **MP_32BIT** (28-bit usable
+limbs). But wasm has **native i64 value ops** (the "wasm32 addresses, native i64
+values" tenet) — so we **force MP_64BIT** (60-bit limbs, native-i64 multiply).
+Layout probe (`tclTomMath.h` via `zig cc --target=wasm32-wasi`, run under
+`wasmtime`):
+
+| target / config | `mp_digit` | `mp_int` size | field offsets |
+|---|---:|---:|---|
+| native 64-bit (default → MP_64BIT) | 8 | 24 | used@0 alloc@4 sign@8 **dp@16** |
+| wasm32 (default → MP_32BIT) | 4 | 16 | used@0 alloc@4 sign@8 **dp@12** |
+| **wasm32 + `-DMP_64BIT` (chosen)** | **8** | **16** | used@0 alloc@4 sign@8 **dp@12** |
+
+So forcing MP_64BIT on wasm32 keeps the **struct at 16 bytes** (only the heap
+digit array widens 4→8 B/limb) — fewer limbs, native i64 arithmetic, and the
+`mp_int` ABI is unchanged for extensions (they compile against the *same*
+`tclTomMath.h` with MP_64BIT, so it is consistent by construction). libtommath
+also **compiles and runs on wasm32** (the probe built + executed under wasmtime).
+
+**Obj storage = Tcl's inline two-pointer PACK, which is already wasm-native.** On
+wasm32 the obj `internalRep` is 8 bytes = two i32 pointers — exactly what our
+`internal_rep: u64` models. Tcl's `PACK_BIGNUM` stores `ptr1 = dp` (the i32
+digit pointer) and `ptr2 = (sign<<30)|(alloc<<15)|used` (the header packed into
+the other i32) — **no separate heap `mp_int` struct** for the common case
+(`used`/`alloc` ≤ 0x7FFF ≈ 245k decimal digits at 60-bit limbs), with a
+heap-`mp_int` fallback (`ptr2 = -1`) for larger. This packs the whole bignum
+header into the 8-byte `internal_rep` (low 32 = `dp`, high 32 = packed), so it is
+both byte-identical to C Tcl on wasm32 **and** wasm-optimal (no extra
+allocation). `change_type`'s free-proc calls `mp_clear` + frees the digit array;
+the dup-proc is `mp_init_copy`; the update-string proc is `mp_to_radix(…,10)`.
+
+**Canonicalisation (contract, observable).** Every integer-producing op
+overflow-checks the wide fast path and promotes to bignum on overflow (`i64`
+`checked_*`, never wrapping); every bignum result is **demoted back to
+`TCL_INT_TYPE` when it fits a wide** (`mp_count_bits ≤ 63` + range check), so
+equality/hashing/string-rep stay stable. Floor division/modulo (sign-of-divisor)
+and the `**`/shift/bit-op rules follow `tclExecute.c`'s
+`ExecuteExtendedBinaryMathOp` exactly. `WIDE_MIN` negation and `WIDE_MIN / -1`
+are the wide-path overflow escapes into bignum.
+
+**Status.** Representation decided + validated; the full multi-file libtommath
+*link* (its per-file `#ifdef BN_*_C` separate/combined build toggle) is a
+build-recipe task for the whole-program-link chunk (Track 3), not a blocker on
+the rep. Implementation order: (1) the shared **`tcl_syntax::number`** grammar
+(the `TclParseNumber` port — pure, string → `Int(i64)` / `Big{neg,radix,digits}`
+/ `Double` / `Nan`, with `0x/0o/0b`, `_` separators, `Inf`/`NaN`, leading-zero =
+**decimal** in 9.0); (2) the `TCL_BIGNUM_TYPE` obj rep + the `TclBN_*` FFI; (3)
+the tower arithmetic + the `expr` evaluator over it (reusing
+`tcl_syntax::expr`).
+
 ### The value kinds to reason through (and their two relationships)
 
 Work through **every** value kind below. Each has a representation question and
