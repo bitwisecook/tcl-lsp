@@ -673,7 +673,11 @@ rep, NUL-terminated for the C ABI) + cached `numChars` and an optional non-ASCII
 char-offset index. C-extension compatible: extensions read bytes via
 `Tcl_GetStringFromObj` (contiguous NUL-terminated — preserved); the char-indexed
 C API (`Tcl_GetCharLength`/`Tcl_GetUniChar`/`Tcl_GetRange`) is function-mediated
-→ free to choose the cache. (Implementation follows; experiment kept as evidence.)
+→ free to choose the cache. **Implemented** (T1.6): a plain string's buffer
+capacity lives in `internal_rep` + `obj::string_append_inplace` grows it
+amortised; ASCII fast-path char ops in `cmd_string.rs`. The non-ASCII
+char-offset cache stays deferred (object-passthrough keeps the obj, so it can be
+added later without re-shimmering); experiment kept as evidence.
 
 ### The value kinds to reason through (and their two relationships)
 
@@ -725,12 +729,12 @@ any row.
 | Zig module | Files (lines) | Role | Rust target | Status | Gate that proves it |
 |---|---|---|---|---|---|
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
-| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** types, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) build/get/set/iter/shimmer leak-checked; string/array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
+| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** + **string** capacity/char-ops, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) + string (capacity-backed append + ASCII-fast char ops, EXP-STRING) leak-checked; array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4) | `make runtime-rust-test` — `BTreeMap` command table + name dispatch; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.6) | `make runtime-rust-test` — `set`/`incr`/`return`/`unset` + list cmds (`list`/`llength`/`lindex`/`lappend`/`lrange`/`lreverse`/`concat`/`join`/`split`/`lassign`) + `dict` ensemble (`create`/`get`/`set`/`exists`/`unset`/`size`/`keys`/`values`/`merge`/`for`); per-command parity + tcltest sweep as more land |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.6) | `make runtime-rust-test` — `set`/`incr`/`return`/`unset` + list cmds + `dict` ensemble + `append` (capacity-backed) + `string` ensemble (`length`/`index`/`range`/`equal`/`compare`/`cat`/`repeat`/`reverse`/`toupper`/`tolower`/`trim*`/`first`/`last`, ASCII-fast char ops); per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -1329,15 +1333,14 @@ compiler/LSP or the Zig runtime.
    parse→subst→dispatch, `{*}`, completion codes, starter builtins; **closed
    subst's command half**; no deferred-free queue needed).
 7. ◐ **T1.6 (value types + their commands)** — obj **typed-internal-rep
-   machinery** (shimmer keystone + custom-`Tcl_ObjType` path); the **list** type
-   (contiguous `Vec`, ABI-forced) + **list commands** (`list`/`llength`/`lindex`/
-   `lappend` w/ copy-on-write/`lrange`/`lreverse`/`concat`/`join`/`split`/
-   `lassign`); the **dict** type (ordered `Vec` + FNV-hash index, EXP-DICT;
-   extension-compatible) + the **`dict` ensemble** (`create`/`get`/`set`/
-   `exists`/`unset`/`size`/`keys`/`values`/`merge`/`for`) — all leak-checked.
-   **Next:** the **string** value type + `string`/`expr` commands, then
-   **procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)),
-   and **T1.5 namespaces**.
+   machinery** (shimmer keystone + custom-`Tcl_ObjType` path); **list** (contiguous
+   `Vec`) + list commands; **dict** (ordered `Vec` + FNV index, EXP-DICT) + the
+   `dict` ensemble; **string** (capacity-backed append + ASCII-fast char ops,
+   EXP-STRING) + `append` + the `string` ensemble — all leak-checked. **Next:**
+   the **parser convergence** (adopt `tcl-lexer`, drop `parse.rs`/`bs.rs`) and
+   the **numeric tower** (before `expr`); then **procs** (per
+   [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)), control
+   flow, and **T1.5 namespaces**.
 8. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work

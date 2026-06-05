@@ -29,7 +29,7 @@
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{alloc, dealloc, realloc, Layout};
 
 use crate::counters;
 
@@ -215,13 +215,19 @@ pub(crate) fn obj_type_ptr(obj: *mut TclObj) -> *const TclObjType {
 /// across a string→typed shimmer; a typed→string mutation invalidates it via
 /// [`invalidate_string`]).
 pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep: u64) {
-    // SAFETY: `obj` is live; we free the prior typed rep before overwriting it.
+    // SAFETY: `obj` is live; free the prior rep before overwriting `internal_rep`.
     unsafe {
         let old = (*obj).type_ptr;
-        if !old.is_null() {
-            if let Some(free) = (*old).free_int_rep_proc {
-                free(obj);
-            }
+        if old.is_null() {
+            // Leaving a *plain string*: its capacity lives in `internal_rep`,
+            // which the new type is about to claim for its backing. Free the
+            // string buffer now (with its real capacity — `free_string_buffer`
+            // reads it while the type is still null) so the new type regenerates
+            // an exact string rep lazily. This avoids carrying the string
+            // capacity across the shimmer (and any dealloc-layout mismatch).
+            free_string_buffer(obj);
+        } else if let Some(free) = (*old).free_int_rep_proc {
+            free(obj);
         }
         (*obj).type_ptr = new_type;
         (*obj).internal_rep = new_rep;
@@ -284,6 +290,13 @@ unsafe fn set_owned_string(obj: *mut TclObj, src: *const u8, len: usize) {
         *buf.add(len) = 0;
         (*obj).bytes = buf as *mut c_char;
         (*obj).length = len as TclSize;
+        // For a plain string (no typed rep), track the buffer's allocated
+        // capacity in `internal_rep` (unused otherwise) so `string`/`append` can
+        // grow it amortised and `free_string_buffer` frees the right size.
+        // A typed obj's `internal_rep` is its backing pointer — never touch it.
+        if (*obj).type_ptr.is_null() {
+            (*obj).internal_rep = cap as u64;
+        }
         counters::buf_alloced();
     }
 }
@@ -302,7 +315,14 @@ unsafe fn free_string_buffer(obj: *mut TclObj) {
         if bytes.is_null() {
             return;
         }
-        let cap = (*obj).length as usize + 1;
+        // Capacity: a plain string's allocated size lives in `internal_rep`; a
+        // typed obj's cached string rep is exact (`length + 1`). Freeing with
+        // the exact allocation size is required (Rust dealloc layout must match).
+        let cap = if (*obj).type_ptr.is_null() {
+            (*obj).internal_rep as usize
+        } else {
+            (*obj).length as usize + 1
+        };
         let layout = Layout::from_size_align(cap, 1).expect("buffer layout");
         dealloc(bytes as *mut u8, layout);
         (*obj).bytes = core::ptr::null_mut();
@@ -395,6 +415,48 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
         }
     }
     dup
+}
+
+/// Whether `obj` is a plain string (no typed internal rep) — the precondition
+/// for [`string_append_inplace`].
+pub(crate) fn is_plain_string(obj: *mut TclObj) -> bool {
+    // SAFETY: `obj` is a live object.
+    unsafe { (*obj).type_ptr.is_null() }
+}
+
+/// Append `piece` to a **plain string** object in place, growing its buffer
+/// geometrically (amortised O(1), EXP-STRING). The caller must ensure `obj` is a
+/// plain string ([`is_plain_string`]) and unshared. Refreshes `bytes`/`length`
+/// and the capacity in `internal_rep`. A `realloc` keeps the single live-buffer
+/// count, so the leak counters stay balanced.
+pub(crate) fn string_append_inplace(obj: *mut TclObj, piece: &[u8]) {
+    if piece.is_empty() {
+        return;
+    }
+    // SAFETY: caller guarantees a live, unshared, plain-string `obj` whose
+    // buffer was allocated by `set_owned_string` (capacity in `internal_rep`).
+    unsafe {
+        let cur_len = (*obj).length as usize;
+        let cur_cap = (*obj).internal_rep as usize; // allocated bytes incl. NUL
+        let new_len = cur_len + piece.len();
+        let need = new_len + 1; // + NUL terminator
+        let mut buf = (*obj).bytes as *mut u8;
+        if need > cur_cap {
+            let new_cap = need.max(cur_cap.saturating_mul(2));
+            let old_layout = Layout::from_size_align(cur_cap, 1).expect("buffer layout");
+            let nb = realloc(buf, old_layout, new_cap);
+            if nb.is_null() {
+                counters::oom_set();
+                return;
+            }
+            buf = nb;
+            (*obj).bytes = buf as *mut c_char;
+            (*obj).internal_rep = new_cap as u64;
+        }
+        core::ptr::copy_nonoverlapping(piece.as_ptr(), buf.add(cur_len), piece.len());
+        *buf.add(new_len) = 0;
+        (*obj).length = new_len as TclSize;
+    }
 }
 
 /// `Tcl_NewWideIntObj` — pure int obj (no string rep yet). `fresh_zero`.

@@ -21,6 +21,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"unset", unset);
     crate::cmd_list::install(interp);
     crate::cmd_dict::install(interp);
+    crate::cmd_string::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
