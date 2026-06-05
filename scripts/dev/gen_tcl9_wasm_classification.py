@@ -237,11 +237,12 @@ def write_doc(rows: dict[str, dict], verdicts: dict[str, dict]) -> None:
     print(f"wrote {DOC.relative_to(REPO_ROOT)}")
 
 
-def annotate_tomls(rows: dict[str, dict], verdicts: dict[str, dict], new_stems: set[str]) -> None:
+def annotate_tomls(rows: dict[str, dict], verdicts: dict[str, dict], auto_seeded: set[str]) -> None:
     for stem, row in rows.items():
-        # Only touch the freshly-seeded TOMLs — the 68 curated core
-        # stems already carry hand-reviewed buckets we must not disturb.
-        if stem not in new_stems:
+        # Only touch auto-seeded TOMLs (see :func:`_auto_seeded_stems`) —
+        # hand-curated files carry their own reviewed buckets we must
+        # not disturb.
+        if stem not in auto_seeded:
             continue
         toml = CATEGORIES_DIR / f"{stem}.toml"
         if not toml.exists():
@@ -297,35 +298,37 @@ def annotate_tomls(rows: dict[str, dict], verdicts: dict[str, dict], new_stems: 
     print(f"annotated TOMLs in {CATEGORIES_DIR.relative_to(REPO_ROOT)}")
 
 
-def _new_stems(rows: dict[str, dict]) -> set[str]:
-    """Stems whose TOML was auto-seeded by this sweep (untracked in git).
+AUTO_SEED_MARKER = "auto-generated WASM baseline"
+MANUAL_MARKER = "manually triaged"
 
-    Falls back to "every stem with a TOML" if git is unavailable.
+
+def _auto_seeded_stems(rows: dict[str, dict]) -> set[str]:
+    """Stems whose TOML the harness auto-seeded (safe to annotate).
+
+    Detected by file *content*, not git state: an auto-seeded TOML
+    carries the ``auto-generated WASM baseline`` header, a hand-curated
+    one carries ``manually triaged`` instead.  This is robust to
+    ``run_tcl9_wasm_core.py --refresh-baseline`` (which unlinks and
+    rewrites every TOML, so a git-status filter would see them as
+    modified rather than untracked and skip them all) while still never
+    clobbering a hand-curated file's buckets.
     """
-    import subprocess
-
-    try:
-        out = subprocess.check_output(
-            ["git", "status", "--short", "--", str(CATEGORIES_DIR)],
-            cwd=str(REPO_ROOT),
-            text=True,
-        )
-    except Exception:
-        return {s for s in rows if (CATEGORIES_DIR / f"{s}.toml").exists()}
-    new: set[str] = set()
-    for line in out.splitlines():
-        if line.startswith("??"):
-            p = Path(line[3:].strip())
-            if p.suffix == ".toml":
-                new.add(p.stem)
-    return new
+    out: set[str] = set()
+    for stem in rows:
+        toml = CATEGORIES_DIR / f"{stem}.toml"
+        if not toml.exists():
+            continue
+        head = toml.read_text()[:400]
+        if AUTO_SEED_MARKER in head and MANUAL_MARKER not in head:
+            out.add(stem)
+    return out
 
 
 def main() -> int:
     rows = _load_rows()
     verdicts = classify()
     write_doc(rows, verdicts)
-    annotate_tomls(rows, verdicts, _new_stems(rows))
+    annotate_tomls(rows, verdicts, _auto_seeded_stems(rows))
     return 0
 
 
