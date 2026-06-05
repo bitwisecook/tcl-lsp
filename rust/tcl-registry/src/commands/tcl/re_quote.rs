@@ -1,5 +1,10 @@
 //! `regsub` helper aliases and regex quoting commands.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "re_quote STRING",
+}];
+
 /// Command spec for Tcl `re_quote` (regex quoting helper).
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -17,6 +22,7 @@ pub fn spec() -> CommandSpec {
         // Mirrors `tcl/re_quote.py`.
         taint_transform: Some(TaintColour::REGEX_LITERAL),
         taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

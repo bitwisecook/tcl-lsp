@@ -1,5 +1,10 @@
 //! `lreplace` — replace elements in a list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lreplace list first last ?element element ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lreplace",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["lreplace list first last ?element ...?"],
             "Tcl lreplace(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

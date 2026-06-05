@@ -1,6 +1,42 @@
 //! `subst` — perform Tcl substitutions on a string.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-nobackslashes",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-nocommands",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-novariables",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "subst ?options? string",
+}];
+
 /// SYNC-JUN02d-1 (#525 B4): fold a literal `subst string`.
 ///
 /// `subst` performs variable, command, and backslash substitution on
@@ -36,6 +72,9 @@ pub fn spec() -> CommandSpec {
             &["subst ?-nobackslashes? ?-nocommands? ?-novariables? string"],
             "Tcl subst(1)",
         )),
+        forms: FORMS,
+        options: OPTIONS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

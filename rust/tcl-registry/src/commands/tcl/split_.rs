@@ -1,5 +1,10 @@
 //! `split` — split a string into a list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "split string ?splitChars?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "split",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["split string ?splitChars?"],
             "Tcl split(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

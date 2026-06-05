@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "source ?-encoding name? fileName",
+}];
+
 /// Command spec for `source`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -30,6 +35,7 @@ pub fn spec() -> CommandSpec {
             &["source ?-encoding name? fileName"],
             "Tcl source(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

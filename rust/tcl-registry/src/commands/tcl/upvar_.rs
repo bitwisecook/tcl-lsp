@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "upvar ?level? otherVar myVar ?otherVar myVar ...?",
+}];
+
 /// Command spec for `upvar`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -28,6 +33,7 @@ pub fn spec() -> CommandSpec {
             "Tcl upvar(1)",
         )),
         lowering_hook: Some(LoweringHookId::Upvar),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

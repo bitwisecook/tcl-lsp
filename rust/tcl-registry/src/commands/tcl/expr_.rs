@@ -5,6 +5,18 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "expr arg ?arg ...?",
+}];
+
 /// Command spec for `expr`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -31,6 +43,8 @@ pub fn spec() -> CommandSpec {
             "Tcl expr(1)",
         )),
         lowering_hook: Some(LoweringHookId::Expr),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

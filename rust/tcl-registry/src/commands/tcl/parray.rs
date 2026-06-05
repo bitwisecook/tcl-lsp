@@ -1,5 +1,10 @@
 //! `parray` — print an array.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "parray arrayName ?pattern?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parray",
@@ -17,6 +22,7 @@ pub fn spec() -> CommandSpec {
             &["parray arrayName ?pattern?"],
             "Tcl parray(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

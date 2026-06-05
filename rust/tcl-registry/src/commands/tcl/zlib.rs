@@ -1,6 +1,11 @@
 //! `zlib` — data compression / decompression primitives (Tcl 8.6+).
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "zlib subcommand ?args ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "zlib",
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl man page zlib.n",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

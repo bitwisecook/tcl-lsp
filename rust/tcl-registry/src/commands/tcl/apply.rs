@@ -1,5 +1,17 @@
 //! `apply` — apply an anonymous procedure.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::ProcDefinition,
+    reads: false,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "apply func ?arg1 arg2 ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "apply",
@@ -12,6 +24,8 @@ pub fn spec() -> CommandSpec {
             &["apply func ?arg ...?"],
             "Tcl apply(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

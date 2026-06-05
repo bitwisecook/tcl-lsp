@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "glob ?switches? ?--? pattern ?pattern ...?",
+}];
+
 /// Command spec for `glob`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -71,6 +76,7 @@ pub fn spec() -> CommandSpec {
             &["glob ?switches? ?--? pattern ?pattern ...?"],
             "Tcl glob(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

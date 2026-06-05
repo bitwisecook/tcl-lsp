@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fconfigure channelId ?optionName? ?value ...?",
+}];
+
 /// Command spec for `fconfigure`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -87,6 +92,7 @@ pub fn spec() -> CommandSpec {
             &["fconfigure channelId ?optionName? ?value ...?"],
             "Tcl fconfigure(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

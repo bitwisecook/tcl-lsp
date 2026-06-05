@@ -1,5 +1,17 @@
 //! `pid` — return process ID(s).
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "pid ?fileId?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pid",
@@ -11,6 +23,8 @@ pub fn spec() -> CommandSpec {
             &["pid ?fileId?"],
             "Tcl pid(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

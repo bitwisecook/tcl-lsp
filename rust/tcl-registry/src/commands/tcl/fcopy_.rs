@@ -2,6 +2,10 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[
+    FormSpec { kind: FormKind::Default, synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?" },
+];
+
 /// Command spec for `fcopy`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,6 +27,7 @@ pub fn spec() -> CommandSpec {
             &["fcopy inputChan outputChan ?-size size? ?-command callback?"],
             "Tcl fcopy(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "exit ?returnCode?",
+}];
+
 /// Command spec for `exit`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -19,6 +24,7 @@ pub fn spec() -> CommandSpec {
             &["exit ?returnCode?"],
             "Tcl exit(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

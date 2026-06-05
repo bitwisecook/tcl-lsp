@@ -1,6 +1,11 @@
 //! `linsert` — insert elements into a list.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "linsert list index ?element element ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
@@ -14,6 +19,7 @@ pub fn spec() -> CommandSpec {
             "Tcl linsert(1)",
         )),
         codegen_hook: Some(CodegenHookId::Linsert),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

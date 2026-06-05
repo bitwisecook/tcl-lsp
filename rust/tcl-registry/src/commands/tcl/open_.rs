@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "open fileName ?access? ?permissions?",
+}];
+
 /// Command spec for `open`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -24,6 +29,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl open(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

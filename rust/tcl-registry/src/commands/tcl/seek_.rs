@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "seek channelId offset ?origin?",
+}];
+
 /// Command spec for `seek`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -21,6 +26,7 @@ pub fn spec() -> CommandSpec {
             &["seek channelId offset ?origin?"],
             "Tcl seek(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

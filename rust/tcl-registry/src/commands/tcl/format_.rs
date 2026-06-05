@@ -1,6 +1,11 @@
 //! `format` — format a string using printf-style conversion.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "format formatString ?arg arg ...?",
+}];
+
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
@@ -608,6 +613,7 @@ pub fn spec() -> CommandSpec {
             &["format formatString ?arg ...?"],
             "Tcl format(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

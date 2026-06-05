@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "global ?varname ...?",
+}];
+
 /// Command spec for `global`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -29,6 +34,7 @@ pub fn spec() -> CommandSpec {
             "Tcl global(1)",
         )),
         lowering_hook: Some(LoweringHookId::Global),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "eof channel",
+}];
+
 /// Command spec for `eof`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -21,6 +26,7 @@ pub fn spec() -> CommandSpec {
             &["eof channel"],
             "Tcl eof(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

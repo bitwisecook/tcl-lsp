@@ -1,5 +1,10 @@
 //! `lreverse` — reverse a list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lreverse list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lreverse",
@@ -13,6 +18,7 @@ pub fn spec() -> CommandSpec {
             &["lreverse list"],
             "Tcl lreverse(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

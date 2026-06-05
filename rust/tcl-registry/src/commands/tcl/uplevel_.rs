@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: false,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "uplevel ?level? arg ?arg ...?",
+}];
+
 /// Command spec for `uplevel`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -24,6 +36,8 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: a `LIST_CANONICAL` value preserves element
         // boundaries and suppresses T100. Mirrors `tcl/uplevel.py`.
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

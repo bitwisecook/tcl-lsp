@@ -1,6 +1,18 @@
 //! `chan` — channel operations.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::FileIo,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "chan subcommand ?arg ...?",
+}];
+
 /// Shared option table for `chan configure` — same shape as
 /// `fconfigure` options.  The Tcl 9.0+ entries (`-nodelay`,
 /// `-keepalive`, `-inputmode`) carry their own dialect gate so
@@ -242,6 +254,8 @@ pub fn spec() -> CommandSpec {
             &["chan subcommand ?arg ...?"],
             "Tcl chan(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

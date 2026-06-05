@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "regsub ?switches? exp string subSpec ?varName?",
+}];
+
 /// Command spec for `regsub`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -89,6 +94,7 @@ pub fn spec() -> CommandSpec {
         // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation. Mirrors `tcl/regsub_.py`.
         pattern_type: Some(PatternType::Regex),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

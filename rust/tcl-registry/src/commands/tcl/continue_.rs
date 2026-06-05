@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "continue",
+}];
+
 /// Command spec for `continue`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             &["continue"],
             "Tcl continue(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

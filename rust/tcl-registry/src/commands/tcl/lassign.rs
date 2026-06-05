@@ -1,6 +1,18 @@
 //! `lassign` — assign list elements to variables.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lassign list ?varName ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
@@ -21,6 +33,8 @@ pub fn spec() -> CommandSpec {
             "Tcl lassign(1)",
         )),
         codegen_hook: Some(CodegenHookId::Lassign),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

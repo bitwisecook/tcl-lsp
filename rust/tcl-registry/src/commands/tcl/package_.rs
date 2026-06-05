@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "package files package",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "files",
@@ -143,6 +148,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl package(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

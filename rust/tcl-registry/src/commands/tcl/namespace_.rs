@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "namespace subcommand ?arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -197,6 +202,7 @@ pub fn spec() -> CommandSpec {
             &["namespace subcommand ?arg ...?"],
             "Tcl namespace(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

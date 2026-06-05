@@ -3,6 +3,11 @@
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "array option arrayName ?arg arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "anymore",
@@ -149,6 +154,7 @@ pub fn spec() -> CommandSpec {
             "Tcl array(1)",
         )),
         codegen_hook: Some(CodegenHookId::Array),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "close channelId ?r(ead)|w(rite)?",
+}];
+
 /// Command spec for `close`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -21,6 +26,7 @@ pub fn spec() -> CommandSpec {
             &["close channelId ?r(ead)|w(rite)?"],
             "Tcl close(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

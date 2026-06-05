@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "switch ?options? string pattern body ?pattern body ...?",
+}];
+
 /// Options that consume a following value argument.
 const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
 
@@ -128,6 +140,8 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl switch(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

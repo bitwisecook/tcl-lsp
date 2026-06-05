@@ -1,6 +1,18 @@
 //! `TclOO` class.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "oo::class method ?arg ...?",
+}];
+
 /// Resolve the body argument index for the metaclass shapes:
 ///
 /// * `oo::class create Name body` → body at index 2.
@@ -38,6 +50,8 @@ pub fn spec() -> CommandSpec {
             &["oo::class create name ?definition?"],
             "Tcl oo::class(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

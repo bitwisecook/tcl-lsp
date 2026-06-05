@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read ?-nonewline? channel",
+}];
+
 /// Command spec for `read`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -20,6 +25,7 @@ pub fn spec() -> CommandSpec {
             &["read ?-nonewline? channel", "read channel numChars"],
             "Tcl read(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

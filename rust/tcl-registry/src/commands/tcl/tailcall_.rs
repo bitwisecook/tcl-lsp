@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tailcall command ?arg ...?",
+}];
+
 /// Command spec for `tailcall`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             &["tailcall command ?arg ...?"],
             "Tcl tailcall(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,6 +1,11 @@
 //! `lseq` — generate a list of numeric values in a range (Tcl 9.0).
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lseq ?start? ?op? end ?by step? ?count n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lseq",
@@ -19,6 +24,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl man page lseq.n (Tcl 9.0)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

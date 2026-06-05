@@ -1,6 +1,18 @@
 //! `trace` — monitor variable accesses, command usages and executions.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "trace option ?arg arg ...?",
+}];
+
 /// SYNC4: arg-role resolver for `trace add`.
 ///
 /// `trace add variable name ops commandPrefix` writes to `name` —
@@ -68,6 +80,8 @@ pub fn spec() -> CommandSpec {
             &["trace option ?arg arg ...?"],
             "Tcl trace(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

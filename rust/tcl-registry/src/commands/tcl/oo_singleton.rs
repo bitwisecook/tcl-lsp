@@ -1,5 +1,17 @@
 //! `TclOO` class.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "oo::singleton method ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::singleton",
@@ -12,6 +24,8 @@ pub fn spec() -> CommandSpec {
             &["oo::singleton create name ?definition?"],
             "Tcl oo::singleton(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

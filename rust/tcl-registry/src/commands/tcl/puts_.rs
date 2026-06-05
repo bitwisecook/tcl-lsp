@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "puts ?-nonewline? ?channelId? string",
+}];
+
 /// Command spec for `puts`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -30,6 +35,7 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: tainted data reaching `puts` output → T101.
         // Mirrors `tcl/puts_.py`.
         taint_output_sink: Some("T101"),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

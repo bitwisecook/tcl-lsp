@@ -1,6 +1,18 @@
 //! `interp` — create and manipulate Tcl interpreters.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "interp subcommand ?arg arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "alias",
@@ -174,6 +186,8 @@ pub fn spec() -> CommandSpec {
         // another interpreter — cross-interp code injection (T105).
         // Mirrors `tcl/interp.py`.
         taint_interp_eval_subcommands: &["eval", "invokehidden"],
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

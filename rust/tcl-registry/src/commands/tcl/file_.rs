@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "file option name ?arg arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "atime",
@@ -411,6 +416,7 @@ pub fn spec() -> CommandSpec {
             &["file option name ?arg arg ...?"],
             "Tcl file(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

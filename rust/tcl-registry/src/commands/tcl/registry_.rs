@@ -4,6 +4,11 @@
 //! crate's [`crate::registry`] module.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "registry subcommand keyName ?args ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "registry",
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl man page registry.n",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

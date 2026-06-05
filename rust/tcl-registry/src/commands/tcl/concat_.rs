@@ -1,5 +1,10 @@
 //! `concat` — concatenate lists.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "concat ?arg arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "concat",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["concat ?arg ...?"],
             "Tcl concat(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

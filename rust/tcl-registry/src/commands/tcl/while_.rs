@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "while test body",
+}];
+
 /// Command spec for `while`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -29,6 +41,8 @@ pub fn spec() -> CommandSpec {
             &["while test body"],
             "Tcl while(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
+}];
+
 /// Command spec for `unset`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -40,6 +45,7 @@ pub fn spec() -> CommandSpec {
             "Tcl unset(1)",
         )),
         lowering_hook: Some(LoweringHookId::Unset),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

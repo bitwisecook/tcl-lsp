@@ -1,5 +1,10 @@
 //! `my` — call a method on the current object.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "my method ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["my method ?arg ...?"],
             "Tcl my(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

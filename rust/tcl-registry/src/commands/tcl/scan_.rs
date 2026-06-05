@@ -1,6 +1,18 @@
 //! `scan` — parse a string using scanf-style conversion.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "scan string format ?varName varName ...?",
+}];
+
 /// SYNC-JUN03 follow-up: constant-fold the *inline* `scan string format` form
 /// (no `varName` — that form writes variables and must never fold).
 ///
@@ -180,6 +192,8 @@ pub fn spec() -> CommandSpec {
             &["scan string format ?varName ...?"],
             "Tcl scan(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

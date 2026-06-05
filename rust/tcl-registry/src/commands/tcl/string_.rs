@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "string option arg ?arg ...?",
+}];
+
 /// SYNC-JUN02b-6 (#519): compile-time folds for pure `string`
 /// subcommands, consumed by the optimiser's O129 general-builtin
 /// constant-fold path through the registry `const_fold` callbacks.
@@ -1202,6 +1207,7 @@ pub fn spec() -> CommandSpec {
             &["string option arg ?arg ...?"],
             "Tcl string(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

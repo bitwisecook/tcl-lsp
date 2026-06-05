@@ -1,6 +1,11 @@
 //! `clock` — time and date operations.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "clock subcommand ?arg ...?",
+}];
+
 /// Options for `clock scan` / `clock format` / `clock add`.
 /// `-validate` is Tcl 9.0+ (TIP 532) and dialect-gated; the
 /// others exist since Tcl 8.5.
@@ -126,6 +131,7 @@ pub fn spec() -> CommandSpec {
             &["clock subcommand ?arg ...?"],
             "Tcl clock(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

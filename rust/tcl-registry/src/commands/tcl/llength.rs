@@ -1,6 +1,11 @@
 //! `llength` — return the number of elements in a list.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "llength list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "llength",
@@ -24,6 +29,7 @@ pub fn spec() -> CommandSpec {
             "Tcl llength(1)",
         )),
         codegen_hook: Some(CodegenHookId::Llength),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "error message ?info? ?code?",
+}];
+
 /// Command spec for `error`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             &["error message ?info? ?code?"],
             "Tcl error(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

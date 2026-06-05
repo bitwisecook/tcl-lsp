@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "throw type message",
+}];
+
 /// Command spec for `throw`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -21,6 +26,7 @@ pub fn spec() -> CommandSpec {
             &["throw type message"],
             "Tcl throw(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

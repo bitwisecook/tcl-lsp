@@ -1,5 +1,17 @@
 //! `coroutine` — create a coroutine.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "coroutine name command ?arg...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroutine",
@@ -13,6 +25,8 @@ pub fn spec() -> CommandSpec {
             &["coroutine name command ?arg ...?"],
             "Tcl coroutine(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,6 +5,18 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set varName ?newValue?",
+}];
+
 /// Dynamic arg role resolver: getter (1 arg) vs setter (2 args).
 fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 2 {
@@ -31,6 +43,8 @@ pub fn spec() -> CommandSpec {
             "Tcl set(1)",
         )),
         lowering_hook: Some(LoweringHookId::Set),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

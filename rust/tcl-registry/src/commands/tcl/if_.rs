@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
+}];
+
 /// Dynamic arg role resolver for `if`/`elseif`/`else` chains.
 ///
 /// Walks the argument list recognising `then`, `elseif`, `else`
@@ -92,6 +104,8 @@ pub fn spec() -> CommandSpec {
             &["if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"],
             "Tcl if(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

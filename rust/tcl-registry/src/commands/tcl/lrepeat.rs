@@ -1,5 +1,10 @@
 //! `lrepeat` — build a list by repeating elements.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lrepeat count ?element ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrepeat",
@@ -14,6 +19,7 @@ pub fn spec() -> CommandSpec {
             &["lrepeat count ?element ...?"],
             "Tcl lrepeat(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

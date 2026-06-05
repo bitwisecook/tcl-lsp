@@ -1,5 +1,10 @@
 //! `TclOO` context.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "self ?subcommand?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "self",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["self ?subcommand?"],
             "Tcl self(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

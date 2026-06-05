@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fileevent channel readable ?script?",
+}];
+
 /// Command spec for `fileevent`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -24,6 +29,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl fileevent(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

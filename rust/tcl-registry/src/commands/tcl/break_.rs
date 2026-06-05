@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "break",
+}];
+
 /// Command spec for `break`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             &["break"],
             "Tcl break(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `TclOO` class variable.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "classvariable variableName ?variableName ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["classvariable variableName ?...?"],
             "Tcl classvariable(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

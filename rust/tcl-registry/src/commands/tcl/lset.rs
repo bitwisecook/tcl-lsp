@@ -5,6 +5,18 @@ use crate::forms::CommandForm;
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lset varName ?index ...? newValue",
+}];
+
 /// `lset varName newValue` — replace the entire list (no index).
 const LSET_REPLACE: CommandForm = CommandForm {
     name: "replace",
@@ -48,6 +60,8 @@ pub fn spec() -> CommandSpec {
         )),
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

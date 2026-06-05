@@ -6,6 +6,18 @@ use crate::forms::CommandForm;
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "incr varName ?increment?",
+}];
+
 /// `incr varName` — implicit increment of 1.
 const INCR_IMPLICIT: CommandForm = CommandForm {
     name: "implicit",
@@ -57,6 +69,8 @@ pub fn spec() -> CommandSpec {
         )),
         lowering_hook: Some(LoweringHookId::Incr),
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

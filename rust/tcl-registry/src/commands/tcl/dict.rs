@@ -3,6 +3,18 @@
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "dict option arg ?arg ...?",
+}];
+
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
 ///
 /// Arg 0 (the dict variable) plays both `VarRead` and `VarWrite` roles —
@@ -320,6 +332,8 @@ pub fn spec() -> CommandSpec {
         )),
         codegen_hook: Some(CodegenHookId::Dict),
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `lindex` — retrieve an element from a list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lindex list ?index ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lindex",
@@ -23,6 +28,7 @@ pub fn spec() -> CommandSpec {
             &["lindex list ?index ...?"],
             "Tcl lindex(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,6 +1,18 @@
 //! `oo::define` — define class members.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "oo::define class defScript",
+}];
+
 /// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.
 /// Used to disambiguate the script-form (`oo::define Target {body}`)
 /// from a subcommand call where `args[1]` is one of these words.
@@ -122,6 +134,8 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl oo::define(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

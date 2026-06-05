@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lappend varName ?value value value ...?",
+}];
+
 /// Command spec for `lappend`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -36,6 +41,7 @@ pub fn spec() -> CommandSpec {
             "Tcl lappend(1)",
         )),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

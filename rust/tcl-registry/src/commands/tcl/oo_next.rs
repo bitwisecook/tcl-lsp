@@ -1,5 +1,10 @@
 //! `next` — call the next method in the chain.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "next ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "next",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["next ?arg ...?"],
             "Tcl next(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,17 @@
 //! `unknown` — handle unknown commands.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "unknown cmdName ?arg arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unknown",
@@ -11,6 +23,8 @@ pub fn spec() -> CommandSpec {
             &["unknown cmdName ?arg ...?"],
             "Tcl unknown(1)",
         )),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

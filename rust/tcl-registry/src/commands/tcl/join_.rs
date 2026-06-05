@@ -1,5 +1,10 @@
 //! `join` — join list elements into a string.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "join list ?joinString?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
@@ -19,6 +24,7 @@ pub fn spec() -> CommandSpec {
             &["join list ?joinString?"],
             "Tcl join(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `cd` — change working directory.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "cd ?dirName?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
@@ -17,6 +22,7 @@ pub fn spec() -> CommandSpec {
             &["cd ?dirName?"],
             "Tcl cd(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

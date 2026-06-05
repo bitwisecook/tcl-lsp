@@ -1,6 +1,26 @@
 //! `encoding` — manipulate character encodings.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::None,
+}];
+
+const OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-profile",
+    takes_value: true,
+    value_hint: "profile",
+    detail: "Encoding profile (strict, tcl8, replace).",
+    dialects: None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "encoding subcommand ?arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "convertfrom",
@@ -57,6 +77,9 @@ pub fn spec() -> CommandSpec {
             &["encoding subcommand ?arg ...?"],
             "Tcl encoding(1)",
         )),
+        forms: FORMS,
+        options: OPTIONS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

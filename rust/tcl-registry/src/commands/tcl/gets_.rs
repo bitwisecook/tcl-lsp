@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "gets channel ?varName?",
+}];
+
 /// Command spec for `gets`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -30,6 +35,7 @@ pub fn spec() -> CommandSpec {
             &["gets channel ?varName?"],
             "Tcl gets(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

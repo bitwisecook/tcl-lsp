@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "after ms",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
@@ -53,6 +58,7 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl after(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

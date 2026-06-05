@@ -1,5 +1,10 @@
 //! `list` — create a Tcl list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "list ?arg arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "list",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["list ?arg ...?"],
             "Tcl list(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

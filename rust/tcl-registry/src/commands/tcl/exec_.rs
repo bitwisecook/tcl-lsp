@@ -1,5 +1,10 @@
 //! `exec` — invoke subprocesses.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "exec ?switches? arg ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
@@ -47,6 +52,7 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: a `SHELL_ATOM`-coloured value is token-safe and
         // suppresses T100. Mirrors `tcl/exec_.py`.
         taint_sink_safe_colour: Some(TaintColour::SHELL_ATOM),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `lremove` — remove elements from a list.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lremove list ?index ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lremove",
@@ -12,6 +17,7 @@ pub fn spec() -> CommandSpec {
             &["lremove list ?index ...?"],
             "Tcl lremove(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }
