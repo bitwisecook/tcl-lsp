@@ -331,3 +331,57 @@ class TestSpecialCharsAndNesting:
         # exactly as the two-pass does.
         src = "set x [foo [bar baz\n"
         _assert_matches_two_pass(src)
+
+
+class TestExprBraceRecovery:
+    """ArgRole.EXPR braces (`if {…`, `while {…`, `expr {…`) recover before a
+    following known command without needing a de-indent — additive over the
+    conservative brace rule, since an expression can't contain a bare command
+    line.  Body and data braces are unaffected.
+    """
+
+    @pytest.mark.parametrize(
+        ("source", "tail_name"),
+        [
+            ("if {$x > 5\nputs hi\nset y 2\n", "puts"),
+            ("while {$i < 3\nputs hi\n", "puts"),
+            ("expr {1 + 2\nreturn\n", "return"),
+            ("for {set i 0} {$i < 3\nputs hi\n", "puts"),  # condition expr brace
+        ],
+    )
+    def test_expr_brace_recovers_before_command(self, source, tail_name):
+        cmds, diags = segment_with_recovery(source)
+        e203 = [d for d in diags if d.code == "E203"]
+        assert e203 and e203[0].fixes, f"expected a recovered E203 with a fix for {source!r}"
+        assert e203[0].fixes[0].new_text == "}"
+        assert any(c.name == tail_name for c in cmds), (
+            f"tail command {tail_name!r} should be recovered; got {[c.name for c in cmds]}"
+        )
+
+    def test_expr_brace_without_following_command_does_not_recover(self):
+        # No known command after the expression — nothing signals a close, so the
+        # brace over-runs (no false recovery).
+        cmds, diags = segment_with_recovery("if {$x > 5\n  more stuff here\n")
+        e203 = [d for d in diags if d.code == "E203"]
+        # Either no recovery, or at most a fallback (no quick-fix).
+        assert not (e203 and e203[0].fixes), "should not fabricate a close with no signal"
+
+    def test_data_brace_still_requires_dedent(self):
+        # A *data* value brace must NOT pick up the aggressive expr rule: a
+        # command-looking word at the same indent is data, not a close signal.
+        cmds, diags = segment_with_recovery("set x {\na b c\nputs hi\n")
+        names = [c.name for c in cmds]
+        # `puts` must remain inside the data value (not split out as a command).
+        assert "puts" not in names, f"data brace wrongly split on a command word: {names}"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "if {$x > 5\nputs hi\nset y 2\n",
+            "while {$i < 3\nputs hi\n",
+            "expr {1 + 2\nreturn\n",
+            "if {$x > 5\n  more stuff here\n",
+        ],
+    )
+    def test_expr_brace_matches_two_pass(self, source):
+        _assert_matches_two_pass(source)

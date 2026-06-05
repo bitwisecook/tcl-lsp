@@ -466,6 +466,8 @@ def _is_suspicious_str(
     tok: Token,
     source: str,
     base_offset: int,
+    *,
+    min_line_span: int = 2,
 ) -> bool:
     """Return True when *tok* is a STR from an unterminated ``{``.
 
@@ -489,9 +491,11 @@ def _is_suspicious_str(
     # level — that's E103 (stolen close brace), not E203.
     if "}" in tok.text:
         return False
-    # Must span multiple lines.
+    # Must span multiple lines.  The default threshold (3 lines, i.e. span >= 2)
+    # is conservative because a braced *value* is often legitimately multi-line;
+    # callers that know the brace is an expression relax it to span >= 1.
     line_span = tok.end.line - tok.start.line
-    if line_span < 2:
+    if line_span < min_line_span:
         return False
     return True
 
@@ -501,30 +505,41 @@ def _detect_missing_brace_at_command(
     source: str,
     base_offset: int,
     known_commands: frozenset[str],
+    *,
+    require_dedent: bool = True,
 ) -> VirtualToken | None:
-    """Detect ``}`` missing when a de-indented known command follows brace data.
+    """Detect ``}`` missing when a known command follows the brace content.
 
-    Scans the STR token text line by line.  When a line is de-indented
-    relative to the first content line AND starts with a known command,
-    ``}`` should be inserted at the ``\\n`` before that line.
+    Scans the STR token text line by line and inserts ``}`` at the ``\\n``
+    before a line that starts with a known command.  By default the line must
+    also be *de-indented* relative to the first content line — the conservative
+    rule for braces, whose content is often multi-line data where a
+    command-looking word is data, not a real command.
+
+    With ``require_dedent=False`` the de-indent condition is dropped (any
+    following known-command line triggers, as for ``[`` recovery).  This is used
+    only for ``ArgRole.EXPR`` braces: an expression's content is structured, so a
+    bare known-command word at the start of a following line cannot be expression
+    syntax and is a strong "forgotten close-brace" signal.
     """
     text = tok.text
     lines = text.split("\n")
     if len(lines) < 3:
         return None
 
-    # Determine indentation of the first content line.
+    # Determine indentation of the first content line (only needed when the
+    # de-indent condition applies).
     first_indent: int | None = None
-    for line in lines[1:]:  # skip first line (may be empty right after {)
-        stripped = line.lstrip()
-        if stripped:
-            first_indent = len(line) - len(stripped)
-            break
+    if require_dedent:
+        for line in lines[1:]:  # skip first line (may be empty right after {)
+            stripped = line.lstrip()
+            if stripped:
+                first_indent = len(line) - len(stripped)
+                break
+        if first_indent is None:
+            return None
 
-    if first_indent is None:
-        return None
-
-    # Scan for a de-indented line starting with a known command.
+    # Scan for a (de-indented) line starting with a known command.
     cumulative = 0
     for i, line in enumerate(lines):
         if i == 0:
@@ -535,7 +550,7 @@ def _detect_missing_brace_at_command(
             cumulative += len(line) + 1
             continue
         indent = len(line) - len(stripped)
-        if indent < first_indent:
+        if not require_dedent or (first_indent is not None and indent < first_indent):
             first_word = _extract_first_word(stripped)
             if first_word in known_commands:
                 # Verify that brace content before this point is balanced
@@ -604,6 +619,33 @@ def _detect_missing_brace_no_heuristic(
 # Virtual token detection
 
 
+def _brace_arg_is_expr(cmd: SegmentedCommand) -> bool:
+    """True when the unterminated trailing ``{`` is a known ``ArgRole.EXPR`` arg.
+
+    Uses the command registry to classify the brace's argument (``if {…``,
+    ``while {…``, ``expr {…``).  Conservative: ``False`` for unknown/user
+    commands and any non-expression role, so it can only *enable* the extra
+    EXPR-brace recovery, never disable an existing one.
+    """
+    name = cmd.name
+    args = list(cmd.args)
+    if not name or not args:
+        return False
+    try:
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import ArgRole, _resolve_arg_roles
+
+        if REGISTRY.get_any(name) is None:
+            return False
+        roles, base = _resolve_arg_roles(name, args)
+    except Exception:
+        log.debug("recovery: arg-role classification failed", exc_info=True)
+        return False
+    last = len(args) - 1
+    rs = roles.get(last - base, frozenset()) or roles.get(last, frozenset())
+    return ArgRole.EXPR in rs
+
+
 def _detect_all_virtual_tokens(
     commands: list[SegmentedCommand],
     source: str,
@@ -663,8 +705,15 @@ def _detect_all_virtual_tokens(
                         _detect_missing_quote_no_heuristic(tok, source, base_offset),
                     )
 
-            # E203: unterminated {
-            elif _is_suspicious_str(tok, source, base_offset):
+            # E203: unterminated {  (relaxed span; a 2-line brace only qualifies
+            # when it is an expression — see below)
+            elif _is_suspicious_str(tok, source, base_offset, min_line_span=1):
+                is_expr = _brace_arg_is_expr(cmd)
+                line_span = tok.end.line - tok.start.line
+                if line_span < 2 and not is_expr:
+                    # A 2-line braced *value* is too likely intentional to treat
+                    # as unterminated — leave it alone (no E203), as before.
+                    continue
                 if known_cmds is None:
                     try:
                         known_cmds = known_command_names()
@@ -677,6 +726,18 @@ def _detect_all_virtual_tokens(
                     base_offset,
                     known_cmds,
                 )
+                if vt is None and is_expr:
+                    # A braced expression (if/while/expr {…): a known command on a
+                    # following line can't be expr syntax, so close before it even
+                    # without a de-indent — recovering cases the conservative
+                    # brace rule declines.
+                    vt = _detect_missing_brace_at_command(
+                        tok,
+                        source,
+                        base_offset,
+                        known_cmds,
+                        require_dedent=False,
+                    )
                 if vt is not None:
                     virtuals.append(vt)
                 else:
