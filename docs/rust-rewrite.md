@@ -4254,6 +4254,31 @@ mentioned.  **Fix:** generate the confusables table as a Rust `const`
 (or `phf`) map from the same Unicode source, port the four-mode
 classifier + `non_ascii_mode` dialect knob, and wire W108.
 
+**LANDED (confusables / strict / off modes, 2026-06-05).**  Generated
+`analyser/confusables_table.rs` — `CONFUSABLE_TO_ASCII` (sorted
+`&[(char, &str)]` + binary-search `confusable_to_ascii`) and
+`AUTO_FIX_MAP` (`auto_fix_for`) — from `_confusables.py` /
+`_AUTO_FIX_MAP`.  **Discovered + worked around a real Python source
+bug:** 985 of the 1776 `CONFUSABLE_TO_ASCII` keys for supplementary-plane
+confusables use malformed 5-hex-digit `\uXXXXX` escapes, which Python
+parses as a BMP char + a literal digit (a 2-char key) — so they never
+match in the char-by-char scan and are **dead in Python too**.  The Rust
+table includes the **791 functional single-codepoint entries** (parity
+with Python's *effective* behaviour) + 108 auto-fix artifacts.
+`emit_w108_non_ascii` ports `check_non_ascii`: scans each argument
+token's source for non-ASCII chars (`is_standard_ascii` = the negated
+`_NON_ASCII_RE`), and in the default **confusables** mode flags only
+confusables / auto-fix artifacts, in **strict** mode (the F5 iRules /
+iApps default) flags every non-ASCII char, with an ASCII-replacement
+quick-fix where known; one diagnostic per char, deduped per token,
+multi-line braced bodies skipped, the command word not scanned (matching
+Python).  Verified against the live Python analyser (smart quotes / NBSP
+/ em-dash fire with fixes; `é` is silent under confusables but flagged
+under iRules strict; a Cyrillic command word is not scanned); 3 unit
+tests.  **Remaining:** the **common** mode (needs Unicode
+general-category data Rust std lacks — a `unicode-general-category` crate
+or generated table) and a `non_ascii_mode` config knob — follow-ups.
+
 **GAP-A4 — `core/analysis/checks/_bounds.py` (961 LOC) — absent +
 mistracked.**  Index-bounds + loop-termination checks: **W230/W231/W232**
 (constant list / `lset` / string index out of range, `:115/:253/:415`)

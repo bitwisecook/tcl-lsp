@@ -33,6 +33,7 @@
 pub mod bounds_checks;
 pub mod class_hierarchy;
 pub mod commands;
+pub mod confusables_table;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;

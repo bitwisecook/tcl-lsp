@@ -99,6 +99,13 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
+/// True when `ch` is a standard ASCII character W108 leaves alone: tab
+/// / LF / CR, or printable ASCII `0x20`-`0x7e`.  Mirrors
+/// `_NON_ASCII_RE = [^\x09\x0a\x0d\x20-\x7e]` (negated).
+fn is_standard_ascii(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r' | ' '..='~')
+}
+
 /// Integer format specifiers for `binary format` / `binary scan` that
 /// accept the Tcl 8.5+ `u` / `s` modifier.  Mirrors
 /// `_BINARY_INT_SPECIFIERS`.
@@ -1223,6 +1230,76 @@ Use braces: {{ \u{2026} }}"
                     severity: super::types::Severity::Warning,
                     fixes: Vec::new(),
                 });
+            }
+        }
+    }
+
+    /// W108 (GAP-A3): a non-ASCII character in an argument token —
+    /// either a Unicode confusable (visually resembling ASCII) or a
+    /// known copy-paste artifact (smart quote, NBSP, em-dash, …).
+    /// `args` / `arg_tokens` exclude the command name (matching Python,
+    /// which does not scan the command word).  Mirrors `check_non_ascii`
+    /// in the default **confusables** mode (→ **strict** for F5
+    /// iRules / iApps); the `common` mode — which needs Unicode general-
+    /// category data Rust std lacks — is a follow-up.  One diagnostic
+    /// per offending character, with an ASCII-replacement fix when one
+    /// is known.
+    pub(super) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
+        use super::confusables_table::{auto_fix_for, confusable_to_ascii};
+        // No config wiring yet: confusables is the product default, and
+        // ASCII-only F5 dialects use strict.
+        let strict = matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps");
+
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for tok in arg_tokens {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            let Some(slice) = source_slice(&self.source, tok.span) else {
+                continue;
+            };
+            // Skip a multi-line braced body — its inner commands are
+            // checked when the body is recursed into.
+            if tok.kind == tcl_lexer::TokenType::Esc && slice.contains('\n') {
+                continue;
+            }
+            let mut flagged_here = false;
+            for (rel, ch) in slice.char_indices() {
+                if is_standard_ascii(ch) {
+                    continue;
+                }
+                let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
+                // In confusables mode, only flag confusables / artifacts.
+                if !strict && fix.is_none() {
+                    continue;
+                }
+                flagged_here = true;
+                let start = tok.span.start() + u32::try_from(rel).unwrap_or(0);
+                let end = start + u32::try_from(ch.len_utf8()).unwrap_or(1);
+                let span = tcl_lexer::Span::new(start, end);
+                let fixes = fix
+                    .map(|repl| {
+                        vec![super::types::CodeFix {
+                            span,
+                            new_text: repl.to_string(),
+                            description: "Replace with ASCII equivalent".to_string(),
+                        }]
+                    })
+                    .unwrap_or_default();
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W108".to_string(),
+                    span,
+                    message: format!(
+                        "Non-ASCII character U+{:04X} '{ch}' \u{2014} outside the standard ASCII \
+                         printable/whitespace set",
+                        ch as u32
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes,
+                });
+            }
+            if flagged_here {
+                seen.insert(tok.span.start());
             }
         }
     }
@@ -5215,6 +5292,52 @@ mod tests {
             nearest_valid_mask(255, 255, 255, 1).as_deref(),
             Some("255.255.255.0")
         );
+    }
+
+    fn w108(src: &str, dialect: &str) -> Vec<(u32, usize)> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W108")
+            .map(|d| {
+                let ch = d
+                    .message
+                    .chars()
+                    .find(|c| !c.is_ascii())
+                    .map_or(0, |c| c as u32);
+                (ch, d.fixes.len())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn w108_flags_confusables_and_artifacts() {
+        // Smart quotes (auto-fix artifacts) → two W108 with fixes.
+        assert_eq!(
+            w108("set x \u{201c}hi\u{201d}\n", "tcl8.6"),
+            vec![(0x201c, 1), (0x201d, 1)],
+        );
+        // NBSP and em-dash → W108 with an ASCII fix.
+        assert_eq!(w108("set x \u{a0}y\n", "tcl8.6"), vec![(0xa0, 1)]);
+        assert_eq!(w108("set x \u{2014}\n", "tcl8.6"), vec![(0x2014, 1)]);
+    }
+
+    #[test]
+    fn w108_confusables_mode_ignores_benign_unicode() {
+        // `é` is not a confusable / artifact → silent in confusables mode.
+        assert!(w108("puts caf\u{e9}\n", "tcl8.6").is_empty());
+        // Plain ASCII → silent.
+        assert!(w108("set x hello\n", "tcl8.6").is_empty());
+        // The command word itself is not scanned.
+        assert!(w108("\u{440}uts x\n", "tcl8.6").is_empty());
+    }
+
+    #[test]
+    fn w108_strict_mode_flags_all_non_ascii_for_irules() {
+        // F5 iRules default to strict — every non-ASCII char fires,
+        // including `é` (which has no ASCII equivalent → no fix).
+        assert_eq!(w108("puts caf\u{e9}\n", "f5-irules"), vec![(0xe9, 0)]);
     }
 
     #[test]

@@ -414,6 +414,7 @@ impl Analyser {
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
+        self.emit_w108_non_ascii(arg_tokens);
         // W240 / W241 loop-termination + W230 / W232 index-bounds (GAP-A4).
         let loop_diags =
             super::bounds_checks::loop_termination_diagnostics(cmd_name, args, arg_tokens);
