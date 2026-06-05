@@ -66,12 +66,14 @@ Incrementally, only the edited region re-lexes.
 ### Layer 2 — One CST, everything else a view
 
 The red-green CST is built from the token stream and is the **single**
-parse representation. The token-loop segmenter is retired;
-`SegmentedCommand`, the IR item-tree, and the lowering input become
-**views / projections** over the CST (iterators yielding command and
-word spans), not separate owned parses. This closes the two-parse-tree
-gap (`segmenter.rs` vs `parsing/syntax/`) and the hand-maintained
-agreement harness (`differential_segment.rs`).
+parse representation. This is **already true today**: the token-loop
+segmenter was retired in #538, and `segment_commands_local`
+(`segmenter.rs:408`) derives `SegmentedCommand` from the CST (the old
+loop survives only as the frozen oracle in `differential_segment.rs`).
+The remaining work is to make the IR item-tree and the lowering input
+likewise **views / projections** over one reused CST rather than each
+rebuilding it via `segment_commands*`, and to fold the ~40 ad-hoc
+sub-word `Lexer` scans onto the tree.
 
 Green stores structure; the text-storage choice is **D1**. Red anchors
 absolute positions lazily and carries the **one** line index beside the

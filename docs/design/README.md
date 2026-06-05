@@ -69,6 +69,11 @@ ownership matrices.
   parse-once, single CST spine, positions from the tree, demand-driven
   cascade/invalidation, and MVCC concurrency. Companion to
   current-architecture.md; the staged route is in review-findings.md.
+- [rust/feasibility.md](rust/feasibility.md) — evidence-based readiness
+  sweep testing each target goal for hard blockers vs. work-items.
+  Verdict: every goal reachable, no hard blockers, the expensive
+  foundations already in place. Carries the determinism prerequisite
+  and the unlock ordering.
 
 ## Runtime internals
 

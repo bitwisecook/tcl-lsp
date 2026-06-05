@@ -32,9 +32,11 @@ plus two concrete precision defects:
 4. **Nothing is shared or cached across the pipeline** — the full
    analysis pipeline and the command registry are rebuilt from
    scratch on every keystroke; this is the dominant performance cost.
-5. **Two parse representations coexist** — a token-loop segmenter and
-   the red-green CST, kept in agreement by hand. The layers link by
-   re-deriving from source rather than sharing one parsed spine. See
+5. **One parse tree, but rebuilt every time** — the CST is the single
+   parse representation (the segmenter became a view over it in #538);
+   the cost is that it is rebuilt from scratch on each call with no
+   incremental reuse, descent re-lexes, and ~40 ad-hoc sub-word scans
+   plus the line index re-scan the source per feature. See
    [Cross-layer integration](#cross-layer-integration-and-data-duplication).
 
 ## Correctness and precision
@@ -351,49 +353,48 @@ already the pattern in the red layer (`SyntaxTree` holds `text` +
 `line_starts`, `red.rs:57`) — that is the acceptable shape. The rest
 of this section is where the code departs from it.
 
-### The break — two parse representations
+### The break — one tree, rebuilt and re-scanned every time
 
-The lexer feeds two different structured representations, and
-downstream code is split between them:
+> **Correction.** An earlier draft of this section claimed two parse
+> representations (a token-loop segmenter *and* the CST). That is wrong:
+> the token loop was retired in #538 (CST-PORT). `segment_commands_local`
+> (`segmenter.rs:408`) builds the CST and derives `SegmentedCommand`
+> from it; the old loop survives only as the frozen oracle in
+> `tests/differential_segment.rs`. There is one parse tree.
 
-- **Token-loop segmenter** → `Vec<SegmentedCommand>` (`segmenter.rs`).
-  The production workhorse: lowering (`lowering/mod.rs:592`, `:607`,
-  `:1455`, …), semantic tokens, and the analyser's top-level walk —
-  **135** `segment_commands*` call sites.
-- **Red-green CST** → `SyntaxTree` (`parsing/syntax/green.rs`,
-  `red.rs`), ported in #533 as "the representation the whole pipeline
-  is meant to ride on," with its first production consumers landing in
-  #542: the analyser's `descend_token` / `descend_command`
-  (`analyser/commands.rs:868`, `:929`, `:984`).
+So the structure is right; the cost is that nothing is *reused*:
 
-The two are kept in agreement **by hand**: `build.rs:240` carries a
-`DELIBERATE DIVERGENCE` comment pinning the CST builder to "the
-token-loop segmenter … this rebase's byte-identity oracle," and
-`tests/differential_segment.rs` exists solely to assert the CST
-reproduces the segmenter. The SYNC-JUN08 line-continuation case is a
-drift that already occurred. The two are even used together in one
-path: `descend_token` re-lexes and builds a *fresh* child `SyntaxTree`
-(`descend.rs:108`), then segments it — so one command is segmenter
-output at the outer level and a CST at the inner level, sharing
-nothing. This is the separate parse tree the standard rules out.
+- **The tree is build-once-throwaway.** Every `segment_commands*` call
+  (135 sites: lowering `lowering/mod.rs:592`, `:607`, semantic tokens,
+  the analyser walk) re-lexes and rebuilds the whole region from source;
+  no subtree survives an edit (green children are owned `Vec`, no
+  `Rc`/`Arc`, no reparse driver — `green.rs:320`).
+- **Descent re-lexes instead of navigating.** `descend_token` builds a
+  *fresh* child `SyntaxTree` from a token's inner text
+  (`descend.rs:108`) rather than reading structure already in the tree,
+  so nested bodies are parsed twice.
+- **~40 ad-hoc sub-word scans bypass the tree** — hand-rolled
+  `Lexer::new(...)` loops re-segment word / command slices outside the
+  chokepoint (`var_refs.rs`, `lowering/structured.rs`, optimiser
+  helpers, …). These are the embedded-sub-language scanners (below), not
+  a second command parser.
 
 ### Layers link by re-derivation, not by sharing
 
-With no single parsed structure threaded by reference, each consumer
-re-parses from the raw `&str`: **135** `segment_commands*` calls (top
-level plus recursive re-segmentation into every body / sub / arm),
-**29** independent `LineIndex::new(source)` builds, and **34**
-`build_line_starts` / `line_starts` sites. A single `did_change` →
-diagnostics → first-tokens cycle therefore lexes and segments the
-document many times. The acceptable case is one index beside the tree;
-the reality is ~29 of them rebuilt per feature, plus a second whole
-parse.
+With the tree rebuilt rather than reused and no single shared index,
+each consumer re-derives from the raw `&str`: **135** `segment_commands*`
+calls (each rebuilding the tree, plus recursive re-segmentation into
+every body / sub / arm), **29** independent `LineIndex::new(source)`
+builds, and **34** `build_line_starts` / `line_starts` sites. A single
+`did_change` → diagnostics → first-tokens cycle therefore lexes and
+rebuilds the document many times. The acceptable case is one tree and
+one index reused; the reality is rebuild-from-scratch on every call.
 
 ### Data materialised outside intentional caching
 
 | Data | Where it is materialised | Verdict |
 |---|---|---|
-| Parse structure | `SegmentedCommand` (135 sites) **and** the red-green CST | ✗ a second parse tree |
+| Parse structure | one CST, but rebuilt per `segment_commands*` call (135) with no subtree reuse; descent re-lexes (`descend.rs:108`) | ✗ rebuilt, not reused |
 | Source text | server `String`; green `raw` *and* `text` per token; red `SyntaxTree.text`; owned sub-strings per `segment_commands(sub)` | ✗ multiple full copies |
 | Line index | 29 `LineIndex::new` + 34 `line_starts` builds | one beside the CST is fine; 63 re-derivations are not |
 | Names | token → green `text` + `raw` → IR `argv_texts` → CFG / SSA `String` keys → analyser scopes → workspace index → LSP items | ✗ copied at every layer; no interner |
@@ -404,57 +405,46 @@ parse.
 
 ### Consequences
 
-- **Correctness.** Two parse representations can disagree — semantic
-  tokens, the analyser, and lowering can classify the same span
-  differently if they drift (SYNC-JUN08 is an instance). The UTF-16
-  bug (C1) is amplified: positions resolve at 29 independent sites, so
-  the fix is 29 places rather than one index beside one tree.
-- **Performance / TTFST.** Re-segmentation is the per-keystroke cost; a
-  shared tree with subtree reuse turns "re-parse N times" into "reuse
-  unchanged subtrees." Neither representation is reused across edits.
-- **Maintenance.** Every syntactic decision lives in two parsers plus
-  the differential harness that keeps them aligned — triple the
-  surface for one behaviour.
+- **Correctness.** The UTF-16 bug (C1) is amplified by re-derivation:
+  positions resolve at ~29 independent `LineIndex` sites, so the fix is
+  29 places rather than one index beside one tree.
+- **Performance / TTFST.** Rebuilding the tree (and re-indexing) is the
+  per-keystroke cost; a shared tree with subtree reuse turns "rebuild N
+  times" into "reuse unchanged subtrees." Nothing is reused across edits
+  today.
+- **Maintenance.** The ~40 ad-hoc sub-word scanners re-implement slicing
+  the CST already does, so a syntactic rule can live in several places —
+  the consolidation surface for the sub-language work below.
 
-### Convergence — one parse spine, without a big-bang rewrite
+### Convergence — from "one tree, rebuilt" to "one tree, reused"
 
-The `segment_commands*` API is a single chokepoint: all 135 callers go
-through it, so its implementation can be swapped from token-loop to
-CST-backed without touching the call sites. That is what makes this
-incremental.
+The single-tree migration is already done (the segmenter is a CST view,
+#538). What remains is making that tree *shared and reused* rather than
+rebuilt — and the foundation is favourable: the green tree is
+position-independent with relative offsets, with absolute positions
+resolved lazily in the red layer (`green.rs:1-34`, `red.rs:139-155`).
 
-1. **CST → view adapter.** Implement
-   `segment_commands_from_cst(&SyntaxTree)` yielding the existing
-   `SegmentedCommand` shape. Re-point `differential_segment.rs` to
-   assert the view matches the live token loop — the harness becomes
-   the migration's safety net instead of a permanent agreement tax.
-2. **Route segmentation through the CST.** Change the
-   `segment_commands_with_*` bodies to build a `SyntaxTree` once and
-   return the view. The 135 callers are unchanged. Keep the token loop
-   behind a flag as the differential oracle until parity bakes on the
-   corpus (the project's default-off-until-baked discipline).
-3. **Build the CST once per document; navigate, don't re-lex.** Lower,
-   analyse, and tokenise from one `SyntaxTree`; make `descend_*`
-   navigate the existing tree rather than building fresh child trees
-   (`descend.rs:108`). This removes the recursive re-segmentation and
-   the per-descent re-lex.
-4. **One index beside the CST.** Expose the tree's `line_starts` as the
-   single position resolver and route the 29 `LineIndex::new` sites
-   through it. Land the C1 UTF-16 fix here, once, on the shared index.
-5. **Retire the second parser.** Once parity has baked, delete the
-   token-loop `segment_commands_local` and the frozen oracle; the
-   differential-segment harness retires with them.
+1. **Build the CST once per document and reuse it.** Thread one
+   `SyntaxTree` into lowering, the analyser, and semantic tokens instead
+   of each calling `segment_commands*` (which rebuilds).
+2. **`Rc`/`Arc` (or intern) green children + a reparse driver** so an
+   edit re-lexes a bounded region and splices reused subtrees rather
+   than rebuilding the document (children are owned `Vec` today,
+   `green.rs:320`).
+3. **Navigate on descent, don't re-lex** — make `descend_*` read
+   structure already in the tree instead of building fresh child trees
+   (`descend.rs:108`).
+4. **One index beside the CST.** Route the ~29 `LineIndex::new` sites
+   through the tree's `line_starts`; land the C1 UTF-16 fix here, once.
+5. **Fold the ~40 ad-hoc sub-word scanners onto the tree** — they become
+   CST views / typed sub-trees (the embedded-sub-language work below).
 6. **(Separable) interned names + one `CompilationUnit`.** Intern
-   identifiers to `Symbol(u32)` sourced from the CST's tokens, and
-   build one `CompilationUnit` per document threaded by reference,
-   folding in the earlier performance items.
+   identifiers to `Symbol(u32)` from the CST tokens; build one
+   `CompilationUnit` per document threaded by reference.
 
-Stages 1–2 are the load-bearing change (the CST already proves it can
-reproduce the segmenter byte-for-byte); 3–5 are cleanup once the view
-is the producer; 6 is independent. Each stage is shippable on its own
-and guarded by the existing differential corpus. The failure mode to
-avoid is stalling half-converted, where both representations live
-indefinitely — the most expensive state, because you pay for both.
+Each is shippable on its own and guarded by the existing differential
+corpus. See [`feasibility.md`](feasibility.md) for the full readiness
+assessment, the determinism prerequisite, and the unlock ordering.
 
 ## Prioritised roadmap
 
