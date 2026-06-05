@@ -232,6 +232,23 @@ are its rules, and what are the failure modes". One contract per file.
   the reference implementations we copied each piece of behaviour
   from.
 
+### First-principles runtime contracts (v2 / "if starting over")
+
+Forward-looking semantic contracts — the models a from-scratch Tcl
+runtime + AOT compiler should commit to *before* writing commands.
+Distilled from the trickiest scars in the WASM runtime history
+(frame aliasing, the parser/interpreter seam, the numeric tower):
+
+- [runtime-variable-frame-model.md](contracts/runtime-variable-frame-model.md)
+  — the cell/frame/namespace resolution algorithm behind `upvar`,
+  `global`, `variable`, arrays, and traces; why locals are not slots.
+- [parser-and-aot-interpret-boundary.md](contracts/parser-and-aot-interpret-boundary.md)
+  — the one canonical grammar, and the AOT-compile vs. runtime-interpret
+  boundary that `eval`/`uplevel`/`source`/`apply`/`{*}` straddle.
+- [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
+  — the small-int→wide→bignum→double tower and `expr` as a separate
+  language with overridable `mathfunc` dispatch.
+
 ## Templates
 
 Templates for new design docs live at
