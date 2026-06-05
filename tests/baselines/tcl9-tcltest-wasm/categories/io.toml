@@ -1,0 +1,22 @@
+# io.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '189 of 884 failed'
+# classification: real-mismatch
+# rationale: channel semantics mismatches (large I/O subsystem)
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 884
+observed_passed = 258
+observed_failed = 189
+observed_skipped = 437
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["io-1.7", "io-1.8", "io-1.9", "io-2.3", "io-2.4", "io-3.3", "io-3.6", "io-3.8", "io-4.2", "io-5.4", "io-6.3", "io-6.4", "io-6.5", "io-6.8", "io-6.9", "io-6.10", "io-6.12", "io-6.13", "io-6.14", "io-6.15", "io-6.16", "io-6.17", "io-6.19", "io-6.20", "io-6.21", "io-6.23", "io-6.24", "io-6.25", "io-6.26", "io-6.27", "io-6.28", "io-6.29", "io-6.33", "io-6.34", "io-6.35", "io-6.39", "io-6.40", "io-6.41", "io-6.42", "io-6.53", "io-6.55", "io-7.1", "io-7.2", "io-11.4", "io-12.6", "io-12.7", "io-13.3", "io-13.4", "io-13.8.1", "io-13.8.2", "io-13.8.3", "io-13.11", "io-13.12", "io-14.2", "io-14.3", "io-14.4", "io-14.5", "io-14.6", "io-14.7", "io-20.1", "io-20.3", "io-28.2", "io-29.9", "io-29.15", "io-29.33", "io-29.33b", "io-30.6", "io-30.9", "io-30.16", "io-30.18", "io-30.19", "io-30.21", "io-30.22", "io-30.23", "io-30.24", "io-30.25", "io-30.26", "io-30.27", "io-30.28", "io-31.3", "io-31.5", "io-31.6", "io-31.9", "io-31.10", "io-31.11", "io-31.13", "io-31.14", "io-31.15", "io-31.16", "io-31.17", "io-31.18", "io-31.20", "io-31.21", "io-31.24", "io-31.25", "io-31.26", "io-31.27", "io-31.28", "io-31.29", "io-31.30", "io-31.31", "io-31.32", "io-33.7", "io-34.7", "io-34.9", "io-34.10", "io-34.12", "io-34.19", "io-34.20", "io-35.12", "io-35.13", "io-35.14", "io-35.15", "io-35.16", "io-35.17", "io-35.20", "io-36.4", "io-36.6", "io-38.2", "io-38.3", "io-39.5", "io-39.11", "io-39.12", "io-39.14", "io-39.15", "io-39.23", "io-39.24", "io-40.1", "io-40.2", "io-40.4", "io-40.5", "io-40.7", "io-40.8", "io-40.10", "io-40.13", "io-40.15", "io-40.17", "io-41.1", "io-41.2", "io-41.3", "io-41.4", "io-41.5", "io-42.2", "io-42.3", "io-45.2", "io-45.3", "io-48.1", "io-48.2", "io-48.4", "io-48.5", "io-48.6", "io-48.7", "io-48.8", "io-48.9", "io-48.10", "io-48.11", "io-48.12", "io-48.13", "io-48.14", "io-48.15", "io-49.1", "io-49.2", "io-49.3", "io-49.4", "io-49.5", "io-52.1", "io-52.2", "io-52.3", "io-52.4", "io-52.4.1", "io-52.5", "io-52.5a", "io-52.5b", "io-52.6", "io-52.7", "io-52.9", "io-52.12", "io-52.13", "io-52.14", "io-52.14.1", "io-52.14.2", "io-52.15", "io-52.16", "io-52.17", "io-52.18", "io-52.19", "io-53.2", "io-57.1", "io-57.2"]
