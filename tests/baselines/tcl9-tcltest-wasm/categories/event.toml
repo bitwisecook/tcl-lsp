@@ -1,0 +1,22 @@
+# event.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '4 of 65 failed'
+# classification: deferred-wasi
+# rationale: needs a real event loop / notifier
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 65
+observed_passed = 54
+observed_failed = 4
+observed_skipped = 7
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["event-7.1", "event-7.2", "event-7.3", "event-11.6"]
