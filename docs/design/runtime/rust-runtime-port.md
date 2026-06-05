@@ -1144,9 +1144,9 @@ any row.
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** + **string** capacity/char-ops, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) + string (capacity-backed append + ASCII-fast char ops, EXP-STRING) leak-checked; array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
-| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
-| `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4) | `make runtime-rust-test` — `BTreeMap` command table + name dispatch; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.6) | `make runtime-rust-test` — `set`/`incr`/`return`/`unset` + list cmds + `dict` ensemble + `append` (capacity-backed) + `string` ensemble (`length`/`index`/`range`/`equal`/`compare`/`cat`/`repeat`/`reverse`/`toupper`/`tolower`/`trim*`/`first`/`last`, ASCII-fast char ops); per-command parity + tcltest sweep as more land |
+| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + resolver**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); procs/catch + ns-variables follow |
+| `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4/T1.5) | `make runtime-rust-test` — dispatch resolves through the **namespace tree** (`Builtin`/`Alias`/`Imported` handles), no flat table; `make check-wasm-parity` once the builtin surface fills in |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace`; per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -1744,6 +1744,27 @@ close against them:
 | parser-and-aot-interpret-boundary | the **LSP/compiler `tcl-lexer` is now the canonical scanner** for command/word parsing (`parse.rs` lowers its tokens → the eval `Command`/`WordPart` model); object-passthrough; spans from byte 0 | converge `subst`/`Tcl_SplitList` onto `tcl-lexer` too (step 3, co-evolving a subst + list mode); the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
 | numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
+### SYNC inbound — 2026-06-05 (merge `origin/rust` through #555)
+
+The branch was brought up to date with `origin/rust` (merged, not rebased):
+the base advanced `8150eca` (#549) → `b3ea465b` (#555) — #550 (BIG-IP object
+specs), #552 (typecheck fixes + catalog gap), #553 (rust-rewrite SYNC-JUN09
+doc), **#555 (GAP-A/B/C: analysis checks, LSP features, optimisations, the
+`tcl-registry` Tk/BIG-IP specs + registry-audit tooling)**. Clean merge, **zero
+conflicts**.
+
+- **The Zig-mirror baseline stays `8150eca`.** `git diff 8150eca..origin/rust --
+  runtime/zig/` is **empty** — none of #550–#555 touched the Zig runtime, so
+  every `runtime/rust/` module still mirrors its Zig source as-of the original
+  anchor. The top-of-doc hash is intentionally *not* bumped (it tracks the
+  Zig-mirror point, not the workspace tip).
+- **Shared-crate impact, verified green.** Of the merged changes, only
+  `rust/tcl-lexer/` (`lexer.rs`, `expr_lexer.rs`) is upstream of the runtime
+  (via `tcl-syntax`). Post-merge: `make runtime-rust-test` (114 then 124),
+  `cargo build --workspace` (all 8 crates), `tcl-syntax` (129) + `tcl-compiler`
+  (2434) all pass — the expr/number/glob convergence behaves identically against
+  the newer lexer.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
@@ -1795,21 +1816,37 @@ compiler/LSP or the Zig runtime.
    `Vec`) + list commands; **dict** (ordered `Vec` + FNV index, EXP-DICT) + the
    `dict` ensemble; **string** (capacity-backed append + ASCII-fast char ops,
    EXP-STRING) + `append` + the `string` ensemble — all leak-checked. **Parser
-   convergence step 2 landed**: command/word parsing now lowers from the shared
+   convergence step 2 landed**: command/word parsing lowers from the shared
    `tcl-lexer` token stream (step 3 — `subst`/`Tcl_SplitList` — and dropping
-   `bs.rs` follow). **Next:**
-   the **numeric tower** (before `expr`); then **procs** (per
-   [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)), control
-   flow, and **T1.5 namespaces**.
-8. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
-   bound to the editor command registry; `NoEmitImpl` error for unimplemented
-   commands (the codegen-side single-source-of-truth that all later AOT work
-   builds on).
-9. **T2.3** (de-risk against Zig first) — production loader, validated on
-   Tier 0 dltest, separating loader risk from port risk.
-10. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+   `bs.rs` follow).
+8. ✅ **Numeric tower + `expr`** — the small→wide→**bignum** (libtommath
+   `mp_int` FFI, EXP-BIGNUM)→double tower with promote/normalise/compare;
+   `incr` rewired onto it (overflow promotes, never wraps); `expr` wired into the
+   eval loop via the **shared** `tcl_syntax::expr` walk (lexer→AST→parser→eval→
+   mathfunc→double-format all single-sourced with the compiler's const-folder).
+9. ◐ **T1.5 (namespaces)** — **done:** the namespace **tree + the one
+   `resolve(currentNs, name)` resolver**; **`rename` + `interp alias`** (the
+   `Alias` redirect + by-name-anchored-at-global dispatch trampoline); the
+   **`namespace` command** (`current`/`eval`/`exists`/`parent`/`children`/
+   `qualifiers`/`tail`/`which`/`export`/`import`/`forget`/`path`, with the
+   `Imported` redirect); the **shared `string match` glob** (`tcl_syntax::glob`,
+   converging two compiler copies). **Next in T1.5:** ensembles (generalise the
+   `dict for`→`::tcl::dict::for` rewrite), `::tcl::mathfunc`/`mathop` as
+   overridable commands, the **variable-namespace side** (`set ::ns::x`,
+   `variable`/`global` through ns var tables), `namespace delete`, and per-frame
+   `current_ns` (gated on the proc chunk).
+10. **Procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
+    + control flow — the call protocol (CallFrame + CmdFrame), return-options,
+    stack traces, AOT↔interp interop; carries per-frame `current_ns`.
+11. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+    bound to the editor command registry; `NoEmitImpl` error for unimplemented
+    commands (the codegen-side single-source-of-truth that all later AOT work
+    builds on).
+12. **T2.3** (de-risk against Zig first) — production loader, validated on
+    Tier 0 dltest, separating loader risk from port risk.
+13. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
     harness (seeds the scoreboard).
-11. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+14. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 
