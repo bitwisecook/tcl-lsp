@@ -482,14 +482,30 @@ and namespace command/var resolution is the same problem one level up.
 
 ## Reuse the compiler/analyser suite (survey before building)
 
-**Tenet: before building any subsystem in the runtime, survey the existing
-Rust compiler/analyser suite (`rust/`) for a component to reuse.** Much of what
-the runtime needs (lexing, expr parsing, command metadata, name resolution,
-shimmer rules) is already implemented, tested, and LSP-precise there.
-Reimplementing it in the runtime is the contract's "N implementations → N
-drifts" — the exact failure mode behind the parser bugs found above. The aim
-(per "the AOT compiler is ours to restructure, within the LSP guardrails") is
-**clean shared crates consumed by both the LSP/compiler and the runtime.**
+**Core tenet — share with the compiler as a shared crate wherever we can.**
+Before building any subsystem in the runtime, survey the existing Rust
+compiler/analyser suite (`rust/`) for a component to reuse, and when both sides
+need the same logic, **factor it into a shared crate** (`tcl-lexer` /
+`tcl-syntax`) rather than re-deriving it. Much of what the runtime needs (lexing,
+expr parsing **and evaluation**, command metadata, name resolution, shimmer
+rules) is already implemented, tested, and LSP-precise there. Reimplementing it
+in the runtime is the contract's "N implementations → N drifts" — the exact
+failure mode behind the parser bugs found above. The aim (per "the AOT compiler
+is ours to restructure, within the LSP guardrails") is **clean shared crates
+consumed by both the LSP/compiler and the runtime.**
+
+**The sharing pattern, when the value type differs.** Where consumers need the
+same *logic* over different *value types* (the runtime's `Tcl_Obj`+tower vs the
+compiler's const-fold `TclValue`), share the logic as a **generic over a trait**,
+not a copy. The `expr` evaluator is the worked example:
+`tcl_syntax::expr::eval<O: ExprOps>` owns the **walk** — operator dispatch,
+short-circuit `&&`/`||`, `?:`, the numeric-vs-string comparison rule,
+`eq`/`ne`/`in`/`ni` — once, and each consumer implements `ExprOps` with only its
+value ops (the runtime over the tower via `bignum`; the compiler's const-folder
+bails where it can't model the tower). This is the evaluation parallel of sharing
+the lexer/parser/AST. Same shape applies to future shared semantics
+(name-resolution, shimmer): one algorithm, a trait for the value/store, two
+impls.
 
 ### Deep survey (four sweeps) + the `tcl-syntax` decision
 
@@ -1031,11 +1047,15 @@ This is what the runtime's `build.rs` drives to link `mp_*` for the
 `TCL_BIGNUM_TYPE` FFI (source vendoring for a fresh-checkout-reproducible build
 is the one remaining follow-up).
 
-Implementation order: ✅ (1) the shared **`tcl_syntax::number`** grammar (done);
-(2) the `TCL_BIGNUM_TYPE` obj rep + the `mp_*` FFI (the `Big`→`mp_int` wiring +
-the demote-when-fits canonicalisation); (3) the tower arithmetic + the `expr`
-evaluator over it (reusing `tcl_syntax::expr`). The C-extension boundary
-(`Tcl_GetBignumFromObj` + the `TclBN_*` stubs table) lands with Track 2/3.
+Implementation order: ✅ (1) the shared **`tcl_syntax::number`** grammar;
+✅ (2) the `TCL_BIGNUM_TYPE` obj rep + the `mp_*` FFI (`Big`→`mp_int`,
+demote-when-fits) via `build.rs`; ✅ (3) the tower arithmetic (`+ - * / % **`
+floor-div, bit-ops, shifts, comparison — `bignum.rs`) **and** the `expr`
+evaluator over the **shared** `tcl_syntax::expr::eval<ExprOps>` walk (`expr.rs`).
+Remaining: `mathfunc` dispatch (with T1.5 namespaces), the C-extension boundary
+(`Tcl_GetBignumFromObj` + the `TclBN_*` stubs table, Track 2/3), wiring `expr`/
+`tcl::mathop`/`incr` builtins to the eval loop, and the compiler-side
+`tcl_expr_eval`→`ExprOps` convergence.
 
 ### The value kinds to reason through (and their two relationships)
 
