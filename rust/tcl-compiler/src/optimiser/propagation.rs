@@ -374,17 +374,7 @@ fn forward_candidate(
 
     // Intervening statements must not change the value the inlined
     // expression would recompute.
-    if !intervening_is_safe(
-        block,
-        ssa_block,
-        def_idx,
-        use_idx,
-        &def_read_names,
-        env.registry,
-        ctx.dialect,
-        env.traced,
-        env.has_dynamic_trace,
-    ) {
+    if !intervening_is_safe(env, block, ssa_block, def_idx, use_idx, &def_read_names) {
         return None;
     }
 
@@ -461,18 +451,15 @@ fn is_computed_assignment(stmt: &Statement) -> bool {
 /// anything that could change the value the inlined expression would
 /// recompute: a barrier, a side-effecting call, a
 /// command-substitution assignment, or a redefinition of a name the
-/// expression reads.
-#[allow(clippy::too_many_arguments)]
+/// expression reads.  The trace / registry / dialect safety context is
+/// carried by `env`.
 fn intervening_is_safe(
+    env: &ForwardEnv<'_>,
     block: &crate::cfg::Block,
     ssa_block: &crate::ssa::SsaBlock,
     def_idx: usize,
     use_idx: usize,
     def_read_names: &std::collections::BTreeSet<String>,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
-    traced: &std::collections::BTreeSet<String>,
-    has_dynamic_trace: bool,
 ) -> bool {
     use super::helpers::expr_simplify::expr_has_command_subst;
     use crate::gvn::is_pure_command_with_traces;
@@ -495,12 +482,12 @@ fn intervening_is_safe(
             }
             Statement::Call { command, args, .. } => {
                 if !is_pure_command_with_traces(
-                    registry,
+                    env.registry,
                     command,
                     args,
-                    dialect,
-                    traced,
-                    has_dynamic_trace,
+                    env.ctx.dialect,
+                    env.traced,
+                    env.has_dynamic_trace,
                 ) {
                     return false;
                 }
@@ -1634,7 +1621,8 @@ mod tests {
         // mutate any name the forwarded `[llength $y]` reads.  It must
         // suppress the forward exactly like a barrier — otherwise the
         // re-evaluated inline could compute a different value.
-        let src = "proc p {y} {\n    set x [llength $y]\n    uplevel 1 {incr ::n}\n    puts $x\n}\n";
+        let src =
+            "proc p {y} {\n    set x [llength $y]\n    uplevel 1 {incr ::n}\n    puts $x\n}\n";
         assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 

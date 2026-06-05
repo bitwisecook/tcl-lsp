@@ -54,18 +54,16 @@ pub fn declaration(
         visible.clone()
     };
 
-    let mut spans: Vec<Span> = Vec::new();
-    let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+    let mut found = DeclSpans::default();
     for region in &regions {
-        collect_declarations_in_region(
-            source, dialect, *region, target, &visible, &mut spans, &mut seen,
-        );
+        collect_declarations_in_region(source, dialect, *region, target, &visible, &mut found);
     }
 
-    if spans.is_empty() {
+    if found.spans.is_empty() {
         // No explicit declaration — fall back to the definition site.
         return definition(source, line, character, analysis);
     }
+    let mut spans = found.spans;
     spans.sort_by_key(|s| s.start());
     spans
         .into_iter()
@@ -73,18 +71,32 @@ pub fn declaration(
         .collect()
 }
 
+/// Accumulator for declaration spans, de-duplicated by `(start, end)`.
+#[derive(Default)]
+struct DeclSpans {
+    spans: Vec<Span>,
+    seen: std::collections::HashSet<(u32, u32)>,
+}
+
+impl DeclSpans {
+    /// Record `span` unless an identical one was already collected.
+    fn push(&mut self, span: Span) {
+        if self.seen.insert((span.start(), span.end())) {
+            self.spans.push(span);
+        }
+    }
+}
+
 /// Scan the top-level commands of `region` for `global` / `variable` /
-/// `upvar` / `namespace upvar` statements declaring `target`, pushing
-/// each matching declaration token span (when visible) into `spans`.
-#[allow(clippy::too_many_arguments)]
+/// `upvar` / `namespace upvar` statements declaring `target`, recording
+/// each matching declaration token span (when visible) into `found`.
 fn collect_declarations_in_region(
     source: &str,
     dialect: &str,
     region: Span,
     target: &str,
     visible: &[Span],
-    spans: &mut Vec<Span>,
-    seen: &mut std::collections::HashSet<(u32, u32)>,
+    found: &mut DeclSpans,
 ) {
     let (mut start, mut end) = (region.start() as usize, region.end() as usize);
     if start >= end || end > source.len() {
@@ -145,9 +157,7 @@ fn collect_declarations_in_region(
             if !is_visible(tok.span, visible) {
                 continue;
             }
-            if seen.insert((tok.span.start(), tok.span.end())) {
-                spans.push(tok.span);
-            }
+            found.push(tok.span);
         }
     }
 }
