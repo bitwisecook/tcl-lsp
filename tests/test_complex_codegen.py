@@ -955,12 +955,17 @@ proc ns_iter {lst} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::ns_iter"]
-        # Should be an IRCall for "foreach" (generic), not inlined
-        has_foreach_call = any(
-            any(isinstance(s, IRCall) and s.command == "foreach" for s in b.statements)
+        # Should be an IRBarrier for "foreach" (generic invoke), not inlined.
+        # An IRBarrier (not IRCall) is required: ``foreach`` carries
+        # ``wasm_emits_nothing=True`` (for the inlined loop's synthetic header
+        # def-marker), so an IRCall(command="foreach") would be silently
+        # dropped by ``command_emits_nothing`` and the loop would run zero
+        # times.  Mirrors the ``dict for`` / ``dict map`` sibling case.
+        has_foreach_barrier = any(
+            any(isinstance(s, IRBarrier) and s.command == "foreach" for s in b.statements)
             for b in proc_cfg.blocks.values()
         )
-        assert has_foreach_call
+        assert has_foreach_barrier
 
     def test_dict_for_becomes_barrier(self):
         """dict for becomes barrier with qualified command name."""
@@ -1797,12 +1802,15 @@ class TestDeferTopLevel:
         ir = lower_to_ir(source)
         cfg_deferred = build_cfg(ir, defer_top_level=True)
         top = cfg_deferred.top_level
-        # Should have an IRCall for foreach (deferred), not inlined foreach blocks
-        has_foreach_call = any(
-            any(isinstance(s, IRCall) and s.command == "foreach" for s in b.statements)
+        # Should have an IRBarrier for foreach (deferred generic invoke), not
+        # inlined foreach blocks.  An IRBarrier (not IRCall) is required because
+        # ``foreach`` is registered ``wasm_emits_nothing=True``; an IRCall would
+        # be dropped by ``command_emits_nothing`` and run zero iterations.
+        has_foreach_barrier = any(
+            any(isinstance(s, IRBarrier) and s.command == "foreach" for s in b.statements)
             for b in top.blocks.values()
         )
-        assert has_foreach_call
+        assert has_foreach_barrier
 
     def test_top_level_foreach_inlined(self):
         """Top-level foreach with defer=False gets inlined."""
