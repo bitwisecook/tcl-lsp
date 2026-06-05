@@ -123,6 +123,21 @@ suite("Error Recovery (contract)", () => {
     assert.ok(names.includes("recovered_in_ns"), `tail proc not recovered; symbols=[${names}]`);
   });
 
+  test("C2: proc after multiple independent breaks is still a symbol", async () => {
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    await setContentAndWait(
+      editor,
+      docUri,
+      "set a [foo\nset b 2\nset c [bar\nproc recovered_after_two {} {}\n",
+    );
+    const names = await symbolsFor(docUri);
+    assert.ok(
+      names.includes("recovered_after_two"),
+      `tail proc after two breaks not recovered; symbols=[${names}]`,
+    );
+  });
+
   // C3 ----------------------------------------------------------------------
   test("C3: semantic tokens are well-formed for pathological broken input", async () => {
     await activate(docUri);
