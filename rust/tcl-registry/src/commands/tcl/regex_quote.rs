@@ -11,6 +11,10 @@ pub fn spec() -> CommandSpec {
             &["regex_quote string"],
             "Tcl",
         )),
+        // GAP-D2: regex-escaped literal output; double-encode → T106.
+        // Mirrors `tcl/regex_quote.py`.
+        taint_transform: Some(TaintColour::REGEX_LITERAL),
+        taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         ..CommandSpec::DEFAULT
     }
 }

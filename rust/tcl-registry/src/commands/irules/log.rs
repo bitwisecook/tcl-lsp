@@ -11,6 +11,9 @@ pub fn spec() -> CommandSpec {
             &["log ?facility.level? message"],
             "F5 iRules",
         )),
+        // GAP-D2: tainted data in a log message → log injection /
+        // forging (IRULE3003). Mirrors `irules/log.py`.
+        taint_log_sink: Some("IRULE3003"),
         ..CommandSpec::DEFAULT
     }
 }

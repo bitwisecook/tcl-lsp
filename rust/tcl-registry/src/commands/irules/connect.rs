@@ -10,6 +10,10 @@ pub fn spec() -> CommandSpec {
             &["connect info ("],
             "F5 iRules",
         )),
+        // GAP-D2: sideband `connect` is a network sink (SSRF, T104);
+        // the address-bearing arg positions are not pinned. Mirrors
+        // `irules/connect.py` (`taint_network_sink_args=()`).
+        taint_network_sink_args: Some(&[]),
         ..CommandSpec::DEFAULT
     }
 }

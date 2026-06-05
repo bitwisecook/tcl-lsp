@@ -12,6 +12,11 @@ pub fn spec() -> CommandSpec {
             &["re_quote string"],
             "Tcl",
         )),
+        // GAP-D2: output is a regex-escaped literal; re-quoting an
+        // already-escaped value double-encodes it (T106).
+        // Mirrors `tcl/re_quote.py`.
+        taint_transform: Some(TaintColour::REGEX_LITERAL),
+        taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         ..CommandSpec::DEFAULT
     }
 }

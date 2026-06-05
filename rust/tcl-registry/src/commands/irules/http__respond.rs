@@ -34,6 +34,9 @@ pub fn spec() -> CommandSpec {
             &["HTTP::respond <status> ?option value ...?"],
             "F5 iRules",
         )),
+        // GAP-D2: tainted data in the response body → XSS/content
+        // injection (IRULE3001). Mirrors `irules/http__respond.py`.
+        taint_output_sink: Some("IRULE3001"),
         ..CommandSpec::DEFAULT
     }
 }

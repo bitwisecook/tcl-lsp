@@ -18,6 +18,13 @@ pub fn spec() -> CommandSpec {
             &["HTTP::header <subcommand> ?arg ...?"],
             "F5 iRules",
         )),
+        // GAP-D2: `HTTP::header insert|replace` with tainted data →
+        // header injection (IRULE3002). Mirrors `irules/http__header.py`.
+        // TODO(consumer): GAP-3a — once the iRules subcommands are
+        // re-ported, attach `credential_arg=2` + `sensitive_headers` to
+        // the `insert` / `replace` SubCommand specs.
+        taint_output_sink: Some("IRULE3002"),
+        taint_output_sink_subcommands: &["insert", "replace"],
         ..CommandSpec::DEFAULT
     }
 }

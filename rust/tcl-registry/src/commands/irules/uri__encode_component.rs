@@ -10,6 +10,11 @@ pub fn spec() -> CommandSpec {
             &["URI::encode_component STRING"],
             "F5 iRules",
         )),
+        // GAP-D2: URL-encodes its input (and strips CR/LF);
+        // re-encoding a URL-encoded value double-encodes (T106).
+        // Mirrors `irules/uri__encode_component.py`.
+        taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
+        taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
         ..CommandSpec::DEFAULT
     }
 }

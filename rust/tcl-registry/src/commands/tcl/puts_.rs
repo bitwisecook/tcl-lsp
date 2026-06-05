@@ -27,6 +27,9 @@ pub fn spec() -> CommandSpec {
             &["puts ?-nonewline? ?channelId? string"],
             "Tcl puts(1)",
         )),
+        // GAP-D2: tainted data reaching `puts` output → T101.
+        // Mirrors `tcl/puts_.py`.
+        taint_output_sink: Some("T101"),
         ..CommandSpec::DEFAULT
     }
 }

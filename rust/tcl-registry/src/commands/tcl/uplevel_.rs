@@ -21,6 +21,9 @@ pub fn spec() -> CommandSpec {
             &["uplevel ?level? arg ?arg ...?"],
             "Tcl uplevel(1)",
         )),
+        // GAP-D2: a `LIST_CANONICAL` value preserves element
+        // boundaries and suppresses T100. Mirrors `tcl/uplevel.py`.
+        taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         ..CommandSpec::DEFAULT
     }
 }

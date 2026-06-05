@@ -10,6 +10,11 @@ pub fn spec() -> CommandSpec {
             &["html_escape STRING"],
             "F5 iRules",
         )),
+        // GAP-D2: HTML-escapes its input (and strips CR/LF);
+        // re-encoding an HTML-escaped value double-encodes (T106).
+        // Mirrors `irules/html_escape.py`.
+        taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
+        taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
         ..CommandSpec::DEFAULT
     }
 }

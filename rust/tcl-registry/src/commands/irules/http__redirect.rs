@@ -11,6 +11,9 @@ pub fn spec() -> CommandSpec {
             &["HTTP::redirect REDIRECT_URL"],
             "F5 iRules",
         )),
+        // GAP-D2: tainted redirect URL → open-redirect (IRULE3004).
+        // Mirrors `irules/http__redirect.py`.
+        taint_output_sink: Some("IRULE3004"),
         ..CommandSpec::DEFAULT
     }
 }

@@ -44,6 +44,9 @@ pub fn spec() -> CommandSpec {
             &["exec ?-option ...? arg ?arg ...?"],
             "Tcl exec(1)",
         )),
+        // GAP-D2: a `SHELL_ATOM`-coloured value is token-safe and
+        // suppresses T100. Mirrors `tcl/exec_.py`.
+        taint_sink_safe_colour: Some(TaintColour::SHELL_ATOM),
         ..CommandSpec::DEFAULT
     }
 }

@@ -170,6 +170,10 @@ pub fn spec() -> CommandSpec {
             &["interp subcommand ?arg ...?"],
             "Tcl interp(1)",
         )),
+        // GAP-D2: `interp eval` / `interp invokehidden` run code in
+        // another interpreter — cross-interp code injection (T105).
+        // Mirrors `tcl/interp.py`.
+        taint_interp_eval_subcommands: &["eval", "invokehidden"],
         ..CommandSpec::DEFAULT
     }
 }

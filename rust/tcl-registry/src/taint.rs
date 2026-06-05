@@ -244,7 +244,10 @@ pub fn classify_taint_sinks(
     let Some(spec) = registry.get(command) else {
         return TaintSinkInfo::default();
     };
-    if !spec.supports_dialect(dialect) {
+    // An empty `dialect` means "no dialect filter" — mirrors Python's
+    // `dialect is None` short-circuit in `classify_taint_sinks`. Only a
+    // concrete dialect set gates dialect-specific specs.
+    if !dialect.is_empty() && !spec.supports_dialect(dialect) {
         return TaintSinkInfo::default();
     }
 
@@ -472,5 +475,101 @@ mod tests {
         assert_eq!(info, TaintSinkInfo::default());
         assert!(!info.is_code_sink);
         assert!(info.output_sink.is_none());
+    }
+
+    /// GAP-D2 data: `exec` suppresses T100 on a `SHELL_ATOM` value,
+    /// `eval`/`uplevel` on `LIST_CANONICAL`.
+    #[test]
+    fn sink_safe_colours_are_populated() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            taint_sink_safe_colour(&registry, "exec"),
+            Some(TaintColour::SHELL_ATOM)
+        );
+        assert_eq!(
+            taint_sink_safe_colour(&registry, "eval"),
+            Some(TaintColour::LIST_CANONICAL)
+        );
+        assert_eq!(
+            taint_sink_safe_colour(&registry, "uplevel"),
+            Some(TaintColour::LIST_CANONICAL)
+        );
+    }
+
+    /// GAP-D2 data: `puts` is a T101 output sink; `socket` /
+    /// `http::geturl` are network sinks; `interp` carries the T105
+    /// interp-eval subcommands.
+    #[test]
+    fn sink_classification_is_populated() {
+        let registry = CommandRegistry::build_default();
+        let puts = classify_taint_sinks(&registry, "puts", None, DialectSet::empty());
+        assert_eq!(puts.output_sink, Some("T101"));
+        assert!(!puts.output_sink_is_subcommand_qualified);
+
+        let socket = classify_taint_sinks(&registry, "socket", None, DialectSet::empty());
+        assert!(socket.is_network_sink);
+
+        let geturl = classify_taint_sinks(&registry, "http::geturl", None, DialectSet::empty());
+        assert!(geturl.is_network_sink);
+        assert_eq!(
+            registry.get("http::geturl").unwrap().credential_options,
+            &["-headers"]
+        );
+
+        let interp = classify_taint_sinks(&registry, "interp", Some("eval"), DialectSet::empty());
+        assert_eq!(interp.interp_eval_subcommands, &["eval", "invokehidden"]);
+    }
+
+    /// GAP-D2 data: the sanitising transforms (`URI::encode`,
+    /// `file join`/`file normalize`) resolve through the accessors,
+    /// command- and subcommand-level.
+    #[test]
+    fn transforms_are_populated() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        assert_eq!(
+            taint_transform(&registry, "URI::encode", None),
+            Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE))
+        );
+        assert_eq!(
+            taint_double_encode_colour(&registry, "HTML::encode", None),
+            Some(TaintColour::HTML_ESCAPED)
+        );
+        assert_eq!(
+            taint_transform(&registry, "file", Some("join")),
+            Some(TaintColour::PATH_JOINED)
+        );
+        assert_eq!(
+            taint_transform(&registry, "file", Some("normalize")),
+            Some(TaintColour::PATH_NORMALISED)
+        );
+    }
+
+    /// GAP-D2 data: `HTTP::cookie insert` is an IRULE3002 sink but
+    /// `HTTP::cookie domain` is not (subcommand-qualified).
+    #[test]
+    fn cookie_output_sink_is_subcommand_qualified() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let dialect = DialectSet::IRULES;
+        let insert = classify_taint_sinks(&registry, "HTTP::cookie", Some("insert"), dialect);
+        assert_eq!(insert.output_sink, Some("IRULE3002"));
+        assert!(insert.output_sink_is_subcommand_qualified);
+
+        let domain = classify_taint_sinks(&registry, "HTTP::cookie", Some("domain"), dialect);
+        assert_eq!(domain.output_sink, None);
+    }
+
+    /// GAP-D2 data: the registry-driven setter-constraint table is
+    /// populated for `HTTP::uri` / `HTTP::path`.
+    #[test]
+    fn setter_constraints_are_populated() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let uri = setter_constraints(&registry, "HTTP::uri");
+        assert_eq!(uri.len(), 1);
+        assert_eq!(uri[0].required_prefix, "/");
+        assert_eq!(uri[0].code, "IRULE3101");
+        assert_eq!(setter_constraints(&registry, "HTTP::path").len(), 1);
     }
 }

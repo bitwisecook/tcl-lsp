@@ -20,6 +20,9 @@ pub fn spec() -> CommandSpec {
             ],
             "Tcl socket(1)",
         )),
+        // GAP-D2: `host`/`port` are network-address args — SSRF sink
+        // (T104). Mirrors `tcl/socket_.py`.
+        taint_network_sink_args: Some(&[0, 1]),
         ..CommandSpec::DEFAULT
     }
 }

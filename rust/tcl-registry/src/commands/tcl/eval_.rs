@@ -20,6 +20,9 @@ pub fn spec() -> CommandSpec {
             &["eval arg ?arg ...?"],
             "Tcl eval(1)",
         )),
+        // GAP-D2: a `LIST_CANONICAL` value preserves element
+        // boundaries and suppresses T100. Mirrors `tcl/eval.py`.
+        taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         ..CommandSpec::DEFAULT
     }
 }

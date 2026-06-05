@@ -10,6 +10,11 @@ pub fn spec() -> CommandSpec {
             &["http::geturl url ?options?"],
             "F5",
         )),
+        // GAP-D2: `url` (arg 0) is a network-address arg — SSRF sink
+        // (T104); `-headers` can carry credentials. Mirrors
+        // `stdlib/http_.py`.
+        taint_network_sink_args: Some(&[0]),
+        credential_options: &["-headers"],
         ..CommandSpec::DEFAULT
     }
 }
