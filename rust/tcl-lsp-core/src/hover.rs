@@ -205,7 +205,7 @@ pub fn hover(
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) = builtin_command_hover_text(registry, &word) {
+        if let Some(text) = builtin_command_hover_text(registry, &word, analysis) {
             return Some(Hover::markdown(text));
         }
     }
@@ -220,7 +220,11 @@ pub fn hover(
 /// Render a hover snippet for a built-in command name.
 /// Looks up `name` in the registry, uses the matched spec's
 /// `hover.summary` / `synopsis` to produce a markdown block.
-fn builtin_command_hover_text(registry: &CommandRegistry, name: &str) -> Option<String> {
+fn builtin_command_hover_text(
+    registry: &CommandRegistry,
+    name: &str,
+    analysis: &AnalysisResult,
+) -> Option<String> {
     use std::fmt::Write;
     let spec = registry.get(name)?;
     let hover = spec.hover.as_ref()?;
@@ -236,6 +240,18 @@ fn builtin_command_hover_text(registry: &CommandRegistry, name: &str) -> Option<
         names.sort_unstable();
         let joined = names.join(", ");
         let _ = write!(out, "\nSubcommands: {joined}\n");
+    }
+    // Import hint: when the command needs a `package require` the
+    // document hasn't imported, append a `**Requires**` line.  Gated on
+    // the dialect supporting `package require` at all (the `package`
+    // command must exist — e.g. iRules has no package system).  Mirrors
+    // `lsp/features/hover.py:1032-1038`.
+    if let Some(pkg) = spec.required_package {
+        let pkg_available = registry.get("package").is_some();
+        let imported = analysis.package_requires.iter().any(|pr| pr.name == pkg);
+        if pkg_available && !imported {
+            let _ = write!(out, "\n**Requires**: `package require {pkg}`");
+        }
     }
     Some(out)
 }
@@ -2350,6 +2366,41 @@ mod tests {
     }
 
     #[test]
+    fn builtin_hover_shows_requires_when_package_not_imported() {
+        // `http::geturl` needs `package require http`; without the
+        // import the hover appends the **Requires** line.
+        let src = "http::geturl $url\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 6, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            h.value.contains("**Requires**: `package require http`"),
+            "{}",
+            h.value
+        );
+    }
+
+    #[test]
+    fn builtin_hover_omits_requires_when_package_imported() {
+        // With `package require http` present, the hint is suppressed.
+        let src = "package require http\nhttp::geturl $url\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 6, &analysis, Some(&registry)).expect("hover");
+        assert!(!h.value.contains("**Requires**"), "{}", h.value);
+    }
+
+    #[test]
+    fn builtin_hover_omits_requires_for_core_command() {
+        // A core built-in (`lindex`) needs no package — no hint.
+        let src = "lindex $l 0\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 2, &analysis, Some(&registry)).expect("hover");
+        assert!(!h.value.contains("**Requires**"), "{}", h.value);
+    }
+
+    #[test]
     fn proc_hover_text_formats_default_param() {
         let src = "proc greet {{name world}} { puts $name }\n";
         let analysis = analyse(src);
@@ -2896,7 +2947,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "puts").expect("hover");
+        let t = builtin_command_hover_text(&registry, "puts", &analyse("")).expect("hover");
         assert!(t.contains("built-in command"), "{t}");
         assert!(t.contains("`puts`"), "{t}");
     }
@@ -2904,7 +2955,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_lists_subcommands() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "string").expect("hover");
+        let t = builtin_command_hover_text(&registry, "string", &analyse("")).expect("hover");
         assert!(t.contains("Subcommands:"), "{t}");
         assert!(t.contains("length"), "{t}");
     }
@@ -2912,7 +2963,9 @@ mod tests {
     #[test]
     fn builtin_command_hover_returns_none_for_unknown() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(builtin_command_hover_text(&registry, "totallyMadeUpCommand").is_none());
+        assert!(
+            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse("")).is_none()
+        );
     }
 
     #[test]

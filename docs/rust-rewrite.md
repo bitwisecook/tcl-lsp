@@ -4914,9 +4914,17 @@ item with its provenance via a `command_detail` port of
 precedence) / `stdlib (PKG)` / `Tk` / `built-in`.  Previously every
 built-in completion had `detail: None`.  2 unit tests (provenance string
 per command kind).  The fuzzy `package_suggestions` catalogue (the
-unknown-command → `package require` code action) and the hover
-`**Requires**: package require X` line remain follow-ups (both now
-unblocked by `required_package`).
+unknown-command → `package require` code action) remains a follow-up.
+
+**LANDED (hover `**Requires**` import hint, 2026-06-09).**
+`builtin_command_hover_text` now appends `**Requires**: `package require
+PKG`` when the hovered command's spec carries a `required_package` the
+document hasn't imported (the active set comes from
+`AnalysisResult.package_requires`, the `package require NAME` scan that
+also drives W120).  Gated on the dialect supporting `package require` at
+all (`registry.get("package").is_some()` — iRules has no package system).
+Mirrors `hover.py:1032-1038`.  3 unit tests (hint shown when missing,
+suppressed once imported, never for a core built-in).
 
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
