@@ -1,5 +1,10 @@
 //! `report_clock_fmax_summary` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_clock_fmax_summary ?-file file? ?-panel_name name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_clock_fmax_summary",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_clock_fmax_summary ?-file file? ?-panel_name name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `tmsh::get_status` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::get_status <component> ?name? ?options?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::get_status",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::get_status <component> ?name? ?options?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

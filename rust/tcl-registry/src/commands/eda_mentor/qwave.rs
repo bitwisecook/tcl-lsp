@@ -1,5 +1,10 @@
 //! `qwave` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "qwave ?subcommand? ?args ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "qwave",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["qwave ?subcommand? ?args ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

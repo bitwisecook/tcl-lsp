@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "dos behavioral-signature"),),
         properties=(
-            BigipPropertySpec(name="alias", value_type="string"),
-            BigipPropertySpec(name="status", value_type="string"),
+            BigipPropertySpec(name="alias", value_type="reference"),
+            BigipPropertySpec(name="status", value_type="unknown"),
         ),
     )

@@ -1,5 +1,10 @@
 //! `set_size_only` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_size_only object_list ?-all_instances?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_size_only",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_size_only object_list ?-all_instances?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

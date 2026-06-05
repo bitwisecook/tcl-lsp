@@ -1,5 +1,10 @@
 //! `report_power` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_power ?-file file? ?-name name? ?-advisory?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_power",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_power ?-file file? ?-name name? ?-advisory?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

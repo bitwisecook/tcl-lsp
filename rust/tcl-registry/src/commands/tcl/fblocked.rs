@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fblocked channel",
+}];
+
 /// Command spec for `fblocked`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -15,11 +20,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Test whether the last input operation exhausted all available input.",
-            &["fblocked channel"],
-            "Tcl fblocked(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Test whether the last input operation exhausted all available input",
+    synopsis: &["fblocked channel"],
+    snippet: "The fblocked command has been superceded by the chan blocked command which supports the same syntax and options.",
+    source: "Tcl man page fblocked.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

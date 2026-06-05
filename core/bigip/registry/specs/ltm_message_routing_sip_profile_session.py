@@ -19,59 +19,6 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "message-routing sip profile session"),),
         properties=(
             BigipPropertySpec(
-                name="honor-route-mode", value_type="enum", enum_values=("loose", "strict")
-            ),
-            BigipPropertySpec(name="record-route-mode", value_type="string"),
-            BigipPropertySpec(
-                name="service-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(
-                name="allow-unknown-methods", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="custom-via", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="do-not-connect-back", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="generate-response-on-failure",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="honor-via", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="insert-record-route-header",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="honor-route-header", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="insert-via-header", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="maintenance-mode", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="loop-detection", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="loop-detection-mode", value_type="enum", enum_values=("loose", "strict")
-            ),
-            BigipPropertySpec(
-                name="max-forwards-check", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="max-msg-header-count", value_type="integer"),
-            BigipPropertySpec(name="max-msg-header-size", value_type="integer"),
-            BigipPropertySpec(name="max-msg-size", value_type="integer"),
-            BigipPropertySpec(
-                name="passthru-mode", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
                 name="persistence",
                 value_type="reference",
                 references=(
@@ -89,24 +36,154 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(
+                name="allow-unknown-methods",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="custom-via", value_type="unknown", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_message_routing_sip_profile_session",),
+                default="session",
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="do-not-connect-back",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="enable-sip-firewall",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="generate-response-on-failure",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="honor-route-header",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="honor-route-mode",
+                value_type="enum",
+                enum_values=("loose", "strict"),
+            ),
+            BigipPropertySpec(
+                name="honor-via",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="insert-record-route-header",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="insert-via-header",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="loop-detection",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="loop-detection-mode",
+                value_type="enum",
+                enum_values=("Loose", "Strict"),
+            ),
+            BigipPropertySpec(
+                name="maintenance-mode",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="max-forwards-check",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="max-msg-header-count", value_type="integer"),
+            BigipPropertySpec(name="max-msg-header-size", value_type="integer"),
+            BigipPropertySpec(name="max-msg-size", value_type="integer"),
+            BigipPropertySpec(
+                name="passthru-mode",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="persistence",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="persist-key",
+                        value_type="enum",
+                        in_sections=("persistence",),
+                        enum_values=("Call-ID", "Custom", "Src-Addr"),
+                    ),
+                    BigipPropertySpec(
+                        name="persist-timeout",
+                        value_type="integer",
+                        in_sections=("persistence",),
+                    ),
+                    BigipPropertySpec(
+                        name="persist-type",
+                        value_type="enum",
+                        in_sections=("persistence",),
+                        allow_none=True,
+                        enum_values=("none", "session"),
+                    ),
+                ),
+            ),
+            BigipPropertySpec(
                 name="persist-key",
                 value_type="enum",
                 in_sections=("persistence",),
-                enum_values=("call-id", "custom", "src-addr"),
+                enum_values=("Call-ID", "Custom", "Src-Addr"),
             ),
             BigipPropertySpec(
-                name="persist-timeout", value_type="integer", in_sections=("persistence",)
+                name="persist-timeout",
+                value_type="integer",
+                in_sections=("persistence",),
             ),
             BigipPropertySpec(
                 name="persist-type",
                 value_type="enum",
                 in_sections=("persistence",),
                 allow_none=True,
-                enum_values=("session", "none"),
+                enum_values=("none", "session"),
             ),
             BigipPropertySpec(
-                name="enable-sip-firewall", value_type="enum", enum_values=("no", "yes")
+                name="record-route-mode",
+                value_type="enum",
+                enum_values=("double", "single"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="service-port", value_type="integer"),
         ),
     )

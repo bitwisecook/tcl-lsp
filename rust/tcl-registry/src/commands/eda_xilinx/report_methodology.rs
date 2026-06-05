@@ -1,5 +1,10 @@
 //! `report_methodology` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_methodology ?-file file? ?-name name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_methodology",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_methodology ?-file file? ?-name name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

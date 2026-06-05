@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "continue",
+}];
+
 /// Command spec for `continue`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,11 +23,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Skip to the next iteration of a loop.",
-            &["continue"],
-            "Tcl continue(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Skip to the next iteration of a loop",
+    synopsis: &["continue"],
+    snippet: "This command is typically invoked inside the body of a looping command such as for or foreach or while.",
+    source: "Tcl man page continue.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

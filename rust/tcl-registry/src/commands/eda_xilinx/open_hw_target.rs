@@ -1,5 +1,10 @@
 //! `open_hw_target` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "open_hw_target ?target_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open_hw_target",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["open_hw_target ?target_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

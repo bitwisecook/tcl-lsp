@@ -1,5 +1,10 @@
 //! `add_well_tap` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "add_well_tap ?-cell cell? ?-cell_interval interval?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "add_well_tap",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["add_well_tap ?-cell cell? ?-cell_interval interval?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

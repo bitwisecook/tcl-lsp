@@ -1,5 +1,10 @@
 //! `remove_connection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "remove_connection -from source -to destination",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "remove_connection",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["remove_connection -from source -to destination"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

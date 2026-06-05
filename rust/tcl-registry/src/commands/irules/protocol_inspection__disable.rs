@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "PROTOCOL_INSPECTION::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Disables inspection match of the flow.",
-            &["PROTOCOL_INSPECTION::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Disables inspection match of the flow.",
+            synopsis: &["PROTOCOL_INSPECTION::disable"],
+            snippet: "Disables inspection of the flow",
+            source: "https://clouddocs.f5.com/api/irules/PROTOCOL_INSPECTION__disable.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROTOCOL_INSPECTION::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

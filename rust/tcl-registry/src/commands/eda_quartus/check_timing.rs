@@ -1,5 +1,10 @@
 //! `check_timing` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "check_timing ?-file file?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "check_timing",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["check_timing ?-file file?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

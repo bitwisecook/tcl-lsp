@@ -1,5 +1,10 @@
 //! `script::help` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "script::help",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "script::help",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["script::help"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

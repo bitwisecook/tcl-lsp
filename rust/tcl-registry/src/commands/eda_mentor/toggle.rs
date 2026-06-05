@@ -1,5 +1,10 @@
 //! `toggle` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "toggle ?signal_name? ?-report?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "toggle",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["toggle ?signal_name? ?-report?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

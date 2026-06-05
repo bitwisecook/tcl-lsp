@@ -1,6 +1,18 @@
 //! `oo::define` — define class members.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "oo::define class defScript",
+}];
+
 /// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.
 /// Used to disambiguate the script-form (`oo::define Target {body}`)
 /// from a subcommand call where `args[1]` is one of these words.
@@ -114,14 +126,16 @@ pub fn spec() -> CommandSpec {
         // self.* / property -set / -get) plus the bare-script form
         // `oo::define Cls {body}`.
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Define class members.",
-            &[
-                "oo::define className ?definition?",
-                "oo::define className subcommand ?arg ...?",
-            ],
-            "Tcl oo::define(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "define and configure classes and objects",
+    synopsis: &["oo::define class defScript", "oo::define class subcommand arg ?arg ...?", "oo::define className ?definition?", "oo::define className subcommand ?arg ...?"],
+    snippet: "The oo::define command is used to control the configuration of classes, and the oo::objdefine command is used to control the configuration of objects (including classes as instance objects), with the configuration being applied to the entity named in the class or the object argument.",
+    source: "Tcl man page define.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

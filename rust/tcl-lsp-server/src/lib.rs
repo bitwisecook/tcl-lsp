@@ -27,12 +27,15 @@ use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
+use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
+use tcl_lsp_core::file_ops as core_file_ops;
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
 use tcl_lsp_core::minify as core_minify;
@@ -44,6 +47,7 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::workspace_index as core_workspace_index;
 // type_hierarchy core provider lands when tower-lsp's
 // LanguageServer trait exposes the type-hierarchy methods.
@@ -69,28 +73,30 @@ use tower_lsp::lsp_types::{
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DidOpenTextDocumentParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
     DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
     FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
-    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
-    PrepareRenameResponse, Range, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
-    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
+    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
     TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -1088,10 +1094,22 @@ impl Backend {
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
     async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+        // GAP-C1: the base analyser only surfaces `Analyser::analyse`
+        // diagnostics.  The optimiser O-codes, GVN redundancies,
+        // shimmer/thunking, taint (W2xx / T1xx), and the iRules
+        // control-flow checks are all implemented in `tcl-compiler`
+        // but, until now, reached no server caller — only the PyO3
+        // bridge.  Run `compiler_checks::run_all_checks` +
+        // `optimiser::optimise_with_dialect` on the same worker and
+        // merge their diagnostics into the published set.  Both need
+        // the dialect-aware registry, so resolve it before the
+        // blocking hop and move an `Arc` clone in.
+        let registry = self.registry_for_dialect(&dialect).await;
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&text, &dialect).clone();
-            let diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
             (analysis, diagnostics)
         })
         .await;
@@ -1411,13 +1429,55 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDeclarationParams,
     ) -> jsonrpc::Result<Option<GotoDeclarationResponse>> {
+        // GAP-B3 strip 3: for a `$var`, go-to-declaration resolves the
+        // visible `global` / `variable` / `upvar` scoping statement that
+        // declares the name; for any other symbol it defers to plain
+        // go-to-definition (handled inside `core_declaration`).
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_declaration::declaration(
+                &text,
+                pos.line,
+                pos.character,
+                &dialect,
+                &analysis,
+                &registry,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("declaration worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let locations: Vec<Location> = if ranges.is_empty() {
+            // No in-document declaration / definition — try the
+            // cross-document index (a sibling-file proc / class), the
+            // same fallback go-to-definition uses.
+            self.compute_definition(&uri, pos).await?
+        } else {
+            ranges
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_lsp_range(r),
+                })
+                .collect()
+        };
         if locations.is_empty() {
             return Ok(None);
         }
@@ -1428,16 +1488,41 @@ impl LanguageServer for Backend {
         &self,
         params: GotoTypeDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoTypeDefinitionResponse>> {
+        // GAP-B3 strip 2: type-definition jumps to the class that types
+        // the symbol (a `$obj` instance's class, or a method's owning
+        // class) — not the plain definition site it used to alias.
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
-        if locations.is_empty() {
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let text = doc.text.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_type_definition::type_definition(&text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("type-definition worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
             return Ok(None);
         }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
         Ok(Some(GotoTypeDefinitionResponse::Array(locations)))
     }
 
@@ -1445,16 +1530,41 @@ impl LanguageServer for Backend {
         &self,
         params: GotoImplementationParams,
     ) -> jsonrpc::Result<Option<GotoImplementationResponse>> {
+        // GAP-B3 strip 1: go-to-implementation is the TclOO subclass /
+        // method-override fan-out, not the plain definition site it used
+        // to alias.  Resolve in-document via `core_implementation`.
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
-        if locations.is_empty() {
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let text = doc.text.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_implementation::implementation(&text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("implementation worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
             return Ok(None);
         }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
         Ok(Some(GotoImplementationResponse::Array(locations)))
     }
 
@@ -2170,9 +2280,15 @@ impl LanguageServer for Backend {
             .await;
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
-        // requested range.  Run analysis on a worker.
+        // requested range, plus fuzzy `package require`
+        // suggestions for the word at the cursor.  Run on a worker.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let actions = tokio::task::spawn_blocking(move || {
-            core_code_actions::code_actions(&doc.text, range, Some(&analysis))
+            let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
+            actions.extend(core_code_actions::package_require_actions(
+                &doc.text, range, &registry,
+            ));
+            actions
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -2431,6 +2547,90 @@ impl LanguageServer for Backend {
         }))
     }
 
+    /// `workspace/willRenameFiles` (GAP-A9): when `.tcl` files are
+    /// renamed in the editor, rewrite every dependent file's `source`
+    /// literal so the workspace still loads.  The pure core
+    /// (`core_file_ops::compute_rename_edits`) returns byte-span edits
+    /// keyed by dependent URI; here we resolve each span to an LSP
+    /// range against the dependent's current text and assemble a
+    /// `WorkspaceEdit` (one `TextDocumentEdit` per dependent, matching
+    /// the Python `compute_batch_rename_edits`).
+    async fn will_rename_files(
+        &self,
+        params: RenameFilesParams,
+    ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        // Collect the byte-span edits for every rename in the batch.
+        let roots: Vec<String> = self
+            .workspace_folder_urls()
+            .await
+            .iter()
+            .map(Url::to_string)
+            .collect();
+        let raw_edits: Vec<core_file_ops::RenameEdit> = {
+            let index = self.workspace_index.lock().await;
+            params
+                .files
+                .iter()
+                .flat_map(|f| {
+                    core_file_ops::compute_rename_edits(&f.old_uri, &f.new_uri, &index, &roots)
+                })
+                .collect()
+        };
+        if raw_edits.is_empty() {
+            return Ok(None);
+        }
+        // Group by dependent URI, resolving each span against that
+        // document's source (open buffer or on-disk fallback).
+        let mut by_dep: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        for edit in raw_edits {
+            let Ok(dep_url) = Url::parse(&edit.uri) else {
+                continue;
+            };
+            let Some(doc) = self.read_document(&dep_url).await else {
+                continue;
+            };
+            let line_index = tcl_lexer::LineIndex::new(&doc.text);
+            by_dep.entry(dep_url).or_default().push(TextEdit {
+                range: lift_span(&line_index, edit.span),
+                new_text: edit.new_text,
+            });
+        }
+        if by_dep.is_empty() {
+            return Ok(None);
+        }
+        let document_changes: Vec<TextDocumentEdit> = by_dep
+            .into_iter()
+            .map(|(uri, edits)| TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier { uri, version: None },
+                edits: edits.into_iter().map(OneOf::Left).collect(),
+            })
+            .collect();
+        Ok(Some(WorkspaceEdit {
+            changes: None,
+            document_changes: Some(DocumentChanges::Edits(document_changes)),
+            change_annotations: None,
+        }))
+    }
+
+    /// `workspace/didRenameFiles` (GAP-A9): after the client applies a
+    /// rename on disk, refresh the workspace index — drop the old URI's
+    /// entries and re-index the renamed file from its new path so
+    /// cross-document features (including future renames) stay current.
+    /// Mirrors the Python `on_did_rename_files`.
+    async fn did_rename_files(&self, params: RenameFilesParams) {
+        for f in &params.files {
+            if let Ok(old_url) = Url::parse(&f.old_uri) {
+                self.workspace_index
+                    .lock()
+                    .await
+                    .remove_document(old_url.as_str());
+            }
+            if let Ok(new_url) = Url::parse(&f.new_uri) {
+                self.reindex_index_from_disk(&new_url).await;
+            }
+        }
+    }
+
     async fn signature_help(
         &self,
         params: SignatureHelpParams,
@@ -2531,6 +2731,7 @@ fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
         CoreCompletionKind::Variable => CompletionItemKind::VARIABLE,
         CoreCompletionKind::Function => CompletionItemKind::FUNCTION,
         CoreCompletionKind::EnumValue => CompletionItemKind::ENUM_MEMBER,
+        CoreCompletionKind::Snippet => CompletionItemKind::SNIPPET,
     }
 }
 
@@ -2541,6 +2742,12 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         insert_text: Some(item.insert_text),
         detail: item.detail,
         sort_text: item.sort_text,
+        // GAP-A9: snippet items carry VS Code tabstop syntax and
+        // filter on their `tcl-…` prefix.
+        insert_text_format: item
+            .is_snippet
+            .then_some(tower_lsp::lsp_types::InsertTextFormat::SNIPPET),
+        filter_text: item.filter_text,
         ..CompletionItem::default()
     }
 }
@@ -2643,6 +2850,33 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// shape.  Shared by both the push-based `publish_diagnostics`
 /// path (via `publish_analyser_diagnostics`) and the pull-
 /// based `textDocument/diagnostic` handler.
+/// Resolve a byte `span` to an LSP `Range` through `line_index`.
+/// Shared by every `lift_*_diagnostics` helper so the offset →
+/// (line, character) mapping is identical for analyser, compiler-
+/// check, and optimiser diagnostics.
+fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
+    let start = line_index.position_at(span.start());
+    let end = line_index.position_at(span.end());
+    Range {
+        start: Position {
+            line: start.line,
+            character: start.character,
+        },
+        end: Position {
+            line: end.line,
+            character: end.character,
+        },
+    }
+}
+
+/// Diagnostic codes that are *default-off* in the editor catalogue —
+/// the analyser emits them (matching the Python `analyse` contract) but
+/// the LSP layer is the consuming filter, so they are dropped from the
+/// published set unless explicitly enabled.  Mirrors Python's
+/// default-disabled code handling; the Rust server has no per-code
+/// enable config yet, so these are simply never published.
+const DEFAULT_OFF_CODES: &[&str] = &["W242"];
+
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
@@ -2650,43 +2884,110 @@ fn lift_analyser_diagnostics(
     let line_index = tcl_lexer::LineIndex::new(text);
     diagnostics
         .iter()
+        .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
-        .map(|d| {
-            let start = line_index.position_at(d.span.start());
-            let end = line_index.position_at(d.span.end());
-            tower_lsp::lsp_types::Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: start.line,
-                        character: start.character,
-                    },
-                    end: Position {
-                        line: end.line,
-                        character: end.character,
-                    },
-                },
-                severity: Some(match d.severity {
-                    tcl_compiler::analyser::Severity::Error => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::ERROR
-                    }
-                    tcl_compiler::analyser::Severity::Warning => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::WARNING
-                    }
-                    tcl_compiler::analyser::Severity::Hint
-                    | tcl_compiler::analyser::Severity::Suggestion => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::HINT
-                    }
-                }),
-                code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
-                code_description: None,
-                source: Some("tcl-lsp".to_string()),
-                message: d.message,
-                related_information: None,
-                tags: None,
-                data: None,
-            }
+        .map(|d| tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, d.span),
+            severity: Some(match d.severity {
+                tcl_compiler::analyser::Severity::Error => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                }
+                tcl_compiler::analyser::Severity::Warning => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                }
+                tcl_compiler::analyser::Severity::Hint
+                | tcl_compiler::analyser::Severity::Suggestion => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                }
+            }),
+            code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
         })
         .collect()
+}
+
+/// GAP-C1: lift the compiler-checks pipeline (GVN redundancies,
+/// shimmer / thunking, taint W2xx / T1xx, iRules control-flow
+/// IRULE1xxx-5xxx, SCCP constant branches) **and** the optimiser
+/// O-codes into LSP diagnostics.  These analyses are implemented in
+/// `tcl-compiler` but were previously only reachable through the
+/// `PyO3` bridge — the native server published nothing from them.
+///
+/// `dialect` is the resolved per-document dialect string (empty for
+/// plain Tcl); `registry` must already carry that dialect's specs
+/// loaded (the caller resolves it via `registry_for_dialect`).
+///
+/// Note: this builds a `CompilationUnit` for the checks and the
+/// optimiser builds its own internally, so the source is lowered
+/// twice.  That is acceptable for the initial wiring (the analyses
+/// themselves are the cost); sharing a single lowered unit across
+/// both is a follow-up once the document-store lands.
+fn lift_compiler_diagnostics(
+    text: &str,
+    registry: &CommandRegistry,
+    dialect: &str,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    use tcl_compiler::compilation_unit::CompilationUnit;
+    use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
+    use tcl_compiler::optimiser::optimise_with_dialect;
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+
+    let line_index = tcl_lexer::LineIndex::new(text);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let mut out: Vec<tower_lsp::lsp_types::Diagnostic> = Vec::new();
+
+    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow
+    // / SCCP, all keyed off a single interprocedurally-summarised
+    // compilation unit (mirrors the `compiler_checks_run_all` PyO3
+    // bridge's construction).
+    let cu = CompilationUnit::build_for_with_config(
+        text,
+        registry,
+        false,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    )
+    .with_interprocedural(registry, dialect_opt);
+    for d in run_all_checks(&cu, registry, dialect_opt) {
+        out.push(tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, d.span),
+            severity: Some(match d.severity {
+                CheckSeverity::Error => DiagnosticSeverity::ERROR,
+                CheckSeverity::Warning => DiagnosticSeverity::WARNING,
+                CheckSeverity::Hint | CheckSeverity::Suggestion => DiagnosticSeverity::HINT,
+            }),
+            code: Some(NumberOrString::String(d.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        });
+    }
+
+    // Optimiser O-codes — actionable + hint-only rewrites, surfaced
+    // as HINT-severity suggestions (the editor renders the code-action
+    // fix from the diagnostic; the fix plumbing itself is GAP-C3).
+    for o in optimise_with_dialect(text, registry, dialect_opt) {
+        out.push(tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, o.span),
+            severity: Some(DiagnosticSeverity::HINT),
+            code: Some(NumberOrString::String(o.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: o.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        });
+    }
+
+    out
 }
 
 /// Build an empty `DocumentDiagnosticReportResult` for callers
@@ -2890,7 +3191,35 @@ fn build_server_capabilities() -> ServerCapabilities {
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
+        // `S-workspace-file-ops` (GAP-A9): advertise willRename /
+        // didRename so the editor consults us before/after a `.tcl`
+        // rename — the willRename handler rewrites dependents' `source`
+        // literals, the didRename handler reindexes the moved file.
+        workspace: Some(WorkspaceServerCapabilities {
+            workspace_folders: None,
+            file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                will_rename: Some(rename_file_operation_options()),
+                did_rename: Some(rename_file_operation_options()),
+                ..WorkspaceFileOperationsServerCapabilities::default()
+            }),
+        }),
         ..ServerCapabilities::default()
+    }
+}
+
+/// File-operation filter for `willRename` / `didRename`: match the Tcl
+/// source extensions (`.tcl` / `.tm` / `.itcl` / `.irule` / `.irul`),
+/// mirroring the Python `_RENAME_FILE_OPERATION_OPTIONS` glob.
+fn rename_file_operation_options() -> FileOperationRegistrationOptions {
+    FileOperationRegistrationOptions {
+        filters: vec![FileOperationFilter {
+            scheme: Some("file".to_owned()),
+            pattern: FileOperationPattern {
+                glob: "**/*.{tcl,tm,itcl,irule,irul}".to_owned(),
+                matches: None,
+                options: None,
+            },
+        }],
     }
 }
 
@@ -3057,6 +3386,69 @@ mod tests {
     use tower_lsp::lsp_types::{
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    #[test]
+    fn default_off_w242_is_not_published() {
+        // `while {$x < 10} {puts hi}` emits the default-off W242 hint
+        // from the analyser, which the lift layer must drop (no consuming
+        // config exists in the Rust server) while keeping other codes.
+        let src = "while {$x < 10} {puts hi}\n";
+        let mut a = Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == "W242"),
+            "analyser should still emit W242"
+        );
+        let lifted = lift_analyser_diagnostics(src, &analysis.diagnostics);
+        assert!(
+            !lifted.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "W242"
+            )),
+            "W242 must be filtered from the published set"
+        );
+    }
+
+    /// GAP-C1: the constant-true `if` is folded by SCCP and surfaced
+    /// as an `O100` constant-branch diagnostic from `run_all_checks`.
+    /// The base analyser never emits it, so a non-empty result with an
+    /// O-code proves `lift_compiler_diagnostics` carries the compiler-
+    /// check pipeline's output into the published diagnostic set.
+    #[test]
+    fn lift_compiler_diagnostics_surfaces_compiler_check_codes() {
+        let registry = CommandRegistry::build_default();
+        let src = "if {1} { set x 1 } else { set y 2 }\n";
+        let diags = lift_compiler_diagnostics(src, &registry, "");
+        assert!(
+            diags.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100"
+            )),
+            "expected an O100 constant-branch diagnostic, got: {:?}",
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+        // Every lifted diagnostic carries the shared source tag.
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// An iRules taint flow (`HTTP::uri` → `HTTP::respond`) is an
+    /// IRULE3001 the base analyser does not emit; the dialect-aware
+    /// registry path must surface it through `lift_compiler_diagnostics`.
+    #[test]
+    fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
+        let diags = lift_compiler_diagnostics(src, &registry, "f5-irules");
+        assert!(
+            diags.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "IRULE3001"
+            )),
+            "expected IRULE3001, got: {:?}",
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+    }
 
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
@@ -3925,6 +4317,78 @@ mod tests {
         };
         let result = backend.rename(params).await.expect("ok");
         assert!(result.is_none(), "rename to a built-in should be refused");
+    }
+
+    #[tokio::test]
+    async fn will_rename_rewrites_dependent_source_literal() {
+        let backend = test_backend();
+        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        // main.tcl sources lib/old.tcl via a relative literal.
+        register(&backend, &main, "source lib/old.tcl\nputs hi\n").await;
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: "file:///proj/lib/old.tcl".to_owned(),
+                new_uri: "file:///proj/lib/new.tcl".to_owned(),
+            }],
+        };
+        let edit = backend
+            .will_rename_files(params)
+            .await
+            .expect("ok")
+            .expect("some");
+        let DocumentChanges::Edits(doc_edits) = edit.document_changes.expect("document_changes")
+        else {
+            panic!("expected Edits");
+        };
+        assert_eq!(doc_edits.len(), 1);
+        assert_eq!(doc_edits[0].text_document.uri, main);
+        assert_eq!(doc_edits[0].edits.len(), 1);
+        let OneOf::Left(text_edit) = &doc_edits[0].edits[0] else {
+            panic!("expected plain TextEdit");
+        };
+        assert_eq!(text_edit.new_text, "lib/new.tcl");
+        // The edit range covers the original `lib/old.tcl` literal on
+        // the first line.
+        assert_eq!(text_edit.range.start.line, 0);
+    }
+
+    #[tokio::test]
+    async fn will_rename_returns_none_without_dependents() {
+        let backend = test_backend();
+        let main = Url::parse("file:///proj/main.tcl").unwrap();
+        register(&backend, &main, "source other.tcl\n").await;
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: "file:///proj/lib/old.tcl".to_owned(),
+                new_uri: "file:///proj/lib/new.tcl".to_owned(),
+            }],
+        };
+        // Nothing sources lib/old.tcl → no edit.
+        assert!(backend
+            .will_rename_files(params)
+            .await
+            .expect("ok")
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn did_rename_reindexes_moved_document() {
+        let backend = test_backend();
+        let old = Url::parse("file:///gone.tcl").unwrap();
+        register(&backend, &old, "proc helper {} {}\n").await;
+        assert_eq!(backend.workspace_index.lock().await.procs().len(), 1);
+        let params = RenameFilesParams {
+            files: vec![tower_lsp::lsp_types::FileRename {
+                old_uri: old.to_string(),
+                // New path doesn't exist on disk (test env) — reindex
+                // drops the stale old entry and finds nothing to add.
+                new_uri: "file:///moved.tcl".to_owned(),
+            }],
+        };
+        backend.did_rename_files(params).await;
+        // The old document's proc is gone from the index.
+        let index = backend.workspace_index.lock().await;
+        assert!(index.procs().iter().all(|p| p.uri != old.as_str()));
     }
 
     #[tokio::test]

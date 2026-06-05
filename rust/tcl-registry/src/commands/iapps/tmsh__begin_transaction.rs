@@ -1,5 +1,10 @@
 //! `tmsh::begin_transaction` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::begin_transaction",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::begin_transaction",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::begin_transaction"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `vmap` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "vmap ?-c? ?-del? library_name ?library_path?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vmap",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["vmap ?-c? ?-del? library_name ?library_path?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

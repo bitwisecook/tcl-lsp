@@ -1,5 +1,10 @@
 //! `report_hierarchy` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_hierarchy ?-nosplit? ?-full?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_hierarchy",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_hierarchy ?-nosplit? ?-full?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

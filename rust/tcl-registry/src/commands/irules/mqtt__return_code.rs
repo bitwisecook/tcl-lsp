@@ -5,11 +5,35 @@ pub fn spec() -> CommandSpec {
         name: "MQTT::return_code",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get or set return-code field of MQTT CONNACK message.",
-            &["MQTT::return_code (RETURN_CODE)?"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get or set return-code field of MQTT CONNACK message.",
+            synopsis: &["MQTT::return_code (RETURN_CODE)?"],
+            snippet: "This command can be used to get or set return-code field of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    CONNACK",
+            source: "https://clouddocs.f5.com/api/irules/MQTT__return_code.html",
+            examples: "# For security reasons convert all refused reasons to 5\nwhen MQTT_SERVER_INGRESS {\n   set type [MQTT::type]\n   switch $type {\n       \"CONNACK\" {\n          if { [MQTT::return_code] != 0 } {\n             MQTT::return_code 5\n          }\n       }\n   }\n}",
+            return_value: "When called without an argument, this command returns the return-code field of MQTT CONNACK message.",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["MQTT"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MQTT::return_code (RETURN_CODE)?" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

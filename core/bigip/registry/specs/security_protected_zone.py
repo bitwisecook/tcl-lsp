@@ -19,12 +19,19 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "protected zone"),),
         properties=(
             BigipPropertySpec(name="copy-from", value_type="string"),
-            BigipPropertySpec(name="fw-zone-name", value_type="string"),
-            BigipPropertySpec(name="dos-profile", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="dos-profile",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+                references=("security_dos_profile",),
+            ),
+            BigipPropertySpec(name="fw-zone-name", value_type="unknown"),
             BigipPropertySpec(
                 name="log-profile",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

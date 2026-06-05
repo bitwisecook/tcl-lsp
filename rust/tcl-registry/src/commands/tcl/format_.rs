@@ -1,6 +1,11 @@
 //! `format` — format a string using printf-style conversion.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "format formatString ?arg arg ...?",
+}];
+
 /// SYNC-JUN02d (#525 B-tail) + SYNC-JUN03 follow-up: constant-fold the
 /// integer (`%d` / `%i` / `%u`), radix (`%x` / `%X` / `%o` / `%b`), character
 /// (`%c`), float (`%f` / `%F` / `%e` / `%E` / `%g` / `%G`) and string (`%s`)
@@ -533,11 +538,18 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),
-        hover: Some(HoverSnippet::brief(
-            "Format a string.",
-            &["format formatString ?arg ...?"],
-            "Tcl format(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Format a string in the style of sprintf",
+            synopsis: &[
+                "format formatString ?arg arg ...?",
+                "format formatString ?arg ...?",
+            ],
+            snippet: "",
+            source: "Tcl man page format.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

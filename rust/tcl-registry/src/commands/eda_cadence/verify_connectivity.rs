@@ -1,5 +1,10 @@
 //! `verify_connectivity` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "verify_connectivity ?-type type? ?-error n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "verify_connectivity",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["verify_connectivity ?-type type? ?-error n?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

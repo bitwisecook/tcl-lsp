@@ -23,6 +23,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 references=("net_route_domain",),
             ),
+            BigipPropertySpec(name="default-route-domain", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
         ),
     )

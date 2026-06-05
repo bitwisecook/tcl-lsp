@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testnrelevels",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test NRE evaluation levels.",
-            &["testnrelevels"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test NRE evaluation levels.",
+            synopsis: &["testnrelevels"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

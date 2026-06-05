@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testchannel",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test channel introspection and manipulation.",
-            &["testchannel"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test channel introspection and manipulation.",
+            synopsis: &["testchannel"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lpop varName ?index ...?",
+}];
+
 /// Command spec for `lpop`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -19,11 +24,15 @@ pub fn spec() -> CommandSpec {
         )],
         return_type: Some(TclType::String),
         inferred_storage_type: Some(StorageType::List),
-        hover: Some(HoverSnippet::brief(
-            "Get and remove an element in a list variable.",
-            &["lpop varName ?index ...?"],
-            "Tcl 9 man page lpop.n",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Get and remove an element in a list variable.",
+            synopsis: &["lpop varName ?index ...?"],
+            snippet: "",
+            source: "Tcl 9 man page lpop.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

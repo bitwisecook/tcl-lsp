@@ -1,5 +1,10 @@
 //! `project_exists` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "project_exists project_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "project_exists",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["project_exists project_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

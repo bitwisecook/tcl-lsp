@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "XML::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Changes the XML plugin from full patching mode to passthrough.",
-            &["XML::disable"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Changes the XML plugin from full patching mode to passthrough.",
+            synopsis: &["XML::disable"],
+            snippet: "Changes the XML plugin from full patching mode to passthrough.",
+            source: "https://clouddocs.f5.com/api/irules/XML__disable.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "XML::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

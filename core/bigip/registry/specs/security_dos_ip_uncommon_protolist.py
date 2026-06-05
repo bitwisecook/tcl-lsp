@@ -21,9 +21,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="entries",
-                value_type="enum",
+                value_type="list",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="none",
             ),
         ),
     )

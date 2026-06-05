@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "DIAG::test",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `DIAG::test`.",
-            &["DIAG::test"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `DIAG::test`.",
+            synopsis: &["DIAG::test"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/DIAG__test.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAG::test",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::InterpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

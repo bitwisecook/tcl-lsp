@@ -5,11 +5,35 @@ pub fn spec() -> CommandSpec {
         name: "HTTP2::version",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "This command can be used to determine the HTTP/2 protocol version used.",
-            &["HTTP2::version"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "This command can be used to determine the HTTP/2 protocol version used.",
+            synopsis: &["HTTP2::version"],
+            snippet: "Returns 2 if the HTTP/2 protocol is used. Returns 0 if no HTTP/2 request is active.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP2__version.html",
+            examples: "when HTTP_REQUEST {\n    if {[HTTP2::version] != 0} {\n        HTTP::header insert \"X-HTTP2-Values version \" \"[HTTP2::version]\"\n    }\n}",
+            return_value: "The return is 2 if the HTTP/2 protocol is used, 0 if HTTP/2 is not active.",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["HTTP"],
+            also_in: &["MR_INGRESS"],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::version" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Http2State,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

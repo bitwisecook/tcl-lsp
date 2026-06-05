@@ -87,6 +87,407 @@ use crate::expr_ast::{BinOp, ExprNode};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
+/// The source text covered by `span`, or `None` when the span is out
+/// of bounds / not on char boundaries.
+fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    if start <= end && end <= source.len() {
+        source.get(start..end).map(str::to_owned)
+    } else {
+        None
+    }
+}
+
+/// True when `ch` is a standard ASCII character W108 leaves alone: tab
+/// / LF / CR, or printable ASCII `0x20`-`0x7e`.  Mirrors
+/// `_NON_ASCII_RE = [^\x09\x0a\x0d\x20-\x7e]` (negated).
+fn is_standard_ascii(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r' | ' '..='~')
+}
+
+/// Integer format specifiers for `binary format` / `binary scan` that
+/// accept the Tcl 8.5+ `u` / `s` modifier.  Mirrors
+/// `_BINARY_INT_SPECIFIERS`.
+const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
+
+/// Mask-octet values that can appear in a contiguous subnet mask.
+/// Mirrors `_VALID_MASK_OCTETS`.
+const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
+
+/// True when the four octets form a valid contiguous subnet mask
+/// (all-1s then all-0s).  Mirrors `_is_valid_subnet_mask`.
+fn is_valid_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    if val == 0 {
+        return true;
+    }
+    let inverted = val ^ 0xFFFF_FFFF;
+    (inverted & inverted.wrapping_add(1)) == 0
+}
+
+/// Heuristic: the dotted-quad plausibly *intends* to be a mask.
+/// Mirrors `_looks_like_subnet_mask`.
+fn looks_like_subnet_mask(a: u32, b: u32, c: u32, d: u32) -> bool {
+    if a == 255 && !(b == 255 && c == 255 && d == 255) {
+        return true;
+    }
+    a >= 128 && [a, b, c, d].iter().all(|o| VALID_MASK_OCTETS.contains(o))
+}
+
+/// Suggest the nearest valid contiguous mask, or `None`.  Mirrors
+/// `_nearest_valid_mask`.
+fn nearest_valid_mask(a: u32, b: u32, c: u32, d: u32) -> Option<String> {
+    let val = (a << 24) | (b << 16) | (c << 8) | d;
+    let mut leading = 0u32;
+    for bit in (0..32).rev() {
+        if val & (1 << bit) != 0 {
+            leading += 1;
+        } else {
+            break;
+        }
+    }
+    if leading == 0 || leading == 32 {
+        return None;
+    }
+    let candidate = 0xFFFF_FFFFu32 << (32 - leading);
+    Some(format!(
+        "{}.{}.{}.{}",
+        (candidate >> 24) & 0xFF,
+        (candidate >> 16) & 0xFF,
+        (candidate >> 8) & 0xFF,
+        candidate & 0xFF
+    ))
+}
+
+// -- IP / ReDoS leaf scanners (regex-free) ----------------------------
+
+/// A `\w` byte: ASCII alphanumeric or underscore (word boundary basis).
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+/// One dotted-quad match found in a value: the four octet substrings and
+/// the byte offset where it begins (for context checks like a preceding
+/// `/`).
+struct DottedQuad<'a> {
+    octets: [&'a str; 4],
+    start: usize,
+}
+
+/// Find every `\b\d{1,N}.\d{1,N}.\d{1,N}.\d{1,N}\b` dotted quad in
+/// `text` (non-overlapping, left-to-right), replacing the regex scan.
+/// `max_digits` caps each octet's digit count (`3` for the subnet-mask
+/// check, `4` for the invalid-IP one).  Each octet starts at a word
+/// boundary, so a longer digit run (a 4th/5th digit) simply fails to
+/// align with the following `.` and is skipped — matching the regex.
+fn find_dotted_quads(text: &str, max_digits: usize) -> Vec<DottedQuad<'_>> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
+        if boundary_before {
+            if let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
+                out.push(DottedQuad { octets, start: i });
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Match a dotted quad starting at byte `start` (a word boundary), each
+/// octet `1..=max_digits` digits separated by `.`, requiring a trailing
+/// word boundary.  Returns the octet substrings and the end offset.
+fn match_dotted_quad(text: &str, start: usize, max_digits: usize) -> Option<([&str; 4], usize)> {
+    let bytes = text.as_bytes();
+    let mut pos = start;
+    let mut octets: [&str; 4] = [""; 4];
+    for (k, slot) in octets.iter_mut().enumerate() {
+        let run_start = pos;
+        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+            pos += 1;
+        }
+        let len = pos - run_start;
+        if len == 0 || len > max_digits {
+            return None;
+        }
+        *slot = &text[run_start..pos];
+        if k < 3 {
+            if bytes.get(pos) != Some(&b'.') {
+                return None;
+            }
+            pos += 1; // consume the dot
+        }
+    }
+    // Trailing `\b`: end of string or a non-word byte.
+    if pos < bytes.len() && is_word_byte(bytes[pos]) {
+        return None;
+    }
+    Some((octets, pos))
+}
+
+/// Find every IPv6 *candidate* substring — `\b[hex]{1,4}(:[hex]{0,4}){2,7}\b`
+/// — in `text` (the caller validates each via `Ipv6Addr::from_str`).
+/// Replaces the regex; each candidate begins at a word boundary, has a
+/// 1-4 hex-digit first group, 2-7 following `:`-groups (each 0-4 hex),
+/// and ends on a hex digit at a trailing word boundary.
+fn find_ipv6_candidates(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
+        if boundary_before && bytes[i].is_ascii_hexdigit() {
+            if let Some(end) = match_ipv6_candidate(bytes, i) {
+                out.push(&text[i..end]);
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Read up to `max` contiguous hex-digit bytes from `start`, returning
+/// the count.
+fn hex_run_len(bytes: &[u8], start: usize, max: usize) -> usize {
+    let mut k = 0;
+    while k < max && start + k < bytes.len() && bytes[start + k].is_ascii_hexdigit() {
+        k += 1;
+    }
+    k
+}
+
+/// Match an IPv6 candidate starting at `start`, returning the end offset
+/// of the longest `hex(:hex?){2,7}` run that ends on a hex digit and is
+/// followed by a word boundary, or `None`.
+fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
+    let first = hex_run_len(bytes, start, 4);
+    if first == 0 {
+        return None;
+    }
+    let mut pos = start + first;
+    let mut groups = 0usize;
+    let mut best: Option<usize> = None;
+    while groups < 7 && bytes.get(pos) == Some(&b':') {
+        let after_colon = pos + 1;
+        let h = hex_run_len(bytes, after_colon, 4);
+        pos = after_colon + h;
+        groups += 1;
+        // A valid `\b`-terminated end: ≥2 groups, ends on a hex digit,
+        // and is followed by a non-word byte (or end of input).
+        if groups >= 2 && h >= 1 && (pos >= bytes.len() || !is_word_byte(bytes[pos])) {
+            best = Some(pos);
+        }
+    }
+    best
+}
+
+/// True when `pattern` contains a catastrophic-backtracking shape: a
+/// nested quantifier (`…+)+`, `…*)*`, `…+){`) or an overlapping
+/// alternation (`(…|…)` immediately followed by `+` / `*` / `{`).
+/// Hand-written replacement for the `_REDOS_PATTERN` regex.
+fn has_redos_shape(pattern: &str) -> bool {
+    let bytes = pattern.as_bytes();
+    let quant = |b: Option<&u8>| matches!(b, Some(b'+' | b'*' | b'{'));
+    // Nested quantifier: `<+|*> ) <+|*|{>`.
+    for i in 0..bytes.len() {
+        if matches!(bytes[i], b'+' | b'*')
+            && bytes.get(i + 1) == Some(&b')')
+            && quant(bytes.get(i + 2))
+        {
+            return true;
+        }
+    }
+    // Overlapping alternation: `( [^)]* | [^)]* ) <+|*|{>`.
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'(' {
+            let mut j = i + 1;
+            let mut has_pipe = false;
+            while j < bytes.len() && bytes[j] != b')' {
+                has_pipe |= bytes[j] == b'|';
+                j += 1;
+            }
+            if j < bytes.len() && has_pipe && quant(bytes.get(j + 1)) {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+/// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
+/// Mirrors `_first_token_is_braced`.
+fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
+    tok.kind == tcl_lexer::TokenType::Str
+}
+
+/// True when `text` carries a substitution (`$` / `[`) or `tok` is a
+/// `Var` / `Cmd` token.  Mirrors `_has_substitution`.
+fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
+    text.contains('$')
+        || text.contains('[')
+        || matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        )
+}
+
+/// True when `text` is a simple numeric or boolean literal that needs
+/// no bracing.  Mirrors `_is_safe_literal`.
+fn is_safe_literal(text: &str) -> bool {
+    let t = text.trim();
+    if t.parse::<f64>().is_ok() {
+        return true;
+    }
+    matches!(
+        t.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
+}
+
+/// True when an expr string is substitution-free numeric / boolean /
+/// operator text (safe to leave unbraced).  Mirrors
+/// `_is_safe_literal_expr`.
+fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
+    use tcl_lexer::ExprTokenType as T;
+    if is_safe_literal(text) {
+        return true;
+    }
+    if text.contains('$') || text.contains('[') {
+        return false;
+    }
+    let tokens = tcl_lexer::tokenise_expr(text, Some(dialect));
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.iter().all(|tok| {
+        matches!(
+            tok.kind,
+            T::Number
+                | T::Bool
+                | T::Operator
+                | T::ParenOpen
+                | T::ParenClose
+                | T::Whitespace
+                | T::TernaryQ
+                | T::TernaryC
+                | T::Comma
+        )
+    })
+}
+
+/// Resolve which argument indices (into `args`, command-name excluded)
+/// must be plain variable *names* for `cmd_name`.  Port of
+/// `_NAME_ARG_INDICES` + its four resolvers (`_first_arg_name`,
+/// `_unset_name_args`, `_info_exists_arg`, `_upvar_local_name_args`).
+fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        // First argument is the variable name.
+        "set" | "incr" | "append" | "lappend" => {
+            if args.is_empty() {
+                vec![]
+            } else {
+                vec![0]
+            }
+        }
+        // `unset ?-nocomplain? ?--? var ?var …?` — names start after the
+        // leading option flags.
+        "unset" => {
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        // Only the `exists` subcommand of `info` takes a name.
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                vec![]
+            }
+        }
+        // `upvar ?level? other local ?other local …?` — the *local*
+        // names are every other arg after an optional level word.
+        "upvar" => {
+            if args.is_empty() {
+                return vec![];
+            }
+            let head = &args[0];
+            let is_level = head.starts_with('#')
+                || (!head.is_empty()
+                    && head
+                        .trim_start_matches('-')
+                        .bytes()
+                        .all(|b| b.is_ascii_digit())
+                    && head.trim_start_matches('-').bytes().next().is_some());
+            let start = usize::from(is_level);
+            (start + 1..args.len()).step_by(2).collect()
+        }
+        _ => vec![],
+    }
+}
+
+/// Find the first `[`-`expr`-whitespace sequence in `slice` (the
+/// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
+/// `(open_bracket_index, matching_close_bracket_index)`.  The close is
+/// located by a depth scan; an unmatched `[` falls back to the last
+/// byte.  Returns `None` when no nested `[expr ` is present.
+fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
+    let bytes = slice.as_bytes();
+    let len = bytes.len();
+    let mut open = 0;
+    while open < len {
+        if bytes[open] == b'[' {
+            // `\s*`
+            let mut after_ws = open + 1;
+            while after_ws < len && bytes[after_ws].is_ascii_whitespace() {
+                after_ws += 1;
+            }
+            // `expr` followed by a whitespace byte.
+            let kw_end = after_ws + 4;
+            if kw_end < len
+                && &bytes[after_ws..kw_end] == b"expr"
+                && bytes[kw_end].is_ascii_whitespace()
+            {
+                // Depth-scan for the matching `]` (the open `[` is
+                // already counted).
+                let mut depth = 1;
+                let mut scan = open + 1;
+                while scan < len && depth > 0 {
+                    match bytes[scan] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        _ => {}
+                    }
+                    scan += 1;
+                }
+                let close = if depth == 0 { scan - 1 } else { len - 1 };
+                return Some((open, close));
+            }
+        }
+        open += 1;
+    }
+    None
+}
+
 /// Mirrors `_find_case_mismatch` in
 /// `core/analysis/_analyser/_diag_var_lifecycle.py:135-148`.
 /// Returns the lexicographically smallest other-cased variant —
@@ -378,6 +779,138 @@ fn body_references_param(body: &str, param: &str) -> bool {
 
 fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
+}
+
+/// Credential-bearing option flags whose literal values trip W310
+/// (the generic `_DEFAULT_PASSWORD_OPTIONS` from `_security.py`).
+const DEFAULT_PASSWORD_OPTIONS: [&str; 5] = ["-password", "-pass", "-secret", "-token", "-apikey"];
+
+/// True when `value` is a literal (not a `$var` / `[cmd]` substitution)
+/// — the W310 `_is_literal_value` gate.
+fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
+    !matches!(
+        tok.kind,
+        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+    ) && !value.starts_with('$')
+        && !value.contains('[')
+}
+
+/// Return `true` when an `uplevel` first argument is a level
+/// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
+/// Python's `args[0].lstrip("#").isdigit() or args[0] == "#0"`: strip
+/// any leading `#` then require a non-empty all-digit remainder.
+fn uplevel_has_level(arg0: &str) -> bool {
+    let stripped = arg0.trim_start_matches('#');
+    !stripped.is_empty() && stripped.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Parse `subst`'s flags, returning `(template_idx, nocommands,
+/// novariables)` — the index of the first non-option argument (the
+/// template) and which substitution-suppressing flags were seen.
+/// Mirrors `core/analysis/checks/_helpers.py::_parse_subst_flags`
+/// (`-nobackslashes` is accepted but irrelevant to the W102 message).
+fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
+    let mut nocommands = false;
+    let mut novariables = false;
+    let mut template_idx = None;
+    for (i, text) in args.iter().enumerate() {
+        match text.as_str() {
+            "-nocommands" => nocommands = true,
+            "-novariables" => novariables = true,
+            "-nobackslashes" => {}
+            t if t.starts_with('-') => {}
+            _ => {
+                template_idx = Some(i);
+                break;
+            }
+        }
+    }
+    (template_idx, nocommands, novariables)
+}
+
+/// Return `(pattern_text, token)` pairs for every regex pattern
+/// argument in a `regexp` / `regsub` / `switch -regexp` command.
+/// Mirrors `core/analysis/checks/_helpers.py::
+/// _find_regex_patterns_in_command`: `regexp` / `regsub` contribute
+/// their first positional (option-skipping) argument; `switch -regexp`
+/// contributes every non-`default` pattern arm — inline pairs (form 1)
+/// or a single braced case list (form 2, re-segmented via
+/// [`super::handlers::parse_switch_body_elements`]).
+fn find_regex_patterns_in_command(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+) -> Vec<(String, tcl_lexer::Token)> {
+    if args.is_empty() || arg_tokens.is_empty() {
+        return Vec::new();
+    }
+    match cmd_name {
+        "regexp" | "regsub" => {
+            // Skip leading flags to the pattern argument (`-start`
+            // consumes its value; `--` ends the option section).
+            let mut idx = 0;
+            while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
+                if args[idx] == "-start" && idx + 1 < args.len() {
+                    idx += 2;
+                } else {
+                    idx += 1;
+                }
+            }
+            if idx < args.len() && args[idx] == "--" {
+                idx += 1;
+            }
+            match (args.get(idx), arg_tokens.get(idx)) {
+                (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
+                _ => Vec::new(),
+            }
+        }
+        "switch" => {
+            let mut is_regexp = false;
+            let mut i = 0;
+            while i < args.len() && args[i].starts_with('-') {
+                if args[i] == "-regexp" {
+                    is_regexp = true;
+                }
+                if args[i] == "--" {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            if !is_regexp {
+                return Vec::new();
+            }
+            // Skip the `string` argument.
+            i += 1;
+            let mut results = Vec::new();
+            if i < args.len() && i == args.len() - 1 {
+                // Form 2: single braced case list.
+                if let Some(case_tok) = arg_tokens.get(i) {
+                    let elements = super::handlers::parse_switch_body_elements(&args[i], *case_tok);
+                    let mut j = 0;
+                    while j + 1 < elements.len() {
+                        let (text, tok) = &elements[j];
+                        if text != "default" {
+                            results.push((text.clone(), *tok));
+                        }
+                        j += 2;
+                    }
+                }
+            } else {
+                // Form 1: inline pattern/body pairs.
+                while i + 1 < args.len() {
+                    if let (Some(text), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                        if text != "default" {
+                            results.push((text.clone(), *tok));
+                        }
+                    }
+                    i += 2;
+                }
+            }
+            results
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Walk `node` and collect every `==`/`!=` operator whose at least
@@ -682,6 +1215,597 @@ Use braces: {{ \u{2026} }}"
                 new_text,
                 description: "Wrap code block in braces".to_string(),
             }],
+        });
+    }
+
+    /// W100 (GAP-A8): an expression argument (`expr` / `if` / `while`
+    /// / `for` conditions) that is not braced suffers double
+    /// substitution and defeats byte-compilation.  Skips a braced
+    /// (`{…}`) argument and a substitution-free numeric/boolean literal;
+    /// otherwise emits W100 (ERROR when the text carries a `$`/`[`
+    /// substitution, else WARNING) with a brace-wrapping fix.  Mirrors
+    /// `check_unbraced_expr`.  `args` / `arg_tokens` exclude the command
+    /// name.
+    pub(super) fn emit_w100_unbraced_expr(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::Expr,
+        );
+        if indices.is_empty() {
+            return;
+        }
+        indices.sort_unstable();
+
+        let is_expr = cmd_name == "expr";
+        let dialect = self.dialect.clone();
+        // The whole-`expr` argument span (used when the command is
+        // `expr`, whose expression is the remaining words).
+        let expr_full_span = (!arg_tokens.is_empty()).then(|| {
+            tcl_lexer::Span::new(
+                arg_tokens[0].span.start(),
+                arg_tokens[arg_tokens.len() - 1].span.end(),
+            )
+        });
+        let any_sub_token = arg_tokens.iter().any(|t| {
+            matches!(
+                t.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            )
+        });
+
+        let mut pending: Vec<(tcl_lexer::Span, String, bool)> = Vec::new();
+        for idx in indices {
+            let (Some(tok), Some(arg_text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            // A braced word (`{…}`, i.e. a `Str` token) is already safe.
+            if tok.kind == tcl_lexer::TokenType::Str {
+                continue;
+            }
+            // Resolve the diagnostic span + text: for `expr` the whole
+            // remaining-argument span; otherwise the single argument's
+            // source slice (preserving `$var` substitutions).
+            let (span, text) = if is_expr {
+                let sp = expr_full_span.unwrap_or(tok.span);
+                (
+                    sp,
+                    source_slice(&self.source, sp).unwrap_or_else(|| args.join(" ")),
+                )
+            } else {
+                (
+                    tok.span,
+                    source_slice(&self.source, tok.span).unwrap_or_else(|| arg_text.clone()),
+                )
+            };
+            let stripped = text.trim();
+            let safe = if is_expr {
+                is_safe_literal_expr(stripped, &dialect)
+            } else {
+                is_safe_literal(stripped)
+            };
+            if safe {
+                continue;
+            }
+            let has_sub = text.contains('$')
+                || text.contains('[')
+                || if is_expr {
+                    any_sub_token
+                } else {
+                    matches!(
+                        tok.kind,
+                        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                    )
+                };
+            pending.push((span, text, has_sub));
+        }
+
+        for (span, text, has_sub) in pending {
+            self.push_w100(cmd_name, is_expr, span, &text, has_sub);
+        }
+    }
+
+    /// Push one W100 diagnostic for an unbraced expression argument.
+    fn push_w100(
+        &mut self,
+        cmd_name: &str,
+        is_expr: bool,
+        span: tcl_lexer::Span,
+        text: &str,
+        has_sub: bool,
+    ) {
+        let severity = if has_sub {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        let message = if is_expr {
+            "Expression is not braced: may cause double substitution and prevents \
+             byte-compilation. Use expr {...} instead."
+                .to_string()
+        } else {
+            format!(
+                "Expression argument to '{cmd_name}' is not braced: may cause double \
+                 substitution. Use braces: {{{text}}}"
+            )
+        };
+        // Brace-wrapping fix; for a quoted `expr "…"` drop the quotes.
+        let fix_inner = if is_expr {
+            let s = text.trim();
+            if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+                &s[1..s.len() - 1]
+            } else {
+                text
+            }
+        } else {
+            text
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W100".to_string(),
+            span,
+            message,
+            severity,
+            fixes: vec![super::types::CodeFix {
+                span,
+                new_text: format!("{{{fix_inner}}}"),
+                description: "Wrap expression in braces".to_string(),
+            }],
+        });
+    }
+
+    /// W311 (GAP-A8): a channel configured with `-encoding binary` *and*
+    /// a non-binary `-translation` is contradictory (binary implies no
+    /// translation) and can corrupt data / enable encoding-differential
+    /// attacks.  Handles `fconfigure` and `chan configure`.  Mirrors
+    /// `check_encoding_mismatch`.
+    pub(super) fn emit_w311_encoding_mismatch(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let opt_start = if cmd_name == "fconfigure" {
+            1
+        } else if cmd_name == "chan" && args.first().map(String::as_str) == Some("configure") {
+            2
+        } else {
+            return;
+        };
+        if args.len() <= opt_start {
+            return;
+        }
+        let mut binary_tok = None;
+        let mut translation_tok = None;
+        let mut i = opt_start;
+        while i + 1 < args.len() {
+            let (opt, val) = (&args[i], &args[i + 1]);
+            if opt == "-encoding" && val == "binary" {
+                binary_tok = arg_tokens.get(i + 1);
+            } else if opt == "-translation" && val != "binary" {
+                translation_tok = arg_tokens.get(i + 1);
+            }
+            i += 2;
+        }
+        if binary_tok.is_some() && translation_tok.is_some() {
+            let target = translation_tok
+                .or(binary_tok)
+                .or_else(|| arg_tokens.first());
+            if let Some(tok) = target {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W311".to_string(),
+                    span: tok.span,
+                    message: "Channel configured with -encoding binary and a non-binary \
+                              -translation. Binary encoding implies no translation; the \
+                              conflicting -translation may silently corrupt data or enable \
+                              encoding-differential attacks."
+                        .to_string(),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W200 (GAP-A8): a `u` / `s` modifier on a `binary format` / `binary
+    /// scan` integer specifier requires Tcl 8.5+; under 8.4-based
+    /// dialects (incl. F5 iRules / iApps) it is unavailable.  Mirrors
+    /// `check_binary_format_modifiers`.
+    pub(super) fn emit_w200_binary_format_modifiers(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "binary" || args.is_empty() {
+            return;
+        }
+        let fmt_idx = match args[0].as_str() {
+            "format" if args.len() >= 2 => 1,
+            "scan" if args.len() >= 3 => 2,
+            _ => return,
+        };
+        if !matches!(self.dialect.as_str(), "tcl8.4" | "f5-irules" | "f5-iapps") {
+            return;
+        }
+        let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
+            return;
+        };
+        let fmt = args[fmt_idx].as_bytes();
+        let mut i = 0;
+        while i < fmt.len() {
+            if fmt[i].is_ascii_whitespace() {
+                i += 1;
+                continue;
+            }
+            while i < fmt.len() && fmt[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i >= fmt.len() {
+                break;
+            }
+            let spec = fmt[i];
+            i += 1;
+            if BINARY_INT_SPECIFIERS.contains(&spec)
+                && i < fmt.len()
+                && (fmt[i] == b'u' || fmt[i] == b's')
+            {
+                let modifier = fmt[i] as char;
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W200".to_string(),
+                    span: fmt_tok.span,
+                    message: format!(
+                        "signed/unsigned modifier '{modifier}' on binary format specifier \
+                         requires Tcl 8.5+"
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                i += 1;
+            }
+            if i < fmt.len() && fmt[i] == b'*' {
+                i += 1;
+            }
+        }
+    }
+
+    /// W121 (GAP-A8): a dotted-quad literal that looks like a subnet mask
+    /// but has non-contiguous bits (`255.255.255.1`, `255.0.255.0`) is
+    /// almost certainly a mistake.  Mirrors `check_invalid_subnet_mask`.
+    pub(super) fn emit_w121_invalid_subnet_mask(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for (tok, text) in arg_tokens.iter().zip(args.iter()) {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            for quad in find_dotted_quads(text, 3) {
+                let octets: Vec<u32> = quad
+                    .octets
+                    .iter()
+                    .map(|o| o.parse::<u32>().unwrap_or(999))
+                    .collect();
+                if octets.iter().any(|&o| o > 255) {
+                    continue;
+                }
+                let (a, b, c, d) = (octets[0], octets[1], octets[2], octets[3]);
+                if !looks_like_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                if is_valid_subnet_mask(a, b, c, d) {
+                    continue;
+                }
+                seen.insert(tok.span.start());
+                let quad = format!("{a}.{b}.{c}.{d}");
+                let mut message = format!(
+                    "'{quad}' looks like a subnet mask but has non-contiguous bits. A valid \
+                     mask must be contiguous leading 1-bits followed by 0-bits."
+                );
+                if let Some(s) = nearest_valid_mask(a, b, c, d) {
+                    if s != quad {
+                        use std::fmt::Write as _;
+                        let _ = write!(message, " Did you mean '{s}'?");
+                    }
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W121".to_string(),
+                    span: tok.span,
+                    message,
+                    severity: super::types::Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W108 (GAP-A3): a non-ASCII character in an argument token —
+    /// either a Unicode confusable (visually resembling ASCII) or a
+    /// known copy-paste artifact (smart quote, NBSP, em-dash, …).
+    /// `args` / `arg_tokens` exclude the command name (matching Python,
+    /// which does not scan the command word).  Mirrors `check_non_ascii`
+    /// in the default **confusables** mode (→ **strict** for F5
+    /// iRules / iApps); the `common` mode — which needs Unicode general-
+    /// category data Rust std lacks — is a follow-up.  One diagnostic
+    /// per offending character, with an ASCII-replacement fix when one
+    /// is known.
+    pub(super) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
+        use super::confusables_table::{auto_fix_for, confusable_to_ascii};
+        // No config wiring yet: confusables is the product default, and
+        // ASCII-only F5 dialects use strict.
+        let strict = matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps");
+
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+        for tok in arg_tokens {
+            if seen.contains(&tok.span.start()) {
+                continue;
+            }
+            let Some(slice) = source_slice(&self.source, tok.span) else {
+                continue;
+            };
+            // Skip a multi-line braced body — its inner commands are
+            // checked when the body is recursed into.
+            if tok.kind == tcl_lexer::TokenType::Esc && slice.contains('\n') {
+                continue;
+            }
+            let mut flagged_here = false;
+            for (rel, ch) in slice.char_indices() {
+                if is_standard_ascii(ch) {
+                    continue;
+                }
+                let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
+                // In confusables mode, only flag confusables / artifacts.
+                if !strict && fix.is_none() {
+                    continue;
+                }
+                flagged_here = true;
+                let start = tok.span.start() + u32::try_from(rel).unwrap_or(0);
+                let end = start + u32::try_from(ch.len_utf8()).unwrap_or(1);
+                let span = tcl_lexer::Span::new(start, end);
+                let fixes = fix
+                    .map(|repl| {
+                        vec![super::types::CodeFix {
+                            span,
+                            new_text: repl.to_string(),
+                            description: "Replace with ASCII equivalent".to_string(),
+                        }]
+                    })
+                    .unwrap_or_default();
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W108".to_string(),
+                    span,
+                    message: format!(
+                        "Non-ASCII character U+{:04X} '{ch}' \u{2014} outside the standard ASCII \
+                         printable/whitespace set",
+                        ch as u32
+                    ),
+                    severity: super::types::Severity::Warning,
+                    fixes,
+                });
+            }
+            if flagged_here {
+                seen.insert(tok.span.start());
+            }
+        }
+    }
+
+    /// W104 (GAP-A8): `append` used with a space-padded value looks
+    /// like list construction — fragile if the data contains special
+    /// characters.  Fires once (HINT) on the first value argument that
+    /// starts or ends with a space.  Mirrors `check_string_list_confusion`.
+    pub(super) fn emit_w104_append_list(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
+            return;
+        }
+        for (i, text) in args.iter().enumerate().skip(1) {
+            if text.starts_with(' ') || text.ends_with(' ') {
+                let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W104".to_string(),
+                    span: tok.span,
+                    message: "append with space-separated values looks like list \
+                              construction. Use [lappend] instead to safely handle values \
+                              containing spaces, braces, or backslashes."
+                        .to_string(),
+                    severity: super::types::Severity::Hint,
+                    fixes: Vec::new(),
+                });
+                return;
+            }
+        }
+    }
+
+    /// W106 (GAP-A8): an unbraced `switch` body undergoes an extra round
+    /// of substitution (especially dangerous under `-regexp`).  Handles
+    /// the single trailing-body form and the alternating pattern/body
+    /// form; skips braced bodies and the `-` fall-through.  ERROR when a
+    /// substitution is present or `-regexp` is set, else WARNING.
+    /// Mirrors `check_unbraced_switch_body`.
+    pub(super) fn emit_w106_unbraced_switch_body(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "switch" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        // Option flags, then the subject string.
+        let mut i = 0;
+        let mut has_regexp = false;
+        while i < args.len() && args[i].starts_with('-') {
+            if args[i] == "-regexp" {
+                has_regexp = true;
+            }
+            if args[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        if i >= args.len() {
+            return;
+        }
+        i += 1; // skip subject
+        if i >= args.len() {
+            return;
+        }
+
+        // Single trailing arg: the braced-list form (W105 / bracing
+        // handles a braced block); only flag an *unbraced* single block.
+        if i == args.len() - 1 {
+            if let Some(tok) = arg_tokens.get(i) {
+                if !is_braced_word(tok) {
+                    let dangerous = has_substitution(&args[i], tok);
+                    self.push_w106(tok.span, dangerous, has_regexp, true);
+                }
+            }
+            return;
+        }
+
+        // Alternating pattern/body pairs.
+        while i + 1 < args.len() {
+            let body_idx = i + 1;
+            if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx)) {
+                if !is_braced_word(tok) && text != "-" {
+                    let dangerous = has_substitution(text, tok) || has_regexp;
+                    self.push_w106(tok.span, dangerous, has_regexp, false);
+                }
+            }
+            i += 2;
+        }
+    }
+
+    /// Push one W106 diagnostic with the message variant selected by
+    /// `has_regexp` / substitution danger.
+    fn push_w106(
+        &mut self,
+        span: tcl_lexer::Span,
+        dangerous: bool,
+        has_regexp: bool,
+        single_block: bool,
+    ) {
+        let message = if has_regexp {
+            "switch -regexp body is not braced \u{2014} patterns and actions undergo extra \
+             substitution, risking code injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else if dangerous && single_block {
+            "switch body is not braced \u{2014} contains substitutions that risk code \
+             injection. Use braces: switch \u{2026} { pattern { body } \u{2026} }"
+                .to_string()
+        } else if single_block {
+            "switch body is not braced \u{2014} Use braces: switch \u{2026} { pattern { body } \
+             \u{2026} }"
+                .to_string()
+        } else if dangerous {
+            "switch body is not braced and contains substitutions \u{2014} risk of code \
+             injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else {
+            "switch body should be braced to prevent accidental substitution. Use braces: \
+             { \u{2026} }"
+                .to_string()
+        };
+        let severity = if dangerous {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W106".to_string(),
+            span,
+            message,
+            severity,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// W212 (GAP-A8): a command argument that must be a variable
+    /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
+    /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
+    /// the command name.  Fires when the resolved name-position argument
+    /// is a `Var` token.  Mirrors `check_name_vs_value`.
+    pub(super) fn emit_w212_name_vs_value(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        for idx in name_arg_indices(cmd_name, args) {
+            let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            if tok.kind != tcl_lexer::TokenType::Var {
+                continue;
+            }
+            let bare = text
+                .trim_start_matches('$')
+                .trim_start_matches('{')
+                .trim_end_matches('}');
+            let display_cmd = if cmd_name == "info" && !args.is_empty() {
+                format!("info {}", args[0])
+            } else {
+                cmd_name.to_string()
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W212".to_string(),
+                span: tok.span,
+                message: format!(
+                    "'{display_cmd}' expects a variable name, got substitution (${bare}). \
+                     Did you mean '{bare}'?"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// W114 (GAP-A8): a nested `[expr …]` inside an argument that is
+    /// *already* an expression context (`expr` / `if` / `while` / `for`
+    /// conditions) is redundant.  `diag_span` is the source span of the
+    /// expression argument; we scan its source slice for the first
+    /// `[`-`expr`-whitespace sequence (the `_NESTED_EXPR_RE` pattern)
+    /// and anchor the warning at the nested `[expr … ]`.  One warning
+    /// per argument, mirroring Python's `re.search` (first match only).
+    pub(super) fn emit_w114_redundant_nested_expr(
+        &mut self,
+        _text: &str,
+        diag_span: tcl_lexer::Span,
+    ) {
+        let start = diag_span.start() as usize;
+        let end = diag_span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return;
+        }
+        let slice = &self.source[start..end];
+        let Some((open, close)) = first_nested_expr(slice) else {
+            return;
+        };
+        let nested_span = tcl_lexer::Span::new(
+            u32::try_from(start + open).unwrap_or(diag_span.start()),
+            u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W114".to_string(),
+            span: nested_span,
+            message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
         });
     }
 
@@ -1547,11 +2671,7 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
                     continue;
                 }
                 b'{' => brace_depth += 1,
-                b'}' => {
-                    if brace_depth > 0 {
-                        brace_depth -= 1;
-                    }
-                }
+                b'}' if brace_depth > 0 => brace_depth -= 1,
                 b'$' | b'[' if brace_depth == 0 => return true,
                 _ => {}
             }
@@ -1604,6 +2724,536 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
             }
         }
         false
+    }
+
+    /// Shared substitution probe for the W3xx injection checks:
+    /// returns `true` when any argument word carries a `$var` / `[cmd]`
+    /// substitution.  A word counts as substituted when its
+    /// representative token is `Var` / `Cmd` (single-token substitution
+    /// at the word level) or — for a multi-token word — its source span
+    /// contains an unescaped `$` / `[` outside any `{...}` block.  This
+    /// is the same approximation of Python's `all_tokens[1:]` walk that
+    /// [`Self::emit_w101_eval_string_concat`] uses (the analyser doesn't
+    /// thread the full token stream through `process_command`); the
+    /// representative-kind + brace-aware span scan covers every shape in
+    /// the security fixtures.
+    fn args_have_substitution(&self, arg_tokens: &[tcl_lexer::Token], arg_single: &[bool]) -> bool {
+        arg_tokens.iter().enumerate().any(|(i, tok)| {
+            if matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            ) {
+                return true;
+            }
+            if arg_single.get(i).copied() == Some(true) {
+                return false;
+            }
+            self.word_span_contains_substitution(tok.span)
+        })
+    }
+
+    /// Return the trimmed inner script of a `Cmd` substitution token
+    /// (`[ … ]` with the brackets stripped), or `None` for a non-`Cmd`
+    /// token or an out-of-bounds span.
+    fn cmd_token_inner(&self, tok: tcl_lexer::Token) -> Option<&str> {
+        if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
+            return None;
+        }
+        let start = tok.span.start() as usize + tok.content_offset as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return None;
+        }
+        Some(self.source[start..end].trim())
+    }
+
+    /// **W300.** Emit "source with a variable path" when `source`'s
+    /// file argument is a `$var` substitution — the path (and therefore
+    /// the code executed) is dynamic.  Mirrors
+    /// `core/analysis/checks/_security.py:388-429::check_source_variable`
+    /// (skips a leading `-encoding ENC` option pair).
+    pub(super) fn emit_w300_source_variable(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "source" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let mut file_idx = 0;
+        if args[0] == "-encoding" && args.len() >= 3 {
+            file_idx = 2;
+        }
+        let Some(tok) = arg_tokens.get(file_idx) else {
+            return;
+        };
+        if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W300".to_string(),
+                span: tok.span,
+                message: "source with a variable path executes arbitrary Tcl code. \
+Ensure the path is not influenced by untrusted input."
+                    .to_string(),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W309.** Emit "eval/uplevel with `[subst]` — double
+    /// substitution" when an `eval` / `uplevel` argument is a `[subst …]`
+    /// command substitution: `subst` expands `$var` / `[cmd]` once, then
+    /// the outer command re-parses the result as Tcl — a classic
+    /// double-decode injection.  Mirrors
+    /// `_security.py:144-189::check_eval_subst_double_decode` (one
+    /// diagnostic per command).  Approximation: only the per-word
+    /// representative `Cmd` tokens are scanned, so a `[subst …]` buried
+    /// inside a larger quoted word isn't detected (same limitation as
+    /// W101 / W309 in the absence of the full token stream).
+    pub(super) fn emit_w309_eval_subst_double_decode(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "eval" | "uplevel") || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        for tok in arg_tokens {
+            let Some(inner) = self.cmd_token_inner(*tok) else {
+                continue;
+            };
+            if inner == "subst" || inner.starts_with("subst ") || inner.starts_with("subst\t") {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W309".to_string(),
+                    span: tok.span,
+                    message: format!(
+                        "{cmd_name} with [subst] creates double substitution: \
+subst expands $var and [cmd], then {cmd_name} re-parses the result as Tcl. \
+This is a code-injection risk. Use [format] or [string map] for safe templating."
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                });
+                break;
+            }
+        }
+    }
+
+    /// **W301.** Emit "uplevel with string-built script" when an
+    /// `uplevel` script argument risks injection: either multiple script
+    /// arguments (concatenated like `eval`) or a single unbraced script
+    /// word carrying substitution.  Mirrors
+    /// `_security.py:233-307::check_uplevel_injection` (skips a leading
+    /// `?level?` argument; the `[list …]` idiom is the recognised safe
+    /// form).
+    pub(super) fn emit_w301_uplevel_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "uplevel" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let script_idx = usize::from(uplevel_has_level(&args[0]));
+        if script_idx >= args.len() || script_idx >= arg_tokens.len() {
+            return;
+        }
+        let remaining = &args[script_idx..];
+        let remaining_toks = &arg_tokens[script_idx..];
+        if remaining.len() > 1 {
+            // Multiple args = concat behaviour = danger.
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W301".to_string(),
+                    span: remaining_toks[0].span,
+                    message: "uplevel with multiple arguments concatenates them into \
+a script (like eval). Use a single braced body or {*}$cmdList to avoid injection."
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        } else if let Some(tok) = remaining_toks.first() {
+            // Single arg — unbraced + substituted (and not [list …]).
+            if matches!(tok.kind, tcl_lexer::TokenType::Str)
+                || self.is_canonical_list_substitution(*tok)
+            {
+                return;
+            }
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W301".to_string(),
+                    span: tok.span,
+                    message: "uplevel with an unbraced script argument may cause \
+double substitution. Use braces: uplevel 1 {...}"
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// **W312.** Emit "interp eval / invokehidden injection" when an
+    /// `interp eval` / `interp invokehidden` script argument risks
+    /// injection — the same shape as W301 but for the child-interpreter
+    /// dispatch.  Mirrors
+    /// `_security.py:579-663::check_interp_eval_injection`.
+    pub(super) fn emit_w312_interp_eval_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "interp" || args.is_empty() {
+            return;
+        }
+        let sub = args[0].as_str();
+        if !matches!(sub, "eval" | "invokehidden") || args.len() < 3 || arg_tokens.len() < 3 {
+            return;
+        }
+        // Locate the first script word: `interp eval PATH script …` →
+        // index 2; `interp invokehidden PATH ?-opt…? hiddenCmd …` → the
+        // first non-option word from index 2.
+        let script_start = if sub == "eval" {
+            2
+        } else {
+            let mut i = 2;
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            if i >= args.len() {
+                return;
+            }
+            i
+        };
+        if script_start >= args.len() || script_start >= arg_tokens.len() {
+            return;
+        }
+        let script_args = &args[script_start..];
+        let script_toks = &arg_tokens[script_start..];
+        if script_args.is_empty() || script_toks.is_empty() {
+            return;
+        }
+        // `interp eval` with multiple script words concatenates them.
+        if sub == "eval" && script_args.len() > 1 {
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W312".to_string(),
+                    span: script_toks[0].span,
+                    message: format!(
+                        "interp {sub} with multiple arguments concatenates \
+them into a script (like eval). Use a single braced body to avoid injection."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+            return;
+        }
+        let tok = script_toks[0];
+        if matches!(tok.kind, tcl_lexer::TokenType::Str) || self.is_canonical_list_substitution(tok)
+        {
+            return;
+        }
+        if self.args_have_substitution(arg_tokens, arg_single) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W312".to_string(),
+                span: tok.span,
+                message: format!(
+                    "interp {sub} with an unbraced script argument may \
+cause code injection. Use braces: interp {sub} $child {{...}}"
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W102.** Emit "subst on variable input" when `subst`'s template
+    /// argument is a bare `$var` substitution — `subst` performs `$` /
+    /// `[]` substitution on its argument, so a variable template enables
+    /// code injection.  Mirrors
+    /// `_security.py:79-138::check_subst_injection`: the message lists
+    /// exactly the substitution kinds still active (`-nocommands` /
+    /// `-novariables` narrow it) and is suppressed entirely when both
+    /// flags are present (only backslash substitution remains).
+    pub(super) fn emit_w102_subst_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "subst" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let (template_idx, nocommands, novariables) = parse_subst_flags(args);
+        let Some(idx) = template_idx else {
+            return;
+        };
+        let Some(tok) = arg_tokens.get(idx) else {
+            return;
+        };
+        if !matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            return;
+        }
+        if nocommands && novariables {
+            // Only backslash substitution remains — low risk.
+            return;
+        }
+        let mut active = String::new();
+        if !nocommands {
+            active.push_str("[cmd]");
+        }
+        if !nocommands && !novariables {
+            active.push_str(" and ");
+        }
+        if !novariables {
+            active.push_str("$var");
+        }
+        let mut mitigations: Vec<&str> = Vec::new();
+        if !nocommands {
+            mitigations.push("-nocommands");
+        }
+        if !novariables {
+            mitigations.push("-novariables");
+        }
+        let message = format!(
+            "subst with a variable argument enables code injection: any \
+{active} in the string will be evaluated. Add {} to limit substitution \
+scope, or use [format] / [string map] for safe templating.",
+            mitigations.join(" ")
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W102".to_string(),
+            span: tok.span,
+            message,
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **W103.** Emit "open with a pipeline" when `open`'s first
+    /// argument requests a command pipeline (`open "|cmd"`) or is a
+    /// variable that might.  Mirrors
+    /// `_security.py:313-382::check_open_pipeline`: a `|`-prefixed
+    /// argument carrying substitution is a WARNING (command injection),
+    /// a literal `|`-pipeline is a HINT, and a bare `$var` argument is a
+    /// WARNING (it may resolve to a `|`-pipeline).
+    pub(super) fn emit_w103_open_pipeline(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "open" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let tok = arg_tokens[0];
+        if args[0].starts_with('|') {
+            let (severity, message) = if self.args_have_substitution(arg_tokens, arg_single) {
+                (
+                    Severity::Warning,
+                    "open with a pipeline containing variable/command \
+substitution risks command injection. Validate and sanitize the command \
+before passing to open."
+                        .to_string(),
+                )
+            } else {
+                (
+                    Severity::Hint,
+                    "open with a pipeline (\"|\") executes an external command. \
+Ensure the command is not influenced by untrusted input."
+                        .to_string(),
+                )
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W103".to_string(),
+                span: tok.span,
+                message,
+                severity,
+                fixes: Vec::new(),
+            });
+        } else if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W103".to_string(),
+                span: tok.span,
+                message: "open with a variable argument: if the value starts with \
+\"|\", it will execute a command pipeline. Validate input or use explicit \
+I/O commands."
+                    .to_string(),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W303.** Emit "regexp vulnerable to catastrophic backtracking
+    /// (`ReDoS`)" when a *literal* regex pattern in `regexp` / `regsub` /
+    /// `switch -regexp` contains a nested quantifier (`(a+)+`) or an
+    /// overlapping alternation (`(a|a)+`).  Mirrors
+    /// `_security.py:451-475::check_redos` driven by
+    /// `_find_regex_patterns_in_command`; variable / command-substituted
+    /// patterns are left alone (the literal text never matches the
+    /// detector), matching Python's literal-only behaviour.
+    pub(super) fn emit_w303_redos(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "regexp" | "regsub" | "switch") {
+            return;
+        }
+        let patterns = find_regex_patterns_in_command(cmd_name, args, arg_tokens);
+        if patterns.is_empty() {
+            return;
+        }
+        // Nested quantifier `…+)+` / `…*)*` or overlapping alternation
+        // `(a|a)+` — the `_REDOS_PATTERN` shape from `_security.py`.
+        for (pattern, tok) in patterns {
+            if has_redos_shape(&pattern) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W303".to_string(),
+                    span: tok.span,
+                    message: "Regular expression may be vulnerable to catastrophic \
+backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential \
+matching time on crafted input."
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// **IRULE2002.** Warn when a deprecated iRules command is used —
+    /// the command's spec carries a `deprecated_replacement`.  Only fires
+    /// under the `f5-irules` dialect.  Mirrors
+    /// `core/analysis/checks/_domain.py::check_deprecated_irules_command`.
+    pub(super) fn emit_irule2002_deprecated_command(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        if self.dialect != "f5-irules" {
+            return;
+        }
+        let Some(replacement) = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|s| s.deprecated_replacement)
+        else {
+            return;
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "IRULE2002".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **W310.** Emit "hardcoded credential" for a literal secret value.
+    /// Mirrors both strategies of
+    /// `_security.py:507-573::check_hardcoded_credentials` (one diagnostic
+    /// per command):
+    ///
+    /// * **Strategy 1** — a credential-bearing option flag (the defaults
+    ///   `-password` / `-pass` / `-secret` / `-token` / `-apikey`,
+    ///   case-insensitive, unioned with the command's registry
+    ///   `credential_options`, e.g. `http::geturl`'s `-headers`) followed
+    ///   by a literal value.
+    /// * **Strategy 2** — a subcommand whose registry `credential_arg` /
+    ///   `sensitive_headers` mark a literal value at a sensitive header
+    ///   (e.g. `HTTP::header insert authorization "Bearer …"`).
+    pub(super) fn emit_w310_hardcoded_credentials(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        // Registry-augmented credential option flags (all `'static`, so
+        // the `self.registry` borrow ends with this binding).
+        let extra_opts: &'static [&'static str] = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .map_or(&[], |s| s.credential_options);
+
+        // Strategy 1: a credential option flag with a literal value.
+        for (i, text) in args.iter().enumerate() {
+            let lower = text.to_ascii_lowercase();
+            if !DEFAULT_PASSWORD_OPTIONS.contains(&lower.as_str())
+                && !extra_opts.contains(&lower.as_str())
+            {
+                continue;
+            }
+            let (Some(value), Some(val_tok)) = (args.get(i + 1), arg_tokens.get(i + 1)) else {
+                continue;
+            };
+            if is_literal_credential_value(value, val_tok) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W310".to_string(),
+                    span: val_tok.span,
+                    message: format!(
+                        "Hardcoded credential in {text} argument. Store secrets in \
+environment variables or a vault, not in source code."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                return; // one diagnostic per command
+            }
+        }
+
+        // Strategy 2: a subcommand credential header with a literal value.
+        if args.len() >= 3 {
+            let sub = args[0].to_ascii_lowercase();
+            // `(credential_arg, sensitive_headers)` — both copied out so
+            // the registry borrow ends before we mutate `self.result`.
+            let cred_info: Option<(usize, &'static [&'static str])> = self
+                .registry
+                .as_ref()
+                .and_then(|r| r.get(cmd_name))
+                .and_then(|s| s.subcommand(&sub))
+                .and_then(|sc| {
+                    sc.credential_arg
+                        .map(|a| (a as usize, sc.sensitive_headers))
+                });
+            if let Some((cred_arg, sensitive)) = cred_info {
+                let header_name = args[1].to_ascii_lowercase();
+                if sensitive.contains(&header_name.as_str()) && cred_arg < arg_tokens.len() {
+                    if let (Some(value), Some(val_tok)) =
+                        (args.get(cred_arg), arg_tokens.get(cred_arg))
+                    {
+                        if is_literal_credential_value(value, val_tok) {
+                            self.result.diagnostics.push(super::types::Diagnostic {
+                                code: "W310".to_string(),
+                                span: val_tok.span,
+                                message: format!(
+                                    "Hardcoded credential in {header_name} header value. \
+Store secrets in environment variables or a vault, not in source code."
+                                ),
+                                severity: Severity::Warning,
+                                fixes: Vec::new(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Classify the positional value for W304: tristate severity,
@@ -2891,11 +4541,6 @@ file; this call falls through to the 'unknown' handler."
         use std::net::Ipv6Addr;
         use std::str::FromStr;
 
-        let dotted_quad =
-            regex::Regex::new(r"\b(\d{1,4})\.(\d{1,4})\.(\d{1,4})\.(\d{1,4})\b").expect("regex");
-        let ipv6_candidate =
-            regex::Regex::new(r"\b([0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{0,4}){2,7})\b").expect("regex");
-
         let mut seen_offsets: HashSet<u32> = HashSet::new();
         for (key, lv) in &fu.sccp.values {
             let Some(text) = (match lv {
@@ -2906,12 +4551,11 @@ file; this call falls through to the 'unknown' handler."
             };
 
             // ---- IPv4 candidates ----
-            for caps in dotted_quad.captures_iter(text) {
-                let m = caps.get(0).unwrap();
-                if m.start() > 0 && text.as_bytes()[m.start() - 1] == b'/' {
+            for quad in find_dotted_quads(text, 4) {
+                if quad.start > 0 && text.as_bytes()[quad.start - 1] == b'/' {
                     continue;
                 }
-                let octets: Vec<&str> = (1..=4).map(|i| caps.get(i).unwrap().as_str()).collect();
+                let octets = quad.octets;
                 let mut diag: Option<(String, Severity)> = None;
                 for (i, octet) in octets.iter().enumerate() {
                     let v: u32 = octet.parse().unwrap_or(0);
@@ -2948,8 +4592,7 @@ file; this call falls through to the 'unknown' handler."
             }
 
             // ---- IPv6 candidates ----
-            for caps in ipv6_candidate.captures_iter(text) {
-                let candidate = caps.get(1).unwrap().as_str();
+            for candidate in find_ipv6_candidates(text) {
                 if Ipv6Addr::from_str(candidate).is_err() {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");
                     self.emit_ip_diag_at_def(fu, key, &msg, Severity::Error, &mut seen_offsets);
@@ -4384,6 +6027,304 @@ mod tests {
     use super::*;
     use crate::analyser::types::Diagnostic;
     use tcl_lexer::Span;
+
+    fn w114_codes(src: &str) -> usize {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W114")
+            .count()
+    }
+
+    fn code_sevs(src: &str, code: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .map(|d| format!("{:?}", d.severity))
+            .collect()
+    }
+
+    fn has_code(src: &str, dialect: &str, code: &str) -> bool {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .any(|d| d.code == code)
+    }
+
+    #[test]
+    fn w311_flags_binary_encoding_with_translation() {
+        assert!(has_code(
+            "fconfigure $ch -encoding binary -translation lf\n",
+            "tcl8.6",
+            "W311",
+        ));
+        assert!(has_code(
+            "chan configure $ch -encoding binary -translation crlf\n",
+            "tcl8.6",
+            "W311",
+        ));
+        // `-translation binary` is consistent — no warning.
+        assert!(!has_code(
+            "fconfigure $ch -encoding binary -translation binary\n",
+            "tcl8.6",
+            "W311",
+        ));
+    }
+
+    #[test]
+    fn w200_binary_modifier_is_dialect_gated() {
+        // `cu` / `su` modifiers need Tcl 8.5+; flagged under 8.4 only.
+        assert!(has_code("binary format cu1 $x\n", "tcl8.4", "W200"));
+        assert!(has_code("binary scan $d su v\n", "tcl8.4", "W200"));
+        assert!(!has_code("binary format cu1 $x\n", "tcl8.6", "W200"));
+        // No modifier — never flagged.
+        assert!(!has_code("binary format c1 $x\n", "tcl8.4", "W200"));
+    }
+
+    #[test]
+    fn w121_flags_noncontiguous_subnet_mask() {
+        assert!(has_code("set m 255.255.255.1\n", "tcl8.6", "W121"));
+        assert!(has_code("set m 255.0.255.0\n", "tcl8.6", "W121"));
+        // Valid contiguous masks are fine.
+        assert!(!has_code("set m 255.255.255.0\n", "tcl8.6", "W121"));
+        assert!(!has_code("set m 255.255.254.0\n", "tcl8.6", "W121"));
+    }
+
+    #[test]
+    fn subnet_mask_helpers() {
+        assert!(is_valid_subnet_mask(255, 255, 255, 0));
+        assert!(is_valid_subnet_mask(0, 0, 0, 0));
+        assert!(!is_valid_subnet_mask(255, 255, 255, 1));
+        assert!(looks_like_subnet_mask(255, 255, 255, 1));
+        assert!(!looks_like_subnet_mask(10, 0, 0, 1)); // ordinary IP
+                                                       // 24 leading 1-bits → /24.
+        assert_eq!(
+            nearest_valid_mask(255, 255, 255, 1).as_deref(),
+            Some("255.255.255.0")
+        );
+    }
+
+    #[test]
+    fn dotted_quad_scanner_matches_regex_behaviour() {
+        let q = |t, n| {
+            super::find_dotted_quads(t, n)
+                .into_iter()
+                .map(|q| (q.start, q.octets))
+                .collect::<Vec<_>>()
+        };
+        // A clean quad is found with its octet substrings and start.
+        assert_eq!(q("ip 192.168.1.1!", 3), vec![(3, ["192", "168", "1", "1"])]);
+        // A 4-digit octet defeats the 3-digit cap (no leading boundary
+        // realignment), exactly like `\b\d{1,3}`.
+        assert!(q("1234.1.1.1", 3).is_empty());
+        // The 4-digit cap accepts `999` and a 4-digit octet.
+        assert_eq!(q("192.168.1.999", 4), vec![(0, ["192", "168", "1", "999"])]);
+        // Two quads, non-overlapping; an embedding word char blocks the
+        // boundary (`a10.0.0.1` has no leading `\b`).
+        assert!(q("a10.0.0.1", 3).is_empty());
+    }
+
+    #[test]
+    fn ipv6_candidate_scanner_extracts_runs() {
+        let c = super::find_ipv6_candidates("addr fe80::1 end");
+        assert_eq!(c, vec!["fe80::1"]);
+        // A bare hextet pair (only one colon → <2 groups) is not a
+        // candidate; a full address is.
+        assert!(super::find_ipv6_candidates("ab:cd").is_empty());
+        assert_eq!(
+            super::find_ipv6_candidates("2001:db8::8a2e:370:7334"),
+            vec!["2001:db8::8a2e:370:7334"]
+        );
+    }
+
+    #[test]
+    fn redos_shape_detector() {
+        assert!(super::has_redos_shape("(a+)+"));
+        assert!(super::has_redos_shape("(a*)*"));
+        assert!(super::has_redos_shape("(a|a)+"));
+        assert!(super::has_redos_shape("(foo|bar){2}"));
+        // No nested quantifier / overlapping alternation → safe.
+        assert!(!super::has_redos_shape("^[a-z]+$"));
+        assert!(!super::has_redos_shape("(abc)+"));
+        assert!(!super::has_redos_shape("a|b|c"));
+    }
+
+    fn w108(src: &str, dialect: &str) -> Vec<(u32, usize)> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W108")
+            .map(|d| {
+                let ch = d
+                    .message
+                    .chars()
+                    .find(|c| !c.is_ascii())
+                    .map_or(0, |c| c as u32);
+                (ch, d.fixes.len())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn w108_flags_confusables_and_artifacts() {
+        // Smart quotes (auto-fix artifacts) → two W108 with fixes.
+        assert_eq!(
+            w108("set x \u{201c}hi\u{201d}\n", "tcl8.6"),
+            vec![(0x201c, 1), (0x201d, 1)],
+        );
+        // NBSP and em-dash → W108 with an ASCII fix.
+        assert_eq!(w108("set x \u{a0}y\n", "tcl8.6"), vec![(0xa0, 1)]);
+        assert_eq!(w108("set x \u{2014}\n", "tcl8.6"), vec![(0x2014, 1)]);
+    }
+
+    #[test]
+    fn w108_confusables_mode_ignores_benign_unicode() {
+        // `é` is not a confusable / artifact → silent in confusables mode.
+        assert!(w108("puts caf\u{e9}\n", "tcl8.6").is_empty());
+        // Plain ASCII → silent.
+        assert!(w108("set x hello\n", "tcl8.6").is_empty());
+        // The command word itself is not scanned.
+        assert!(w108("\u{440}uts x\n", "tcl8.6").is_empty());
+    }
+
+    #[test]
+    fn w108_strict_mode_flags_all_non_ascii_for_irules() {
+        // F5 iRules default to strict — every non-ASCII char fires,
+        // including `é` (which has no ASCII equivalent → no fix).
+        assert_eq!(w108("puts caf\u{e9}\n", "f5-irules"), vec![(0xe9, 0)]);
+    }
+
+    #[test]
+    fn w104_flags_space_padded_append() {
+        assert_eq!(code_sevs("append x \" foo\"\n", "W104"), vec!["Hint"]);
+        assert_eq!(code_sevs("append result \"item \"\n", "W104"), vec!["Hint"]);
+        assert!(code_sevs("append x foo\n", "W104").is_empty());
+        assert!(code_sevs("lappend x foo\n", "W104").is_empty());
+    }
+
+    #[test]
+    fn w106_flags_unbraced_switch_body() {
+        // Alternating unbraced body (no sub → WARNING; sub → ERROR).
+        assert_eq!(code_sevs("switch $v a body\n", "W106"), vec!["Warning"]);
+        assert_eq!(code_sevs("switch $v $pat $body\n", "W106"), vec!["Error"]);
+        // Braced forms are fine.
+        assert!(code_sevs("switch $v {a {x} b {y}}\n", "W106").is_empty());
+        assert!(code_sevs("switch -regexp $v {a {x}}\n", "W106").is_empty());
+        assert!(code_sevs("switch $v { a body }\n", "W106").is_empty());
+    }
+
+    fn w100_sev(src: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W100")
+            .map(|d| format!("{:?}", d.severity))
+            .collect()
+    }
+
+    #[test]
+    fn w100_flags_unbraced_expr_with_substitution() {
+        // Matches the live Python analyser (ERROR when a `$`/`[` sub).
+        assert_eq!(w100_sev("if $x {puts hi}\n"), vec!["Error"]);
+        assert_eq!(w100_sev("while $cond {}\n"), vec!["Error"]);
+        assert_eq!(w100_sev("expr $a + $b\n"), vec!["Error"]);
+        assert_eq!(w100_sev("expr \"$a == $b\"\n"), vec!["Error"]);
+        assert_eq!(w100_sev("for {set i 0} $i<10 {incr i} {}\n"), vec!["Error"]);
+    }
+
+    #[test]
+    fn w100_skips_braced_and_safe_literals() {
+        assert!(w100_sev("if {$x} {puts hi}\n").is_empty());
+        assert!(w100_sev("expr {$a + $b}\n").is_empty());
+        assert!(w100_sev("expr 1+2\n").is_empty());
+        assert!(w100_sev("if 1 {puts hi}\n").is_empty());
+        assert!(w100_sev("if {1} {puts hi}\n").is_empty());
+    }
+
+    #[test]
+    fn is_safe_literal_expr_classifies() {
+        assert!(is_safe_literal("42"));
+        assert!(is_safe_literal("true"));
+        assert!(!is_safe_literal("$x"));
+        assert!(is_safe_literal_expr("1 + 2", "tcl8.6"));
+        assert!(!is_safe_literal_expr("$a + $b", "tcl8.6"));
+    }
+
+    fn w212_count(src: &str) -> usize {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W212")
+            .count()
+    }
+
+    #[test]
+    fn w212_flags_name_position_substitution() {
+        // Matches the live Python analyser.
+        assert_eq!(w212_count("set $x 1\n"), 1);
+        assert_eq!(w212_count("incr $counter\n"), 1);
+        assert_eq!(w212_count("info exists $v\n"), 1);
+        assert_eq!(w212_count("upvar 1 a $b\n"), 1);
+    }
+
+    #[test]
+    fn w212_ignores_plain_names() {
+        assert_eq!(w212_count("set x 1\n"), 0);
+        assert_eq!(w212_count("info exists v\n"), 0);
+        // A `$`-value in a non-name position is fine.
+        assert_eq!(w212_count("set x $y\n"), 0);
+    }
+
+    #[test]
+    fn name_arg_indices_resolvers() {
+        assert_eq!(name_arg_indices("set", &["a".into(), "b".into()]), vec![0]);
+        assert_eq!(
+            name_arg_indices("unset", &["-nocomplain".into(), "a".into(), "b".into()]),
+            vec![1, 2],
+        );
+        assert_eq!(
+            name_arg_indices("info", &["exists".into(), "v".into()]),
+            vec![1]
+        );
+        assert_eq!(
+            name_arg_indices("info", &["level".into()]),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            name_arg_indices("upvar", &["1".into(), "a".into(), "b".into()]),
+            vec![2],
+        );
+    }
+
+    #[test]
+    fn w114_flags_nested_expr_in_expr_context() {
+        // Matches the live Python analyser.
+        assert_eq!(w114_codes("expr {[expr {$x + 1}]}\n"), 1);
+        assert_eq!(w114_codes("if {[expr {$x}]} {puts hi}\n"), 1);
+    }
+
+    #[test]
+    fn w114_ignores_non_expr_context_and_plain_expr() {
+        // `set y [expr {…}]` is a command substitution value, not a
+        // nested expr context — no W114.
+        assert_eq!(w114_codes("set y [expr {1+2}]\n"), 0);
+        // A plain braced expr is fine.
+        assert_eq!(w114_codes("expr {$x + 1}\n"), 0);
+    }
+
+    #[test]
+    fn first_nested_expr_finds_bracketed_expr() {
+        assert_eq!(first_nested_expr("{[expr {$x}]}"), Some((1, 11)));
+        assert_eq!(first_nested_expr("{$x + 1}"), None);
+        assert_eq!(first_nested_expr("[express]"), None); // not `expr` + ws
+    }
 
     #[test]
     fn body_references_param_bare_dollar() {
@@ -6299,5 +8240,253 @@ foo
             "{:?}",
             r.diagnostics
         );
+    }
+
+    // -- GAP-A2 security-injection checks (W300 / W301 / W309 / W312) --
+    //
+    // Each fixture's diagnostic set is cross-checked against the live
+    // Python analyser (`core/analysis/checks/_security.py`).
+
+    fn sec_codes(src: &str, code: &str) -> usize {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .count()
+    }
+
+    #[test]
+    fn w300_source_with_variable_path() {
+        assert_eq!(sec_codes("source $path\n", "W300"), 1);
+        // `-encoding ENC` is skipped to find the file argument.
+        assert_eq!(sec_codes("source -encoding utf-8 $path\n", "W300"), 1);
+        // A literal path is fine.
+        assert_eq!(sec_codes("source ./lib.tcl\n", "W300"), 0);
+    }
+
+    #[test]
+    fn w309_eval_uplevel_with_subst() {
+        let mut a = Analyser::new();
+        let r = a.analyse("eval [subst $template]\n", "tcl8.6");
+        let w309: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W309").collect();
+        assert_eq!(w309.len(), 1);
+        assert_eq!(w309[0].severity, Severity::Error);
+        assert!(w309[0].message.starts_with("eval with [subst]"));
+        assert_eq!(sec_codes("uplevel [subst {$x}]\n", "W309"), 1);
+        // No `[subst]` → no W309.
+        assert_eq!(sec_codes("eval [list set x $y]\n", "W309"), 0);
+    }
+
+    #[test]
+    fn w301_uplevel_injection() {
+        // Single unbraced substituted script.
+        assert_eq!(sec_codes("uplevel 1 \"set x $y\"\n", "W301"), 1);
+        // Multiple args concatenate.
+        assert_eq!(sec_codes("uplevel $a $b\n", "W301"), 1);
+        // Braced body and the `[list …]` idiom are safe.
+        assert_eq!(sec_codes("uplevel 1 {set x 1}\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 [list set x $y]\n", "W301"), 0);
+    }
+
+    #[test]
+    fn w312_interp_eval_injection() {
+        assert_eq!(sec_codes("interp eval $child $script\n", "W312"), 1);
+        assert_eq!(sec_codes("interp eval $child \"set x $y\"\n", "W312"), 1);
+        // Multiple script words concatenate.
+        assert_eq!(sec_codes("interp eval $foo $a $b\n", "W312"), 1);
+        // invokehidden flags the hidden command word.
+        assert_eq!(
+            sec_codes("interp invokehidden $child $cmd $arg\n", "W312"),
+            1
+        );
+        // Braced body is safe.
+        assert_eq!(sec_codes("interp eval $child {set x 1}\n", "W312"), 0);
+    }
+
+    #[test]
+    fn w312_message_names_subcommand() {
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval $child $script\n", "tcl8.6");
+        let w312 = r.diagnostics.iter().find(|d| d.code == "W312").unwrap();
+        assert!(
+            w312.message.contains("interp eval $child {...}"),
+            "{w312:?}"
+        );
+    }
+
+    #[test]
+    fn w102_subst_variable_argument() {
+        // Bare `$var` template fires; the message lists both kinds.
+        let mut a = Analyser::new();
+        let r = a.analyse("subst $x\n", "tcl8.6");
+        let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+        assert!(
+            w102.message.contains("any [cmd] and $var in the string"),
+            "{w102:?}"
+        );
+        assert!(w102
+            .message
+            .contains("Add -nocommands -novariables to limit"));
+        // A braced or quoted template is fine; both flags suppress it.
+        assert_eq!(sec_codes("subst {literal $y}\n", "W102"), 0);
+        assert_eq!(sec_codes("subst \"$x\"\n", "W102"), 0);
+        assert_eq!(sec_codes("subst -nocommands -novariables $x\n", "W102"), 0);
+    }
+
+    #[test]
+    fn w102_message_narrows_with_flags() {
+        let mut a = Analyser::new();
+        let r = a.analyse("subst -nocommands $x\n", "tcl8.6");
+        let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+        // Only `$var` remains active; only `-novariables` is suggested.
+        assert!(w102.message.contains("any $var in the string"), "{w102:?}");
+        assert!(!w102.message.contains("[cmd]"), "{w102:?}");
+        assert!(w102.message.contains("Add -novariables to limit"));
+    }
+
+    #[test]
+    fn w103_open_pipeline() {
+        // `|`-pipeline with substitution → WARNING (injection).
+        let mut a = Analyser::new();
+        let r = a.analyse("open \"|$cmd\"\n", "tcl8.6");
+        let w103 = r.diagnostics.iter().find(|d| d.code == "W103").unwrap();
+        assert_eq!(w103.severity, Severity::Warning);
+        assert!(w103.message.contains("command injection"), "{w103:?}");
+        // Literal `|`-pipeline → HINT.
+        assert_eq!(code_sevs("open |ls\n", "W103"), vec!["Hint"]);
+        assert_eq!(code_sevs("open \"|cat file\"\n", "W103"), vec!["Hint"]);
+        // Bare `$var` argument → WARNING (may resolve to a pipeline).
+        assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
+        // A literal filename is fine.
+        assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
+    }
+
+    #[test]
+    fn w303_redos_nested_quantifiers() {
+        // Nested quantifier and overlapping alternation, in regexp /
+        // regsub and a `switch -regexp` braced case list.
+        assert_eq!(sec_codes("regexp {(a+)+} $str\n", "W303"), 1);
+        assert_eq!(sec_codes("regexp {(a|a)+} $str\n", "W303"), 1);
+        assert_eq!(sec_codes("regsub {(x*)*} $s y out\n", "W303"), 1);
+        assert_eq!(
+            sec_codes("switch -regexp $x {(a+)+ {body} default {x}}\n", "W303"),
+            1
+        );
+        // Option flags before the pattern are skipped.
+        assert_eq!(sec_codes("regexp -nocase {(a+)+} $s\n", "W303"), 1);
+        // Safe patterns don't fire.
+        assert_eq!(sec_codes("regexp {abc} $str\n", "W303"), 0);
+        assert_eq!(sec_codes("regexp {[0-9]+} $s\n", "W303"), 0);
+    }
+
+    #[test]
+    fn w303_message_and_severity() {
+        let mut a = Analyser::new();
+        let r = a.analyse("regexp {(a+)+} $s\n", "tcl8.6");
+        let w303 = r.diagnostics.iter().find(|d| d.code == "W303").unwrap();
+        assert_eq!(w303.severity, Severity::Warning);
+        assert!(w303.message.contains("catastrophic"), "{w303:?}");
+    }
+
+    #[test]
+    fn w310_hardcoded_credential_option() {
+        // A literal value after a default credential option fires.
+        assert_eq!(sec_codes("mycmd -password literalsecret123\n", "W310"), 1);
+        assert_eq!(sec_codes("mycmd -token abc123\n", "W310"), 1);
+        // Case-insensitive option matching.
+        assert_eq!(sec_codes("mycmd -Password hunter2\n", "W310"), 1);
+        // Only one diagnostic per command.
+        assert_eq!(sec_codes("mycmd -pass a -secret b\n", "W310"), 1);
+        // A `$var` / `[cmd]` value is not a hardcoded credential.
+        assert_eq!(sec_codes("mycmd -password $env_pw\n", "W310"), 0);
+        assert_eq!(sec_codes("mycmd -password [getpw]\n", "W310"), 0);
+        // No credential option → nothing.
+        assert_eq!(sec_codes("mycmd -name literalvalue\n", "W310"), 0);
+    }
+
+    #[test]
+    fn irule2002_flags_deprecated_irules_command() {
+        // `HTTP::class` is deprecated → `CLASSIFY::application`.
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n  HTTP::class\n}\n", "f5-irules");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2002")
+            .expect("IRULE2002");
+        assert_eq!(d.severity, Severity::Warning);
+        assert!(
+            d.message.contains(
+                "'HTTP::class' is deprecated in iRules. Use 'CLASSIFY::application' instead."
+            ),
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn irule2002_silent_in_plain_tcl_dialect() {
+        // The deprecation check is iRules-only.
+        assert!(!has_code("HTTP::class\n", "tcl8.6", "IRULE2002"));
+    }
+
+    #[test]
+    fn w310_message_names_option() {
+        let mut a = Analyser::new();
+        let r = a.analyse("mycmd -password literalsecret\n", "tcl8.6");
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in -password argument."),
+            "{w310:?}"
+        );
+    }
+
+    #[test]
+    fn w310_registry_credential_option() {
+        // `http::geturl`'s registry `credential_options` adds `-headers`
+        // to the default flag set (Strategy 1 augmentation).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "http::geturl $url -headers {Authorization \"Bearer abc123def456\"}\n",
+            "tcl8.6",
+        );
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in -headers argument."),
+            "{w310:?}"
+        );
+    }
+
+    #[test]
+    fn w310_subcommand_sensitive_header() {
+        // `HTTP::header insert authorization <literal>` — the subcommand's
+        // registry credential_arg + sensitive_headers (Strategy 2).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "HTTP::header insert authorization \"Bearer secrettoken123\"\n",
+            "f5-irules",
+        );
+        let w310 = r.diagnostics.iter().find(|d| d.code == "W310").unwrap();
+        assert!(
+            w310.message
+                .starts_with("Hardcoded credential in authorization header value."),
+            "{w310:?}"
+        );
+        // A non-sensitive header is fine; a `$var` value is not literal.
+        assert!(!a
+            .analyse(
+                "HTTP::header insert content-type \"text/html\"\n",
+                "f5-irules"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W310"));
+        assert!(!a
+            .analyse("HTTP::header insert authorization $tok\n", "f5-irules")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W310"));
     }
 }

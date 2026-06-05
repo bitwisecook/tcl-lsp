@@ -1,9 +1,22 @@
 //! Tcl core command specifications — one file per command.
 
+// A few Tcl commands use the `::` namespace separator → double
+// underscores in module names (e.g. `regex__quote` for `regex::quote`).
+// Suppress the snake_case warnings for these.
+#![allow(non_snake_case)]
+
 mod after_;
 mod append_;
 mod apply;
 mod array_;
+mod auto_execok;
+mod auto_import;
+mod auto_load;
+mod auto_mkindex;
+mod auto_mkindex_old;
+mod auto_qualify;
+mod auto_reset;
+mod bgerror;
 mod binary_;
 mod break_;
 mod catch_;
@@ -31,6 +44,7 @@ mod fconfigure_;
 mod fcopy;
 mod file_;
 mod fileevent;
+mod filename;
 mod flush_;
 mod for_;
 mod foreach_;
@@ -39,6 +53,7 @@ mod format_;
 mod gets_;
 mod glob_;
 mod global_;
+mod http;
 mod if_;
 mod incr_;
 mod info_;
@@ -63,7 +78,10 @@ mod lseq;
 mod lset;
 mod lsort_;
 mod mathop;
+mod mathop_generated;
+mod memory;
 mod namespace_;
+mod nextto;
 mod oo_abstract;
 mod oo_class;
 mod oo_classvariable;
@@ -80,11 +98,15 @@ mod open_;
 mod package_;
 mod parray;
 mod pid;
+mod pkg__create;
+mod pkg_mkindex;
 mod proc_;
 mod puts_;
+mod pwd;
 mod re_quote;
 mod read_;
 mod readfile;
+mod regex__quote;
 mod regex_quote;
 mod regexp_;
 mod regexp_quote;
@@ -102,6 +124,8 @@ mod string_;
 mod subst_;
 mod switch_;
 mod tailcall_;
+mod tcl__build_info;
+mod tcl_findlibrary;
 mod tcl_idna;
 mod tcl_process;
 mod tcl_unsupported_corotype;
@@ -134,6 +158,29 @@ use crate::spec::CommandSpec;
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = tcl_specs_a_through_l();
     specs.extend(tcl_specs_m_through_z());
+    // GAP-d: the `tcl::mathop` operator ensemble (every spelling),
+    // restoring name parity with the Python source of truth.
+    specs.extend(mathop_generated::specs());
+    // GAP-d: simple named commands the Rust port omitted.
+    specs.extend([
+        auto_execok::spec(),
+        auto_import::spec(),
+        auto_load::spec(),
+        auto_mkindex::spec(),
+        auto_mkindex_old::spec(),
+        auto_qualify::spec(),
+        auto_reset::spec(),
+        bgerror::spec(),
+        filename::spec(),
+        http::spec(),
+        memory::spec(),
+        nextto::spec(),
+        pkg__create::spec(),
+        pkg_mkindex::spec(),
+        pwd::spec(),
+        tcl__build_info::spec(),
+        tcl_findlibrary::spec(),
+    ]);
     specs
 }
 
@@ -234,6 +281,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         re_quote::spec(),
         read_::spec(),
         readfile::spec(),
+        regex__quote::spec(),
         regex_quote::spec(),
         regexp_::spec(),
         regexp_quote::spec(),

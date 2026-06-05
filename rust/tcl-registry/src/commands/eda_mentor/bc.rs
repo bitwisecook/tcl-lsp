@@ -1,5 +1,10 @@
 //! `bc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "bc ?breakpoint_id | -all?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["bc ?breakpoint_id | -all?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

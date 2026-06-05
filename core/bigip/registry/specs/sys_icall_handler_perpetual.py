@@ -19,30 +19,77 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "icall handler perpetual"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="script", value_type="string"),
+            BigipPropertySpec(name="restart", value_type="reference", references=("restart",)),
             BigipPropertySpec(
-                name="status", value_type="enum", enum_values=("active", "inactive", "suspend")
+                name="script",
+                value_type="reference",
+                references=(
+                    "cli_script",
+                    "pem_reporting_format_script",
+                    "sys_application_apl_script",
+                    "sys_icall_script",
+                ),
             ),
+            BigipPropertySpec(name="start", value_type="reference", references=("start",)),
+            BigipPropertySpec(
+                name="status",
+                value_type="enum",
+                enum_values=("active", "inactive", "suspend"),
+            ),
+            BigipPropertySpec(name="stop", value_type="reference", references=("stop",)),
             BigipPropertySpec(
                 name="subscriptions",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="event-name",
+                        value_type="reference",
+                        in_sections=("subscriptions",),
+                    ),
+                    BigipPropertySpec(
+                        name="filters",
+                        value_type="list",
+                        in_sections=("subscriptions",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
-                name="event-name", value_type="string", in_sections=("subscriptions",)
+                name="event-name",
+                value_type="reference",
+                in_sections=("subscriptions",),
             ),
             BigipPropertySpec(
                 name="filters",
-                value_type="enum",
+                value_type="list",
                 in_sections=("subscriptions",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="match-algorithm",
+                        value_type="enum",
+                        in_sections=("subscriptions", "filters"),
+                        enum_values=("accept-all", "exact", "subnet"),
+                    ),
+                    BigipPropertySpec(
+                        name="value",
+                        value_type="string",
+                        in_sections=("subscriptions", "filters"),
+                    ),
+                ),
             ),
-            BigipPropertySpec(name="value", value_type="string", in_sections=("filters",)),
             BigipPropertySpec(
-                name="match-algorithm", value_type="string", in_sections=("filters",)
+                name="match-algorithm",
+                value_type="enum",
+                in_sections=("subscriptions", "filters"),
+                enum_values=("accept-all", "exact", "subnet"),
             ),
-            BigipPropertySpec(name="restart", value_type="string"),
-            BigipPropertySpec(name="start", value_type="string"),
-            BigipPropertySpec(name="stop", value_type="string"),
+            BigipPropertySpec(
+                name="value",
+                value_type="string",
+                in_sections=("subscriptions", "filters"),
+            ),
         ),
     )

@@ -22,14 +22,20 @@
 //!   carrying an insert `CodeFix`; the provider lifts it via
 //!   the generic `diag.fixes` path below.
 //!
+//! * Package-*suggestion* actions ([`package_require_actions`]) —
+//!   for the word at the cursor, fuzzy-rank known package names
+//!   (the registry's `required_package` / `tcllib_package`
+//!   catalogue) against the `::`-prefix and offer
+//!   `Add 'package require <pkg>'` (skipping already-required
+//!   packages).  Mirrors `_package_require_actions` +
+//!   `rank_package_suggestions`.
+//!
 //! What is *deferred*:
 //!
-//! * Package-*suggestion* actions for unresolved commands —
-//!   Python's provider also walks the catalogue of stdlib /
-//!   tcllib commands and offers a `package require` when an
-//!   *unknown* call fuzzy-matches a catalogued command.  That
-//!   fuzzy catalogue lookup (distinct from the W120 exact-spec
-//!   path that landed) needs a stub-aware catalogue surface.
+//! * The Python workspace `package_resolver`'s *installed*-package
+//!   set — [`package_require_actions`] derives its catalogue from
+//!   the registry instead, so locally-installed-but-unregistered
+//!   packages aren't suggested.
 //! * Cross-document refactors (move to file, split namespace)
 //!   — lands alongside the workspace-index integration.
 
@@ -188,6 +194,154 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
     let b_start = (b.start_line, b.start_character);
     let b_end = (b.end_line, b.end_character);
     a_start <= b_end && b_start <= a_end
+}
+
+/// Fuzzy `package require` suggestions for the word at `range`'s start:
+/// when an unknown command's prefix (the part before `::`) fuzzy-matches
+/// a known package name, offer `Add 'package require <pkg>'`.  Mirrors
+/// `lsp/features/code_actions.py::_package_require_actions` +
+/// `rank_package_suggestions`.  The package catalogue is derived from the
+/// registry's `required_package` / `tcllib_package` fields (the Python
+/// workspace `package_resolver`'s installed-package set isn't modelled in
+/// the Rust core).
+#[must_use]
+pub fn package_require_actions(
+    source: &str,
+    range: LspRange,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<CodeAction> {
+    let word = word_at_position(source, range.start_line, range.start_character);
+    let prefix = word.split("::").next().unwrap_or("").to_lowercase();
+    if prefix.len() < 2 {
+        return Vec::new();
+    }
+    let catalogue = package_catalogue(registry);
+    let ranked = rank_package_suggestions(&word, &catalogue, 5);
+    let insert_line = package_insert_line(source);
+    ranked
+        .into_iter()
+        .filter(|pkg| !already_required(source, pkg))
+        .map(|pkg| CodeAction {
+            title: format!("Add 'package require {pkg}'"),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: insert_line,
+                    start_character: 0,
+                    end_line: insert_line,
+                    end_character: 0,
+                },
+                new_text: format!("package require {pkg}\n"),
+            }],
+        })
+        .collect()
+}
+
+/// Distinct package names known to the registry (`required_package` +
+/// `tcllib_package` across all command specs).
+fn package_catalogue(registry: &tcl_registry::CommandRegistry) -> Vec<String> {
+    let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for name in registry.command_names() {
+        if let Some(spec) = registry.get(name) {
+            if let Some(pkg) = spec.required_package {
+                set.insert(pkg.to_owned());
+            }
+            if let Some(pkg) = spec.tcllib_package {
+                set.insert(pkg.to_owned());
+            }
+        }
+    }
+    set.into_iter().collect()
+}
+
+/// Rank package names against a symbol's prefix (exact / prefix /
+/// substring), best first, capped at `limit`.  Mirrors
+/// `lsp/features/package_suggestions.py::rank_package_suggestions`.
+fn rank_package_suggestions(symbol: &str, packages: &[String], limit: usize) -> Vec<String> {
+    let prefix = symbol
+        .trim()
+        .split("::")
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+    if prefix.len() < 2 {
+        return Vec::new();
+    }
+    let mut ranked: Vec<(u8, &String)> = packages
+        .iter()
+        .filter_map(|pkg| {
+            let lower = pkg.to_lowercase();
+            let score = if lower == prefix {
+                0
+            } else if lower.starts_with(&prefix) {
+                1
+            } else if lower.contains(&prefix) {
+                2
+            } else {
+                return None;
+            };
+            Some((score, pkg))
+        })
+        .collect();
+    ranked.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(b.1)));
+    ranked
+        .into_iter()
+        .take(limit)
+        .map(|(_, pkg)| pkg.clone())
+        .collect()
+}
+
+/// Line at which to insert a new `package require` — after a leading
+/// shebang and any contiguous top-of-file `package require` lines.
+/// Mirrors `_package_insert_line`.
+fn package_insert_line(source: &str) -> u32 {
+    let lines: Vec<&str> = source.split('\n').collect();
+    let mut line = 0usize;
+    if lines.first().is_some_and(|l| l.starts_with("#!")) {
+        line = 1;
+    }
+    while line < lines.len() && {
+        let t = lines[line].trim_start();
+        t.starts_with("package require") || t.starts_with("package\trequire")
+    } {
+        line += 1;
+    }
+    u32::try_from(line).unwrap_or(0)
+}
+
+/// `true` when `source` already `package require`s `pkg`.
+fn already_required(source: &str, pkg: &str) -> bool {
+    source.split('\n').any(|line| {
+        let t = line.trim_start();
+        if let Some(rest) = t
+            .strip_prefix("package require")
+            .or_else(|| t.strip_prefix("package\trequire"))
+        {
+            let rest = rest.trim_start();
+            rest.strip_prefix(pkg)
+                .is_some_and(|after| after.is_empty() || after.starts_with(char::is_whitespace))
+        } else {
+            false
+        }
+    })
+}
+
+/// Extract the identifier word (including `::`) at `(line, character)`.
+fn word_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
+    let col = (character as usize).min(chars.len());
+    let mut start = col;
+    while start > 0 && is_word(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_word(chars[end]) {
+        end += 1;
+    }
+    chars[start..end].iter().collect()
 }
 
 #[cfg(test)]
@@ -450,5 +604,69 @@ mod tests {
         // Insertion at the top of the file (line 0, col 0).
         assert_eq!(act.edits[0].range.start_line, 0);
         assert_eq!(act.edits[0].range.start_character, 0);
+    }
+
+    fn at(line: u32, character: u32) -> LspRange {
+        LspRange {
+            start_line: line,
+            start_character: character,
+            end_line: line,
+            end_character: character,
+        }
+    }
+
+    #[test]
+    fn fuzzy_package_require_suggests_known_package() {
+        // `http::foo` — the `http` prefix matches the `http` package
+        // (http::geturl's required_package).
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let actions = package_require_actions("http::foo $x\n", at(0, 2), &reg);
+        assert!(
+            actions
+                .iter()
+                .any(|a| a.title == "Add 'package require http'"),
+            "{actions:?}"
+        );
+        // The edit inserts at the top of the file.
+        let act = actions
+            .iter()
+            .find(|a| a.title.contains("http"))
+            .expect("http action");
+        assert_eq!(act.edits[0].new_text, "package require http\n");
+        assert_eq!(act.edits[0].range.start_line, 0);
+    }
+
+    #[test]
+    fn fuzzy_package_require_dedups_already_required() {
+        // `http` is already required → no `http` suggestion, and the
+        // insert line lands after the existing require.
+        let reg = tcl_registry::CommandRegistry::build_default();
+        let src = "package require http\nhttp::foo\n";
+        let actions = package_require_actions(src, at(1, 2), &reg);
+        assert!(
+            !actions.iter().any(|a| a.title.contains("require http'")),
+            "http already required: {actions:?}"
+        );
+    }
+
+    #[test]
+    fn fuzzy_package_require_ignores_short_prefix() {
+        let reg = tcl_registry::CommandRegistry::build_default();
+        assert!(package_require_actions("x::y\n", at(0, 0), &reg).is_empty());
+    }
+
+    #[test]
+    fn rank_package_suggestions_orders_exact_before_prefix() {
+        let pkgs = vec!["httpd".to_string(), "http".to_string(), "json".to_string()];
+        let ranked = rank_package_suggestions("http::get", &pkgs, 5);
+        // Exact (`http`, score 0) before prefix (`httpd`, score 1);
+        // `json` doesn't match at all.
+        assert_eq!(ranked, vec!["http", "httpd"]);
+    }
+
+    #[test]
+    fn word_at_position_extracts_namespaced_word() {
+        assert_eq!(word_at_position("http::foo $x\n", 0, 2), "http::foo");
+        assert_eq!(word_at_position("  set y 1\n", 0, 3), "set");
     }
 }

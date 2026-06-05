@@ -1,5 +1,10 @@
 //! `open_device` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "open_device ?-hardware_name name? ?-device_name name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open_device",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["open_device ?-hardware_name name? ?-device_name name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

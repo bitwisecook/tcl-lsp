@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "append varName ?value value value ...?",
+}];
+
 /// Command spec for `append`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -29,12 +34,16 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Append to variable.",
-            &["append varName ?value value value ...?"],
-            "Tcl append(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Append to variable",
+            synopsis: &["append varName ?value value value ...?"],
+            snippet: "Append all of the value arguments to the current value of variable varName.",
+            source: "Tcl man page append.n",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

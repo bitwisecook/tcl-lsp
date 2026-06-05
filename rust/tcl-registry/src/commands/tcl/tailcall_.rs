@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tailcall command ?arg ...?",
+}];
+
 /// Command spec for `tailcall`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,11 +23,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Replace the current procedure with another command.",
-            &["tailcall command ?arg ...?"],
-            "Tcl tailcall(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Replace the current procedure with another command",
+    synopsis: &["tailcall command ?arg ...?"],
+    snippet: "The tailcall command replaces the currently executing procedure, lambda application, or method with another command.",
+    source: "Tcl man page tailcall.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

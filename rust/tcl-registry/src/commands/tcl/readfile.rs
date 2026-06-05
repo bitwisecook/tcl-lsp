@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "readFile filename ?text|binary?",
+}];
+
 /// Command spec for `readFile`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -16,11 +21,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Read the contents of a file and return them.",
-            &["readFile filename ?text|binary?"],
-            "Tcl man page library.n",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Read the contents of a file and return them.",
+            synopsis: &["readFile filename ?text|binary?"],
+            snippet: "",
+            source: "Tcl man page library.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

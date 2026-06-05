@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcl::OptKeyParse",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Parse arguments using a previously registered option description.",
-            &["tcl::OptKeyParse key arglist"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Parse arguments using a previously registered option description.",
+            synopsis: &["tcl::OptKeyParse key arglist"],
+            snippet: "",
+            source: "Tcl stdlib opt package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("opt"),
         ..CommandSpec::DEFAULT
     }
 }

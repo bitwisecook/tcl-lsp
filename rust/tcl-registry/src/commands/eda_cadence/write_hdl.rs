@@ -1,5 +1,10 @@
 //! `write_hdl` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_hdl ?-lec? ?design_name? > file",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_hdl",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_hdl ?-lec? ?design_name? > file"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

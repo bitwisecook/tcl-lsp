@@ -1,5 +1,10 @@
 //! `dbQuery` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "dbQuery ?-area box? ?-objType type?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dbQuery",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["dbQuery ?-area box? ?-objType type?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

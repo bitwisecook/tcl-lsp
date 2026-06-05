@@ -1,5 +1,10 @@
 //! `verify` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "verify ?-verbose?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "verify",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["verify ?-verbose?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

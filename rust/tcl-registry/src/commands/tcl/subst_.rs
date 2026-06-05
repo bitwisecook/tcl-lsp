@@ -1,6 +1,42 @@
 //! `subst` — perform Tcl substitutions on a string.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-nobackslashes",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-nocommands",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-novariables",
+        takes_value: false,
+        value_hint: "",
+        detail: "",
+        dialects: None,
+    },
+];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "subst ?options? string",
+}];
+
 /// SYNC-JUN02d-1 (#525 B4): fold a literal `subst string`.
 ///
 /// `subst` performs variable, command, and backslash substitution on
@@ -31,11 +67,17 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold: Some(fold_subst),
-        hover: Some(HoverSnippet::brief(
-            "Perform backslash, command, and variable substitutions.",
-            &["subst ?-nobackslashes? ?-nocommands? ?-novariables? string"],
-            "Tcl subst(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Perform backslash, command, and variable substitutions.",
+    synopsis: &["subst ?options? string", "subst ?-nobackslashes? ?-nocommands? ?-novariables? string"],
+    snippet: "**Security**: Without `-nocommands`, any `[cmd]` in the string is executed as Tcl. Use `-nocommands` when only variable substitution is needed: `subst -nocommands $template`. For safe templating, prefer `[string map]` or `[format]`.",
+    source: "Tcl subst(1)",
+    examples: "",
+    return_value: "The string with substitutions applied.",
+}),
+        forms: FORMS,
+        options: OPTIONS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

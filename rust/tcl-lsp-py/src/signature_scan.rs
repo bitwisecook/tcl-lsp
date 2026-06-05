@@ -198,8 +198,20 @@ fn span_tuple(span: Span) -> (u32, u32) {
     (span.start(), span.end())
 }
 
-/// Register `signature_scan_extract` on the Python module.
+/// GAP-B5: resolve a `lappend auto_path` argument to an absolute path,
+/// substituting `info_script` for `[info script]`.  Returns `None`
+/// when the expression is outside the supported `[file …]` / `[info
+/// script]` / literal / `~` subset.  The Python
+/// `auto_path_eval.evaluate_auto_path_expr` consumer delegates here.
+#[pyfunction]
+#[pyo3(signature = (raw, info_script = None, /))]
+pub fn auto_path_eval(raw: &str, info_script: Option<&str>) -> Option<String> {
+    tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw, info_script)
+}
+
+/// Register the signature-scan bindings on the Python module.
 pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(signature_scan_extract, m)?)?;
+    m.add_function(wrap_pyfunction!(auto_path_eval, m)?)?;
     Ok(())
 }

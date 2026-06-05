@@ -157,7 +157,9 @@ def main() -> int:
     print(f"  python specs: {len(py)}   rust specs: {len(rs)}   common: {len(common)}")
     if py_dups or rs_dups:
         print(f"  duplicate names  python={sorted(set(py_dups))}  rust={sorted(set(rs_dups))}")
-    print(f"  MISSING in rust ({len(missing)}): {missing[:20]}{' ...' if len(missing) > 20 else ''}")
+    print(
+        f"  MISSING in rust ({len(missing)}): {missing[:20]}{' ...' if len(missing) > 20 else ''}"
+    )
     print(f"  EXTRA in rust   ({len(extra)}): {extra[:20]}{' ...' if len(extra) > 20 else ''}")
     print("  completeness (commands carrying each dimension):")
     print(f"    {'dimension':22} {'python':>7} {'rust':>7} {'delta':>7}")

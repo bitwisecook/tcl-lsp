@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ipv6-subscriber-prefix-length",),
         ),
         header_types=(("net", "ipv6-subscriber-prefix-length"),),
-        properties=(BigipPropertySpec(name="value", value_type="string"),),
+        properties=(BigipPropertySpec(name="value", value_type="unknown"),),
     )

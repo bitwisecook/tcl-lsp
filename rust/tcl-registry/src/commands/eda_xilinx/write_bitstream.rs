@@ -1,5 +1,10 @@
 //! `write_bitstream` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_bitstream ?-force? ?-bin_file? ?-no_partial_bitfile? ?-cell cell? file_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_bitstream",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_bitstream ?-force? ?-bin_file? ?-no_partial_bitfile? ?-cell cell? file_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

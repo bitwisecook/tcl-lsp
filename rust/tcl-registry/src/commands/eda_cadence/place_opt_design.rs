@@ -1,5 +1,10 @@
 //! `place_opt_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "place_opt_design ?-effort effort? ?-incremental?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "place_opt_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["place_opt_design ?-effort effort? ?-incremental?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

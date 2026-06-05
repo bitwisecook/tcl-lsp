@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "accumulate",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::any(),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: use TCP::collect instead",
-            &["accumulate"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Deprecated: use TCP::collect instead",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
+        deprecated_replacement: Some("TCP::collect"),
         ..CommandSpec::DEFAULT
     }
 }

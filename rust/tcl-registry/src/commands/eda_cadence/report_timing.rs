@@ -1,5 +1,10 @@
 //! `report_timing` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_timing",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

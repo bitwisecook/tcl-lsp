@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "foreach varList list ?varList list ...? body",
+}];
+
 /// Dynamic arg role resolver: last argument is always the body.
 fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 3 {
@@ -28,11 +40,20 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(foreach_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),
         return_type: Some(TclType::String),
-        hover: Some(HoverSnippet::brief(
-            "Iterate over one or more lists.",
-            &["foreach varlist1 list1 ?varlist2 list2 ...? body"],
-            "Tcl foreach(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Iterate over list elements with one or more loop variables.",
+            synopsis: &[
+                "foreach varList list ?varList list ...? body",
+                "foreach varlist1 list1 ?varlist2 list2 ...? body",
+            ],
+            snippet:
+                "Variables are assigned from list elements; `body` runs once per assignment group.",
+            source: "Tcl foreach(1)",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

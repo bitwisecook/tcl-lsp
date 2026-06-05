@@ -18,16 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile connector"),),
         properties=(
-            BigipPropertySpec(name="connection-timeout", value_type="integer"),
+            BigipPropertySpec(name="app-service", value_type="reference", allow_none=True),
             BigipPropertySpec(
-                name="connect-on-data", value_type="enum", enum_values=("enabled", "disabled")
+                name="connect-on-data",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="entry-virtual-server", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="connection-timeout", value_type="integer"),
+            BigipPropertySpec(name="entry-virtual-server", value_type="reference", allow_none=True),
             BigipPropertySpec(
                 name="service-down-action",
                 value_type="enum",
-                enum_values=("ignore", "reset", "drop"),
+                enum_values=("drop", "ignore", "reset"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

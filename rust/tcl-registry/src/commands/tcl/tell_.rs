@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tell channel",
+}];
+
 /// Command spec for `tell`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -16,11 +21,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Return current access position for a channel.",
-            &["tell channel"],
-            "Tcl tell(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Return current access position for an open channel",
+    synopsis: &["tell channel"],
+    snippet: "The tell command has been superceded by the chan tell command which supports the same syntax and options.",
+    source: "Tcl man page tell.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

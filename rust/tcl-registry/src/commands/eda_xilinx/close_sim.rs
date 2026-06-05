@@ -1,5 +1,10 @@
 //! `close_sim` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "close_sim ?-force?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close_sim",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["close_sim ?-force?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

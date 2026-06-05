@@ -1,5 +1,10 @@
 //! `onbreak` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "onbreak {command}",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "onbreak",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["onbreak {command}"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

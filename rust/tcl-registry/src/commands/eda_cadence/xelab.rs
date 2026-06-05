@@ -1,5 +1,10 @@
 //! `xelab` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "xelab ?-access access_type? ?-top top_module? ?-snapshot snap_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "xelab",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["xelab ?-access access_type? ?-top top_module? ?-snapshot snap_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

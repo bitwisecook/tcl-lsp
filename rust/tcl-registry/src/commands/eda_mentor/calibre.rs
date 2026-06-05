@@ -1,5 +1,10 @@
 //! `calibre` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "calibre ?-drc | -lvs | -pex? ?-hier? ?-turbo? ?-hyper? rule_file",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "calibre",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["calibre ?-drc | -lvs | -pex? ?-hier? ?-turbo? ?-hyper? rule_file"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

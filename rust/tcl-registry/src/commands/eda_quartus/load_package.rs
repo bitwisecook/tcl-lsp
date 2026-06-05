@@ -1,5 +1,10 @@
 //! `load_package` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "load_package package_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load_package",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["load_package package_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `report_drc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_drc ?-ruledecks ruledeck_list? ?-file file? ?-name name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_drc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_drc ?-ruledecks ruledeck_list? ?-file file? ?-name name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

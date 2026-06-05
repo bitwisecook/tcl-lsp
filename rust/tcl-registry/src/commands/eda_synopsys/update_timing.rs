@@ -1,5 +1,10 @@
 //! `update_timing` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "update_timing ?-full?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update_timing",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["update_timing ?-full?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

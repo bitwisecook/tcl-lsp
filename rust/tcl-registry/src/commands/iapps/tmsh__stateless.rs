@@ -1,5 +1,10 @@
 //! `tmsh::stateless` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::stateless ?enabled?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::stateless",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::stateless ?enabled?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

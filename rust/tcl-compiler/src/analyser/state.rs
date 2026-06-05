@@ -372,12 +372,15 @@ impl Analyser {
             .expect("registry just stashed")
             .command_names()
             .collect();
-        let commands = crate::segmenter::segment_commands_with_recovery_and_config(
+        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known_commands,
             self.lexer_config(),
         );
         drop(known_commands);
+
+        // GAP-A1 strip 3c: ghost-token recovery (see method doc).
+        let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
 
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
@@ -395,13 +398,27 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // GAP-A1: an unterminated `"` / `{` emits E202 / E203
+                // (with a closing-delimiter fix) instead of the generic
+                // E200; only fall through to E103 / E200 when no
+                // delimiter-recovery diagnostic applies.
+                if !self.emit_unterminated_delimiter_diagnostics(cmd_ref)
+                    && !self.detect_stolen_close_brace(cmd_ref)
+                {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
                 continue;
             }
             let mut cmd = cmd_ref.clone();
+            // GAP-A6: E100 (stray `]`) / E102 (stray `}`) token checks,
+            // run on the *original* token stream before recovery mutates
+            // the clone.  Distinct from the recovery repairs below, which
+            // handle unclosed openers; a stray closer otherwise goes
+            // unreported.  (Top-level only for now — nested body
+            // recursion is a follow-up, mirroring how Python runs the
+            // check on every analysed body.)
+            self.emit_syntax_recovery_diagnostics(cmd_ref, ghost_recovery_applied);
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
@@ -459,12 +476,140 @@ impl Analyser {
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
         result
+    }
+
+    /// GAP-A1 strip 3c: ghost-token recovery.  When the scan-to-next
+    /// recovery left a partial command (the shape that otherwise emits
+    /// E200), re-lex the document with zero-width ghost `]` insertions
+    /// derived from the E201 heuristics.  When any apply, the
+    /// swallowed-command case (`set x [foo bar` then `puts done`) splits
+    /// into a clean `[foo bar]` + `puts done` stream, `commands` is
+    /// replaced with it, its E201 diagnostics are emitted, and `true` is
+    /// returned (the caller then skips its own E201 detector to avoid a
+    /// double-report).  Clean / fallback input has no partial command,
+    /// so this never runs a second parse on the common path.
+    fn apply_ghost_recovery(
+        &mut self,
+        source: &str,
+        commands: &mut Vec<crate::segmenter::SegmentedCommand>,
+    ) -> bool {
+        if !commands.iter().any(|c| c.is_partial) {
+            return false;
+        }
+        let (clean, e201) = crate::segmenter::segment_with_recovery(
+            source,
+            self.lexer_config(),
+            self.registry.as_ref(),
+        );
+        if e201.is_empty() {
+            return false;
+        }
+        *commands = clean;
+        self.result.diagnostics.extend(e201);
+        true
+    }
+
+    /// Emit the source-recovery syntax diagnostics for one command's
+    /// token stream: E100 / E102 stray closers (GAP-A6) and, unless
+    /// ghost recovery already emitted them, E201 unterminated `[`
+    /// command substitutions (GAP-A1).  When `ghost_recovery_applied`,
+    /// the stream is the ghost-recovered one and the E201s came from
+    /// `segment_with_recovery`; a ghost-terminated command would look
+    /// unterminated against the original bytes, so the detector is
+    /// skipped to avoid a double-report.
+    fn emit_syntax_recovery_diagnostics(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+        ghost_recovery_applied: bool,
+    ) {
+        let stray = super::syntax_checks::stray_closer_diagnostics(
+            cmd,
+            &self.source,
+            self.registry.as_ref(),
+        );
+        self.result.diagnostics.extend(stray);
+        if !ghost_recovery_applied {
+            let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
+                cmd,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(e201);
+        }
+        // GAP-A1: E202 / E203 fire for unterminated `"` / `{` whose
+        // token wasn't split into a partial command (e.g. a quote run
+        // below the segmenter's recovery line threshold).
+        self.emit_unterminated_delimiter_diagnostics(cmd);
+    }
+
+    /// Emit the E202 (unterminated `"`) / E203 (unterminated `{`)
+    /// recovery diagnostics for one command, honouring the disable set.
+    /// Returns `true` when at least one was emitted — the partial-command
+    /// path uses this to suppress the generic E200.  Mirrors the E202 /
+    /// E203 slice of `recovery.py::_detect_all_virtual_tokens`.
+    fn emit_unterminated_delimiter_diagnostics(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+    ) -> bool {
+        let diags = super::syntax_checks::unterminated_delimiter_diagnostics(
+            cmd,
+            &self.source,
+            self.registry.as_ref(),
+        );
+        let mut emitted = false;
+        for d in diags {
+            if self.disabled_diagnostics.contains(&d.code) {
+                continue;
+            }
+            self.result.diagnostics.push(d);
+            emitted = true;
+        }
+        emitted
+    }
+
+    /// GAP-A1 strip 2: convert the dialect-aware lexer's `LexWarning`s
+    /// into recovery diagnostics.  E204 (extra characters after a
+    /// close-brace), E205 (after a close-quote) and E206 (missing
+    /// close-brace for a `${…}` variable name) map by message; the
+    /// "missing closer" messages that overlap E201 / E202 / E203 are
+    /// skipped (the recovery detectors own those with better positions +
+    /// fixes); every *other* message maps to the catch-all E200.  Mirrors
+    /// `recovery.py::_lexer_warnings_to_diagnostics`
+    /// (`_WARNING_CODE_MAP.get(message, "E200")` minus the
+    /// recovery-handled set).
+    fn emit_lexer_warning_diagnostics(&mut self) {
+        let lexer = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(&self.source),
+            self.lexer_config(),
+        );
+        let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
+            return;
+        };
+        for w in warnings {
+            let code = match w.message.as_str() {
+                // Owned by the E201/E202/E203 recovery heuristics.
+                "missing close-bracket" | "missing \"" | "missing close-brace" => continue,
+                "extra characters after close-brace" => "E204",
+                "extra characters after close-quote" => "E205",
+                "missing close-brace for variable name" => "E206",
+                // Any unexpected lexer warning → catch-all E200.
+                _ => "E200",
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: code.to_string(),
+                span: Span::new(w.offset, w.offset),
+                message: w.message,
+                severity: super::types::Severity::Error,
+                fixes: Vec::new(),
+            });
+        }
     }
 
     /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
@@ -553,6 +698,7 @@ impl Analyser {
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 
@@ -846,6 +992,21 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("proc foo {} { set x 1 }", "tcl");
         assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn unknown_lexer_warning_maps_to_e200() {
+        // An unterminated `$arr(idx` array index makes the lexer emit a
+        // "missing )" warning, which has no dedicated recovery code — it
+        // must surface as the catch-all E200 (not be silently dropped).
+        let mut a = Analyser::new();
+        let r = a.analyse("set x $arr(idx\n", "tcl8.6");
+        let e200 = r.diagnostics.iter().find(|d| d.code == "E200");
+        assert!(
+            e200.is_some_and(|d| d.message == "missing )"),
+            "{:?}",
+            r.diagnostics
+        );
     }
 
     #[test]

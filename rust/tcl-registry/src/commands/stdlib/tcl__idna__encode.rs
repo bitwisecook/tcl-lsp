@@ -6,11 +6,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Encode a hostname to IDNA (Internationalised Domain Names) format.",
-            &["tcl::idna::encode hostname"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Encode a hostname to IDNA (Internationalised Domain Names) format.",
+            synopsis: &["tcl::idna::encode hostname"],
+            snippet: "",
+            source: "Tcl stdlib cookiejar package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("cookiejar"),
         ..CommandSpec::DEFAULT
     }
 }

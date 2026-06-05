@@ -1,5 +1,10 @@
 //! `create_project` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_project",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

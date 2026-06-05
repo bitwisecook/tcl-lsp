@@ -1,5 +1,10 @@
 //! `report_bottleneck` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_bottleneck ?-nosplit? ?-max_cells n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_bottleneck",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_bottleneck ?-nosplit? ?-max_cells n?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

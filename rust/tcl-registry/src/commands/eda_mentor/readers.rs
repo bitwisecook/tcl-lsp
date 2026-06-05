@@ -1,5 +1,10 @@
 //! `readers` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "readers signal_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "readers",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["readers signal_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

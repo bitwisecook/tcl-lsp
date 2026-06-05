@@ -1,5 +1,10 @@
 //! `set_wire_load_mode` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_wire_load_mode mode",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_wire_load_mode",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_wire_load_mode mode"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

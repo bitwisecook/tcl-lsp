@@ -1,5 +1,10 @@
 //! `create_constraint_mode` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "create_constraint_mode -name name -sdc_files file_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_constraint_mode",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["create_constraint_mode -name name -sdc_files file_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

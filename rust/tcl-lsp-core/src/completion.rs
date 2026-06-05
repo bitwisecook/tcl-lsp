@@ -56,15 +56,18 @@ use tcl_registry::CommandRegistry;
 
 /// LSP completion-item kind for our surface.  Keep narrow —
 /// extend when richer completion lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompletionKind {
     /// Tcl variable.
     Variable,
     /// User-defined proc.
+    #[default]
     Function,
     /// Enumerable argument value (e.g. a `string is <class>`
     /// character class).
     EnumValue,
+    /// A context-aware code snippet (GAP-A9).
+    Snippet,
 }
 
 /// A single completion suggestion.
@@ -74,7 +77,7 @@ pub enum CompletionKind {
 /// detail line.  The detail is what the editor shows in the
 /// right-hand column of the completion list (typically a
 /// parameter-list summary for procs).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompletionItem {
     /// Label shown in the completion list — for variables,
     /// `$name` / `${name}`; for procs, the proc's qualified or
@@ -94,6 +97,15 @@ pub struct CompletionItem {
     /// `A<tier><usage>_<name>` for user procs, `B<usage>_<name>`
     /// for built-in commands.  Lower buckets sort first.
     pub sort_text: Option<String>,
+    /// When `true`, `insert_text` is a VS Code snippet (tabstops
+    /// `${1:…}` / `$0`) and the server emits
+    /// `InsertTextFormat.Snippet` (GAP-A9).  Plain items leave it
+    /// `false`.
+    pub is_snippet: bool,
+    /// Optional `filterText` — what the editor matches the typed
+    /// prefix against (snippets filter on their `tcl-…` prefix,
+    /// not their human label).  `None` falls back to the label.
+    pub filter_text: Option<String>,
 }
 
 /// Compute completions for a position in `source`.
@@ -228,9 +240,28 @@ pub fn completions(
                 // Sort cross-document procs after local procs
                 // (`A…`) and built-ins (`B…`): `C0_<name>`.
                 sort_text: Some(format!("C0_{}", proc.name)),
+                is_snippet: false,
+                filter_text: None,
             });
         }
     }
+
+    // GAP-A9: context-aware snippet templates (`tcl-proc`, `tcl-if`,
+    // …).  Only the command-position fallback reaches here (the
+    // variable / switch / subcommand contexts returned earlier), so
+    // snippets never pollute `$var` or `-option` completion.  Their
+    // `Z0_…` sort key keeps them below real symbols, and the prefix
+    // filter means they only surface once the user types `tcl-…`.
+    let scope_vars: Vec<String> = analysis.global_scope.variables.keys().cloned().collect();
+    let snippet_partial = snippet_partial_at_position(source, line, character);
+    items.extend(crate::snippets::snippet_completions(
+        &crate::snippets::SnippetContext {
+            dialect: "tcl8.6",
+            indent_unit: "    ",
+            scope_vars: &scope_vars,
+            partial: &snippet_partial,
+        },
+    ));
     items
 }
 
@@ -308,6 +339,22 @@ fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
     chars[start..col].iter().collect()
 }
 
+/// Like [`word_partial_at_position`] but also treats `-` as a word
+/// character, so a `tcl-…` snippet prefix is captured whole (GAP-A9).
+fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = (character as usize).min(chars.len());
+    let mut start = col;
+    while start > 0 && (chars[start - 1].is_alphanumeric() || matches!(chars[start - 1], '_' | '-'))
+    {
+        start -= 1;
+    }
+    chars[start..col].iter().collect()
+}
+
 fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<CompletionItem> {
     let prefix = partial;
     let mut items = Vec::new();
@@ -330,6 +377,8 @@ fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<Comp
             kind: CompletionKind::Variable,
             detail: None,
             sort_text: None,
+            is_snippet: false,
+            filter_text: None,
         });
     }
     items
@@ -421,6 +470,8 @@ fn switch_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<Co
             kind: CompletionKind::Function,
             detail: None,
             sort_text: None,
+            is_snippet: false,
+            filter_text: None,
         })
         .collect()
 }
@@ -453,6 +504,8 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
             kind: CompletionKind::Function,
             detail: Some("F5 iRules event".to_string()),
             sort_text: None,
+            is_snippet: false,
+            filter_text: None,
         })
         .collect()
 }
@@ -473,6 +526,8 @@ fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Ve
             kind: CompletionKind::Function,
             detail: None,
             sort_text: None,
+            is_snippet: false,
+            filter_text: None,
         })
         .collect()
 }
@@ -502,6 +557,8 @@ fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Ve
             kind: CompletionKind::EnumValue,
             detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
             sort_text: None,
+            is_snippet: false,
+            filter_text: None,
         })
         .collect();
     items.sort_unstable_by(|a, b| a.label.cmp(&b.label));
@@ -572,11 +629,31 @@ fn builtin_completions(
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
                 kind: CompletionKind::Function,
-                detail: None,
+                detail: registry.get(name).map(command_detail),
                 sort_text: Some(builtin_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
             }
         })
         .collect()
+}
+
+/// Completion-detail provenance string for a built-in command:
+/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Mirrors
+/// `lsp/features/completion.py::_command_detail` (tcllib takes
+/// precedence over a plain `required_package`).
+fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
+    if let Some(pkg) = spec.tcllib_package {
+        format!("tcllib ({pkg})")
+    } else if let Some(pkg) = spec.required_package {
+        if pkg == "Tk" {
+            "Tk".to_string()
+        } else {
+            format!("stdlib ({pkg})")
+        }
+    } else {
+        "built-in".to_string()
+    }
 }
 
 /// Render a parameter-list summary for a proc completion's
@@ -644,6 +721,8 @@ fn proc_completions(
             kind: CompletionKind::Function,
             detail: Some(proc_signature_str(proc_def)),
             sort_text: Some(proc_sort_text(&proc_def.name, count)),
+            is_snippet: false,
+            filter_text: None,
         });
     }
     items
@@ -806,6 +885,42 @@ mod tests {
             labels.contains(&"puts"),
             "expected `puts` from registry; got {labels:?}",
         );
+    }
+
+    #[test]
+    fn builtin_completion_detail_shows_provenance() {
+        // A core built-in shows `built-in`; a stdlib command shows its
+        // `stdlib (PKG)` provenance from the registry `required_package`.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 2, &analysis, Some(&registry), None);
+        let puts = items.iter().find(|i| i.label == "puts").expect("puts");
+        assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
+
+        // `http::geturl` is a stdlib command requiring the `http` package.
+        let src = "http::ge\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 8, &analysis, Some(&registry), None);
+        if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
+            assert_eq!(
+                geturl.detail.as_deref(),
+                Some("stdlib (http)"),
+                "{geturl:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_detail_formats_each_provenance() {
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        // built-in: no package.
+        assert_eq!(command_detail(reg.get("puts").unwrap()), "built-in");
+        // stdlib: required_package set.
+        if let Some(spec) = reg.get("http::geturl") {
+            assert_eq!(command_detail(spec), "stdlib (http)");
+        }
     }
 
     #[test]

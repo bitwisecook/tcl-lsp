@@ -1,5 +1,10 @@
 //! `tmsh::version` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::version",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::version",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::version"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

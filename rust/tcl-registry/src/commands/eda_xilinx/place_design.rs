@@ -1,5 +1,10 @@
 //! `place_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "place_design ?-directive directive? ?-no_timing_driven? ?-unplace?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "place_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["place_design ?-directive directive? ?-no_timing_driven? ?-unplace?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

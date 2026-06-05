@@ -24,7 +24,8 @@ use crate::shimmer::{
     find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning,
 };
 use crate::taint::{
-    find_setter_constraint_warnings, find_taint_warnings, is_irules_dialect, TaintWarning,
+    find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
+    is_irules_dialect, TaintWarning,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
@@ -270,6 +271,16 @@ pub fn run_all_checks(
             &fu.sccp.executable_blocks,
         ) {
             out.push(Diagnostic::from_path_concat(&w));
+        }
+        // W313: destructive `file` ops on a variable/tainted path.
+        for w in find_destructive_file_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            registry,
+        ) {
+            out.push(Diagnostic::from_taint(&w));
         }
     }
 

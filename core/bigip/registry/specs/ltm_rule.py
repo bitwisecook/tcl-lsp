@@ -19,8 +19,5 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "rule"),),
         properties=(
             BigipPropertySpec(name="generate", value_type="reference", references=("ltm_rule",)),
-            BigipPropertySpec(name="when", value_type="string"),
-            BigipPropertySpec(name="timing", value_type="string"),
-            BigipPropertySpec(name="check", value_type="string"),
         ),
     )

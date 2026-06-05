@@ -1,5 +1,17 @@
 //! `load` — load a shared library extension.
 use crate::prelude::*;
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "load ?-global? ?-lazy? ?--? fileName",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
@@ -33,11 +45,16 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Load a shared library extension.",
-            &["load fileName ?prefix? ?interp?"],
-            "Tcl load(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Load machine code and initialize new commands",
+    synopsis: &["load ?-global? ?-lazy? ?--? fileName", "load ?-global? ?-lazy? ?--? fileName prefix", "load ?-global? ?-lazy? ?--? fileName prefix interp", "load fileName ?prefix? ?interp?"],
+    snippet: "This command loads binary code from a file into the application's address space and calls an initialization procedure in the library to incorporate it into an interpreter.",
+    source: "Tcl man page load.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

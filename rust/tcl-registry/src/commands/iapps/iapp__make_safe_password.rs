@@ -1,5 +1,10 @@
 //! `iapp::make_safe_password` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::make_safe_password ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::make_safe_password",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::make_safe_password ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

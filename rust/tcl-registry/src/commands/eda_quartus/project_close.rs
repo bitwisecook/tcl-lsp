@@ -1,5 +1,10 @@
 //! `project_close` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "project_close ?-dont_export_assignments?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "project_close",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["project_close ?-dont_export_assignments?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -18,8 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "service"),),
         properties=(
-            BigipPropertySpec(name="restart", value_type="string"),
-            BigipPropertySpec(name="start", value_type="string"),
-            BigipPropertySpec(name="stop", value_type="string"),
+            BigipPropertySpec(name="force", value_type="unknown"),
+            BigipPropertySpec(name="restart", value_type="reference", references=("restart",)),
+            BigipPropertySpec(name="start", value_type="reference", references=("start",)),
+            BigipPropertySpec(name="stop", value_type="reference", references=("stop",)),
         ),
     )

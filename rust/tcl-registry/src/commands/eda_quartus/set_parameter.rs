@@ -1,5 +1,10 @@
 //! `set_parameter` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_parameter -name name -to instance value",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_parameter",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_parameter -name name -to instance value"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

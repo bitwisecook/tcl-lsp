@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
+    BigipPropertySpec,
 )
 from ._base import register
 
@@ -16,4 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto master-key",),
         ),
         header_types=(("sys", "crypto master-key"),),
+        properties=(BigipPropertySpec(name="prompt-for-password", value_type="unknown"),),
     )

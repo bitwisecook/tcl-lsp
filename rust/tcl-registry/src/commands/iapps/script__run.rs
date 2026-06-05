@@ -1,5 +1,10 @@
 //! `script::run` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "script::run",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "script::run",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["script::run"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

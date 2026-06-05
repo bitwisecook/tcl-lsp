@@ -205,7 +205,7 @@ pub fn hover(
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) = builtin_command_hover_text(registry, &word) {
+        if let Some(text) = builtin_command_hover_text(registry, &word, analysis) {
             return Some(Hover::markdown(text));
         }
     }
@@ -220,7 +220,11 @@ pub fn hover(
 /// Render a hover snippet for a built-in command name.
 /// Looks up `name` in the registry, uses the matched spec's
 /// `hover.summary` / `synopsis` to produce a markdown block.
-fn builtin_command_hover_text(registry: &CommandRegistry, name: &str) -> Option<String> {
+fn builtin_command_hover_text(
+    registry: &CommandRegistry,
+    name: &str,
+    analysis: &AnalysisResult,
+) -> Option<String> {
     use std::fmt::Write;
     let spec = registry.get(name)?;
     let hover = spec.hover.as_ref()?;
@@ -237,7 +241,186 @@ fn builtin_command_hover_text(registry: &CommandRegistry, name: &str) -> Option<
         let joined = names.join(", ");
         let _ = write!(out, "\nSubcommands: {joined}\n");
     }
+    // Import hint: when the command needs a `package require` the
+    // document hasn't imported, append a `**Requires**` line.  Gated on
+    // the dialect supporting `package require` at all (the `package`
+    // command must exist — e.g. iRules has no package system).  Mirrors
+    // `lsp/features/hover.py:1032-1038`.
+    if let Some(pkg) = spec.required_package {
+        let pkg_available = registry.get("package").is_some();
+        let imported = analysis.package_requires.iter().any(|pr| pr.name == pkg);
+        if pkg_available && !imported {
+            let _ = write!(out, "\n**Requires**: `package require {pkg}`");
+        }
+    }
+    // iRules: append the **Valid events** list + event **Requires**.
+    // Only iRules commands carry `event_requires`, so its presence is the
+    // dialect gate.  Mirrors `hover.py:1039-1065`.
+    if let Some(requires) = spec.event_requires.as_ref() {
+        let effective = effective_event_requires(name, requires);
+        append_valid_events(&mut out, &effective);
+    }
     Some(out)
+}
+
+/// Augment a command's `EventRequires` with namespace-backed profile
+/// metadata.  For an iRules `NS::cmd` whose own `profiles` are empty, the
+/// profiles declared by the `NS` protocol namespace are substituted, so
+/// the **Valid events** list narrows and a profile **Requires** line is
+/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).  Mirrors
+/// `core/commands/registry/info.py::effective_event_requires` (the
+/// f5-irules gate is implicit — only iRules specs carry `event_requires`).
+fn effective_event_requires(
+    command_name: &str,
+    requires: &tcl_registry::events::EventRequires,
+) -> tcl_registry::events::EventRequires {
+    // A command with its own profiles, or no `NS::` qualifier, is unchanged.
+    if !requires.profiles.is_empty() {
+        return requires.clone();
+    }
+    let Some((prefix, _)) = command_name.split_once("::") else {
+        return requires.clone();
+    };
+    let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
+    match profile_reg.get_namespace(prefix) {
+        Some(ns) if !ns.profiles.is_empty() => tcl_registry::events::EventRequires {
+            profiles: ns.profiles,
+            ..*requires
+        },
+        _ => requires.clone(),
+    }
+}
+
+/// Append the iRules "**Valid events**" list (first 8 + total) and the
+/// event "**Requires**" line (sides / transport / profiles) for a
+/// command's `EventRequires`.  Mirrors `hover.py:1039-1065`.
+fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventRequires) {
+    use std::fmt::Write;
+    let matching = valid_events(requires);
+    if !matching.is_empty() {
+        let mut list = matching
+            .iter()
+            .take(8)
+            .map(|e| format!("`{e}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        if matching.len() > 8 {
+            let _ = write!(list, ", ... ({} total)", matching.len());
+        }
+        let _ = write!(out, "\n\n**Valid events**: {list}");
+    }
+    let mut reqs: Vec<String> = Vec::new();
+    if requires.client_side {
+        reqs.push("client-side".to_owned());
+    }
+    if requires.server_side {
+        reqs.push("server-side".to_owned());
+    }
+    if let Some(t) = requires.transport {
+        reqs.push(t.to_uppercase());
+    }
+    if !requires.profiles.is_empty() {
+        let mut profs: Vec<&str> = requires.profiles.to_vec();
+        profs.sort_unstable();
+        reqs.push(format!("profile {}", profs.join(" or ")));
+    }
+    if !reqs.is_empty() {
+        let _ = write!(out, "\n\n**Requires**: {}", reqs.join(", "));
+    }
+}
+
+/// Sorted event names whose properties satisfy `requires`.  Mirrors
+/// `events_matching` over the event registry.
+fn valid_events(requires: &tcl_registry::events::EventRequires) -> Vec<String> {
+    let event_reg = tcl_registry::events::EventRegistry::build();
+    let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
+    let mut out: Vec<String> = event_reg
+        .all_event_names()
+        .into_iter()
+        .filter(|name| {
+            event_reg
+                .get_props(name)
+                .is_some_and(|p| event_satisfies(p, requires, name, &profile_reg))
+        })
+        .map(ToOwned::to_owned)
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+/// True when an event's `EventProps` satisfy a command's `EventRequires`.
+/// Mirrors `event_satisfies`.
+fn event_satisfies(
+    props: &tcl_registry::events::EventProps,
+    requires: &tcl_registry::events::EventRequires,
+    event_name: &str,
+    profile_reg: &tcl_registry::profiles::ProfileRegistry,
+) -> bool {
+    if requires.init_only {
+        return event_name == "RULE_INIT";
+    }
+    if requires.also_in.contains(&event_name) {
+        return true;
+    }
+    if requires.flow && !props.flow {
+        return false;
+    }
+    if requires.client_side && !props.client_side {
+        return false;
+    }
+    if requires.server_side && !props.server_side {
+        return false;
+    }
+    if let Some(t) = requires.transport {
+        if !props.transport.contains(&t) {
+            return false;
+        }
+    }
+    if !requires.profiles.is_empty()
+        && !profile_stack_satisfies(requires.profiles, props.implied_profiles, profile_reg)
+    {
+        return false;
+    }
+    true
+}
+
+/// True when `active`'s expanded profile stack satisfies any one of the
+/// `required` profiles (OR semantics).  Mirrors `profile_stack_satisfies`.
+fn profile_stack_satisfies(
+    required: &[&str],
+    active: &[&str],
+    profile_reg: &tcl_registry::profiles::ProfileRegistry,
+) -> bool {
+    if required.is_empty() {
+        return true;
+    }
+    let active_expanded = expand_profile_stack(active, profile_reg);
+    required.iter().any(|candidate| {
+        expand_profile_stack(std::slice::from_ref(candidate), profile_reg)
+            .is_subset(&active_expanded)
+    })
+}
+
+/// `profiles` plus all transitive `ProfileSpec.requires` parents
+/// (uppercased).  Mirrors `expand_profile_stack`.
+fn expand_profile_stack(
+    profiles: &[&str],
+    profile_reg: &tcl_registry::profiles::ProfileRegistry,
+) -> std::collections::HashSet<String> {
+    let mut expanded: std::collections::HashSet<String> =
+        profiles.iter().map(|p| p.to_uppercase()).collect();
+    let mut pending: Vec<String> = expanded.iter().cloned().collect();
+    while let Some(cur) = pending.pop() {
+        if let Some(spec) = profile_reg.get_profile(&cur) {
+            for req in spec.requires {
+                let name = req.to_uppercase();
+                if expanded.insert(name.clone()) {
+                    pending.push(name);
+                }
+            }
+        }
+    }
+    expanded
 }
 
 /// Render a hover snippet for a `cmd subcommand` pair when
@@ -2350,6 +2533,166 @@ mod tests {
     }
 
     #[test]
+    fn builtin_hover_shows_requires_when_package_not_imported() {
+        // `http::geturl` needs `package require http`; without the
+        // import the hover appends the **Requires** line.
+        let src = "http::geturl $url\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 6, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            h.value.contains("**Requires**: `package require http`"),
+            "{}",
+            h.value
+        );
+    }
+
+    #[test]
+    fn builtin_hover_omits_requires_when_package_imported() {
+        // With `package require http` present, the hint is suppressed.
+        let src = "package require http\nhttp::geturl $url\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 1, 6, &analysis, Some(&registry)).expect("hover");
+        assert!(!h.value.contains("**Requires**"), "{}", h.value);
+    }
+
+    #[test]
+    fn valid_events_for_asm_profile_requirement() {
+        use tcl_registry::events::EventRequires;
+        // A command requiring the ASM profile is valid only in ASM events.
+        let requires = EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["ASM"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        };
+        let events = valid_events(&requires);
+        assert_eq!(
+            events,
+            vec![
+                "ASM_REQUEST_BLOCKING",
+                "ASM_REQUEST_DONE",
+                "ASM_REQUEST_VIOLATION",
+                "ASM_RESPONSE_LOGIN",
+                "ASM_RESPONSE_VIOLATION",
+            ],
+            "ASM-profile events"
+        );
+    }
+
+    #[test]
+    fn valid_events_uses_transitive_profile_expansion() {
+        use tcl_registry::events::EventRequires;
+        // `HTTP`-profile requirement matches HTTP events directly *and*
+        // events whose implied profile transitively requires HTTP (e.g.
+        // `ADAPT_REQUEST_HEADERS` via `REQUESTADAPT` → `HTTP`).  This
+        // exercises `expand_profile_stack`.
+        let requires = EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        };
+        let events = valid_events(&requires);
+        assert!(events.iter().any(|e| e == "HTTP_REQUEST"), "{events:?}");
+        assert!(
+            events.iter().any(|e| e == "ADAPT_REQUEST_HEADERS"),
+            "transitive-profile event missing (expansion broken): {events:?}"
+        );
+    }
+
+    #[test]
+    fn expand_profile_stack_includes_parents() {
+        let reg = tcl_registry::profiles::ProfileRegistry::build();
+        let stack = expand_profile_stack(&["HTTP"], &reg);
+        assert!(stack.contains("HTTP"), "{stack:?}");
+        assert!(stack.contains("TCP"), "HTTP should require TCP: {stack:?}");
+    }
+
+    #[test]
+    fn irules_command_hover_lists_valid_events() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        if let Some(text) =
+            builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""))
+        {
+            assert!(text.contains("**Valid events**"), "{text}");
+            assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
+            assert!(text.contains("**Requires**: profile ASM"), "{text}");
+        }
+    }
+
+    #[test]
+    fn irules_namespace_backed_profiles_injected_into_hover() {
+        // `DIAMETER::retransmission_default` carries `event_requires` with
+        // *empty* profiles; `effective_event_requires` substitutes the
+        // `DIAMETER` namespace's profiles, so the hover shows a profile
+        // **Requires** line (none would appear without the injection).
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        let text =
+            builtin_command_hover_text(&registry, "DIAMETER::retransmission_default", &analyse(""))
+                .expect("hover");
+        assert!(
+            text.contains("**Requires**: profile DIAMETER or DIAMETERSESSION or DIAMETER_ENDPOINT"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn effective_event_requires_injects_namespace_profiles() {
+        // Unit check: empty own-profiles + a known `NS::` prefix → the
+        // namespace's profiles; a non-namespaced name is unchanged.
+        let base = tcl_registry::events::EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        };
+        let eff = super::effective_event_requires("DIAMETER::foo", &base);
+        assert_eq!(
+            eff.profiles,
+            &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
+        );
+        // No `::` qualifier → unchanged (still empty).
+        assert!(super::effective_event_requires("puts", &base)
+            .profiles
+            .is_empty());
+        // Already-populated profiles are left as-is.
+        let with = tcl_registry::events::EventRequires {
+            profiles: &["HTTP"],
+            ..base
+        };
+        assert_eq!(
+            super::effective_event_requires("HTTP::uri", &with).profiles,
+            &["HTTP"]
+        );
+    }
+
+    #[test]
+    fn builtin_hover_omits_requires_for_core_command() {
+        // A core built-in (`lindex`) needs no package — no hint.
+        let src = "lindex $l 0\n";
+        let analysis = analyse(src);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let h = hover(src, 0, 2, &analysis, Some(&registry)).expect("hover");
+        assert!(!h.value.contains("**Requires**"), "{}", h.value);
+    }
+
+    #[test]
     fn proc_hover_text_formats_default_param() {
         let src = "proc greet {{name world}} { puts $name }\n";
         let analysis = analyse(src);
@@ -2896,7 +3239,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "puts").expect("hover");
+        let t = builtin_command_hover_text(&registry, "puts", &analyse("")).expect("hover");
         assert!(t.contains("built-in command"), "{t}");
         assert!(t.contains("`puts`"), "{t}");
     }
@@ -2904,7 +3247,7 @@ mod tests {
     #[test]
     fn builtin_command_hover_lists_subcommands() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(&registry, "string").expect("hover");
+        let t = builtin_command_hover_text(&registry, "string", &analyse("")).expect("hover");
         assert!(t.contains("Subcommands:"), "{t}");
         assert!(t.contains("length"), "{t}");
     }
@@ -2912,7 +3255,9 @@ mod tests {
     #[test]
     fn builtin_command_hover_returns_none_for_unknown() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(builtin_command_hover_text(&registry, "totallyMadeUpCommand").is_none());
+        assert!(
+            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse("")).is_none()
+        );
     }
 
     #[test]
