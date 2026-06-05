@@ -1,5 +1,9 @@
 # KCS: Error recovery — virtual token injection
 
+> **Rust port:** the validated design for an incremental green-tree recovery
+> engine (per-node structural-state index + `ArgRole` routing) lives in
+> [`error-recovery-rust-port.md`](error-recovery-rust-port.md).
+
 ## Symptom
 
 A contributor needs to understand how the parser handles malformed input
