@@ -676,6 +676,7 @@ dependencies = [
 name = "tcl-lsp-core"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",

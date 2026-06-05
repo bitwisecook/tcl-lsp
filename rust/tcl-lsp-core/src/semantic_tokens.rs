@@ -20,7 +20,10 @@
 //! * **Namespace** — namespace-qualified names containing
 //!   `::`.
 //! * **Regexp** — the regex-pattern argument of `regexp` / `regsub`
-//!   (registry `pattern_type == Regex`, option-skipped positional).
+//!   (registry `pattern_type == Regex`, option-skipped positional),
+//!   sub-tokenised into ARE components (`RegexpGroup` /
+//!   `RegexpCharClass` / `RegexpQuantifier` / `RegexpAnchor` /
+//!   `RegexpEscape` / `RegexpBackref` / `RegexpAlternation`).
 //! * **Event** — an iRules `when EVENT` event name.
 //!
 //! The legend is exposed via [`legend_token_types`] and
@@ -46,8 +49,8 @@
 //!   `glob`).  Each format helper already has a hover; the
 //!   semantic-token side needs the same cursor-context
 //!   detection plus per-component classification.
-//! * `BigIP` URI segments, and the per-component regex sub-token
-//!   taxonomy (`regexpGroup` / `regexpCharClass` / …).
+//! * The `BigIP` object taxonomy (`pool` / `profile` /
+//!   `ipAddress` / …) for iRules string arguments.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -79,6 +82,20 @@ enum TokenKind {
     Regexp = 7,
     /// iRules event name (`when EVENT`).
     Event = 8,
+    /// Regex group / flags: `(`, `)`, `(?:`, `(?imsx)`.
+    RegexpGroup = 9,
+    /// Regex character class: `[...]`, `\d` / `\w` / `\s`, `.`.
+    RegexpCharClass = 10,
+    /// Regex quantifier: `*` `+` `?` `{n,m}` and lazy variants.
+    RegexpQuantifier = 11,
+    /// Regex anchor: `^` `$` `\A` `\Z` `\b` `\B` `\m` `\M` `\y` `\Y`.
+    RegexpAnchor = 12,
+    /// Regex escape sequence: `\n` `\t` `\xHH` `\uHHHH` `\<meta>`.
+    RegexpEscape = 13,
+    /// Regex backreference: `\0`–`\9`.
+    RegexpBackref = 14,
+    /// Regex alternation pipe: `|`.
+    RegexpAlternation = 15,
 }
 
 /// The token-type / token-modifier legend the server
@@ -95,6 +112,13 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "namespace",
         "regexp",
         "event",
+        "regexpGroup",
+        "regexpCharClass",
+        "regexpQuantifier",
+        "regexpAnchor",
+        "regexpEscape",
+        "regexpBackref",
+        "regexpAlternation",
     ]
 }
 
@@ -220,21 +244,32 @@ fn is_event_name(s: &str) -> bool {
             .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || *b == b'_')
 }
 
+/// How a specific argument token should be classified, overriding the
+/// default lexer-kind classification.
+#[derive(Debug, Clone, Copy)]
+enum ArgOverride {
+    /// Classify the whole token as this kind (e.g. an event name).
+    Kind(TokenKind),
+    /// Sub-tokenise the token as a regex pattern (groups / classes /
+    /// quantifiers / …); falls back to a single `regexp` token when the
+    /// pattern has no metacharacters.
+    RegexPattern,
+}
+
 /// Per-command argument-token classification overrides, keyed by the
 /// representative token's start offset.  Two registry-driven cases:
 ///
 /// * a `regexp` / `regsub` regex-pattern argument (the spec's
 ///   `pattern_type == Regex`, option-skipped first positional) →
-///   [`TokenKind::Regexp`];
+///   [`ArgOverride::RegexPattern`] (sub-tokenised into ARE components);
 /// * a `when EVENT` event-name argument → [`TokenKind::Event`].
 ///
-/// The per-component regex / format-string / `BigIP` sub-token taxonomy
-/// (`regexpGroup`, format flags, `pool` / `profile`, …) is the deferred
-/// bulk of `S-semantic-tokens-rich`.
+/// The format-string (`%Y` / `%s`) and `BigIP` object sub-token
+/// taxonomies remain the deferred bulk of `S-semantic-tokens-rich`.
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-) -> std::collections::HashMap<u32, TokenKind> {
+) -> std::collections::HashMap<u32, ArgOverride> {
     let mut overrides = std::collections::HashMap::new();
     let head = &seg.texts[0];
 
@@ -242,7 +277,7 @@ fn special_arg_kinds(
     if head == "when" {
         if let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1)) {
             if matches!(tok.kind, TokenType::Esc) && is_event_name(text) {
-                overrides.insert(tok.span.start(), TokenKind::Event);
+                overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
             }
         }
     }
@@ -268,11 +303,140 @@ fn special_arg_kinds(
         // `args[idx]` is the pattern; its representative token is
         // `seg.argv[idx + 1]` (argv[0] is the command head).
         if let Some(tok) = seg.argv.get(idx + 1) {
-            overrides.insert(tok.span.start(), TokenKind::Regexp);
+            overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
         }
     }
 
     overrides
+}
+
+/// Sub-tokenise a regex pattern token into ARE components (groups,
+/// character classes, quantifiers, anchors, escapes, backreferences,
+/// alternation), with the literal runs between them classified as
+/// `regexp`.  Returns `false` (emitting nothing) when the token isn't a
+/// braced/quoted literal or contains no metacharacters — the caller then
+/// falls back to a single `regexp` token.  Mirrors
+/// `_collect_regex_pattern_tokens` + `_REGEX_PART_RE`.
+fn push_regex_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return false;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    let Some(inner) = source.get(cstart..cend) else {
+        return false;
+    };
+    if inner.is_empty() {
+        return false;
+    }
+    // ARE metacharacter scanner (the working alternatives of Python's
+    // `_REGEX_PART_RE`; its one malformed `\{\d+\}` BRE branch can never
+    // match real input and is omitted).
+    let re = regex::Regex::new(concat!(
+        r"\(\?[imnsxwpq]*(?:[-imnsxwpq]*)?\)", // (?flags)
+        r"|\(\?[:=!>]",                        // non-capturing / lookaround open
+        r"|\(|\)",                             // group open / close
+        r"|\[(?:\^)?\]?(?:[^\]\\]|\\.)*\]",    // [char class]
+        r"|\\[AbBdDmMsSwWyYZ]",                // ARE class shortcuts / anchors
+        r"|\\[0-9]",                           // backreference
+        r"|\\[.*+?(){}\[\]|^$\\]",             // escaped metachar
+        r"|\\[aefnrtv]",                       // escape sequences
+        r"|\\x[0-9a-fA-F]{1,2}",               // hex escape
+        r"|\\u[0-9a-fA-F]{1,4}",               // unicode escape
+        r"|\\U[0-9a-fA-F]{1,8}",               // wide unicode escape
+        r"|[*+?]\??",                          // quantifiers + lazy
+        r"|\{\d+(?:,\d*)?\}",                  // bounded quantifier {n,m}
+        r"|\|",                                // alternation
+        r"|[\^$]",                             // anchors
+        r"|\.",                                // any-char
+    ))
+    .expect("valid ARE part regex");
+
+    let mut matched_any = false;
+    let mut pos = 0usize;
+    for m in re.find_iter(inner) {
+        matched_any = true;
+        if m.start() > pos {
+            push_subtoken(
+                line_index,
+                cstart + pos,
+                &inner[pos..m.start()],
+                TokenKind::Regexp,
+                entries,
+            );
+        }
+        let kind = classify_regex_component(m.as_str());
+        push_subtoken(line_index, cstart + m.start(), m.as_str(), kind, entries);
+        pos = m.end();
+    }
+    if !matched_any {
+        return false;
+    }
+    if pos < inner.len() {
+        push_subtoken(
+            line_index,
+            cstart + pos,
+            &inner[pos..],
+            TokenKind::Regexp,
+            entries,
+        );
+    }
+    true
+}
+
+/// Classify a single ARE metacharacter run.  Mirrors the component
+/// classifier inside `_collect_regex_pattern_tokens`.
+fn classify_regex_component(matched: &str) -> TokenKind {
+    let bytes = matched.as_bytes();
+    if matched.starts_with('[') {
+        return TokenKind::RegexpCharClass;
+    }
+    if matched.starts_with('\\') && bytes.len() >= 2 {
+        let ch = bytes[1];
+        return if ch.is_ascii_digit() {
+            TokenKind::RegexpBackref
+        } else if matches!(
+            ch,
+            b'a' | b'e' | b'f' | b'n' | b'r' | b't' | b'v' | b'x' | b'u' | b'U'
+        ) {
+            TokenKind::RegexpEscape
+        } else if matches!(ch, b'd' | b'D' | b's' | b'S' | b'w' | b'W') {
+            TokenKind::RegexpCharClass
+        } else if matches!(ch, b'b' | b'B' | b'm' | b'M' | b'y' | b'Y' | b'A' | b'Z') {
+            TokenKind::RegexpAnchor
+        } else {
+            TokenKind::RegexpEscape
+        };
+    }
+    match matched {
+        "^" | "$" => TokenKind::RegexpAnchor,
+        "|" => TokenKind::RegexpAlternation,
+        "." => TokenKind::RegexpCharClass,
+        _ if matched.starts_with('(') => TokenKind::RegexpGroup,
+        _ => TokenKind::RegexpQuantifier,
+    }
+}
+
+/// Push one regex sub-token at absolute byte offset `abs_off` covering
+/// `text`.  Skips empty / multi-line runs.
+fn push_subtoken(
+    line_index: &LineIndex,
+    abs_off: usize,
+    text: &str,
+    kind: TokenKind,
+    entries: &mut Vec<Entry>,
+) {
+    if text.is_empty() || text.contains('\n') {
+        return;
+    }
+    let pos = line_index.position_at(u32::try_from(abs_off).unwrap_or(0));
+    let len_chars = u32::try_from(text.chars().count()).unwrap_or(0);
+    entries.push((pos.line, pos.character, len_chars, kind, 0));
 }
 
 /// Walk the segmenter + comment scan and return raw
@@ -324,12 +488,29 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
             if tok.span == head_tok.span {
                 continue;
             }
-            let kind = overrides
-                .get(&tok.span.start())
-                .copied()
-                .or_else(|| classify_arg_token(*tok, source));
-            if let Some(kind) = kind {
-                push_token(&line_index, source, *tok, kind, 0, &mut entries);
+            match overrides.get(&tok.span.start()) {
+                Some(ArgOverride::RegexPattern) => {
+                    // Sub-tokenise the regex pattern; if it has no
+                    // metacharacters, fall back to one `regexp` token.
+                    if !push_regex_subtokens(&line_index, source, *tok, &mut entries) {
+                        push_token(
+                            &line_index,
+                            source,
+                            *tok,
+                            TokenKind::Regexp,
+                            0,
+                            &mut entries,
+                        );
+                    }
+                }
+                Some(ArgOverride::Kind(kind)) => {
+                    push_token(&line_index, source, *tok, *kind, 0, &mut entries);
+                }
+                None => {
+                    if let Some(kind) = classify_arg_token(*tok, source) {
+                        push_token(&line_index, source, *tok, kind, 0, &mut entries);
+                    }
+                }
             }
         }
     }
@@ -640,6 +821,71 @@ mod tests {
             ks.contains(&(TokenKind::Event as u32)),
             "expected an event token; got {ks:?}"
         );
+    }
+
+    #[test]
+    fn regex_pattern_subtokenised_into_components() {
+        // `(a+)+` → group `(`, literal `a`, quantifier `+`, group `)`,
+        // quantifier `+`.
+        let ks = kinds("regexp {(a+)+} $s\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::RegexpGroup as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::RegexpQuantifier as u32)), "{ks:?}");
+        // The whole-pattern `regexp` kind is replaced by sub-tokens, but
+        // the literal `a` run is still `regexp`.
+        assert!(ks.contains(&(TokenKind::Regexp as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn regex_char_class_and_anchor_subtokens() {
+        let ks = kinds("regexp {^[0-9]+$} $s\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::RegexpAnchor as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::RegexpQuantifier as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn regex_alternation_and_escape_subtokens() {
+        let ks = kinds("regexp {a\\d|b} $s\n", "tcl", &reg());
+        assert!(
+            ks.contains(&(TokenKind::RegexpAlternation as u32)),
+            "{ks:?}"
+        );
+        // `\d` is an ARE class shortcut → char class.
+        assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn regex_without_metachars_stays_single_regexp() {
+        // `abc` has no metacharacters → one `regexp` token, no sub-tokens.
+        let ks = kinds("regexp {abc} $s\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::Regexp as u32)), "{ks:?}");
+        assert!(!ks.contains(&(TokenKind::RegexpGroup as u32)), "{ks:?}");
+        assert!(
+            !ks.contains(&(TokenKind::RegexpQuantifier as u32)),
+            "{ks:?}"
+        );
+    }
+
+    #[test]
+    fn classify_regex_component_maps_each_kind() {
+        assert_eq!(classify_regex_component("("), TokenKind::RegexpGroup);
+        assert_eq!(classify_regex_component("(?:"), TokenKind::RegexpGroup);
+        assert_eq!(
+            classify_regex_component("[a-z]"),
+            TokenKind::RegexpCharClass
+        );
+        assert_eq!(classify_regex_component("\\d"), TokenKind::RegexpCharClass);
+        assert_eq!(classify_regex_component("."), TokenKind::RegexpCharClass);
+        assert_eq!(classify_regex_component("+"), TokenKind::RegexpQuantifier);
+        assert_eq!(
+            classify_regex_component("{2,3}"),
+            TokenKind::RegexpQuantifier
+        );
+        assert_eq!(classify_regex_component("^"), TokenKind::RegexpAnchor);
+        assert_eq!(classify_regex_component("\\b"), TokenKind::RegexpAnchor);
+        assert_eq!(classify_regex_component("\\n"), TokenKind::RegexpEscape);
+        assert_eq!(classify_regex_component("\\3"), TokenKind::RegexpBackref);
+        assert_eq!(classify_regex_component("|"), TokenKind::RegexpAlternation);
     }
 
     #[test]

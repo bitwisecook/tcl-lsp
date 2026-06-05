@@ -5381,8 +5381,15 @@ ranks the registry-derived package catalogue (`required_package` /
 `Add 'package require <pkg>'` (skipping already-required packages); the
 workspace `package_resolver`'s *installed*-package set is the only
 deferred piece (locally-installed-but-unregistered packages aren't
-suggested).  **Still pending:** only the GAP-C2 *per-component*
-regex/format **sub-token** taxonomy (the ~1600-LOC sub-tokenisers).
+suggested).  Also landed: the GAP-C2 **regex sub-tokens** —
+`push_regex_subtokens` splits a `regexp`/`regsub` pattern argument into
+ARE components (`regexpGroup` / `regexpCharClass` / `regexpQuantifier` /
+`regexpAnchor` / `regexpEscape` / `regexpBackref` / `regexpAlternation`),
+porting `_collect_regex_pattern_tokens` + `_REGEX_PART_RE` (the one
+malformed BRE-quantifier branch, dead in Python too, is omitted).
+**Still pending:** the format-string component sub-tokens (`%Y` / `%s` /
+`\1` in `clock format` / `format` / `regsub`) and the `BigIP` object
+taxonomy (`pool` / `profile` / `ipAddress` / …).
 
 ### E. Doc defects corrected in place by this audit
 

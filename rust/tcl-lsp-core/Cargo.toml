@@ -12,6 +12,7 @@ authors.workspace = true
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
+regex = "1"
 
 [lints]
 workspace = true
