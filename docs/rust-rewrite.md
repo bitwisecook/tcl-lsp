@@ -223,7 +223,7 @@ parity gaps or Python is still primary), 🔴 not started.
 | Python subsystem | LOC | Target Rust crate | Status | Notes |
 |---|---|---|---|---|
 | `core/parsing/` (lexer, segmenter, expr sub-lexer, backslash) | 3.8K | `tcl-lexer`, `tcl-compiler::segmenter` | ✅ | Foundation; PyO3-exposed and differentially fuzzed. |
-| `core/compiler/` (IR, CFG, SSA, lowering, optimiser passes) | 58.6K | `tcl-compiler` | 🟡 | Most passes ported (lowering, SSA, GVN, SCCP, var_escape, inline_uplevel, side-effects, taint, type_infer). Remaining: bytecode **codegen** completeness, a few optimiser passes, full IR-disasm parity. |
+| `core/compiler/` (IR, CFG, SSA, lowering, optimiser passes) | 58.6K | `tcl-compiler` | 🟡 | Most passes ported (lowering, SSA, GVN, SCCP, var_escape, inline_uplevel, side-effects, taint, type_infer). Remaining: a few optimiser passes and full IR-disasm parity. **Bytecode** codegen (`tcl-compiler::codegen`, ~10.2K LOC) is now larger than the Python bytecode codegen (~7.1K LOC, the non-`wasm` half of `core/compiler/codegen`) and carries no `todo!`/`unimplemented!` stubs — verify completeness against the `bytecode-compare` gate rather than assuming it lags. The **`codegen/wasm/` emitter (~14K LOC in Python) is entirely unported** (zero Rust files) — that, not bytecode, is the open codegen block. |
 | `core/commands/` (command-spec registry data) | 110.8K | `tcl-registry` | 🟡 | Registry infra + ~2070 spec files ported; behavioural-trait stamping and dialect-shadow parity tracked under "Command-spec tracking". Long tail of per-spec fields. |
 | `core/analysis/` (analyser, scope, var-refs, signature_scan, taint hints) | 17K | `tcl-compiler::analyser`, `::signature_scan` | 🟡 | `signature_scan` ported (C40); analyser core in progress (C41). Scope/var-ref/diagnostic providers partially landed. |
 | `core/minifier/` | 3.4K | `tcl-lsp-core::minify` | ✅ | Aggressive + compact tiers, unminify, registry-driven skip lists. |
@@ -268,9 +268,16 @@ Crates still to stand up, roughly in dependency order:
 10. **`tcl-fuzz`** — differential fuzzer harness (retires Python last).
 
 Codegen note: bytecode **codegen** lives in `tcl-compiler::codegen`
-today but is incomplete relative to `core/compiler/codegen`. Finishing
-it is a prerequisite for `tcl-vm` running real scripts and for the
-`bytecode-compare` parity gate against tclsh.
+(~10.2K LOC) and is the more mature half — it already exceeds the
+Python bytecode codegen (~7.1K LOC, the non-`wasm` part of
+`core/compiler/codegen`) in size and carries no `todo!` /
+`unimplemented!` / `unsupported` markers. Treat its remaining gaps as
+parity items to confirm against the `bytecode-compare` gate against
+tclsh, not as a from-scratch build. The genuinely unported block is the
+**WASM emitter**: `core/compiler/codegen/wasm/` is ~14K LOC of Python
+with **no Rust counterpart at all**. Bytecode codegen plus `tcl-vm`
+unblock the analyser/debugger/iRule-test in-process runtime; the WASM
+emitter port is what feeds the Zig out-of-process runtime.
 
 ### PyO3 public-API surface (terminal state)
 
