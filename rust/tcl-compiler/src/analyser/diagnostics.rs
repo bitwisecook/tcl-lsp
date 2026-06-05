@@ -618,6 +618,15 @@ fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
+/// Return `true` when an `uplevel` first argument is a level
+/// specifier (`1`, `#0`, …) rather than the script itself.  Mirrors
+/// Python's `args[0].lstrip("#").isdigit() or args[0] == "#0"`: strip
+/// any leading `#` then require a non-empty all-digit remainder.
+fn uplevel_has_level(arg0: &str) -> bool {
+    let stripped = arg0.trim_start_matches('#');
+    !stripped.is_empty() && stripped.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// Walk `node` and collect every `==`/`!=` operator whose at least
 /// one operand is a string literal ([`ExprNode::String`]).
 ///
@@ -2433,6 +2442,255 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
             }
         }
         false
+    }
+
+    /// Shared substitution probe for the W3xx injection checks:
+    /// returns `true` when any argument word carries a `$var` / `[cmd]`
+    /// substitution.  A word counts as substituted when its
+    /// representative token is `Var` / `Cmd` (single-token substitution
+    /// at the word level) or — for a multi-token word — its source span
+    /// contains an unescaped `$` / `[` outside any `{...}` block.  This
+    /// is the same approximation of Python's `all_tokens[1:]` walk that
+    /// [`Self::emit_w101_eval_string_concat`] uses (the analyser doesn't
+    /// thread the full token stream through `process_command`); the
+    /// representative-kind + brace-aware span scan covers every shape in
+    /// the security fixtures.
+    fn args_have_substitution(&self, arg_tokens: &[tcl_lexer::Token], arg_single: &[bool]) -> bool {
+        arg_tokens.iter().enumerate().any(|(i, tok)| {
+            if matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            ) {
+                return true;
+            }
+            if arg_single.get(i).copied() == Some(true) {
+                return false;
+            }
+            self.word_span_contains_substitution(tok.span)
+        })
+    }
+
+    /// Return the trimmed inner script of a `Cmd` substitution token
+    /// (`[ … ]` with the brackets stripped), or `None` for a non-`Cmd`
+    /// token or an out-of-bounds span.
+    fn cmd_token_inner(&self, tok: tcl_lexer::Token) -> Option<&str> {
+        if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
+            return None;
+        }
+        let start = tok.span.start() as usize + tok.content_offset as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return None;
+        }
+        Some(self.source[start..end].trim())
+    }
+
+    /// **W300.** Emit "source with a variable path" when `source`'s
+    /// file argument is a `$var` substitution — the path (and therefore
+    /// the code executed) is dynamic.  Mirrors
+    /// `core/analysis/checks/_security.py:388-429::check_source_variable`
+    /// (skips a leading `-encoding ENC` option pair).
+    pub(super) fn emit_w300_source_variable(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "source" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let mut file_idx = 0;
+        if args[0] == "-encoding" && args.len() >= 3 {
+            file_idx = 2;
+        }
+        let Some(tok) = arg_tokens.get(file_idx) else {
+            return;
+        };
+        if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W300".to_string(),
+                span: tok.span,
+                message: "source with a variable path executes arbitrary Tcl code. \
+Ensure the path is not influenced by untrusted input."
+                    .to_string(),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W309.** Emit "eval/uplevel with `[subst]` — double
+    /// substitution" when an `eval` / `uplevel` argument is a `[subst …]`
+    /// command substitution: `subst` expands `$var` / `[cmd]` once, then
+    /// the outer command re-parses the result as Tcl — a classic
+    /// double-decode injection.  Mirrors
+    /// `_security.py:144-189::check_eval_subst_double_decode` (one
+    /// diagnostic per command).  Approximation: only the per-word
+    /// representative `Cmd` tokens are scanned, so a `[subst …]` buried
+    /// inside a larger quoted word isn't detected (same limitation as
+    /// W101 / W309 in the absence of the full token stream).
+    pub(super) fn emit_w309_eval_subst_double_decode(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "eval" | "uplevel") || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        for tok in arg_tokens {
+            let Some(inner) = self.cmd_token_inner(*tok) else {
+                continue;
+            };
+            if inner == "subst" || inner.starts_with("subst ") || inner.starts_with("subst\t") {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W309".to_string(),
+                    span: tok.span,
+                    message: format!(
+                        "{cmd_name} with [subst] creates double substitution: \
+subst expands $var and [cmd], then {cmd_name} re-parses the result as Tcl. \
+This is a code-injection risk. Use [format] or [string map] for safe templating."
+                    ),
+                    severity: Severity::Error,
+                    fixes: Vec::new(),
+                });
+                break;
+            }
+        }
+    }
+
+    /// **W301.** Emit "uplevel with string-built script" when an
+    /// `uplevel` script argument risks injection: either multiple script
+    /// arguments (concatenated like `eval`) or a single unbraced script
+    /// word carrying substitution.  Mirrors
+    /// `_security.py:233-307::check_uplevel_injection` (skips a leading
+    /// `?level?` argument; the `[list …]` idiom is the recognised safe
+    /// form).
+    pub(super) fn emit_w301_uplevel_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "uplevel" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let script_idx = usize::from(uplevel_has_level(&args[0]));
+        if script_idx >= args.len() || script_idx >= arg_tokens.len() {
+            return;
+        }
+        let remaining = &args[script_idx..];
+        let remaining_toks = &arg_tokens[script_idx..];
+        if remaining.len() > 1 {
+            // Multiple args = concat behaviour = danger.
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W301".to_string(),
+                    span: remaining_toks[0].span,
+                    message: "uplevel with multiple arguments concatenates them into \
+a script (like eval). Use a single braced body or {*}$cmdList to avoid injection."
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        } else if let Some(tok) = remaining_toks.first() {
+            // Single arg — unbraced + substituted (and not [list …]).
+            if matches!(tok.kind, tcl_lexer::TokenType::Str)
+                || self.is_canonical_list_substitution(*tok)
+            {
+                return;
+            }
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W301".to_string(),
+                    span: tok.span,
+                    message: "uplevel with an unbraced script argument may cause \
+double substitution. Use braces: uplevel 1 {...}"
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// **W312.** Emit "interp eval / invokehidden injection" when an
+    /// `interp eval` / `interp invokehidden` script argument risks
+    /// injection — the same shape as W301 but for the child-interpreter
+    /// dispatch.  Mirrors
+    /// `_security.py:579-663::check_interp_eval_injection`.
+    pub(super) fn emit_w312_interp_eval_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "interp" || args.is_empty() {
+            return;
+        }
+        let sub = args[0].as_str();
+        if !matches!(sub, "eval" | "invokehidden") || args.len() < 3 || arg_tokens.len() < 3 {
+            return;
+        }
+        // Locate the first script word: `interp eval PATH script …` →
+        // index 2; `interp invokehidden PATH ?-opt…? hiddenCmd …` → the
+        // first non-option word from index 2.
+        let script_start = if sub == "eval" {
+            2
+        } else {
+            let mut i = 2;
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            if i >= args.len() {
+                return;
+            }
+            i
+        };
+        if script_start >= args.len() || script_start >= arg_tokens.len() {
+            return;
+        }
+        let script_args = &args[script_start..];
+        let script_toks = &arg_tokens[script_start..];
+        if script_args.is_empty() || script_toks.is_empty() {
+            return;
+        }
+        // `interp eval` with multiple script words concatenates them.
+        if sub == "eval" && script_args.len() > 1 {
+            if self.args_have_substitution(arg_tokens, arg_single) {
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W312".to_string(),
+                    span: script_toks[0].span,
+                    message: format!(
+                        "interp {sub} with multiple arguments concatenates \
+them into a script (like eval). Use a single braced body to avoid injection."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+            return;
+        }
+        let tok = script_toks[0];
+        if matches!(tok.kind, tcl_lexer::TokenType::Str) || self.is_canonical_list_substitution(tok)
+        {
+            return;
+        }
+        if self.args_have_substitution(arg_tokens, arg_single) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W312".to_string(),
+                span: tok.span,
+                message: format!(
+                    "interp {sub} with an unbraced script argument may \
+cause code injection. Use braces: interp {sub} $child {{...}}"
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
     }
 
     /// Classify the positional value for W304: tristate severity,
@@ -7380,6 +7638,79 @@ foo
             !r.diagnostics.iter().any(|d| d.code == "W120"),
             "{:?}",
             r.diagnostics
+        );
+    }
+
+    // -- GAP-A2 security-injection checks (W300 / W301 / W309 / W312) --
+    //
+    // Each fixture's diagnostic set is cross-checked against the live
+    // Python analyser (`core/analysis/checks/_security.py`).
+
+    fn sec_codes(src: &str, code: &str) -> usize {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .count()
+    }
+
+    #[test]
+    fn w300_source_with_variable_path() {
+        assert_eq!(sec_codes("source $path\n", "W300"), 1);
+        // `-encoding ENC` is skipped to find the file argument.
+        assert_eq!(sec_codes("source -encoding utf-8 $path\n", "W300"), 1);
+        // A literal path is fine.
+        assert_eq!(sec_codes("source ./lib.tcl\n", "W300"), 0);
+    }
+
+    #[test]
+    fn w309_eval_uplevel_with_subst() {
+        let mut a = Analyser::new();
+        let r = a.analyse("eval [subst $template]\n", "tcl8.6");
+        let w309: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W309").collect();
+        assert_eq!(w309.len(), 1);
+        assert_eq!(w309[0].severity, Severity::Error);
+        assert!(w309[0].message.starts_with("eval with [subst]"));
+        assert_eq!(sec_codes("uplevel [subst {$x}]\n", "W309"), 1);
+        // No `[subst]` → no W309.
+        assert_eq!(sec_codes("eval [list set x $y]\n", "W309"), 0);
+    }
+
+    #[test]
+    fn w301_uplevel_injection() {
+        // Single unbraced substituted script.
+        assert_eq!(sec_codes("uplevel 1 \"set x $y\"\n", "W301"), 1);
+        // Multiple args concatenate.
+        assert_eq!(sec_codes("uplevel $a $b\n", "W301"), 1);
+        // Braced body and the `[list …]` idiom are safe.
+        assert_eq!(sec_codes("uplevel 1 {set x 1}\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 [list set x $y]\n", "W301"), 0);
+    }
+
+    #[test]
+    fn w312_interp_eval_injection() {
+        assert_eq!(sec_codes("interp eval $child $script\n", "W312"), 1);
+        assert_eq!(sec_codes("interp eval $child \"set x $y\"\n", "W312"), 1);
+        // Multiple script words concatenate.
+        assert_eq!(sec_codes("interp eval $foo $a $b\n", "W312"), 1);
+        // invokehidden flags the hidden command word.
+        assert_eq!(
+            sec_codes("interp invokehidden $child $cmd $arg\n", "W312"),
+            1
+        );
+        // Braced body is safe.
+        assert_eq!(sec_codes("interp eval $child {set x 1}\n", "W312"), 0);
+    }
+
+    #[test]
+    fn w312_message_names_subcommand() {
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval $child $script\n", "tcl8.6");
+        let w312 = r.diagnostics.iter().find(|d| d.code == "W312").unwrap();
+        assert!(
+            w312.message.contains("interp eval $child {...}"),
+            "{w312:?}"
         );
     }
 }

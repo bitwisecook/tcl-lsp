@@ -4325,6 +4325,31 @@ highest-severity checks in the product; none is mentioned in this file.
 registry taint facts (see GAP-D2 — several need the granular taint-sink
 fields that are also unported).  **Not previously documented.**
 
+**LANDED (W300 / W301 / W309 / W312 injection family, 2026-06-05).**  Four
+of the eight absent security checks are ported into
+`analyser/diagnostics.rs` as dispatch-site emitters (run from
+`emit_dispatch_site_diagnostics` alongside the existing W101), mirroring
+`core/analysis/checks/_security.py`: **W300** `source` with a `$var` path
+(`check_source_variable` — skips a leading `-encoding ENC` pair),
+**W309** `eval`/`uplevel` with `[subst …]` double-substitution
+(`check_eval_subst_double_decode`, ERROR), **W301** `uplevel`
+string-built-script injection (`check_uplevel_injection` — multi-arg
+concat or single unbraced substituted word, `[list …]` recognised as the
+safe idiom), and **W312** `interp eval` / `interp invokehidden` injection
+(`check_interp_eval_injection`).  All four are pure syntactic checks (no
+taint dataflow): they reuse the W101 substitution probe (representative
+`Var`/`Cmd` token kind + brace-aware span scan, the documented
+`all_tokens[1:]` approximation) via the shared `args_have_substitution`
+helper, plus `is_canonical_list_substitution` for the `[list …]` safe
+form.  Every message is byte-identical to Python and each fixture is
+cross-checked against the live analyser; 5 unit tests, full compiler suite
+green (2502).  **Remaining GAP-A2:** **W102** (`subst` on a variable —
+syntactic, needs the `_parse_subst_flags` port), **W103** (`open "|…"`
+pipeline — syntactic), **W303** (regexp ReDoS — needs the
+`_find_regex_patterns_in_command` + nested-quantifier port), and **W310**
+(hardcoded credentials — needs the registry `credential_options` /
+`subcommand_credential_info` surface).
+
 **GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
 algorithm — absent.**  The 1776-entry Unicode confusables table
 (`CONFUSABLE_TO_ASCII` / `CONFUSABLE_CODEPOINTS`) and the four-mode W108
