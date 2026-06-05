@@ -219,7 +219,11 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         }
     }
 
-    fn compare_numeric(&mut self, left: &FoldValue, right: &FoldValue) -> Option<std::cmp::Ordering> {
+    fn compare_numeric(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Option<std::cmp::Ordering> {
         Some(numeric_cmp(left.to_number()?, right.to_number()?))
     }
     fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
@@ -575,73 +579,6 @@ pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
     out
 }
 
-/// Simple glob matcher supporting `*`, `?`, and `[abc]` character
-/// classes — enough to cover `matches_glob` operands without
-/// pulling in the `glob` / `fnmatch` crate.
-fn glob_match(pattern: &str, text: &str) -> bool {
-    fn go(pb: &[u8], tb: &[u8]) -> bool {
-        let mut pi = 0usize;
-        let mut ti = 0usize;
-        let mut star: Option<(usize, usize)> = None;
-        while ti < tb.len() {
-            if pi < pb.len() {
-                match pb[pi] {
-                    b'*' => {
-                        star = Some((pi, ti));
-                        pi += 1;
-                        continue;
-                    }
-                    b'?' => {
-                        pi += 1;
-                        ti += 1;
-                        continue;
-                    }
-                    b'[' => {
-                        // Find closing bracket.
-                        let mut j = pi + 1;
-                        while j < pb.len() && pb[j] != b']' {
-                            j += 1;
-                        }
-                        if j >= pb.len() {
-                            // Unterminated class — treat `[` as literal.
-                            if pb[pi] == tb[ti] {
-                                pi += 1;
-                                ti += 1;
-                                continue;
-                            }
-                        } else {
-                            let class = &pb[pi + 1..j];
-                            if class.contains(&tb[ti]) {
-                                pi = j + 1;
-                                ti += 1;
-                                continue;
-                            }
-                        }
-                    }
-                    c if c == tb[ti] => {
-                        pi += 1;
-                        ti += 1;
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-            if let Some((sp, st)) = star {
-                pi = sp + 1;
-                ti = st + 1;
-                star = Some((sp, ti));
-                continue;
-            }
-            return false;
-        }
-        while pi < pb.len() && pb[pi] == b'*' {
-            pi += 1;
-        }
-        pi == pb.len()
-    }
-    go(pattern.as_bytes(), text.as_bytes())
-}
-
 /// Apply an iRules string operator to two rendered string operands.
 fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue> {
     let res = match op {
@@ -649,7 +586,7 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         BinOp::StartsWith => left.starts_with(right),
         BinOp::EndsWith => left.ends_with(right),
         BinOp::StrEquals => left == right,
-        BinOp::MatchesGlob => glob_match(right, left),
+        BinOp::MatchesGlob => tcl_syntax::glob::string_match(right, left),
         BinOp::In => split_tcl_list(right).iter().any(|e| e == left),
         BinOp::Ni => !split_tcl_list(right).iter().any(|e| e == left),
         // `matches_regex` is deliberately *not* constant-folded (along
@@ -1018,15 +955,26 @@ mod tests {
     }
 
     #[test]
-    fn glob_match_spec_cases() {
-        assert!(glob_match("*", ""));
-        assert!(glob_match("*", "anything"));
-        assert!(glob_match("a*c", "abc"));
-        assert!(glob_match("a*c", "azzzc"));
-        assert!(!glob_match("a*c", "ab"));
-        assert!(glob_match("a?c", "abc"));
-        assert!(!glob_match("a?c", "ac"));
-        assert!(!glob_match("a?c", "abcd"));
+    fn matches_glob_folds_through_shared_string_match() {
+        // `matches_glob` (iRules dialect) now folds through the shared
+        // `tcl_syntax::glob` (one `string match` dialect); see that module for
+        // the full grammar.
+        assert_eq!(
+            eval_irules(r#""abc" matches_glob "a*c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""ab" matches_glob "a*c""#),
+            Some(TclValue::Int(0))
+        );
+        assert_eq!(
+            eval_irules(r#""abc" matches_glob "a?c""#),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_irules(r#""abc" matches_glob "a?d""#),
+            Some(TclValue::Int(0))
+        );
     }
 
     // (string-delimiter stripping now lives in the shared `tcl_syntax::expr`

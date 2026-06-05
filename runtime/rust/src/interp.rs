@@ -63,6 +63,11 @@ pub enum Command {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     },
+    /// A `namespace import` redirect: dispatch re-resolves `source` (the source
+    /// command's FQN) anchored at global and forwards the caller's argv
+    /// unchanged. The importing-ns binding is transparent to callers; `namespace
+    /// forget` removes redirects by matching `source`.
+    Imported { source: Vec<u8> },
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -140,6 +145,35 @@ impl Interp {
     /// Every alias command's name across the whole tree (`interp aliases`).
     pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.alias_names()
+    }
+
+    /// The current namespace (the eval context) — for the `namespace` builtin.
+    pub(crate) fn current_ns(&self) -> NsId {
+        self.current_ns
+    }
+
+    /// The namespace tree (read) — for the `namespace` builtin's queries.
+    pub(crate) fn namespaces(&self) -> &Namespaces {
+        &self.namespaces
+    }
+
+    /// The namespace tree (mutable) — for the `namespace` builtin's mutations
+    /// (`export`/`import`/`forget`/`path`).
+    pub(crate) fn namespaces_mut(&mut self) -> &mut Namespaces {
+        &mut self.namespaces
+    }
+
+    /// `namespace eval name body`: switch the current namespace to `name`
+    /// (creating it, relative to the current ns unless `::`-anchored), evaluate
+    /// `body` there, then restore. The current-ns switch is what makes commands
+    /// defined in `body` land in the right table.
+    pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
+        let target = self.namespaces.ensure_namespace(self.current_ns, name);
+        let saved = self.current_ns;
+        self.current_ns = target;
+        let code = self.eval_str(body);
+        self.current_ns = saved;
+        code
     }
 
     // -- result ---------------------------------------------------------------
@@ -271,6 +305,11 @@ impl Interp {
         match cmd {
             Command::Builtin(f) => f(self, argv),
             Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
+            Command::Imported { source } => match self.namespaces.resolve(GLOBAL, &source) {
+                // Transparent redirect: forward argv unchanged to the source.
+                Some(cmd) => self.invoke(cmd, argv),
+                None => self.invalid_command(&source),
+            },
         }
     }
 

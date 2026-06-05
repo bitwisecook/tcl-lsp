@@ -47,10 +47,8 @@ struct Namespace {
     commands: BTreeMap<Vec<u8>, Command>,
     /// `namespace path` — namespaces searched for unqualified commands (step b).
     path: Vec<NsId>,
-    /// `namespace export` patterns — gate what `import` may pull. Populated when
-    /// the `namespace export`/`import` commands land (this chunk only builds the
-    /// resolver + tree).
-    #[allow(dead_code)]
+    /// `namespace export` patterns — gate what `import` may pull (matched with
+    /// `string match` glob via the shared [`tcl_syntax::glob`]).
     exports: Vec<Vec<u8>>,
 }
 
@@ -230,6 +228,95 @@ impl Namespaces {
             out.extend_from_slice(part);
         }
         out
+    }
+
+    // -- the `namespace` command surface --------------------------------------
+
+    /// The fully-qualified name a command `name` resolves to from `current`
+    /// (`namespace which -command`), or `None` if it doesn't resolve.
+    #[must_use]
+    pub fn which_command(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        let (ns, simple) = self.home_of(current, name)?;
+        let mut fqn = self.qualified_name(ns);
+        if ns != GLOBAL {
+            fqn.extend_from_slice(b"::"); // global's qualified_name is already `::`
+        }
+        fqn.extend_from_slice(&simple);
+        Some(fqn)
+    }
+
+    /// `namespace export` — append a pattern (deduplicated). `-clear` first is the
+    /// caller's job via [`clear_exports`](Self::clear_exports).
+    pub fn export(&mut self, ns: NsId, pattern: &[u8]) {
+        if !self.arena[ns].exports.iter().any(|p| p == pattern) {
+            self.arena[ns].exports.push(pattern.to_vec());
+        }
+    }
+
+    /// Drop all of `ns`'s export patterns (`namespace export -clear`).
+    pub fn clear_exports(&mut self, ns: NsId) {
+        self.arena[ns].exports.clear();
+    }
+
+    /// `ns`'s export patterns (`namespace export` with no args).
+    #[must_use]
+    pub fn exports(&self, ns: NsId) -> &[Vec<u8>] {
+        &self.arena[ns].exports
+    }
+
+    /// Does `name` match any of `ns`'s export patterns (`string match` glob)?
+    #[must_use]
+    pub fn is_exported(&self, ns: NsId, name: &[u8]) -> bool {
+        let Ok(name_s) = core::str::from_utf8(name) else {
+            return false;
+        };
+        self.arena[ns].exports.iter().any(|pat| {
+            core::str::from_utf8(pat).is_ok_and(|p| tcl_syntax::glob::string_match(p, name_s))
+        })
+    }
+
+    /// Bind `command` under simple `name` directly in namespace `ns` (no
+    /// qualified parsing — `import` inserting a redirect into the importing ns).
+    pub fn bind(&mut self, ns: NsId, name: &[u8], command: Command) {
+        self.arena[ns].commands.insert(name.to_vec(), command);
+    }
+
+    /// `ns`'s `namespace path` (the resolver's step-b list).
+    #[must_use]
+    pub fn path(&self, ns: NsId) -> &[NsId] {
+        &self.arena[ns].path
+    }
+
+    /// `ns`'s parent (`namespace parent`); `None` only for the global root.
+    #[must_use]
+    pub fn parent(&self, ns: NsId) -> Option<NsId> {
+        self.arena[ns].parent
+    }
+
+    /// `ns`'s direct child namespaces (`namespace children`).
+    #[must_use]
+    pub fn children(&self, ns: NsId) -> Vec<NsId> {
+        self.arena[ns].children.values().copied().collect()
+    }
+
+    /// The `(simple_name, source_fqn)` of every imported redirect in `ns`
+    /// (`namespace forget` walks these).
+    #[must_use]
+    pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.arena[ns]
+            .commands
+            .iter()
+            .filter_map(|(k, c)| match c {
+                Command::Imported { source } => Some((k.clone(), source.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Remove the simple-named command `name` directly from `ns` (no resolution
+    /// walk); returns whether it existed. For `namespace forget`.
+    pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool {
+        self.arena[ns].commands.remove(name).is_some()
     }
 
     // -- helpers --------------------------------------------------------------

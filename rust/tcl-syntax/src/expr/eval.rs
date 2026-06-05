@@ -69,8 +69,7 @@ pub trait ExprOps {
     /// String comparison (for `eq`/`ne`/`lt`… and the `==` string fallback).
     fn compare_string(&mut self, left: &Self::Value, right: &Self::Value) -> Ordering;
     /// `needle in list` membership (string equality of elements).
-    fn in_list(&mut self, needle: &Self::Value, list: &Self::Value)
-        -> Result<bool, Self::Error>;
+    fn in_list(&mut self, needle: &Self::Value, list: &Self::Value) -> Result<bool, Self::Error>;
 
     /// Tcl boolean coercion (`Tcl_GetBoolean`) for conditions / `&&`/`||`/`!`.
     fn to_bool(&mut self, value: &Self::Value) -> Result<bool, Self::Error>;

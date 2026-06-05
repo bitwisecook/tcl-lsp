@@ -297,7 +297,12 @@ fn scan_digits(b: &[u8], start: usize, radix: u32, no_underscore: bool) -> IntSc
 
 /// Parse a decimal float lexeme starting at `start` (after the sign), via Rust's
 /// correctly-rounded `f64` parser once `_` separators are stripped.
-fn parse_decimal_float(b: &[u8], start: usize, negative: bool, flags: ParseFlags) -> Option<Parsed> {
+fn parse_decimal_float(
+    b: &[u8],
+    start: usize,
+    negative: bool,
+    flags: ParseFlags,
+) -> Option<Parsed> {
     let len = b.len();
     let mut i = start;
     let mut any_digit = false;

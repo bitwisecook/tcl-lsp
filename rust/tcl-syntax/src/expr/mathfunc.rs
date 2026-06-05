@@ -167,7 +167,9 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         "isinf" => Some(Num::Int(i64::from(
             matches!(v, Num::Float(f) if f.is_infinite()),
         ))),
-        "isnan" => Some(Num::Int(i64::from(matches!(v, Num::Float(f) if f.is_nan())))),
+        "isnan" => Some(Num::Int(i64::from(
+            matches!(v, Num::Float(f) if f.is_nan()),
+        ))),
         "isfinite" => match v {
             Num::Int(_) => Some(Num::Int(1)),
             Num::Float(f) => Some(Num::Int(i64::from(f.is_finite()))),
@@ -184,13 +186,22 @@ mod tests {
     fn float_functions() {
         assert_eq!(dispatch("sqrt", &[Num::Int(4)]), Some(Num::Float(2.0)));
         assert!(dispatch("sqrt", &[Num::Int(-1)]).is_none()); // domain error
-        assert_eq!(dispatch("pow", &[Num::Int(2), Num::Int(10)]), Some(Num::Float(1024.0)));
+        assert_eq!(
+            dispatch("pow", &[Num::Int(2), Num::Int(10)]),
+            Some(Num::Float(1024.0))
+        );
     }
 
     #[test]
     fn min_max_preserves_int_width() {
-        assert_eq!(dispatch("max", &[Num::Int(1), Num::Int(9), Num::Int(3)]), Some(Num::Int(9)));
-        assert_eq!(dispatch("min", &[Num::Int(5), Num::Float(2.5)]), Some(Num::Float(2.5)));
+        assert_eq!(
+            dispatch("max", &[Num::Int(1), Num::Int(9), Num::Int(3)]),
+            Some(Num::Int(9))
+        );
+        assert_eq!(
+            dispatch("min", &[Num::Int(5), Num::Float(2.5)]),
+            Some(Num::Float(2.5))
+        );
     }
 
     #[test]
@@ -200,7 +211,10 @@ mod tests {
         assert_eq!(dispatch("round", &[Num::Float(2.5)]), Some(Num::Int(3))); // ties away from 0
         assert_eq!(dispatch("round", &[Num::Float(-2.5)]), Some(Num::Int(-3)));
         assert_eq!(dispatch("double", &[Num::Int(5)]), Some(Num::Float(5.0)));
-        assert_eq!(dispatch("isnan", &[Num::Float(f64::NAN)]), Some(Num::Int(1)));
+        assert_eq!(
+            dispatch("isnan", &[Num::Float(f64::NAN)]),
+            Some(Num::Int(1))
+        );
     }
 
     #[test]

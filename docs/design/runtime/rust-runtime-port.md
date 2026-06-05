@@ -1320,11 +1320,29 @@ the Zig rep.
     new` query / `{} new {}` delete, and `interp aliases {}` lists. Single-interp
     only (non-empty interp paths → explicit error; child interps deferred). Gate:
     `make runtime-rust-test` (114 tests) + `make runtime-rust-lint` green.
-  - **Remaining:** the `namespace` command (`eval`/`current`/`path`/`export`/
-    `import`/`forget`/`which`), ensembles (the `dict for`→`::tcl::dict::for`
-    rewrite is the canonical ensemble alias — generalise it), registering
+  - **The `namespace` command — ✅ done** (`cmd_namespace.rs`): `current`, `eval`
+    (switches `current_ns` so commands defined in the body land in the right
+    table, then restores), `exists`, `parent`, `children`, `qualifiers`, `tail`,
+    `which -command` (one-liner over the resolver — returns the FQN it resolves
+    to), `export ?-clear?`, `import ?-force?`, `forget`, and `path`. `import`
+    installs a transparent `Command::Imported { source }` redirect (a third
+    `Command` variant; dispatch re-resolves the source FQN anchored at global and
+    forwards argv unchanged) only for commands the source ns actually **exports**
+    (export patterns matched with `string match` glob); `forget` removes those
+    redirects by matching the stored source FQN. Gate: `make runtime-rust-test`
+    (124 tests) + `make runtime-rust-lint` green.
+  - **Shared `string match` glob — ✅ done** (`tcl_syntax::glob`, the
+    share-with-the-compiler tenet): one byte-exact mirror of
+    `Tcl_StringCaseMatch` (`*`/`?`/`[a-z]` ranges/`\` escape/`nocase`/unclosed-`[`)
+    for every consumer. Converged **two** prior compiler copies onto it — the
+    `matches_glob` const-fold (`tcl_expr_eval.rs`) and the `switch -glob` fold
+    (`structure_elimination.rs`) — and the runtime's `namespace export`/`import`/
+    `forget` use it. (`string match`/`lsearch -glob`/`array names` land on it next.)
+  - **Remaining:** ensembles (the `dict for`→`::tcl::dict::for` rewrite is the
+    canonical ensemble alias — generalise it), registering
     `::tcl::mathfunc::*`/`::tcl::mathop::*` as overridable commands, the
-    variable-namespace side (`set ::ns::x`), and per-frame `current_ns` (a proc
+    variable-namespace side (`set ::ns::x` / `variable` / `global` resolving
+    through ns var tables), `namespace delete`, and per-frame `current_ns` (a proc
     runs in its defining namespace) — gated on the proc chunk.
 - **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
   control-flow/proc/…), each command (or small group) one PR with its tcltest

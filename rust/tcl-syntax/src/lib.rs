@@ -17,11 +17,13 @@
 //! - [`expr`] — the `expr` AST + Pratt parser (done).
 //! - [`format`] — the `format` conversion-specifier grammar (done).
 //! - [`number`] — the `TclParseNumber` numeric-literal grammar (done).
+//! - [`glob`] — `Tcl_StringCaseMatch` (`string match`) (done).
 //! - `subst` — to follow.
 
 pub mod backslash;
 pub mod expr;
 pub mod format;
+pub mod glob;
 pub mod list;
 pub mod naming;
 pub mod number;
