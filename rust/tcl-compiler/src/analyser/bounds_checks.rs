@@ -304,8 +304,12 @@ pub(crate) fn list_index_diagnostics(
     if !is_braced_or_esc(list_tok) || has_subst(&args[0], list_tok) {
         return Vec::new();
     }
-    let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(strip_braces(&args[0])).len())
-        .unwrap_or(i64::MAX);
+    // `args[0]` already has its outer `{…}` delimiter stripped by the
+    // segmenter, so split the list content directly — a second
+    // `strip_braces` here would wrongly peel a single-element list like
+    // `{{a b c}}` (segmented to `{a b c}`) down to its three inner words.
+    let length =
+        i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0]).len()).unwrap_or(i64::MAX);
 
     if cmd_name == "lindex" {
         return lindex_diagnostics(args, arg_tokens, length);
@@ -576,7 +580,12 @@ pub(crate) fn string_index_diagnostics(
     let str_len: Option<i64> = if has_subst(str_text, str_tok) || !is_braced_or_esc(str_tok) {
         None
     } else if str_tok.kind == tcl_lexer::TokenType::Str {
-        i64::try_from(strip_braces(str_text).chars().count()).ok()
+        // `str_text` already has its outer `{…}` delimiter stripped by
+        // the segmenter; a braced string does no backslash processing,
+        // so its char count is its runtime length.  A second
+        // `strip_braces` here would wrongly shorten a literal braced
+        // string such as `{{hello}}` (segmented to `{hello}`).
+        i64::try_from(str_text.chars().count()).ok()
     } else if str_text.contains('\\') {
         None
     } else {
@@ -937,11 +946,33 @@ mod tests {
     }
 
     #[test]
+    fn w230_single_element_nested_list_length() {
+        // `{{a b c}}` is a one-element list (the inner `{a b c}` is a
+        // single braced element).  The segmenter already strips the outer
+        // braces, so its length is 1 — index 2 is out of range.  A
+        // double brace-strip would wrongly count three words and miss it.
+        assert_eq!(idx_codes("lindex {{a b c}} 2\n"), vec!["W230"]);
+        // Index 0 is the lone element → in range.
+        assert!(idx_codes("lindex {{a b c}} 0\n").is_empty());
+    }
+
+    #[test]
     fn w232_string_index_out_of_range() {
         assert_eq!(idx_codes("string index abc 10\n"), vec!["W232"]);
         assert_eq!(idx_codes("string index abc -1\n"), vec!["W232"]);
         assert!(idx_codes("string index abc 1\n").is_empty());
         assert!(idx_codes("string index abc end\n").is_empty());
+    }
+
+    #[test]
+    fn w232_braced_literal_string_length() {
+        // `{{hello}}` is a braced word whose runtime value is the literal
+        // 7-char string `{hello}` (the segmenter strips only the outer
+        // braces).  Index 6 is the last char — in range.  A double
+        // brace-strip would count five chars and flag it spuriously.
+        assert!(idx_codes("string index {{hello}} 6\n").is_empty());
+        // One past the end is still out of range.
+        assert_eq!(idx_codes("string index {{hello}} 7\n"), vec!["W232"]);
     }
 
     #[test]

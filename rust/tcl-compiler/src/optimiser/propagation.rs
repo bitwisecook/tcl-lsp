@@ -482,9 +482,11 @@ fn intervening_is_safe(
             break;
         };
         match stmt {
-            // A barrier (incl. lowered eval / uplevel) may mutate any
-            // name — always a kill.
-            Statement::Barrier { .. } => return false,
+            // A barrier (incl. lowered eval) may mutate any name —
+            // always a kill.  An `UpFrame` (uplevel / upvar reaching a
+            // parent frame) likewise runs an opaque body that can mutate
+            // any name the inlined expression reads, so it is a kill too.
+            Statement::Barrier { .. } | Statement::UpFrame { .. } => return false,
             Statement::AssignValue { value, .. } if value.contains('[') => return false,
             Statement::AssignExpr { expr, .. } => {
                 if expr_has_command_subst(expr) {
@@ -1622,6 +1624,17 @@ mod tests {
         // The intervening `puts` is impure → forwarding past it is
         // unsafe.
         let src = "proc p {y} {\n    set x [llength $y]\n    puts hi\n    puts $x\n}\n";
+        assert!(o127(src).is_empty(), "{:?}", o127(src));
+    }
+
+    #[test]
+    fn o127_skips_intervening_upframe() {
+        // An intervening `uplevel` lowers to a `Statement::UpFrame`,
+        // whose opaque body can reach into / out of this frame and
+        // mutate any name the forwarded `[llength $y]` reads.  It must
+        // suppress the forward exactly like a barrier — otherwise the
+        // re-evaluated inline could compute a different value.
+        let src = "proc p {y} {\n    set x [llength $y]\n    uplevel 1 {incr ::n}\n    puts $x\n}\n";
         assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 

@@ -1088,7 +1088,7 @@ pub(crate) fn find_destructive_file_warnings(
                     format!(
                         "file {sub} with normalised path (${name}) — verify it stays \
                          within the intended directory (e.g. [string match \"$base/*\" \
-                         ${{name}}])."
+                         ${{{name}}}])."
                     )
                 } else {
                     format!(
@@ -2453,6 +2453,14 @@ mod tests {
             "{}",
             d.message
         );
+        // The `[string match …]` example must interpolate the variable
+        // name (`${p}`), not render the literal placeholder `${name}`.
+        assert!(
+            d.message.contains("[string match \"$base/*\" ${p}]"),
+            "{}",
+            d.message
+        );
+        assert!(!d.message.contains("${name}"), "{}", d.message);
     }
 
     #[test]

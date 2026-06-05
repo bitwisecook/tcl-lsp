@@ -56,10 +56,26 @@ pub(crate) fn unterminated_bracket_diagnostics(
     out
 }
 
-/// True when `tok` (a `Cmd` token) has no closing `]` — the byte at the
-/// token's inner end is not `]`.  Mirrors `_is_unterminated_cmd`.
+/// True when `tok` (a `Cmd` token) has no closing `]`.  Mirrors
+/// `_is_unterminated_cmd`.
+///
+/// For a non-empty `[…]` the inner-end span excludes the closing
+/// bracket, so the `]` sits *at* `span.end()`.  The empty `[]` is a
+/// lexer special case: its span covers *both* brackets, so the `]` sits
+/// at `span.end() - 1` — accept that too, otherwise an empty command
+/// substitution would raise a spurious E201.
 fn is_unterminated_cmd(tok: &Token, source: &str) -> bool {
-    source.as_bytes().get(tok.span.end() as usize) != Some(&b']')
+    let bytes = source.as_bytes();
+    let end = tok.span.end() as usize;
+    if bytes.get(end) == Some(&b']') {
+        return false; // non-empty `[…]`: `]` sits at span end
+    }
+    // Empty `[]`: inner content length zero (`span.end() == content_start
+    // + 1`), the lone byte being the closing `]` one before span end.
+    let content_start = tok.span.start() + u32::from(tok.content_offset);
+    let empty_closed =
+        tok.span.end() == content_start + 1 && end > 0 && bytes.get(end - 1) == Some(&b']');
+    !empty_closed
 }
 
 /// Build the E201 diagnostic for an unterminated `[`, choosing the
@@ -751,6 +767,15 @@ mod tests {
         assert_eq!(e201("set z [\n"), vec![("missing close-bracket".into(), 0)]);
         // A balanced `[foo]` is fine.
         assert!(e201("set ok [foo]\n").is_empty());
+    }
+
+    #[test]
+    fn empty_command_substitution_is_not_unterminated() {
+        // A balanced *empty* `[]` is well-formed — its lexer span covers
+        // both brackets, so the closing `]` sits at `span.end() - 1`.
+        // It must not raise a spurious E201.
+        assert!(e201("set x []\n").is_empty(), "bare empty []");
+        assert!(e201("puts [llength []]\n").is_empty(), "nested empty []");
     }
 
     #[test]
