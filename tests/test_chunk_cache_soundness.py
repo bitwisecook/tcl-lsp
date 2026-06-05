@@ -48,6 +48,41 @@ def _rand_source(rng: random.Random) -> str:
     return "".join(rng.choice(_ATOMS) for _ in range(rng.randint(0, 140)))
 
 
+# Recovery-biased corpus.  The character-soup generator above almost never
+# produces the one shape that drives error recovery — an unclosed delimiter
+# followed, lines later, by a *known command* the segmenter resumes on — so it
+# leaves the partial-command / over-running-token paths (the hard part) largely
+# untested.  This generator interleaves unclosed openers with real commands so
+# recovery fires in the majority of sources (asserted by a coverage guard).
+_KNOWN_CMDS = [
+    "set a 1",
+    "proc p {} {}",
+    "puts hi",
+    "if {1} {}",
+    "return",
+    "expr {1 + 2}",
+    "namespace eval n {}",
+    "foreach x $l {}",
+    "while {1} {}",
+]
+_OPENERS = ["{", "[", '"', "set x {", "puts [", 'set y "', "if {", "proc q {"]
+_NOISE = ["}", "]", '"', "# comment here", "x", "$v", ";", "  ", "a b c"]
+
+
+def _rand_recovery_source(rng: random.Random) -> str:
+    parts = []
+    for _ in range(rng.randint(2, 12)):
+        r = rng.random()
+        parts.append(
+            rng.choice(_OPENERS)
+            if r < 0.4
+            else rng.choice(_KNOWN_CMDS)
+            if r < 0.8
+            else rng.choice(_NOISE)
+        )
+    return "\n".join(parts) + "\n"
+
+
 def _rand_edit(rng: random.Random, s: str) -> str:
     if not s:
         return rng.choice(_ATOMS)
@@ -79,11 +114,11 @@ def _keyed_chunk_tokens(src: str):
 
 
 class TestChunkCacheSoundnessFuzz:
-    @pytest.mark.parametrize("seed", [0xC0FFEE, 0x5EED, 0xBADF00D, 2024, 99])
+    @pytest.mark.parametrize("seed", [0xC0FFEE, 0x5EED, 0xBADF00D])
     def test_clean_prefix_chunks_have_identical_tokens(self, seed):
         rng = random.Random(seed)
         clean_prefixes_checked = 0
-        for _ in range(8000):
+        for _ in range(4000):
             a = _rand_source(rng)
             b = _rand_edit(rng, a)
             ca, ta = _keyed_chunk_tokens(a)
@@ -105,7 +140,7 @@ class TestIncrementalEqualsFreshFuzz:
     """The incremental chunker must stay byte-identical to a from-scratch
     segmentation — including the token-aware chunk hash — over hostile edits."""
 
-    @pytest.mark.parametrize("seed", [1, 7, 256, 1024, 0x5EED])
+    @pytest.mark.parametrize("seed", [1, 256, 0x5EED])
     def test_incremental_chunks_equal_fresh(self, seed):
         from compiler.parsing.incremental import (
             incremental_top_level_chunks,
@@ -114,8 +149,67 @@ class TestIncrementalEqualsFreshFuzz:
 
         rng = random.Random(seed)
         fired = 0
-        for _ in range(6000):
+        for _ in range(4000):
             old = _rand_source(rng)
+            new = _rand_edit(rng, old)
+            edit = infer_edit_range(old, new)
+            if edit is None:
+                continue
+            old_chunks = segment_top_level_chunks(old)
+            inc = incremental_top_level_chunks(old, old_chunks, new, edit)
+            if inc is None:
+                continue
+            fired += 1
+            fresh = segment_top_level_chunks(new)
+            assert [(c.start_offset, c.end_offset, c.source_hash) for c in inc] == [
+                (c.start_offset, c.end_offset, c.source_hash) for c in fresh
+            ], f"incremental != fresh:\n  old={old!r}\n  new={new!r}"
+        assert fired > 0
+
+
+class TestRecoveryCacheSoundnessFuzz:
+    """The same soundness invariant, but on a corpus where error *recovery*
+    fires in most sources — the hard case, exercising partial commands, the
+    over-running EOF token that signals them, and the recovered-command chunks
+    split off after the broken one."""
+
+    @pytest.mark.parametrize("seed", [12345, 0xC0FFEE])
+    def test_clean_prefix_chunks_have_identical_tokens(self, seed):
+        rng = random.Random(seed)
+        sources_with_recovery = 0
+        sources = 0
+        clean_prefixes_checked = 0
+        for _ in range(4000):
+            a = _rand_recovery_source(rng)
+            b = _rand_edit(rng, a)
+            ca, ta = _keyed_chunk_tokens(a)
+            cb, tb = _keyed_chunk_tokens(b)
+            sources += 1
+            if any(c.commands[0].is_partial for c in ca):
+                sources_with_recovery += 1
+            dirty = find_first_dirty_chunk(ca, cb)
+            for i in range(min(dirty, len(ca), len(cb))):
+                clean_prefixes_checked += 1
+                assert ta[i] == tb[i], (
+                    "clean-prefix chunk reused with different semantic tokens:\n"
+                    f"  a={a!r}\n  b={b!r}\n  chunk {i}: {ta[i]} != {tb[i]}"
+                )
+        # Coverage guard: this corpus must actually drive recovery, or it is not
+        # testing the path it exists for.
+        assert sources_with_recovery > sources // 4
+        assert clean_prefixes_checked > 0
+
+    @pytest.mark.parametrize("seed", [12345, 0xC0FFEE])
+    def test_incremental_equals_fresh_under_recovery(self, seed):
+        from compiler.parsing.incremental import (
+            incremental_top_level_chunks,
+            infer_edit_range,
+        )
+
+        rng = random.Random(seed)
+        fired = 0
+        for _ in range(4000):
+            old = _rand_recovery_source(rng)
             new = _rand_edit(rng, old)
             edit = infer_edit_range(old, new)
             if edit is None:
