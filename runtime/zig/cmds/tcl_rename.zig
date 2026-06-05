@@ -321,6 +321,37 @@ pub fn rename_command(
         if (alias_mod.is_alias(cmd)) {
             alias_mod.alias_clear(cmd);
         }
+        // Mark the Command struct as destroyed.  The struct itself is
+        // not freed (a captured ``bucket`` — e.g. the execution-trace
+        // dispatcher holding the traced command across its
+        // enter→body→leave window — may still point at it), so set
+        // CMD_DELETED on its flags.  Consumers that must distinguish
+        // "still live" from "gone" test this bit; in particular the
+        // leave/leavestep execution-trace gate (mirrors C's CMD_DYING in
+        // ``TEOV_RunLeaveTraces``) skips callbacks for a command deleted
+        // during its own enter trace or a nested step (trace-25.8..25.11).
+        write_i32(cmd + tcl_procs.OFF_FLAGS, @bitCast(flags | tcl_procs.CMD_DELETED));
+        // Deleting a command fires its ``delete`` command-trace and drops
+        // EVERY execution/command trace keyed on it — C does this in
+        // ``TclDeleteCommandFromToken`` (``CallCommandTraces`` +
+        // ``TclDeleteVarsFromTrace``-style teardown).  Without it the
+        // stale enter/leave/step entries leak onto the (later reused)
+        // bucket: re-running trace.test left phantom ``leave`` callbacks
+        // on a freshly redefined ``foo`` that re-ran ``rename foo {}`` on
+        // the gone command, clobbering the result with ``can't delete
+        // "foo"`` (trace-25.8/25.9/25.11).  Mirrors the namespace-teardown
+        // and proc-redefine cleanup paths.
+        const exec_trace = @import("../interp/tcl_exec_trace.zig");
+        if ((exec_trace.ops_for(cmd) & exec_trace.OP_CMD_DELETE) != 0) {
+            const fqn = tcl_ns.ns_build_fqn(old_ns, old_simple_ptr, old_simple_len);
+            const fqn_obj: i32 = if (fqn.ptr != 0)
+                obj.obj_new_string_take(fqn.ptr, fqn.len, fqn.len)
+            else
+                0;
+            defer if (fqn_obj != 0) obj.tcl_obj_release(fqn_obj);
+            exec_trace.fire_command_delete_oneshot(cmd, fqn_obj);
+        }
+        exec_trace.remove_all_for(cmd);
         _ = tcl_ns.ns_cmd_clear(old_ns, old_simple_ptr, old_simple_len);
         tcl_procs.lru_invalidate_all();
         return .ok;
