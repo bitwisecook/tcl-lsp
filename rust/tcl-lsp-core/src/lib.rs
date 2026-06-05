@@ -19,6 +19,7 @@ pub mod declaration;
 pub mod definition;
 pub mod document_links;
 pub mod document_symbols;
+pub mod file_ops;
 pub mod folding;
 pub mod formatting;
 pub mod hover;
