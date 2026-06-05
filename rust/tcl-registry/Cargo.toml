@@ -9,6 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-syntax = { path = "../tcl-syntax" }
 bitflags = "2"
 
 [lints]

@@ -8,11 +8,14 @@
 //! `SubCommand`; consumed by the optimiser's O129 path, which renders the
 //! result as a single word.
 //!
-//! Self-contained list splitter + element quoter: `tcl-registry` is a
-//! leaf crate (no dependency on `tcl-compiler`, where
-//! `codegen::helpers::split_list_simple` / `tcl_list_element` live), so
-//! these mirror that logic here.  Consolidating the canonical Tcl
-//! list-string codec into a shared leaf is a tracked follow-up.
+//! List-string codec: the element quoter is the canonical
+//! [`tcl_syntax::list::list_element`] (`Tcl_ConvertElement`). [`split_list`]
+//! below is **deliberately not** the canonical `Tcl_SplitList` — it is a
+//! conservative *fold-safety* splitter that bails (`None`) on any backslash or
+//! any bare `{`/`}`/`"`, so the optimiser only folds provably-simple lists. The
+//! shared splitter ([`tcl_syntax::list::split_list`]) decodes backslashes and
+//! accepts the full grammar; using it here would fold *more* (changing optimiser
+//! output), so the policy stays local on purpose.
 //!
 //! `parse_index` / `clamp_range` are the canonical home for the index
 //! grammar shared with the `string` subcommand folds.
@@ -106,34 +109,10 @@ pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
 /// `tcl-compiler::codegen::helpers::tcl_list_element` (a
 /// `TclConvertElement` port).
 pub(crate) fn list_element(s: &str) -> String {
-    if s.is_empty() {
-        return "{}".to_owned();
-    }
-    let needs = s.bytes().any(|b| {
-        matches!(
-            b,
-            b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}' | b'"' | b'\\' | b';' | b'$' | b'[' | b']'
-        )
-    });
-    if !needs {
-        return s.to_owned();
-    }
-    let balanced =
-        s.bytes().filter(|&b| b == b'{').count() == s.bytes().filter(|&b| b == b'}').count();
-    if balanced && !s.ends_with('\\') {
-        return format!("{{{s}}}");
-    }
-    let mut out = String::with_capacity(s.len() * 2);
-    for ch in s.chars() {
-        if matches!(
-            ch,
-            ' ' | '\t' | '\n' | '\r' | '{' | '}' | '"' | '\\' | ';' | '$' | '[' | ']'
-        ) {
-            out.push('\\');
-        }
-        out.push(ch);
-    }
-    out
+    // The canonical `Tcl_ScanElement`+`Tcl_ConvertElement` quoter, now shared
+    // with the runtime port via `tcl-syntax` (and additionally correct on the
+    // leading-`#` and control-char cases the old local copy mis-quoted).
+    tcl_syntax::list::list_element(s)
 }
 
 /// Join already-split elements into a Tcl list string (each element
