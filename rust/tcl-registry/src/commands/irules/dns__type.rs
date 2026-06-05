@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DNS::type RR_OBJECT (DNS_TYPE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::DnsState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

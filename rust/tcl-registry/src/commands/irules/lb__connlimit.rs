@@ -52,6 +52,12 @@ pub fn spec() -> CommandSpec {
             synopsis: "LB::connlimit <target> ?args?",
         }],
         subcommands: SUBCOMMANDS,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

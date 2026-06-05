@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Setter,
             synopsis: "HTTP::fallback <host>",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::disconnect ORIGIN_HOST ORIGIN_REALM DIAMETER_DISCONNECT_CAUSE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ConnectionControl,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "QOE::video" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ConnectionControl,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

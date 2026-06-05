@@ -17,6 +17,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HA::status (active | standby)" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::BigipConfig,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

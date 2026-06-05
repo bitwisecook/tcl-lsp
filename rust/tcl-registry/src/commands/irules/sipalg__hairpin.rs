@@ -31,6 +31,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "SIPALG::hairpin",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

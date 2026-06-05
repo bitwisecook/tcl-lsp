@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "TCP::remote_port (clientside | serverside)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

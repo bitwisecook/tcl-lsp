@@ -19,6 +19,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return as list instead of count.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::BigipConfig,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

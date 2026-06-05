@@ -47,6 +47,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "TCP::payload ?<size>?" },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

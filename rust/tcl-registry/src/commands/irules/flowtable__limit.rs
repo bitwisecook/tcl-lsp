@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FlowState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

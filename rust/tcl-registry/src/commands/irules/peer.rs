@@ -27,6 +27,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "peer ANY_CHARS",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

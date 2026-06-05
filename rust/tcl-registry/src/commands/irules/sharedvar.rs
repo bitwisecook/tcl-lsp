@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "sharedvar VARIABLE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Variable,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

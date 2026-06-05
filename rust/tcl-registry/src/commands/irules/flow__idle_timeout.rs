@@ -33,6 +33,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "FLOW::idle_timeout (ANY_CHARS) (NONNEGATIVE_INTEGER)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FlowState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

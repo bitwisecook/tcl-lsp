@@ -20,6 +20,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "TAP::config APPLICATION ENTITY",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

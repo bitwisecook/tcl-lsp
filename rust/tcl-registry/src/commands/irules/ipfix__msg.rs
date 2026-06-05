@@ -19,6 +19,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-pos", takes_value: true, value_hint: "IPFIX_POS", detail: "Position index for duplicate field types.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

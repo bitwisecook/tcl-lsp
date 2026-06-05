@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "tcpdump",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

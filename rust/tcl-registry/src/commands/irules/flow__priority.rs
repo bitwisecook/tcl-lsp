@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "FLOW::priority FLOW_PRIORITY" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FlowState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

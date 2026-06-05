@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "uniq_sorted_ip_list ?arg ...?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -56,6 +56,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Default, synopsis: "TCP::option <get|set|noset> <kind> ?value? ?all?" },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

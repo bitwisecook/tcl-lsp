@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "PEM::flow transactional disable" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ConnectionControl,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

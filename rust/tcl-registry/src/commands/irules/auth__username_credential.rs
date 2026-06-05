@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "AUTH::username_credential AUTH_ID USERNAME_CREDENTIAL" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

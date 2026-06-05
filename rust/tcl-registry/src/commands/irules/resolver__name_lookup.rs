@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "RESOLVER::name_lookup NET_RESOLVER_NAME NAME TYPE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::DnsState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

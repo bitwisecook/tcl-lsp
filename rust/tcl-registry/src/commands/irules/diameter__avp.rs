@@ -114,6 +114,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::avp <subcommand> ?args?" },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

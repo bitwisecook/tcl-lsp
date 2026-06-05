@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "redirect to HOST_URI" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ResponseCommit,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

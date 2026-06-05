@@ -23,6 +23,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-password", takes_value: true, value_hint: "", detail: "Option -password.", dialects: None },
             OptionSpec { name: "-protocol", takes_value: true, value_hint: "", detail: "Option -protocol.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

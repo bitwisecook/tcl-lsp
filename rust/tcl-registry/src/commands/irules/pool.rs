@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "pool pool_name ?member_addr member_port?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

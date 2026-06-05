@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "REWRITE::payload (LENGTH | (OFFSET LENGTH))?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::StreamProfile,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

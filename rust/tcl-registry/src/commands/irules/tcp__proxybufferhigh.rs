@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "TCP::proxybufferhigh",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

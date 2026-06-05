@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "STATS::setmax PROFILE_NAME FIELD_NAME (VALUE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::IStats,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

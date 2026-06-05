@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "X509::verify_cert_error_string ERROR_CODE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SslState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

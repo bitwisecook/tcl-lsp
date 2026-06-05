@@ -22,6 +22,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-timeout", takes_value: true, value_hint: "MSEC", detail: "Time in ms to wait for data.", dialects: None },
             OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save recv status into variable.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "HTTPLOG::enable",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LogIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

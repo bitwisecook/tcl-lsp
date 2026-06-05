@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP2::disable ('clientside')? ('serverside')? ('discard')?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Http2State,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

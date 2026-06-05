@@ -29,6 +29,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-count", takes_value: true, value_hint: "", detail: "Option -count.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::MessageState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

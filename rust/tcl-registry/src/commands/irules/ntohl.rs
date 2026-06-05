@@ -18,6 +18,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ntohl NUMBER",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

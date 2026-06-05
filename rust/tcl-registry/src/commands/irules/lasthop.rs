@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "lasthop (VLAN_OBJ)? (IP_ADDR | MAC_ADDR)" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

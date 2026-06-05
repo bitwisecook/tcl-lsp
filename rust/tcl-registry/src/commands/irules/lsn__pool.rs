@@ -33,6 +33,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "LSN::pool LSN_POOL",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

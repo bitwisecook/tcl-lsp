@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::modssl_sessionid_headers (initial | current)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SslState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

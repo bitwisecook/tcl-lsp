@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "AUTH::response_data (AUTH_ID)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

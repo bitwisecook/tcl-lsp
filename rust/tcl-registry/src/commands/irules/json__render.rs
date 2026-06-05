@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "JSON::render (JSON_CACHE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::None,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

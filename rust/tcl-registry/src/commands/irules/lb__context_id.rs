@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "LB::context_id",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

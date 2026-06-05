@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "AUTH::unsubscribe AUTH_ID" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

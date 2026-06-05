@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "PROTOCOL_INSPECTION::disable",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "CLASSIFY::category ('set' | 'add') CLASSIFY_CATEGORY_NAME" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

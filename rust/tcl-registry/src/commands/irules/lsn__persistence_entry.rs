@@ -19,6 +19,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-override", takes_value: false, value_hint: "", detail: "Option -override.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::LsnState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

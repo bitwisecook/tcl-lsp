@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_id (VALUE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::AsmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

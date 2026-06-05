@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             detail: "Suppress iRule name prefix in log message.",
             dialects: None,
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LogIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

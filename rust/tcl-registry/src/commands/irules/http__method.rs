@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::method" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpMethod,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

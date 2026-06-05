@@ -23,6 +23,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-alg", takes_value: true, value_hint: "ALG", detail: "Signing algorithm.", dialects: None },
             OptionSpec { name: "-ignore-cert-expiry", takes_value: false, value_hint: "", detail: "Allow expired certificate.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -25,6 +25,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-salthex", takes_value: true, value_hint: "SALT_HEX", detail: "Hex-encoded salt.", dialects: None },
             OptionSpec { name: "-rounds", takes_value: true, value_hint: "ROUNDS", detail: "Rounds for PBKDF2.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

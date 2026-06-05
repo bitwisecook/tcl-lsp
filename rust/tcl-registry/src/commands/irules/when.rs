@@ -51,6 +51,12 @@ pub fn spec() -> CommandSpec {
                 synopsis: "when EVENT priority N { body }",
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::InterpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

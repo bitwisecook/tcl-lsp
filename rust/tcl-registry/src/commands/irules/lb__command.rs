@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "LB::command ('transparent_port')?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

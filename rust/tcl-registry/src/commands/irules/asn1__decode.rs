@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "ASN1::decode ELEMENT FORMAT (VAR_NAME)*" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::None,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

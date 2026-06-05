@@ -38,6 +38,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Default, synopsis: "LB::up ?node <addr> | pool <pool> member <addr> <port>?" },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::PoolSelection,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

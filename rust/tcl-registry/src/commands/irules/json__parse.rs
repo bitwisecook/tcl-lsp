@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "JSON::parse (JSON_STRING (JSON_MAX_ENTRIES)? )?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::None,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

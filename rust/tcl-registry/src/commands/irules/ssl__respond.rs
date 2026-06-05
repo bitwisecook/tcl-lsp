@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "SSL::respond DATA" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SslState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

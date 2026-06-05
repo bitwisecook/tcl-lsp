@@ -46,6 +46,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Default, synopsis: "SSL::c3d <subcommand> <args>" },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SslState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

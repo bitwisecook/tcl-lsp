@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "SIP::discard",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

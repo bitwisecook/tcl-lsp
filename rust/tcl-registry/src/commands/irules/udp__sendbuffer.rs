@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "UDP::sendbuffer (UDP_SNDBUF_SIZE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::UdpState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

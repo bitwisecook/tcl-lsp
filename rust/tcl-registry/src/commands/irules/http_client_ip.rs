@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "http_client_ip ?xff_header_name?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpHeader,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

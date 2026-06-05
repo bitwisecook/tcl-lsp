@@ -24,6 +24,12 @@ pub fn spec() -> CommandSpec {
             detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
             dialects: None,
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

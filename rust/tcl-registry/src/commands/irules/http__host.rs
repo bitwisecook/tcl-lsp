@@ -28,6 +28,14 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::host" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::host <name>" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpHeader,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -31,6 +31,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "UDP::respond RESPONSE_STRING" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::UdpState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

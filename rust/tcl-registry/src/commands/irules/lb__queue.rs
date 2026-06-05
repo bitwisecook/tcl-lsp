@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "LB::queue queued" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::PoolSelection,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

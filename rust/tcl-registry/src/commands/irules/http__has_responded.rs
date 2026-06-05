@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::has_responded" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ResponseCommit,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -166,6 +166,12 @@ pub fn spec() -> CommandSpec {
             synopsis: "HTTP::header <subcommand> ?arg ...?",
         }],
         subcommands: SUBCOMMANDS,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -31,6 +31,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "UDP::server_port" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::UdpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

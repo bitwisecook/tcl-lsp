@@ -13,6 +13,12 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

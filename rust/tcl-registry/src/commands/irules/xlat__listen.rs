@@ -32,6 +32,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-single-connection", takes_value: false, value_hint: "", detail: "Listener expires after one connection.", dialects: None },
             OptionSpec { name: "-translation-loose", takes_value: false, value_hint: "", detail: "Use hint data as suggestion; don't fail if unusable.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::LsnState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-mimetype", takes_value: true, value_hint: "TYPE", detail: "Variable name to store MIME type.", dialects: None },
             OptionSpec { name: "-mimesubtype", takes_value: true, value_hint: "SUBTYPE", detail: "Variable name to store MIME subtype.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

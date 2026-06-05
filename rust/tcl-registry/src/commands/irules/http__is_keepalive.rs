@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Getter,
             synopsis: "HTTP::is_keepalive",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

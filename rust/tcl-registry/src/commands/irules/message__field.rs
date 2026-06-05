@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "MESSAGE::field ( ('names') |" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::MessageState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

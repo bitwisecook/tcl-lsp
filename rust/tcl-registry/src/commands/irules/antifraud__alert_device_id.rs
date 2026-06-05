@@ -27,6 +27,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ANTIFRAUD::alert_device_id",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

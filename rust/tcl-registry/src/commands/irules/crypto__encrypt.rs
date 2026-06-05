@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-ivhex", takes_value: true, value_hint: "IV_HEX", detail: "Initialization vector (hex).", dialects: None },
             OptionSpec { name: "-padding", takes_value: true, value_hint: "PADDING", detail: "Padding mode (pkcs, oaep, none).", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

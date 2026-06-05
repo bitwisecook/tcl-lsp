@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "UDP::debug_queue BOOL_VALUE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::UdpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "http_cookie ANY_CHARS" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpCookie,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

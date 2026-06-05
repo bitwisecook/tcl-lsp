@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "http_content_len_max ?max_size?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpBody,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

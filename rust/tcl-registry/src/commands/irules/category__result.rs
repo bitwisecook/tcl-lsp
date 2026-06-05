@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-display", takes_value: false, value_hint: "", detail: "Return categories in display name format.", dialects: None },
             OptionSpec { name: "-id", takes_value: false, value_hint: "", detail: "Return categories in ID format.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

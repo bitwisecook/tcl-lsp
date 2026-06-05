@@ -33,6 +33,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "UDP::release",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

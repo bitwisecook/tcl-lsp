@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "JSON::set JSON_ELEMENT JSON_TYPE (JSON_VALUE)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

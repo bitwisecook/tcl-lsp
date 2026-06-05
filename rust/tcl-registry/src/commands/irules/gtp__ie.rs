@@ -21,6 +21,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-type", takes_value: true, value_hint: "TYPE", detail: "Filter by IE type value.", dialects: None },
             OptionSpec { name: "-instance", takes_value: true, value_hint: "INSTANCE", detail: "Filter by IE instance.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

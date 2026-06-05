@@ -26,6 +26,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "STREAM::max_matchsize SIZE" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::StreamProfile,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

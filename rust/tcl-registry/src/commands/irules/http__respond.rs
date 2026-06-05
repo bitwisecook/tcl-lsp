@@ -80,6 +80,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::respond <status> ?option value ...?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ResponseCommit,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

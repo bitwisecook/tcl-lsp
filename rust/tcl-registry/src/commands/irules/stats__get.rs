@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "STATS::get PROFILE_NAME FIELD_NAME" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::IStats,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

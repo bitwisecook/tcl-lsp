@@ -39,6 +39,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-tos", takes_value: true, value_hint: "TOS", detail: "IP TOS value.", dialects: None },
             OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save connection status into variable.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

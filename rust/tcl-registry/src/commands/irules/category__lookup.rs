@@ -22,6 +22,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-ip", takes_value: true, value_hint: "IP", detail: "IP address to categorize.", dialects: None },
             OptionSpec { name: "-custom_cat_match", takes_value: true, value_hint: "CUSTOM_CAT", detail: "Match against a specified custom category.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

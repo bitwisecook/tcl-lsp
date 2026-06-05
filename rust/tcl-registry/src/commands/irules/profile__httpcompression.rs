@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "PROFILE::httpcompression ATTR" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::BigipConfig,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-keyhex", takes_value: true, value_hint: "KEY_HEX", detail: "Hex-encoded key.", dialects: None },
             OptionSpec { name: "-signature", takes_value: true, value_hint: "SIGNATURE", detail: "Signature to verify against.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Unknown,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

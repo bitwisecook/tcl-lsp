@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "URI::compare URI_STRING URI_STRING" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpUri,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

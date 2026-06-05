@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-ifile", takes_value: false, value_hint: "", detail: "Option -ifile.", dialects: None },
             OptionSpec { name: "-content", takes_value: true, value_hint: "", detail: "Option -content.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

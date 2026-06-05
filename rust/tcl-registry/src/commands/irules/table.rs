@@ -119,6 +119,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-all", takes_value: false, value_hint: "", detail: "Delete all keys in a subtable.", dialects: None },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SessionTable,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

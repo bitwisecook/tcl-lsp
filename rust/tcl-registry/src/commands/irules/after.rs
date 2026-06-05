@@ -49,6 +49,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-periodic", takes_value: false, value_hint: "", detail: "Option -periodic.", dialects: None },
             OptionSpec { name: "-current", takes_value: false, value_hint: "", detail: "Option -current.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::InterpState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

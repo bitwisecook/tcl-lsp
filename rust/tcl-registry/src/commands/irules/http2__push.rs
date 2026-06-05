@@ -33,6 +33,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-noserver", takes_value: false, value_hint: "", detail: "Suppress \"Server: BigIP\" header.", dialects: None },
             OptionSpec { name: "-nohost", takes_value: false, value_hint: "", detail: "Disable Host header requirement.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::Http2State,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

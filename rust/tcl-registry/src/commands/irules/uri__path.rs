@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "URI::path URI_STRING (depth | START | (START END))?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpUri,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

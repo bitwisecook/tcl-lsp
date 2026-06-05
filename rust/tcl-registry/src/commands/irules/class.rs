@@ -133,6 +133,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return value always as a list.", dialects: None },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::DataGroup,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -33,6 +33,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "FLOW::peer ANY_CHARS" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FlowState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

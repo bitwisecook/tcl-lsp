@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "persist <mode> ?args?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::PersistenceTable,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "STREAM::replace (TARGET_STRING)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::StreamProfile,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

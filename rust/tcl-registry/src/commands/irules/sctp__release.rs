@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "SCTP::release (RELEASE_BYTES)?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

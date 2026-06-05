@@ -31,6 +31,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "XLAT::src_nat_valid_range" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::LsnState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

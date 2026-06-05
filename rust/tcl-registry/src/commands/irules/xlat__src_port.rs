@@ -27,6 +27,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "XLAT::src_port",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

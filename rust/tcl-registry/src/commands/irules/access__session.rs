@@ -79,6 +79,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-ssid", takes_value: true, value_hint: "SESSION_ID", detail: "Sub-session ID.", dialects: None },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ApmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

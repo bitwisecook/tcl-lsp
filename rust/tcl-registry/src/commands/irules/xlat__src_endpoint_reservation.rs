@@ -24,6 +24,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-translation-loose", takes_value: true, value_hint: "IP PORT", detail: "Hint data; command won't fail if hints can't be used.", dialects: None },
             OptionSpec { name: "-translation-strict", takes_value: true, value_hint: "IP PORT", detail: "Hint data; command fails if hints can't be used.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::LsnState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

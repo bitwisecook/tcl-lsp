@@ -23,6 +23,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-txt", takes_value: false, value_hint: "", detail: "Query for TXT records.", dialects: None },
             OptionSpec { name: "-mx", takes_value: false, value_hint: "", detail: "Query for MX records.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::DnsState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -77,6 +77,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-message", takes_value: true, value_hint: "MESSAGE", detail: "Operate on specific message.", dialects: None },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

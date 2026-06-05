@@ -27,6 +27,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "VDI::enable",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

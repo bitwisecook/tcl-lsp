@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "GENERICMESSAGE::peer name (NAME)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::MessageState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -21,6 +21,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save send status into variable.", dialects: None },
             OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

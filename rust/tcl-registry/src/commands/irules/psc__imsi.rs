@@ -18,6 +18,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "PSC::imsi (IMSI)?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

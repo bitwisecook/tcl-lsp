@@ -21,6 +21,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-ipv4", takes_value: false, value_hint: "", detail: "Parse as IPv4 address.", dialects: None },
             OptionSpec { name: "-ipv6", takes_value: false, value_hint: "", detail: "Parse as IPv6 address.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

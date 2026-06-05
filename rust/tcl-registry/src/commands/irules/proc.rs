@@ -32,6 +32,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ProcDefinition,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::redirect REDIRECT_URL" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ResponseCommit,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

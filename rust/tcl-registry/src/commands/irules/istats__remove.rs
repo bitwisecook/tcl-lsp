@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "ISTATS::remove KEY",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IStats,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "SIP::uri (URI_STRING)?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

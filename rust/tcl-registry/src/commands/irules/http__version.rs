@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-string", takes_value: true, value_hint: "version", detail: "Get/set version as raw string.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpHeader,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -20,6 +20,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-debug", takes_value: false, value_hint: "", detail: "Enable debug mode.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ProcDefinition,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

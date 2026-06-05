@@ -21,6 +21,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "URI::encode URI_STRING" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpUri,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

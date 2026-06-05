@@ -31,6 +31,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-index", takes_value: true, value_hint: "EXT_NUMBER", detail: "Return extension at specified index.", dialects: None },
             OptionSpec { name: "-type", takes_value: true, value_hint: "EXT_TYPE_VALUE", detail: "Return extension matching specified type value.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SslState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

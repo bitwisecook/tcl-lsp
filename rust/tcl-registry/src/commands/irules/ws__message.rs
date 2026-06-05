@@ -27,6 +27,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "WS::message ( 'drop' )",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

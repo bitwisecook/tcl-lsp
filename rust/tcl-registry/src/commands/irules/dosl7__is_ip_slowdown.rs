@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "DOSL7::is_ip_slowdown",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Dosl7State,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -34,6 +34,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "RADIUS::subscriber (SUBSCRIBER_ID)?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

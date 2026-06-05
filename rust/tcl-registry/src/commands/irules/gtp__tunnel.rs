@@ -19,6 +19,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-message", takes_value: true, value_hint: "MESSAGE", detail: "Operate on a specific GTP message object.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

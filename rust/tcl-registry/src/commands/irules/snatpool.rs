@@ -17,6 +17,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "snatpool SNAT_POOL_OBJ (member IP_ADDR)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::SnatSelection,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

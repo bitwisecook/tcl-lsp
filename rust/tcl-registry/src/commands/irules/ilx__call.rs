@@ -20,6 +20,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-timeout", takes_value: true, value_hint: "MSEC", detail: "Timeout in milliseconds.", dialects: None },
             OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

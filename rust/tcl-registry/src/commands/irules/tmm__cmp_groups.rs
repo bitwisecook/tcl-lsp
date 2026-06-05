@@ -17,6 +17,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "TMM::cmp_groups",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

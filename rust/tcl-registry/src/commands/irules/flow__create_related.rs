@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-translation-loose", takes_value: false, value_hint: "", detail: "Option -translation-loose.", dialects: None },
             OptionSpec { name: "-hairpin", takes_value: false, value_hint: "", detail: "Option -hairpin.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FlowState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

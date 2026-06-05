@@ -29,6 +29,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-ip", takes_value: true, value_hint: "", detail: "Option -ip.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

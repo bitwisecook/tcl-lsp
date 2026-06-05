@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "MR::available_for_routing (BOOLEAN)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::MessageState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

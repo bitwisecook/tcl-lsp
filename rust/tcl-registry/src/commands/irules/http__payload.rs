@@ -27,6 +27,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::payload ( LENGTH | (OFFSET LENGTH) )?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpBody,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

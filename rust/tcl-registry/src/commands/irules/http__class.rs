@@ -54,6 +54,12 @@ pub fn spec() -> CommandSpec {
             },
         ],
         subcommands: SUBCOMMANDS,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

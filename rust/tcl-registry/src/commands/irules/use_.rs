@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "use clone pool POOL_OBJ (member IP_ADDR)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::InterpState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

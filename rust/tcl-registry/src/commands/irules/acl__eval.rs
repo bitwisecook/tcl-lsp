@@ -29,6 +29,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-l7", takes_value: false, value_hint: "", detail: "Evaluate L7 ACLs.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::AsmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

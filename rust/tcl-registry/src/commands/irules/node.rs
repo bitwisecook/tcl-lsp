@@ -28,6 +28,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "node ip_addr ?service_port?",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NodeSelection,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

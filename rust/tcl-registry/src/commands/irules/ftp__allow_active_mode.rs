@@ -16,6 +16,14 @@ hover: Some(HoverSnippet {
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "FTP::allow_active_mode (enable | disable)?" },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FtpState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

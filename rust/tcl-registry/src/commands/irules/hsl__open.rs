@@ -23,6 +23,14 @@ hover: Some(HoverSnippet {
             OptionSpec { name: "-proto", takes_value: true, value_hint: "", detail: "Option -proto.", dialects: None },
             OptionSpec { name: "-pool", takes_value: true, value_hint: "", detail: "Option -pool.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::LogIo,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

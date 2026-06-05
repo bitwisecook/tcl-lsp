@@ -30,6 +30,14 @@ hover: Some(HoverSnippet {
         options: &[
             OptionSpec { name: "-reset", takes_value: false, value_hint: "", detail: "Reset the server-side connection.", dialects: None },
         ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::HttpHeader,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

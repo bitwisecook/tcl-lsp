@@ -21,6 +21,12 @@ pub fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "RTSP::header (exists | remove | value) HEADER_NAME",
         }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }
