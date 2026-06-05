@@ -28,8 +28,9 @@
 //! * **Format** — `format` / `scan` conversion strings
 //!   (`FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`),
 //!   `clock format` / `scan` field strings (`ClockPercent` /
-//!   `ClockSpec` / `ClockModifier`), and `binary format` / `scan`
-//!   field strings (`BinarySpec` / `BinaryCount` / `BinaryFlag`).
+//!   `ClockSpec` / `ClockModifier`), `binary format` / `scan`
+//!   field strings (`BinarySpec` / `BinaryCount` / `BinaryFlag`), and
+//!   `regsub` replacement backrefs (`\1` → `Number`, `\&` → `Operator`).
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -49,11 +50,9 @@
 //! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
 //!
-//! * `regsub`-replacement (`\1` / `\&`) component highlighting — the
-//!   sprintf / clock / binary format dialects have landed; this is the
-//!   remaining format sub-token slice.
 //! * The `BigIP` object taxonomy (`pool` / `profile` /
-//!   `ipAddress` / …) for iRules string arguments.
+//!   `ipAddress` / …) for iRules string arguments — the last
+//!   sub-token family; all the format / regex dialects have landed.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
@@ -119,6 +118,8 @@ enum TokenKind {
     BinaryCount = 24,
     /// `binary` modifier: `u` / `s` (signed/unsigned) or `*` (all).
     BinaryFlag = 25,
+    /// Operator — the `regsub` whole-match replacement backref `\&`.
+    Operator = 26,
 }
 
 /// `binary format`/`scan` specifier letters.  Mirrors
@@ -160,6 +161,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "binarySpec",
         "binaryCount",
         "binaryFlag",
+        "operator",
     ]
 }
 
@@ -307,6 +309,66 @@ enum ArgOverride {
     /// (`a3` / `Su` / `c*` / …); falls back to the default classification
     /// when no specifier is recognised.
     BinaryFormat,
+    /// Sub-tokenise the token as a `regsub` replacement spec (`\1`-`\9`
+    /// → number, `\&` → operator); falls back to the default
+    /// classification when it has no backreferences.
+    RegsubReplace,
+}
+
+/// Sub-tokenise a `regsub` replacement spec: `\&` → `Operator`,
+/// `\0`-`\9` → `Number`, literal runs → `String`.  Returns `false` when
+/// there are no backreferences.  Mirrors `_collect_regsub_subspec_tokens`
+/// + `_REGSUB_BACKREF_RE`.
+fn push_regsub_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return false;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    let Some(inner) = source.get(cstart..cend) else {
+        return false;
+    };
+    let re = regex::Regex::new(r"\\([0-9&])").expect("valid regsub backref regex");
+    let mut matched_any = false;
+    let mut pos = 0usize;
+    for m in re.find_iter(inner) {
+        matched_any = true;
+        if m.start() > pos {
+            push_subtoken(
+                line_index,
+                cstart + pos,
+                &inner[pos..m.start()],
+                TokenKind::String,
+                entries,
+            );
+        }
+        // `\&` → operator (whole match); `\0`-`\9` → number (capture).
+        let kind = if m.as_str().ends_with('&') {
+            TokenKind::Operator
+        } else {
+            TokenKind::Number
+        };
+        push_subtoken(line_index, cstart + m.start(), m.as_str(), kind, entries);
+        pos = m.end();
+    }
+    if !matched_any {
+        return false;
+    }
+    if pos < inner.len() {
+        push_subtoken(
+            line_index,
+            cstart + pos,
+            &inner[pos..],
+            TokenKind::String,
+            entries,
+        );
+    }
+    true
 }
 
 /// Per-command argument-token classification overrides, keyed by the
@@ -357,6 +419,13 @@ fn special_arg_kinds(
         // `seg.argv[idx + 1]` (argv[0] is the command head).
         if let Some(tok) = seg.argv.get(idx + 1) {
             overrides.insert(tok.span.start(), ArgOverride::RegexPattern);
+        }
+        // `regsub … exp string subSpec …` — the replacement spec sits two
+        // words after the pattern.  Mirrors `_regsub_subspec_arg_index`.
+        if head == "regsub" {
+            if let Some(tok) = seg.argv.get(idx + 3) {
+                overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
+            }
         }
     }
 
@@ -964,6 +1033,13 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
                         }
                     }
                 }
+                Some(ArgOverride::RegsubReplace) => {
+                    if !push_regsub_subtokens(&line_index, source, *tok, &mut entries) {
+                        if let Some(kind) = classify_arg_token(*tok, source) {
+                            push_token(&line_index, source, *tok, kind, 0, &mut entries);
+                        }
+                    }
+                }
                 Some(ArgOverride::Kind(kind)) => {
                     push_token(&line_index, source, *tok, *kind, 0, &mut entries);
                 }
@@ -1431,6 +1507,20 @@ mod tests {
         let ks = kinds("binary scan $d su r\n", "tcl8.4", &reg());
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
         assert!(!ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn regsub_replacement_backref_subtokens() {
+        // `regsub {a} $s {\1-\&} out` → `\1` number, `\&` operator.
+        let ks = kinds("regsub {a} $s {\\1-\\&} out\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::Number as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn regsub_replacement_without_backrefs_stays_string() {
+        let ks = kinds("regsub {a} $s {plain} out\n", "tcl", &reg());
+        assert!(!ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
     }
 
     #[test]
