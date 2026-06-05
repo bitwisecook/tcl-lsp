@@ -185,6 +185,233 @@ class LspServerClient:
             },
         )
 
+    def change_document(
+        self,
+        uri: str,
+        version: int,
+        changes: list[dict],
+    ) -> None:
+        """Send a ``didChange`` with arbitrary content changes.
+
+        ``changes`` is the raw LSP ``contentChanges`` array — each entry is
+        either a full replace (``{"text": ...}``) or an incremental edit
+        (``{"range": {...}, "text": ...}``).  The server advertises
+        incremental sync (``change == 2``), so range edits exercise the
+        real per-edit buffer-tracking path an editor drives.
+        """
+        self.notify(
+            "textDocument/didChange",
+            {
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": changes,
+            },
+        )
+
+    def replace_document(self, uri: str, version: int, text: str) -> None:
+        """Full-document replace ``didChange`` (single ``{"text": ...}``)."""
+        self.change_document(uri, version, [{"text": text}])
+
+    def close_document(self, uri: str) -> None:
+        self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+
+    def open_ready(
+        self,
+        uri: str,
+        text: str,
+        *,
+        language_id: str = "tcl",
+        version: int = 1,
+        timeout: float = 30.0,
+    ) -> list[dict]:
+        """Open ``text`` and block until its analysis is ready, then return diags.
+
+        Feature handlers that read the cached analysis (hover, completion,
+        document symbols, …) return an empty result until the first
+        ``publishDiagnostics`` lands for the document — the server signals
+        "analysis ready" by pushing diagnostics (even an empty list for a
+        clean file).  Opening through this helper removes the per-test
+        retry-until-ready boilerplate.
+        """
+        self.open_document(uri, text, language_id=language_id, version=version)
+        return self.await_diagnostics(uri, version=version, timeout=timeout)
+
+    # -- feature requests --------------------------------------------------
+
+    @staticmethod
+    def _pos(line: int, char: int) -> dict:
+        return {"line": line, "character": char}
+
+    def _doc_pos(self, uri: str, line: int, char: int) -> dict:
+        return {"textDocument": {"uri": uri}, "position": self._pos(line, char)}
+
+    def hover(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request("textDocument/hover", self._doc_pos(uri, line, char), timeout=timeout)
+
+    def completion(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/completion", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def signature_help(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/signatureHelp", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def definition(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/definition", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def type_definition(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/typeDefinition", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def declaration(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/declaration", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def references(
+        self,
+        uri: str,
+        line: int,
+        char: int,
+        *,
+        include_declaration: bool = True,
+        timeout: float = 30.0,
+    ) -> Any:
+        params = self._doc_pos(uri, line, char)
+        params["context"] = {"includeDeclaration": include_declaration}
+        return self.request("textDocument/references", params, timeout=timeout)
+
+    def document_highlight(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentHighlight", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def document_symbols(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentSymbol", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def workspace_symbols(self, query: str, *, timeout: float = 30.0) -> Any:
+        return self.request("workspace/symbol", {"query": query}, timeout=timeout)
+
+    def semantic_tokens(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/semanticTokens/full", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def rename(
+        self, uri: str, line: int, char: int, new_name: str, *, timeout: float = 30.0
+    ) -> Any:
+        params = self._doc_pos(uri, line, char)
+        params["newName"] = new_name
+        return self.request("textDocument/rename", params, timeout=timeout)
+
+    def code_actions(
+        self,
+        uri: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        *,
+        diagnostics: list[dict] | None = None,
+        only: list[str] | None = None,
+        timeout: float = 30.0,
+    ) -> Any:
+        context: dict[str, Any] = {"diagnostics": diagnostics or []}
+        if only is not None:
+            context["only"] = only
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+            "context": context,
+        }
+        return self.request("textDocument/codeAction", params, timeout=timeout)
+
+    def folding_range(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/foldingRange", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def selection_range(
+        self, uri: str, positions: list[tuple[int, int]], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "positions": [self._pos(line, char) for line, char in positions],
+        }
+        return self.request("textDocument/selectionRange", params, timeout=timeout)
+
+    def formatting(self, uri: str, *, timeout: float = 30.0) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "options": {"tabSize": 4, "insertSpaces": True},
+        }
+        return self.request("textDocument/formatting", params, timeout=timeout)
+
+    def execute_command(self, command: str, arguments: list[Any], *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "workspace/executeCommand",
+            {"command": command, "arguments": arguments},
+            timeout=timeout,
+        )
+
+    # -- push diagnostics --------------------------------------------------
+
+    def await_diagnostics(
+        self,
+        uri: str,
+        *,
+        version: int | None = None,
+        timeout: float = 30.0,
+    ) -> list[dict]:
+        """Block until a ``publishDiagnostics`` for ``uri`` arrives; return it.
+
+        The server pushes diagnostics (it advertises no pull provider), debounced
+        per document and tagged with the document version.  When ``version`` is
+        given, wait for the publish carrying *exactly* that version so a stale
+        earlier publish can't satisfy the wait — the supersession contract the
+        async pipeline guards.  Returns the ``diagnostics`` array of the matching
+        publish.
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        with self._notify_cv:
+            while True:
+                match = None
+                for note in self._notifications:
+                    if note.get("method") != "textDocument/publishDiagnostics":
+                        continue
+                    params = note.get("params") or {}
+                    if params.get("uri") != uri:
+                        continue
+                    if version is not None and params.get("version") != version:
+                        continue
+                    match = params  # keep the latest matching publish
+                if match is not None:
+                    return list(match.get("diagnostics") or [])
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    seen = [
+                        (n["params"].get("uri"), n["params"].get("version"))
+                        for n in self._notifications
+                        if n.get("method") == "textDocument/publishDiagnostics"
+                    ]
+                    raise AssertionError(
+                        f"no publishDiagnostics for {uri!r} "
+                        f"{'version ' + str(version) if version is not None else ''} "
+                        f"within {timeout}s; saw {seen}"
+                    )
+                self._notify_cv.wait(remaining)
+
+    def clear_diagnostics_log(self) -> None:
+        """Drop buffered notifications so a later ``await_diagnostics`` only sees fresh ones."""
+        with self._notify_cv:
+            self._notifications.clear()
+
     def await_notification(self, method: str, *, timeout: float = 30.0) -> dict:
         """Block until a notification with ``method`` arrives; return it."""
         import time as _time

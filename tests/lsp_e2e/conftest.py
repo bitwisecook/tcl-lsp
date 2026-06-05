@@ -82,3 +82,21 @@ def lsp_server(
         yield client
     finally:
         client.shutdown()
+
+
+@pytest.fixture
+def uri_factory(request: pytest.FixtureRequest):
+    """Return a callable producing a fresh, unique ``file://`` URI per call.
+
+    Every test gets its own document URIs (namespaced by the test's node id)
+    so the long-lived shared server never serves one test a buffer another
+    test left open, and so version-tagged diagnostics never collide.
+    """
+    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.name)
+    counter = {"n": 0}
+
+    def make(suffix: str = "tcl") -> str:
+        counter["n"] += 1
+        return f"file:///e2e/{safe}_{counter['n']}.{suffix}"
+
+    return make
