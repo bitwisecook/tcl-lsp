@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testfevent",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test file event handling.",
-            &["testfevent"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test file event handling.",
+            synopsis: &["testfevent"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

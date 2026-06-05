@@ -1,15 +1,12 @@
-# Based on the Tcl coroutine.n man page.
-"""coroprobe -- Execute a command in the context of a suspended coroutine."""
+"""coroprobe -- Evaluate a command in a suspended coroutine."""
 
 from __future__ import annotations
 
-from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..signatures import Arity
 from ._base import register
-
-_SOURCE = "Tcl man page coroutine.n"
 
 
 @register
@@ -20,29 +17,15 @@ class CoroprobeCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="coroprobe",
-            is_language_keyword=True,
-            dialects=frozenset({"tcl9.0"}),
+            dialects=frozenset({"tcl8.6", "tcl9.0"}),
             hover=HoverSnippet(
-                summary="Execute a command in the context of a suspended coroutine.",
+                summary="Evaluate a command in a suspended coroutine.",
                 synopsis=("coroprobe coroName command ?arg ...?",),
-                snippet="Executes the specified command in the variable context of the given suspended coroutine.",
-                source=_SOURCE,
+                source="Tcl coroprobe(1)",
             ),
             forms=(
-                FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="coroprobe coroName command ?arg ...?",
-                ),
+                FormSpec(kind=FormKind.DEFAULT, synopsis="coroprobe coroName command ?arg ...?"),
             ),
-            validation=ValidationSpec(
-                arity=Arity(2),
-            ),
-            side_effect_hints=(
-                SideEffect(
-                    target=SideEffectTarget.INTERP_STATE,
-                    reads=True,
-                    writes=True,
-                    connection_side=ConnectionSide.NONE,
-                ),
-            ),
+            validation=ValidationSpec(arity=Arity(2)),
+            return_type=TclType.STRING,
         )

@@ -5,11 +5,25 @@ pub fn spec() -> CommandSpec {
         name: "DNS::tsig",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Manipulates the current DNS message and its TSIG resource record.",
-            &["DNS::tsig 'remove'"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Manipulates the current DNS message and its TSIG resource record.",
+            synopsis: &["DNS::tsig 'remove'", "DNS::tsig 'exists'"],
+            snippet: "This command manipulates the current DNS message and its TSIG resource\nrecord.\n\nNote: This command requires the DNS Profile, which is only enabled as\npart of GTM or the DNS Services add-on.",
+            source: "https://clouddocs.f5.com/api/irules/DNS__tsig.html",
+            examples: "when DNS_REQUEST {\n  if { [DNS::tsig exists] } {\n    DNS::tsig remove\n  }\n}",
+            return_value: "",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::tsig 'remove'" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::DnsState,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

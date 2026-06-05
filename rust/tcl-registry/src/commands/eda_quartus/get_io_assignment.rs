@@ -1,5 +1,10 @@
 //! `get_io_assignment` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_io_assignment -name name -to pin_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_io_assignment",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_io_assignment -name name -to pin_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

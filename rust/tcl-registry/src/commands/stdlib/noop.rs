@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "noop",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Do nothing (used for timing baselines).",
-            &["noop"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Do nothing (used for timing baselines).",
+            synopsis: &["noop"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

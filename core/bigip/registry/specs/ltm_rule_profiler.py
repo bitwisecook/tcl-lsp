@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,10 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("rule-profiler",),
         ),
         header_types=(("ltm", "rule-profiler"),),
-        properties=(
-            BigipPropertySpec(name="period", value_type="string"),
-            BigipPropertySpec(name="publisher", value_type="string"),
-            BigipPropertySpec(name="occ-mask", value_type="string"),
-            BigipPropertySpec(name="state", value_type="boolean"),
-        ),
+        properties=(),
     )

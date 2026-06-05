@@ -1,5 +1,10 @@
 //! `close_device` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "close_device",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close_device",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["close_device"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

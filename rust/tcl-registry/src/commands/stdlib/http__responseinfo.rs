@@ -7,11 +7,15 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
         return_type: Some(TclType::Dict),
-        hover: Some(HoverSnippet::brief(
-            "Return a dict of response metadata.",
-            &["http::responseInfo token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return a dict of response metadata.",
+            synopsis: &["http::responseInfo token"],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

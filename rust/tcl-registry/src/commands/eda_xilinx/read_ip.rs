@@ -1,5 +1,10 @@
 //! `read_ip` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read_ip ?-quiet? file_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_ip",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["read_ip ?-quiet? file_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

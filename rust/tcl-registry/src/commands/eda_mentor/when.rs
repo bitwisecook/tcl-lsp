@@ -1,5 +1,10 @@
 //! `when` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "when {condition} {action} ?-label label?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "when",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["when {condition} {action} ?-label label?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

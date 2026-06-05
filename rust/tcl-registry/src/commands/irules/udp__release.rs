@@ -5,11 +5,40 @@ pub fn spec() -> CommandSpec {
         name: "UDP::release",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Allow client-side ingress to flow following a call to UDP::hold.",
-            &["UDP::release"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Allow client-side ingress to flow following a call to UDP::hold.",
+            synopsis: &["UDP::release"],
+            snippet:
+                "Called at some point after UDP::hold was called.  Unblock ingress on client side.",
+            source: "https://clouddocs.f5.com/api/irules/UDP__release.html",
+            examples: "when LB_SELECTED {\n    UDP::release\n}",
+            return_value: "",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("udp"),
+            profiles: &[],
+            also_in: &[
+                "SIP_REQUEST",
+                "SIP_REQUEST_SEND",
+                "SIP_RESPONSE",
+                "STREAM_MATCHED",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::release",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

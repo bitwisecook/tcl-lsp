@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "switch ?options? string pattern body ?pattern body ...?",
+}];
+
 /// Options that consume a following value argument.
 const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
 
@@ -120,14 +132,19 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Pattern-based branching on a subject string.",
-            &[
+        hover: Some(HoverSnippet {
+            summary: "Pattern-based branching on a subject string.",
+            synopsis: &[
                 "switch ?options? string pattern body ?pattern body ...?",
                 "switch ?options? string {pattern body ?pattern body ...?}",
             ],
-            "Tcl switch(1)",
-        )),
+            snippet: "Use `-exact`, `-glob`, or `-regexp` to select matching mode.",
+            source: "Tcl switch(1)",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

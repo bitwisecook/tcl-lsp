@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testpreferstable",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test TIP 268 stable-vs-latest preference (9.0+).",
-            &["testpreferstable"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test TIP 268 stable-vs-latest preference (9.0+).",
+            synopsis: &["testpreferstable"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

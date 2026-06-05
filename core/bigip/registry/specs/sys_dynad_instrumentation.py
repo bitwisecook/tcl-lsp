@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
+    BigipPropertySpec,
 )
 from ._base import register
 
@@ -16,4 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dynad instrumentation",),
         ),
         header_types=(("sys", "dynad instrumentation"),),
+        properties=(BigipPropertySpec(name="active", value_type="unknown"),),
     )

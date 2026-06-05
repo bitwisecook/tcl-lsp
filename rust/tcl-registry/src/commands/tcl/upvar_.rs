@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "upvar ?level? otherVar myVar ?otherVar myVar ...?",
+}];
+
 /// Command spec for `upvar`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -22,12 +27,17 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Create link to variable in a different stack frame.",
-            &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],
-            "Tcl upvar(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Create link to variable in a different stack frame",
+    synopsis: &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],
+    snippet: "This command arranges for one or more local variables in the current procedure to refer to variables in an enclosing procedure call or to global variables.",
+    source: "Tcl man page upvar.n",
+    examples: "",
+    return_value: "",
+}),
         lowering_hook: Some(LoweringHookId::Upvar),
+        forms: FORMS,
+        xc_translatable: Some(false),
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "platform::shell::identify",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the platform identifier for a given Tcl shell.",
-            &["platform::shell::identify shell"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the platform identifier for a given Tcl shell.",
+            synopsis: &["platform::shell::identify shell"],
+            snippet: "",
+            source: "Tcl stdlib platform package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("platform::shell"),
         ..CommandSpec::DEFAULT
     }
 }

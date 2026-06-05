@@ -1,5 +1,10 @@
 //! `stream_out` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "stream_out file_name ?-mapFile map?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "stream_out",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["stream_out file_name ?-mapFile map?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

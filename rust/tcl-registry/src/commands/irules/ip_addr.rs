@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "ip_addr",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::any(),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: use IP::addr instead",
-            &["ip_addr"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Deprecated: use IP::addr instead",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
+        deprecated_replacement: Some("IP::addr"),
         ..CommandSpec::DEFAULT
     }
 }

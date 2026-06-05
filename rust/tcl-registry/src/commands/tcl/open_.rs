@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "open fileName ?access? ?permissions?",
+}];
+
 /// Command spec for `open`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -15,15 +20,19 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Open a file-based or command pipeline channel.",
-            &[
+        hover: Some(HoverSnippet {
+            summary: "Open a file-based or command pipeline channel.",
+            synopsis: &[
                 "open fileName",
                 "open fileName access",
                 "open fileName access permissions",
             ],
-            "Tcl open(1)",
-        )),
+            snippet: "Returns a channel identifier for use with `read`, `puts`, `close`, etc.",
+            source: "Tcl man page open.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

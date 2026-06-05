@@ -1,5 +1,10 @@
 //! `tmsh::add_tabc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::add_tabc <tabc_data>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::add_tabc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::add_tabc <tabc_data>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

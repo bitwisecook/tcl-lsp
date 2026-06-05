@@ -1,5 +1,10 @@
 //! `get_runs` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_runs ?-regexp? ?-filter expr? ?patterns?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_runs",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_runs ?-regexp? ?-filter expr? ?patterns?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

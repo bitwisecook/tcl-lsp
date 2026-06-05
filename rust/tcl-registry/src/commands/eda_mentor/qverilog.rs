@@ -1,5 +1,10 @@
 //! `qverilog` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "qverilog",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

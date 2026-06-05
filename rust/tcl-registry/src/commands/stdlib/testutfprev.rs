@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testutfprev",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test Tcl_UtfPrev.",
-            &["testutfprev"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test Tcl_UtfPrev.",
+            synopsis: &["testutfprev"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

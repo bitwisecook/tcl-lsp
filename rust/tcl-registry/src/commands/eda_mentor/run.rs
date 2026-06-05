@@ -1,5 +1,10 @@
 //! `run` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "run ?time_value? ?-all? ?-continue?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "run",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["run ?time_value? ?-all? ?-continue?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

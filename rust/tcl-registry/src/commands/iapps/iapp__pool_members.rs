@@ -1,5 +1,10 @@
 //! `iapp::pool_members` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::pool_members ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::pool_members",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::pool_members ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

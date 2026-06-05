@@ -1,5 +1,10 @@
 //! `syn_opt` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "syn_opt ?-effort effort? ?-incremental?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "syn_opt",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["syn_opt ?-effort effort? ?-incremental?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

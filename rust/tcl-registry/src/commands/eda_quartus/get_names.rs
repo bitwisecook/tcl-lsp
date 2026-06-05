@@ -1,5 +1,10 @@
 //! `get_names` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_names ?-filter filter? ?-node_type type? ?-observable_type type?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_names",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_names ?-filter filter? ?-node_type type? ?-observable_type type?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

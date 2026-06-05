@@ -1,5 +1,10 @@
 //! `iapp::get_items` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::get_items ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::get_items",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::get_items ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

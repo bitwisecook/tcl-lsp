@@ -1,5 +1,10 @@
 //! `write_netlist` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_netlist file_name ?-top_module_first?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_netlist",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_netlist file_name ?-top_module_first?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

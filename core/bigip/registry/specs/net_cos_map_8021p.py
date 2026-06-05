@@ -18,7 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "cos map-8021p"),),
         properties=(
-            BigipPropertySpec(name="value", value_type="string"),
-            BigipPropertySpec(name="traffic-priority", value_type="string"),
+            BigipPropertySpec(
+                name="traffic-priority",
+                value_type="reference",
+                references=("net_cos_traffic_priority",),
+            ),
+            BigipPropertySpec(name="value", value_type="unknown"),
         ),
     )

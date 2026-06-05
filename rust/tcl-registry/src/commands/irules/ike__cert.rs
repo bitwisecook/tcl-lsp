@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "IKE::cert",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "something",
-            &["IKE::cert (ANY_CHARS)*"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "something",
+            synopsis: &["IKE::cert (ANY_CHARS)*"],
+            snippet: "something",
+            source: "https://clouddocs.f5.com/api/irules/IKE__cert.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "IKE::cert (ANY_CHARS)*",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

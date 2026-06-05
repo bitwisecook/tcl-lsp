@@ -5,11 +5,25 @@ pub fn spec() -> CommandSpec {
         name: "TCP::snd_wnd",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "The remote host's advertised receive window.",
-            &["TCP::snd_wnd"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "The remote host's advertised receive window.",
+            synopsis: &["TCP::snd_wnd"],
+            snippet: "Returns the remote host's advertised receive window. If smaller\nthan the congestion window (cwnd) and send buffer size, this limits\nthe amount of outstanding data on the connection.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__snd_wnd.html",
+            examples: "when CLIENT_CLOSED {\n    # Get Client's last advertised window.\n    log local0. \"Client's advertised rwnd: [TCP::snd_wnd]\"\n}",
+            return_value: "The advertised receive window (rwnd) in bytes.",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::snd_wnd" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

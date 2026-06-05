@@ -1,5 +1,10 @@
 //! `set_host_options` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_host_options ?-max_cores n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_host_options",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_host_options ?-max_cores n?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `iapp::downgrade` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::downgrade ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::downgrade",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::downgrade ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

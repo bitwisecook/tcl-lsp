@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "AM::expires",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `AM::expires`.",
-            &["AM::expires"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `AM::expires`.",
+            synopsis: &["AM::expires"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/AM__expires.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AM::expires",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -18,12 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "sfc chain"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="hopkey", value_type="enum", enum_values=("service-index", "interface")
+                name="hopkey",
+                value_type="enum",
+                enum_values=("interface", "service-index"),
             ),
-            BigipPropertySpec(name="service-index", value_type="integer"),
-            BigipPropertySpec(name="source-interface", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="hops", value_type="unknown"),
             BigipPropertySpec(name="path-id", value_type="integer"),
+            BigipPropertySpec(name="service-index", value_type="integer"),
+            BigipPropertySpec(name="source-interface", value_type="string", allow_none=True),
         ),
     )

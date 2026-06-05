@@ -1,5 +1,10 @@
 //! `init_signal_spy` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "init_signal_spy src_signal dst_signal ?-node? ?-verbose?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "init_signal_spy",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["init_signal_spy src_signal dst_signal ?-node? ?-verbose?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

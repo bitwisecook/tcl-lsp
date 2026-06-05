@@ -1,5 +1,10 @@
 //! `program_hw_devices` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "program_hw_devices ?device_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "program_hw_devices",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["program_hw_devices ?device_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

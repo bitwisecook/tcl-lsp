@@ -1,5 +1,10 @@
 //! `sizeof_collection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "sizeof_collection collection",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sizeof_collection",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["sizeof_collection collection"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

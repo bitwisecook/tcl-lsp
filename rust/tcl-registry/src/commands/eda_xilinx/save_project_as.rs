@@ -1,5 +1,10 @@
 //! `save_project_as` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "save_project_as ?-force? project_name ?project_dir?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "save_project_as",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["save_project_as ?-force? project_name ?project_dir?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

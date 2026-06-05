@@ -1,5 +1,10 @@
 //! `get_name_info` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_name_info -info info_type name_id",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_name_info",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_name_info -info info_type name_id"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `write_gds` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_gds ?-long_names? ?-output file_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_gds",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_gds ?-long_names? ?-output file_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

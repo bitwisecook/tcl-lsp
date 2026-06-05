@@ -1,5 +1,10 @@
 //! `export_assignments` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "export_assignments",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "export_assignments",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["export_assignments"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

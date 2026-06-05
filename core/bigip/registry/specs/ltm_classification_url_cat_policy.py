@@ -18,9 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "classification url-cat-policy"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="feed-lists", value_type="enum", repeated=True, enum_values=("add", "delete")
+                name="feed-lists",
+                value_type="list",
+                references=("security_ip_intelligence_feed_list",),
+                list_operators=frozenset(("add", "delete")),
             ),
         ),
     )

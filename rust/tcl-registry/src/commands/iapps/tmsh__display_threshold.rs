@@ -1,5 +1,10 @@
 //! `tmsh::display_threshold` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::display_threshold ?value?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::display_threshold",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::display_threshold ?value?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

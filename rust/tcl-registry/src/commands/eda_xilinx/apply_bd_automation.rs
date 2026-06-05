@@ -1,5 +1,10 @@
 //! `apply_bd_automation` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "apply_bd_automation -rule rule_name ?-config config?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "apply_bd_automation",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["apply_bd_automation -rule rule_name ?-config config?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

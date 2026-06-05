@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "foreachLine varName filename body",
+}];
+
 /// Command spec for `foreachLine`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -22,11 +27,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Iterate over the lines of a text file, one line at a time.",
-            &["foreachLine varName filename body"],
-            "Tcl man page library.n",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Iterate over the lines of a text file, one line at a time.",
+            synopsis: &["foreachLine varName filename body"],
+            snippet: "",
+            source: "Tcl man page library.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

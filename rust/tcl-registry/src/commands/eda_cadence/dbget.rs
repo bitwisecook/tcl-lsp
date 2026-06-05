@@ -1,5 +1,10 @@
 //! `dbGet` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "dbGet object_spec.attribute ?-regexp pattern? ?-e?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dbGet",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["dbGet object_spec.attribute ?-regexp pattern? ?-e?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

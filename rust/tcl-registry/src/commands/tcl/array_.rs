@@ -3,6 +3,11 @@
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "array option arrayName ?arg arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "anymore",
@@ -21,7 +26,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
         dialects: Some(DialectSet::TCL90),
-        ..SubCommand::DEFAULT
+                arg_values: &[
+            (0, &[ArgValue { value: "exists", detail: "Returns a boolean indicating whether a default value has been set for the array." }, ArgValue { value: "get", detail: "Returns the current default value for the array." }, ArgValue { value: "set", detail: "Sets the default value for the array to value." }, ArgValue { value: "unset", detail: "Removes the default value for the array." }]),
+        ],
+..SubCommand::DEFAULT
     },
     SubCommand {
         name: "donesearch",
@@ -143,12 +151,16 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Manipulate array variables.",
-            &["array option arrayName ?arg arg ...?"],
-            "Tcl array(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Manipulate array variables",
+    synopsis: &["array option arrayName ?arg arg ...?"],
+    snippet: "This command performs one of several operations on the variable given by arrayName.",
+    source: "Tcl man page array.n",
+    examples: "",
+    return_value: "",
+}),
         codegen_hook: Some(CodegenHookId::Array),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

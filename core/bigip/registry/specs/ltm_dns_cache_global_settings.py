@@ -21,12 +21,34 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="cache-maximum-ttl", value_type="integer"),
             BigipPropertySpec(name="cache-minimum-ttl", value_type="integer"),
             BigipPropertySpec(name="resolver-edns-buffer-size", value_type="integer"),
-            BigipPropertySpec(name="serve-expired", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="serve-expired-ttl", value_type="integer"),
             BigipPropertySpec(
-                name="serve-expired-ttl-reset", value_type="enum", enum_values=("yes", "no")
+                name="serve-expired",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
             ),
-            BigipPropertySpec(name="serve-expired-reply-ttl", value_type="integer"),
-            BigipPropertySpec(name="serve-expired-client-timeout", value_type="integer"),
+            BigipPropertySpec(
+                name="serve-expired-client-timeout",
+                value_type="integer",
+                default="1800 milliseconds",
+            ),
+            BigipPropertySpec(
+                name="serve-expired-reply-ttl",
+                value_type="integer",
+                default="30 seconds",
+            ),
+            BigipPropertySpec(
+                name="serve-expired-ttl",
+                value_type="integer",
+                default="86400 seconds",
+            ),
+            BigipPropertySpec(
+                name="serve-expired-ttl-reset",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
+            ),
         ),
     )

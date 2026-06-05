@@ -1,5 +1,10 @@
 //! `create_bd_intf_port` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "create_bd_intf_port -mode mode -vlnv vlnv port_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "create_bd_intf_port",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["create_bd_intf_port -mode mode -vlnv vlnv port_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

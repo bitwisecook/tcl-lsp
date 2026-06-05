@@ -1,5 +1,10 @@
 //! `set_max_capacitance` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_max_capacitance cap_value object_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_max_capacitance",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_max_capacitance cap_value object_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -19,37 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "snat"),),
         properties=(
             BigipPropertySpec(
-                name="auto-lasthop",
-                value_type="enum",
-                enum_values=("default", "enabled", "disabled"),
-            ),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="mirror",
-                value_type="enum",
-                repeated=True,
-                allow_none=True,
-                enum_values=("disabled", "enabled", "none"),
-            ),
-            BigipPropertySpec(
-                name="snatpool", value_type="reference", references=("ltm_snatpool",)
-            ),
-            BigipPropertySpec(
-                name="source-port",
-                value_type="enum",
-                enum_values=("change", "preserve", "preserve-strict"),
-                min_value=0,
-                max_value=65535,
-            ),
-            BigipPropertySpec(name="translation", value_type="list", repeated=True),
-            BigipPropertySpec(
                 name="vlans",
                 value_type="reference",
                 allow_none=True,
                 enum_values=("default", "none"),
                 references=("net_vlan",),
             ),
-            BigipPropertySpec(name="value", value_type="string"),
             BigipPropertySpec(
                 name="persist",
                 value_type="reference",
@@ -67,6 +42,63 @@ def register_spec() -> BigipObjectSpec:
                     "ltm_persistence_ssl",
                     "ltm_persistence_universal",
                 ),
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="auto-lasthop",
+                value_type="enum",
+                enum_values=("default", "disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="metadata", value_type="unknown"),
+            BigipPropertySpec(
+                name="mirror",
+                value_type="unknown",
+                allow_none=True,
+                enum_values=("disabled", "enabled", "none"),
+                shape_kind="object",
+                default="none",
+            ),
+            BigipPropertySpec(name="origins", value_type="unknown", required=True),
+            BigipPropertySpec(
+                name="persist",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="snatpool",
+                value_type="reference",
+                references=("ltm_snatpool",),
+            ),
+            BigipPropertySpec(
+                name="source-port",
+                value_type="enum",
+                enum_values=("change", "preserve", "preserve-strict"),
+                default="preserve",
+            ),
+            BigipPropertySpec(
+                name="translation",
+                value_type="reference",
+                repeated=True,
+                references=(
+                    "ltm_snat_translation",
+                    "security_nat_destination_translation",
+                    "security_nat_source_translation",
+                ),
+            ),
+            BigipPropertySpec(name="value", value_type="string"),
+            BigipPropertySpec(
+                name="vlans",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("default", "none"),
+                default="none",
             ),
         ),
     )

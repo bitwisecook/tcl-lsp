@@ -1,5 +1,10 @@
 //! `set_max_area` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_max_area area_value",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_max_area",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_max_area area_value"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

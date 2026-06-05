@@ -17,6 +17,10 @@ pub enum ArgRole {
     VarWrite,
     /// Variable name read without modification (`info exists`, `array get`).
     VarRead,
+    /// Loop variable-binding list evaluated once before the body
+    /// (`dict for {k v} …`, `dict map {k v} …`). Mirrors Python
+    /// `ArgRole.LOOP_VAR_LIST`.
+    LoopVarList,
     /// Procedure parameter list.
     ParamList,
     /// Symbolic name (proc name, namespace name).

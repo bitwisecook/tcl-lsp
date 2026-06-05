@@ -1,5 +1,10 @@
 //! `add_log` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "add log ?-r? signal_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "add_log",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["add log ?-r? signal_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

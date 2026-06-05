@@ -1,5 +1,10 @@
 //! `set_wire_load_model` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_wire_load_model -name model_name ?-library lib? ?object_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_wire_load_model",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_wire_load_model -name model_name ?-library lib? ?object_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

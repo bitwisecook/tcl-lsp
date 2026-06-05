@@ -18,14 +18,33 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing sip route"),),
         properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="from-uri", value_type="string"),
             BigipPropertySpec(
-                name="peer-selection-mode", value_type="enum", enum_values=("ratio", "sequential")
+                name="peer-selection-mode",
+                value_type="enum",
+                enum_values=("ratio", "sequential"),
             ),
-            BigipPropertySpec(name="peers", value_type="boolean", repeated=True, allow_none=True),
+            BigipPropertySpec(
+                name="peers",
+                value_type="list",
+                repeated=True,
+                references=(
+                    "ltm_message_routing_diameter_peer",
+                    "ltm_message_routing_generic_peer",
+                    "ltm_message_routing_mqtt_peer",
+                    "ltm_message_routing_sip_peer",
+                    "net_ipsec_ike_peer",
+                ),
+            ),
             BigipPropertySpec(name="request-uri", value_type="string"),
             BigipPropertySpec(name="to-uri", value_type="string"),
-            BigipPropertySpec(name="virtual-server", value_type="string"),
+            BigipPropertySpec(name="virtual-server", value_type="reference"),
         ),
     )

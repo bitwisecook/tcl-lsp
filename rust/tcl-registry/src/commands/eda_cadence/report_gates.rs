@@ -1,5 +1,10 @@
 //! `report_gates` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_gates ?-power?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_gates",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_gates ?-power?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

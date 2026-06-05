@@ -6,11 +6,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-        hover: Some(HoverSnippet::brief(
-            "Return the index of the first end-of-word after *start* in *str*.",
-            &["tcl_endOfWord str start"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the index of the first end-of-word after *start* in *str*.",
+            synopsis: &["tcl_endOfWord str start"],
+            snippet: "",
+            source: "Tcl stdlib auto-loaded utility",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

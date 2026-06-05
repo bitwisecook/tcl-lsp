@@ -1,5 +1,10 @@
 //! `set_technology` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_technology ?technology?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_technology",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_technology ?technology?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

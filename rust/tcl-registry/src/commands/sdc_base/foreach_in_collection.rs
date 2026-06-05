@@ -1,9 +1,17 @@
 //! `foreach_in_collection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "foreach_in_collection var collection body",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach_in_collection",
-        traits: Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY | Traits::NEVER_INLINE_BODY,
+        traits: Traits::CONTROL_FLOW
+            | Traits::HAS_LOOP_BODY
+            | Traits::NEVER_INLINE_BODY
+            | Traits::LOOP_LIST_HEADER,
         dialects: Some(
             DialectSet::SYNOPSYS
                 | DialectSet::CADENCE
@@ -17,6 +25,8 @@ pub fn spec() -> CommandSpec {
             &["foreach_in_collection var collection body"],
             "F5",
         )),
+        forms: FORMS,
+        arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         ..CommandSpec::DEFAULT
     }
 }

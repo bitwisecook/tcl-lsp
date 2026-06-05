@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "eof channel",
+}];
+
 /// Command spec for `eof`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -16,11 +21,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Check for end-of-file condition on a channel.",
-            &["eof channel"],
-            "Tcl eof(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Check for end of file condition on channel",
+    synopsis: &["eof channel"],
+    snippet: "The eof command has been superceded by the chan eof command which supports the same syntax and options.",
+    source: "Tcl man page eof.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

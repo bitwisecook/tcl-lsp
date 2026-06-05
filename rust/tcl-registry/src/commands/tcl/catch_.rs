@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "catch script ?resultVarName? ?optionsVarName?",
+}];
+
 /// Command spec for `catch`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,11 +30,16 @@ pub fn spec() -> CommandSpec {
         ],
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         return_type: Some(TclType::Int),
-        hover: Some(HoverSnippet::brief(
-            "Evaluate script and trap exceptional returns.",
-            &["catch script ?resultVarName? ?optionsVarName?"],
-            "Tcl catch(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Evaluate script and trap exceptional returns",
+    synopsis: &["catch script ?resultVarName? ?optionsVarName?"],
+    snippet: "The catch command may be used to prevent errors from aborting command interpretation.",
+    source: "Tcl man page catch.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

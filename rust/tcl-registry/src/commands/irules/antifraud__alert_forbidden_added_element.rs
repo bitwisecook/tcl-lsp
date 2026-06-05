@@ -5,11 +5,36 @@ pub fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_forbidden_added_element",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Deprecated: For the external_sources alert: returns forbidden added HTML element",
-            &["ANTIFRAUD::alert_forbidden_added_element"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Deprecated: For the external_sources alert: returns forbidden added HTML element and its content, in an escaped base64 format.",
+            synopsis: &["ANTIFRAUD::alert_forbidden_added_element"],
+            snippet: "For the external_sources alert: returns forbidden added HTML element and its content, in an escaped base64 format.",
+            source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__alert_forbidden_added_element.html",
+            examples: "",
+            return_value: "",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["ANTIFRAUD"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_forbidden_added_element" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::AsmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
+        deprecated_replacement: Some("ANTIFRAUD::alert_details"),
         ..CommandSpec::DEFAULT
     }
 }

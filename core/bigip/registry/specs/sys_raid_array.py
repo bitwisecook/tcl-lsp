@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("raid array",),
         ),
         header_types=(("sys", "raid array"),),
+        properties=(),
     )

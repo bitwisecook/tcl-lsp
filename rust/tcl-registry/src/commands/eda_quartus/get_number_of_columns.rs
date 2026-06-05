@@ -1,5 +1,10 @@
 //! `get_number_of_columns` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_number_of_columns -name panel_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_number_of_columns",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_number_of_columns -name panel_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

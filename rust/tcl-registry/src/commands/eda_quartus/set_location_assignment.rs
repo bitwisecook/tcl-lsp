@@ -1,5 +1,10 @@
 //! `set_location_assignment` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_location_assignment -to pin_name location",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_location_assignment",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_location_assignment -to pin_name location"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

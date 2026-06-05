@@ -1,5 +1,10 @@
 //! `iapp::upgrade_template` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::upgrade_template ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::upgrade_template",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::upgrade_template ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

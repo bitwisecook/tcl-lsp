@@ -1,5 +1,10 @@
 //! `clock_opt` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "clock_opt ?-effort high|medium|low?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock_opt",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["clock_opt ?-effort high|medium|low?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

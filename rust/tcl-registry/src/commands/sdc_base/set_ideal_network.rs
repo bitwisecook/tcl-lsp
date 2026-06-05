@@ -1,5 +1,10 @@
 //! `set_ideal_network` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_ideal_network ?-no_propagate? object_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_ideal_network",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_ideal_network ?-no_propagate? object_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -6,11 +6,34 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns a true value if this is a Keep-Alive connection.",
-            &["HTTP::is_keepalive"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Returns a true value if this is a Keep-Alive connection.",
+            synopsis: &["HTTP::is_keepalive"],
+            snippet: "Returns a true value if this is a Keep-Alive connection.",
+            source: "https://clouddocs.f5.com/api/irules/HTTP__is_keepalive.html",
+            examples: "when HTTP_RESPONSE {\n  if {[HTTP::is_keepalive]}{\n    HTTP::close\n  }\n}",
+            return_value: "",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "HTTP::is_keepalive",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

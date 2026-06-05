@@ -1,5 +1,10 @@
 //! `describe` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "describe signal_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "describe",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["describe signal_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

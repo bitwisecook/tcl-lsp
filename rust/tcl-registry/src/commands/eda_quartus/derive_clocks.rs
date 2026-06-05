@@ -1,5 +1,10 @@
 //! `derive_clocks` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "derive_clocks ?-period period?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "derive_clocks",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["derive_clocks ?-period period?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

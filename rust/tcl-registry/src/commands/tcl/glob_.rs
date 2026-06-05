@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "glob ?switches? ?--? pattern ?pattern ...?",
+}];
+
 /// Command spec for `glob`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -66,11 +71,15 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Return names of files that match patterns.",
-            &["glob ?switches? ?--? pattern ?pattern ...?"],
-            "Tcl glob(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Return names of files that match patterns.",
+    synopsis: &["glob ?switches? ?--? pattern ?pattern ...?"],
+    snippet: "Performs file name globbing similar to `csh`. Returns a list of matching file names.\n\nUse `-nocomplain` to return an empty list instead of an error when no files match. Use `--` before patterns that may start with `-`.",
+    source: "Tcl glob(1)",
+    examples: "",
+    return_value: "A list of file names matching the patterns.",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

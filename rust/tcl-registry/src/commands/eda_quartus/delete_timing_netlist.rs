@@ -1,5 +1,10 @@
 //! `delete_timing_netlist` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "delete_timing_netlist",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "delete_timing_netlist",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["delete_timing_netlist"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

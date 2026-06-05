@@ -1,5 +1,10 @@
 //! `report_constraint` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_constraint ?-all_violators? ?-max_delay? ?-min_delay?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_constraint",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["report_constraint ?-all_violators? ?-max_delay? ?-min_delay?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

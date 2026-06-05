@@ -18,7 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "cos global-settings"),),
         properties=(
-            BigipPropertySpec(name="precedence", value_type="string"),
-            BigipPropertySpec(name="default-traffic-priority", value_type="string"),
+            BigipPropertySpec(name="default-map-8021p", value_type="unknown"),
+            BigipPropertySpec(name="default-map-dscp", value_type="unknown"),
+            BigipPropertySpec(name="default-traffic-priority", value_type="unknown"),
+            BigipPropertySpec(name="feature-disabled", value_type="unknown"),
+            BigipPropertySpec(name="feature-enabled", value_type="unknown"),
+            BigipPropertySpec(name="precedence", value_type="unknown"),
         ),
     )

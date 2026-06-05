@@ -18,7 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "ucs"),),
         properties=(
-            BigipPropertySpec(name="save", value_type="string"),
-            BigipPropertySpec(name="load", value_type="string"),
+            BigipPropertySpec(name="include-chassis-level-config", value_type="unknown"),
+            BigipPropertySpec(
+                name="load",
+                value_type="reference",
+                references=("gtm_global_settings_load_balancing", "load"),
+            ),
+            BigipPropertySpec(name="no-license", value_type="unknown"),
+            BigipPropertySpec(name="no-platform-check", value_type="unknown"),
+            BigipPropertySpec(name="no-private-key", value_type="unknown"),
+            BigipPropertySpec(name="passphrase", value_type="unknown"),
+            BigipPropertySpec(name="platform-migrate", value_type="unknown"),
+            BigipPropertySpec(name="reset-trust", value_type="unknown"),
+            BigipPropertySpec(name="save", value_type="reference", references=("save",)),
         ),
     )

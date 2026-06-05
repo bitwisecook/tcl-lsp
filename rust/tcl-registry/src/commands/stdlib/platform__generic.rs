@@ -6,11 +6,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(0),
-        hover: Some(HoverSnippet::brief(
-            "Return the generic platform identifier (less specific than identify).",
-            &["platform::generic"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the generic platform identifier (less specific than identify).",
+            synopsis: &["platform::generic"],
+            snippet: "",
+            source: "Tcl stdlib platform package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("platform"),
         ..CommandSpec::DEFAULT
     }
 }

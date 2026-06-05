@@ -1,5 +1,10 @@
 //! `set_dont_use` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_dont_use lib_cell_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_dont_use",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_dont_use lib_cell_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

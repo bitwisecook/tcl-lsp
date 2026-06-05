@@ -6,11 +6,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the HTTP response status line.",
-            &["http::responseLine token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the HTTP response status line.",
+            synopsis: &["http::responseLine token"],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

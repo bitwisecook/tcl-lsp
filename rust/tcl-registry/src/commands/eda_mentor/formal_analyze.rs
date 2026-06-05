@@ -1,5 +1,10 @@
 //! `formal_analyze` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "formal_analyze ?-property prop_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "formal_analyze",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["formal_analyze ?-property prop_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

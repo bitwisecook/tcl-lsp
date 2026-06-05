@@ -1,5 +1,10 @@
 //! `verify_geometry` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "verify_geometry ?-error n?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "verify_geometry",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["verify_geometry ?-error n?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

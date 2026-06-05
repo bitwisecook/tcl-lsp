@@ -1,5 +1,10 @@
 //! `ungroup` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ungroup",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

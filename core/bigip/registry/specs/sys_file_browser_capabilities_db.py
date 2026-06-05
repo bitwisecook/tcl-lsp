@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("file browser-capabilities-db",),
         ),
         header_types=(("sys", "file browser-capabilities-db"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(BigipPropertySpec(name="source-path", value_type="unknown"),),
     )

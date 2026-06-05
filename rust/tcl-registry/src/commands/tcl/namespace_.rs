@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "namespace subcommand ?arg ...?",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -186,17 +191,30 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::InterpState,
-            reads: false,
-            writes: true,
-            connection_side: ConnectionSide::None,
-        }],
-        hover: Some(HoverSnippet::brief(
-            "Create and manipulate contexts for commands and variables.",
-            &["namespace subcommand ?arg ...?"],
-            "Tcl namespace(1)",
-        )),
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::InterpState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
+            // Mirrors Python `namespace_.py` (NAMESPACE_STATE).
+            SideEffect {
+                target: SideEffectTarget::NamespaceState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
+        ],
+hover: Some(HoverSnippet {
+    summary: "create and manipulate contexts for commands and variables",
+    synopsis: &["namespace subcommand ?arg ...?"],
+    snippet: "The namespace command lets you create, access, and destroy separate contexts for commands and variables.",
+    source: "Tcl man page namespace.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

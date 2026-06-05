@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto fips key",),
         ),
         header_types=(("sys", "crypto fips key"),),
+        properties=(),
     )

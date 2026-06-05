@@ -18,10 +18,80 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "debug matcher"),),
         properties=(
-            BigipPropertySpec(name="matcher", value_type="string"),
-            BigipPropertySpec(name="drop-redirect", value_type="string", in_sections=("matcher",)),
             BigipPropertySpec(
-                name="drop-redirect-mode", value_type="string", in_sections=("drop-redirect",)
+                name="matcher",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="drop-redirect",
+                        value_type="unknown",
+                        in_sections=("matcher",),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
+            BigipPropertySpec(
+                name="drop-redirect",
+                value_type="unknown",
+                in_sections=("matcher",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="drop-redirect-mode",
+                        value_type="unknown",
+                        in_sections=("matcher", "drop-redirect"),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
+            BigipPropertySpec(
+                name="drop-redirect-mode",
+                value_type="unknown",
+                in_sections=("matcher", "drop-redirect"),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="disable",
+                        value_type="unknown",
+                        in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+                    ),
+                    BigipPropertySpec(
+                        name="redirect-all",
+                        value_type="unknown",
+                        in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+                    ),
+                    BigipPropertySpec(
+                        name="redirect-hw-only",
+                        value_type="unknown",
+                        in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+                    ),
+                    BigipPropertySpec(
+                        name="redirect-sw-only",
+                        value_type="unknown",
+                        in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+                    ),
+                ),
+            ),
+            BigipPropertySpec(
+                name="disable",
+                value_type="unknown",
+                in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+            ),
+            BigipPropertySpec(
+                name="redirect-all",
+                value_type="unknown",
+                in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+            ),
+            BigipPropertySpec(
+                name="redirect-hw-only",
+                value_type="unknown",
+                in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
+            ),
+            BigipPropertySpec(
+                name="redirect-sw-only",
+                value_type="unknown",
+                in_sections=("matcher", "drop-redirect", "drop-redirect-mode"),
             ),
         ),
     )

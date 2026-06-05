@@ -1,5 +1,10 @@
 //! `vlib` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "vlib ?-type type? library_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vlib",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["vlib ?-type type? library_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

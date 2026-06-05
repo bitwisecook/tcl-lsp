@@ -18,13 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "dag-globals"),),
         properties=(
-            BigipPropertySpec(
-                name="round-robin-mode", value_type="enum", enum_values=("global", "local")
-            ),
             BigipPropertySpec(name="dag-ipv6-prefix-len", value_type="integer"),
             BigipPropertySpec(name="icmp-hash", value_type="enum", enum_values=("icmp", "ipicmp")),
             BigipPropertySpec(
-                name="icmp-monitor-priority", value_type="enum", enum_values=("high", "normal")
+                name="icmp-monitor-priority",
+                value_type="enum",
+                enum_values=("high", "normal"),
             ),
+            BigipPropertySpec(name="round-robin-mode", value_type="enum", enum_values=("local",)),
         ),
     )

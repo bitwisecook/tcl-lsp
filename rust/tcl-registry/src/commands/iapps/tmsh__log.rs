@@ -1,5 +1,10 @@
 //! `tmsh::log` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::log <message>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::log",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::log <message>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

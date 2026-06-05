@@ -15,8 +15,8 @@
 //! - [`spec`] — [`CommandSpec`] and [`SubCommand`] definitions.
 //! - [`registry`] — [`CommandRegistry`] lookup facade.
 //! - [`commands`] — one file per command, one directory per dialect.
-//! - [`events`] — iRules event metadata (247 events, firing order, flow chains).
-//! - [`profiles`] — F5 profile types (57 profiles), protocol namespaces (87),
+//! - [`events`] — iRules event metadata (176 events, firing order, flow chains).
+//! - [`profiles`] — F5 profile types (65 profiles), protocol namespaces (113),
 //!   and stack modification commands.
 //!
 //! ## One file per command
@@ -32,6 +32,7 @@
 
 pub mod arg_role;
 pub mod arity;
+pub mod bigip;
 pub mod body_kind;
 pub mod commands;
 pub mod const_fold;
@@ -40,6 +41,7 @@ pub mod events;
 pub mod forms;
 pub mod hooks;
 pub mod hover;
+pub mod patterns;
 pub mod profiles;
 pub mod registry;
 pub mod side_effects;
@@ -58,14 +60,17 @@ pub mod prelude {
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
     pub use crate::dialects::DialectSet;
+    pub use crate::events::EventRequires;
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::hooks::{
         ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion, VersionedConstFoldFn,
         WasmCodegenHookId,
     };
     pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
+    pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};
+    pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::TclType;
 }
@@ -73,10 +78,13 @@ pub mod prelude {
 // Re-export key types at crate root.
 pub use arg_role::ArgRole;
 pub use arity::Arity;
+pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use hover::ArgValue;
+pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
+pub use taint::{SetterConstraint, TaintColour};
 pub use traits::Traits;
 pub use types::TclType;
 

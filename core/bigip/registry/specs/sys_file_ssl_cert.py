@@ -18,14 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "file ssl-cert"),),
         properties=(
-            BigipPropertySpec(name="source-path", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="cert-validation-options",
                 value_type="enum",
                 allow_none=True,
                 enum_values=("none", "ocsp"),
             ),
-            BigipPropertySpec(name="cert-validators", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="issuer-cert", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="cert-validators",
+                value_type="reference",
+                references=("sys_crypto_cert_validator_crl", "sys_crypto_cert_validator_ocsp"),
+            ),
+            BigipPropertySpec(name="issuer-cert", value_type="reference"),
+            BigipPropertySpec(name="source-path", value_type="unknown"),
         ),
     )

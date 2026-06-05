@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "LB::context_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Assign the current connection to a named context.",
-            &["LB::context_id"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Assign the current connection to a named context.",
+            synopsis: &["LB::context_id"],
+            snippet: "Assign the current connection to a named context.",
+            source: "https://clouddocs.f5.com/api/irules/LB__context_id.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LB::context_id",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

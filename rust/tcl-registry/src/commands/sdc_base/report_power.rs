@@ -1,5 +1,10 @@
 //! `report_power` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_power ?-hierarchy? ?-verbose?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_power",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["report_power ?-hierarchy? ?-verbose?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

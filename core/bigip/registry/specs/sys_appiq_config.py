@@ -17,5 +17,7 @@ def register_spec() -> BigipObjectSpec:
             object_types=("appiq config",),
         ),
         header_types=(("sys", "appiq config"),),
-        properties=(BigipPropertySpec(name="host-ip", value_type="string"),),
+        properties=(
+            BigipPropertySpec(name="host-ip", value_type="string", shape_kind="ip-address"),
+        ),
     )

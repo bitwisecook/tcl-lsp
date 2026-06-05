@@ -21,11 +21,25 @@ pub fn spec() -> CommandSpec {
         ],
         lowering_hook: Some(LoweringHookId::Proc),
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Define an iRule proc.",
-            &["proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Define an iRule proc.",
+            synopsis: &["proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT"],
+            snippet: "Define an iRule proc which is called by iRule command call.\n\nThe syntax is same as basic TCL proc command.",
+            source: "https://clouddocs.f5.com/api/irules/proc.html",
+            examples: "when CLIENT_DATA {\n    call logme \"Coming to CLIENT_DATA\"\n}",
+            return_value: "Returns the value in the return command, if any, in the proc script.",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ProcDefinition,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

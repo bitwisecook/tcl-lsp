@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "after ms",
+}];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
@@ -43,16 +48,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Execute a command after a time delay.",
-            &[
-                "after ms",
-                "after ms ?script script script ...?",
-                "after cancel id",
-                "after cancel script script script ...",
-            ],
-            "Tcl after(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Execute a command after a time delay",
+    synopsis: &["after ms", "after ms ?script script script ...?", "after cancel id", "after cancel script script script ..."],
+    snippet: "This command is used to delay execution of the program or to execute a command in background sometime in the future.",
+    source: "Tcl man page after.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

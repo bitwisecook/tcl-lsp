@@ -26,15 +26,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="header-from", value_type="string"),
-            BigipPropertySpec(
-                name="host",
-                value_type="string",
-                pattern="^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\\\.)+[A-Za-z]{2,63}$",
-            ),
+            BigipPropertySpec(name="host", value_type="string"),
             BigipPropertySpec(name="preview-length", value_type="integer"),
             BigipPropertySpec(name="referer", value_type="string"),
             BigipPropertySpec(name="uri", value_type="string"),
             BigipPropertySpec(name="user-agent", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

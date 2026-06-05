@@ -1,6 +1,18 @@
 //! `TclOO` class.
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::InterpState,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "oo::class method ?arg ...?",
+}];
+
 /// Resolve the body argument index for the metaclass shapes:
 ///
 /// * `oo::class create Name body` → body at index 2.
@@ -33,11 +45,16 @@ pub fn spec() -> CommandSpec {
         // SYNC2: bodies of `oo::class create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame).
         body_kind: BodyKind::Structural,
-        hover: Some(HoverSnippet::brief(
-            "Define or manipulate a `TclOO` class.",
-            &["oo::class create name ?definition?"],
-            "Tcl oo::class(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "class of all classes",
+    synopsis: &["oo::class method ?arg ...?", "oo::class create name ?definition?"],
+    snippet: "Classes are objects that can manufacture other objects according to a pattern stored in the factory object (the class).",
+    source: "Tcl man page class.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

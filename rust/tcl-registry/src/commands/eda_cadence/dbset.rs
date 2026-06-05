@@ -1,5 +1,10 @@
 //! `dbSet` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "dbSet object_spec.attribute value",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dbSet",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["dbSet object_spec.attribute value"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

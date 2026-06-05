@@ -5,11 +5,40 @@ pub fn spec() -> CommandSpec {
         name: "UDP::mss",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection.",
-            &["UDP::mss"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection.",
+            synopsis: &["UDP::mss"],
+            snippet: "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection.",
+            source: "https://clouddocs.f5.com/api/irules/UDP__mss.html",
+            examples: "when CLIENT_ACCEPTED {\n  if { [UDP::mss] < 1000 } {\n    pool small_req_pool\n  } else {\n    pool large_req_pool\n  }\n}",
+            return_value: "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("udp"),
+            profiles: &[],
+            also_in: &[
+                "SIP_REQUEST",
+                "SIP_REQUEST_SEND",
+                "SIP_RESPONSE",
+                "STREAM_MATCHED",
+            ],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "UDP::mss" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::UdpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

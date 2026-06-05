@@ -18,183 +18,400 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile tcp"),),
         properties=(
-            BigipPropertySpec(name="abc", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
-                name="ack-on-push", value_type="enum", enum_values=("disabled", "enabled")
+                name="abc",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="ack-on-push",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="auto-proxy-buffer-size",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="auto-receive-window-size",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="auto-send-buffer-size", value_type="enum", enum_values=("disabled", "enabled")
+                name="auto-send-buffer-size",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="close-wait-timeout", value_type="integer"),
+            BigipPropertySpec(name="close-wait-timeout", value_type="integer", default="5 seconds"),
             BigipPropertySpec(
-                name="cmetrics-cache", value_type="enum", enum_values=("disabled", "enabled")
+                name="cmetrics-cache",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="cmetrics-cache-timeout", value_type="integer"),
-            BigipPropertySpec(name="congestion-control", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="vegas", value_type="boolean"),
+            BigipPropertySpec(
+                name="cmetrics-cache-timeout",
+                value_type="integer",
+                default="0, which defers to the sys db variable route",
+            ),
+            BigipPropertySpec(
+                name="congestion-control",
+                value_type="enum",
+                allow_none=True,
+                enum_values=(
+                    "bbr",
+                    "cdg",
+                    "chd",
+                    "cubic",
+                    "high-speed",
+                    "illinois",
+                    "new-reno",
+                    "none",
+                    "reno",
+                    "scalable",
+                    "vegas",
+                    "westwood",
+                    "woodside",
+                ),
+                default="high-speed",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_tcp",),
+                default="tcp",
             ),
             BigipPropertySpec(
-                name="deferred-accept", value_type="enum", enum_values=("disabled", "enabled")
+                name="deferred-accept",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="delay-window-control", value_type="enum", enum_values=("disabled", "enabled")
+                name="delay-window-control",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="delayed-acks", value_type="enum", enum_values=("disabled", "enabled")
+                name="delayed-acks",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="dsack", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
-                name="early-retransmit", value_type="enum", enum_values=("disabled", "enabled")
+                name="dsack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="ecn", value_type="enum", enum_values=("disabled", "enabled")),
+            BigipPropertySpec(
+                name="early-retransmit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="ecn",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
             BigipPropertySpec(
                 name="enhanced-loss-recovery",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="fast-open", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="fast-open-cookie-expiration", value_type="integer"),
-            BigipPropertySpec(name="fin-wait-timeout", value_type="integer"),
-            BigipPropertySpec(name="fin-wait-2-timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="hardware-syn-cookie", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="idle-timeout", value_type="integer"),
-            BigipPropertySpec(name="init-cwnd", value_type="integer"),
-            BigipPropertySpec(name="init-rwnd", value_type="integer"),
-            BigipPropertySpec(name="ip-tos-to-client", value_type="integer"),
-            BigipPropertySpec(name="keep-alive-interval", value_type="integer"),
-            BigipPropertySpec(
-                name="limited-transmit", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="link-qos-to-client", value_type="integer"),
-            BigipPropertySpec(name="max-retrans", value_type="integer"),
-            BigipPropertySpec(name="max-segment-size", value_type="integer"),
-            BigipPropertySpec(
-                name="md5-signature", value_type="enum", enum_values=("disabled", "enabled")
+                name="fast-open",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="md5-signature-passphrase", value_type="boolean", allow_none=True
-            ),
-            BigipPropertySpec(name="minimum-rto", value_type="integer"),
-            BigipPropertySpec(
-                name="mptcp", value_type="enum", enum_values=("disabled", "enabled", "passthrough")
+                name="fast-open-cookie-expiration",
+                value_type="integer",
+                default="21600 seconds (6 hours)",
             ),
             BigipPropertySpec(
-                name="mptcp-csum", value_type="enum", enum_values=("disabled", "enabled")
+                name="fin-wait-2-timeout",
+                value_type="integer",
+                default="300 seconds",
+            ),
+            BigipPropertySpec(name="fin-wait-timeout", value_type="integer", default="5 seconds"),
+            BigipPropertySpec(
+                name="hardware-syn-cookie",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(name="idle-timeout", value_type="integer", default="300 seconds"),
+            BigipPropertySpec(name="init-cwnd", value_type="integer", default="10"),
+            BigipPropertySpec(name="init-rwnd", value_type="integer", default="10"),
+            BigipPropertySpec(
+                name="ip-df-mode",
+                value_type="enum",
+                enum_values=("clear", "preserve", "set"),
+            ),
+            BigipPropertySpec(name="ip-tos-to-client", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(
+                name="ip-ttl-mode",
+                value_type="enum",
+                enum_values=("decrement", "preserve", "proxy", "set"),
+            ),
+            BigipPropertySpec(name="ip-ttl-value", value_type="integer"),
+            BigipPropertySpec(
+                name="keep-alive-interval",
+                value_type="integer",
+                default="1800 seconds",
             ),
             BigipPropertySpec(
-                name="mptcp-csum-verify", value_type="enum", enum_values=("disabled", "enabled")
+                name="limited-transmit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="link-qos-to-client", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(name="max-retrans", value_type="integer", default="8"),
+            BigipPropertySpec(name="max-segment-size", value_type="integer", default="1460 bytes"),
+            BigipPropertySpec(
+                name="md5-signature",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="md5-signature-passphrase", value_type="string", default="none"),
+            BigipPropertySpec(
+                name="minimum-rto",
+                value_type="integer",
+                default="1000 milliseconds",
             ),
             BigipPropertySpec(
-                name="mptcp-debug", value_type="enum", enum_values=("disabled", "enabled")
+                name="mptcp",
+                value_type="enum",
+                enum_values=("disabled", "enabled", "passthrough"),
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="mptcp-csum",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="mptcp-csum-verify",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="mptcp-debug",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+                usage_flags=frozenset(("deprecated",)),
             ),
             BigipPropertySpec(
                 name="mptcp-fallback",
                 value_type="enum",
-                enum_values=("reset", "retransmit", "active-accept", "accept"),
-            ),
-            BigipPropertySpec(name="mptcp-join-max", value_type="integer"),
-            BigipPropertySpec(
-                name="mptcp-nojoindssack", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="mptcp-rtomax", value_type="integer"),
-            BigipPropertySpec(name="mptcp-rxmitmin", value_type="integer"),
-            BigipPropertySpec(name="mptcp-subflowmax", value_type="integer"),
-            BigipPropertySpec(
-                name="mptcp-makeafterbreak", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="mptcp-timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="mptcp-fastjoin", value_type="enum", enum_values=("disabled", "enabled")
+                enum_values=("accept", "active-accept", "reset", "retransmit"),
+                default="reset",
             ),
             BigipPropertySpec(
-                name="nagle", value_type="enum", enum_values=("disabled", "enabled", "auto")
+                name="mptcp-fastjoin",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="pkt-loss-ignore-rate", value_type="integer"),
-            BigipPropertySpec(name="pkt-loss-ignore-burst", value_type="integer"),
-            BigipPropertySpec(name="proxy-buffer-high", value_type="integer"),
-            BigipPropertySpec(name="proxy-buffer-low", value_type="integer"),
+            BigipPropertySpec(name="mptcp-join-max", value_type="integer", default="5"),
             BigipPropertySpec(
-                name="proxy-mss", value_type="enum", enum_values=("disabled", "enabled")
+                name="mptcp-makeafterbreak",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="proxy-options", value_type="enum", enum_values=("disabled", "enabled")
+                name="mptcp-nojoindssack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="mptcp-rtomax", value_type="integer", default="5"),
+            BigipPropertySpec(name="mptcp-rxmitmin", value_type="integer", default="1000"),
+            BigipPropertySpec(name="mptcp-subflowmax", value_type="integer", default="6"),
+            BigipPropertySpec(name="mptcp-timeout", value_type="integer", default="3600"),
+            BigipPropertySpec(
+                name="nagle",
+                value_type="enum",
+                enum_values=("auto", "disabled", "enabled"),
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="pkt-loss-ignore-burst",
+                value_type="integer",
+                default="0 (zero), which means that the system performs congestion control, if any packets are lost",
+            ),
+            BigipPropertySpec(
+                name="pkt-loss-ignore-rate",
+                value_type="integer",
+                default="0 (zero), which means that the system performs congestion control, if any packet loss occurs",
+            ),
+            BigipPropertySpec(name="proxy-buffer-high", value_type="integer", default="131072"),
+            BigipPropertySpec(name="proxy-buffer-low", value_type="integer", default="98304"),
+            BigipPropertySpec(
+                name="proxy-mss",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="proxy-options",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="push-flag",
                 value_type="enum",
                 allow_none=True,
-                enum_values=("default", "none", "one", "auto"),
+                enum_values=("auto", "default", "none", "one"),
+                default="default",
             ),
             BigipPropertySpec(
-                name="ip-df-mode", value_type="enum", enum_values=("preserve", "set", "clear")
-            ),
-            BigipPropertySpec(
-                name="ip-ttl-mode",
+                name="rate-pace",
                 value_type="enum",
-                enum_values=("proxy", "preserve", "decrement", "set"),
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="ip-ttl-value", value_type="integer"),
+            BigipPropertySpec(name="rate-pace-max-rate", value_type="integer", default="0"),
             BigipPropertySpec(
-                name="rate-pace", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="rate-pace-max-rate", value_type="integer"),
-            BigipPropertySpec(name="receive-window-size", value_type="integer"),
-            BigipPropertySpec(
-                name="reset-on-timeout", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="rexmt-thresh", value_type="integer"),
-            BigipPropertySpec(
-                name="selective-acks", value_type="enum", enum_values=("disabled", "enabled")
+                name="receive-window-size",
+                value_type="integer",
+                default="65535 bytes",
             ),
             BigipPropertySpec(
-                name="selective-nack", value_type="enum", enum_values=("disabled", "enabled")
+                name="reset-on-timeout",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="send-buffer-size", value_type="integer"),
+            BigipPropertySpec(name="rexmt-thresh", value_type="integer", default="3"),
             BigipPropertySpec(
-                name="slow-start", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="syn-cookie-enable", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="syn-cookie-whitelist", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="syn-max-retrans", value_type="integer"),
-            BigipPropertySpec(name="syn-rto-base", value_type="integer"),
-            BigipPropertySpec(
-                name="tail-loss-probe", value_type="enum", enum_values=("disabled", "enabled")
+                name="selective-acks",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
-                name="time-wait-recycle", value_type="enum", enum_values=("disabled", "enabled")
+                name="selective-nack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="time-wait-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="timestamps", value_type="enum", enum_values=("disabled", "enabled")
+                name="send-buffer-size",
+                value_type="integer",
+                default="131072 bytes",
             ),
             BigipPropertySpec(
-                name="verified-accept", value_type="enum", enum_values=("disabled", "enabled")
+                name="slow-start",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="zero-window-timeout", value_type="integer"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(
+                name="syn-cookie-enable",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="syn-cookie-whitelist",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="syn-max-retrans", value_type="integer", default="3"),
+            BigipPropertySpec(name="syn-rto-base", value_type="integer", default="3000"),
+            BigipPropertySpec(
+                name="tail-loss-probe",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="time-wait-recycle",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="time-wait-timeout",
+                value_type="integer",
+                default="2000 milliseconds",
+            ),
+            BigipPropertySpec(
+                name="timestamps",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="verified-accept",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="zero-window-timeout",
+                value_type="integer",
+                default="20000 milliseconds",
+            ),
         ),
     )
