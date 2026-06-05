@@ -2630,6 +2630,7 @@ fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
         CoreCompletionKind::Variable => CompletionItemKind::VARIABLE,
         CoreCompletionKind::Function => CompletionItemKind::FUNCTION,
         CoreCompletionKind::EnumValue => CompletionItemKind::ENUM_MEMBER,
+        CoreCompletionKind::Snippet => CompletionItemKind::SNIPPET,
     }
 }
 
@@ -2640,6 +2641,12 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         insert_text: Some(item.insert_text),
         detail: item.detail,
         sort_text: item.sort_text,
+        // GAP-A9: snippet items carry VS Code tabstop syntax and
+        // filter on their `tcl-…` prefix.
+        insert_text_format: item
+            .is_snippet
+            .then_some(tower_lsp::lsp_types::InsertTextFormat::SNIPPET),
+        filter_text: item.filter_text,
         ..CompletionItem::default()
     }
 }

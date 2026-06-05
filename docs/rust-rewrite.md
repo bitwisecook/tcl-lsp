@@ -4546,6 +4546,29 @@ handler set; fold the iRules-context enrichment into hover / completion
 user-visible snippet / file-rename-edit / iRules-context content is not
 acknowledged.
 
+**LANDED (snippet provider — Tcl-core templates, 2026-06-05).**  New
+`tcl-lsp-core/src/snippets.rs` ports the Tcl-core half of
+`snippet_templates.py`: the 11 templates (`tcl-proc` / `namespace` /
+`package` / `class` / `if` / `foreach` / `for` / `switch` / `catch` /
+`try` / `dict-for`) and `snippet_completions` (the `get_snippet_completions`
+filter — dialect + typed `tcl-…` prefix → a `Snippet`-kind item whose
+`insert_text` is the generated VS Code snippet body with tabstops
+`${1:…}` / `$0` / choice lists, `filter_text` the prefix, `Z0_…` sort).
+`CompletionItem` gained `is_snippet` + `filter_text`; the server lift maps
+those to `InsertTextFormat.Snippet` + `CompletionItemKind::SNIPPET`
+(snippet support is a *client* capability, so nothing new is advertised).
+Wired into the completion provider's command-position fallback only (never
+`$var` / `-option` contexts), with a dash-aware partial extractor so
+`tcl-pr` matches `tcl-proc`; `_var_choices` offers in-scope variables as
+`${n|choices|}` for `foreach` / `dict for`.  4 unit tests + an end-to-end
+provider check.  **Remaining:** the iRules event templates
+(`RULE_INIT` / `HTTP_REQUEST` / … — need the enclosing `when` event +
+file-event scan), the `workspace_file_ops` rename-edit provider + a
+`fileOperations` capability (needs the workspace reverse-dependency
+index), the `package_suggestions` fuzzy-catalogue code action (needs the
+registry `required_package` surface the registry chat is restoring), and
+the `irules_context` hover/completion enrichment (folds into GAP-C5).
+
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
 **GAP-B1 — O127 store-to-load forwarding — functionally absent,
