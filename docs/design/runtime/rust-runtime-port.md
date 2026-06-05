@@ -438,7 +438,7 @@ any row.
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4) | `make runtime-rust-test` — `BTreeMap` command table + name dispatch; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | not-started | per-command parity + tcltest sweep per `.test` |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.6) | `make runtime-rust-test` — `set`/`incr`/`return`/`unset` + list cmds (`list`/`llength`/`lindex`/`lappend`/`lrange`/`lreverse`/`concat`/`join`/`split`/`lassign`) + `dict` ensemble (`create`/`get`/`set`/`exists`/`unset`/`size`/`keys`/`values`/`merge`/`for`); per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -966,6 +966,11 @@ it in the same or a follow-up PR.
   `key-bytes → index` map — *not* the Zig list-rep-plus-hash-side-cache.
   Function-mediated dict ABI ⇒ compatible (key objects stored for
   `Tcl_DictObjFirst`). Behaviour-diffed going forward.
+- `runtime/rust/src/{cmd_list,cmd_dict}.rs` (T1.6) implement the list commands +
+  the `dict` ensemble over those value types, cross-checked against
+  `tclCmdIL.c`/`tclDictObj.c`. `lappend`/`dict set`/`dict unset` do
+  copy-on-write via `Tcl_IsShared`/`Tcl_DuplicateObj` (`obj::is_shared`/
+  `obj::duplicate`). Behaviour-diffed going forward.
 
 ### Outstanding
 
@@ -1013,13 +1018,16 @@ compiler/LSP or the Zig runtime.
 6. ✅ **T1.4** — eval loop + command table + dispatch (`interp.rs`/`builtins.rs`:
    parse→subst→dispatch, `{*}`, completion codes, starter builtins; **closed
    subst's command half**; no deferred-free queue needed).
-7. ◐ **T1.6 (value types)** — obj **typed-internal-rep machinery** (shimmer
-   keystone + custom-`Tcl_ObjType` path) + the **list** type (contiguous
-   `Vec`, ABI-forced) + the **dict** type (ordered `Vec` + FNV-hash index,
-   chosen by WASM experiment EXP-DICT; extension-compatible via the
-   function-mediated dict ABI) — all leak-checked. **Next:** list/dict
-   *commands*, the string value type, `proc` + the proc-call frame path, and
-   **T1.5 namespaces**.
+7. ◐ **T1.6 (value types + their commands)** — obj **typed-internal-rep
+   machinery** (shimmer keystone + custom-`Tcl_ObjType` path); the **list** type
+   (contiguous `Vec`, ABI-forced) + **list commands** (`list`/`llength`/`lindex`/
+   `lappend` w/ copy-on-write/`lrange`/`lreverse`/`concat`/`join`/`split`/
+   `lassign`); the **dict** type (ordered `Vec` + FNV-hash index, EXP-DICT;
+   extension-compatible) + the **`dict` ensemble** (`create`/`get`/`set`/
+   `exists`/`unset`/`size`/`keys`/`values`/`merge`/`for`) — all leak-checked.
+   **Next:** the **string** value type + `string`/`expr` commands, then
+   **procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)),
+   and **T1.5 namespaces**.
 8. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work

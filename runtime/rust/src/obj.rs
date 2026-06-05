@@ -362,6 +362,41 @@ pub(crate) fn new_string_bytes(bytes: &[u8]) -> *mut TclObj {
     unsafe { new_string_obj(bytes.as_ptr() as *const c_char, bytes.len() as TclSize) }
 }
 
+/// `Tcl_IsShared` — does more than one reference hold `obj`? Mutation in place is
+/// only sound on an unshared object; otherwise copy-on-write.
+pub(crate) fn is_shared(obj: *mut TclObj) -> bool {
+    // SAFETY: `obj` is a live object.
+    unsafe { (*obj).ref_count > 1 }
+}
+
+/// `Tcl_DuplicateObj` — a fresh (`rc 0`) deep copy: the string rep (if any) plus
+/// the internal rep (via the type's `dup_int_rep_proc`, or a raw copy for
+/// self-contained reps like int/double).
+pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
+    let dup = obj_alloc();
+    if dup.is_null() {
+        return dup;
+    }
+    // SAFETY: `src` is live; `dup` is freshly owned and uniquely ours.
+    unsafe {
+        if !(*src).bytes.is_null() {
+            set_owned_string(dup, (*src).bytes as *const u8, (*src).length as usize);
+        }
+        let tp = (*src).type_ptr;
+        if !tp.is_null() {
+            match (*tp).dup_int_rep_proc {
+                Some(dup_proc) => dup_proc(src, dup), // e.g. list_dup deep-copies
+                None => {
+                    // self-contained rep (int/double): copy type + raw 8 bytes
+                    (*dup).type_ptr = tp;
+                    (*dup).internal_rep = (*src).internal_rep;
+                }
+            }
+        }
+    }
+    dup
+}
+
 /// `Tcl_NewWideIntObj` — pure int obj (no string rep yet). `fresh_zero`.
 pub fn new_wide_int_obj(value: TclWideInt) -> *mut TclObj {
     let obj = obj_alloc();

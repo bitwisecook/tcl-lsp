@@ -31,6 +31,8 @@
 pub mod bs;
 pub mod builtins;
 pub mod capi;
+pub mod cmd_dict;
+pub mod cmd_list;
 pub mod counters;
 pub mod dict;
 pub mod frame;
