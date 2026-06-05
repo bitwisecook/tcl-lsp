@@ -1025,97 +1025,110 @@ fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
         } else {
             i + 1
         }),
-        b'[' => {
-            // `[` optional `^` optional leading `]` then `([^]\\]|\\.)* ]`.
-            let mut j = i + 1;
-            if b.get(j) == Some(&b'^') {
-                j += 1;
-            }
-            if b.get(j) == Some(&b']') {
-                j += 1;
-            }
-            while j < len && b[j] != b']' {
-                j += if b[j] == b'\\' && j + 1 < len { 2 } else { 1 };
-            }
-            (j < len).then_some(j + 1) // unterminated class → not a token
-        }
-        b'{' => {
-            // `{n}` / `{n,}` / `{n,m}`.
-            let mut j = i + 1;
-            let digits = j;
-            while j < len && b[j].is_ascii_digit() {
-                j += 1;
-            }
-            if j == digits {
-                return None;
-            }
-            if b.get(j) == Some(&b',') {
-                j += 1;
-                while j < len && b[j].is_ascii_digit() {
-                    j += 1;
-                }
-            }
-            (b.get(j) == Some(&b'}')).then_some(j + 1)
-        }
-        b'\\' if i + 1 < len => {
-            let esc = b[i + 1];
-            match esc {
-                // class shortcuts / anchors / backref / escaped metachar /
-                // escape sequence — all two characters.
-                b'A'
-                | b'b'
-                | b'B'
-                | b'd'
-                | b'D'
-                | b'm'
-                | b'M'
-                | b's'
-                | b'S'
-                | b'w'
-                | b'W'
-                | b'y'
-                | b'Y'
-                | b'Z'
-                | b'0'..=b'9'
-                | b'a'
-                | b'e'
-                | b'f'
-                | b'n'
-                | b'r'
-                | b't'
-                | b'v'
-                | b'.'
-                | b'*'
-                | b'+'
-                | b'?'
-                | b'('
-                | b')'
-                | b'{'
-                | b'}'
-                | b'['
-                | b']'
-                | b'|'
-                | b'^'
-                | b'$'
-                | b'\\' => Some(i + 2),
-                // `\xHH` (1-2 hex), `\uHHHH` (1-4), `\UHHHHHHHH` (1-8).
-                b'x' | b'u' | b'U' => {
-                    let max = match esc {
-                        b'x' => 2,
-                        b'u' => 4,
-                        _ => 8,
-                    };
-                    let mut j = i + 2;
-                    while j < len && j < i + 2 + max && b[j].is_ascii_hexdigit() {
-                        j += 1;
-                    }
-                    // Requires at least one hex digit, else not a token.
-                    (j > i + 2).then_some(j)
-                }
-                _ => None, // `\` before an unrecognised char → literal
-            }
-        }
+        b'[' => scan_are_class(b, i),
+        b'{' => scan_are_brace_quant(b, i),
+        b'\\' if i + 1 < len => scan_are_escape(b, i),
         _ => None,
+    }
+}
+
+/// Scan a bracket expression `[…]` starting at `b[i] == '['`.
+/// `[` optional `^` optional leading `]` then `([^]\\]|\\.)* ]`.
+fn scan_are_class(b: &[u8], i: usize) -> Option<usize> {
+    let len = b.len();
+    let mut j = i + 1;
+    if b.get(j) == Some(&b'^') {
+        j += 1;
+    }
+    if b.get(j) == Some(&b']') {
+        j += 1;
+    }
+    while j < len && b[j] != b']' {
+        j += if b[j] == b'\\' && j + 1 < len { 2 } else { 1 };
+    }
+    (j < len).then_some(j + 1) // unterminated class → not a token
+}
+
+/// Scan a brace quantifier `{n}` / `{n,}` / `{n,m}` at `b[i] == '{'`.
+fn scan_are_brace_quant(b: &[u8], i: usize) -> Option<usize> {
+    let len = b.len();
+    let mut j = i + 1;
+    let digits = j;
+    while j < len && b[j].is_ascii_digit() {
+        j += 1;
+    }
+    if j == digits {
+        return None;
+    }
+    if b.get(j) == Some(&b',') {
+        j += 1;
+        while j < len && b[j].is_ascii_digit() {
+            j += 1;
+        }
+    }
+    (b.get(j) == Some(&b'}')).then_some(j + 1)
+}
+
+/// Scan a backslash escape at `b[i] == '\\'` (caller guarantees `i + 1`
+/// is in bounds): a two-char class/anchor/backref/escaped-metachar, or a
+/// `\xHH` / `\uHHHH` / `\UHHHHHHHH` hex escape.
+fn scan_are_escape(b: &[u8], i: usize) -> Option<usize> {
+    let len = b.len();
+    let esc = b[i + 1];
+    match esc {
+        // class shortcuts / anchors / backref / escaped metachar /
+        // escape sequence — all two characters.
+        b'A'
+        | b'b'
+        | b'B'
+        | b'd'
+        | b'D'
+        | b'm'
+        | b'M'
+        | b's'
+        | b'S'
+        | b'w'
+        | b'W'
+        | b'y'
+        | b'Y'
+        | b'Z'
+        | b'0'..=b'9'
+        | b'a'
+        | b'e'
+        | b'f'
+        | b'n'
+        | b'r'
+        | b't'
+        | b'v'
+        | b'.'
+        | b'*'
+        | b'+'
+        | b'?'
+        | b'('
+        | b')'
+        | b'{'
+        | b'}'
+        | b'['
+        | b']'
+        | b'|'
+        | b'^'
+        | b'$'
+        | b'\\' => Some(i + 2),
+        // `\xHH` (1-2 hex), `\uHHHH` (1-4), `\UHHHHHHHH` (1-8).
+        b'x' | b'u' | b'U' => {
+            let max = match esc {
+                b'x' => 2,
+                b'u' => 4,
+                _ => 8,
+            };
+            let mut j = i + 2;
+            while j < len && j < i + 2 + max && b[j].is_ascii_hexdigit() {
+                j += 1;
+            }
+            // Requires at least one hex digit, else not a token.
+            (j > i + 2).then_some(j)
+        }
+        _ => None, // `\` before an unrecognised char → literal
     }
 }
 
