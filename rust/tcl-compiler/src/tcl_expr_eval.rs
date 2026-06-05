@@ -336,38 +336,24 @@ fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
 /// Tcl boolean spellings.
 #[must_use]
 pub fn parse_literal(text: &str) -> Option<TclValue> {
-    let low = text.to_ascii_lowercase();
-    if matches!(low.as_str(), "true" | "yes" | "on") {
-        return Some(TclValue::Int(1));
+    use tcl_syntax::number::Number;
+    // Boolean keywords (`Tcl_GetBoolean`, not part of the number grammar).
+    match text.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => return Some(TclValue::Int(1)),
+        "false" | "no" | "off" => return Some(TclValue::Int(0)),
+        _ => {}
     }
-    if matches!(low.as_str(), "false" | "no" | "off") {
-        return Some(TclValue::Int(0));
+    // The numeric grammar is the shared `tcl_syntax::number` (the same
+    // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
+    // leading-zero decimal, `_` separators, `Inf`/`NaN`. The const-folder's
+    // value is `i64`/`f64`, so a magnitude past a wide (a `Big`) can't be
+    // folded — return `None` (give up), matching the old i64-overflow behaviour.
+    match tcl_syntax::number::parse_whole(text)? {
+        Number::Int(v) => Some(TclValue::Int(v)),
+        Number::Double(d) => Some(TclValue::Float(d)),
+        Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
+        Number::Big { .. } => None,
     }
-    // Hex / octal / binary with prefix.
-    if let Some(hex) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
-        if let Ok(i) = i64::from_str_radix(hex, 16) {
-            return Some(TclValue::Int(i));
-        }
-    }
-    if let Some(oct) = text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")) {
-        if let Ok(i) = i64::from_str_radix(oct, 8) {
-            return Some(TclValue::Int(i));
-        }
-    }
-    if let Some(bin) = text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")) {
-        if let Ok(i) = i64::from_str_radix(bin, 2) {
-            return Some(TclValue::Int(i));
-        }
-    }
-    // Plain decimal (including leading-zero integers — Tcl 9.0 accepts
-    // `0005` as decimal, whereas Rust's from_str does too).
-    if let Ok(i) = text.parse::<i64>() {
-        return Some(TclValue::Int(i));
-    }
-    if let Ok(f) = text.parse::<f64>() {
-        return Some(TclValue::Float(f));
-    }
-    None
 }
 
 fn resolve_var(name: &str, env: &Env) -> Option<TclValue> {
