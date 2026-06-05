@@ -420,6 +420,8 @@ impl Analyser {
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
+        // IRULE2002: deprecated iRules command (f5-irules only).
+        self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
         self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
         self.emit_w104_append_list(cmd_name, args, arg_tokens);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);

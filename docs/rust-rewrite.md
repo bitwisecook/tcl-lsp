@@ -5333,6 +5333,27 @@ Python's registry-driven `TAINT_HINTS`.  **Fix:** these are the data
 substrate for GAP-A2's security checks — port the granular fields first,
 then T106 / W313 + the security emitters consume them.
 
+**LANDED (registry-unblocked consumers, 2026-06-09).**  With PR #550's
+registry merge the granular D1/D2 fields now exist, and the consumers that
+were waiting on them have landed: **W310** Strategy-1 `credential_options`
++ Strategy-2 `credential_arg`/`sensitive_headers` (GAP-A2 complete);
+**completion** provenance detail from `required_package`/`tcllib_package`;
+**hover** `**Requires**: package require X` from `required_package`;
+semantic-token **`defaultLibrary`** modifier from registry built-in
+membership; and the **T104 SSRF** (`taint_network_sink_args`) / **T105
+cross-interp** (`taint_interp_eval_subcommands`) taint sinks; plus
+**IRULE2002** deprecated-iRules-command warning from
+`deprecated_replacement`.  **Still pending (need more than a registry
+field — additional engine/infra):** **T106** double-encoding (needs
+`taint_transform` colour *propagation* in `propagate_taints`, not just the
+`taint_double_encode_colour` field); **W313** destructive-file-on-tainted-
+path; the GAP-C2 regex/format **sub-token** taxonomy (the ~1600-LOC
+per-component sub-tokenisers, with `pattern_type`/`format_string_type` as
+the registry input); the hover **"Valid events"** list (needs an
+`events_matching` / `effective_event_requires` port); and the
+`package_suggestions` fuzzy catalogue (needs a workspace
+`package_resolver`, not the registry).
+
 ### E. Doc defects corrected in place by this audit
 
 - **§E1 — recovery "single edge case" (the "Deferred work (lexer)"

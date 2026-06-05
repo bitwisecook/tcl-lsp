@@ -2977,6 +2977,35 @@ matching time on crafted input."
         }
     }
 
+    /// **IRULE2002.** Warn when a deprecated iRules command is used —
+    /// the command's spec carries a `deprecated_replacement`.  Only fires
+    /// under the `f5-irules` dialect.  Mirrors
+    /// `core/analysis/checks/_domain.py::check_deprecated_irules_command`.
+    pub(super) fn emit_irule2002_deprecated_command(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        if self.dialect != "f5-irules" {
+            return;
+        }
+        let Some(replacement) = self
+            .registry
+            .as_ref()
+            .and_then(|r| r.get(cmd_name))
+            .and_then(|s| s.deprecated_replacement)
+        else {
+            return;
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "IRULE2002".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     /// **W310.** Emit "hardcoded credential" for a literal secret value.
     /// Mirrors both strategies of
     /// `_security.py:507-573::check_hardcoded_credentials` (one diagnostic
@@ -8180,6 +8209,31 @@ foo
         assert_eq!(sec_codes("mycmd -password [getpw]\n", "W310"), 0);
         // No credential option → nothing.
         assert_eq!(sec_codes("mycmd -name literalvalue\n", "W310"), 0);
+    }
+
+    #[test]
+    fn irule2002_flags_deprecated_irules_command() {
+        // `HTTP::class` is deprecated → `CLASSIFY::application`.
+        let mut a = Analyser::new();
+        let r = a.analyse("when HTTP_REQUEST {\n  HTTP::class\n}\n", "f5-irules");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2002")
+            .expect("IRULE2002");
+        assert_eq!(d.severity, Severity::Warning);
+        assert!(
+            d.message.contains(
+                "'HTTP::class' is deprecated in iRules. Use 'CLASSIFY::application' instead."
+            ),
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn irule2002_silent_in_plain_tcl_dialect() {
+        // The deprecation check is iRules-only.
+        assert!(!has_code("HTTP::class\n", "tcl8.6", "IRULE2002"));
     }
 
     #[test]
