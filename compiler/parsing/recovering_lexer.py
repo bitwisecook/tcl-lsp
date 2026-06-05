@@ -72,22 +72,33 @@ def tokenise_recovering(
     base_line: int = 0,
     base_col: int = 0,
     *,
+    body_token: Token | None = None,
     line_starts: list[int] | None = None,
 ) -> tuple[tuple[Token, ...], object]:
     """Tokenise *source*, recovering unterminated delimiters inline.
 
-    Returns ``(tokens, warnings)`` identical to the two-pass recovery
-    (``tokenise(source, virtual_insertions=compute_virtual_insertions(source))``)
-    — verified by the differential oracle.
+    Drop-in for the two-pass recovery a consumer would otherwise spell out as
+    ``compute_virtual_insertions(source, body_token)`` followed by
+    ``tokenise(source, ..., virtual_insertions=vi)`` — returns the same
+    ``(tokens, warnings)``, verified by the differential oracle.
+
+    *body_token* anchors recovery when *source* is a body substring (a braced
+    proc/if/while body etc.): its position seeds the base offset the recovery
+    heuristics reason about, exactly as ``compute_virtual_insertions`` uses it.
     """
     tokens, warnings = tokenise(source, base_offset, base_line, base_col, line_starts=line_starts)
-    if not _has_unterminated_delimiter(tokens, source, base_offset):
-        # Well-formed (or trivially closed at EOF): the bare parse is already the
-        # recovered parse.  Genuinely single-pass.
+    # The single-pass fast path: at top level the bare parse and the recovered
+    # parse coincide whenever nothing is left unterminated, so we can return the
+    # bare stream untouched.  This is the path the differential oracle pins.
+    # Inside a body, segmentation runs under the body's mode/anchoring, which can
+    # surface an unterminated delimiter the bare top-level lex does not — so we
+    # keep computing ``vi`` there (no behaviour change) until the oracle covers
+    # the body case too.
+    if body_token is None and not _has_unterminated_delimiter(tokens, source, base_offset):
         return tokens, warnings
-    # Recovery needed.  Until inline lexer recovery lands for every delimiter
-    # type, fall back to the proven two-pass so the oracle stays green.
-    vi = compute_virtual_insertions(source) or None
+    # Recovery may be needed.  Until inline lexer recovery lands for every
+    # delimiter type, fall back to the proven two-pass so the oracle stays green.
+    vi = compute_virtual_insertions(source, body_token) or None
     if vi is None:
         # No insertion after all (heuristics declined) — the bare parse stands.
         return tokens, warnings
