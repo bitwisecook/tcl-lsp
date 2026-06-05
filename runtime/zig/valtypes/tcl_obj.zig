@@ -741,7 +741,7 @@ pub fn obj_get_bignum(obj: i32) i128 {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
         return float_to_i128_clamped(fval);
     }
-    if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
+    if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING or tag == TYPE_LIST) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (bignum.parse_i128(sptr, slen)) |val| return val;
@@ -798,7 +798,7 @@ pub fn obj_promote_to_bignum(obj: i32) struct { m: ?*bignum.BigInt, owned: bool 
     if (obj != 0 and !is_immediate(obj)) {
         const addr: u32 = @bitCast(obj);
         const tag = read_i32(addr + OBJ_TYPE_TAG);
-        if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
+        if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING or tag == TYPE_LIST) {
             const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
             const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
             if (try_parse_int(sptr, slen) == null) {
@@ -827,7 +827,7 @@ pub export fn obj_get_float(obj: i32) f64 {
         const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
         return bignum.to_f64(m);
     }
-    if (tag == TYPE_STRING) {
+    if (tag == TYPE_STRING or tag == TYPE_LIST) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
@@ -884,7 +884,7 @@ pub export fn obj_get_int(obj: i32) i64 {
         const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
         return bignum.to_i64(m);
     }
-    if (tag == TYPE_STRING) {
+    if (tag == TYPE_STRING or tag == TYPE_LIST) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| {
@@ -1310,6 +1310,15 @@ pub fn obj_type(obj: i32) i32 {
     // callers checking ``obj_type`` for ``TYPE_STRING`` shouldn't
     // have to know about it.
     if (tag == TYPE_INLINE_STRING) return TYPE_STRING;
+    // Phase 1 list rep: ``TYPE_LIST`` is a plain string obj whose buffer
+    // is additionally known to be a canonical list (the "skip list
+    // re-validation" marker set by ``tcl_cmd_lappend``).  Its scalar
+    // identity is still string — every value-level consumer (arithmetic
+    // float/bignum heuristics, ``string is``, formatting) must treat it
+    // exactly like ``TYPE_STRING``; the list-ness is an internal hint
+    // that only the list builders read via the raw type tag.  Normalise
+    // it here so introducing the marker can't change scalar behaviour.
+    if (tag == TYPE_LIST) return TYPE_STRING;
     return tag;
 }
 

@@ -63,8 +63,18 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // raise ``unmatched open brace in list`` (listobj-4.4).  Without
     // this guard the fast path below appended ``" abc"`` to the
     // malformed string and silently produced a still-malformed list.
+    //
+    // Phase 1 list rep: a value tagged ``TYPE_LIST`` already carries a
+    // canonical list string by construction — every byte we appended
+    // was quoted canonically, so the buffer is known-valid and the
+    // O(N) re-scan is redundant.  Skipping it for the canonical case is
+    // what turns an N-element accumulate from O(N^2) back into O(N):
+    // ``lsearch -all`` over a 100k list (dict-24.24/24.25) went from a
+    // >120 s watchdog timeout to ~0.1 s.  We only validate when the
+    // source is NOT a known-canonical list.
     const lp = @import("tcl_list_parse.zig");
-    if (sc.len > 0 and lp.check_list_syntax(sc.ptr, sc.len) != 0) {
+    const cur_is_canon_list = is_canonical_list(current);
+    if (sc.len > 0 and !cur_is_canon_list and lp.check_list_syntax(sc.ptr, sc.len) != 0) {
         return 0;
     }
     // Fast path: when ``current`` is non-empty AND we own its byte
@@ -101,7 +111,7 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
-        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0 and cap <= FAST_PATH_LEN_LIMIT / 2) {
+        if (rc == 1 and (tag == obj.TYPE_STRING or tag == obj.TYPE_LIST) and cap > 0 and cap <= FAST_PATH_LEN_LIMIT / 2) {
             // Worst case for the new tail: a single space + sv.len*2 + 2
             // (for surrounding braces if the value needs them).
             const tail_max: u32 = 1 + sv.len * 2 + 4;
@@ -131,10 +141,36 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
             d[0] = ' ';
             const off = list_elem_quote_nth(buf, sc.len + 1, sv.ptr, sv.len);
             obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(off));
+            // The buffer is still a canonical list (we appended one
+            // canonically-quoted element) — mark it so the next lappend
+            // skips the O(N) re-validation above.
+            obj.write_i32(addr + obj.OBJ_TYPE_TAG, obj.TYPE_LIST);
             return current;
         }
     }
     return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
+}
+
+/// True when *obj* is a heap value carrying a canonical list string rep
+/// (``TYPE_LIST``) — its bytes are valid-by-construction so list ops can
+/// trust them without re-parsing.
+inline fn is_canonical_list(o: i32) bool {
+    if (o <= 0 or obj.is_immediate(o)) return false;
+    return obj.read_i32(@as(u32, @intCast(o)) + obj.OBJ_TYPE_TAG) == obj.TYPE_LIST;
+}
+
+/// Tag a freshly-built heap list string as ``TYPE_LIST`` so subsequent
+/// list operations skip re-validation / re-parsing.  Only promotes a
+/// plain heap ``TYPE_STRING`` (which keeps its materialised string rep
+/// in the same OBJ_STR_PTR/LEN/CAP slots TYPE_LIST reads from); leaves
+/// immediates, inline strings, ints, etc. untouched.
+inline fn mark_canonical_list(o: i32) i32 {
+    if (o > 0 and !obj.is_immediate(o)) {
+        const a: u32 = @intCast(o);
+        if (obj.read_i32(a + obj.OBJ_TYPE_TAG) == obj.TYPE_STRING)
+            obj.write_i32(a + obj.OBJ_TYPE_TAG, obj.TYPE_LIST);
+    }
+    return o;
 }
 
 /// Parse the existing list, re-quote each element canonically, then
@@ -211,7 +247,9 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     // Switch to ``obj_new_string_take`` so the cap is set atomically
     // with the new TclObj — the older ``obj_new_string`` + manual
     // ``OBJ_STR_CAP`` write pattern leaks ``buf`` if obj_alloc OOMs.
-    return obj.obj_new_string_take(buf, off, cap);
+    // Mark TYPE_LIST: this rebuild produced a canonical list, so the
+    // next lappend against the result skips re-validation.
+    return mark_canonical_list(obj.obj_new_string_take(buf, off, cap));
 }
 
 // Exported: list — append one value to a list accumulator.  The
