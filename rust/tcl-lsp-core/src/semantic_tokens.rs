@@ -325,59 +325,91 @@ enum ArgOverride {
     RegsubReplace,
 }
 
+/// The inner content (delimiters stripped via `content_offset`) of a
+/// braced/quoted literal token, plus its absolute byte start, or `None`
+/// for a non-literal token / out-of-bounds span.  Shared by the
+/// sub-language scanners.
+fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return None;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    source.get(cstart..cend).map(|inner| (cstart, inner))
+}
+
+/// Emit the literal run `inner[run..end]` (absolute start `cstart + run`)
+/// as `kind`, when non-empty.  The inter-construct filler for the
+/// sub-language scanners.
+fn flush_run(
+    line_index: &LineIndex,
+    cstart: usize,
+    inner: &str,
+    run: usize,
+    end: usize,
+    kind: TokenKind,
+    entries: &mut Vec<Entry>,
+) {
+    if end > run {
+        push_subtoken(line_index, cstart + run, &inner[run..end], kind, entries);
+    }
+}
+
 /// Sub-tokenise a `regsub` replacement spec: `\&` → `Operator`,
 /// `\0`-`\9` → `Number`, literal runs → `String`.  Returns `false` when
 /// there are no backreferences.  Mirrors `_collect_regsub_subspec_tokens`
-/// + `_REGSUB_BACKREF_RE`.
+/// — a direct backslash scan (no regex).
 fn push_regsub_subtokens(
     line_index: &LineIndex,
     source: &str,
     tok: Token,
     entries: &mut Vec<Entry>,
 ) -> bool {
-    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-        return false;
-    }
-    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
-    let Some(inner) = source.get(cstart..cend) else {
+    let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    let re = regex::Regex::new(r"\\([0-9&])").expect("valid regsub backref regex");
-    let mut matched_any = false;
-    let mut pos = 0usize;
-    for m in re.find_iter(inner) {
-        matched_any = true;
-        if m.start() > pos {
-            push_subtoken(
+    let bytes = inner.as_bytes();
+    let mut emitted = false;
+    let mut run = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let next = bytes.get(i + 1).copied();
+        if bytes[i] == b'\\' && next.is_some_and(|b| b.is_ascii_digit() || b == b'&') {
+            flush_run(
                 line_index,
-                cstart + pos,
-                &inner[pos..m.start()],
+                cstart,
+                inner,
+                run,
+                i,
                 TokenKind::String,
                 entries,
             );
-        }
-        // `\&` → operator (whole match); `\0`-`\9` → number (capture).
-        let kind = if m.as_str().ends_with('&') {
-            TokenKind::Operator
+            // `\&` → operator (whole match); `\0`-`\9` → number (capture).
+            let kind = if next == Some(b'&') {
+                TokenKind::Operator
+            } else {
+                TokenKind::Number
+            };
+            push_subtoken(line_index, cstart + i, &inner[i..i + 2], kind, entries);
+            emitted = true;
+            i += 2;
+            run = i;
         } else {
-            TokenKind::Number
-        };
-        push_subtoken(line_index, cstart + m.start(), m.as_str(), kind, entries);
-        pos = m.end();
+            i += 1;
+        }
     }
-    if !matched_any {
+    if !emitted {
         return false;
     }
-    if pos < inner.len() {
-        push_subtoken(
-            line_index,
-            cstart + pos,
-            &inner[pos..],
-            TokenKind::String,
-            entries,
-        );
-    }
+    flush_run(
+        line_index,
+        cstart,
+        inner,
+        run,
+        inner.len(),
+        TokenKind::String,
+        entries,
+    );
     true
 }
 
@@ -580,74 +612,128 @@ fn push_clock_subtokens(
     tok: Token,
     entries: &mut Vec<Entry>,
 ) -> bool {
-    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-        return false;
-    }
-    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
-    let Some(inner) = source.get(cstart..cend) else {
+    let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    let re = regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
-        .expect("valid clock regex");
-    let mut matched_any = false;
-    let mut pos = 0usize;
-    for m in re.find_iter(inner) {
-        matched_any = true;
-        if m.start() > pos {
-            push_subtoken(
-                line_index,
-                cstart + pos,
-                &inner[pos..m.start()],
-                TokenKind::String,
-                entries,
-            );
+    let bytes = inner.as_bytes();
+    let mut emitted = false;
+    let mut run = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        // `%(?:[EO])?<spec>` — an optional `E`/`O` locale modifier only
+        // counts when it precedes a spec letter (else the `E`/`O` is
+        // itself the spec, as both are in the spec set).
+        if bytes[i] == b'%' {
+            let mut spec = i + 1;
+            let modifier = (matches!(bytes.get(spec), Some(b'E' | b'O'))
+                && bytes.get(spec + 1).copied().is_some_and(is_clock_spec))
+            .then(|| {
+                let m = spec;
+                spec += 1;
+                m
+            });
+            if bytes.get(spec).copied().is_some_and(is_clock_spec) {
+                flush_run(
+                    line_index,
+                    cstart,
+                    inner,
+                    run,
+                    i,
+                    TokenKind::String,
+                    entries,
+                );
+                push_subtoken(
+                    line_index,
+                    cstart + i,
+                    "%",
+                    TokenKind::ClockPercent,
+                    entries,
+                );
+                if let Some(m) = modifier {
+                    push_subtoken(
+                        line_index,
+                        cstart + m,
+                        &inner[m..=m],
+                        TokenKind::ClockModifier,
+                        entries,
+                    );
+                }
+                push_subtoken(
+                    line_index,
+                    cstart + spec,
+                    &inner[spec..=spec],
+                    TokenKind::ClockSpec,
+                    entries,
+                );
+                emitted = true;
+                i = spec + 1;
+                run = i;
+                continue;
+            }
         }
-        // `%`
-        push_subtoken(
-            line_index,
-            cstart + m.start(),
-            "%",
-            TokenKind::ClockPercent,
-            entries,
-        );
-        let mut spec = &m.as_str()[1..]; // after `%`
-        let mut off = m.start() + 1;
-        if spec.len() > 1 && matches!(spec.as_bytes()[0], b'E' | b'O') {
-            push_subtoken(
-                line_index,
-                cstart + off,
-                &spec[..1],
-                TokenKind::ClockModifier,
-                entries,
-            );
-            off += 1;
-            spec = &spec[1..];
-        }
-        if !spec.is_empty() {
-            push_subtoken(
-                line_index,
-                cstart + off,
-                spec,
-                TokenKind::ClockSpec,
-                entries,
-            );
-        }
-        pos = m.end();
+        i += 1;
     }
-    if !matched_any {
+    if !emitted {
         return false;
     }
-    if pos < inner.len() {
-        push_subtoken(
-            line_index,
-            cstart + pos,
-            &inner[pos..],
-            TokenKind::String,
-            entries,
-        );
-    }
+    flush_run(
+        line_index,
+        cstart,
+        inner,
+        run,
+        inner.len(),
+        TokenKind::String,
+        entries,
+    );
     true
+}
+
+/// `clock format`/`scan` specifier letters (and `%`).  Mirrors the class
+/// in `_CLOCK_FORMAT_RE`.
+fn is_clock_spec(b: u8) -> bool {
+    matches!(
+        b,
+        b'a' | b'A'
+            | b'b'
+            | b'B'
+            | b'c'
+            | b'C'
+            | b'd'
+            | b'D'
+            | b'e'
+            | b'E'
+            | b'g'
+            | b'G'
+            | b'h'
+            | b'H'
+            | b'I'
+            | b'j'
+            | b'J'
+            | b'k'
+            | b'l'
+            | b'm'
+            | b'M'
+            | b'N'
+            | b'O'
+            | b'p'
+            | b'P'
+            | b'q'
+            | b'Q'
+            | b's'
+            | b'S'
+            | b'u'
+            | b'U'
+            | b'V'
+            | b'w'
+            | b'W'
+            | b'x'
+            | b'X'
+            | b'y'
+            | b'Y'
+            | b'z'
+            | b'Z'
+            | b'%'
+    )
 }
 
 /// Sub-tokenise a `format`/`scan` conversion string into its `%`
@@ -661,151 +747,169 @@ fn push_sprintf_subtokens(
     tok: Token,
     entries: &mut Vec<Entry>,
 ) -> bool {
-    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-        return false;
-    }
-    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
-    let Some(inner) = source.get(cstart..cend) else {
+    let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    let re = regex::Regex::new(concat!(
-        r"%(?:(?P<position>\d+)\\?\$)?(?P<flags>[-+ 0#]*)?",
-        r"(?P<width>\*|\d+)?(?:.(?P<precision>\*|\d+))?",
-        r"(?P<length>[hlLzq])?(?P<type>[aAbBcdieEfgGosuxX%])",
-    ))
-    .expect("valid sprintf regex");
-    let caps_list: Vec<_> = re.captures_iter(inner).collect();
-    if caps_list.is_empty() {
+    let bytes = inner.as_bytes();
+    let mut emitted = false;
+    let mut run = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            if let Some(cuts) = parse_sprintf_cuts(bytes, i) {
+                flush_run(
+                    line_index,
+                    cstart,
+                    inner,
+                    run,
+                    i,
+                    TokenKind::String,
+                    entries,
+                );
+                let mut pos = i;
+                for (end, kind) in cuts {
+                    emit_part(line_index, cstart, inner, &mut pos, end, kind, entries);
+                }
+                emitted = true;
+                i = pos;
+                run = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    if !emitted {
         return false;
     }
-    let mut pos_in_text = 0usize;
-    for caps in caps_list {
-        let m = caps.get(0).expect("group 0");
-        if m.start() > pos_in_text {
-            push_subtoken(
-                line_index,
-                cstart + pos_in_text,
-                &inner[pos_in_text..m.start()],
-                TokenKind::String,
-                entries,
-            );
-        }
-        emit_sprintf_spec(line_index, cstart, inner, &caps, entries);
-        pos_in_text = m.end();
-    }
-    if pos_in_text < inner.len() {
-        push_subtoken(
-            line_index,
-            cstart + pos_in_text,
-            &inner[pos_in_text..],
-            TokenKind::String,
-            entries,
-        );
-    }
-    true
-}
-
-/// Emit the component sub-tokens of one `%`-specifier match
-/// (`%[pos$][flags][width][.prec][len]type`).  Split out of
-/// [`push_sprintf_subtokens`] to stay within the line budget.
-fn emit_sprintf_spec(
-    line_index: &LineIndex,
-    cstart: usize,
-    inner: &str,
-    caps: &regex::Captures,
-    entries: &mut Vec<Entry>,
-) {
-    let m = caps.get(0).expect("group 0");
-    let starts_digit = |off: usize| inner.as_bytes().get(off).is_some_and(u8::is_ascii_digit);
-    let mut pos = m.start();
-    emit_part(
+    flush_run(
         line_index,
         cstart,
         inner,
-        &mut pos,
-        m.start() + 1,
-        TokenKind::FormatPercent,
+        run,
+        inner.len(),
+        TokenKind::String,
         entries,
     );
-    if let Some(p) = caps.name("position") {
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            p.end(),
-            TokenKind::FormatWidth,
-            entries,
-        );
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            p.end() + 1,
-            TokenKind::FormatPercent,
-            entries,
-        );
+    true
+}
+
+/// `format`/`scan` conversion type letters.  Mirrors the `type` class in
+/// `_SPRINTF_RE`.
+fn is_sprintf_type(b: u8) -> bool {
+    matches!(
+        b,
+        b'a' | b'A'
+            | b'b'
+            | b'B'
+            | b'c'
+            | b'd'
+            | b'i'
+            | b'e'
+            | b'E'
+            | b'f'
+            | b'g'
+            | b'G'
+            | b'o'
+            | b's'
+            | b'u'
+            | b'x'
+            | b'X'
+            | b'%'
+    )
+}
+
+/// Parse one `%`-specifier at `b[start]` into its component
+/// `(end, kind)` cuts (monotonic ends, consumed in order by
+/// [`emit_part`]), or `None` when it isn't a valid conversion (no type
+/// letter — the `%` is then a literal).  Replaces `_SPRINTF_RE` +
+/// `emit_sprintf_spec`; component order is identical.
+fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>> {
+    let n = b.len();
+    let mut cuts: Vec<(usize, TokenKind)> = Vec::new();
+    let mut j = start + 1;
+    cuts.push((j, TokenKind::FormatPercent)); // `%`
+
+    // Positional `<digits>$` (or `<digits>\$`).
+    let pos_start = j;
+    while j < n && b[j].is_ascii_digit() {
+        j += 1;
     }
-    if let Some(f) = caps.name("flags") {
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            f.end(),
-            TokenKind::FormatFlag,
-            entries,
-        );
-    }
-    if let Some(w) = caps.name("width") {
-        let kind = if starts_digit(w.start()) {
-            TokenKind::FormatWidth
+    if j > pos_start {
+        let mut k = j;
+        if b.get(k) == Some(&b'\\') {
+            k += 1;
+        }
+        if b.get(k) == Some(&b'$') {
+            cuts.push((j, TokenKind::FormatWidth)); // position digits
+            cuts.push((k + 1, TokenKind::FormatPercent)); // `\`?`$`
+            j = k + 1;
         } else {
-            TokenKind::FormatFlag
-        };
-        emit_part(line_index, cstart, inner, &mut pos, w.end(), kind, entries);
+            j = pos_start; // not positional — the digits are the width
+        }
     }
-    if let Some(pr) = caps.name("precision") {
-        // The `.` separator before the precision value.
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            pr.start(),
-            TokenKind::FormatFlag,
-            entries,
-        );
-        let kind = if starts_digit(pr.start()) {
-            TokenKind::FormatWidth
+
+    // Flags `[-+ 0#]*`.
+    let flags_start = j;
+    while j < n && matches!(b[j], b'-' | b'+' | b' ' | b'0' | b'#') {
+        j += 1;
+    }
+    if j > flags_start {
+        cuts.push((j, TokenKind::FormatFlag));
+    }
+
+    // Width `*` | digits.
+    let width_start = j;
+    if b.get(j) == Some(&b'*') {
+        j += 1;
+    } else {
+        while j < n && b[j].is_ascii_digit() {
+            j += 1;
+        }
+    }
+    if j > width_start {
+        let kind = digit_or_flag(b[width_start]);
+        cuts.push((j, kind));
+    }
+
+    // Precision `.` then `*` | digits.
+    if b.get(j) == Some(&b'.') {
+        let value_start = j + 1;
+        let mut k = value_start;
+        if b.get(k) == Some(&b'*') {
+            k += 1;
         } else {
-            TokenKind::FormatFlag
-        };
-        emit_part(line_index, cstart, inner, &mut pos, pr.end(), kind, entries);
+            while k < n && b[k].is_ascii_digit() {
+                k += 1;
+            }
+        }
+        cuts.push((value_start, TokenKind::FormatFlag)); // the `.`
+        if k > value_start {
+            cuts.push((k, digit_or_flag(b[value_start])));
+        }
+        j = k;
     }
-    if let Some(l) = caps.name("length") {
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            l.end(),
-            TokenKind::FormatFlag,
-            entries,
-        );
+
+    // Length modifier `[hlLzq]`.
+    if j < n && matches!(b[j], b'h' | b'l' | b'L' | b'z' | b'q') {
+        j += 1;
+        cuts.push((j, TokenKind::FormatFlag));
     }
-    if let Some(t) = caps.name("type") {
-        emit_part(
-            line_index,
-            cstart,
-            inner,
-            &mut pos,
-            t.end(),
-            TokenKind::FormatSpec,
-            entries,
-        );
+
+    // Conversion type — required.
+    if j < n && is_sprintf_type(b[j]) {
+        cuts.push((j + 1, TokenKind::FormatSpec));
+        Some(cuts)
+    } else {
+        None
+    }
+}
+
+/// `FormatWidth` for a digit, `FormatFlag` for `*` (variable width/prec).
+fn digit_or_flag(first: u8) -> TokenKind {
+    if first.is_ascii_digit() {
+        TokenKind::FormatWidth
+    } else {
+        TokenKind::FormatFlag
     }
 }
 
@@ -840,56 +944,32 @@ fn push_regex_subtokens(
     tok: Token,
     entries: &mut Vec<Entry>,
 ) -> bool {
-    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-        return false;
-    }
-    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-    let cend = (tok.span.end() as usize).min(source.len());
-    let Some(inner) = source.get(cstart..cend) else {
+    let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    if inner.is_empty() {
-        return false;
-    }
-    // ARE metacharacter scanner (the working alternatives of Python's
-    // `_REGEX_PART_RE`; its one malformed `\{\d+\}` BRE branch can never
-    // match real input and is omitted).
-    let re = regex::Regex::new(concat!(
-        r"\(\?[imnsxwpq]*(?:[-imnsxwpq]*)?\)", // (?flags)
-        r"|\(\?[:=!>]",                        // non-capturing / lookaround open
-        r"|\(|\)",                             // group open / close
-        r"|\[(?:\^)?\]?(?:[^\]\\]|\\.)*\]",    // [char class]
-        r"|\\[AbBdDmMsSwWyYZ]",                // ARE class shortcuts / anchors
-        r"|\\[0-9]",                           // backreference
-        r"|\\[.*+?(){}\[\]|^$\\]",             // escaped metachar
-        r"|\\[aefnrtv]",                       // escape sequences
-        r"|\\x[0-9a-fA-F]{1,2}",               // hex escape
-        r"|\\u[0-9a-fA-F]{1,4}",               // unicode escape
-        r"|\\U[0-9a-fA-F]{1,8}",               // wide unicode escape
-        r"|[*+?]\??",                          // quantifiers + lazy
-        r"|\{\d+(?:,\d*)?\}",                  // bounded quantifier {n,m}
-        r"|\|",                                // alternation
-        r"|[\^$]",                             // anchors
-        r"|\.",                                // any-char
-    ))
-    .expect("valid ARE part regex");
-
+    let bytes = inner.as_bytes();
     let mut matched_any = false;
     let mut pos = 0usize;
-    for m in re.find_iter(inner) {
-        matched_any = true;
-        if m.start() > pos {
-            push_subtoken(
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if let Some(end) = scan_are_token(bytes, i) {
+            flush_run(
                 line_index,
-                cstart + pos,
-                &inner[pos..m.start()],
+                cstart,
+                inner,
+                pos,
+                i,
                 TokenKind::Regexp,
                 entries,
             );
+            let kind = classify_regex_component(&inner[i..end]);
+            push_subtoken(line_index, cstart + i, &inner[i..end], kind, entries);
+            matched_any = true;
+            i = end;
+            pos = i;
+        } else {
+            i += 1;
         }
-        let kind = classify_regex_component(m.as_str());
-        push_subtoken(line_index, cstart + m.start(), m.as_str(), kind, entries);
-        pos = m.end();
     }
     if !matched_any {
         return false;
@@ -904,6 +984,139 @@ fn push_regex_subtokens(
         );
     }
     true
+}
+
+/// Recognise one ARE metacharacter construct starting at `b[i]`,
+/// returning its exclusive end, or `None` when `b[i]` is a literal
+/// character.  A hand-written scanner replacing Python's `_REGEX_PART_RE`
+/// (its one malformed `\{\d+\}` BRE alternative, dead in Python too, is
+/// omitted).
+fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
+    let len = b.len();
+    match b[i] {
+        b'(' => {
+            if b.get(i + 1) != Some(&b'?') {
+                return Some(i + 1); // group open
+            }
+            // non-capturing / lookaround open: `(?:` `(?=` `(?!` `(?>`
+            if let Some(b':' | b'=' | b'!' | b'>') = b.get(i + 2) {
+                return Some(i + 3);
+            }
+            // embedded flags `(?imsx-imsx)`
+            let mut j = i + 2;
+            while j < len
+                && matches!(
+                    b[j],
+                    b'i' | b'm' | b'n' | b's' | b'x' | b'w' | b'p' | b'q' | b'-'
+                )
+            {
+                j += 1;
+            }
+            // Closed flag group → the whole `(?…)`; else just `(`.
+            if b.get(j) == Some(&b')') {
+                Some(j + 1)
+            } else {
+                Some(i + 1)
+            }
+        }
+        b')' | b'|' | b'^' | b'$' | b'.' => Some(i + 1),
+        b'*' | b'+' | b'?' => Some(if b.get(i + 1) == Some(&b'?') {
+            i + 2
+        } else {
+            i + 1
+        }),
+        b'[' => {
+            // `[` optional `^` optional leading `]` then `([^]\\]|\\.)* ]`.
+            let mut j = i + 1;
+            if b.get(j) == Some(&b'^') {
+                j += 1;
+            }
+            if b.get(j) == Some(&b']') {
+                j += 1;
+            }
+            while j < len && b[j] != b']' {
+                j += if b[j] == b'\\' && j + 1 < len { 2 } else { 1 };
+            }
+            (j < len).then_some(j + 1) // unterminated class → not a token
+        }
+        b'{' => {
+            // `{n}` / `{n,}` / `{n,m}`.
+            let mut j = i + 1;
+            let digits = j;
+            while j < len && b[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j == digits {
+                return None;
+            }
+            if b.get(j) == Some(&b',') {
+                j += 1;
+                while j < len && b[j].is_ascii_digit() {
+                    j += 1;
+                }
+            }
+            (b.get(j) == Some(&b'}')).then_some(j + 1)
+        }
+        b'\\' if i + 1 < len => {
+            let esc = b[i + 1];
+            match esc {
+                // class shortcuts / anchors / backref / escaped metachar /
+                // escape sequence — all two characters.
+                b'A'
+                | b'b'
+                | b'B'
+                | b'd'
+                | b'D'
+                | b'm'
+                | b'M'
+                | b's'
+                | b'S'
+                | b'w'
+                | b'W'
+                | b'y'
+                | b'Y'
+                | b'Z'
+                | b'0'..=b'9'
+                | b'a'
+                | b'e'
+                | b'f'
+                | b'n'
+                | b'r'
+                | b't'
+                | b'v'
+                | b'.'
+                | b'*'
+                | b'+'
+                | b'?'
+                | b'('
+                | b')'
+                | b'{'
+                | b'}'
+                | b'['
+                | b']'
+                | b'|'
+                | b'^'
+                | b'$'
+                | b'\\' => Some(i + 2),
+                // `\xHH` (1-2 hex), `\uHHHH` (1-4), `\UHHHHHHHH` (1-8).
+                b'x' | b'u' | b'U' => {
+                    let max = match esc {
+                        b'x' => 2,
+                        b'u' => 4,
+                        _ => 8,
+                    };
+                    let mut j = i + 2;
+                    while j < len && j < i + 2 + max && b[j].is_ascii_hexdigit() {
+                        j += 1;
+                    }
+                    // Requires at least one hex digit, else not a token.
+                    (j > i + 2).then_some(j)
+                }
+                _ => None, // `\` before an unrecognised char → literal
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Classify a single ARE metacharacter run.  Mirrors the component
