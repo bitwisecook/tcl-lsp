@@ -99,9 +99,7 @@ def _assert_no_duplicate_diagnostics(source: str) -> None:
     """
     _cmds, diags = segment_with_recovery(source)
     keys = _diag_key(diags)
-    assert len(keys) == len(set(keys)), (
-        f"duplicate recovery diagnostics for {source!r}\n  {keys}"
-    )
+    assert len(keys) == len(set(keys)), f"duplicate recovery diagnostics for {source!r}\n  {keys}"
 
 
 class TestRecoveryHeuristicCases:
@@ -162,15 +160,39 @@ class TestRecoveryDiagnosticCharacterization:
         [
             (
                 "set x [foo bar\nset y 2\n",
-                [("E201", 6, 13, "missing close-bracket", (("]", "Insert missing ']' before command"),))],
+                [
+                    (
+                        "E201",
+                        6,
+                        13,
+                        "missing close-bracket",
+                        (("]", "Insert missing ']' before command"),),
+                    )
+                ],
             ),
             (
                 "set x [foo bar\n# comment\nset y 2\n",
-                [("E201", 6, 13, "missing close-bracket", (("]", "Insert missing ']' before comment"),))],
+                [
+                    (
+                        "E201",
+                        6,
+                        13,
+                        "missing close-bracket",
+                        (("]", "Insert missing ']' before comment"),),
+                    )
+                ],
             ),
             (
                 "set x [foo {a b}\n",
-                [("E201", 6, 9, "missing close-bracket", (("]", "Insert missing ']' before '{'"),))],
+                [
+                    (
+                        "E201",
+                        6,
+                        9,
+                        "missing close-bracket",
+                        (("]", "Insert missing ']' before '{'"),),
+                    )
+                ],
             ),
             (
                 'set x "\nset y 2\n',

@@ -1,6 +1,12 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, setTestContent, nextDiagnosticsPublish, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  setTestContent,
+  nextDiagnosticsPublish,
+  waitForDiagnostics,
+} from "./helper";
 
 /**
  * Error-recovery correctness contract — driven through the real VS Code
@@ -22,7 +28,14 @@ import { getDocUri, activate, setTestContent, nextDiagnosticsPublish, waitForDia
  */
 
 const RECOVERY_CODES = new Set(["E200", "E201", "E202", "E203", "E204", "E205", "E206"]);
-const RECOVERY_WORDS = ["missing", "close", "unterminated", "unclosed", "unbalanced", "extra characters"];
+const RECOVERY_WORDS = [
+  "missing",
+  "close",
+  "unterminated",
+  "unclosed",
+  "unbalanced",
+  "extra characters",
+];
 
 function codeOf(d: vscode.Diagnostic): string {
   const c = d.code;
@@ -33,14 +46,18 @@ function codeOf(d: vscode.Diagnostic): string {
 function isRecoveryError(d: vscode.Diagnostic): boolean {
   if (RECOVERY_CODES.has(codeOf(d))) return true;
   const msg = (d.message || "").toLowerCase();
-  return d.severity === vscode.DiagnosticSeverity.Error && RECOVERY_WORDS.some((w) => msg.includes(w));
+  return (
+    d.severity === vscode.DiagnosticSeverity.Error && RECOVERY_WORDS.some((w) => msg.includes(w))
+  );
 }
 
 function hasRecoveryError(diags: vscode.Diagnostic[]): boolean {
   return diags.some(isRecoveryError);
 }
 
-function symbolNames(syms: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined): string[] {
+function symbolNames(
+  syms: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined,
+): string[] {
   const out: string[] = [];
   const walk = (items: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined) => {
     for (const s of items || []) {
@@ -88,7 +105,10 @@ suite("Error Recovery (contract)", () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
     const diags = await setContentAndWait(editor, docUri, "set x [foo bar]\nputs hi\n");
-    assert.ok(!hasRecoveryError(diags), `well-formed flagged a recovery error: [${diags.map(codeOf)}]`);
+    assert.ok(
+      !hasRecoveryError(diags),
+      `well-formed flagged a recovery error: [${diags.map(codeOf)}]`,
+    );
   });
 
   // C2 ----------------------------------------------------------------------
@@ -176,7 +196,11 @@ suite("Error Recovery (contract)", () => {
   test("C4: no exact-duplicate diagnostics are published", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;
-    const diags = await setContentAndWait(editor, docUri, 'set x "\nif {1} {\n  puts [foo\n}\nset\n');
+    const diags = await setContentAndWait(
+      editor,
+      docUri,
+      'set x "\nif {1} {\n  puts [foo\n}\nset\n',
+    );
     const seen = new Set<string>();
     for (const d of diags) {
       const ident = JSON.stringify([

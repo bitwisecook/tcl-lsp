@@ -110,7 +110,9 @@ class TestC1UnterminatedIsFlagged:
     def test_well_formed_is_not_flagged(self, lsp_server, uri_factory):
         uri = uri_factory()
         diags = lsp_server.open_ready(uri, "set x [foo bar]\nputs hi\n")
-        assert not _has_recovery_error(diags), f"well-formed flagged a recovery error: {_codes(diags)}"
+        assert not _has_recovery_error(diags), (
+            f"well-formed flagged a recovery error: {_codes(diags)}"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -150,7 +152,9 @@ class TestC2RecoveryContinues:
         # following command is analysed — a bare `set` still arity-errors.
         uri = uri_factory()
         diags = lsp_server.open_ready(uri, "if {$x > 5\nset\n")
-        assert "E002" in _codes(diags), f"tail `set` after `if {{` should arity-error; got {_codes(diags)}"
+        assert "E002" in _codes(diags), (
+            f"tail `set` after `if {{` should arity-error; got {_codes(diags)}"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -219,13 +223,21 @@ class TestC4NoDuplicateDiagnostics:
 
 
 def _del_close_bracket():
-    return [{"range": {"start": {"line": 0, "character": 14},
-                       "end": {"line": 0, "character": 15}}, "text": ""}]
+    return [
+        {
+            "range": {"start": {"line": 0, "character": 14}, "end": {"line": 0, "character": 15}},
+            "text": "",
+        }
+    ]
 
 
 def _insert_close_bracket():
-    return [{"range": {"start": {"line": 0, "character": 14},
-                       "end": {"line": 0, "character": 14}}, "text": "]"}]
+    return [
+        {
+            "range": {"start": {"line": 0, "character": 14}, "end": {"line": 0, "character": 14}},
+            "text": "]",
+        }
+    ]
 
 
 class TestC5EditsToggleRecovery:

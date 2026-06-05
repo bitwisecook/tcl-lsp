@@ -190,8 +190,7 @@ def main() -> int:
         if n % 20_000 == 0:
             rate = n / (time.time() - start)
             print(
-                f"  {n:>9,} ok  | recovered={recovered:,} diag={diag_cases:,} "
-                f"| {rate:,.0f}/s",
+                f"  {n:>9,} ok  | recovered={recovered:,} diag={diag_cases:,} | {rate:,.0f}/s",
                 flush=True,
             )
 
