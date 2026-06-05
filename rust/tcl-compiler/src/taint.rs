@@ -23,11 +23,17 @@
 //!
 //! ## What is not yet implemented
 //!
-//! - **T103 regex-injection, T104 SSRF, T105 cross-interpreter
-//!   injection** — follow-up strips once the registry gains full
-//!   taint-hint metadata.
+//! - **T106 double-encoding** — needs the `taint_double_encode_colour`
+//!   transform check (the registry field now exists; the dataflow side
+//!   is a follow-up).
 //!
 //! ## What is implemented (was previously listed as deferred)
+//!
+//! - **T104 SSRF / T105 cross-interpreter injection** — registry-driven
+//!   via `taint_network_sink_args` (`socket`) and
+//!   `taint_interp_eval_subcommands` (`interp eval` / `invokehidden`);
+//!   see [`classify_network_interp_sinks`].  Suppressed by a validated
+//!   address colour (T104) / `LIST_CANONICAL` (T105).
 //!
 //! - Path-concat heuristic (W201) — see [`crate::path_concat`].
 //! - iRules-specific sink codes IRULE3001–3004 / 3101 / 3102 —
@@ -911,6 +917,37 @@ fn classify_irules_sink(command: &str, args: &[String]) -> Option<(&'static str,
     }
 }
 
+/// Registry-driven SSRF / cross-interpreter sinks (T104 / T105),
+/// returned in addition to the primary [`classify_sink`] match so a
+/// single statement can trip multiple categories (Python's
+/// `_classify_sink` returns a list).  Mirrors the `T104` / `T105` arms
+/// of `core/compiler/taint/_sinks.py::_classify_sink`:
+///
+/// * **T104** — the command's spec carries `taint_network_sink_args`
+///   (a network-address argument → SSRF risk; e.g. `socket`).
+/// * **T105** — the first argument names a subcommand in the spec's
+///   `taint_interp_eval_subcommands` (cross-interpreter code execution;
+///   e.g. `interp eval` / `interp invokehidden`).
+fn classify_network_interp_sinks(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<(&'static str, String)> {
+    let mut out = Vec::new();
+    let Some(spec) = registry.get(command) else {
+        return out;
+    };
+    if spec.taint_network_sink_args.is_some() {
+        out.push(("T104", command.to_owned()));
+    }
+    if let Some(sub) = args.first() {
+        if spec.taint_interp_eval_subcommands.contains(&sub.as_str()) {
+            out.push(("T105", format!("{command} {sub}")));
+        }
+    }
+    out
+}
+
 /// Return `true` when a tainted value `lat` is mitigated for the given
 /// iRules sink code. Mirrors `_should_suppress_sink_warning` in
 /// Python for the IRULE3001/3002/3003/3004 branches.
@@ -1049,22 +1086,34 @@ fn emit_statement_warnings(
         );
     }
 
-    let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) else {
-        return;
+    let sink_call = SinkCall {
+        command,
+        args: call_args,
     };
-
-    emit_sink_warnings(
-        &ssa_stmt.uses,
-        taints,
-        span,
-        code,
-        &sink_label,
-        &SinkCall {
-            command,
-            args: call_args,
-        },
-        warnings,
-    );
+    if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
+        emit_sink_warnings(
+            &ssa_stmt.uses,
+            taints,
+            span,
+            code,
+            &sink_label,
+            &sink_call,
+            warnings,
+        );
+    }
+    // Additional registry-driven SSRF / cross-interp sinks (T104 / T105),
+    // which can co-occur with the primary classification.
+    for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
+        emit_sink_warnings(
+            &ssa_stmt.uses,
+            taints,
+            span,
+            code,
+            &sink_label,
+            &sink_call,
+            warnings,
+        );
+    }
 }
 
 /// Emit T100 warnings for every tainted use in an expression context.
@@ -1144,6 +1193,18 @@ fn emit_sink_warnings(
         if code == "IRULE3002" && irule3002_name_position_safe(call.command, call.args, name, t) {
             continue;
         }
+        // T104 / T105 mitigations (mirror `_sinks.py:287-296`): a
+        // validated network address (IP / port / FQDN colour) clears
+        // T104; a canonical list (`LIST_CANONICAL`) clears T105.
+        if code == "T104"
+            && t.colours
+                .intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN)
+        {
+            continue;
+        }
+        if code == "T105" && t.colours.intersects(TaintColour::LIST_CANONICAL) {
+            continue;
+        }
         let message = match code {
             "T100" => format!(
                 "Tainted variable ${name} flows into {sink_label}; \
@@ -1168,6 +1229,14 @@ fn emit_sink_warnings(
             "IRULE3004" => format!(
                 "Tainted variable ${name} in redirect URL ({sink_label}); \
                  risk of open redirect"
+            ),
+            "T104" => format!(
+                "Tainted variable ${name} in network address argument of {sink_label}; \
+                 risk of SSRF (server-side request forgery)"
+            ),
+            "T105" => format!(
+                "Tainted variable ${name} in {sink_label} script argument; \
+                 risk of cross-interpreter code injection"
             ),
             _ => format!("Tainted variable ${name} flows into {sink_label}"),
         };
@@ -1611,6 +1680,131 @@ mod tests {
                 .any(|w| w.code == "T100" && w.variable == "x"),
             "expected T100 for tainted $x passed to eval, got {warnings:?}"
         );
+    }
+
+    /// Wire `set x [gets stdin]` (a taint source) followed by `sink`
+    /// (which uses `$x`) and return the taint warnings.  Shared by the
+    /// T104 / T105 sink tests.
+    fn warnings_for_tainted_sink(
+        sink: Statement,
+        sink_uses: HashMap<String, u32>,
+    ) -> Vec<TaintWarning> {
+        use crate::cfg::{Function, Terminator};
+        use crate::ssa::{SsaBlock, SsaFunction, SsaStatement};
+        use tcl_lexer::Span;
+
+        let registry = CommandRegistry::build_default();
+        let assign = Statement::AssignValue {
+            span: Span::new(0, 12),
+            name: "x".into(),
+            value: "[gets stdin]".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let mut cfg = Function::new("::top", "entry");
+        {
+            let b = cfg.blocks.get_mut("entry").unwrap();
+            b.statements.push(assign.clone());
+            b.statements.push(sink.clone());
+            b.terminator = Some(Terminator::Return {
+                value: None,
+                span: None,
+                expr: None,
+                braced: false,
+            });
+        }
+        let ssa_assign = SsaStatement {
+            statement: assign,
+            uses: HashMap::new(),
+            defs: [("x".to_owned(), 1u32)].into_iter().collect(),
+        };
+        let ssa_sink = SsaStatement {
+            statement: sink,
+            uses: sink_uses,
+            defs: HashMap::new(),
+        };
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        ssa.blocks.insert(
+            "entry".into(),
+            SsaBlock {
+                name: "entry".into(),
+                phis: Vec::new(),
+                statements: vec![ssa_assign, ssa_sink],
+                entry_versions: HashMap::new(),
+                exit_versions: HashMap::new(),
+            },
+        );
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        find_taint_warnings(
+            &cfg,
+            &ssa,
+            &taints,
+            &sccp.executable_blocks,
+            &registry,
+            None,
+        )
+    }
+
+    fn call_stmt(command: &str, args: &[&str]) -> Statement {
+        Statement::Call {
+            span: tcl_lexer::Span::new(13, 30),
+            command: command.into(),
+            canonical_command: None,
+            args: args.iter().map(|a| (*a).to_string()).collect(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        }
+    }
+
+    #[test]
+    fn t104_ssrf_for_tainted_socket_address() {
+        // `socket $x 80` with tainted `$x` → SSRF (T104).
+        let sink = call_stmt("socket", &["$x", "80"]);
+        let uses = [("x".to_owned(), 1u32)].into_iter().collect();
+        let w = warnings_for_tainted_sink(sink, uses);
+        assert!(
+            w.iter().any(|w| w.code == "T104" && w.variable == "x"),
+            "expected T104 for tainted socket address; got {w:?}"
+        );
+    }
+
+    #[test]
+    fn t105_cross_interp_for_tainted_interp_eval() {
+        // `interp eval $child $x` with tainted `$x` → cross-interp (T105).
+        let sink = call_stmt("interp", &["eval", "$child", "$x"]);
+        let uses = [("x".to_owned(), 1u32)].into_iter().collect();
+        let w = warnings_for_tainted_sink(sink, uses);
+        let t105 = w.iter().find(|w| w.code == "T105" && w.variable == "x");
+        assert!(t105.is_some(), "expected T105 for interp eval; got {w:?}");
+        assert_eq!(t105.unwrap().sink_command, "interp eval");
+    }
+
+    #[test]
+    fn classify_network_interp_sinks_maps_socket_and_interp() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            classify_network_interp_sinks(&reg, "socket", &["host".into(), "80".into()]),
+            vec![("T104", "socket".to_owned())]
+        );
+        assert_eq!(
+            classify_network_interp_sinks(&reg, "interp", &["eval".into(), "$c".into()]),
+            vec![("T105", "interp eval".to_owned())]
+        );
+        // A non-eval interp subcommand and a plain command map to nothing.
+        assert!(classify_network_interp_sinks(&reg, "interp", &["share".into()]).is_empty());
+        assert!(classify_network_interp_sinks(&reg, "puts", &["hi".into()]).is_empty());
     }
 
     #[test]
