@@ -433,6 +433,9 @@ impl Analyser {
         self.result.diagnostics.extend(loop_diags);
         let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(idx_diags);
+        let lset_diags =
+            super::bounds_checks::lset_index_diagnostics(cmd_name, args, arg_tokens, &self.source);
+        self.result.diagnostics.extend(lset_diags);
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);

@@ -1,11 +1,12 @@
 //! Loop-termination index-bounds checks (W230-W242) — GAP-A4.
 //!
 //! Port of `core/analysis/checks/_bounds.py`.  Lands the
-//! **loop-termination** family (W240 / W241 over `while` / `for`,
+//! **loop-termination** family (W240 / W241 / W242 over `while` / `for`,
 //! including the `for`-step provably-infinite heuristic) and the
 //! **index-bounds** family (W230 over `lindex` / `lrange` / `lreplace`,
-//! W232 over `string index` / `range` / `replace`).  Follow-ups: W231
-//! (`lset`, needs const-var tracking) and the default-off W242.
+//! W231 over `lset`, W232 over `string index` / `range` / `replace`).
+//! W242 (unprovable termination) is emitted here like Python's
+//! `analyse`; its default-off opt-in is a consuming-layer concern.
 //!
 //! The analysis is intentionally shallow — it inspects the literal text
 //! of the condition and body.  A dynamic condition (anything not a
@@ -79,7 +80,51 @@ pub(crate) fn loop_termination_diagnostics(
             }];
         }
     }
+
+    // W242 (default-off): a counter variable appears in the condition but
+    // neither the step nor the body provably modifies it.  Reported on
+    // the condition token, mirroring W240/W241.  Like Python's
+    // `core.analysis.analyse`, the analyser always emits W242; the
+    // default-off opt-in is applied by the consuming LSP/config layer.
+    if let Some(var) = extract_counter_name(cond_text) {
+        if !loop_modifies_var(&var, step_text, body_text) {
+            return vec![Diagnostic {
+                code: "W242".to_string(),
+                span: cond_tok.span,
+                message: format!(
+                    "{cmd_name} termination cannot be proven: variable '{var}' in the \
+                     condition is never modified by the step or body."
+                ),
+                severity: Severity::Hint,
+                fixes: Vec::new(),
+            }];
+        }
+    }
     Vec::new()
+}
+
+/// Return the first `$var` / `${var}` referenced by a condition
+/// expression, or `None`.  Mirrors `_extract_counter_name`.
+fn extract_counter_name(cond: &str) -> Option<String> {
+    let re = regex::Regex::new(r"\$\{?(\w+)\}?").expect("valid counter regex");
+    re.captures(strip_braces(cond))
+        .map(|cap| cap[1].to_string())
+}
+
+/// True when the step expression or the body provably updates `var`.
+/// Mirrors `_loop_modifies_var`.
+fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
+    if !step.is_empty() {
+        if let Some((step_var, _)) = parse_step_incr(step) {
+            if step_var == var {
+                return true;
+            }
+        }
+        if body_writes_var(strip_braces(step), var) {
+            return true;
+        }
+    }
+    body_writes_var(body, var)
 }
 
 /// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
@@ -340,6 +385,151 @@ fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec
         });
     }
     out
+}
+
+/// W231: an `lset` with a constant index known to be out of range.
+/// Unlike `lindex` (which silently returns empty), `lset` raises a
+/// runtime error; a plain negative literal always errors, and — when the
+/// list length is recoverable from a recent literal `set` — an index past
+/// the append slot (`> length`) or below zero errors too.  Mirrors
+/// `check_lset_index_out_of_range`.
+pub(crate) fn lset_index_diagnostics(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    source: &str,
+) -> Vec<Diagnostic> {
+    if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
+        return Vec::new();
+    }
+    // `lset varName ?index ...? value` — index positions are 1..len-1.
+    let index_positions: Vec<usize> = (1..args.len() - 1).collect();
+    let nested = index_positions.len() > 1;
+    // Multi-index (nested-sublist) forms only fire on plain-negative
+    // literals; length-based checks need the single-index top-level form.
+    let list_len = if nested {
+        None
+    } else {
+        infer_list_length_from_recent_set(source, &args[0], arg_tokens[0].span.start())
+    };
+
+    let mut out = Vec::new();
+    for pos in index_positions {
+        let idx_text = &args[pos];
+        let Some(idx_tok) = arg_tokens.get(pos) else {
+            continue;
+        };
+        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text) {
+            continue;
+        }
+        let stripped = idx_text.trim();
+        // Plain negative integer: always errors.
+        if let Some(n) = parse_strict_int(stripped) {
+            if n < 0 {
+                out.push(Diagnostic {
+                    code: "W231".to_string(),
+                    span: idx_tok.span,
+                    message: format!(
+                        "lset index '{stripped}' is negative; \
+                         raises 'index out of range' at runtime."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+                continue;
+            }
+        }
+        // `lset` accepts the append slot (`index == length`); only
+        // indices past it or below zero are runtime errors.
+        if let Some(length) = list_len {
+            let Some(resolved) = resolve_index(stripped, length) else {
+                continue;
+            };
+            if resolved < 0 || resolved > length {
+                out.push(Diagnostic {
+                    code: "W231".to_string(),
+                    span: idx_tok.span,
+                    message: format!(
+                        "lset index '{stripped}' {}; \
+                         raises 'index out of range' at runtime.",
+                        describe_index(resolved, length)
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Recover the literal length of `var_name` from the most recent
+/// `set var {literal}` before `before_offset`, when that assignment
+/// shares the `lset`'s (flat) scope.  Mirrors
+/// `_infer_list_length_from_recent_set` (the regex excludes brace-bearing
+/// values, so the captured literal can't hide nested braces).
+fn infer_list_length_from_recent_set(
+    source: &str,
+    var_name: &str,
+    before_offset: u32,
+) -> Option<i64> {
+    let before = before_offset as usize;
+    if before == 0 || before > source.len() || var_name.is_empty() {
+        return None;
+    }
+    // `set <var> {literal}` at a line start (no lookahead — the trailing
+    // `\s*(?:;|$)` matches Python's `\s*(?=\n|$|;)` under `(?m)`).
+    let re = regex::Regex::new(r"(?m)^\s*set\s+(\w+)\s+(\{[^{}]*\})\s*(?:;|$)")
+        .expect("valid list-set regex");
+    let mut best: Option<i64> = None;
+    for cap in re.captures_iter(&source[..before]) {
+        if &cap[1] != var_name {
+            continue;
+        }
+        let whole = cap.get(0).expect("match 0");
+        let between = &source[whole.end()..before];
+        if !scope_is_flat(between) {
+            continue;
+        }
+        let literal = &cap[2];
+        let inner = &literal[1..literal.len() - 1];
+        let len =
+            i64::try_from(crate::tcl_expr_eval::split_tcl_list(inner).len()).unwrap_or(i64::MAX);
+        best = Some(len);
+    }
+    best
+}
+
+/// True when `between` stays at brace depth 0 and introduces no
+/// `proc` / `namespace eval` / `apply` / `try` scope — i.e. the trailing
+/// `lset` shares the originating `set`'s scope.  Mirrors `_scope_is_flat`.
+fn scope_is_flat(between: &str) -> bool {
+    let markers = regex::Regex::new(r"\b(?:proc|namespace\s+eval|apply|try)\b")
+        .expect("valid scope-marker regex");
+    if markers.is_match(between) {
+        return false;
+    }
+    let bytes = between.as_bytes();
+    let mut depth: i64 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    depth == 0
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -797,5 +987,86 @@ mod tests {
         assert_eq!(super::condition_constant("1"), Some(true));
         assert_eq!(super::condition_constant("{true}"), Some(true));
         assert_eq!(super::condition_constant("$x < 10"), None);
+    }
+
+    // -- W231 (lset out of range) & W242 (unprovable termination) -----
+    //
+    // Cross-checked against the live Python analyser.
+
+    fn code_msgs(src: &str, code: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    #[test]
+    fn w231_lset_negative_index_always_errors() {
+        let m = code_msgs("lset L -1 x\n", "W231");
+        assert_eq!(m.len(), 1);
+        assert!(m[0].contains("lset index '-1' is negative"), "{m:?}");
+        // Negative literal fires even for nested (multi-index) forms.
+        assert_eq!(code_msgs("lset L i j -1 v\n", "W231").len(), 1);
+    }
+
+    #[test]
+    fn w231_lset_index_past_append_slot() {
+        // List length recovered from the recent literal `set`.
+        let m = code_msgs("set L {a b c}\nlset L 5 x\n", "W231");
+        assert_eq!(m.len(), 1);
+        assert!(
+            m[0].contains("resolves to 5 (list has 3 elements)"),
+            "{m:?}"
+        );
+        // The append slot (index == length) and valid indices are fine.
+        assert!(code_msgs("set L {a b c}\nlset L 3 x\n", "W231").is_empty());
+        assert!(code_msgs("set L {a b c}\nlset L end+1 x\n", "W231").is_empty());
+        assert!(code_msgs("set L {a b c}\nlset L 2 x\n", "W231").is_empty());
+    }
+
+    #[test]
+    fn w231_silent_without_recoverable_length() {
+        // No prior literal `set` → only negative literals would fire.
+        assert!(code_msgs("lset L 5 x\n", "W231").is_empty());
+        // A `set` in a deeper scope must not be trusted.
+        assert!(
+            code_msgs("proc p {} { set L {a b c} }\nlset L 5 x\n", "W231").is_empty(),
+            "deeper-scope set should not leak its length"
+        );
+    }
+
+    #[test]
+    fn w242_counter_not_modified() {
+        let m = code_msgs("while {$x < 10} {puts hi}\n", "W242");
+        assert_eq!(m.len(), 1);
+        assert!(
+            m[0].contains("variable 'x' in the condition is never modified"),
+            "{m:?}"
+        );
+        // `for` with an empty step and a body that ignores the counter.
+        assert_eq!(
+            code_msgs("for {set i 0} {$i < 10} {} {puts hi}\n", "W242").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn w242_silent_when_counter_modified() {
+        // Body writes the counter via incr / set / lappend → no W242.
+        assert!(code_msgs("while {$x < 10} {incr x}\n", "W242").is_empty());
+        assert!(code_msgs("while {$x < 10} {set x 5}\n", "W242").is_empty());
+        // A normal `for` whose step advances the counter is silent.
+        assert!(code_msgs("for {set i 0} {$i < 10} {incr i} {puts hi}\n", "W242").is_empty());
+    }
+
+    #[test]
+    fn w242_severity_is_hint() {
+        let mut a = Analyser::new();
+        let r = a.analyse("while {$x < 10} {puts hi}\n", "tcl8.6");
+        let w242 = r.diagnostics.iter().find(|d| d.code == "W242").unwrap();
+        assert_eq!(w242.severity, super::Severity::Hint);
     }
 }

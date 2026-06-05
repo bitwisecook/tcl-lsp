@@ -4504,8 +4504,28 @@ or exit.  Ports `parse_simple_for_cond` (the `$v OP n` / `n OP $v`
 counter regexes + the compound-marker guard, with the lone-`!` look-behind
 done manually), `parse_init_var_value`, `parse_step_incr`,
 `body_writes_var`, `cond_true_at`.  Verified against the live Python
-analyser; 2 unit tests.  **Remaining:** **W231** (`lset` — needs
-const-var tracking) and the default-off **W242** — follow-ups.
+analyser; 2 unit tests.
+
+**LANDED (W231 `lset` + W242 unprovable termination — GAP-A4 complete,
+2026-06-05).**  `lset_index_diagnostics` ports `check_lset_index_out_of_
+range`: an `lset` with a plain-negative literal index always errors
+(fires even for nested multi-index forms), and — when the list length is
+recovered from a recent literal `set var {…}` (the
+`_infer_list_length_from_recent_set` regex + brace-depth /
+scope-marker `_scope_is_flat` guard, both ported) — an index past the
+append slot (`> length`) or below zero errors too (`lset` allows the
+append slot `index == length`, unlike `lindex`).  `loop_termination_
+diagnostics` gains the **W242** arm (`_extract_counter_name` +
+`_loop_modifies_var`): a counter `$var` in the condition that neither the
+step nor the body provably modifies → a HINT.  Like Python's
+`core.analysis.analyse`, the analyser always emits W242; its default-off
+opt-in is a consuming-layer (LSP/config) concern, consistent with how the
+Rust analyser has only the opt-out `disabled_diagnostics`.  Every message
+is byte-identical to Python and cross-checked against the live analyser; 6
+unit tests, full compiler suite green (2518).  **GAP-A4 is now complete**
+for the shippable token/regex form (W230-W232 + W240-W242); the
+interval-domain W233 remains the eventual main-parity target (§E2), not a
+present gap.
 
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
