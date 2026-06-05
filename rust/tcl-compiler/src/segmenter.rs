@@ -499,8 +499,7 @@ mod tests {
         // yields an E201 diagnostic.
         let reg = tcl_registry::CommandRegistry::build_default();
         let cfg = LexerConfig::default();
-        let (rec, diags) =
-            segment_with_recovery("set x [foo bar\nputs done\n", cfg, Some(&reg));
+        let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, Some(&reg));
         assert_eq!(rec.len(), 2);
         assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
         assert_eq!(rec[1].texts, vec!["puts", "done"]);

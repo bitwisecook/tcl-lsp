@@ -627,6 +627,30 @@ fn uplevel_has_level(arg0: &str) -> bool {
     !stripped.is_empty() && stripped.bytes().all(|b| b.is_ascii_digit())
 }
 
+/// Parse `subst`'s flags, returning `(template_idx, nocommands,
+/// novariables)` — the index of the first non-option argument (the
+/// template) and which substitution-suppressing flags were seen.
+/// Mirrors `core/analysis/checks/_helpers.py::_parse_subst_flags`
+/// (`-nobackslashes` is accepted but irrelevant to the W102 message).
+fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
+    let mut nocommands = false;
+    let mut novariables = false;
+    let mut template_idx = None;
+    for (i, text) in args.iter().enumerate() {
+        match text.as_str() {
+            "-nocommands" => nocommands = true,
+            "-novariables" => novariables = true,
+            "-nobackslashes" => {}
+            t if t.starts_with('-') => {}
+            _ => {
+                template_idx = Some(i);
+                break;
+            }
+        }
+    }
+    (template_idx, nocommands, novariables)
+}
+
 /// Walk `node` and collect every `==`/`!=` operator whose at least
 /// one operand is a string literal ([`ExprNode::String`]).
 ///
@@ -2687,6 +2711,125 @@ them into a script (like eval). Use a single braced body to avoid injection."
                     "interp {sub} with an unbraced script argument may \
 cause code injection. Use braces: interp {sub} $child {{...}}"
                 ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W102.** Emit "subst on variable input" when `subst`'s template
+    /// argument is a bare `$var` substitution — `subst` performs `$` /
+    /// `[]` substitution on its argument, so a variable template enables
+    /// code injection.  Mirrors
+    /// `_security.py:79-138::check_subst_injection`: the message lists
+    /// exactly the substitution kinds still active (`-nocommands` /
+    /// `-novariables` narrow it) and is suppressed entirely when both
+    /// flags are present (only backslash substitution remains).
+    pub(super) fn emit_w102_subst_injection(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "subst" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let (template_idx, nocommands, novariables) = parse_subst_flags(args);
+        let Some(idx) = template_idx else {
+            return;
+        };
+        let Some(tok) = arg_tokens.get(idx) else {
+            return;
+        };
+        if !matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            return;
+        }
+        if nocommands && novariables {
+            // Only backslash substitution remains — low risk.
+            return;
+        }
+        let mut active = String::new();
+        if !nocommands {
+            active.push_str("[cmd]");
+        }
+        if !nocommands && !novariables {
+            active.push_str(" and ");
+        }
+        if !novariables {
+            active.push_str("$var");
+        }
+        let mut mitigations: Vec<&str> = Vec::new();
+        if !nocommands {
+            mitigations.push("-nocommands");
+        }
+        if !novariables {
+            mitigations.push("-novariables");
+        }
+        let message = format!(
+            "subst with a variable argument enables code injection: any \
+{active} in the string will be evaluated. Add {} to limit substitution \
+scope, or use [format] / [string map] for safe templating.",
+            mitigations.join(" ")
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W102".to_string(),
+            span: tok.span,
+            message,
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **W103.** Emit "open with a pipeline" when `open`'s first
+    /// argument requests a command pipeline (`open "|cmd"`) or is a
+    /// variable that might.  Mirrors
+    /// `_security.py:313-382::check_open_pipeline`: a `|`-prefixed
+    /// argument carrying substitution is a WARNING (command injection),
+    /// a literal `|`-pipeline is a HINT, and a bare `$var` argument is a
+    /// WARNING (it may resolve to a `|`-pipeline).
+    pub(super) fn emit_w103_open_pipeline(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "open" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let tok = arg_tokens[0];
+        if args[0].starts_with('|') {
+            let (severity, message) = if self.args_have_substitution(arg_tokens, arg_single) {
+                (
+                    Severity::Warning,
+                    "open with a pipeline containing variable/command \
+substitution risks command injection. Validate and sanitize the command \
+before passing to open."
+                        .to_string(),
+                )
+            } else {
+                (
+                    Severity::Hint,
+                    "open with a pipeline (\"|\") executes an external command. \
+Ensure the command is not influenced by untrusted input."
+                        .to_string(),
+                )
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W103".to_string(),
+                span: tok.span,
+                message,
+                severity,
+                fixes: Vec::new(),
+            });
+        } else if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W103".to_string(),
+                span: tok.span,
+                message: "open with a variable argument: if the value starts with \
+\"|\", it will execute a command pipeline. Validate input or use explicit \
+I/O commands."
+                    .to_string(),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             });
@@ -7712,5 +7855,52 @@ foo
             w312.message.contains("interp eval $child {...}"),
             "{w312:?}"
         );
+    }
+
+    #[test]
+    fn w102_subst_variable_argument() {
+        // Bare `$var` template fires; the message lists both kinds.
+        let mut a = Analyser::new();
+        let r = a.analyse("subst $x\n", "tcl8.6");
+        let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+        assert!(
+            w102.message.contains("any [cmd] and $var in the string"),
+            "{w102:?}"
+        );
+        assert!(w102
+            .message
+            .contains("Add -nocommands -novariables to limit"));
+        // A braced or quoted template is fine; both flags suppress it.
+        assert_eq!(sec_codes("subst {literal $y}\n", "W102"), 0);
+        assert_eq!(sec_codes("subst \"$x\"\n", "W102"), 0);
+        assert_eq!(sec_codes("subst -nocommands -novariables $x\n", "W102"), 0);
+    }
+
+    #[test]
+    fn w102_message_narrows_with_flags() {
+        let mut a = Analyser::new();
+        let r = a.analyse("subst -nocommands $x\n", "tcl8.6");
+        let w102 = r.diagnostics.iter().find(|d| d.code == "W102").unwrap();
+        // Only `$var` remains active; only `-novariables` is suggested.
+        assert!(w102.message.contains("any $var in the string"), "{w102:?}");
+        assert!(!w102.message.contains("[cmd]"), "{w102:?}");
+        assert!(w102.message.contains("Add -novariables to limit"));
+    }
+
+    #[test]
+    fn w103_open_pipeline() {
+        // `|`-pipeline with substitution → WARNING (injection).
+        let mut a = Analyser::new();
+        let r = a.analyse("open \"|$cmd\"\n", "tcl8.6");
+        let w103 = r.diagnostics.iter().find(|d| d.code == "W103").unwrap();
+        assert_eq!(w103.severity, Severity::Warning);
+        assert!(w103.message.contains("command injection"), "{w103:?}");
+        // Literal `|`-pipeline → HINT.
+        assert_eq!(code_sevs("open |ls\n", "W103"), vec!["Hint"]);
+        assert_eq!(code_sevs("open \"|cat file\"\n", "W103"), vec!["Hint"]);
+        // Bare `$var` argument → WARNING (may resolve to a pipeline).
+        assert_eq!(code_sevs("open $f\n", "W103"), vec!["Warning"]);
+        // A literal filename is fine.
+        assert_eq!(sec_codes("open \"file.txt\"\n", "W103"), 0);
     }
 }

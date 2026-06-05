@@ -408,8 +408,10 @@ impl Analyser {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
-        // W300 / W301 / W309 / W312 security-injection checks (GAP-A2),
-        // ported from `core/analysis/checks/_security.py`.
+        // W102 / W103 / W300 / W301 / W309 / W312 security-injection
+        // checks (GAP-A2), ported from `core/analysis/checks/_security.py`.
+        self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
+        self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
         self.emit_w300_source_variable(cmd_name, args, arg_tokens);
         self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
         self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);

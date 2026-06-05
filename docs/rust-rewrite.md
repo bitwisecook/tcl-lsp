@@ -4343,12 +4343,23 @@ taint dataflow): they reuse the W101 substitution probe (representative
 helper, plus `is_canonical_list_substitution` for the `[list …]` safe
 form.  Every message is byte-identical to Python and each fixture is
 cross-checked against the live analyser; 5 unit tests, full compiler suite
-green (2502).  **Remaining GAP-A2:** **W102** (`subst` on a variable —
-syntactic, needs the `_parse_subst_flags` port), **W103** (`open "|…"`
-pipeline — syntactic), **W303** (regexp ReDoS — needs the
-`_find_regex_patterns_in_command` + nested-quantifier port), and **W310**
-(hardcoded credentials — needs the registry `credential_options` /
-`subcommand_credential_info` surface).
+green (2502).
+
+**LANDED (W102 / W103 syntactic injection checks, 2026-06-05).**  Two
+more `_security.py` checks land as dispatch-site emitters: **W102**
+`subst` on a `$var` template (`check_subst_injection` — the message lists
+exactly the substitution kinds still active and is suppressed when both
+`-nocommands` and `-novariables` are present; ported the
+`_parse_subst_flags` helper) and **W103** `open` with a `|`-pipeline
+(`check_open_pipeline` — `|`-prefixed + substituted → WARNING, literal
+`|`-pipeline → HINT, bare `$var` argument → WARNING).  Both reuse the
+shared `args_have_substitution` probe; messages are byte-identical to
+Python and cross-checked against the live analyser.  4 unit tests, full
+compiler suite green (2505).  **Remaining GAP-A2:** **W303** (regexp ReDoS
+— needs the `_find_regex_patterns_in_command` + nested-quantifier-pattern
+port) and **W310** (hardcoded credentials — needs the registry
+`credential_options` / `subcommand_credential_info` surface, which the
+registry chat / PR #550 may add).
 
 **GAP-A3 — `core/analysis/checks/_confusables.py` (1792 LOC) + the W108
 algorithm — absent.**  The 1776-entry Unicode confusables table
