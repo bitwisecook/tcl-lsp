@@ -4368,6 +4368,23 @@ results.  **Fix:** swap to canonical codes (loop-invariant → O106,
 partial-redundancy → its canonical family) and correct the comment;
 re-snapshot any O-code baselines.
 
+**LANDED (2026-06-05).**  Confirmed against the canonical KCS catalog
+(`o106-loop-invariant-code-motion`, `o107-unreachable-dead-code`) and
+Python `core/compiler/gvn.py`: **full *and* partial redundancy both emit
+O105** (`_full_redundancy_message` / `_partial_redundancy_message` use the
+`O105` default), **loop-invariant emits O106** (`code="O106"`, gvn.py:944),
+and **O107 is unreachable dead code owned by the elimination pass** —
+never by GVN.  Rust now matches: `find_loop_invariants` emits **O106**
+(was O107) and `find_partial_redundancies` emits **O105** (was O106); the
+`RedundantComputation.code` doc-comment, the two function doc-comments, and
+the `tcl-lsp-py/src/gvn.rs` bridge doc-comments are corrected, and the two
+unit tests pin the canonical codes.  This was a genuine cross-layer
+differential bug: `gvn.py` delegates to the `_rust_gvn_*` bridge when
+present, so the Rust-accelerated path had been returning O107/O106 while
+the pure-Python fallback (and `tests/test_gvn.py`, which asserts O106 for
+loop-invariant) returned O106/O105.  No O-code baseline re-snapshot was
+needed — the only fixtures keying on these were already canonical.
+
 **GAP-B3 — `goto_type_definition` / `goto_implementation` return wrong
 results (correctness bug).**  Both alias `compute_definition`
 (`tcl-lsp-server/src/lib.rs:1437`, `:1454`), yet `type_definition_provider`
@@ -4593,7 +4610,7 @@ to the chunk-log entry that has the full spec.
 |---|---|---|
 | — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05; strip 1 LANDED 2026-06-05.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs`) now merges `lift_compiler_diagnostics` — `compiler_checks::run_all_checks` (taint / iRules-flow / shimmer / thunking / GVN / SCCP) **and** `optimiser::optimise_with_dialect` (O-codes, HINT severity) — over the per-document dialect-aware registry, alongside the base `Analyser::analyse()` set.  Two unit tests pin it (O100 fold; IRULE3001 taint flow).  **Strip 2 remaining:** the source-style pass (line-length / trailing-whitespace / line-endings / comment-continuation / missing-`package require`) lands with the GAP-A8 `_style.py` port; feature-config toggles (checks currently run unconditionally — Python default); CU-sharing to avoid the double lowering.  See GAP-AUDIT-JUN05 §C1. |
 | — | `GAP-B3` (goto-type-definition / goto-implementation correctness) | **Correctness — an advertised capability returns wrong results today.**  Both alias `compute_definition` (`lib.rs:1437` / `:1454`); implement the type-lattice→`ClassDef` jump and the TclOO subclass/override walk over `analyser/class_hierarchy.rs` + `mro.rs`.  See §B3. |
-| — | `GAP-B2` / `GAP-B1` (GVN O106/O107 relabel + O127 forwarding) | **"Ported but wrong" — silent and baseline-affecting.**  GVN loop-invariant emits under **O107** (canonically "unreachable dead code"); O127 store-to-load forwarding is literal-only under **O102** (the computed-expr pass is absent).  See §B2 / §B1. |
+| — | `GAP-B1` (O127 forwarding) | **`GAP-B2` LANDED 2026-06-05; B1 remaining.**  GVN code relabel is done — loop-invariant → **O106**, partial redundancy → **O105**, O107 reserved for elimination's dead-code (matches canonical KCS + Python `gvn.py`; fixed a cross-layer differential where the `_rust_gvn_*` bridge disagreed with the Python fallback).  **Still open (B1):** O127 store-to-load forwarding is literal-only under **O102** — the computed-expr forwarding (`set x [cmd]` inlined to the single use site with memory-SSA / effect / version gating, emitting O127) is absent.  See §B2 / §B1. |
 | — | `GAP-A2` + `GAP-D2` (security-check family + granular taint fields) | **Highest-severity checks silently absent** (injection / ReDoS / hardcoded credentials).  Port the granular taint-sink `CommandSpec` fields, then the W102/W103/W300/W301/W303/W309/W310/W312 emitters (+ T106 / W313).  See §A2 / §D2. |
 | — | `GAP-B4` (expr type inference — `EXPR_FUNC_REGISTRY`) | Small, self-contained: math-function / iRules-predicate / bitwise exprs degrade to `Overdefined` (`type_infer.rs:171`/`:195`), hurting hover / inlay / type-def in the core iRules dialect.  See §B4. |
 | — | `GAP-AUDIT-JUN05` (remainder: A1, A3-A9, B5-B7, C2-C5, D1) | Structural gaps with full context + fix steps in the GAP-AUDIT-JUN05 section — ghost-token E201-E206 recovery, confusables/bounds/syntax/style checks, four absent LSP providers (snippet / package-suggest / irules-context / file-ops), semantic-token taxonomy + modifiers, code-action families, formatter config knobs, hover/completion iRules enrichment, registry `pattern_type`/`format_string_type`/`options`, `auto_path` static eval, expr backslash-newline, multipass fixpoint. |
