@@ -8,10 +8,19 @@
 > Python** — it only pays off in the incremental/rowan green tree the Rust port
 > will build. It is the de-risked blueprint to implement there.
 >
-> Validating prototypes (kept in-tree as the record):
-> `tests/proto_level_index.py`, `tests/proto_expr_level_index.py`,
-> `tests/proto_role_recovery.py`, and the flag-guarded `track_levels` capture in
-> `compiler/parsing/lexer.py` (inert by default).
+> Validating prototypes: these were intentionally **not kept in-tree** (they
+> instrument the hot lexer and add no production value), so they live only in
+> git history. The complete validation record — `tests/proto_level_index.py`,
+> `tests/proto_expr_level_index.py`, `tests/proto_role_recovery.py`, and the
+> flag-guarded `track_levels` capture in `compiler/parsing/lexer.py` — is present
+> at commit **`4ebd320`** (added across `82d0d6a`, `017eb34`, `4ebd320`; removed
+> in `ab3acde`). To re-run or inspect them:
+>
+> ```bash
+> git show 4ebd320:tests/proto_level_index.py        # inspect a prototype
+> git worktree add /tmp/recovery-protos 4ebd320       # full tree to re-run
+> cd /tmp/recovery-protos && uv run python tests/proto_level_index.py
+> ```
 
 ## TL;DR
 
