@@ -251,6 +251,18 @@ pub(crate) unsafe fn set_string_rep(obj: *mut TclObj, bytes: &[u8]) {
     unsafe { set_owned_string(obj, bytes.as_ptr(), bytes.len()) }
 }
 
+/// Read a `TCL_INT_TYPE` object's wide value from its internal rep.
+pub(crate) fn wide_of(obj: *mut TclObj) -> TclWideInt {
+    // SAFETY: caller has checked `obj`'s type is `TCL_INT_TYPE`.
+    unsafe { (*obj).wide() }
+}
+
+/// Read a `TCL_DOUBLE_TYPE` object's value from its internal rep.
+pub(crate) fn double_of(obj: *mut TclObj) -> f64 {
+    // SAFETY: caller has checked `obj`'s type is `TCL_DOUBLE_TYPE`.
+    unsafe { (*obj).double() }
+}
+
 /// Copy `obj`'s string rep (shimmering via `update_string_proc` if needed).
 pub(crate) fn bytes_of(obj: *mut TclObj) -> Vec<u8> {
     // SAFETY: `obj` is a live object; `get_string` returns a borrowed pointer

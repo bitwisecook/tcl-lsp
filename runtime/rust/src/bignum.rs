@@ -53,6 +53,266 @@ extern "C" {
     fn mp_radix_size(a: *const MpInt, radix: c_int, size: *mut c_int) -> c_int;
     fn mp_count_bits(a: *const MpInt) -> c_int;
     fn mp_get_i64(a: *const MpInt) -> i64;
+    fn mp_init_i64(a: *mut MpInt, b: i64) -> c_int;
+    fn mp_add(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_sub(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_mul(a: *const MpInt, b: *const MpInt, c: *mut MpInt) -> c_int;
+    fn mp_neg(a: *const MpInt, b: *mut MpInt) -> c_int;
+    fn mp_get_double(a: *const MpInt) -> f64;
+}
+
+// ---------------------------------------------------------------------------
+// Tower arithmetic — the integer rung (wide → bignum, with demote-when-fits)
+// plus double promotion. Follows `tclExecute.c`'s overflow-checked wide fast
+// path → `ExecuteExtendedBinaryMathOp` bignum path → canonical demote. Operands
+// are `TclObj`s; results are fresh (`rc 0`) `TclObj`s (int / bignum / double).
+// (Floor `/`/`%`, `**`, bit-ops, and the `expr` walker build on this next.)
+// ---------------------------------------------------------------------------
+
+/// An RAII libtommath integer: owns its `mp_int`, clearing it on drop.
+struct Mp(MpInt);
+
+impl Mp {
+    /// A fresh `mp_int` initialised to 0.
+    fn zero() -> Option<Mp> {
+        let mut m = zeroed_mp();
+        // SAFETY: `mp_init` initialises `m`'s fields + allocates its digit array.
+        (unsafe { mp_init(&mut m) } == MP_OKAY).then_some(Mp(m))
+    }
+
+    /// An `mp_int` holding the wide `v`.
+    fn from_i64(v: i64) -> Option<Mp> {
+        let mut m = zeroed_mp();
+        // SAFETY: initialise `m` from the 64-bit value.
+        (unsafe { mp_init_i64(&mut m, v) } == MP_OKAY).then_some(Mp(m))
+    }
+
+    /// A deep copy of the live `mp_int` at `src`.
+    fn copy_of(src: *const MpInt) -> Option<Mp> {
+        let mut m = zeroed_mp();
+        // SAFETY: `src` is a live mp_int; `mp_init_copy` deep-copies it.
+        (unsafe { mp_init_copy(&mut m, src) } == MP_OKAY).then_some(Mp(m))
+    }
+
+    #[inline]
+    fn ptr(&self) -> *const MpInt {
+        &self.0
+    }
+
+    /// Move the inner `mp_int` out without clearing (the caller takes ownership).
+    fn into_inner(self) -> MpInt {
+        let m = core::mem::ManuallyDrop::new(self);
+        // SAFETY: `m` is not dropped (ManuallyDrop), so the mp_int is not cleared
+        // here; ownership moves to the returned value.
+        unsafe { core::ptr::read(&m.0) }
+    }
+}
+
+impl Drop for Mp {
+    fn drop(&mut self) {
+        // SAFETY: `self.0` is a live, owned mp_int.
+        unsafe { mp_clear(&mut self.0) }
+    }
+}
+
+/// An operand read off a `TclObj` for arithmetic — one tower rung.
+enum NumVal {
+    /// A wide integer.
+    Wide(i64),
+    /// A bignum (owned).
+    Big(Mp),
+    /// A floating-point value.
+    Float(f64),
+}
+
+/// Read a numeric operand from an object: its typed rep when it has one, else
+/// parse its string via the shared [`tcl_syntax::number`] grammar. Returns
+/// `None` for a non-numeric string or a NaN operand (the caller raises the
+/// "can't use … as operand" error).
+fn read(obj: *mut TclObj) -> Option<NumVal> {
+    let tp = obj::obj_type_ptr(obj);
+    if tp == &obj::TCL_INT_TYPE {
+        return Some(NumVal::Wide(obj::wide_of(obj)));
+    }
+    if tp == &obj::TCL_DOUBLE_TYPE {
+        return Some(NumVal::Float(obj::double_of(obj)));
+    }
+    if tp == &TCL_BIGNUM_TYPE {
+        return Some(NumVal::Big(Mp::copy_of(mp_ptr(obj))?));
+    }
+    // Untyped (or other): classify the string rep.
+    let bytes = obj::bytes_of(obj);
+    let s = core::str::from_utf8(&bytes).ok()?;
+    use tcl_syntax::number::Number;
+    match tcl_syntax::number::parse_whole(s)? {
+        Number::Int(v) => Some(NumVal::Wide(v)),
+        Number::Double(d) => Some(NumVal::Float(d)),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let mut m = zeroed_mp();
+            let mut c = Vec::with_capacity(digits.len() + 2);
+            if negative {
+                c.push(b'-');
+            }
+            c.extend_from_slice(digits.as_bytes());
+            c.push(0);
+            // SAFETY: init then parse the cleaned digits into `m`.
+            unsafe {
+                if mp_init(&mut m) != MP_OKAY {
+                    return None;
+                }
+                if mp_read_radix(&mut m, c.as_ptr() as *const c_char, radix as c_int) != MP_OKAY {
+                    mp_clear(&mut m);
+                    return None;
+                }
+            }
+            Some(NumVal::Big(Mp(m)))
+        }
+        Number::Nan { .. } => None,
+    }
+}
+
+/// Materialise a tower value as a fresh object, demoting a bignum that fits.
+fn to_obj(v: NumVal) -> *mut TclObj {
+    match v {
+        NumVal::Wide(w) => obj::new_wide_int_obj(w),
+        NumVal::Float(f) => obj::new_double_obj(f),
+        NumVal::Big(mp) => store(mp.into_inner()),
+    }
+}
+
+/// The integer binary operators routed through the bignum path.
+#[derive(Clone, Copy)]
+enum IntOp {
+    Add,
+    Sub,
+    Mul,
+}
+
+/// Apply an integer op to two bignums (promoting the wide fast path's overflow).
+fn int_big(op: IntOp, a: *const MpInt, b: *const MpInt) -> Option<NumVal> {
+    let mut out = Mp::zero()?;
+    let f = match op {
+        IntOp::Add => mp_add,
+        IntOp::Sub => mp_sub,
+        IntOp::Mul => mp_mul,
+    };
+    // SAFETY: `a`/`b` are live mp_ints; `out` is freshly initialised.
+    (unsafe { f(a, b, &mut out.0) } == MP_OKAY).then_some(NumVal::Big(out))
+}
+
+/// The shared dispatch for `+`/`-`/`*`: wide fast path with overflow→bignum, the
+/// bignum path when either operand is big, and double promotion when either is a
+/// float. Returns `None` only on a non-numeric operand or allocation failure.
+fn arith(op: IntOp, a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+    let x = read(a)?;
+    let y = read(b)?;
+    let v = match (x, y) {
+        // Float promotion: mixed or both float → double result.
+        (NumVal::Float(p), q) => NumVal::Float(float_op(op, p, as_f64(q))),
+        (p, NumVal::Float(q)) => NumVal::Float(float_op(op, as_f64(p), q)),
+        // Wide fast path: checked op, overflow → bignum.
+        (NumVal::Wide(p), NumVal::Wide(q)) => match wide_op(op, p, q) {
+            Some(w) => NumVal::Wide(w),
+            None => int_big(op, Mp::from_i64(p)?.ptr(), Mp::from_i64(q)?.ptr())?,
+        },
+        // At least one bignum → bignum path.
+        (p, q) => {
+            let pm = into_mp(p)?;
+            let qm = into_mp(q)?;
+            int_big(op, pm.ptr(), qm.ptr())?
+        }
+    };
+    Some(to_obj(v))
+}
+
+#[inline]
+fn wide_op(op: IntOp, a: i64, b: i64) -> Option<i64> {
+    match op {
+        IntOp::Add => a.checked_add(b),
+        IntOp::Sub => a.checked_sub(b),
+        IntOp::Mul => a.checked_mul(b),
+    }
+}
+
+#[inline]
+fn float_op(op: IntOp, a: f64, b: f64) -> f64 {
+    match op {
+        IntOp::Add => a + b,
+        IntOp::Sub => a - b,
+        IntOp::Mul => a * b,
+    }
+}
+
+#[inline]
+fn as_f64(v: NumVal) -> f64 {
+    match v {
+        NumVal::Wide(w) => w as f64,
+        NumVal::Float(f) => f,
+        // SAFETY: `v` is a live bignum; libtommath's double conversion.
+        NumVal::Big(mp) => unsafe { mp_get_double(mp.ptr()) },
+    }
+}
+
+/// Promote a wide/bignum operand to an owned `mp_int` (errors on a float).
+fn into_mp(v: NumVal) -> Option<Mp> {
+    match v {
+        NumVal::Wide(w) => Mp::from_i64(w),
+        NumVal::Big(mp) => Some(mp),
+        NumVal::Float(_) => None,
+    }
+}
+
+/// `a + b` over the tower. Returns a fresh object, or `None` on a non-numeric
+/// operand / allocation failure.
+#[must_use]
+pub fn add(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+    arith(IntOp::Add, a, b)
+}
+
+/// `a - b` over the tower.
+#[must_use]
+pub fn sub(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+    arith(IntOp::Sub, a, b)
+}
+
+/// `a * b` over the tower.
+#[must_use]
+pub fn mul(a: *mut TclObj, b: *mut TclObj) -> Option<*mut TclObj> {
+    arith(IntOp::Mul, a, b)
+}
+
+/// `-a` over the tower (wide negation promotes only at `i64::MIN`).
+#[must_use]
+pub fn neg(a: *mut TclObj) -> Option<*mut TclObj> {
+    let v = match read(a)? {
+        NumVal::Wide(w) => match w.checked_neg() {
+            Some(n) => NumVal::Wide(n),
+            None => {
+                // i64::MIN — promote to bignum.
+                let mut out = Mp::zero()?;
+                let src = Mp::from_i64(w)?;
+                // SAFETY: live mp_ints.
+                if unsafe { mp_neg(src.ptr(), &mut out.0) } != MP_OKAY {
+                    return None;
+                }
+                NumVal::Big(out)
+            }
+        },
+        NumVal::Float(f) => NumVal::Float(-f),
+        NumVal::Big(mp) => {
+            let mut out = Mp::zero()?;
+            // SAFETY: live mp_ints.
+            if unsafe { mp_neg(mp.ptr(), &mut out.0) } != MP_OKAY {
+                return None;
+            }
+            NumVal::Big(out)
+        }
+    };
+    Some(to_obj(v))
 }
 
 /// The `bignum` type descriptor (the shimmer keystone for arbitrary-precision
@@ -263,6 +523,112 @@ mod tests {
             obj::decr_ref_count(d);
             obj::decr_ref_count(o);
         }
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    // ---- tower arithmetic ----
+    //
+    // Helpers own (`rc 1`) every operand + result and release them, so each test
+    // ends leak-clean. The ops *borrow* operands (never consume them).
+
+    fn rc1(o: *mut TclObj) -> *mut TclObj {
+        unsafe { obj::incr_ref_count(o) };
+        o
+    }
+    fn drop1(o: *mut TclObj) {
+        unsafe { obj::decr_ref_count(o) };
+    }
+    fn int_obj(v: i64) -> *mut TclObj {
+        rc1(obj::new_wide_int_obj(v))
+    }
+
+    /// Apply a binary op to two operands, returning `(string, type)`; releases
+    /// the operands and the result.
+    fn binop(
+        f: fn(*mut TclObj, *mut TclObj) -> Option<*mut TclObj>,
+        a: *mut TclObj,
+        b: *mut TclObj,
+    ) -> (Vec<u8>, &'static str) {
+        let r = rc1(f(a, b).expect("numeric"));
+        let out = (string_of(r), type_name(r));
+        drop1(r);
+        drop1(a);
+        drop1(b);
+        out
+    }
+
+    /// A fresh (`rc 1`) `2**63` bignum object (just past a wide).
+    fn two_pow_63() -> *mut TclObj {
+        let a = int_obj(i64::MAX);
+        let b = int_obj(1);
+        let r = rc1(add(a, b).expect("add"));
+        drop1(a);
+        drop1(b);
+        r
+    }
+
+    #[test]
+    fn wide_overflows_to_bignum_then_demotes() {
+        crate::counters::reset();
+        // i64::MAX + 1 → bignum
+        let (s, t) = binop(add, int_obj(i64::MAX), int_obj(1));
+        assert_eq!(s, b"9223372036854775808");
+        assert_eq!(t, "bignum");
+        // (2**63) - 1 → demotes back to a wide
+        let (s, t) = binop(sub, two_pow_63(), int_obj(1));
+        assert_eq!(s, b"9223372036854775807");
+        assert_eq!(t, "int/other");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn wide_fast_path_stays_wide() {
+        crate::counters::reset();
+        assert_eq!(binop(add, int_obj(2), int_obj(40)).0, b"42");
+        assert_eq!(
+            binop(mul, int_obj(6), int_obj(7)),
+            (b"42".to_vec(), "int/other")
+        );
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn bignum_times_bignum() {
+        crate::counters::reset();
+        // (2**63) * (2**63) = 2**126
+        let (s, t) = binop(mul, two_pow_63(), two_pow_63());
+        assert_eq!(s, b"85070591730234615865843651857942052864");
+        assert_eq!(t, "bignum");
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn double_promotion_and_neg() {
+        crate::counters::reset();
+        // 2 + 0.5 → 2.5 (double)
+        let (s, t) = binop(add, int_obj(2), rc1(obj::new_double_obj(0.5)));
+        assert_eq!(s, b"2.5");
+        assert_eq!(t, "int/other"); // a double (non-bignum, non-string)
+                                    // -i64::MIN promotes to bignum
+        let m = int_obj(i64::MIN);
+        let r = rc1(neg(m).expect("neg"));
+        assert_eq!(string_of(r), b"9223372036854775808");
+        assert_eq!(type_name(r), "bignum");
+        drop1(r);
+        drop1(m);
+        assert_eq!(crate::counters::finalize(), 0);
+    }
+
+    #[test]
+    fn reads_numeric_strings_via_grammar() {
+        crate::counters::reset();
+        // plain-string operands get classified by the shared `tcl_syntax::number`
+        let (s, _) = binop(
+            add,
+            rc1(obj::new_string_bytes(b"0xff")),
+            rc1(obj::new_string_bytes(b"1")),
+        );
+        assert_eq!(s, b"256");
         assert_eq!(crate::counters::finalize(), 0);
     }
 }
