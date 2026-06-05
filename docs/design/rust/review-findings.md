@@ -204,8 +204,17 @@ everything around it.
 - **P2 — Make the `range` provider actually range-bounded.** `range`
   calls `collect_entries` over the whole document and then `retain`s
   to the viewport (`semantic_tokens.rs:179`), doing no less work than
-  `full` — defeating the editor's viewport fast-path. The segmenter
-  already accepts an offset; segment only from the range's start.
+  `full` — defeating the editor's viewport fast-path. Narrowing it is
+  subtler than it looks: `segment_commands_with_offset_and_config`
+  only relocates offsets for the text it is handed, so lexing from the
+  viewport's start would drop the enclosing-delimiter context and
+  misclassify tokens inside a multi-line construct — the second line
+  of `set x {line1\nline2}` would be read as code, not string content.
+  A correct narrowing must lex from a safe enclosing synchronisation
+  point (the start of the enclosing top-level command), not the raw
+  viewport offset; until that context-aware slicing exists, the
+  full-tokenise-then-filter path is the correct fallback, so P1
+  (pre-warming) is the safer TTFST win.
 - **P3 — Share / lazy-static the registry.** `Analyser::analyse`
   rebuilds the entire registry inside every call
   (`rust/tcl-compiler/src/analyser/state.rs:359`), ignoring the
