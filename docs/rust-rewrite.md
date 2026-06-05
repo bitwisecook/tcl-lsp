@@ -4415,12 +4415,22 @@ new provider on a `spawn_blocking` worker.  Bare/qualified `::` spellings
 unify via a `strip_colons` tail compare; results are de-duplicated +
 ordered by start offset (`BTreeSet`).  4 unit tests (class subclasses;
 method all-definers; method self+descendant-override; unknown word).
-**Remaining strips:** strip 2 — `goto_type_definition` (variable→class via
-`analysis.instance_classes`, the Rust analyser's OBJECT-type surface; +
-the method-receiver→enclosing-class path); strip 3 — `goto_declaration`'s
-distinct `variable` / `global` / `upvar` declaration-site walk.
-Cross-document subclass/override fan-out (Python's `workspace_classes`) is
-a follow-up on the single-document base.
+**LANDED (strip 2 — `goto_type_definition`, 2026-06-05).**  New
+`tcl-lsp-core/src/type_definition.rs` ports
+`type_definition.py::get_type_definition`: a **variable receiver** (`$obj`)
+jumps to its inferred class via `AnalysisResult::instance_classes` (the
+Rust analyser's equivalent of Python's `TypeLattice.object_of` /
+`class_name` — populated for `set v [C new]` / `set v [C create n]` /
+`C create v`), and a **method receiver** (a bare word inside a class body
+that names one of that class's methods) jumps to the enclosing class's
+definition.  `goto_type_definition` no longer aliases `compute_definition`.
+4 unit tests (var→class; var-without-class→empty; method-word-in-body→
+class; unrelated word→empty).
+**Remaining strip:** strip 3 — `goto_declaration`'s distinct `variable` /
+`global` / `upvar` declaration-site walk (it still aliases
+`compute_definition`).  Cross-document subclass/override fan-out (Python's
+`workspace_classes`) for `goto_implementation` is a follow-up on the
+single-document base.
 
 **GAP-B4 — `type_infer.rs` over-approximates three expr classes to
 `Overdefined`.**  Where Python infers a type, Rust returns
@@ -4651,7 +4661,7 @@ to the chunk-log entry that has the full spec.
 | Priority | Chunk | Why now |
 |---|---|---|
 | — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05; strip 1 LANDED 2026-06-05.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs`) now merges `lift_compiler_diagnostics` — `compiler_checks::run_all_checks` (taint / iRules-flow / shimmer / thunking / GVN / SCCP) **and** `optimiser::optimise_with_dialect` (O-codes, HINT severity) — over the per-document dialect-aware registry, alongside the base `Analyser::analyse()` set.  Two unit tests pin it (O100 fold; IRULE3001 taint flow).  **Strip 2 remaining:** the source-style pass (line-length / trailing-whitespace / line-endings / comment-continuation / missing-`package require`) lands with the GAP-A8 `_style.py` port; feature-config toggles (checks currently run unconditionally — Python default); CU-sharing to avoid the double lowering.  See GAP-AUDIT-JUN05 §C1. |
-| — | `GAP-B3` (goto-type-definition / goto-declaration) | **Strip 1 (`goto_implementation`) LANDED 2026-06-05.**  New `tcl-lsp-core/src/implementation.rs` ports the TclOO subclass / method-override fan-out (`implementation.py`); `goto_implementation` no longer aliases `compute_definition`.  4 unit tests.  **Remaining:** strip 2 — `goto_type_definition` (variable→class via `analysis.instance_classes`; method-receiver→enclosing-class) — still aliases `compute_definition`; strip 3 — `goto_declaration`'s `variable`/`global`/`upvar` declaration-site walk.  Cross-document fan-out is a follow-up.  See §B3. |
+| — | `GAP-B3` (goto-declaration) | **Strips 1-2 LANDED 2026-06-05.**  `goto_implementation` (`tcl-lsp-core/src/implementation.rs` — TclOO subclass / method-override fan-out) and `goto_type_definition` (`tcl-lsp-core/src/type_definition.rs` — `$obj`→inferred class via `instance_classes`, method→owning class) are real now; neither aliases `compute_definition`.  8 unit tests.  **Remaining:** strip 3 — `goto_declaration`'s distinct `variable`/`global`/`upvar` declaration-site walk (still aliases `compute_definition`).  Cross-document fan-out is a follow-up.  See §B3. |
 | — | `GAP-B1` (O127 forwarding) | **`GAP-B2` LANDED 2026-06-05; B1 remaining.**  GVN code relabel is done — loop-invariant → **O106**, partial redundancy → **O105**, O107 reserved for elimination's dead-code (matches canonical KCS + Python `gvn.py`; fixed a cross-layer differential where the `_rust_gvn_*` bridge disagreed with the Python fallback).  **Still open (B1):** O127 store-to-load forwarding is literal-only under **O102** — the computed-expr forwarding (`set x [cmd]` inlined to the single use site with memory-SSA / effect / version gating, emitting O127) is absent.  See §B2 / §B1. |
 | — | `GAP-A2` + `GAP-D2` (security-check family + granular taint fields) | **Highest-severity checks silently absent** (injection / ReDoS / hardcoded credentials).  Port the granular taint-sink `CommandSpec` fields, then the W102/W103/W300/W301/W303/W309/W310/W312 emitters (+ T106 / W313).  See §A2 / §D2. |
 | — | `GAP-B4` (expr type inference — `EXPR_FUNC_REGISTRY`) | **LANDED 2026-06-05.**  `type_infer.rs::infer_expr_type` now ports `EXPR_FUNC_REGISTRY` (`expr_call_type` — Int/Double/Boolean families + `abs` identity + `max`/`min` join), gives the iRules string predicates + word-logical ops the Boolean arm (`BinOp` match now exhaustive — no `overdefined()` fall-through), forces Int for bitwise/shift, and ports `_arithmetic_result` (DOUBLE promotion).  Four unit tests; lib suite green.  See §B4. |

@@ -45,6 +45,7 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::workspace_index as core_workspace_index;
 // type_hierarchy core provider lands when tower-lsp's
 // LanguageServer trait exposes the type-hierarchy methods.
@@ -1441,16 +1442,41 @@ impl LanguageServer for Backend {
         &self,
         params: GotoTypeDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoTypeDefinitionResponse>> {
+        // GAP-B3 strip 2: type-definition jumps to the class that types
+        // the symbol (a `$obj` instance's class, or a method's owning
+        // class) — not the plain definition site it used to alias.
         let uri = params
             .text_document_position_params
             .text_document
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
-        let locations = self.compute_definition(&uri, pos).await?;
-        if locations.is_empty() {
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let text = doc.text.clone();
+        let ranges = tokio::task::spawn_blocking(move || {
+            core_type_definition::type_definition(&text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("type-definition worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
             return Ok(None);
         }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
         Ok(Some(GotoTypeDefinitionResponse::Array(locations)))
     }
 
