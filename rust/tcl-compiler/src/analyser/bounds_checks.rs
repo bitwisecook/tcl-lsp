@@ -13,9 +13,21 @@
 //! constant true/false literal) yields no diagnostic, avoiding false
 //! positives.
 
-use tcl_lexer::Token;
+use tcl_lexer::{tokenise_expr, ExprToken, ExprTokenType, Token, TokenType};
+
+use crate::segmenter::{segment_commands, SegmentedCommand};
 
 use super::types::{Diagnostic, Severity};
+
+/// The comparison operators a simple `for`-condition may use.
+const SIMPLE_CMP_OPS: &[&str] = &["<=", ">=", "<", ">", "==", "!=", "eq", "ne"];
+
+/// Command names that write their first argument (used by the
+/// loop-counter modification scan).
+const WRITE_COMMANDS: &[&str] = &["set", "incr", "lset", "append", "lappend"];
+
+/// Command names that can break out of / leave a loop body.
+const EXIT_COMMANDS: &[&str] = &["break", "return", "error", "exit"];
 
 /// W240 (constant-false condition → dead body) / W241 (constant-true
 /// condition with no `break`/`return`/`error`/`exit` → provably
@@ -103,12 +115,40 @@ pub(crate) fn loop_termination_diagnostics(
     Vec::new()
 }
 
-/// Return the first `$var` / `${var}` referenced by a condition
-/// expression, or `None`.  Mirrors `_extract_counter_name`.
+/// Return the scalar name of the first variable referenced by a
+/// condition expression, or `None`.  Mirrors `_extract_counter_name`.
+///
+/// The condition is tokenised with the expression lexer (CST level) and
+/// the first `Variable` token is taken; its leading scalar name is then
+/// read off the token text.
 fn extract_counter_name(cond: &str) -> Option<String> {
-    let re = regex::Regex::new(r"\$\{?(\w+)\}?").expect("valid counter regex");
-    re.captures(strip_braces(cond))
-        .map(|cap| cap[1].to_string())
+    let tokens = tokenise_expr(strip_braces(cond), None);
+    let var = tokens.iter().find(|t| t.kind == ExprTokenType::Variable)?;
+    var_scalar_name(&var.text)
+}
+
+/// The leading scalar name of a `Variable` token's text — the `name`
+/// portion of `$name`, `${name}`, `$name(idx)`, `$ns::name` (taking the
+/// first word run, mirroring the original `\$\{?(\w+)\}?` capture).
+fn var_scalar_name(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'$') {
+        return None;
+    }
+    let mut i = 1;
+    if bytes.get(i) == Some(&b'{') {
+        i += 1;
+    }
+    let start = i;
+    while i < bytes.len() && is_word_byte(bytes[i]) {
+        i += 1;
+    }
+    (i > start).then(|| text[start..i].to_string())
+}
+
+/// A `\w` byte: ASCII alphanumeric or underscore.
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
 }
 
 /// True when the step expression or the body provably updates `var`.
@@ -198,86 +238,186 @@ fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
 /// `(var, op, bound)` when `cond` is exactly `$v OP literal` or
 /// `literal OP $v` (no compound `&&` / `||` / `?` / `!`).  Mirrors
 /// `_parse_simple_for_cond`.
+///
+/// The condition is tokenised with the expression lexer.  Exactly one
+/// comparison operator must split it into a single-variable side and a
+/// signed-integer side; any logical / ternary operator, or a second
+/// comparison, disqualifies it as compound.
 fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
-    let c = strip_braces(cond);
-    // Compound markers disqualify (Rust regex has no look-behind, so the
-    // lone-`!` case is checked manually: a `!` not part of `!=`).
-    if c.contains("&&") || c.contains("||") || c.contains('?') || has_logical_not(c) {
-        return None;
+    let all = tokenise_expr(strip_braces(cond), None);
+    let tokens: Vec<&ExprToken> = all
+        .iter()
+        .filter(|t| !matches!(t.kind, ExprTokenType::Whitespace | ExprTokenType::Eof))
+        .collect();
+    // Locate the single comparison operator; reject compound conditions.
+    let mut split = None;
+    for (i, t) in tokens.iter().enumerate() {
+        if matches!(t.kind, ExprTokenType::TernaryQ | ExprTokenType::TernaryC) {
+            return None;
+        }
+        if t.kind == ExprTokenType::Operator {
+            if matches!(t.text.as_str(), "&&" | "||" | "!") {
+                return None;
+            }
+            if SIMPLE_CMP_OPS.contains(&t.text.as_str()) {
+                if split.is_some() {
+                    return None; // a second comparison → compound
+                }
+                split = Some(i);
+            }
+        }
     }
-    let fwd = regex::Regex::new(
-        r"^\s*\$\{?(?P<v>\w+)\}?\s*(?P<op><=|>=|<|>|==|!=|eq|ne)\s*(?P<bound>-?\d+)\s*$",
-    )
-    .expect("valid counter regex");
-    if let Some(m) = fwd.captures(c) {
-        return Some((
-            m["v"].to_string(),
-            m["op"].to_string(),
-            m["bound"].parse().ok()?,
-        ));
+    let at = split?;
+    let (lhs, rhs) = (&tokens[..at], &tokens[at + 1..]);
+    let op = tokens[at].text.as_str();
+    // `$v OP int`
+    if let (Some(v), Some(bound)) = (tokens_as_scalar_var(lhs), tokens_as_int(rhs)) {
+        return Some((v, op.to_string(), bound));
     }
-    let rev = regex::Regex::new(
-        r"^\s*(?P<bound>-?\d+)\s*(?P<op><=|>=|<|>|==|!=|eq|ne)\s*\$\{?(?P<v>\w+)\}?\s*$",
-    )
-    .expect("valid reversed counter regex");
-    if let Some(m) = rev.captures(c) {
-        // Flip the operator so the variable is on the left.
-        let op = match &m["op"] {
-            "<" => ">",
-            ">" => "<",
-            "<=" => ">=",
-            ">=" => "<=",
-            other => other,
-        };
-        return Some((m["v"].to_string(), op.to_string(), m["bound"].parse().ok()?));
+    // `int OP $v` — flip the operator so the variable is on the left.
+    if let (Some(bound), Some(v)) = (tokens_as_int(lhs), tokens_as_scalar_var(rhs)) {
+        return Some((v, flip_comparison(op).to_string(), bound));
     }
     None
 }
 
-/// True when `c` contains a logical-not `!` that is not part of `!=`
-/// and not preceded by `< > = !`.  Mirrors the `(?<![<>=!])!(?!=)`
-/// alternative of `_COMPOUND_MARKERS_RE`.
-fn has_logical_not(c: &str) -> bool {
-    let b = c.as_bytes();
-    for (i, &ch) in b.iter().enumerate() {
-        if ch != b'!' {
-            continue;
-        }
-        let prev_ok = i == 0 || !matches!(b[i - 1], b'<' | b'>' | b'=' | b'!');
-        let next_ok = b.get(i + 1) != Some(&b'=');
-        if prev_ok && next_ok {
-            return true;
-        }
+/// A single `Variable` token slice → its scalar name.
+fn tokens_as_scalar_var(tokens: &[&ExprToken]) -> Option<String> {
+    match tokens {
+        [v] if v.kind == ExprTokenType::Variable => var_scalar_name(&v.text),
+        _ => None,
     }
-    false
+}
+
+/// A signed-integer token slice — a `Number`, optionally preceded by a
+/// unary `+` / `-` operator (the expression lexer tokenises `-5` as two
+/// tokens).  Returns the value when the slice is exactly that shape.
+fn tokens_as_int(tokens: &[&ExprToken]) -> Option<i64> {
+    match tokens {
+        [num] if num.kind == ExprTokenType::Number => parse_decimal(&num.text),
+        [sign, num]
+            if sign.kind == ExprTokenType::Operator && num.kind == ExprTokenType::Number =>
+        {
+            let value = parse_decimal(&num.text)?;
+            match sign.text.as_str() {
+                "-" => Some(-value),
+                "+" => Some(value),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Parse an unsigned decimal integer literal (`\d+`), rejecting floats
+/// and signs (the sign is handled by the caller).
+fn parse_decimal(text: &str) -> Option<i64> {
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
+}
+
+/// Flip a comparison operator left-to-right (`<` ↔ `>`, `<=` ↔ `>=`);
+/// symmetric operators are unchanged.
+fn flip_comparison(op: &str) -> &str {
+    match op {
+        "<" => ">",
+        ">" => "<",
+        "<=" => ">=",
+        ">=" => "<=",
+        other => other,
+    }
 }
 
 /// `(var, value)` from an init clause `set v INT`.  Mirrors
-/// `_parse_init_var_value`.
+/// `_parse_init_var_value`.  Parsed via the segmenter: a lone `set`
+/// command with a scalar-name word and a signed-integer literal.
 fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
-    let re = regex::Regex::new(r"^\s*set\s+(\w+)\s+(-?\d+)\s*$").expect("valid init regex");
-    let m = re.captures(strip_braces(init).trim())?;
-    Some((m[1].to_string(), m[2].parse().ok()?))
+    let cmd = sole_command(init)?;
+    if cmd.name() != "set" {
+        return None;
+    }
+    let args = cmd.args();
+    if args.len() != 2 {
+        return None;
+    }
+    let var = scalar_word(&args[0])?;
+    let value = parse_signed_decimal(&args[1])?;
+    Some((var, value))
 }
 
 /// `(var, delta)` from a step clause `incr v ?INT?`.  Mirrors
-/// `_parse_step_incr`.
+/// `_parse_step_incr`.  Parsed via the segmenter; a missing delta
+/// defaults to `1`.
 fn parse_step_incr(step: &str) -> Option<(String, i64)> {
-    let re = regex::Regex::new(r"^\s*incr\s+(\w+)(?:\s+(-?\d+))?\s*$").expect("valid step regex");
-    let m = re.captures(strip_braces(step).trim())?;
-    let delta = m.get(2).map_or(Some(1), |g| g.as_str().parse().ok())?;
-    Some((m[1].to_string(), delta))
+    let cmd = sole_command(step)?;
+    if cmd.name() != "incr" {
+        return None;
+    }
+    match cmd.args() {
+        [v] => Some((scalar_word(v)?, 1)),
+        [v, delta] => Some((scalar_word(v)?, parse_signed_decimal(delta)?)),
+        _ => None,
+    }
 }
 
-/// Shallow scan: does `body` write `var` via `set` / `incr` / `lset` /
-/// `append` / `lappend`?  Mirrors `_body_writes_var`.
+/// The single command in `fragment` (after stripping an enclosing brace
+/// pair), or `None` when it segments to zero or more than one command.
+fn sole_command(fragment: &str) -> Option<SegmentedCommand> {
+    let mut cmds = segment_commands(strip_braces(fragment).trim());
+    match cmds.len() {
+        1 => cmds.pop(),
+        _ => None,
+    }
+}
+
+/// A scalar variable name word — non-empty and all `\w` bytes (no array
+/// index, namespace qualifier, or substitution).
+fn scalar_word(word: &str) -> Option<String> {
+    if !word.is_empty() && word.bytes().all(is_word_byte) {
+        Some(word.to_string())
+    } else {
+        None
+    }
+}
+
+/// Parse a signed decimal integer literal (`-?\d+`); `+`-signs and
+/// non-decimal forms are rejected.
+fn parse_signed_decimal(word: &str) -> Option<i64> {
+    let digits = word.strip_prefix('-').unwrap_or(word);
+    parse_decimal(digits).map(|v| if word.starts_with('-') { -v } else { v })
+}
+
+/// Does `body` write `var` via `set` / `incr` / `lset` / `append` /
+/// `lappend`?  Mirrors `_body_writes_var`, but resolves commands with
+/// the segmenter (recursing into braced/quoted word bodies) rather than
+/// a flat-text scan, so writes inside string arguments don't count and
+/// nested-body writes still do.
 fn body_writes_var(body: &str, var: &str) -> bool {
-    let escaped = regex::escape(var);
-    for kw in ["set", "incr", "lset", "append", "lappend"] {
-        let re =
-            regex::Regex::new(&format!(r"\b{kw}\s+{escaped}\b")).expect("valid body-write regex");
-        if re.is_match(body) {
+    any_command_recursive(body, &mut |cmd| {
+        WRITE_COMMANDS.contains(&cmd.name()) && cmd.args().first().map(String::as_str) == Some(var)
+    })
+}
+
+/// Walk every command in `script`, recursing into braced / quoted word
+/// arguments (which may be nested scripts), and return `true` as soon as
+/// `pred` matches.  The shallow-but-structural replacement for the
+/// flat-text body scans.
+fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) -> bool) -> bool {
+    for cmd in segment_commands(script) {
+        if pred(&cmd) {
             return true;
+        }
+        let args = cmd.args();
+        for (i, tok) in cmd.arg_tokens().iter().enumerate() {
+            if tok.kind == TokenType::Str {
+                if let Some(inner) = args.get(i) {
+                    if any_command_recursive(inner, pred) {
+                        return true;
+                    }
+                }
+            }
         }
     }
     false
@@ -468,10 +608,10 @@ pub(crate) fn lset_index_diagnostics(
 }
 
 /// Recover the literal length of `var_name` from the most recent
-/// `set var {literal}` before `before_offset`, when that assignment
-/// shares the `lset`'s (flat) scope.  Mirrors
-/// `_infer_list_length_from_recent_set` (the regex excludes brace-bearing
-/// values, so the captured literal can't hide nested braces).
+/// top-level `set var {literal}` before `before_offset`, when that
+/// assignment shares the `lset`'s (flat) scope.  Mirrors
+/// `_infer_list_length_from_recent_set` (only brace-free braced literals
+/// are trusted, so the captured literal can't hide nested braces).
 fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
@@ -481,59 +621,40 @@ fn infer_list_length_from_recent_set(
     if before == 0 || before > source.len() || var_name.is_empty() {
         return None;
     }
-    // `set <var> {literal}` at a line start (no lookahead — the trailing
-    // `\s*(?:;|$)` matches Python's `\s*(?=\n|$|;)` under `(?m)`).
-    let re = regex::Regex::new(r"(?m)^\s*set\s+(\w+)\s+(\{[^{}]*\})\s*(?:;|$)")
-        .expect("valid list-set regex");
+    // Segment the text preceding the `lset` and take the most recent
+    // *top-level* `set <var> {flat-literal}`.  Top-level segmentation
+    // inherently enforces the shared-flat-scope requirement: a `set`
+    // nested inside a `proc` / `namespace eval` / … body is not a
+    // top-level command here, so its length never leaks to a top-level
+    // `lset` (the old `scope_is_flat` brace-depth check is subsumed).
+    let prefix = &source[..before];
+    let bytes = source.as_bytes();
     let mut best: Option<i64> = None;
-    for cap in re.captures_iter(&source[..before]) {
-        if &cap[1] != var_name {
+    for cmd in segment_commands(prefix) {
+        if cmd.name() != "set" {
             continue;
         }
-        let whole = cap.get(0).expect("match 0");
-        let between = &source[whole.end()..before];
-        if !scope_is_flat(between) {
+        let args = cmd.args();
+        if args.len() != 2 || args[0] != var_name {
             continue;
         }
-        let literal = &cap[2];
-        let inner = &literal[1..literal.len() - 1];
+        // The value word must be a *braced* literal (delimiter `{`) with
+        // no nested braces, so its element count is unambiguous.
+        let Some(tok) = cmd.arg_tokens().get(1) else {
+            continue;
+        };
+        if tok.kind != TokenType::Str || bytes.get(tok.span.start() as usize) != Some(&b'{') {
+            continue;
+        }
+        let inner = &args[1];
+        if inner.bytes().any(|b| b == b'{' || b == b'}') {
+            continue;
+        }
         let len =
             i64::try_from(crate::tcl_expr_eval::split_tcl_list(inner).len()).unwrap_or(i64::MAX);
         best = Some(len);
     }
     best
-}
-
-/// True when `between` stays at brace depth 0 and introduces no
-/// `proc` / `namespace eval` / `apply` / `try` scope — i.e. the trailing
-/// `lset` shares the originating `set`'s scope.  Mirrors `_scope_is_flat`.
-fn scope_is_flat(between: &str) -> bool {
-    let markers = regex::Regex::new(r"\b(?:proc|namespace\s+eval|apply|try)\b")
-        .expect("valid scope-marker regex");
-    if markers.is_match(between) {
-        return false;
-    }
-    let bytes = between.as_bytes();
-    let mut depth: i64 = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' if i + 1 < bytes.len() => {
-                i += 2;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    depth == 0
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -836,20 +957,13 @@ fn condition_constant(cond: &str) -> Option<bool> {
 }
 
 /// True when `body` contains a `break` / `return` / `error` / `exit`
-/// keyword (shallow scan).  Mirrors `_body_may_exit` /
-/// `_BREAK_RE = (?<![\w:-])(break|return|error|exit)\b` — Rust regex
-/// has no look-behind, so the `:` / `-` prefix exclusion is applied as
-/// a post-filter on each `\b`-anchored match.
+/// command (shallow, structural scan).  Mirrors `_body_may_exit`.
+///
+/// Resolved via the segmenter (recursing into nested bodies) so only a
+/// command in *command position* counts — a `break` appearing as a bare
+/// argument no longer triggers a false exit.
 fn body_may_exit(body: &str) -> bool {
-    let re = regex::Regex::new(r"\b(break|return|error|exit)\b").expect("valid keyword regex");
-    let bytes = body.as_bytes();
-    for m in re.find_iter(body) {
-        let start = m.start();
-        if start == 0 || !matches!(bytes[start - 1], b':' | b'-') {
-            return true;
-        }
-    }
-    false
+    any_command_recursive(body, &mut |cmd| EXIT_COMMANDS.contains(&cmd.name()))
 }
 
 #[cfg(test)]
@@ -916,12 +1030,55 @@ mod tests {
             Some(("i".into(), "<".into(), 10)), // flipped
         );
         assert_eq!(super::parse_simple_for_cond("$i < 10 && 0"), None);
+        // Negative bound: the expression lexer splits `-5` into a unary
+        // `-` plus `5`, which the signed-integer folding reassembles.
+        assert_eq!(
+            super::parse_simple_for_cond("$i > -5"),
+            Some(("i".into(), ">".into(), -5)),
+        );
+        assert_eq!(
+            super::parse_simple_for_cond("-5 < $i"),
+            Some(("i".into(), ">".into(), -5)), // flipped
+        );
+        // String comparison operators are accepted; braces are stripped.
+        assert_eq!(
+            super::parse_simple_for_cond("{$i ne 3}"),
+            Some(("i".into(), "ne".into(), 3)),
+        );
+        // `${i}` braced variable form and `==`.
+        assert_eq!(
+            super::parse_simple_for_cond("${i} == 7"),
+            Some(("i".into(), "==".into(), 7)),
+        );
+        // Compound / logical / ternary / non-integer bounds reject.
+        assert_eq!(super::parse_simple_for_cond("$i < 10 || $j > 0"), None);
+        assert_eq!(super::parse_simple_for_cond("!$done"), None);
+        assert_eq!(super::parse_simple_for_cond("$i ? 1 : 0"), None);
+        assert_eq!(super::parse_simple_for_cond("$i < 10.5"), None);
         assert_eq!(
             super::parse_init_var_value("set i 5"),
             Some(("i".into(), 5))
         );
+        // A non-`set` command, extra words, or a non-integer value reject.
+        assert_eq!(super::parse_init_var_value("incr i 5"), None);
+        assert_eq!(super::parse_init_var_value("set i 5 6"), None);
+        assert_eq!(super::parse_init_var_value("set i foo"), None);
         assert_eq!(super::parse_step_incr("incr i"), Some(("i".into(), 1)));
         assert_eq!(super::parse_step_incr("incr i -2"), Some(("i".into(), -2)));
+        assert_eq!(super::parse_step_incr("set i 3"), None);
+    }
+
+    #[test]
+    fn body_scans_are_command_structural() {
+        // A write counts only in command position, not inside a string.
+        assert!(super::body_writes_var("incr i", "i"));
+        assert!(super::body_writes_var("if {$c} {set i 9}", "i")); // nested body
+        assert!(!super::body_writes_var("puts \"set i now\"", "i")); // inside a string
+        assert!(!super::body_writes_var("incr index", "i")); // word boundary
+                                                             // `break` / `return` likewise count only as commands.
+        assert!(super::body_may_exit("break"));
+        assert!(super::body_may_exit("if {$c} {return}")); // nested
+        assert!(!super::body_may_exit("puts breakfast")); // not a command
     }
 
     fn idx_codes(src: &str) -> Vec<String> {
