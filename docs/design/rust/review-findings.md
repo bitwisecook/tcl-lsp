@@ -32,6 +32,10 @@ plus two concrete precision defects:
 4. **Nothing is shared or cached across the pipeline** — the full
    analysis pipeline and the command registry are rebuilt from
    scratch on every keystroke; this is the dominant performance cost.
+5. **Two parse representations coexist** — a token-loop segmenter and
+   the red-green CST, kept in agreement by hand. The layers link by
+   re-deriving from source rather than sharing one parsed spine. See
+   [Cross-layer integration](#cross-layer-integration-and-data-duplication).
 
 ## Correctness and precision
 
@@ -329,6 +333,129 @@ complete than the tracking docs implied (no `todo!` stubs); the
 genuinely unported block is the WASM emitter, which is out of scope
 for the LSP path.
 
+## Cross-layer integration and data duplication
+
+Several findings above share one root: how the layers link. The test
+applied here is the maintainer's — a derived index beside the parse
+tree (a line-break table) is acceptable; a second copy of the
+*structure* is not.
+
+### The shared spine (what is integrated)
+
+Two links are shared across every layer, and they are the right ones:
+one tokeniser (`tcl_lexer::Lexer` — nothing re-implements lexing) and
+one position primitive (`Span { start, end }`, `Copy`, threaded
+through tokens, IR, CFG, and diagnostics so any node points back into
+the source without copying). A line index co-located with the tree is
+already the pattern in the red layer (`SyntaxTree` holds `text` +
+`line_starts`, `red.rs:57`) — that is the acceptable shape. The rest
+of this section is where the code departs from it.
+
+### The break — two parse representations
+
+The lexer feeds two different structured representations, and
+downstream code is split between them:
+
+- **Token-loop segmenter** → `Vec<SegmentedCommand>` (`segmenter.rs`).
+  The production workhorse: lowering (`lowering/mod.rs:592`, `:607`,
+  `:1455`, …), semantic tokens, and the analyser's top-level walk —
+  **135** `segment_commands*` call sites.
+- **Red-green CST** → `SyntaxTree` (`parsing/syntax/green.rs`,
+  `red.rs`), ported in #533 as "the representation the whole pipeline
+  is meant to ride on," with its first production consumers landing in
+  #542: the analyser's `descend_token` / `descend_command`
+  (`analyser/commands.rs:868`, `:929`, `:984`).
+
+The two are kept in agreement **by hand**: `build.rs:240` carries a
+`DELIBERATE DIVERGENCE` comment pinning the CST builder to "the
+token-loop segmenter … this rebase's byte-identity oracle," and
+`tests/differential_segment.rs` exists solely to assert the CST
+reproduces the segmenter. The SYNC-JUN08 line-continuation case is a
+drift that already occurred. The two are even used together in one
+path: `descend_token` re-lexes and builds a *fresh* child `SyntaxTree`
+(`descend.rs:108`), then segments it — so one command is segmenter
+output at the outer level and a CST at the inner level, sharing
+nothing. This is the separate parse tree the standard rules out.
+
+### Layers link by re-derivation, not by sharing
+
+With no single parsed structure threaded by reference, each consumer
+re-parses from the raw `&str`: **135** `segment_commands*` calls (top
+level plus recursive re-segmentation into every body / sub / arm),
+**29** independent `LineIndex::new(source)` builds, and **34**
+`build_line_starts` / `line_starts` sites. A single `did_change` →
+diagnostics → first-tokens cycle therefore lexes and segments the
+document many times. The acceptable case is one index beside the tree;
+the reality is ~29 of them rebuilt per feature, plus a second whole
+parse.
+
+### Data materialised outside intentional caching
+
+| Data | Where it is materialised | Verdict |
+|---|---|---|
+| Parse structure | `SegmentedCommand` (135 sites) **and** the red-green CST | ✗ a second parse tree |
+| Source text | server `String`; green `raw` *and* `text` per token; red `SyntaxTree.text`; owned sub-strings per `segment_commands(sub)` | ✗ multiple full copies |
+| Line index | 29 `LineIndex::new` + 34 `line_starts` builds | one beside the CST is fine; 63 re-derivations are not |
+| Names | token → green `text` + `raw` → IR `argv_texts` → CFG / SSA `String` keys → analyser scopes → workspace index → LSP items | ✗ copied at every layer; no interner |
+| Registry | rebuilt inside every `analyse()` (`state.rs:359`) **and** cached per dialect | ✗ base specs duplicated per dialect |
+| CompilationUnit / taint | built 2–3× (analyser, optimiser, irules) | ✗ redundant recompute |
+| AnalysisResult | per-URI cache intentional; per-handler clones are not | mixed |
+| `Span` positions | one `Copy` type threaded everywhere | ✓ the model to follow |
+
+### Consequences
+
+- **Correctness.** Two parse representations can disagree — semantic
+  tokens, the analyser, and lowering can classify the same span
+  differently if they drift (SYNC-JUN08 is an instance). The UTF-16
+  bug (C1) is amplified: positions resolve at 29 independent sites, so
+  the fix is 29 places rather than one index beside one tree.
+- **Performance / TTFST.** Re-segmentation is the per-keystroke cost; a
+  shared tree with subtree reuse turns "re-parse N times" into "reuse
+  unchanged subtrees." Neither representation is reused across edits.
+- **Maintenance.** Every syntactic decision lives in two parsers plus
+  the differential harness that keeps them aligned — triple the
+  surface for one behaviour.
+
+### Convergence — one parse spine, without a big-bang rewrite
+
+The `segment_commands*` API is a single chokepoint: all 135 callers go
+through it, so its implementation can be swapped from token-loop to
+CST-backed without touching the call sites. That is what makes this
+incremental.
+
+1. **CST → view adapter.** Implement
+   `segment_commands_from_cst(&SyntaxTree)` yielding the existing
+   `SegmentedCommand` shape. Re-point `differential_segment.rs` to
+   assert the view matches the live token loop — the harness becomes
+   the migration's safety net instead of a permanent agreement tax.
+2. **Route segmentation through the CST.** Change the
+   `segment_commands_with_*` bodies to build a `SyntaxTree` once and
+   return the view. The 135 callers are unchanged. Keep the token loop
+   behind a flag as the differential oracle until parity bakes on the
+   corpus (the project's default-off-until-baked discipline).
+3. **Build the CST once per document; navigate, don't re-lex.** Lower,
+   analyse, and tokenise from one `SyntaxTree`; make `descend_*`
+   navigate the existing tree rather than building fresh child trees
+   (`descend.rs:108`). This removes the recursive re-segmentation and
+   the per-descent re-lex.
+4. **One index beside the CST.** Expose the tree's `line_starts` as the
+   single position resolver and route the 29 `LineIndex::new` sites
+   through it. Land the C1 UTF-16 fix here, once, on the shared index.
+5. **Retire the second parser.** Once parity has baked, delete the
+   token-loop `segment_commands_local` and the frozen oracle; the
+   differential-segment harness retires with them.
+6. **(Separable) interned names + one `CompilationUnit`.** Intern
+   identifiers to `Symbol(u32)` sourced from the CST's tokens, and
+   build one `CompilationUnit` per document threaded by reference,
+   folding in the earlier performance items.
+
+Stages 1–2 are the load-bearing change (the CST already proves it can
+reproduce the segmenter byte-for-byte); 3–5 are cleanup once the view
+is the producer; 6 is independent. Each stage is shippable on its own
+and guarded by the existing differential corpus. The failure mode to
+avoid is stalling half-converted, where both representations live
+indefinitely — the most expensive state, because you pay for both.
+
 ## Prioritised roadmap
 
 **Correctness — do first**
@@ -351,9 +478,19 @@ for the LSP path.
 7. Incremental layer (`salsa` or CST subtree reuse) and `rayon`
    per-proc — the large sustained wins.
 
+**Architecture — the structural root (underpins the above)**
+
+8. Converge on one parse spine: make `SegmentedCommand` a view over
+   the red-green CST, build the CST once per document, and retire the
+   token-loop parser and its differential-agreement harness. This is
+   the root fix behind the re-derivation cost (performance), the
+   two-tree drift risk (correctness), and the duplication (memory).
+   Staged, non-big-bang plan in
+   [Cross-layer integration](#cross-layer-integration-and-data-duplication).
+
 **Memory — opportunistic**
 
-8. Interner, `Arc` / copy-on-write snapshots, and rowan-style CST
+9. Interner, `Arc` / copy-on-write snapshots, and rowan-style CST
    sharing, pursued where they cut allocation latency.
 
 ## Related
