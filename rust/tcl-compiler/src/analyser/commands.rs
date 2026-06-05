@@ -472,6 +472,7 @@ impl Analyser {
             if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
                 self.emit_w110_string_eq_ne(text, tok.span);
                 self.emit_w003_dialect_invalid_expr_operator(text, tok.span);
+                self.emit_w114_redundant_nested_expr(text, tok.span);
             }
         }
     }

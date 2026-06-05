@@ -87,6 +87,49 @@ use crate::expr_ast::{BinOp, ExprNode};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
+/// Find the first `[`-`expr`-whitespace sequence in `slice` (the
+/// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
+/// `(open_bracket_index, matching_close_bracket_index)`.  The close is
+/// located by a depth scan; an unmatched `[` falls back to the last
+/// byte.  Returns `None` when no nested `[expr ` is present.
+fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
+    let bytes = slice.as_bytes();
+    let len = bytes.len();
+    let mut open = 0;
+    while open < len {
+        if bytes[open] == b'[' {
+            // `\s*`
+            let mut after_ws = open + 1;
+            while after_ws < len && bytes[after_ws].is_ascii_whitespace() {
+                after_ws += 1;
+            }
+            // `expr` followed by a whitespace byte.
+            let kw_end = after_ws + 4;
+            if kw_end < len
+                && &bytes[after_ws..kw_end] == b"expr"
+                && bytes[kw_end].is_ascii_whitespace()
+            {
+                // Depth-scan for the matching `]` (the open `[` is
+                // already counted).
+                let mut depth = 1;
+                let mut scan = open + 1;
+                while scan < len && depth > 0 {
+                    match bytes[scan] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        _ => {}
+                    }
+                    scan += 1;
+                }
+                let close = if depth == 0 { scan - 1 } else { len - 1 };
+                return Some((open, close));
+            }
+        }
+        open += 1;
+    }
+    None
+}
+
 /// Mirrors `_find_case_mismatch` in
 /// `core/analysis/_analyser/_diag_var_lifecycle.py:135-148`.
 /// Returns the lexicographically smallest other-cased variant —
@@ -701,6 +744,40 @@ Use braces: {{ \u{2026} }}"
     /// spaces before calling.  `diag_span` is the source span the
     /// diagnostic anchors to (the source range of the argument
     /// token, or the full token range for `expr`).
+    /// W114 (GAP-A8): a nested `[expr …]` inside an argument that is
+    /// *already* an expression context (`expr` / `if` / `while` / `for`
+    /// conditions) is redundant.  `diag_span` is the source span of the
+    /// expression argument; we scan its source slice for the first
+    /// `[`-`expr`-whitespace sequence (the `_NESTED_EXPR_RE` pattern)
+    /// and anchor the warning at the nested `[expr … ]`.  One warning
+    /// per argument, mirroring Python's `re.search` (first match only).
+    pub(super) fn emit_w114_redundant_nested_expr(
+        &mut self,
+        _text: &str,
+        diag_span: tcl_lexer::Span,
+    ) {
+        let start = diag_span.start() as usize;
+        let end = diag_span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return;
+        }
+        let slice = &self.source[start..end];
+        let Some((open, close)) = first_nested_expr(slice) else {
+            return;
+        };
+        let nested_span = tcl_lexer::Span::new(
+            u32::try_from(start + open).unwrap_or(diag_span.start()),
+            u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W114".to_string(),
+            span: nested_span,
+            message: "Redundant nested [expr] \u{2014} already in expression context".to_string(),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     pub(super) fn emit_w110_string_eq_ne(&mut self, expr_text: &str, diag_span: tcl_lexer::Span) {
         // Quick bail-out: no equality operator at all.
         if !expr_text.contains("==") && !expr_text.contains("!=") {
@@ -4384,6 +4461,38 @@ mod tests {
     use super::*;
     use crate::analyser::types::Diagnostic;
     use tcl_lexer::Span;
+
+    fn w114_codes(src: &str) -> usize {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W114")
+            .count()
+    }
+
+    #[test]
+    fn w114_flags_nested_expr_in_expr_context() {
+        // Matches the live Python analyser.
+        assert_eq!(w114_codes("expr {[expr {$x + 1}]}\n"), 1);
+        assert_eq!(w114_codes("if {[expr {$x}]} {puts hi}\n"), 1);
+    }
+
+    #[test]
+    fn w114_ignores_non_expr_context_and_plain_expr() {
+        // `set y [expr {…}]` is a command substitution value, not a
+        // nested expr context — no W114.
+        assert_eq!(w114_codes("set y [expr {1+2}]\n"), 0);
+        // A plain braced expr is fine.
+        assert_eq!(w114_codes("expr {$x + 1}\n"), 0);
+    }
+
+    #[test]
+    fn first_nested_expr_finds_bracketed_expr() {
+        assert_eq!(first_nested_expr("{[expr {$x}]}"), Some((1, 11)));
+        assert_eq!(first_nested_expr("{$x + 1}"), None);
+        assert_eq!(first_nested_expr("[express]"), None); // not `expr` + ws
+    }
 
     #[test]
     fn body_references_param_bare_dollar() {

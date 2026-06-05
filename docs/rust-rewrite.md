@@ -4327,9 +4327,16 @@ otherwise record as an explicit non-port.
 
 **GAP-A8 — `core/analysis/checks/_style.py` mid-tier codes — absent, not
 itemised.**  Ported from `_style.py`: W105 / W110 / W304 (+ W122).
-Absent: **W100** unbraced expr, **W104** string-concat-builds-list,
-**W106** dangerous unbraced `switch` body, **W114** redundant nested
-`[expr {…}]`, **W121** non-contiguous subnet mask, **W200** (two checks
+**W114 LANDED (2026-06-05)** — `emit_w114_redundant_nested_expr` +
+`first_nested_expr` (the `_NESTED_EXPR_RE = \[\s*expr\s` pattern + a
+depth scan for the matching `]`) wired into `dispatch_expr_arguments`
+alongside W110 / W003; fires one warning per EXPR-role arg that nests a
+`[expr …]` (`expr {[expr {…}]}`, `if {[expr …]}`), skips the
+command-substitution-value form (`set y [expr …]`) and plain braced
+exprs — verified against the live Python analyser; 4 unit tests.  Still
+absent: **W100** unbraced expr, **W104** string-concat-builds-list,
+**W106** dangerous unbraced `switch` body, **W121** non-contiguous subnet
+mask, **W200** (two checks
 share the code — exec-result-not-captured *and* binary-format-modifiers),
 **W212** `$`-subst where a name is expected, **W311** unsafe channel
 encoding mismatch.  The doc gestures at "the `_style.py` port"
