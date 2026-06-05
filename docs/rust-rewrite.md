@@ -4906,6 +4906,18 @@ reindex).  **Remaining GAP-A9:** the iRules event snippet templates, the
 `package_suggestions` fuzzy catalogue (registry-gated), and the
 `irules_context` enrichment (folds into GAP-C5).
 
+**LANDED (completion provenance detail — `required_package`, 2026-06-09).**
+Now the merged registry populates `required_package` (369 specs) and
+`tcllib_package` (206), `builtin_completions` tags each built-in command
+item with its provenance via a `command_detail` port of
+`completion.py::_command_detail`: `tcllib (PKG)` (tcllib takes
+precedence) / `stdlib (PKG)` / `Tk` / `built-in`.  Previously every
+built-in completion had `detail: None`.  2 unit tests (provenance string
+per command kind).  The fuzzy `package_suggestions` catalogue (the
+unknown-command → `package require` code action) and the hover
+`**Requires**: package require X` line remain follow-ups (both now
+unblocked by `required_package`).
+
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
 **GAP-B1 — O127 store-to-load forwarding — functionally absent,

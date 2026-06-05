@@ -629,13 +629,31 @@ fn builtin_completions(
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
                 kind: CompletionKind::Function,
-                detail: None,
+                detail: registry.get(name).map(command_detail),
                 sort_text: Some(builtin_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
             }
         })
         .collect()
+}
+
+/// Completion-detail provenance string for a built-in command:
+/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Mirrors
+/// `lsp/features/completion.py::_command_detail` (tcllib takes
+/// precedence over a plain `required_package`).
+fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
+    if let Some(pkg) = spec.tcllib_package {
+        format!("tcllib ({pkg})")
+    } else if let Some(pkg) = spec.required_package {
+        if pkg == "Tk" {
+            "Tk".to_string()
+        } else {
+            format!("stdlib ({pkg})")
+        }
+    } else {
+        "built-in".to_string()
+    }
 }
 
 /// Render a parameter-list summary for a proc completion's
@@ -867,6 +885,42 @@ mod tests {
             labels.contains(&"puts"),
             "expected `puts` from registry; got {labels:?}",
         );
+    }
+
+    #[test]
+    fn builtin_completion_detail_shows_provenance() {
+        // A core built-in shows `built-in`; a stdlib command shows its
+        // `stdlib (PKG)` provenance from the registry `required_package`.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 2, &analysis, Some(&registry), None);
+        let puts = items.iter().find(|i| i.label == "puts").expect("puts");
+        assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
+
+        // `http::geturl` is a stdlib command requiring the `http` package.
+        let src = "http::ge\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 8, &analysis, Some(&registry), None);
+        if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
+            assert_eq!(
+                geturl.detail.as_deref(),
+                Some("stdlib (http)"),
+                "{geturl:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_detail_formats_each_provenance() {
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        // built-in: no package.
+        assert_eq!(command_detail(reg.get("puts").unwrap()), "built-in");
+        // stdlib: required_package set.
+        if let Some(spec) = reg.get("http::geturl") {
+            assert_eq!(command_detail(spec), "stdlib (http)");
+        }
     }
 
     #[test]
