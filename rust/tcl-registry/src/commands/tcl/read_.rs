@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read ?-nonewline? channel",
+}];
+
 /// Command spec for `read`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -15,11 +20,15 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Read from a channel.",
-            &["read ?-nonewline? channel", "read channel numChars"],
-            "Tcl read(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Read from a channel",
+    synopsis: &["read ?-nonewline? channel", "read channel numChars"],
+    snippet: "The read command has been superseded by the chan read command which supports the same syntax and options.",
+    source: "Tcl man page read.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

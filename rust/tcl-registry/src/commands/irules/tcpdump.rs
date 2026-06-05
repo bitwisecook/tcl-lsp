@@ -5,11 +5,24 @@ pub fn spec() -> CommandSpec {
         name: "tcpdump",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "F5 iRules command `tcpdump`.",
-            &["tcpdump"],
-            "F5 iRules",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "F5 iRules command `tcpdump`.",
+            synopsis: &["tcpdump"],
+            snippet: "",
+            source: "https://clouddocs.f5.com/api/irules/tcpdump.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "tcpdump",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

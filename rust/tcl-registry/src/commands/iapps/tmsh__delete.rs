@@ -1,5 +1,10 @@
 //! `tmsh::delete` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::delete <component> <name>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::delete",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::delete <component> <name>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

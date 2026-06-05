@@ -1,5 +1,10 @@
 //! `report_delay_calculation` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_delay_calculation ?-from from_pin? ?-to to_pin?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_delay_calculation",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_delay_calculation ?-from from_pin? ?-to to_pin?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

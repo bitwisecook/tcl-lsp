@@ -1,5 +1,10 @@
 //! `get_property` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_property property_name object",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_property",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_property property_name object"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

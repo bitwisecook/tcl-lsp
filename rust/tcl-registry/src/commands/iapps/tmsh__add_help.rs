@@ -1,5 +1,10 @@
 //! `tmsh::add_help` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::add_help <help_data>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::add_help",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::add_help <help_data>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

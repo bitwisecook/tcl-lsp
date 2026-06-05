@@ -1,5 +1,10 @@
 //! `tmsh::cd` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::cd <directory>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::cd",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::cd <directory>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

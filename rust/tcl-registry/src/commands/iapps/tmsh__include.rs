@@ -1,5 +1,10 @@
 //! `tmsh::include` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::include <script_name>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::include",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::include <script_name>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

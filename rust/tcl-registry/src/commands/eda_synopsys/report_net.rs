@@ -1,5 +1,10 @@
 //! `report_net` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_net",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

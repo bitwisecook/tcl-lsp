@@ -1,0 +1,17 @@
+//! `bgerror` command (name-parity reconcile, GAP-d).
+use crate::prelude::*;
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "bgerror",
+        arity: Arity::exact(1),
+        hover: Some(HoverSnippet {
+            summary: "Handle background errors",
+            synopsis: &[],
+            snippet: "",
+            source: "",
+            examples: "",
+            return_value: "",
+        }),
+        ..CommandSpec::DEFAULT
+    }
+}

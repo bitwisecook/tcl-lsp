@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "close channelId ?r(ead)|w(rite)?",
+}];
+
 /// Command spec for `close`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -16,11 +21,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Close an open channel.",
-            &["close channelId ?r(ead)|w(rite)?"],
-            "Tcl close(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Close a channel.",
+    synopsis: &["close channelId ?r(ead)|w(rite)?"],
+    snippet: "For bidirectional pipelines you may close one direction (`read`/`write`) selectively.",
+    source: "Tcl close(1)",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

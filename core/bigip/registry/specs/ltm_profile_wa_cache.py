@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("profile wa-cache",),
         ),
         header_types=(("ltm", "profile wa-cache"),),
+        properties=(),
     )

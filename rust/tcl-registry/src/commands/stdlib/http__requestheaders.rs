@@ -7,11 +7,18 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),
-        hover: Some(HoverSnippet::brief(
-            "Return the HTTP request headers as a list.",
-            &["http::requestHeaders token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the HTTP request headers as a list.",
+            synopsis: &[
+                "http::requestHeaders token",
+                "http::requestHeaders token ?name?",
+            ],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

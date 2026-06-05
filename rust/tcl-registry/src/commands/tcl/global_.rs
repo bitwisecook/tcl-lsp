@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "global ?varname ...?",
+}];
+
 /// Command spec for `global`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -23,12 +28,16 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Access global variables.",
-            &["global ?varname ...?"],
-            "Tcl global(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Access global variables",
+            synopsis: &["global ?varname ...?"],
+            snippet: "This command has no effect unless executed in the context of a proc body.",
+            source: "Tcl man page global.n",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::Global),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

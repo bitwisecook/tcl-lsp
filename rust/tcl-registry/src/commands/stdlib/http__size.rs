@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "http::size",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the number of bytes received so far.",
-            &["http::size token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the number of bytes received so far.",
+            synopsis: &["http::size token"],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("http"),
         ..CommandSpec::DEFAULT
     }
 }

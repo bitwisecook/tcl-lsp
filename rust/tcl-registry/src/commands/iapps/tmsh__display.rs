@@ -1,5 +1,10 @@
 //! `tmsh::display` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::display <text>",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::display",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::display <text>"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

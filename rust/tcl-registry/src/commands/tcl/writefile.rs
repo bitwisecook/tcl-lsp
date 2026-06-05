@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "writeFile filename ?text|binary? contents",
+}];
+
 /// Command spec for `writeFile`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -15,11 +20,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Write contents to a file.",
-            &["writeFile filename ?text|binary? contents"],
-            "Tcl man page library.n",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Write contents to a file.",
+            synopsis: &["writeFile filename ?text|binary? contents"],
+            snippet: "",
+            source: "Tcl man page library.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

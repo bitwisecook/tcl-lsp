@@ -1,5 +1,10 @@
 //! `get_lib_cells` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_lib_cells",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

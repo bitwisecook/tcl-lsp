@@ -1,5 +1,10 @@
 //! `optimize_netlist` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "optimize_netlist -area",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "optimize_netlist",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["optimize_netlist -area"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

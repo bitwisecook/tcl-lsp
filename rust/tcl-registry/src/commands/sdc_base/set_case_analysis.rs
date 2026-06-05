@@ -1,5 +1,10 @@
 //! `set_case_analysis` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_case_analysis value port_pin_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_case_analysis",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_case_analysis value port_pin_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

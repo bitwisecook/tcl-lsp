@@ -1,5 +1,10 @@
 //! `formal_compile` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "formal_compile ?-d design? ?-work library?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "formal_compile",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["formal_compile ?-d design? ?-work library?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

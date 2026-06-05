@@ -1,5 +1,10 @@
 //! `link` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "link ?-force?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "link",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["link ?-force?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `read_sdc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read_sdc ?-echo? file_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_sdc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["read_sdc ?-echo? file_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

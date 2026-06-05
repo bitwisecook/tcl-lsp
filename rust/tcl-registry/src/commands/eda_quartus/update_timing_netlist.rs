@@ -1,5 +1,10 @@
 //! `update_timing_netlist` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "update_timing_netlist",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update_timing_netlist",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["update_timing_netlist"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

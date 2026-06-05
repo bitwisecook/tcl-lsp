@@ -1,5 +1,10 @@
 //! `coverage` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coverage",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `current_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "current_design ?design_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "current_design",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["current_design ?design_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

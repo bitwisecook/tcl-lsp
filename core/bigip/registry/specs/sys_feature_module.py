@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("feature-module",),
         ),
         header_types=(("sys", "feature-module"),),
-        properties=(BigipPropertySpec(name="enabled", value_type="boolean"),),
+        properties=(BigipPropertySpec(name="enabled", value_type="unknown"),),
     )

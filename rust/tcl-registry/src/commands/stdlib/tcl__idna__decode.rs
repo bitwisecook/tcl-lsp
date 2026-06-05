@@ -6,11 +6,15 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Decode a hostname from IDNA format to Unicode.",
-            &["tcl::idna::decode hostname"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Decode a hostname from IDNA format to Unicode.",
+            synopsis: &["tcl::idna::decode hostname"],
+            snippet: "",
+            source: "Tcl stdlib cookiejar package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("cookiejar"),
         ..CommandSpec::DEFAULT
     }
 }

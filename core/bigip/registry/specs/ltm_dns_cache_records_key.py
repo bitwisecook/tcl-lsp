@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,9 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dns cache records key",),
         ),
         header_types=(("ltm", "dns cache records key"),),
-        properties=(
-            BigipPropertySpec(name="owner", value_type="string"),
-            BigipPropertySpec(name="slot", value_type="integer"),
-            BigipPropertySpec(name="tmm", value_type="integer"),
-        ),
+        properties=(),
     )

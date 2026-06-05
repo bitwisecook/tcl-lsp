@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile classification"),),
         properties=(
+            BigipPropertySpec(name="app-detection", value_type="enum", enum_values=("off", "on")),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,10 +26,9 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_classification",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="app-detection", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(name="urlcat", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(name="irule-event", value_type="enum", enum_values=("on", "off")),
+            BigipPropertySpec(name="irule-event", value_type="enum", enum_values=("off", "on")),
             BigipPropertySpec(name="log-publisher", value_type="string"),
             BigipPropertySpec(name="preset", value_type="string"),
+            BigipPropertySpec(name="urlcat", value_type="enum", enum_values=("off", "on")),
         ),
     )

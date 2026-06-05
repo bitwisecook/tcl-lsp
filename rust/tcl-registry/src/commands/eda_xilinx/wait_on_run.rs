@@ -1,5 +1,10 @@
 //! `wait_on_run` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "wait_on_run ?-timeout minutes? run_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "wait_on_run",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["wait_on_run ?-timeout minutes? run_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -3,6 +3,11 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lappend varName ?value value value ...?",
+}];
+
 /// Command spec for `lappend`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -30,12 +35,16 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Append list elements onto a variable.",
-            &["lappend varName ?value value value ...?"],
-            "Tcl lappend(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Append list elements onto a variable",
+    synopsis: &["lappend varName ?value value value ...?"],
+    snippet: "This command treats the variable given by varName as a list and appends each of the value arguments to that list as a separate element, with spaces between elements.",
+    source: "Tcl man page lappend.n",
+    examples: "",
+    return_value: "",
+}),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

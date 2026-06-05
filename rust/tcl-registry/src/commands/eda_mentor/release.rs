@@ -1,5 +1,10 @@
 //! `release` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "release signal_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "release",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["release signal_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

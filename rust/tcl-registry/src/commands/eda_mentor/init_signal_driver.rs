@@ -1,5 +1,10 @@
 //! `init_signal_driver` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "init_signal_driver",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

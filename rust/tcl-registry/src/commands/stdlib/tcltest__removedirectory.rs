@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::removeDirectory",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
-        hover: Some(HoverSnippet::brief(
-            "Remove a temporary test directory.",
-            &["tcltest::removeDirectory name ?directory?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Remove a temporary test directory.",
+            synopsis: &["tcltest::removeDirectory name ?directory?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }

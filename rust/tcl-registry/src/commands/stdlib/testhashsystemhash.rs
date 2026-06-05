@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testhashsystemhash",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test system hash implementation.",
-            &["testhashsystemhash"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test system hash implementation.",
+            synopsis: &["testhashsystemhash"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

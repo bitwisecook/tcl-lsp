@@ -1,5 +1,10 @@
 //! `get_report_panel_data` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "get_report_panel_data -name panel_name -row row -col col",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "get_report_panel_data",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["get_report_panel_data -name panel_name -row row -col col"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testfindlast",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test Tcl_FindLast / hash iteration.",
-            &["testfindlast"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test Tcl_FindLast / hash iteration.",
+            synopsis: &["testfindlast"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

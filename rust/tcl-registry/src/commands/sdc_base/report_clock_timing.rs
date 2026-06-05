@@ -1,5 +1,10 @@
 //! `report_clock_timing` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_clock_timing ?-type type?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_clock_timing",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["report_clock_timing ?-type type?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

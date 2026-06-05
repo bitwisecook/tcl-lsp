@@ -1,5 +1,10 @@
 //! `elaborate` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "elaborate ?design_name? ?-parameters params?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "elaborate",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["elaborate ?design_name? ?-parameters params?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

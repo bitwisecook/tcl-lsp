@@ -1,5 +1,10 @@
 //! `insert_dft` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "insert_dft",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "insert_dft",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["insert_dft"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

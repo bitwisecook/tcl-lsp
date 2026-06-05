@@ -5,11 +5,35 @@ pub fn spec() -> CommandSpec {
         name: "CATEGORY::matchtype",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Get the type of match found.",
-            &["CATEGORY::matchtype TYPE"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Get the type of match found.",
+            synopsis: &["CATEGORY::matchtype TYPE"],
+            snippet: "This iRules command is intended to be used with the CATEGORY_MATCHED event and will store the match result in the specified variable. It will return one of \"custom\", \"request_default\", or \"request_default_and_custom\". This tells the admin what kind of match was made when the CATEGORY_MATCHED event was raised – custom category match, match from the Websense categorization engine, or both. (requires SWG license)",
+            source: "https://clouddocs.f5.com/api/irules/CATEGORY__matchtype.html",
+            examples: "when CATEGORY_MATCHED {\n    CATEGORY::matchtype type_var\n        if { $type_var eq \"custom\" } {\n            log local0. \"Custom category match was found.\"\n        }\n}",
+            return_value: "Returns one of \"custom\", \"request_default\", \"request_default_and_custom\"",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["CATEGORY"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::matchtype TYPE" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ClassificationState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

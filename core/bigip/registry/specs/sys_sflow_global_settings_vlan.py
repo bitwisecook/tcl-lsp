@@ -19,7 +19,7 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "sflow global-settings vlan"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="poll-interval", value_type="integer"),
-            BigipPropertySpec(name="sampling-rate", value_type="integer"),
+            BigipPropertySpec(name="poll-interval", value_type="integer", default="10"),
+            BigipPropertySpec(name="sampling-rate", value_type="integer", default="2048"),
         ),
     )

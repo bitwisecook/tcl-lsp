@@ -1,5 +1,10 @@
 //! `set_input_transition` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_input_transition ?-rise | -fall? ?-min | -max? transition port_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_input_transition",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["set_input_transition ?-rise | -fall? ?-min | -max? transition port_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

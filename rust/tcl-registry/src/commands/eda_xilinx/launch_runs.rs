@@ -1,5 +1,10 @@
 //! `launch_runs` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "launch_runs ?-jobs n? ?-scripts_only? ?-to_step step? run_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "launch_runs",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["launch_runs ?-jobs n? ?-scripts_only? ?-to_step step? run_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

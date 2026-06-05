@@ -1,5 +1,10 @@
 //! `tmsh::clear_screen` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "tmsh::clear_screen",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::clear_screen",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["tmsh::clear_screen"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

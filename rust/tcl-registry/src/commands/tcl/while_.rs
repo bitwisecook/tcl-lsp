@@ -2,6 +2,18 @@
 
 use crate::prelude::*;
 
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Unknown,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "while test body",
+}];
+
 /// Command spec for `while`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -24,11 +36,16 @@ pub fn spec() -> CommandSpec {
                 shimmers: true,
             },
         )],
-        hover: Some(HoverSnippet::brief(
-            "Execute body while test expression is true.",
-            &["while test body"],
-            "Tcl while(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Execute script repeatedly as long as a condition is met",
+    synopsis: &["while test body"],
+    snippet: "The while command evaluates test as an expression (in the same way that expr evaluates its argument).",
+    source: "Tcl man page while.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
+        side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "regsub ?switches? exp string subSpec ?varName?",
+}];
+
 /// Command spec for `regsub`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -81,11 +86,18 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Perform substitutions based on regular expression matching.",
-            &["regsub ?switches? exp string subSpec ?varName?"],
-            "Tcl regsub(1)",
-        )),
+hover: Some(HoverSnippet {
+    summary: "Perform substitutions based on regular expression matching.",
+    synopsis: &["regsub ?switches? exp string subSpec ?varName?"],
+    snippet: "Matches *exp* against *string* and replaces the matched portion with *subSpec*. With `-all`, replaces all occurrences.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. The *subSpec* supports `\\0`..`\\9` backreferences and `&` for the full match.",
+    source: "Tcl regsub(1)",
+    examples: "",
+    return_value: "The substituted string (Tcl 8.5+), or the count of replacements when *varName* is given.",
+}),
+        // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
+        // pattern validation. Mirrors `tcl/regsub_.py`.
+        pattern_type: Some(PatternType::Regex),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

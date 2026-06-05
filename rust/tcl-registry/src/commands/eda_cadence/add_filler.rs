@@ -1,5 +1,10 @@
 //! `add_filler` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "add_filler ?-cell cell_list? ?-prefix prefix?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "add_filler",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["add_filler ?-cell cell_list? ?-prefix prefix?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

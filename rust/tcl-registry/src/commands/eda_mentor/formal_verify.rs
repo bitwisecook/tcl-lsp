@@ -1,5 +1,10 @@
 //! `formal_verify` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "formal_verify ?-timeout time? ?-engine engine?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "formal_verify",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["formal_verify ?-timeout time? ?-engine engine?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

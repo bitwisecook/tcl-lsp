@@ -1,5 +1,10 @@
 //! `iapp::apm_config` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "iapp::apm_config ?arg ...?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::apm_config",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["iapp::apm_config ?arg ...?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

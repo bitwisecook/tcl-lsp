@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::getMatchingFiles",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Return list of test files matching configured patterns.",
-            &["tcltest::getMatchingFiles ?directory ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return list of test files matching configured patterns.",
+            synopsis: &["tcltest::getMatchingFiles ?directory ...?"],
+            snippet: "",
+            source: "Tcl stdlib tcltest package (v1 compat)",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("tcltest"),
         ..CommandSpec::DEFAULT
     }
 }

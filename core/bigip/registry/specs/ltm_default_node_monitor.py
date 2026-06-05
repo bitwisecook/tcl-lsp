@@ -18,6 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "default-node-monitor"),),
         properties=(
-            BigipPropertySpec(name="rule", value_type="reference", references=("ltm_rule",)),
+            BigipPropertySpec(
+                name="rule",
+                value_type="unknown",
+                references=("ltm_rule", "ltm_rule_profiler"),
+                default="none",
+            ),
         ),
     )

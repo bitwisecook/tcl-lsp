@@ -1,5 +1,10 @@
 //! `connect_bd_intf_net` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "connect_bd_intf_net ?-intf_net net_name? intf_pin_list",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "connect_bd_intf_net",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["connect_bd_intf_net ?-intf_net net_name? intf_pin_list"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

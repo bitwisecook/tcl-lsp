@@ -18,15 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "auth kerberos-delegation"),),
         properties=(
-            BigipPropertySpec(name="client-principal", value_type="string"),
             BigipPropertySpec(
-                name="debug-logging", value_type="enum", enum_values=("disabled", "enabled")
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="client-principal", value_type="string", required=True),
+            BigipPropertySpec(
+                name="debug-logging",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="protocol-transition", value_type="enum", enum_values=("disabled", "enabled")
+                name="protocol-transition",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="server-principal", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="server-principal", value_type="string", required=True),
         ),
     )

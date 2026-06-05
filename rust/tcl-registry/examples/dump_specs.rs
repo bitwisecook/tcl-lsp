@@ -94,12 +94,350 @@ fn json_str_list(items: &[&str]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+use tcl_registry::side_effects::SideEffect;
+use tcl_registry::spec::SubCommand;
+use tcl_registry::traits::Traits;
+
+/// Python-field-name -> Rust trait, for the content-parity audit's `bools`.
+const BOOL_TRAITS: &[(&str, Traits)] = &[
+    ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
+    ("has_loop_body", Traits::HAS_LOOP_BODY),
+    ("never_inline_body", Traits::NEVER_INLINE_BODY),
+    ("warn_without_terminator", Traits::WARN_WITHOUT_TERMINATOR),
+    ("evaluates_code", Traits::EVALUATES_CODE),
+    ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
+    ("opens_channel", Traits::OPENS_CHANNEL),
+    ("sources_file", Traits::SOURCES_FILE),
+    ("has_switch_body", Traits::HAS_SWITCH_BODY),
+    (
+        "has_string_list_confusion_risk",
+        Traits::STRING_LIST_CONFUSION,
+    ),
+    ("configures_channel", Traits::CONFIGURES_CHANNEL),
+    ("has_interp_eval", Traits::HAS_INTERP_EVAL),
+    ("has_destructive_ops", Traits::HAS_DESTRUCTIVE_OPS),
+    ("is_irules_event_handler", Traits::IS_EVENT_HANDLER),
+    (
+        "is_unnormalized_http_getter",
+        Traits::UNNORMALISED_HTTP_GETTER,
+    ),
+    ("pure", Traits::PURE),
+    ("cse_candidate", Traits::CSE_CANDIDATE),
+    ("diagram_action", Traits::DIAGRAM_ACTION),
+    ("is_control_flow", Traits::CONTROL_FLOW),
+    ("needs_start_cmd", Traits::NEEDS_START_CMD),
+    ("terminates_block", Traits::TERMINATES_BLOCK),
+    ("is_oo_metaclass", Traits::IS_OO_METACLASS),
+    ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
+    ("is_unescape_command", Traits::IS_UNESCAPE),
+    ("reads_variable_before_write", Traits::READS_BEFORE_WRITE),
+    ("has_boolean_condition", Traits::HAS_BOOLEAN_COND),
+    ("loop_list_header", Traits::LOOP_LIST_HEADER),
+    ("creates_scope_alias", Traits::CREATES_SCOPE_ALIAS),
+    ("returns_path", Traits::RETURNS_PATH),
+    ("pure_evaluation", Traits::PURE_EVALUATION),
+    ("destroys_variable", Traits::DESTROYS_VARIABLE),
+    ("is_language_keyword", Traits::LANGUAGE_KEYWORD),
+    ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
+    ("is_side_switch", Traits::IS_SIDE_SWITCH),
+    ("defines_procedure", Traits::DEFINES_PROCEDURE),
+    ("unsafe", Traits::UNSAFE),
+    ("password_option_command", Traits::PASSWORD_OPTION),
+    ("taint_sink", Traits::TAINT_SINK),
+];
+
+fn opt_str_or_null(v: Option<&str>) -> String {
+    v.map_or_else(|| "null".to_string(), json_str)
+}
+
+fn colours_json(c: Option<tcl_registry::TaintColour>) -> String {
+    match c {
+        None => "null".to_string(),
+        Some(c) => {
+            let mut names: Vec<&str> = c.iter_names().map(|(n, _)| n).collect();
+            names.sort_unstable();
+            json_str_list(&names)
+        }
+    }
+}
+
+fn side_effects_json(ses: &[SideEffect]) -> String {
+    let mut v: Vec<String> = ses
+        .iter()
+        .map(|s| {
+            format!(
+                "{:?}|{}|{}|{:?}",
+                s.target,
+                i32::from(s.reads),
+                i32::from(s.writes),
+                s.connection_side
+            )
+        })
+        .collect();
+    v.sort_unstable();
+    let parts: Vec<String> = v.iter().map(|s| json_str(s)).collect();
+    format!("[{}]", parts.join(","))
+}
+
+fn options_json(opts: &[tcl_registry::hover::OptionSpec]) -> String {
+    let mut v: Vec<String> = opts
+        .iter()
+        .map(|o| format!("{}|{}|{}", o.name, i32::from(o.takes_value), o.value_hint))
+        .collect();
+    v.sort_unstable();
+    v.dedup();
+    let parts: Vec<String> = v.iter().map(|s| json_str(s)).collect();
+    format!("[{}]", parts.join(","))
+}
+
+fn arg_types_json(at: &[(u8, tcl_registry::hooks::ArgTypeHint)]) -> String {
+    let mut v: Vec<(u8, &tcl_registry::hooks::ArgTypeHint)> =
+        at.iter().map(|(i, h)| (*i, h)).collect();
+    v.sort_by_key(|(i, _)| *i);
+    let parts: Vec<String> = v
+        .iter()
+        .map(|(i, h)| {
+            let t = h
+                .expected
+                .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
+            format!("\"{i}\":{t}")
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
+fn arg_roles_json(ar: &[(u8, tcl_registry::ArgRole)]) -> String {
+    use std::collections::BTreeMap;
+    let mut m: BTreeMap<u8, Vec<String>> = BTreeMap::new();
+    for (i, r) in ar {
+        m.entry(*i).or_default().push(format!("{r:?}"));
+    }
+    let parts: Vec<String> = m
+        .iter()
+        .map(|(i, rs)| {
+            let mut rs = rs.clone();
+            rs.sort_unstable();
+            let arr: Vec<String> = rs.iter().map(|s| json_str(s)).collect();
+            format!("\"{i}\":[{}]", arr.join(","))
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
+fn arg_values_json(av: &[(u8, &[tcl_registry::ArgValue])]) -> String {
+    let mut v: Vec<(u8, &[tcl_registry::ArgValue])> = av.to_vec();
+    v.sort_by_key(|(i, _)| *i);
+    let parts: Vec<String> = v
+        .iter()
+        .map(|(i, vals)| {
+            let mut names: Vec<&str> = vals.iter().map(|a| a.value).collect();
+            names.sort_unstable();
+            format!("\"{i}\":{}", json_str_list(&names))
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
+fn sub_record_json(sub: &SubCommand) -> String {
+    let ret = sub
+        .return_type
+        .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
+    let ist = sub
+        .inferred_storage_type
+        .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
+    format!(
+        "{{\"return_type\":{ret},\"pure\":{},\"mutator\":{},\"destructive\":{},\"returns_path\":{},\"is_unescape\":{},\"loop_list_header\":{},\"creates_scope_alias\":{},\"options\":{},\"arg_types\":{},\"arg_roles\":{},\"arg_values\":{},\"n_forms\":{},\"side_effects\":{},\"safe_on_uninit\":{},\"credential_arg\":{},\"sensitive_headers\":{},\"taint_transform\":{},\"taint_output_sink\":{},\"cfg_rewrite_name\":{},\"inferred_storage_type\":{ist}}}",
+        sub.pure,
+        sub.mutator,
+        sub.destructive,
+        sub.returns_path,
+        sub.is_unescape,
+        sub.loop_list_header,
+        sub.creates_scope_alias,
+        options_json(sub.options),
+        arg_types_json(sub.arg_types),
+        arg_roles_json(sub.arg_roles),
+        arg_values_json(sub.arg_values),
+        sub.subcommand_forms.len(),
+        side_effects_json(sub.side_effects),
+        sub.safe_on_uninit.is_some(),
+        sub.credential_arg.map_or_else(|| "null".to_string(), |n| n.to_string()),
+        json_str_list(sub.sensitive_headers),
+        colours_json(sub.taint_transform),
+        opt_str_or_null(sub.taint_output_sink),
+        opt_str_or_null(sub.cfg_rewrite_name),
+    )
+}
+
+/// Full-field signature for one `BigIP` property (recursive over blocks).
+fn bigip_prop_sig(p: &tcl_registry::bigip::BigipPropertySpec) -> String {
+    let mut secs: Vec<&str> = p.in_sections.to_vec();
+    secs.sort_unstable();
+    let mut enums: Vec<&str> = p.enum_values.to_vec();
+    enums.sort_unstable();
+    let mut refs: Vec<&str> = p.references.to_vec();
+    refs.sort_unstable();
+    let mut flags: Vec<&str> = p.usage_flags.to_vec();
+    flags.sort_unstable();
+    let mut ops: Vec<&str> = p.list_operators.to_vec();
+    ops.sort_unstable();
+    let shape = p
+        .shape_kind
+        .map_or("", tcl_registry::bigip::ValueKind::as_str);
+    let numfmt = |v: Option<f64>| -> String {
+        match v {
+            None => String::new(),
+            #[allow(clippy::cast_possible_truncation)]
+            Some(x) if x.fract() == 0.0 => format!("{}", x as i64),
+            Some(x) => format!("{x}"),
+        }
+    };
+    let block: Vec<String> = {
+        let mut b: Vec<String> = p.block.iter().map(bigip_prop_sig).collect();
+        b.sort_unstable();
+        b
+    };
+    format!(
+        "{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~{}~[{}]",
+        p.name,
+        p.value_type.as_str(),
+        i32::from(p.required),
+        i32::from(p.repeated),
+        i32::from(p.allow_none),
+        secs.join(","),
+        numfmt(p.min_value),
+        numfmt(p.max_value),
+        p.pattern,
+        refs.join(","),
+        p.description,
+        shape,
+        p.default.unwrap_or(""),
+        enums.join(","),
+        flags.join(","),
+        ops.join(","),
+        block.join(";"),
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn deep_dump(group: &str) {
+    let specs = group_specs(group);
+    for spec in &specs {
+        let snippet = spec.hover.is_some_and(|h| !h.snippet.is_empty());
+        let mut subs: Vec<(&str, String)> = spec
+            .subcommands
+            .iter()
+            .map(|s| (s.name, sub_record_json(s)))
+            .collect();
+        subs.sort_by_key(|(n, _)| *n);
+        let subs_json = {
+            let parts: Vec<String> = subs
+                .iter()
+                .map(|(n, r)| format!("{}:{}", json_str(n), r))
+                .collect();
+            format!("{{{}}}", parts.join(","))
+        };
+        let bools: Vec<String> = BOOL_TRAITS
+            .iter()
+            .map(|(n, t)| format!("{}:{}", json_str(n), spec.traits.contains(*t)))
+            .chain(std::iter::once(format!(
+                "{}:{}",
+                json_str("warn_missing_import"),
+                spec.warn_missing_import
+            )))
+            .collect();
+        let net = spec.taint_network_sink_args.map_or_else(
+            || "null".to_string(),
+            |a| {
+                let mut v: Vec<u8> = a.to_vec();
+                v.sort_unstable();
+                format!(
+                    "[{}]",
+                    v.iter().map(u8::to_string).collect::<Vec<_>>().join(",")
+                )
+            },
+        );
+        let scalars = format!(
+            "{{\"taint_output_sink\":{},\"taint_log_sink\":{},\"taint_transform\":{},\"taint_double_encode\":{},\"taint_sink_safe\":{},\"taint_network_sink_args\":{net},\"taint_interp_eval\":{},\"taint_output_sink_subcommands\":{},\"credential_options\":{},\"sensitive_headers\":{},\"pattern_type\":{},\"format_string_type\":{},\"tcllib_package\":{},\"is_namespace_exported\":{},\"xc_translatable\":{},\"deprecated_replacement\":{},\"inferred_storage_type\":{},\"assigns_variable_at\":{},\"safe_on_uninit\":{}}}",
+            opt_str_or_null(spec.taint_output_sink),
+            opt_str_or_null(spec.taint_log_sink),
+            colours_json(spec.taint_transform),
+            colours_json(spec.taint_double_encode_colour),
+            colours_json(spec.taint_sink_safe_colour),
+            json_str_list(spec.taint_interp_eval_subcommands),
+            json_str_list(spec.taint_output_sink_subcommands),
+            json_str_list(spec.credential_options),
+            json_str_list(spec.sensitive_headers),
+            spec.pattern_type.map_or_else(|| "null".to_string(), |p| json_str(&format!("{p:?}"))),
+            spec.format_string_type.map_or_else(|| "null".to_string(), |f| json_str(&format!("{f:?}"))),
+            opt_str_or_null(spec.tcllib_package),
+            spec.is_namespace_exported,
+            spec.xc_translatable.map_or_else(|| "null".to_string(), |b| b.to_string()),
+            opt_str_or_null(spec.deprecated_replacement),
+            spec.inferred_storage_type.map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}"))),
+            spec.assigns_variable_at.map_or_else(|| "null".to_string(), |n| n.to_string()),
+            spec.safe_on_uninit.is_some(),
+        );
+        println!(
+            "{{\"name\":{},\"snippet\":{snippet},\"side_effects\":{},\"arg_types\":{},\"arg_roles\":{},\"options\":{},\"subs\":{subs_json},\"scalars\":{scalars},\"bools\":{{{}}}}}",
+            json_str(spec.name),
+            side_effects_json(spec.side_effects),
+            arg_types_json(spec.arg_types),
+            arg_roles_json(spec.arg_roles),
+            options_json(spec.options),
+            bools.join(","),
+        );
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn main() {
     let group = std::env::args().nth(1).unwrap_or_else(|| {
         eprintln!("usage: dump_specs <group>");
         std::process::exit(2);
     });
+
+    // Deep per-command dump (content-level completeness audit). Pairs
+    // with `scripts/registry-audit/dump_python_deep.py`.
+    if let Some(g) = group.strip_prefix("deep-") {
+        deep_dump(g);
+        return;
+    }
+
+    // BIG-IP object registry: one JSON record per object kind.
+    if group == "bigip" {
+        let reg = tcl_registry::bigip::BigipRegistry::build();
+        let mut specs: Vec<_> = reg.specs().to_vec();
+        specs.sort_by_key(|s| s.kind_spec.kind);
+        for spec in specs {
+            let ks = spec.kind_spec;
+            let object_types = json_str_list(ks.object_types);
+            let prop_names: Vec<&str> = spec.properties.iter().map(|p| p.name).collect();
+            let props = json_str_list(&prop_names);
+            // `(name, kind)` pairs as a sorted JSON array — keeps
+            // duplicate property names (the bgp object legitimately
+            // declares e.g. `distance` three times with different
+            // kinds), so the comparison is an order-independent multiset.
+            // Full per-property signature (every field), as a sorted
+            // multiset — duplicates kept (bgp's `distance` ×3).
+            let prop_pairs: Vec<String> = {
+                let mut pv: Vec<String> = spec.properties.iter().map(bigip_prop_sig).collect();
+                pv.sort_unstable();
+                pv.iter().map(|s| json_str(s)).collect()
+            };
+            println!(
+                "{{\"kind\":{},\"module\":{},\"object_types\":{},\"n_header_types\":{},\"n_properties\":{},\"properties\":{},\"property_pairs\":[{}]}}",
+                json_str(ks.kind),
+                ks.module.map_or_else(|| "null".to_string(), json_str),
+                object_types,
+                spec.header_types.len(),
+                spec.properties.len(),
+                props,
+                prop_pairs.join(","),
+            );
+        }
+        return;
+    }
 
     // Meta registries (events / profiles / namespaces): emit one name per line.
     match group.as_str() {
@@ -138,9 +476,7 @@ fn main() {
                 let p = reg.get_props(n).expect("name from registry");
                 let transport = json_str_list(p.transport);
                 let implied = json_str_list(p.implied_profiles);
-                let setup = p
-                    .setup_event
-                    .map_or_else(|| "null".to_string(), json_str);
+                let setup = p.setup_event.map_or_else(|| "null".to_string(), json_str);
                 println!(
                     "{{\"name\":{},\"client_side\":{},\"server_side\":{},\"transport\":{},\"implied_profiles\":{},\"flow\":{},\"deprecated\":{},\"hot\":{},\"common\":{},\"setup_event\":{}}}",
                     json_str(n),
@@ -176,7 +512,14 @@ fn main() {
         };
         // hover
         let (hover, summary, synopsis, source, examples, return_value) = match &spec.hover {
-            None => (false, String::new(), Vec::new(), String::new(), false, false),
+            None => (
+                false,
+                String::new(),
+                Vec::new(),
+                String::new(),
+                false,
+                false,
+            ),
             Some(h) => (
                 true,
                 h.summary.to_string(),
@@ -198,8 +541,28 @@ fn main() {
             .unwrap_or_default();
         let body_kind = format!("{:?}", spec.body_kind);
 
-        // Emit JSON. event_* fields are intentionally always empty/false:
-        // the Rust CommandSpec has no event_requires field (see audit).
+        // event_requires (GAP-3a): the Rust CommandSpec now carries an
+        // `event_requires` field; emit the same shape the Python dumper
+        // does so the audit's event_* dimensions compare like-for-like.
+        let (event_profiles, event_also_in, event_requires_any) = match &spec.event_requires {
+            None => (Vec::new(), Vec::new(), false),
+            Some(er) => {
+                let mut profiles: Vec<&str> = er.profiles.to_vec();
+                profiles.sort_unstable();
+                let mut also_in: Vec<&str> = er.also_in.to_vec();
+                also_in.sort_unstable();
+                let any = er.client_side
+                    || er.server_side
+                    || er.transport.is_some()
+                    || !er.profiles.is_empty()
+                    || !er.also_in.is_empty()
+                    || er.init_only
+                    || er.flow
+                    || er.capability.is_some();
+                (profiles, also_in, any)
+            }
+        };
+
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"name\":{}", json_str(spec.name)));
         fields.push(format!("\"dialects_all\":{dialects_all}"));
@@ -221,9 +584,15 @@ fn main() {
             json_str_list(&subcommand_names)
         ));
         fields.push(format!("\"n_side_effects\":{}", spec.side_effects.len()));
-        fields.push("\"event_profiles\":[]".to_string());
-        fields.push("\"event_also_in\":[]".to_string());
-        fields.push("\"event_requires_any\":false".to_string());
+        fields.push(format!(
+            "\"event_profiles\":{}",
+            json_str_list(&event_profiles)
+        ));
+        fields.push(format!(
+            "\"event_also_in\":{}",
+            json_str_list(&event_also_in)
+        ));
+        fields.push(format!("\"event_requires_any\":{event_requires_any}"));
         fields.push(format!(
             "\"excluded_events\":{}",
             json_str_list(spec.excluded_events)
@@ -245,10 +614,7 @@ fn main() {
         fields.push(format!("\"n_arg_roles\":{}", spec.arg_roles.len()));
         fields.push(format!("\"body_kind\":{}", json_str(&body_kind)));
         // codegen-registry dimensions.
-        fields.push(format!(
-            "\"has_lowering\":{}",
-            spec.lowering_hook.is_some()
-        ));
+        fields.push(format!("\"has_lowering\":{}", spec.lowering_hook.is_some()));
         fields.push(format!("\"has_codegen\":{}", spec.codegen_hook.is_some()));
         fields.push(format!(
             "\"has_const_fold\":{}",

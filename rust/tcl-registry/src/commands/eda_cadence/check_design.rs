@@ -1,5 +1,10 @@
 //! `check_design` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "check_design ?-all? ?-type type?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "check_design",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["check_design ?-all? ?-type type?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,6 +1,11 @@
 //! `lsearch` — search a list for a pattern.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lsearch ?options? list pattern",
+}];
+
 /// Option table for `lsearch`.  Most flags exist since Tcl 8.4;
 /// `-stride` was added in 8.6 (TIP 351) and is dialect-gated so
 /// W004 fires on `lsearch -stride` in pre-8.6 dialects.
@@ -161,6 +166,7 @@ pub fn spec() -> CommandSpec {
             &["lsearch ?option ...? list pattern"],
             "Tcl lsearch(1)",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

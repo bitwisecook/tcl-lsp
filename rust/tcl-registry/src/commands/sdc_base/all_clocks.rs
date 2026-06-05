@@ -1,5 +1,10 @@
 //! `all_clocks` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "all_clocks",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "all_clocks",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["all_clocks"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

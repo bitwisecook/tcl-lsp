@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "tcl::OptKeyRegister",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(1, 2),
-        hover: Some(HoverSnippet::brief(
-            "Register an option description list under a key for later use.",
-            &["tcl::OptKeyRegister optlist ?key?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Register an option description list under a key for later use.",
+            synopsis: &["tcl::OptKeyRegister optlist ?key?"],
+            snippet: "",
+            source: "Tcl stdlib opt package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("opt"),
         ..CommandSpec::DEFAULT
     }
 }

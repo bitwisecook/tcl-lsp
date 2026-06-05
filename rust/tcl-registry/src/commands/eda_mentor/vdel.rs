@@ -1,5 +1,10 @@
 //! `vdel` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "vdel ?-lib library? ?-all? ?design_unit?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vdel",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["vdel ?-lib library? ?-all? ?design_unit?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

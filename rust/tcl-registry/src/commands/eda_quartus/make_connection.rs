@@ -1,5 +1,10 @@
 //! `make_connection` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "make_connection -from source -to destination",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "make_connection",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["make_connection -from source -to destination"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `size_cell` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "size_cell cell_name lib_cell",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "size_cell",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["size_cell cell_name lib_cell"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

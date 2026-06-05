@@ -14,7 +14,9 @@ use crate::hooks::{
     WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::patterns::{FormatType, PatternType};
 use crate::side_effects::{SideEffect, StorageType};
+use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::TclType;
 
@@ -130,6 +132,14 @@ pub struct CommandSpec {
     /// Excluded iRules events.
     pub excluded_events: &'static [&'static str],
 
+    /// Layer-based iRules event requirements (transport / profiles /
+    /// `also_in` / side / init-only / flow / capability) used by the
+    /// IRULE1001 event-validity check. `None` = no requirement.
+    /// Mirrors Python `CommandSpec.event_requires`; the
+    /// [`crate::events::EventRequires`] type already existed in
+    /// `events.rs` but was not attached to commands (GAP-3a).
+    pub event_requires: Option<crate::events::EventRequires>,
+
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
@@ -155,6 +165,123 @@ pub struct CommandSpec {
     /// `body_arg_implicit_args` (introduced in `e30b6ae9`, closes
     /// `#308`).
     pub body_arg_implicit_args: u8,
+
+    // --- GAP-D2: granular taint / security metadata ---------------------
+    //
+    // Ports the per-command taint fields from the Python `CommandSpec`
+    // (`core/commands/registry/models.py`) and the `TAINT_HINTS` /
+    // `_sinks.py` substrate. The consumer chat
+    // (`tcl_compiler::taint`) reads these to drive the
+    // W102/W103/W300/W301/W303/W309/W310/W312 + T106 + W313 emitters.
+    //
+    /// Output-sink diagnostic code emitted when tainted data reaches
+    /// this command's output position (e.g. `"T101"` for `puts`,
+    /// `"IRULE3001"` for `HTTP::respond`). `None` = not an output sink.
+    /// Mirrors Python `taint_output_sink`.
+    pub taint_output_sink: Option<&'static str>,
+
+    /// When non-empty, restricts [`Self::taint_output_sink`] to apply
+    /// only when the first argument (subcommand) is in this set
+    /// (e.g. `HTTP::header insert|replace`). Empty = applies to every
+    /// invocation. Mirrors Python `taint_output_sink_subcommands`
+    /// (`None` ⇒ empty slice here).
+    pub taint_output_sink_subcommands: &'static [&'static str],
+
+    /// Log-injection sink diagnostic code (e.g. `"IRULE3003"` for the
+    /// iRules `log` command). `None` = not a log sink. Mirrors Python
+    /// `taint_log_sink`.
+    pub taint_log_sink: Option<&'static str>,
+
+    /// Argument indices (0-based after the command name) that take a
+    /// network address — SSRF sinks (`socket`, `HTTP::host`, …).
+    /// `None` = not a network sink; `Some(&[])` = network sink whose
+    /// dangerous-arg positions are unspecified. Mirrors Python
+    /// `taint_network_sink_args`.
+    pub taint_network_sink_args: Option<&'static [u8]>,
+
+    /// Subcommands that evaluate code in another interpreter
+    /// (`interp eval`, `interp invokehidden`) — cross-interpreter
+    /// code-execution sinks (T105). Empty = none. Mirrors Python
+    /// `taint_interp_eval_subcommands`.
+    pub taint_interp_eval_subcommands: &'static [&'static str],
+
+    /// Colour bits this command *adds* to a tainted value it returns —
+    /// a sanitising transform (`uri::encode` ⇒ `URL_ENCODED`,
+    /// `file join` ⇒ `PATH_JOINED`). `None` = no transform. Mirrors
+    /// Python `taint_transform`.
+    pub taint_transform: Option<TaintColour>,
+
+    /// Colour whose presence on the *input* means this command would
+    /// double-encode the value (T106). `None` = no double-encode
+    /// detection. Mirrors Python `taint_double_encode_colour`.
+    pub taint_double_encode_colour: Option<TaintColour>,
+
+    /// Colour that suppresses the dangerous-sink warning (T100) for
+    /// this sink — e.g. `SHELL_ATOM` for `exec`, `LIST_CANONICAL` for
+    /// `eval`/`uplevel`. `None` = no suppression colour. Mirrors Python
+    /// `taint_sink_safe_colour`.
+    pub taint_sink_safe_colour: Option<TaintColour>,
+
+    /// Option flags whose value carries a secret (e.g. `-password`,
+    /// `-headers`) — drives credential-exposure checks. Empty = none.
+    /// Mirrors Python `credential_options`.
+    pub credential_options: &'static [&'static str],
+
+    /// HTTP header names whose values are secrets (e.g.
+    /// `authorization`, `cookie`). Empty = none. Mirrors Python
+    /// `sensitive_headers`.
+    pub sensitive_headers: &'static [&'static str],
+
+    /// Setter-form argument constraints (IRULE3101). Empty = none.
+    /// The registry-driven replacement for the hardcoded
+    /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`. Mirrors the
+    /// Python `TaintHint.setter_constraints`.
+    pub setter_constraints: &'static [SetterConstraint],
+
+    // --- GAP-D1: structured spec fields ---------------------------------
+    //
+    /// Kind of pattern language this command's pattern argument uses
+    /// (`regexp`/`regsub` ⇒ `Regex`), for semantic-token sub-tokens and
+    /// pattern validation. `None` = not a pattern command. Mirrors
+    /// Python `pattern_type`.
+    pub pattern_type: Option<PatternType>,
+
+    /// Kind of format string this command's format argument uses
+    /// (`format`/`scan` ⇒ `Sprintf`, …), for inlay-hint parsing and
+    /// semantic-token sub-tokens. `None` = not a format command.
+    /// Mirrors Python `format_string_type`.
+    pub format_string_type: Option<FormatType>,
+
+    /// Tcllib package that provides this command, for per-document
+    /// activation via `package require`. `None` = core/built-in.
+    /// Mirrors Python `tcllib_package`.
+    pub tcllib_package: Option<&'static str>,
+
+    /// Whether W120 (missing-import) fires when this package-gated
+    /// command is used without a `package require`. Default `true`; set
+    /// `false` for Tk commands (`wish` auto-loads Tk). Mirrors Python
+    /// `warn_missing_import`.
+    pub warn_missing_import: bool,
+
+    /// Whether this command's source namespace exports it via
+    /// `namespace export <bare>`, making the bare name eligible after
+    /// `namespace import`. Mirrors Python `is_namespace_exported`.
+    pub is_namespace_exported: bool,
+
+    /// XC (cross-compile) translatability override: `None` = default
+    /// rules, `Some(false)` = never translatable, `Some(true)` =
+    /// translatable despite a namespace prefix. Mirrors Python
+    /// `xc_translatable`.
+    pub xc_translatable: Option<bool>,
+
+    /// XC operation this command maps to, when it is translatable.
+    /// `None` = no explicit mapping. Mirrors Python `xc_operation`.
+    pub xc_operation: Option<&'static str>,
+
+    /// Replacement command name for a deprecated command, surfaced by
+    /// the deprecation code action. `None` = not deprecated. Mirrors
+    /// Python `deprecated_replacement` (the resolved name).
+    pub deprecated_replacement: Option<&'static str>,
 }
 
 impl CommandSpec {
@@ -184,9 +311,29 @@ impl CommandSpec {
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
+        event_requires: None,
         options: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
+        taint_output_sink: None,
+        taint_output_sink_subcommands: &[],
+        taint_log_sink: None,
+        taint_network_sink_args: None,
+        taint_interp_eval_subcommands: &[],
+        taint_transform: None,
+        taint_double_encode_colour: None,
+        taint_sink_safe_colour: None,
+        credential_options: &[],
+        sensitive_headers: &[],
+        setter_constraints: &[],
+        pattern_type: None,
+        format_string_type: None,
+        tcllib_package: None,
+        warn_missing_import: true,
+        is_namespace_exported: false,
+        xc_translatable: None,
+        xc_operation: None,
+        deprecated_replacement: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -382,6 +529,73 @@ pub struct SubCommand {
     /// Implicit-args count for proc-call arity relaxation.  See
     /// [`CommandSpec::body_arg_implicit_args`].
     pub body_arg_implicit_args: u8,
+
+    // --- GAP-D2: granular taint / security metadata ---------------------
+    //
+    /// Colour bits this subcommand adds to a tainted value it returns
+    /// (`file join` ⇒ `PATH_JOINED`, `file normalize` ⇒
+    /// `PATH_NORMALISED`). `None` = no transform. Mirrors Python
+    /// `SubCommand.taint_transform`.
+    pub taint_transform: Option<TaintColour>,
+
+    /// Colour whose presence on the input means this subcommand would
+    /// double-encode the value (T106). `None` = none. Mirrors Python
+    /// `SubCommand.taint_double_encode_colour`.
+    pub taint_double_encode_colour: Option<TaintColour>,
+
+    /// Output-sink diagnostic code for a subcommand-shaped XSS /
+    /// header-injection sink (e.g. `"IRULE3002"`). `None` = not a
+    /// sink. Mirrors Python `SubCommand.taint_output_sink`.
+    pub taint_output_sink: Option<&'static str>,
+
+    /// Argument index (0-based after the subcommand word) carrying a
+    /// credential value, for credential-exposure checks. `None` =
+    /// none. Mirrors Python `SubCommand.credential_arg`.
+    pub credential_arg: Option<u8>,
+
+    /// HTTP header names whose values are secrets, for a
+    /// subcommand-shaped header sink. Empty = none. Mirrors Python
+    /// `SubCommand.sensitive_headers`.
+    pub sensitive_headers: &'static [&'static str],
+
+    // --- GAP-D1: structured spec fields (subcommand overrides) ----------
+    //
+    /// Pattern-language override for this subcommand (`string match`
+    /// ⇒ `Glob`), taking priority over the parent command's
+    /// [`CommandSpec::pattern_type`]. Mirrors Python
+    /// `SubCommand.pattern_type`.
+    pub pattern_type: Option<PatternType>,
+
+    /// Format-string override for this subcommand (`clock format`
+    /// ⇒ `Clock`, `binary scan` ⇒ `Binary`), taking priority over the
+    /// parent command's [`CommandSpec::format_string_type`]. Mirrors
+    /// Python `SubCommand.format_string_type`.
+    pub format_string_type: Option<FormatType>,
+
+    /// XC operation this subcommand maps to. `None` = no explicit
+    /// mapping. Mirrors Python `SubCommand.xc_operation`.
+    pub xc_operation: Option<&'static str>,
+
+    // --- content-parity fields (Python `SubCommand` carries data here) ---
+    /// Structured side-effect declarations for this subcommand.
+    /// Mirrors Python `SubCommand.side_effect_hints`.
+    pub side_effects: &'static [SideEffect],
+
+    /// Irreversible operation (`file delete`, …). Mirrors Python
+    /// `SubCommand.destructive`.
+    pub destructive: bool,
+
+    /// Returns a filesystem path. Mirrors Python
+    /// `SubCommand.returns_path`.
+    pub returns_path: bool,
+
+    /// Performs unescaping / decoding. Mirrors Python
+    /// `SubCommand.is_unescape_command`.
+    pub is_unescape: bool,
+
+    /// CFG-lowered command name for ensemble subcommands rewritten by
+    /// the lowering pass. Mirrors Python `SubCommand.cfg_rewrite_name`.
+    pub cfg_rewrite_name: Option<&'static str>,
 }
 
 impl SubCommand {
@@ -414,6 +628,19 @@ impl SubCommand {
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
+        taint_transform: None,
+        taint_double_encode_colour: None,
+        taint_output_sink: None,
+        credential_arg: None,
+        sensitive_headers: &[],
+        pattern_type: None,
+        format_string_type: None,
+        xc_operation: None,
+        side_effects: &[],
+        destructive: false,
+        returns_path: false,
+        is_unescape: false,
+        cfg_rewrite_name: None,
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

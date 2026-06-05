@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("disk directory",),
         ),
         header_types=(("sys", "disk directory"),),
-        properties=(BigipPropertySpec(name="new-size", value_type="string"),),
+        properties=(BigipPropertySpec(name="new-size", value_type="unknown"),),
     )

@@ -1,5 +1,10 @@
 //! `syn_map` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "syn_map ?-effort effort?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "syn_map",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["syn_map ?-effort effort?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

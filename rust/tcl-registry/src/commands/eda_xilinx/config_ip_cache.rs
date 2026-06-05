@@ -1,5 +1,10 @@
 //! `config_ip_cache` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "config_ip_cache",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

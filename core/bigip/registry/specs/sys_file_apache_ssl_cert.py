@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("file apache-ssl-cert",),
         ),
         header_types=(("sys", "file apache-ssl-cert"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(BigipPropertySpec(name="source-path", value_type="unknown"),),
     )

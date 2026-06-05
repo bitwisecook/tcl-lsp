@@ -19,6 +19,6 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "sflow global-settings interface"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="poll-interval", value_type="integer"),
+            BigipPropertySpec(name="poll-interval", value_type="integer", default="10"),
         ),
     )

@@ -1,5 +1,10 @@
 //! `xsim` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "xsim ?-R? ?-input cmd_file? snapshot_name",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "xsim",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["xsim ?-R? ?-input cmd_file? snapshot_name"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

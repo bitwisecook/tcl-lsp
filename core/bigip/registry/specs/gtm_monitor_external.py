@@ -18,18 +18,31 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor external"),),
         properties=(
-            BigipPropertySpec(name="args", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="args", value_type="unknown", allow_none=True, default="none"),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("gtm_monitor_external",)
+                name="defaults-from",
+                value_type="reference",
+                references=("gtm_monitor_external",),
+                default="external",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="destination",
+                value_type="string",
+                shape_kind="endpoint",
+                default="*:*",
             ),
-            BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="probe-timeout", value_type="integer"),
-            BigipPropertySpec(name="timeout", value_type="integer"),
-            BigipPropertySpec(name="user-defined", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="interval", value_type="integer", default="30 seconds"),
+            BigipPropertySpec(name="probe-timeout", value_type="integer", default="5 seconds"),
+            BigipPropertySpec(name="run", value_type="unknown", default="none"),
+            BigipPropertySpec(name="timeout", value_type="integer", default="120 seconds"),
+            BigipPropertySpec(name="user-defined", value_type="reference", allow_none=True),
         ),
     )

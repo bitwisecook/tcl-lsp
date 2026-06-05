@@ -1,5 +1,10 @@
 //! `dbShape` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "dbShape ?-shape type? ?-net net_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dbShape",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["dbShape ?-shape type? ?-net net_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

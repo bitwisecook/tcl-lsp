@@ -1,5 +1,10 @@
 //! `route_opt` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "route_opt ?-effort high|medium|low?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "route_opt",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["route_opt ?-effort high|medium|low?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

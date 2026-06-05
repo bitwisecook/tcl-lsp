@@ -1,5 +1,10 @@
 //! `printvar` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "printvar ?variable_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "printvar",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["printvar ?variable_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

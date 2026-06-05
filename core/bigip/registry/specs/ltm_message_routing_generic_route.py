@@ -18,21 +18,21 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing generic route"),),
         properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="destination-address", value_type="string", default="none"),
             BigipPropertySpec(
-                name="destination-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                name="peer-selection-mode",
+                value_type="enum",
+                enum_values=("ratio", "sequential"),
+                default="sequential",
             ),
-            BigipPropertySpec(
-                name="peer-selection-mode", value_type="enum", enum_values=("sequential", "ratio")
-            ),
-            BigipPropertySpec(name="peers", value_type="list", repeated=True),
-            BigipPropertySpec(
-                name="source-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="peers", value_type="list"),
+            BigipPropertySpec(name="source-address", value_type="string", default="none"),
         ),
     )

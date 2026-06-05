@@ -5,11 +5,25 @@ pub fn spec() -> CommandSpec {
         name: "relate_server",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Sets up a related established connection.",
-            &["relate_server CONFIG"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Sets up a related established connection.",
+            synopsis: &["relate_server CONFIG"],
+            snippet: "Sets up a related established connection. This can be used with protocols that parse information out of a control connection and then establish a data connection based on information that was exchanged in the control connection.",
+            source: "https://clouddocs.f5.com/api/irules/relate_server.html",
+            examples: "when SIP_RESPONSE {\n    # Taken from https://devcentral.f5.com/wiki/irules.Load-Balance-Outbound-SIP-Voice-Traffic-Signaling-AND-Media-with-SNAT.ashx\n    # Pre-establish the UDP connection to allow RTP from Server -> Client (and vice versa)\n    relate_server {\n        proto 17\n        clientflow $source_VLAN $destination_RTP $destination_RTP_port $source_inside $source_RTP_port\n        serverflow $destination_VLAN $source_outside $source_RTP_port $destination_RTP $destination_RTP_port\n    }\n}",
+            return_value: "",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "relate_server CONFIG" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ConnectionControl,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

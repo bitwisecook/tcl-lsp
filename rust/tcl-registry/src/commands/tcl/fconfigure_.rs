@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "fconfigure channelId ?optionName? ?value ...?",
+}];
+
 /// Command spec for `fconfigure`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -82,11 +87,15 @@ pub fn spec() -> CommandSpec {
                 dialects: Some(DialectSet::TCL90),
             },
         ],
-        hover: Some(HoverSnippet::brief(
-            "Set and get options on a channel.",
-            &["fconfigure channelId ?optionName? ?value ...?"],
-            "Tcl fconfigure(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set and get options on a channel.",
+            synopsis: &["fconfigure channelId ?optionName? ?value ...?"],
+            snippet: "",
+            source: "Tcl fconfigure(1)",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

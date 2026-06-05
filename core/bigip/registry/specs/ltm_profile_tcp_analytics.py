@@ -19,58 +19,95 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile tcp-analytics"),),
         properties=(
             BigipPropertySpec(
-                name="collected-by-client-side",
+                name="collect-city",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="collected-by-server-side",
+                name="collect-continent",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="collected-stats-external-logging",
+                name="collect-country",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="collected-stats-internal-logging",
+                name="collect-nexthop",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="collect-city", value_type="enum", enum_values=("disabled", "enabled")
+                name="collect-post-code",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="collect-continent", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-country", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-nexthop", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-post-code", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-region", value_type="enum", enum_values=("disabled", "enabled")
+                name="collect-region",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="collect-remote-host-ip",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="collect-remote-host-subnet",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="collected-by-client-side",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="collected-by-server-side",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="collected-stats-external-logging",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="collected-stats-internal-logging",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_tcp_analytics",),
+                default="tcp-analytics",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="external-logging-publisher", value_type="string"),

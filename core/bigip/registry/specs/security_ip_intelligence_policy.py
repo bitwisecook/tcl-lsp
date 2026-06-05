@@ -18,11 +18,54 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "ip-intelligence policy"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(
                 name="blacklist-categories",
-                value_type="enum",
-                enum_values=("add", "default", "delete", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("blacklist-categories",),
+                        enum_values=("accept", "drop", "use-policy-setting"),
+                    ),
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="unknown",
+                        in_sections=("blacklist-categories",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="description",
+                        value_type="unknown",
+                        in_sections=("blacklist-categories",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="log-blacklist-hit-only",
+                        value_type="enum",
+                        in_sections=("blacklist-categories",),
+                        enum_values=("no", "use-policy-setting", "yes"),
+                    ),
+                    BigipPropertySpec(
+                        name="log-blacklist-whitelist-hit",
+                        value_type="enum",
+                        in_sections=("blacklist-categories",),
+                        enum_values=("no", "use-policy-setting", "yes"),
+                    ),
+                    BigipPropertySpec(
+                        name="match-direction-override",
+                        value_type="enum",
+                        in_sections=("blacklist-categories",),
+                        enum_values=(
+                            "match-destination",
+                            "match-source",
+                            "match-source-and-destination",
+                        ),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="action",
@@ -31,8 +74,15 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("accept", "drop", "use-policy-setting"),
             ),
             BigipPropertySpec(
+                name="app-service",
+                value_type="unknown",
+                in_sections=("blacklist-categories",),
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
                 name="description",
-                value_type="boolean",
+                value_type="unknown",
                 in_sections=("blacklist-categories",),
                 allow_none=True,
             ),
@@ -40,13 +90,13 @@ def register_spec() -> BigipObjectSpec:
                 name="log-blacklist-hit-only",
                 value_type="enum",
                 in_sections=("blacklist-categories",),
-                enum_values=("no", "yes", "use-policy-setting"),
+                enum_values=("no", "use-policy-setting", "yes"),
             ),
             BigipPropertySpec(
                 name="log-blacklist-whitelist-hit",
                 value_type="enum",
                 in_sections=("blacklist-categories",),
-                enum_values=("no", "yes", "use-policy-setting"),
+                enum_values=("no", "use-policy-setting", "yes"),
             ),
             BigipPropertySpec(
                 name="match-direction-override",
@@ -55,21 +105,28 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("match-destination", "match-source", "match-source-and-destination"),
             ),
             BigipPropertySpec(
-                name="feed-lists",
+                name="default-action",
                 value_type="enum",
-                repeated=True,
-                enum_values=("add", "default", "delete", "replace-all-with"),
+                enum_values=("accept", "drop"),
             ),
             BigipPropertySpec(
-                name="default-action", value_type="enum", enum_values=("accept", "drop")
-            ),
-            BigipPropertySpec(
-                name="default-log-blacklist-hit-only", value_type="enum", enum_values=("no", "yes")
+                name="default-log-blacklist-hit-only",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="default-log-blacklist-whitelist-hit",
                 value_type="enum",
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="feed-lists",
+                value_type="list",
+                references=("security_ip_intelligence_feed_list",),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
         ),
     )

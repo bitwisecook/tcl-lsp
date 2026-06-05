@@ -130,12 +130,24 @@ def normalise(spec: object) -> dict:
     # Python carries ~20 boolean trait flags rather than a bitset; treat the
     # command as "has traits" when any behavioural flag is set or it is pure.
     _trait_flags = [
-        "creates_dynamic_barrier", "has_loop_body", "never_inline_body",
-        "warn_without_terminator", "evaluates_code", "performs_substitution",
-        "opens_channel", "sources_file", "has_switch_body",
-        "has_string_list_confusion_risk", "configures_channel", "has_interp_eval",
-        "has_destructive_ops", "is_irules_event_handler",
-        "is_unnormalized_http_getter", "pure", "cse_candidate", "diagram_action",
+        "creates_dynamic_barrier",
+        "has_loop_body",
+        "never_inline_body",
+        "warn_without_terminator",
+        "evaluates_code",
+        "performs_substitution",
+        "opens_channel",
+        "sources_file",
+        "has_switch_body",
+        "has_string_list_confusion_risk",
+        "configures_channel",
+        "has_interp_eval",
+        "has_destructive_ops",
+        "is_irules_event_handler",
+        "is_unnormalized_http_getter",
+        "pure",
+        "cse_candidate",
+        "diagram_action",
     ]
     has_traits = any(bool(getattr(spec, f, False)) for f in _trait_flags)
 

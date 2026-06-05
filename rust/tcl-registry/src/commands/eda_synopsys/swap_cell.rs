@@ -1,5 +1,10 @@
 //! `swap_cell` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "swap_cell cell_list lib_cell",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "swap_cell",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["swap_cell cell_list lib_cell"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

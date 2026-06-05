@@ -1,5 +1,10 @@
 //! `write_do_lec` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_do_lec ?-revised_design design? ?-logicEquivalence? > file",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_do_lec",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_do_lec ?-revised_design design? ?-logicEquivalence? > file"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,10 @@
 //! `write_sdc` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "write_sdc ?-nosplit? ?-version version? ?file_name?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "write_sdc",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["write_sdc ?-nosplit? ?-version version? ?file_name?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

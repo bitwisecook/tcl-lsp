@@ -1,5 +1,10 @@
 //! `set_global_assignment` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "set_global_assignment -name name value ?-section_id id?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set_global_assignment",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["set_global_assignment -name name value ?-section_id id?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

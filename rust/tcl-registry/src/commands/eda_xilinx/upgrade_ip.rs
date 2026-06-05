@@ -1,5 +1,10 @@
 //! `upgrade_ip` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "upgrade_ip ?-srcset srcset? ?-quiet? ?objects?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upgrade_ip",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["upgrade_ip ?-srcset srcset? ?-quiet? ?objects?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

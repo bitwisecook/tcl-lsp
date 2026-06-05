@@ -1,5 +1,10 @@
 //! `execute_module` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "execute_module -tool tool_name ?-args arg_list?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "execute_module",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["execute_module -tool tool_name ?-args arg_list?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -118,6 +118,13 @@ ownership matrices.
   current ``trace add variable`` no-op gap, the design sketch
   (per-Var TraceList + fire hooks on every mutator), and an
   effort estimate for closing it.
+- [runtime/c-extension-abi.md](runtime/c-extension-abi.md) — the ABI
+  for compiling unmodified C Tcl extensions to WASM against the
+  runtime (API- not binary-ABI compatibility): the authored
+  ``tcl.h``/``tclOO.h``/``tclTomMath.h`` surface, the shared
+  memory/table model, static vs dynamic (``dylink.0``) link models,
+  the header scope (``tclInt.h`` out), and the Rust-vs-Zig analysis.
+  Mechanism validated by the spikes under ``runtime/rust-spike/``.
 
 ## Compiler staircase (S0–S6)
 

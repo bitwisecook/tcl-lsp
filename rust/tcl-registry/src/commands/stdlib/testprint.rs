@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testprint",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test formatted output.",
-            &["testprint"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test formatted output.",
+            synopsis: &["testprint"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

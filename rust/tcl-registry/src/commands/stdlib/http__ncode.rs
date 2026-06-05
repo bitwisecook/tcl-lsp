@@ -5,11 +5,16 @@ pub fn spec() -> CommandSpec {
         name: "http::ncode",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-        hover: Some(HoverSnippet::brief(
-            "Return the numeric HTTP status code (e.g. 200, 404).",
-            &["http::ncode token"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the numeric HTTP status code (e.g. 200, 404).",
+            synopsis: &["http::ncode token"],
+            snippet: "",
+            source: "Tcl stdlib http package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("http"),
+        deprecated_replacement: Some("http::responseCode"),
         ..CommandSpec::DEFAULT
     }
 }

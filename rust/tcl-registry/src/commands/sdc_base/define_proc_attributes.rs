@@ -1,5 +1,10 @@
 //! `define_proc_attributes` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "define_proc_attributes proc_name ?-info string?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "define_proc_attributes",
@@ -16,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["define_proc_attributes proc_name ?-info string?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -2,6 +2,11 @@
 
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "seek channelId offset ?origin?",
+}];
+
 /// Command spec for `seek`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -16,11 +21,15 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-        hover: Some(HoverSnippet::brief(
-            "Set the access position for a channel.",
-            &["seek channelId offset ?origin?"],
-            "Tcl seek(1)",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Set the access position for a channel.",
+            synopsis: &["seek channelId offset ?origin?"],
+            snippet: "Default origin is `start`. Returns empty string.",
+            source: "Tcl man page seek.n",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,11 +5,15 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mcpreferences",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Return the ordered list of locale preferences.",
-            &["msgcat::mcpreferences ?locale ...?"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Return the ordered list of locale preferences.",
+            synopsis: &["msgcat::mcpreferences ?locale ...?"],
+            snippet: "",
+            source: "Tcl stdlib msgcat package",
+            examples: "",
+            return_value: "",
+        }),
+        required_package: Some("msgcat"),
         ..CommandSpec::DEFAULT
     }
 }

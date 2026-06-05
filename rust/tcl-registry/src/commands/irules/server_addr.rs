@@ -5,11 +5,26 @@ pub fn spec() -> CommandSpec {
         name: "server_addr",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Returns the IP address of the server.",
-            &["server_addr"],
-            "F5 iRules",
-        )),
+hover: Some(HoverSnippet {
+            summary: "Returns the IP address of the server.",
+            synopsis: &["server_addr"],
+            snippet: "Returns the IP address of the server. This is a BIG-IP version 4.X\nvariable, provided for backward compatibility. You can use the\nequivalent 9.X command IP::server_addr instead.",
+            source: "https://clouddocs.f5.com/api/irules/server_addr.html",
+            examples: "",
+            return_value: "",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "server_addr" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::TcpState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
+        deprecated_replacement: Some("IP::server_addr"),
         ..CommandSpec::DEFAULT
     }
 }

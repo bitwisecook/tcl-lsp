@@ -1,5 +1,10 @@
 //! `read_physical` command.
 use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "read_physical ?-lef file_list? ?-def file?",
+}];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read_physical",
@@ -10,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["read_physical ?-lef file_list? ?-def file?"],
             "F5",
         )),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }

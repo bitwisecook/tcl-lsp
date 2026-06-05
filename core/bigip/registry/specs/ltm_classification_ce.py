@@ -19,20 +19,36 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "classification ce"),),
         properties=(
             BigipPropertySpec(
-                name="allow-reclassification", value_type="enum", enum_values=("on", "off")
-            ),
-            BigipPropertySpec(name="analyze-dns", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(
-                name="analyze-ssl-serverside", value_type="enum", enum_values=("on", "off")
-            ),
-            BigipPropertySpec(name="flow-bundling", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(name="cache-results", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(
                 name="policies",
                 value_type="reference",
                 allow_none=True,
                 enum_values=("add", "delete", "default", "replace-all-with", "none"),
                 references=("ltm_policy",),
+            ),
+            BigipPropertySpec(
+                name="allow-reclassification",
+                value_type="enum",
+                enum_values=("off", "on"),
+            ),
+            BigipPropertySpec(name="analyze-dns", value_type="enum", enum_values=("off", "on")),
+            BigipPropertySpec(
+                name="analyze-ssl-serverside",
+                value_type="enum",
+                enum_values=("off", "on"),
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="cache-results", value_type="enum", enum_values=("off", "on")),
+            BigipPropertySpec(name="flow-bundling", value_type="enum", enum_values=("off", "on")),
+            BigipPropertySpec(
+                name="policies",
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
         ),
     )

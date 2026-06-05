@@ -5,11 +5,14 @@ pub fn spec() -> CommandSpec {
         name: "testexprlongobj",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief(
-            "Test Tcl_ExprLongObj.",
-            &["testexprlongobj"],
-            "F5",
-        )),
+        hover: Some(HoverSnippet {
+            summary: "Test Tcl_ExprLongObj.",
+            synopsis: &["testexprlongobj"],
+            snippet: "",
+            source: "Tcl test binary (tclTest.c)",
+            examples: "",
+            return_value: "",
+        }),
         ..CommandSpec::DEFAULT
     }
 }

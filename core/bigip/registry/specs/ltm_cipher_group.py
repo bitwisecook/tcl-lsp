@@ -21,12 +21,31 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="allow", value_type="reference", repeated=True, references=("ltm_rule",)
             ),
-            BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="exclude", value_type="reference", repeated=True, references=("ltm_rule",)
             ),
             BigipPropertySpec(
                 name="require", value_type="reference", repeated=True, references=("ltm_rule",)
+            ),
+            BigipPropertySpec(
+                name="allow",
+                value_type="list",
+                repeated=True,
+                list_operators=frozenset(("add",)),
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="exclude",
+                value_type="list",
+                repeated=True,
+                list_operators=frozenset(("add",)),
+            ),
+            BigipPropertySpec(
+                name="require",
+                value_type="list",
+                required=True,
+                repeated=True,
+                list_operators=frozenset(("add",)),
             ),
         ),
     )

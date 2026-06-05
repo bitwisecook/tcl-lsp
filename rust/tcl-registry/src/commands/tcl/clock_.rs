@@ -1,6 +1,11 @@
 //! `clock` — time and date operations.
 use crate::prelude::*;
 
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "clock subcommand ?arg ...?",
+}];
+
 /// Options for `clock scan` / `clock format` / `clock add`.
 /// `-validate` is Tcl 9.0+ (TIP 532) and dialect-gated; the
 /// others exist since Tcl 8.5.
@@ -57,6 +62,157 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Add duration to a time.",
         synopsis: "clock add timeVal ?count unit ...?",
         return_type: Some(TclType::Int),
+        arg_values: &[
+            (
+                1,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                3,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                5,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+            (
+                7,
+                &[
+                    ArgValue {
+                        value: "seconds",
+                        detail: "Seconds.",
+                    },
+                    ArgValue {
+                        value: "minutes",
+                        detail: "Minutes (60 seconds).",
+                    },
+                    ArgValue {
+                        value: "hours",
+                        detail: "Hours (3600 seconds).",
+                    },
+                    ArgValue {
+                        value: "days",
+                        detail: "Days (86400 seconds).",
+                    },
+                    ArgValue {
+                        value: "weekdays",
+                        detail: "Weekdays (skipping Saturday and Sunday).",
+                    },
+                    ArgValue {
+                        value: "weeks",
+                        detail: "Weeks (7 days).",
+                    },
+                    ArgValue {
+                        value: "months",
+                        detail: "Calendar months.",
+                    },
+                    ArgValue {
+                        value: "years",
+                        detail: "Calendar years.",
+                    },
+                ],
+            ),
+        ],
+        pure: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -115,17 +271,69 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+/// Command-level `clock format`/`scan` options (mirrors `tcl/clock.py`
+/// form options) — surfaced at the command level for completion parity.
+const CMD_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-base",
+        takes_value: true,
+        value_hint: "timeVal",
+        detail: "Base time for relative scanning.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-format",
+        takes_value: true,
+        value_hint: "format",
+        detail: "strftime-style format string.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-gmt",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Use GMT instead of local time.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-locale",
+        takes_value: true,
+        value_hint: "locale",
+        detail: "Locale for month/day names.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-timezone",
+        takes_value: true,
+        value_hint: "zone",
+        detail: "Time zone for conversion.",
+        dialects: None,
+    },
+    OptionSpec {
+        name: "-validate",
+        takes_value: true,
+        value_hint: "boolean",
+        detail: "Validate date fields strictly.",
+        dialects: None,
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock",
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        hover: Some(HoverSnippet::brief(
-            "Time and date operations.",
-            &["clock subcommand ?arg ...?"],
-            "Tcl clock(1)",
-        )),
+        options: CMD_OPTIONS,
+hover: Some(HoverSnippet {
+    summary: "Obtain and manipulate dates and times.",
+    synopsis: &["clock add timeVal count unit ?...?", "clock format timeVal ?-option value ...?", "clock scan inputString ?-option value ...?", "clock seconds", "clock subcommand ?arg ...?"],
+    snippet: "Use `clock seconds` for epoch time, `clock format` to display, `clock scan` to parse.",
+    source: "Tcl man page clock.n",
+    examples: "",
+    return_value: "",
+}),
+        forms: FORMS,
         ..CommandSpec::DEFAULT
     }
 }
