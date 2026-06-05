@@ -37,7 +37,8 @@ def ensure_rust_bin() -> str:
     """
     subprocess.run(
         ["cargo", "build", "-q", "--example", "dump_specs", "-p", "tcl-registry"],
-        cwd=_REPO_ROOT / "rust", check=True,
+        cwd=_REPO_ROOT / "rust",
+        check=True,
     )
     return str(_RUST_BIN)
 
@@ -45,8 +46,11 @@ def ensure_rust_bin() -> str:
 def rust_meta_names(binpath: str, kind: str) -> set[str]:
     """Names emitted by `dump_specs meta-<kind>` (events/profiles/namespaces)."""
     out = subprocess.run(
-        [binpath, f"meta-{kind}"], cwd=_REPO_ROOT,
-        capture_output=True, text=True, check=True,
+        [binpath, f"meta-{kind}"],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     return {line.strip() for line in out.splitlines() if line.strip()}
 
@@ -54,8 +58,11 @@ def rust_meta_names(binpath: str, kind: str) -> set[str]:
 def rust_event_props(binpath: str) -> dict[str, dict]:
     """Per-event props from `dump_specs meta-events-props`."""
     out = subprocess.run(
-        [binpath, "meta-events-props"], cwd=_REPO_ROOT,
-        capture_output=True, text=True, check=True,
+        [binpath, "meta-events-props"],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     props = {}
     for line in out.splitlines():
@@ -63,6 +70,7 @@ def rust_event_props(binpath: str) -> dict[str, dict]:
             rec = json.loads(line)
             props[rec["name"]] = rec
     return props
+
 
 # Data-loss dimensions we surface per entry, with short status codes. Only
 # "py has it, rust lacks it" counts as a gap (modelling-diff dims excluded).
@@ -143,11 +151,14 @@ def emit_bigip() -> None:
     from core.bigip.registry.data import OBJECT_SPECS  # type: ignore
 
     kinds = sorted(s.kind_spec.kind for s in OBJECT_SPECS)
+
     # main-vs-core drift via file stems
     def stems(ref: str, path: str) -> set[str]:
         out = subprocess.run(
             ["git", "ls-tree", "-r", "--name-only", ref, "--", path],
-            capture_output=True, text=True, cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            cwd=_REPO_ROOT,
         ).stdout
         return {
             line.rsplit("/", 1)[-1][:-3]
@@ -305,11 +316,14 @@ def main() -> int:
     binpath = ensure_rust_bin()
     emit_events(dict(nd.EVENT_PROPS), rust_event_props(binpath))
     emit_meta_names(
-        "F5 profiles", set(nd.PROFILE_SPECS), rust_meta_names(binpath, "profiles"),
+        "F5 profiles",
+        set(nd.PROFILE_SPECS),
+        rust_meta_names(binpath, "profiles"),
         "Names compared Python↔Rust (prop-level diff is a follow-up).",
     )
     emit_meta_names(
-        "Protocol namespaces", set(nd.PROTOCOL_NAMESPACE_SPECS),
+        "Protocol namespaces",
+        set(nd.PROTOCOL_NAMESPACE_SPECS),
         rust_meta_names(binpath, "namespaces"),
         "Names compared Python↔Rust (prop-level diff is a follow-up).",
     )

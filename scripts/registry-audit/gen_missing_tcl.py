@@ -14,7 +14,6 @@ Usage: python3 scripts/registry-audit/gen_missing_tcl.py
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -33,7 +32,11 @@ AUDIT = _REPO_ROOT / "tmp/registry-audit/tcl"
 def rust_str(s: str) -> str:
     return (
         '"'
-        + (s or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
+        + (s or "")
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
         + '"'
     )
 
@@ -50,8 +53,13 @@ def arity_expr(ar) -> str:
 
 
 _TYPE = {
-    "INT": "Int", "STRING": "String", "LIST": "List", "DICT": "Dict",
-    "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
+    "INT": "Int",
+    "STRING": "String",
+    "LIST": "List",
+    "DICT": "Dict",
+    "BOOLEAN": "Boolean",
+    "NUMERIC": "Numeric",
+    "DOUBLE": "Double",
     "CHANNEL": "Channel",
 }
 _FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
@@ -108,16 +116,13 @@ def spec_literal(spec) -> str:
 
 def main() -> None:
     py = {s.name: s for s in load_specs("tcl")}
+
     # Regenerate from the canonical Python set directly (idempotent — does
     # not depend on the current Rust state). Only the mathop ensemble +
     # bare/word operators belong in this file; named commands get their
     # own files via gen_named_tcl.py.
     def is_op(n: str) -> bool:
-        return (
-            "mathop" in n
-            or not n[:1].isalpha()
-            or n in {"eq", "ne", "in", "ni", "max", "min"}
-        )
+        return "mathop" in n or not n[:1].isalpha() or n in {"eq", "ne", "in", "ni", "max", "min"}
 
     ops = [s for n, s in sorted(py.items()) if is_op(n)]
     body = "\n".join(spec_literal(s) for s in ops)

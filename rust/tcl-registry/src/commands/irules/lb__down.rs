@@ -57,6 +57,13 @@ hover: Some(HoverSnippet {
                 writes: true,
                 connection_side: ConnectionSide::Server,
             },
+            // Mirrors Python `lb__down.py` (POOL_SELECTION).
+            SideEffect {
+                target: SideEffectTarget::PoolSelection,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Server,
+            },
         ],
         ..CommandSpec::DEFAULT
     }

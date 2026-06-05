@@ -22,17 +22,29 @@ from core.bigip.registry.specs import OBJECT_SPECS  # noqa: E402
 OUT = ROOT / "rust/tcl-registry/src/bigip/data"
 
 _VK = {
-    "string": "String", "integer": "Integer", "float": "Float",
-    "boolean": "Boolean", "enum": "Enum", "reference": "Reference",
-    "list": "List", "block": "Block", "unknown": "Unknown",
-    "ip-address": "IpAddress", "endpoint": "Endpoint", "object": "Object",
+    "string": "String",
+    "integer": "Integer",
+    "float": "Float",
+    "boolean": "Boolean",
+    "enum": "Enum",
+    "reference": "Reference",
+    "list": "List",
+    "block": "Block",
+    "unknown": "Unknown",
+    "ip-address": "IpAddress",
+    "endpoint": "Endpoint",
+    "object": "Object",
 }
 
 
 def rs(s: str) -> str:
     return (
         '"'
-        + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
+        + s.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+        .replace("\r", "\\r")
         + '"'
     )
 

@@ -26,16 +26,31 @@ from _groups import load_specs, rust_dir  # noqa: E402
 
 ANY = sys.maxsize
 MARKER = "/// Subcommands ported from the Python source of truth."
-_TYPE = {"INT": "Int", "STRING": "String", "LIST": "List", "DICT": "Dict",
-         "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double", "CHANNEL": "Channel"}
+_TYPE = {
+    "INT": "Int",
+    "STRING": "String",
+    "LIST": "List",
+    "DICT": "Dict",
+    "BOOLEAN": "Boolean",
+    "NUMERIC": "Numeric",
+    "DOUBLE": "Double",
+    "CHANNEL": "Channel",
+}
 _STORAGE = {"DICT": "Dict", "LIST": "List", "ARRAY": "Array"}
 _TARGET = {}  # filled lazily via pascal
 _SIDE = {"NONE": "None", "CLIENT": "Client", "SERVER": "Server", "BOTH": "Both", "GLOBAL": "Global"}
 
 
 def rust_str(s: str) -> str:
-    return ('"' + (s or "").replace("\\", "\\\\").replace('"', '\\"')
-            .replace("\n", "\\n").replace("\t", "\\t") + '"')
+    return (
+        '"'
+        + (s or "")
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+        + '"'
+    )
 
 
 def arity_expr(ar) -> str:
@@ -62,15 +77,19 @@ def colour(v) -> str | None:
 
 
 def side_effect_lit(se, ind: str) -> str:
-    return (f"{ind}SideEffect {{ target: SideEffectTarget::{pascal(se.target.name)}, "
-            f"reads: {str(bool(se.reads)).lower()}, writes: {str(bool(se.writes)).lower()}, "
-            f"connection_side: ConnectionSide::{_SIDE[se.connection_side.name]} }},")
+    return (
+        f"{ind}SideEffect {{ target: SideEffectTarget::{pascal(se.target.name)}, "
+        f"reads: {str(bool(se.reads)).lower()}, writes: {str(bool(se.writes)).lower()}, "
+        f"connection_side: ConnectionSide::{_SIDE[se.connection_side.name]} }},"
+    )
 
 
 def option_lit(o, ind: str) -> str:
-    return (f"{ind}OptionSpec {{ name: {rust_str(o.name)}, takes_value: {str(bool(o.takes_value)).lower()}, "
-            f"value_hint: {rust_str(getattr(o, 'value_hint', '') or '')}, "
-            f"detail: {rust_str(getattr(o, 'detail', '') or '')}, dialects: None }},")
+    return (
+        f"{ind}OptionSpec {{ name: {rust_str(o.name)}, takes_value: {str(bool(o.takes_value)).lower()}, "
+        f"value_hint: {rust_str(getattr(o, 'value_hint', '') or '')}, "
+        f"detail: {rust_str(getattr(o, 'detail', '') or '')}, dialects: None }},"
+    )
 
 
 def arg_values_lit(av: dict, ind: str) -> str:
@@ -86,11 +105,13 @@ def arg_values_lit(av: dict, ind: str) -> str:
 
 
 def subcommand_literal(sub) -> str:
-    L = ["    SubCommand {",
-         f"        name: {rust_str(sub.name)},",
-         f"        arity: {arity_expr(sub.arity)},",
-         f"        detail: {rust_str(sub.detail)},",
-         f"        synopsis: {rust_str(sub.synopsis)},"]
+    L = [
+        "    SubCommand {",
+        f"        name: {rust_str(sub.name)},",
+        f"        arity: {arity_expr(sub.arity)},",
+        f"        detail: {rust_str(sub.detail)},",
+        f"        synopsis: {rust_str(sub.synopsis)},",
+    ]
     rt = sub.return_type
     if rt is not None and rt.name in _TYPE:
         L.append(f"        return_type: Some(TclType::{_TYPE[rt.name]}),")
@@ -174,9 +195,11 @@ def main() -> None:
             um = re.search(r"^use crate::prelude::\*;\s*$", text, re.M)
             if not um:
                 continue
-            text = text[: um.end()] + "\n" + const_block + text[um.end():]
+            text = text[: um.end()] + "\n" + const_block + text[um.end() :]
             m = re.search(r"^(\s*)\.\.CommandSpec::DEFAULT", text, re.M)
-            text = text[: m.start()] + f"{m.group(1)}subcommands: SUBCOMMANDS,\n" + text[m.start():]
+            text = (
+                text[: m.start()] + f"{m.group(1)}subcommands: SUBCOMMANDS,\n" + text[m.start() :]
+            )
         else:
             continue  # hand-written subcommands — leave untouched
         path.write_text(text)

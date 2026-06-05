@@ -70,12 +70,21 @@ pub fn spec() -> CommandSpec {
             synopsis: "LB::connlimit <target> ?args?",
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::ConnectionControl,
-            reads: false,
-            writes: true,
-            connection_side: ConnectionSide::Both,
-        }],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ConnectionControl,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::Both,
+            },
+            // Mirrors Python `lb__connlimit.py` (POOL_SELECTION).
+            SideEffect {
+                target: SideEffectTarget::PoolSelection,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::Server,
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

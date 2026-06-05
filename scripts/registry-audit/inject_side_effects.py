@@ -11,7 +11,6 @@ Usage: python3 scripts/registry-audit/inject_side_effects.py [group]
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 

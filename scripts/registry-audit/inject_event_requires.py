@@ -105,7 +105,10 @@ def main() -> None:
         if not m:
             continue
         indent = m.group(1)
-        has_field = lambda name: re.search(r"^\s*" + name + r":", text, re.M) is not None
+
+        def has_field(name: str, text: str = text) -> bool:
+            return re.search(r"^\s*" + name + r":", text, re.M) is not None
+
         blocks: list[str] = []
         if er and not has_field("event_requires"):
             blocks.append(event_requires_literal(er, indent))
@@ -116,7 +119,7 @@ def main() -> None:
         if not blocks:
             continue
         inject = "".join(f"{indent}{b}\n" for b in blocks)
-        text = text[: m.start()] + inject + text[m.start():]
+        text = text[: m.start()] + inject + text[m.start() :]
         path.write_text(text)
     print(f"irules: event_requires -> {er_count} files, excluded_events -> {ex_count} files")
 

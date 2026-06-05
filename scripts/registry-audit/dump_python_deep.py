@@ -43,8 +43,22 @@ def opt(o):
 def side_effects(hints):
     out = []
     for se in hints or ():
-        out.append(f"{en(se.target)}|{int(bool(se.reads))}|{int(bool(se.writes))}|{en(se.connection_side)}")
+        out.append(
+            f"{en(se.target)}|{int(bool(se.reads))}|{int(bool(se.writes))}|{en(se.connection_side)}"
+        )
     return sorted(out)
+
+
+def arg_types_map(at) -> dict:
+    return {str(i): en(t.expected) for i, t in (at or {}).items()}
+
+
+def arg_roles_map(ar) -> dict:
+    return {str(i): sorted(r.name for r in rs) for i, rs in (ar or {}).items()}
+
+
+def arg_values_map(av) -> dict:
+    return {str(i): sorted(v.value for v in vs) for i, vs in (av or {}).items()}
 
 
 def sub_record(sub) -> dict:
@@ -52,6 +66,9 @@ def sub_record(sub) -> dict:
     return {
         "arity_min": ar.min,
         "arity_max": None if ar.max >= ANY else ar.max,
+        "arg_types": arg_types_map(sub.arg_types),
+        "arg_roles": arg_roles_map(sub.arg_roles),
+        "arg_values": arg_values_map(getattr(sub, "arg_values", {})),
         "detail": bool(sub.detail),
         "synopsis": bool(sub.synopsis),
         "return_type": en(sub.return_type),
@@ -67,7 +84,7 @@ def sub_record(sub) -> dict:
         "n_arg_roles": len(sub.arg_roles or {}),
         "n_arg_values": len(getattr(sub, "arg_values", {}) or {}),
         "n_forms": len(getattr(sub, "forms", ()) or ()),
-        "side_effects": side_effects(getattr(sub, "side_effect_hints", ()) ),
+        "side_effects": side_effects(getattr(sub, "side_effect_hints", ())),
         "safe_on_uninit": sub.safe_on_uninit is not None,
         "credential_arg": sub.credential_arg,
         "sensitive_headers": sorted(getattr(sub, "sensitive_headers", None) or ()),
@@ -82,18 +99,45 @@ def sub_record(sub) -> dict:
 # Python boolean trait flags whose presence must survive into Rust (as a
 # `Traits` bit). Keyed by the Python field name.
 BOOL_FLAGS = [
-    "creates_dynamic_barrier", "has_loop_body", "never_inline_body",
-    "warn_without_terminator", "evaluates_code", "performs_substitution",
-    "opens_channel", "sources_file", "has_switch_body",
-    "has_string_list_confusion_risk", "configures_channel", "has_interp_eval",
-    "has_destructive_ops", "is_irules_event_handler",
-    "is_unnormalized_http_getter", "pure", "cse_candidate", "diagram_action",
-    "is_control_flow", "needs_start_cmd", "terminates_block", "is_oo_metaclass",
-    "irules_top_level_only", "is_unescape_command", "reads_variable_before_write",
-    "has_boolean_condition", "loop_list_header", "creates_scope_alias",
-    "returns_path", "pure_evaluation", "destroys_variable", "is_language_keyword",
-    "produces_canonical_list", "is_side_switch", "defines_procedure", "unsafe",
-    "password_option_command", "taint_sink", "warn_missing_import",
+    "creates_dynamic_barrier",
+    "has_loop_body",
+    "never_inline_body",
+    "warn_without_terminator",
+    "evaluates_code",
+    "performs_substitution",
+    "opens_channel",
+    "sources_file",
+    "has_switch_body",
+    "has_string_list_confusion_risk",
+    "configures_channel",
+    "has_interp_eval",
+    "has_destructive_ops",
+    "is_irules_event_handler",
+    "is_unnormalized_http_getter",
+    "pure",
+    "cse_candidate",
+    "diagram_action",
+    "is_control_flow",
+    "needs_start_cmd",
+    "terminates_block",
+    "is_oo_metaclass",
+    "irules_top_level_only",
+    "is_unescape_command",
+    "reads_variable_before_write",
+    "has_boolean_condition",
+    "loop_list_header",
+    "creates_scope_alias",
+    "returns_path",
+    "pure_evaluation",
+    "destroys_variable",
+    "is_language_keyword",
+    "produces_canonical_list",
+    "is_side_switch",
+    "defines_procedure",
+    "unsafe",
+    "password_option_command",
+    "taint_sink",
+    "warn_missing_import",
 ]
 
 
@@ -109,6 +153,8 @@ def deep(spec) -> dict:
         "name": spec.name,
         "snippet": bool(getattr(h, "snippet", "")) if h else False,
         "side_effects": side_effects(getattr(spec, "side_effect_hints", ())),
+        "arg_types": arg_types_map(getattr(spec, "arg_types", {})),
+        "arg_roles": arg_roles_map(getattr(spec, "arg_roles", {})),
         "options": sorted(set(options)),
         "subs": subs,
         "scalars": {
@@ -118,11 +164,14 @@ def deep(spec) -> dict:
             "taint_double_encode": colours(getattr(spec, "taint_double_encode_colour", None)),
             "taint_sink_safe": colours(getattr(spec, "taint_sink_safe_colour", None)),
             "taint_network_sink_args": (
-                None if getattr(spec, "taint_network_sink_args", None) is None
+                None
+                if getattr(spec, "taint_network_sink_args", None) is None
                 else sorted(spec.taint_network_sink_args)
             ),
             "taint_interp_eval": sorted(getattr(spec, "taint_interp_eval_subcommands", None) or ()),
-            "taint_output_sink_subcommands": sorted(getattr(spec, "taint_output_sink_subcommands", None) or ()),
+            "taint_output_sink_subcommands": sorted(
+                getattr(spec, "taint_output_sink_subcommands", None) or ()
+            ),
             "credential_options": sorted(getattr(spec, "credential_options", None) or ()),
             "sensitive_headers": sorted(getattr(spec, "sensitive_headers", None) or ()),
             "pattern_type": en(getattr(spec, "pattern_type", None)),
@@ -131,14 +180,21 @@ def deep(spec) -> dict:
             "is_namespace_exported": bool(getattr(spec, "is_namespace_exported", False)),
             "xc_translatable": getattr(spec, "xc_translatable", None),
             "deprecated_replacement": getattr(spec, "deprecated_replacement_name", None)
-            if hasattr(spec, "deprecated_replacement_name") else None,
+            if hasattr(spec, "deprecated_replacement_name")
+            else None,
             "inferred_storage_type": en(getattr(spec, "inferred_storage_type", None)),
             "assigns_variable_at": getattr(spec, "assigns_variable_at", None),
             "safe_on_uninit": getattr(spec, "safe_on_uninit", None) is not None,
             "setter_constraints": len(
-                getattr(spec.taint_hints() if hasattr(spec, "taint_hints") else None,
-                        "setter_constraints", ()) or ()
-            ) if False else None,
+                getattr(
+                    spec.taint_hints() if hasattr(spec, "taint_hints") else None,
+                    "setter_constraints",
+                    (),
+                )
+                or ()
+            )
+            if False
+            else None,
         },
         "bools": {f: bool(getattr(spec, f, False)) for f in BOOL_FLAGS},
     }

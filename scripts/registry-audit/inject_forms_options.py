@@ -17,7 +17,6 @@ Usage: python3 scripts/registry-audit/inject_forms_options.py [group]
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -48,10 +47,7 @@ def rust_str(s: str) -> str:
 
 def form_literal(form) -> str:
     kind = _FORMKIND.get(form.kind.name, "Default")
-    return (
-        f"    FormSpec {{ kind: FormKind::{kind}, "
-        f"synopsis: {rust_str(form.synopsis or '')} }},"
-    )
+    return f"    FormSpec {{ kind: FormKind::{kind}, synopsis: {rust_str(form.synopsis or '')} }},"
 
 
 def option_literal(opt) -> str:

@@ -23,13 +23,16 @@ if str(_REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _groups import files_by_name, load_specs, rust_dir, set_spec_field  # noqa: E402
-from inject_subcommands import subcommand_literal  # noqa: E402
-from inject_forms_options import option_literal, collect_options  # noqa: E402
 from inject_arg_roles import pascal  # noqa: E402
 from inject_arg_types import hint as argtype_hint  # noqa: E402
+from inject_forms_options import collect_options, option_literal  # noqa: E402
+from inject_subcommands import subcommand_literal  # noqa: E402
 
 TCL = rust_dir(_REPO_ROOT, "tcl")
-DUMP = {json.loads(l)["name"]: json.loads(l) for l in open(_REPO_ROOT / "tmp/registry-audit/tcl.rust.jsonl")}
+DUMP = {
+    json.loads(line)["name"]: json.loads(line)
+    for line in open(_REPO_ROOT / "tmp/registry-audit/tcl.rust.jsonl")
+}
 
 
 def array_close(text: str, open_idx: int) -> int:
@@ -130,8 +133,15 @@ def main() -> None:
         print(f"{cmd}: arg_roles/arg_types refreshed")
 
     # 4. return_type — add where Python has one and Rust lacks it.
-    _RT = {"INT": "Int", "STRING": "String", "LIST": "List", "BOOLEAN": "Boolean",
-           "NUMERIC": "Numeric", "DOUBLE": "Double", "DICT": "Dict"}
+    _RT = {
+        "INT": "Int",
+        "STRING": "String",
+        "LIST": "List",
+        "BOOLEAN": "Boolean",
+        "NUMERIC": "Numeric",
+        "DOUBLE": "Double",
+        "DICT": "Dict",
+    }
     for cmd in ["scan"]:
         spec, path = py[cmd], by_name[cmd]
         rt = spec.return_type

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,7 +52,12 @@ def file_text(d: dict) -> str:
         dialects = "frozenset({" + ", ".join(py_str(t) for t in sorted(d["dialects"])) + "})"
     amin, amax = d["arity_min"], d["arity_max"]
     arity = f"Arity({amin})" if amax is None else f"Arity({amin}, {amax})"
-    syn = "(" + ", ".join(py_str(s) for s in d["synopsis"]) + ("," if len(d["synopsis"]) == 1 else "") + ")"
+    syn = (
+        "("
+        + ", ".join(py_str(s) for s in d["synopsis"])
+        + ("," if len(d["synopsis"]) == 1 else "")
+        + ")"
+    )
     rt = d.get("return_type")
     rt_line = f"            return_type=TclType.{_TYPE[rt]},\n" if rt in _TYPE else ""
     return (
@@ -88,8 +92,8 @@ def file_text(d: dict) -> str:
 
 def main() -> None:
     rows = {}
-    for l in open(_REPO_ROOT / "tmp/registry-audit/tcl.rust.jsonl"):
-        d = json.loads(l)
+    for line in open(_REPO_ROOT / "tmp/registry-audit/tcl.rust.jsonl"):
+        d = json.loads(line)
         if d["name"] in WANT:
             rows[d["name"]] = d
 
@@ -106,7 +110,7 @@ def main() -> None:
     existing = set(re.findall(r"^\s*(\w+),", block, re.M))
     add = "".join(f"    {mod},  # noqa: F401\n" for mod in sorted(modules) if mod not in existing)
     new_block = block + "\n" + add.rstrip("\n")
-    text = text[: m.start(1)] + new_block + text[m.end(1):]
+    text = text[: m.start(1)] + new_block + text[m.end(1) :]
     INIT.write_text(text)
     print(f"added {len(modules)} python command modules:", sorted(modules))
 

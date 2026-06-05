@@ -33,8 +33,15 @@ OUT = ROOT / "tmp/registry-audit"
 GROUPS = "tcl stdlib tcllib irules iapps tk expect sdc-base synopsys cadence xilinx quartus mentor".split()
 
 PRESENCE = [
-    "hover", "summary", "source", "source_is_url", "examples",
-    "return_value", "required_package", "return_type", "event_requires_any",
+    "hover",
+    "summary",
+    "source",
+    "source_is_url",
+    "examples",
+    "return_value",
+    "required_package",
+    "return_type",
+    "event_requires_any",
 ]
 COUNTS = ["n_forms", "n_subcommands", "n_side_effects", "n_arg_roles", "n_arg_types"]
 SETS = ["options", "subcommands", "event_profiles", "event_also_in", "excluded_events"]
@@ -67,7 +74,13 @@ def check_group(group: str) -> list[tuple[str, str, str]]:
             if (r.get(dim) or 0) < (p.get(dim) or 0):
                 defs.append((name, dim, f"py={p.get(dim)} rust={r.get(dim)}"))
         if len(r.get("synopsis") or []) < len(p.get("synopsis") or []):
-            defs.append((name, "synopsis_len", f"py={len(p['synopsis'])} rust={len(r.get('synopsis') or [])}"))
+            defs.append(
+                (
+                    name,
+                    "synopsis_len",
+                    f"py={len(p['synopsis'])} rust={len(r.get('synopsis') or [])}",
+                )
+            )
         for dim in SETS:
             missing = set(p.get(dim) or []) - set(r.get(dim) or [])
             if missing:

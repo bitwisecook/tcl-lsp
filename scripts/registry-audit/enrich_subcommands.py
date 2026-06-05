@@ -20,16 +20,31 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _groups import files_by_name, load_specs, rust_dir  # noqa: E402
-from inject_subcommands import arg_values_lit, option_lit, rust_str, side_effect_lit  # noqa: E402
 from inject_arg_roles import pascal as role_pascal  # noqa: E402
 from inject_arg_types import hint as argtype_hint  # noqa: E402
+from inject_subcommands import arg_values_lit, option_lit, rust_str, side_effect_lit  # noqa: E402
 
-_TYPE = {"INT": "Int", "STRING": "String", "LIST": "List", "DICT": "Dict",
-         "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
-         "CHANNEL": "Channel", "BYTEARRAY": "ByteArray", "OBJECT": "Object"}
+_TYPE = {
+    "INT": "Int",
+    "STRING": "String",
+    "LIST": "List",
+    "DICT": "Dict",
+    "BOOLEAN": "Boolean",
+    "NUMERIC": "Numeric",
+    "DOUBLE": "Double",
+    "CHANNEL": "Channel",
+    "BYTEARRAY": "ByteArray",
+    "OBJECT": "Object",
+}
 _FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
-_BOOLS = ["pure", "mutator", "destructive", "returns_path", "loop_list_header",
-          "creates_scope_alias"]
+_BOOLS = [
+    "pure",
+    "mutator",
+    "destructive",
+    "returns_path",
+    "loop_list_header",
+    "creates_scope_alias",
+]
 
 
 def block_spans(text: str):
@@ -92,14 +107,18 @@ def enrich_block(block: str, sub) -> str:
         if "arg_roles:" not in block:
             adds.append(f"{indent}arg_roles: &[{body}],")
         elif n_tuples(block, "arg_roles") < len(tuples):
-            block = re.sub(r"arg_roles:\s*&\[.*?\],", f"arg_roles: &[{body}],", block, count=1, flags=re.S)
+            block = re.sub(
+                r"arg_roles:\s*&\[.*?\],", f"arg_roles: &[{body}],", block, count=1, flags=re.S
+            )
     at = sub.arg_types or {}
     if at:
         body = ", ".join(f"({i}, {argtype_hint(t)})" for i, t in sorted(at.items()))
         if "arg_types:" not in block:
             adds.append(f"{indent}arg_types: &[{body}],")
         elif n_tuples(block, "arg_types") < len(at):
-            block = re.sub(r"arg_types:\s*&\[.*?\],", f"arg_types: &[{body}],", block, count=1, flags=re.S)
+            block = re.sub(
+                r"arg_types:\s*&\[.*?\],", f"arg_types: &[{body}],", block, count=1, flags=re.S
+            )
 
     if sub.options and "options:" not in block:
         body = "\n".join(option_lit(o, indent + "    ") for o in sub.options)
@@ -114,7 +133,8 @@ def enrich_block(block: str, sub) -> str:
     if forms and "subcommand_forms:" not in block:
         items = ", ".join(
             f"SubCommandForm {{ name: {rust_str(_FORMKIND.get(f.kind.name, 'Default').lower())}, "
-            f"..SubCommandForm::DEFAULT }}" for f in forms
+            f"..SubCommandForm::DEFAULT }}"
+            for f in forms
         )
         adds.append(f"{indent}subcommand_forms: &[{items}],")
 

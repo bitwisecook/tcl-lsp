@@ -40,9 +40,7 @@ def main() -> None:
         if has_field(text, "arg_roles"):
             continue
         # Flatten {index: {ArgRole, ...}} -> sorted (index, role) tuples.
-        tuples = sorted(
-            (idx, pascal(r.name)) for idx, rs in roles.items() for r in rs
-        )
+        tuples = sorted((idx, pascal(r.name)) for idx, rs in roles.items() for r in rs)
         body = ", ".join(f"({idx}, ArgRole::{role})" for idx, role in tuples)
         text = set_spec_field(text, f"arg_roles: &[{body}],")
         path.write_text(text)

@@ -20,9 +20,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _groups import files_by_name, has_field, load_specs, rust_dir, set_spec_field  # noqa: E402
 
 _TYPE = {
-    "INT": "Int", "STRING": "String", "LIST": "List", "DICT": "Dict",
-    "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
+    "INT": "Int",
+    "STRING": "String",
+    "LIST": "List",
+    "DICT": "Dict",
+    "BOOLEAN": "Boolean",
+    "NUMERIC": "Numeric",
+    "DOUBLE": "Double",
     "CHANNEL": "Channel",
+    "BYTEARRAY": "ByteArray",
+    "OBJECT": "Object",
 }
 
 

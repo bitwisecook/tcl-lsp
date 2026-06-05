@@ -28,10 +28,12 @@ RUST_BIN = ROOT / "target/debug/examples/dump_specs"
 
 def prop_sig(p) -> str:
     """Full-field signature mirroring the Rust `bigip_prop_sig`."""
+
     def numfmt(v):
         if v is None:
             return ""
         return str(int(v)) if float(v).is_integer() else repr(v)
+
     shape = p.shape_kind or ""
     secs = ",".join(sorted(p.in_sections or ()))
     enums = ",".join(sorted(p.enum_values or ()))
@@ -39,9 +41,11 @@ def prop_sig(p) -> str:
     flags = ",".join(sorted(p.usage_flags or ()))
     ops = ",".join(sorted(p.list_operators or ()))
     block = ";".join(sorted(prop_sig(c) for c in (p.block or ())))
-    return (f"{p.name}~{p.value_type}~{int(p.required)}~{int(p.repeated)}~{int(p.allow_none)}~"
-            f"{secs}~{numfmt(p.min_value)}~{numfmt(p.max_value)}~{p.pattern}~{refs}~"
-            f"{p.description}~{shape}~{p.default or ''}~{enums}~{flags}~{ops}~[{block}]")
+    return (
+        f"{p.name}~{p.value_type}~{int(p.required)}~{int(p.repeated)}~{int(p.allow_none)}~"
+        f"{secs}~{numfmt(p.min_value)}~{numfmt(p.max_value)}~{p.pattern}~{refs}~"
+        f"{p.description}~{shape}~{p.default or ''}~{enums}~{flags}~{ops}~[{block}]"
+    )
 
 
 def py_record(o) -> dict:
@@ -102,7 +106,14 @@ def main() -> None:
     print(f"    property value-kind mismatches: {len(kind_diff)} {kind_diff[:5]}")
     print(f"    module mismatches: {len(module_diff)} {module_diff[:5]}")
 
-    ok = not missing and not extra and not nprop_diff and not propname_diff and not kind_diff and not module_diff
+    ok = (
+        not missing
+        and not extra
+        and not nprop_diff
+        and not propname_diff
+        and not kind_diff
+        and not module_diff
+    )
     print("\nVERDICT:", "OK ✅ full parity" if ok else "DIFFERENCES ❌")
     sys.exit(0 if ok else 1)
 

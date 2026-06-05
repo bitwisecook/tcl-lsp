@@ -114,6 +114,7 @@ def main() -> None:
     dump = _REPO_ROOT / "tmp/registry-audit" / f"{group}.rust.jsonl"
     if dump.exists():
         import json
+
         for line in dump.read_text().splitlines():
             d = json.loads(line)
             rust_syn[d["name"]] = d.get("synopsis") or []

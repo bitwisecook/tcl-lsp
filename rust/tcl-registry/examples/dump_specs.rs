@@ -190,6 +190,54 @@ fn options_json(opts: &[tcl_registry::hover::OptionSpec]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+fn arg_types_json(at: &[(u8, tcl_registry::hooks::ArgTypeHint)]) -> String {
+    let mut v: Vec<(u8, &tcl_registry::hooks::ArgTypeHint)> =
+        at.iter().map(|(i, h)| (*i, h)).collect();
+    v.sort_by_key(|(i, _)| *i);
+    let parts: Vec<String> = v
+        .iter()
+        .map(|(i, h)| {
+            let t = h
+                .expected
+                .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
+            format!("\"{i}\":{t}")
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
+fn arg_roles_json(ar: &[(u8, tcl_registry::ArgRole)]) -> String {
+    use std::collections::BTreeMap;
+    let mut m: BTreeMap<u8, Vec<String>> = BTreeMap::new();
+    for (i, r) in ar {
+        m.entry(*i).or_default().push(format!("{r:?}"));
+    }
+    let parts: Vec<String> = m
+        .iter()
+        .map(|(i, rs)| {
+            let mut rs = rs.clone();
+            rs.sort_unstable();
+            let arr: Vec<String> = rs.iter().map(|s| json_str(s)).collect();
+            format!("\"{i}\":[{}]", arr.join(","))
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
+fn arg_values_json(av: &[(u8, &[tcl_registry::ArgValue])]) -> String {
+    let mut v: Vec<(u8, &[tcl_registry::ArgValue])> = av.to_vec();
+    v.sort_by_key(|(i, _)| *i);
+    let parts: Vec<String> = v
+        .iter()
+        .map(|(i, vals)| {
+            let mut names: Vec<&str> = vals.iter().map(|a| a.value).collect();
+            names.sort_unstable();
+            format!("\"{i}\":{}", json_str_list(&names))
+        })
+        .collect();
+    format!("{{{}}}", parts.join(","))
+}
+
 fn sub_record_json(sub: &SubCommand) -> String {
     let ret = sub
         .return_type
@@ -198,7 +246,7 @@ fn sub_record_json(sub: &SubCommand) -> String {
         .inferred_storage_type
         .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
     format!(
-        "{{\"return_type\":{ret},\"pure\":{},\"mutator\":{},\"destructive\":{},\"returns_path\":{},\"is_unescape\":{},\"loop_list_header\":{},\"creates_scope_alias\":{},\"options\":{},\"n_arg_types\":{},\"n_arg_roles\":{},\"n_arg_values\":{},\"n_forms\":{},\"side_effects\":{},\"safe_on_uninit\":{},\"credential_arg\":{},\"sensitive_headers\":{},\"taint_transform\":{},\"taint_output_sink\":{},\"cfg_rewrite_name\":{},\"inferred_storage_type\":{ist}}}",
+        "{{\"return_type\":{ret},\"pure\":{},\"mutator\":{},\"destructive\":{},\"returns_path\":{},\"is_unescape\":{},\"loop_list_header\":{},\"creates_scope_alias\":{},\"options\":{},\"arg_types\":{},\"arg_roles\":{},\"arg_values\":{},\"n_forms\":{},\"side_effects\":{},\"safe_on_uninit\":{},\"credential_arg\":{},\"sensitive_headers\":{},\"taint_transform\":{},\"taint_output_sink\":{},\"cfg_rewrite_name\":{},\"inferred_storage_type\":{ist}}}",
         sub.pure,
         sub.mutator,
         sub.destructive,
@@ -207,9 +255,9 @@ fn sub_record_json(sub: &SubCommand) -> String {
         sub.loop_list_header,
         sub.creates_scope_alias,
         options_json(sub.options),
-        sub.arg_types.len(),
-        sub.arg_roles.len(),
-        sub.arg_values.len(),
+        arg_types_json(sub.arg_types),
+        arg_roles_json(sub.arg_roles),
+        arg_values_json(sub.arg_values),
         sub.subcommand_forms.len(),
         side_effects_json(sub.side_effects),
         sub.safe_on_uninit.is_some(),
@@ -331,9 +379,11 @@ fn deep_dump(group: &str) {
             spec.safe_on_uninit.is_some(),
         );
         println!(
-            "{{\"name\":{},\"snippet\":{snippet},\"side_effects\":{},\"options\":{},\"subs\":{subs_json},\"scalars\":{scalars},\"bools\":{{{}}}}}",
+            "{{\"name\":{},\"snippet\":{snippet},\"side_effects\":{},\"arg_types\":{},\"arg_roles\":{},\"options\":{},\"subs\":{subs_json},\"scalars\":{scalars},\"bools\":{{{}}}}}",
             json_str(spec.name),
             side_effects_json(spec.side_effects),
+            arg_types_json(spec.arg_types),
+            arg_roles_json(spec.arg_roles),
             options_json(spec.options),
             bools.join(","),
         );

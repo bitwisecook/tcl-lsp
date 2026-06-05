@@ -38,7 +38,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_types: &[(
             0,
             ArgTypeHint {
-                expected: None,
+                expected: Some(TclType::ByteArray),
                 shimmers: true,
             },
         )],
@@ -54,7 +54,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_types: &[(
             0,
             ArgTypeHint {
-                expected: None,
+                expected: Some(TclType::ByteArray),
                 shimmers: true,
             },
         )],
@@ -86,7 +86,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (
                 0,
                 ArgTypeHint {
-                    expected: None,
+                    expected: Some(TclType::ByteArray),
                     shimmers: true,
                 },
             ),

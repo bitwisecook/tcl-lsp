@@ -74,9 +74,7 @@ def _field_literal(name: str, spec: object) -> str | None:
 
 def load_specs(group: str):
     mod_name, factory, _ = GROUPS[group]
-    mod = __import__(
-        f"core.commands.registry.{mod_name}", fromlist=[factory]
-    )
+    mod = __import__(f"core.commands.registry.{mod_name}", fromlist=[factory])
     return getattr(mod, factory)()
 
 
@@ -88,7 +86,8 @@ def inject(path: Path, field_lines: list[str]) -> bool:
     text = path.read_text()
     # Skip any field already present.
     pending = [
-        ln for ln in field_lines
+        ln
+        for ln in field_lines
         if re.search(r"^\s*" + re.escape(ln.split(":", 1)[0]) + r"\s*:", text, re.M) is None
     ]
     if not pending:
@@ -99,7 +98,7 @@ def inject(path: Path, field_lines: list[str]) -> bool:
         return False
     indent = m.group(1)
     block = "".join(f"{indent}{ln}\n" for ln in pending)
-    new = text[: m.start()] + block + text[m.start():]
+    new = text[: m.start()] + block + text[m.start() :]
     path.write_text(new)
     return True
 

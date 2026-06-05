@@ -77,11 +77,11 @@ def insert_const(text: str, const_name: str, rust_type: str, body: str) -> str |
     if not um:
         return None
     block = f"\nconst {const_name}: {rust_type} = &[\n{body}\n];\n"
-    return text[: um.end()] + block + text[um.end():]
+    return text[: um.end()] + block + text[um.end() :]
 
 
 def set_spec_field(text: str, field_line: str) -> str:
     """Insert `field_line` just before `..CommandSpec::DEFAULT`."""
     m = _re.search(r"^(\s*)\.\.CommandSpec::DEFAULT", text, _re.M)
     indent = m.group(1)
-    return text[: m.start()] + f"{indent}{field_line}\n" + text[m.start():]
+    return text[: m.start()] + f"{indent}{field_line}\n" + text[m.start() :]

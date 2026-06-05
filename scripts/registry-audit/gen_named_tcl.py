@@ -9,8 +9,6 @@ Name-parity reconcile (GAP-d), from the Python source of truth.
 
 from __future__ import annotations
 
-import json
-import re
 import sys
 from pathlib import Path
 
@@ -25,8 +23,13 @@ ANY = sys.maxsize
 TCL_DIR = _REPO_ROOT / "rust/tcl-registry/src/commands/tcl"
 MOD = TCL_DIR / "mod.rs"
 _TYPE = {
-    "INT": "Int", "STRING": "String", "LIST": "List", "DICT": "Dict",
-    "BOOLEAN": "Boolean", "NUMERIC": "Numeric", "DOUBLE": "Double",
+    "INT": "Int",
+    "STRING": "String",
+    "LIST": "List",
+    "DICT": "Dict",
+    "BOOLEAN": "Boolean",
+    "NUMERIC": "Numeric",
+    "DOUBLE": "Double",
     "CHANNEL": "Channel",
 }
 _FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
@@ -35,7 +38,11 @@ _FORMKIND = {"DEFAULT": "Default", "GETTER": "Getter", "SETTER": "Setter"}
 def rust_str(s: str) -> str:
     return (
         '"'
-        + (s or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
+        + (s or "")
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
         + '"'
     )
 
@@ -103,10 +110,23 @@ def main() -> None:
     # regenerated idempotently from Python, not from the Rust diff so
     # re-runs refresh the file *contents* even once they're wired in).
     named = [
-        "auto_execok", "auto_import", "auto_load", "auto_mkindex",
-        "auto_mkindex_old", "auto_qualify", "auto_reset", "bgerror",
-        "filename", "http", "memory", "nextto", "pkg::create",
-        "pkg_mkindex", "pwd", "tcl::build-info", "tcl_findLibrary",
+        "auto_execok",
+        "auto_import",
+        "auto_load",
+        "auto_mkindex",
+        "auto_mkindex_old",
+        "auto_qualify",
+        "auto_reset",
+        "bgerror",
+        "filename",
+        "http",
+        "memory",
+        "nextto",
+        "pkg::create",
+        "pkg_mkindex",
+        "pwd",
+        "tcl::build-info",
+        "tcl_findLibrary",
     ]
     mods = []
     for cmd in named:

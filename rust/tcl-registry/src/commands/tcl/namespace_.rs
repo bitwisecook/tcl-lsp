@@ -191,12 +191,21 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::InterpState,
-            reads: false,
-            writes: true,
-            connection_side: ConnectionSide::None,
-        }],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::InterpState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
+            // Mirrors Python `namespace_.py` (NAMESPACE_STATE).
+            SideEffect {
+                target: SideEffectTarget::NamespaceState,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
+        ],
 hover: Some(HoverSnippet {
     summary: "create and manipulate contexts for commands and variables",
     synopsis: &["namespace subcommand ?arg ...?"],
