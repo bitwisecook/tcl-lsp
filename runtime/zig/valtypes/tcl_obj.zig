@@ -1167,13 +1167,16 @@ fn release_now(addr: u32) void {
             // cmdIL.test.
             const parse_cache = @import("parse_cache.zig");
             parse_cache.invalidate_for_buffer(sp);
-            // Drop the list-index forward cursor cache if it points at
-            // this buffer, so a recycled slab can't yield a stale element.
-            const tcl_list = @import("tcl_list.zig");
-            tcl_list.list_index_cache_invalidate(sp);
             free_sized(sp, cap);
         }
     }
+    // Drop the list-index forward cursor cache if it points at this object.
+    // Keyed on the handle (not the buffer) so it also fires for inline
+    // strings, whose buffer is inside the header (cap == 0) and never reaches
+    // the external-buffer free path above — otherwise a recycled slab reissued
+    // to another same-length inline list could yield a stale cursor element.
+    const tcl_list = @import("tcl_list.zig");
+    tcl_list.list_index_cache_invalidate(@bitCast(addr));
     free_obj(addr);
 }
 

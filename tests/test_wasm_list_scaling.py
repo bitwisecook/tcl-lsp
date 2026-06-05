@@ -26,9 +26,7 @@ from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm  # noqa: E402
 
 
 def _run(body: str, timeout_s: float = 30.0) -> str:
-    _, stdout = _run_wasm(
-        _compile_tcl(body), capture_stdout=True, timeout_s=timeout_s
-    )
+    _, stdout = _run_wasm(_compile_tcl(body), capture_stdout=True, timeout_s=timeout_s)
     return stdout.rstrip("\n")
 
 
@@ -65,11 +63,7 @@ def test_dict_map_huge_dict_terminates() -> None:
 def test_lappend_still_validates_malformed_list() -> None:
     # The marker must not weaken correctness: appending to a value whose
     # string rep is NOT a canonical list still raises (listobj-4.4).
-    body = (
-        'set x "a \\{b"\n'
-        "puts [catch {lappend x c} m]\n"
-        "puts $m\n"
-    )
+    body = 'set x "a \\{b"\nputs [catch {lappend x c} m]\nputs $m\n'
     assert _run(body) == "1\nunmatched open brace in list"
 
 
@@ -92,11 +86,7 @@ def test_foreach_over_large_list_is_linear() -> None:
     # monotonically increasing i.  Without the forward cursor cache each
     # call re-derived element i from the string (O(i)), making the loop
     # O(N^2) — foreach {k v} over a 20k list was ~35 s.  Now O(N).
-    body = (
-        "set s 0\n"
-        "foreach {k v} [lseq 1 20000] { incr s [expr {$k * $v}] }\n"
-        "puts $s\n"
-    )
+    body = "set s 0\nforeach {k v} [lseq 1 20000] { incr s [expr {$k * $v}] }\nputs $s\n"
     assert _run(body) == "1333433330000"
 
 
@@ -118,7 +108,7 @@ def test_forward_lindex_loop_is_linear() -> None:
         # nested loops must all return the right element.
         ("puts [lindex {a b c d e} 3]", "d"),
         ("puts [lindex {a b c d e} end]", "e"),
-        ("set L {a b c d}\nputs \"[lindex $L 3][lindex $L 0][lindex $L 2]\"", "dac"),
+        ('set L {a b c d}\nputs "[lindex $L 3][lindex $L 0][lindex $L 2]"', "dac"),
         (
             "set o {}\nforeach a {1 2 3} {foreach b {x y} {append o $a$b}}\nputs $o",
             "1x1y2x2y3x3y",
@@ -127,3 +117,22 @@ def test_forward_lindex_loop_is_linear() -> None:
 )
 def test_list_index_cache_correctness(body: str, expected: str) -> None:
     assert _run(body) == expected
+
+
+def test_list_index_cache_inline_slab_reuse() -> None:
+    # Regression: the cursor cache must invalidate on object *release*, keyed
+    # on the handle — inline strings (<=8 bytes, cap==0) keep their buffer in
+    # the obj header and never hit the external-buffer free path.  Repeatedly
+    # building, indexing, and discarding a short list reuses the freed slab; a
+    # stale (handle, ptr, len) hit would return an element from a prior list.
+    body = (
+        "set ok 1\n"
+        "for {set i 0} {$i < 5000} {incr i} {\n"
+        "  set L [list a b c]\n"
+        '  if {[lindex $L 0] ne "a" || [lindex $L 2] ne "c"} { set ok 0; break }\n'
+        "  set M [list x y z]\n"
+        '  if {[lindex $M 0] ne "x" || [lindex $M 2] ne "z"} { set ok 0; break }\n'
+        "}\n"
+        "puts $ok\n"
+    )
+    assert _run(body) == "1"

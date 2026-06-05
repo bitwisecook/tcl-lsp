@@ -31,8 +31,8 @@ const list_parse = @import("tcl_list_parse.zig");
 // index, cursor position, count) lets a forward step advance the cursor in
 // O(1), making the loop O(N).  Random / cold access falls back to a full
 // walk (no worse than before).  The cache is validated by object handle +
-// buffer pointer + length + count, and invalidated whenever that buffer is
-// freed (see ``list_index_cache_invalidate``, called from
+// buffer pointer + length + count, and invalidated when the cached object is
+// released (see ``list_index_cache_invalidate``, called from
 // ``tcl_obj.release_now``), so a recycled slab can never produce a stale hit.
 var lic_obj: i32 = 0;
 var lic_buf: u32 = 0;
@@ -41,11 +41,15 @@ var lic_count: i64 = 0;
 var lic_idx: i64 = -1; // element index the cursor currently sits *after*
 var lic_cursor: list_parse.Cursor = .{ .pos = 0 };
 
-/// Drop the cursor cache if it refers to ``buf`` (a buffer about to be
-/// freed).  Pointer-keyed so the obj module can call it without knowing the
-/// cache layout.
-pub fn list_index_cache_invalidate(buf: u32) void {
-    if (buf != 0 and buf == lic_buf) {
+/// Drop the cursor cache if it refers to object ``o`` (a TclObj about to be
+/// freed).  Keyed on the object *handle* so it fires for every rep — crucially
+/// including inline strings, whose buffer lives inside the obj header
+/// (``cap == 0``) and so never reaches ``release_now``'s external-buffer free
+/// path.  Without this, a freed slab reissued to another same-length inline
+/// list could satisfy the (handle, ptr, len) cache check and return an element
+/// from the stale cursor position instead of reparsing the new bytes.
+pub fn list_index_cache_invalidate(o: i32) void {
+    if (o != 0 and o == lic_obj) {
         lic_obj = 0;
         lic_buf = 0;
         lic_idx = -1;
