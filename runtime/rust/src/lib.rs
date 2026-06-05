@@ -29,6 +29,11 @@
 //! in later Track-1 chunks (T1.3–T1.6); the `tcl_*`/`obj_*` codegen-import
 //! re-exports and the wasm `memory`/table exports land in T1.6.
 
+// The bignum rung of the numeric tower (libtommath `mp_int` FFI + the
+// `TCL_BIGNUM_TYPE` obj rep). Compiled only when `build.rs` links libtommath
+// (`have_tommath`); the rest of the runtime builds without it.
+#[cfg(have_tommath)]
+pub mod bignum;
 pub mod builtins;
 pub mod capi;
 pub mod cmd_dict;
