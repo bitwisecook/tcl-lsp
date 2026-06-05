@@ -87,8 +87,12 @@ pub mod connection_scope;
 pub mod dataflow_graph;
 pub mod def_use;
 pub mod execution_intent;
-pub mod expr_ast;
-pub mod expr_parser;
+// The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
+// (consumed by both the compiler and the runtime port). Re-exported under the
+// original module paths so the ~45 in-crate consumers (and the LSP bindings)
+// are unchanged.
+pub use tcl_syntax::expr::ast as expr_ast;
+pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
 pub mod inline_uplevel;
 pub mod interprocedural;
@@ -98,7 +102,9 @@ pub mod irules_checks;
 pub mod lowering;
 pub mod lowering_hooks;
 pub mod memory_ssa;
-pub mod naming;
+// Name normalisation moved to the shared `tcl-syntax` crate; re-export so
+// `crate::naming::*` keeps resolving across the compiler.
+pub use tcl_syntax::naming;
 pub mod optimiser;
 pub mod parsing;
 pub mod path_concat;

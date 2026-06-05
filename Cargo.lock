@@ -662,6 +662,7 @@ dependencies = [
  "regex",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "thiserror",
 ]
 

@@ -13,7 +13,11 @@
 //! Modules land per the phased extraction plan:
 //! - [`backslash`] — the canonical `TclParseBackslash` decoder (done).
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge` (done).
-//! - `subst`, `expr`, `number`, `format` — to follow.
+//! - [`naming`] — variable/command name normalisation (done).
+//! - [`expr`] — the `expr` AST + Pratt parser (done).
+//! - `subst`, `number`, `format` — to follow.
 
 pub mod backslash;
+pub mod expr;
 pub mod list;
+pub mod naming;

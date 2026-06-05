@@ -10,7 +10,7 @@
 /// suffixes:
 ///
 /// ```
-/// use tcl_compiler::naming::normalise_var_name;
+/// use tcl_syntax::naming::normalise_var_name;
 /// assert_eq!(normalise_var_name("$foo"), "foo");
 /// assert_eq!(normalise_var_name("${bar}"), "bar");
 /// assert_eq!(normalise_var_name("$arr(idx)"), "arr");
@@ -39,7 +39,7 @@ pub fn normalise_var_name(name: &str) -> &str {
 /// consecutive `::` separators.
 ///
 /// ```
-/// use tcl_compiler::naming::normalise_qualified_name;
+/// use tcl_syntax::naming::normalise_qualified_name;
 /// assert_eq!(normalise_qualified_name("foo"), "::foo");
 /// assert_eq!(normalise_qualified_name("ns::bar"), "::ns::bar");
 /// assert_eq!(normalise_qualified_name("::baz"), "::baz");
@@ -68,7 +68,7 @@ pub fn normalise_qualified_name(name: &str) -> String {
 /// `${arr(foo)}` *is* the array element `arr(foo)`.
 ///
 /// ```
-/// use tcl_compiler::naming::split_array_name;
+/// use tcl_syntax::naming::split_array_name;
 /// assert_eq!(split_array_name("arr"), ("arr", None));
 /// assert_eq!(split_array_name("arr(foo)"), ("arr", Some("foo")));
 /// assert_eq!(split_array_name("$arr(foo)"), ("arr", Some("foo")));

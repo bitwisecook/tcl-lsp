@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use tcl_lexer::{tokenise_expr_checked, ExprToken, ExprTokenType};
 
-use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
+use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
 use crate::naming::normalise_var_name;
 
 /// Binding powers for binary operators: `(left_bp, right_bp)`.
@@ -336,8 +336,8 @@ impl<'a> PrattParser<'a> {
 /// never crashes on malformed expressions.
 ///
 /// ```
-/// use tcl_compiler::expr_parser::parse_expr;
-/// use tcl_compiler::expr_ast::{ExprNode, BinOp};
+/// use tcl_syntax::expr::parser::parse_expr;
+/// use tcl_syntax::expr::ast::{ExprNode, BinOp};
 ///
 /// let node = parse_expr("$a + 1", None);
 /// assert!(matches!(node, ExprNode::Binary { op: BinOp::Add, .. }));
@@ -514,7 +514,7 @@ pub fn expr_cache_len_for_tests() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr_ast::*;
+    use crate::expr::ast::*;
 
     fn parse(s: &str) -> ExprNode {
         parse_expr(s, None)
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     fn render_simple_binary() {
         let node = parse("$a + $b");
-        let rendered = crate::expr_ast::render_expr(&node);
+        let rendered = crate::expr::ast::render_expr(&node);
         assert_eq!(rendered, "$a + $b");
     }
 
@@ -1034,28 +1034,28 @@ mod tests {
     fn render_precedence() {
         // ($a + $b) * $c → "(1 + 2) * 3" style (preserves parens)
         let node = parse("($a + $b) * $c");
-        let rendered = crate::expr_ast::render_expr(&node);
+        let rendered = crate::expr::ast::render_expr(&node);
         assert_eq!(rendered, "($a + $b) * $c");
     }
 
     #[test]
     fn render_ternary() {
         let node = parse("$x ? 1 : 0");
-        let rendered = crate::expr_ast::render_expr(&node);
+        let rendered = crate::expr::ast::render_expr(&node);
         assert_eq!(rendered, "$x ? 1 : 0");
     }
 
     #[test]
     fn render_function() {
         let node = parse("sin($x)");
-        let rendered = crate::expr_ast::render_expr(&node);
+        let rendered = crate::expr::ast::render_expr(&node);
         assert_eq!(rendered, "sin($x)");
     }
 
     #[test]
     fn render_unary() {
         let node = parse("-$x");
-        let rendered = crate::expr_ast::render_expr(&node);
+        let rendered = crate::expr::ast::render_expr(&node);
         assert_eq!(rendered, "-$x");
     }
 
@@ -1124,7 +1124,7 @@ mod tests {
             let key = (format!("expr_seed_{i}"), None);
             cache.insert(
                 key,
-                std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
+                std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
                     text: format!("expr_seed_{i}"),
                 }),
             );
@@ -1135,7 +1135,7 @@ mod tests {
         // One more insert evicts the front (the LRU entry).
         cache.insert(
             ("expr_seed_extra".to_owned(), None),
-            std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
+            std::sync::Arc::new(crate::expr::ast::ExprNode::Raw {
                 text: "expr_seed_extra".to_owned(),
             }),
         );
