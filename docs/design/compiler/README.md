@@ -66,6 +66,9 @@ User-facing compiler troubleshooting and how-tos live in
   for, foreach, and proc compilation.
 - [error-recovery.md](error-recovery.md) — virtual token injection for
   malformed input.
+- [error-recovery-rust-port.md](error-recovery-rust-port.md) — validated design
+  for an incremental green-tree recovery engine (structural-state index +
+  ArgRole routing) for the Rust port.
 
 ## Analysis
 
