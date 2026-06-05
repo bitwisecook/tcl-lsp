@@ -6,8 +6,26 @@ via :mod:`core.common.codes`.  Each module registers its codes via
 """
 
 # analysis
-import core.analysis  # noqa: F401
+#
+# ``core.analysis`` exposes the analyser lazily through a module-level
+# ``__getattr__`` (see ``core/analysis/__init__.py``), so a bare
+# ``import core.analysis`` never loads ``_analyser`` or fires its
+# ``@diag`` / ``diag(...)`` registrations.  Import the package directly
+# so the codes registry — and every codegen catalog built from it —
+# sees the full core-analyser set (E2xx, H300, W11x–W22x,
+# IRULE4005 / IRULE500x) and not just the codes wired through ``checks``.
+import core.analysis._analyser  # noqa: F401
 import core.analysis.checks._domain  # noqa: F401
+
+# style codes that were historically defined alongside the
+# pygls server in `lsp.features.diagnostics`. The bare
+# `@diag` registrations now live in
+# `core.analysis.checks._lsp_style` so the codes registry
+# stays populated after PYTHON-RETIRE-LSP deletes the LSP
+# feature tree; the actual emit functions stay in
+# `lsp.features.diagnostics` until that retirement
+# completes.
+import core.analysis.checks._lsp_style  # noqa: F401
 import core.analysis.checks._security  # noqa: F401
 import core.analysis.checks._style  # noqa: F401
 import core.analysis.checks._syntax  # noqa: F401
@@ -34,13 +52,3 @@ import core.compiler.taint._uri_split  # noqa: F401
 # extensions
 import core.tk.diagnostics  # noqa: F401
 import core.xc.translator  # noqa: F401
-
-# style codes that were historically defined alongside the
-# pygls server in `lsp.features.diagnostics`. The bare
-# `@diag` registrations now live in
-# `core.analysis.checks._lsp_style` so the codes registry
-# stays populated after PYTHON-RETIRE-LSP deletes the LSP
-# feature tree; the actual emit functions stay in
-# `lsp.features.diagnostics` until that retirement
-# completes.
-import core.analysis.checks._lsp_style  # noqa: F401

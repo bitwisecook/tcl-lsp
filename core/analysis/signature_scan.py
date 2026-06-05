@@ -51,7 +51,9 @@ log = logging.getLogger(__name__)
 # first call to keep the Python-only test environment clean (no
 # ``ImportError`` at module-import time when the wheel is absent).
 try:
-    from tcl_lsp_rust import signature_scan_extract as _rust_signature_scan_extract  # type: ignore[import-not-found]
+    from tcl_lsp_rust import (  # type: ignore[import-not-found]
+        signature_scan_extract as _rust_signature_scan_extract,
+    )
 except ImportError:  # pragma: no cover — exercised in pure-Python CI envs
     _rust_signature_scan_extract = None
 
