@@ -1,0 +1,179 @@
+//! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
+//!
+//! Ports the *structure* of `runtime/zig/parse/tcl_subst.zig`'s `subst_flagged`,
+//! re-derived onto the shared [`crate::parse::scan_parts`] component model so
+//! parse and subst share one scanner (the Zig duplicated it).
+//!
+//! Substitution is two halves:
+//! 1. **Scan** the input into components ([`scan`]) — pure, done here.
+//! 2. **Resolve** each component to bytes ([`resolve_with`]) — backslashes and
+//!    literals resolve here; **variables** and **command substitutions** are
+//!    supplied as caller closures, because resolving them needs the var tables
+//!    and the eval loop (T1.3/T1.4). Wiring those closures to the runtime
+//!    completes `subst`/word-expansion; until then the engine is complete and
+//!    unit-tested against mock resolvers.
+//!
+//! `unsafe`-free.
+
+#![forbid(unsafe_code)]
+
+use crate::bs;
+use crate::parse::{self, WordBody, WordPart};
+
+/// Which substitution kinds are active (mirrors `subst`'s `-no*` options).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubstFlags {
+    /// `$var` / `${var}` / `$arr(i)` (disabled by `-novariables`).
+    pub vars: bool,
+    /// `[cmd]` (disabled by `-nocommands`).
+    pub cmds: bool,
+    /// `\x` escapes (disabled by `-nobackslashes`).
+    pub backslashes: bool,
+}
+
+impl Default for SubstFlags {
+    /// All substitutions active — bare/quoted word context, and plain `subst`.
+    fn default() -> Self {
+        SubstFlags {
+            vars: true,
+            cmds: true,
+            backslashes: true,
+        }
+    }
+}
+
+/// Scan `src` into substitution components per `flags`, without evaluating.
+pub fn scan(src: &[u8], flags: SubstFlags) -> WordBody<'_> {
+    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes)
+}
+
+/// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
+/// decoded here; `var` resolves a variable reference (name + optional resolved
+/// index), `cmd` resolves a command substitution (the inner script). Either
+/// returning `None` contributes nothing (matching the Zig: an unset var / empty
+/// result appends nothing) — error propagation is layered on with the eval loop.
+pub fn resolve_with<V, C>(body: &WordBody, var: &V, cmd: &C) -> Vec<u8>
+where
+    V: Fn(&[u8], Option<&[u8]>) -> Option<Vec<u8>>,
+    C: Fn(&[u8]) -> Option<Vec<u8>>,
+{
+    match body {
+        WordBody::Literal(b) => b.to_vec(),
+        WordBody::Parts(parts) => resolve_parts(parts, var, cmd),
+    }
+}
+
+fn resolve_parts<V, C>(parts: &[WordPart], var: &V, cmd: &C) -> Vec<u8>
+where
+    V: Fn(&[u8], Option<&[u8]>) -> Option<Vec<u8>>,
+    C: Fn(&[u8]) -> Option<Vec<u8>>,
+{
+    let mut out = Vec::new();
+    for part in parts {
+        match part {
+            WordPart::Text(b) => out.extend_from_slice(b),
+            WordPart::Backslash(span) => out.extend_from_slice(&bs::decode_span(span)),
+            WordPart::Variable(v) => {
+                let index = v.index.as_ref().map(|p| resolve_parts(p, var, cmd));
+                if let Some(val) = var(v.name, index.as_deref()) {
+                    out.extend_from_slice(&val);
+                }
+            }
+            WordPart::Command(script) => {
+                if let Some(val) = cmd(script) {
+                    out.extend_from_slice(&val);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `subst` with only backslashes active (`-novariables -nocommands`): `$` and
+/// `[` are literal, `\x` decodes. Equivalent to decoding the whole span.
+pub fn backslashes_only(src: &[u8]) -> Vec<u8> {
+    bs::decode_span(src)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A mock variable table + command evaluator for the resolve tests.
+    fn var(name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
+        match (name, index) {
+            (b"x", None) => Some(b"42".to_vec()),
+            (b"greeting", None) => Some(b"hi".to_vec()),
+            (b"arr", Some(b"k")) => Some(b"val".to_vec()),
+            (b"arr", Some(b"42")) => Some(b"indexed-by-x".to_vec()),
+            _ => None,
+        }
+    }
+    fn cmd(script: &[u8]) -> Option<Vec<u8>> {
+        // Pretend `[upper hi]` evaluates to `HI`; everything else echoes.
+        if script == b"upper hi" {
+            Some(b"HI".to_vec())
+        } else {
+            Some(script.to_vec())
+        }
+    }
+
+    fn subst(src: &[u8]) -> Vec<u8> {
+        resolve_with(&scan(src, SubstFlags::default()), &var, &cmd)
+    }
+
+    #[test]
+    fn literal_passthrough() {
+        assert_eq!(subst(b"plain text"), b"plain text");
+    }
+
+    #[test]
+    fn variable_simple_and_braced() {
+        assert_eq!(subst(b"$x"), b"42");
+        assert_eq!(subst(b"a${greeting}b"), b"ahib");
+        assert_eq!(subst(b"$greeting $x"), b"hi 42");
+    }
+
+    #[test]
+    fn array_index_is_itself_substituted() {
+        assert_eq!(subst(b"$arr(k)"), b"val");
+        // index `$x` → "42" → arr(42)
+        assert_eq!(subst(b"$arr($x)"), b"indexed-by-x");
+    }
+
+    #[test]
+    fn command_substitution() {
+        assert_eq!(subst(b"[upper hi] there"), b"HI there");
+        // nested brackets stay together
+        assert_eq!(subst(b"[a [b] c]"), b"a [b] c");
+    }
+
+    #[test]
+    fn backslash_decoding() {
+        assert_eq!(subst(b"a\\tb"), b"a\tb");
+        assert_eq!(subst(b"\\x41\\x42"), b"AB");
+        // `\$` is a literal dollar (unknown escape → byte verbatim)
+        assert_eq!(subst(b"\\$x"), b"$x");
+    }
+
+    #[test]
+    fn dollar_not_a_name_is_literal() {
+        // `$` not followed by a name char / `{` is a literal `$` (tclParse.c).
+        assert_eq!(subst(b"$ x"), b"$ x");
+        assert_eq!(subst(b"price$"), b"price$");
+        assert_eq!(subst(b"a$%b"), b"a$%b");
+    }
+
+    #[test]
+    fn flags_disable_kinds() {
+        // -novariables: `$x` stays literal, `\t` still decodes.
+        let f = SubstFlags {
+            vars: false,
+            cmds: true,
+            backslashes: true,
+        };
+        assert_eq!(resolve_with(&scan(b"$x\\t", f), &var, &cmd), b"$x\t");
+        // backslashes_only: `$`/`[` literal, `\n` decodes.
+        assert_eq!(backslashes_only(b"$x[y]\\n"), b"$x[y]\n");
+    }
+}

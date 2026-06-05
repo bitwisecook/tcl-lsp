@@ -316,7 +316,7 @@ any row.
 |---|---|---|---|---|---|
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress; **+ a representation-decision note per structure** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
-| `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | not-started | parse/subst unit parity vs Zig + `tclParse.c` edge cases |
+| `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | not-started | eval-loop tcltest sweep no-regress |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | not-started | `test_tcl_frames/ns/procs` parity + namespace-tree doc |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | not-started | `make check-wasm-parity` green |
@@ -382,6 +382,42 @@ the Zig rep.
   inline-string optimisations (T1.5/S6).
 - **T1.2 — parse/subst.** Port `parse/tcl_parse.zig` + `tcl_subst.zig` using
   `tclParse.c` for semantics. Gate: parse/subst unit parity.
+  - **Representation decision (re-derived, not transliterated).** The Zig is a
+    proof-of-concept, not a guiding light: it carries a C-idiom — a fixed
+    `MAX_WORDS=32` flat per-word array **plus** a shallow, unfinished
+    `Tcl_Token`-style flat tree (`n_children` always 0). The Rust runtime
+    parser instead uses a **borrow-based enum tree** over `&'s [u8]`:
+    `Command{ words }`, `Word{ kind, expand, body }`,
+    `body = Literal(&[u8]) | Parts(Vec<WordPart>)`,
+    `WordPart = Text | Backslash | Variable{name,index} | Command`. Rationale:
+    (1) the only consumers are the interpreter-fallback eval loop and the
+    `subst`/`eval` family — **not** the AOT compiler (own parser in
+    `core/parsing`/`tcl-lexer`) or the LSP — and both want **sum-type dispatch**
+    with a `Literal` fast path (Tcl's `SIMPLE_WORD`), not `numComponents` index
+    arithmetic; (2) borrowed spans make the Zig `parse_cache` stale-slab hazard
+    (MM-B.6) a **compile error**; (3) **one** component scanner serves both the
+    word parser and `subst` (the Zig duplicates it across `parse_bare` /
+    `subst_flagged`); (4) the whole parser is `#![forbid(unsafe_code)]`.
+    Not an ABI surface today (`Tcl_ParseCommand`/`Tcl_Token` aren't in the
+    81-function header); if a tier needs it, the enum flattens to `Tcl_Token`
+    **on demand** at the boundary — the function-mediated **shim escape-hatch**.
+    No WASM experiment gates this: per-command allocations are comparable to a
+    flat array, and the real perf lever is *caching the parse* (orthogonal,
+    deferred to a measured MM-D-style chunk), so clarity/safety decides.
+    Also fixes a `tclParse.c` correctness item the Zig got wrong: `$` not
+    followed by a valid name char is a literal `$` (Zig synthesised an empty
+    var name). **Seam:** `subst`'s evaluation half needs vars/eval/arrays
+    (T1.3/T1.4), so T1.2 lands parse + backslash decode + the shared component
+    **scanner** (the parse-level half); segment *evaluation* follows.
+  - **Status: partial — landed.** Modules `bs` (backslash decode), `parse` (the
+    enum-tree parser + shared `scan_parts` component scanner), `subst` (the
+    substitution engine: scan + `resolve_with`, where variable/command lookups
+    are caller closures the eval loop supplies in T1.3/T1.4). Gate:
+    `make runtime-rust-test` — 36 tests (parse corpus mirrors
+    `test_tcl_parse.zig` + the component decomposition the Zig left as a TODO +
+    backslash table + subst assembly against mock resolvers). `unsafe`-free
+    (`#![forbid(unsafe_code)]` on all three). **Remaining:** wire the real var
+    table + eval into the `subst` resolver closures (T1.3/T1.4).
 - **T1.3 — eval loop + frames.** Port `interp/tcl_interp.zig` +
   `tcl_frames.zig`. Gate: eval-loop tcltest sweep no-regress.
 - **T1.4 — namespaces + command table.** Port `tcl_ns.zig` + `dispatch/`.
@@ -713,6 +749,15 @@ it in the same or a follow-up PR.
   instead; codegen optimisations layer on at T1.5/S6) and the deferred-free
   queue (T1.3). Subsequent Zig commits touching `valtypes/tcl_obj.zig` after
   `8150eca` are diffed against this baseline in the Outstanding table.
+- `runtime/rust/src/{parse,subst,bs}.rs` (T1.2) mirror
+  `runtime/zig/parse/{tcl_parse,tcl_subst}.zig` + `valtypes/tcl_bs.zig` as of
+  `8150eca` for **semantics**, cross-checked against `tclParse.c`. **Deliberate
+  structural divergence** (re-derived, not transliterated — see T1.2): a
+  borrow-based enum tree (`Command`/`Word`/`WordBody`/`WordPart`) replacing the
+  Zig flat per-word array + shallow token tree; one shared `scan_parts` scanner
+  replacing the duplicated `parse_bare`/`subst_flagged` scans; the
+  `$`-not-a-name-is-literal fix. Zig commits touching these files are diffed for
+  *behavioural* changes (not structure) against this baseline.
 
 ### Outstanding
 
@@ -752,17 +797,21 @@ compiler/LSP or the Zig runtime.
 3. ✅ **T1.1** — real `TclObj` + refcount core in `runtime/rust/`
    (`make runtime-rust-test`, zero-residual round-trip); Zig source baseline
    recorded in the sync log.
-4. **T1.2** — parse/subst port (`tcl_parse.zig` + `tcl_subst.zig`), next Track-1
-   chunk now that the obj/refcount foundation is in place.
-5. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+4. ✅ **T1.2** — parse/subst port. Landed as a re-derived borrow-based enum
+   model (`bs`/`parse`/`subst`, `unsafe`-free); segment evaluation wires into
+   the eval loop next.
+5. **T1.3** — eval loop + frames (`tcl_interp.zig` + `tcl_frames.zig`); also
+   supplies the var/command resolver closures `subst` needs and the deferred-free
+   queue T1.1 left for here.
+6. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work
    builds on).
-6. **T2.3** (de-risk against Zig first) — production loader, validated on
+7. **T2.3** (de-risk against Zig first) — production loader, validated on
    Tier 0 dltest, separating loader risk from port risk.
-7. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+8. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
    harness (seeds the scoreboard).
-8. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+9. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 

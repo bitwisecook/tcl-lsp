@@ -6,8 +6,9 @@
 //! ABI-faithful (`c-extension-abi.md` §4.2), refcounts are balanced, and the
 //! alloc/free counters prove leak-freedom.
 //!
-//! ## T1.1 scope (this chunk)
+//! ## Scope so far
 //!
+//! T1.1 — value model:
 //! - [`obj`] — the `#[repr(C)]` `TclObj` value model with `fresh_zero`
 //!   constructors, immediate refcount-driven free, and on-demand string shimmer.
 //! - [`interp`] — a minimal result-only `Interp` exercising the
@@ -15,14 +16,25 @@
 //! - [`counters`] — the leak-check instrumentation (`tcl_test_*`).
 //! - [`capi`] — the `#[no_mangle] extern "C"` C-API exports for the above.
 //!
-//! Parse/subst, the eval loop, frames, namespaces, the command table, and the
-//! builtins land in later Track-1 chunks (T1.2–T1.6); the `tcl_*`/`obj_*`
-//! codegen-import re-exports and the wasm `memory`/table exports land in T1.6.
+//! T1.2 — parse/subst (a re-derived borrow-based enum model, all `unsafe`-free):
+//! - [`bs`] — backslash-escape decoding (`TclParseBackslash`).
+//! - [`parse`] — the script/word parser: a `Command`/`Word`/`WordBody` enum
+//!   tree with a literal fast path and a shared component scanner.
+//! - [`subst`] — the substitution engine over the shared scanner; variable and
+//!   command resolution are supplied as closures (wired to the eval loop in
+//!   T1.3/T1.4).
+//!
+//! The eval loop, frames, namespaces, the command table, and the builtins land
+//! in later Track-1 chunks (T1.3–T1.6); the `tcl_*`/`obj_*` codegen-import
+//! re-exports and the wasm `memory`/table exports land in T1.6.
 
+pub mod bs;
 pub mod capi;
 pub mod counters;
 pub mod interp;
 pub mod obj;
+pub mod parse;
+pub mod subst;
 
 #[cfg(test)]
 mod tests {
