@@ -24,8 +24,10 @@ RUSTFLAGS="-C link-arg=--export-table -C link-arg=--growable-table" \
     cargo build --quiet --manifest-path runtime/Cargo.toml --target wasm32-unknown-unknown
 RT=runtime/target/wasm32-unknown-unknown/debug/tcl_ext_spike_dyn_runtime.wasm
 
-echo ">> build side module from UNMODIFIED ../ext/pkga.c (clang -fPIC, wasm-ld -shared)"
-clang --target=wasm32-wasi -ffreestanding -fPIC -fvisibility=default -O2 \
+echo ">> build side module from UNMODIFIED ../ext/pkga.c (zig cc -fPIC, wasm-ld -shared)"
+# zig cc bundles wasi-libc so tcl.h's libc includes resolve; pkga.c uses no
+# libc, so the side module stays free of extra imports.
+zig cc --target=wasm32-wasi -fPIC -fvisibility=default -O2 \
     -c -I ../include ../ext/pkga.c -o build/pkga_pic.o
 wasm-ld --experimental-pic -shared --no-entry --import-memory --import-table \
     build/pkga_pic.o -o build/pkga.side.wasm

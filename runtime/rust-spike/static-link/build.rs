@@ -27,27 +27,27 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}/tcl.h", inc.display());
-    println!("cargo:rerun-if-env-changed=SPIKE_CLANG");
+    println!("cargo:rerun-if-env-changed=SPIKE_CC");
 
-    let clang = env::var("SPIKE_CLANG").unwrap_or_else(|_| "clang".into());
-
-    // --target=wasm32-wasi: compile-only (-c) needs no wasi sysroot because the
-    // extension includes no system headers -- only our include/tcl.h (which
-    // pulls in clang's freestanding stddef.h/stdint.h).  -nostdlib keeps it
-    // freestanding; -fno-builtin avoids implicit libc references.
-    let status = Command::new(&clang)
-        // -ffreestanding: use clang's own self-contained stddef.h/stdint.h
-        // instead of falling back to the host glibc headers (there is no wasi
-        // sysroot installed). The extension includes no system headers anyway.
-        .args(["--target=wasm32-wasi", "-ffreestanding", "-O2", "-fno-builtin", "-nostdlib", "-c"])
+    // Compile with `zig cc` (override via SPIKE_CC="prog arg..."): it bundles
+    // wasi-libc, so our tcl.h can #include <stdio.h>/<string.h> like the real
+    // header does. This also demonstrates the Rust-runtime + zig-cc hybrid.
+    // pkga.c calls no libc function, so the object stays free of wasi-libc
+    // references and links cleanly into the Rust wasm32-wasip1 binary.
+    let cc = env::var("SPIKE_CC").unwrap_or_else(|_| "zig cc".into());
+    let mut parts = cc.split_whitespace();
+    let prog = parts.next().expect("empty SPIKE_CC");
+    let status = Command::new(prog)
+        .args(parts)
+        .args(["--target=wasm32-wasi", "-O2", "-c"])
         .arg("-I")
         .arg(&inc)
         .arg(&src)
         .arg("-o")
         .arg(&obj)
         .status()
-        .unwrap_or_else(|e| panic!("failed to invoke {clang}: {e}"));
-    assert!(status.success(), "clang failed to compile ext/pkga.c");
+        .unwrap_or_else(|e| panic!("failed to invoke {cc}: {e}"));
+    assert!(status.success(), "C compiler failed to compile ext/pkga.c");
 
     // Pass the freshly-built extension object to the final wasm link step.
     println!("cargo:rustc-link-arg={}", obj.display());
