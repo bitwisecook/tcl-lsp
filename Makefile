@@ -478,9 +478,16 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 # Use a fixed worker count (not NPROC) so we don't over-subscribe when this
 # runs in parallel with ty in _ci-fast-checks.  2 workers keeps the LSP
 # subset under 8s on its own while leaving CPU headroom for the typecheck.
-_ci-fast-pytest: $(UV_STAMP)
+# Build the packaged LSP server once up front and point the e2e conftest at it
+# (TCL_LSP_SERVER_PYZ) so the parallel xdist workers reuse a single artifact
+# instead of each re-running `make zipapp-lsp` against the same output path.
+# The lsp_e2e suite drives that shipped pyz over JSON-RPC; the remaining
+# in-process files cover server-layer / per-folder config paths that have no
+# wire surface.
+_ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
 	@echo "==> Running LSP end-to-end pytest subset"
-	cd $(ROOT) && $(UV) run --extra dev pytest -q -n 2 \
+	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
+		tests/lsp_e2e/ \
 		tests/test_server_commands.py \
 		tests/test_server_config.py \
 		tests/test_per_folder_config_e2e.py \
@@ -488,13 +495,9 @@ _ci-fast-pytest: $(UV_STAMP)
 		tests/test_completion.py \
 		tests/test_hover.py \
 		tests/test_definition.py \
-		tests/test_references.py \
 		tests/test_diagnostics.py \
 		tests/test_semantic_tokens.py \
-		tests/test_code_actions.py \
 		tests/test_document_symbols.py \
-		tests/test_signature_help.py \
-		tests/test_rename.py \
 		-m "not slow"
 
 # Python-only check phase for ci-fast (no TS lint/typecheck — those run in

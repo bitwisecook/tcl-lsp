@@ -85,13 +85,19 @@ class TestCompletionRanking:
     def test_workspace_command_usage_boosts_builtin_ranking(self):
         items = get_completions("", 0, 0, workspace_command_usage={"set": 25, "puts": 1})
         by_label = {item.label: item for item in items}
-        assert by_label["set"].sort_text < by_label["puts"].sort_text
+        set_sort = by_label["set"].sort_text
+        puts_sort = by_label["puts"].sort_text
+        assert set_sort is not None and puts_sort is not None
+        assert set_sort < puts_sort
 
     def test_workspace_proc_usage_boosts_local_proc_ranking(self):
         source = "proc alpha {} { return 1 }\nproc beta {} { return 2 }\n\n"
         items = get_completions(source, 2, 0, workspace_proc_usage={"::beta": 12, "::alpha": 1})
         by_label = {item.label: item for item in items}
-        assert by_label["beta"].sort_text < by_label["alpha"].sort_text
+        beta_sort = by_label["beta"].sort_text
+        alpha_sort = by_label["alpha"].sort_text
+        assert beta_sort is not None and alpha_sort is not None
+        assert beta_sort < alpha_sort
 
     def test_workspace_proc_usage_boosts_workspace_proc_ranking(self):
         items = get_completions(
@@ -102,4 +108,7 @@ class TestCompletionRanking:
             workspace_proc_usage={"::pkg::fast_helper": 9, "::pkg::slow_helper": 1},
         )
         by_label = {item.label: item for item in items}
-        assert by_label["fast_helper"].sort_text < by_label["slow_helper"].sort_text
+        fast_sort = by_label["fast_helper"].sort_text
+        slow_sort = by_label["slow_helper"].sort_text
+        assert fast_sort is not None and slow_sort is not None
+        assert fast_sort < slow_sort

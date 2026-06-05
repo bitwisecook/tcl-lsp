@@ -7,6 +7,7 @@ just "take ``lsp_server`` and send it a request".
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -33,7 +34,19 @@ def _lsp_build() -> _Build:
     current sources.  Both the file name and the bundled build-info carry the
     same ``git describe`` version, so we read it back and address the artifact
     by its exact path rather than guessing from a glob.
+
+    When ``TCL_LSP_SERVER_PYZ`` points at an already-built zipapp (the runner
+    builds it once before launching parallel pytest workers — see
+    ``_ci-fast-pytest``), reuse it directly.  That avoids every xdist worker
+    re-running ``make zipapp-lsp`` concurrently against the same output path,
+    and keeps the ci-fast gate fast.
     """
+    prebuilt = os.environ.get("TCL_LSP_SERVER_PYZ")
+    if prebuilt:
+        pyz = Path(prebuilt)
+        if not pyz.exists():
+            pytest.fail(f"TCL_LSP_SERVER_PYZ={prebuilt!r} does not exist")
+        return _Build(pyz, ensure_build_info())
     if shutil.which("make") is None:
         pytest.skip("make is required to build the LSP zipapp")
     proc = subprocess.run(
