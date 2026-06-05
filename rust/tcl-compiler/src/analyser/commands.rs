@@ -409,6 +409,8 @@ impl Analyser {
         }
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
+        self.emit_w104_append_list(cmd_name, args, arg_tokens);
+        self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(

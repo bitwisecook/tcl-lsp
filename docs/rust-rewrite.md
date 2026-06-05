@@ -4350,10 +4350,17 @@ brace-wrapping fix (dropping the outer quotes for `expr "…"`).  Wired
 into `dispatch_expr_arguments` (covering the `expr 1 + 2` multi-word
 full-span case and the `if`/`while`/`for` single-arg case); verified
 across a 10-case battery against the live Python analyser; 3 unit tests.
-Still absent: **W104** string-concat-builds-list,
-**W106** dangerous unbraced `switch` body, **W121** non-contiguous subnet
-mask, **W200** (two checks
-share the code — exec-result-not-captured *and* binary-format-modifiers),
+**W104 + W106 LANDED (2026-06-05)** — `emit_w104_append_list` (an
+`append` value padded with a leading/trailing space looks like list
+construction → HINT, first match only) and `emit_w106_unbraced_switch_body`
+(an unbraced `switch` body in the single-trailing or alternating
+pattern/body form → ERROR under substitution / `-regexp`, else WARNING;
+braced bodies and `-` fall-through skipped), with shared `is_braced_word`
+/ `has_substitution` helpers; verified against the live Python analyser;
+2 unit tests.  **Note:** the W200 *exec-result-not-captured* half is a
+no-op stub in Python too (`check_exec_not_captured` returns `[]`), so it
+is intentionally **not** ported.  Still absent: **W121** non-contiguous
+subnet mask, **W200** binary-format signed/unsigned modifiers (8.4),
 **W311** unsafe channel encoding mismatch.  The doc gestures at "the `_style.py` port"
 generically (tied to W108) but none of these is itemised, so they are
 easy to drop.  **Fix:** itemise + port each as a `diagnostics.rs`

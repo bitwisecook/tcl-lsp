@@ -99,6 +99,23 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
+/// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
+/// Mirrors `_first_token_is_braced`.
+fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
+    tok.kind == tcl_lexer::TokenType::Str
+}
+
+/// True when `text` carries a substitution (`$` / `[`) or `tok` is a
+/// `Var` / `Cmd` token.  Mirrors `_has_substitution`.
+fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
+    text.contains('$')
+        || text.contains('[')
+        || matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        )
+}
+
 /// True when `text` is a simple numeric or boolean literal that needs
 /// no bracing.  Mirrors `_is_safe_literal`.
 fn is_safe_literal(text: &str) -> bool {
@@ -986,6 +1003,142 @@ Use braces: {{ \u{2026} }}"
                 new_text: format!("{{{fix_inner}}}"),
                 description: "Wrap expression in braces".to_string(),
             }],
+        });
+    }
+
+    /// W104 (GAP-A8): `append` used with a space-padded value looks
+    /// like list construction — fragile if the data contains special
+    /// characters.  Fires once (HINT) on the first value argument that
+    /// starts or ends with a space.  Mirrors `check_string_list_confusion`.
+    pub(super) fn emit_w104_append_list(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "append" || args.len() < 2 || arg_tokens.len() < 2 {
+            return;
+        }
+        for (i, text) in args.iter().enumerate().skip(1) {
+            if text.starts_with(' ') || text.ends_with(' ') {
+                let tok = arg_tokens.get(i).unwrap_or(&arg_tokens[0]);
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W104".to_string(),
+                    span: tok.span,
+                    message: "append with space-separated values looks like list \
+                              construction. Use [lappend] instead to safely handle values \
+                              containing spaces, braces, or backslashes."
+                        .to_string(),
+                    severity: super::types::Severity::Hint,
+                    fixes: Vec::new(),
+                });
+                return;
+            }
+        }
+    }
+
+    /// W106 (GAP-A8): an unbraced `switch` body undergoes an extra round
+    /// of substitution (especially dangerous under `-regexp`).  Handles
+    /// the single trailing-body form and the alternating pattern/body
+    /// form; skips braced bodies and the `-` fall-through.  ERROR when a
+    /// substitution is present or `-regexp` is set, else WARNING.
+    /// Mirrors `check_unbraced_switch_body`.
+    pub(super) fn emit_w106_unbraced_switch_body(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if cmd_name != "switch" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        // Option flags, then the subject string.
+        let mut i = 0;
+        let mut has_regexp = false;
+        while i < args.len() && args[i].starts_with('-') {
+            if args[i] == "-regexp" {
+                has_regexp = true;
+            }
+            if args[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        if i >= args.len() {
+            return;
+        }
+        i += 1; // skip subject
+        if i >= args.len() {
+            return;
+        }
+
+        // Single trailing arg: the braced-list form (W105 / bracing
+        // handles a braced block); only flag an *unbraced* single block.
+        if i == args.len() - 1 {
+            if let Some(tok) = arg_tokens.get(i) {
+                if !is_braced_word(tok) {
+                    let dangerous = has_substitution(&args[i], tok);
+                    self.push_w106(tok.span, dangerous, has_regexp, true);
+                }
+            }
+            return;
+        }
+
+        // Alternating pattern/body pairs.
+        while i + 1 < args.len() {
+            let body_idx = i + 1;
+            if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx)) {
+                if !is_braced_word(tok) && text != "-" {
+                    let dangerous = has_substitution(text, tok) || has_regexp;
+                    self.push_w106(tok.span, dangerous, has_regexp, false);
+                }
+            }
+            i += 2;
+        }
+    }
+
+    /// Push one W106 diagnostic with the message variant selected by
+    /// `has_regexp` / substitution danger.
+    fn push_w106(
+        &mut self,
+        span: tcl_lexer::Span,
+        dangerous: bool,
+        has_regexp: bool,
+        single_block: bool,
+    ) {
+        let message = if has_regexp {
+            "switch -regexp body is not braced \u{2014} patterns and actions undergo extra \
+             substitution, risking code injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else if dangerous && single_block {
+            "switch body is not braced \u{2014} contains substitutions that risk code \
+             injection. Use braces: switch \u{2026} { pattern { body } \u{2026} }"
+                .to_string()
+        } else if single_block {
+            "switch body is not braced \u{2014} Use braces: switch \u{2026} { pattern { body } \
+             \u{2026} }"
+                .to_string()
+        } else if dangerous {
+            "switch body is not braced and contains substitutions \u{2014} risk of code \
+             injection. Use braces: { \u{2026} }"
+                .to_string()
+        } else {
+            "switch body should be braced to prevent accidental substitution. Use braces: \
+             { \u{2026} }"
+                .to_string()
+        };
+        let severity = if dangerous {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W106".to_string(),
+            span,
+            message,
+            severity,
+            fixes: Vec::new(),
         });
     }
 
@@ -4770,6 +4923,35 @@ mod tests {
             .iter()
             .filter(|d| d.code == "W114")
             .count()
+    }
+
+    fn code_sevs(src: &str, code: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == code)
+            .map(|d| format!("{:?}", d.severity))
+            .collect()
+    }
+
+    #[test]
+    fn w104_flags_space_padded_append() {
+        assert_eq!(code_sevs("append x \" foo\"\n", "W104"), vec!["Hint"]);
+        assert_eq!(code_sevs("append result \"item \"\n", "W104"), vec!["Hint"]);
+        assert!(code_sevs("append x foo\n", "W104").is_empty());
+        assert!(code_sevs("lappend x foo\n", "W104").is_empty());
+    }
+
+    #[test]
+    fn w106_flags_unbraced_switch_body() {
+        // Alternating unbraced body (no sub → WARNING; sub → ERROR).
+        assert_eq!(code_sevs("switch $v a body\n", "W106"), vec!["Warning"]);
+        assert_eq!(code_sevs("switch $v $pat $body\n", "W106"), vec!["Error"]);
+        // Braced forms are fine.
+        assert!(code_sevs("switch $v {a {x} b {y}}\n", "W106").is_empty());
+        assert!(code_sevs("switch -regexp $v {a {x}}\n", "W106").is_empty());
+        assert!(code_sevs("switch $v { a body }\n", "W106").is_empty());
     }
 
     fn w100_sev(src: &str) -> Vec<String> {
