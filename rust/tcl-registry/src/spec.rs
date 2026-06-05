@@ -14,6 +14,7 @@ use crate::hooks::{
     WasmCodegenHookId,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::patterns::{FormatType, PatternType};
 use crate::side_effects::{SideEffect, StorageType};
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
@@ -228,6 +229,51 @@ pub struct CommandSpec {
     /// `SETTER_CONSTRAINTS` table in `tcl_compiler::taint`. Mirrors the
     /// Python `TaintHint.setter_constraints`.
     pub setter_constraints: &'static [SetterConstraint],
+
+    // --- GAP-D1: structured spec fields ---------------------------------
+    //
+    /// Kind of pattern language this command's pattern argument uses
+    /// (`regexp`/`regsub` ⇒ `Regex`), for semantic-token sub-tokens and
+    /// pattern validation. `None` = not a pattern command. Mirrors
+    /// Python `pattern_type`.
+    pub pattern_type: Option<PatternType>,
+
+    /// Kind of format string this command's format argument uses
+    /// (`format`/`scan` ⇒ `Sprintf`, …), for inlay-hint parsing and
+    /// semantic-token sub-tokens. `None` = not a format command.
+    /// Mirrors Python `format_string_type`.
+    pub format_string_type: Option<FormatType>,
+
+    /// Tcllib package that provides this command, for per-document
+    /// activation via `package require`. `None` = core/built-in.
+    /// Mirrors Python `tcllib_package`.
+    pub tcllib_package: Option<&'static str>,
+
+    /// Whether W120 (missing-import) fires when this package-gated
+    /// command is used without a `package require`. Default `true`; set
+    /// `false` for Tk commands (`wish` auto-loads Tk). Mirrors Python
+    /// `warn_missing_import`.
+    pub warn_missing_import: bool,
+
+    /// Whether this command's source namespace exports it via
+    /// `namespace export <bare>`, making the bare name eligible after
+    /// `namespace import`. Mirrors Python `is_namespace_exported`.
+    pub is_namespace_exported: bool,
+
+    /// XC (cross-compile) translatability override: `None` = default
+    /// rules, `Some(false)` = never translatable, `Some(true)` =
+    /// translatable despite a namespace prefix. Mirrors Python
+    /// `xc_translatable`.
+    pub xc_translatable: Option<bool>,
+
+    /// XC operation this command maps to, when it is translatable.
+    /// `None` = no explicit mapping. Mirrors Python `xc_operation`.
+    pub xc_operation: Option<&'static str>,
+
+    /// Replacement command name for a deprecated command, surfaced by
+    /// the deprecation code action. `None` = not deprecated. Mirrors
+    /// Python `deprecated_replacement` (the resolved name).
+    pub deprecated_replacement: Option<&'static str>,
 }
 
 impl CommandSpec {
@@ -271,6 +317,14 @@ impl CommandSpec {
         credential_options: &[],
         sensitive_headers: &[],
         setter_constraints: &[],
+        pattern_type: None,
+        format_string_type: None,
+        tcllib_package: None,
+        warn_missing_import: true,
+        is_namespace_exported: false,
+        xc_translatable: None,
+        xc_operation: None,
+        deprecated_replacement: None,
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -494,6 +548,24 @@ pub struct SubCommand {
     /// subcommand-shaped header sink. Empty = none. Mirrors Python
     /// `SubCommand.sensitive_headers`.
     pub sensitive_headers: &'static [&'static str],
+
+    // --- GAP-D1: structured spec fields (subcommand overrides) ----------
+    //
+    /// Pattern-language override for this subcommand (`string match`
+    /// ⇒ `Glob`), taking priority over the parent command's
+    /// [`CommandSpec::pattern_type`]. Mirrors Python
+    /// `SubCommand.pattern_type`.
+    pub pattern_type: Option<PatternType>,
+
+    /// Format-string override for this subcommand (`clock format`
+    /// ⇒ `Clock`, `binary scan` ⇒ `Binary`), taking priority over the
+    /// parent command's [`CommandSpec::format_string_type`]. Mirrors
+    /// Python `SubCommand.format_string_type`.
+    pub format_string_type: Option<FormatType>,
+
+    /// XC operation this subcommand maps to. `None` = no explicit
+    /// mapping. Mirrors Python `SubCommand.xc_operation`.
+    pub xc_operation: Option<&'static str>,
 }
 
 impl SubCommand {
@@ -531,6 +603,9 @@ impl SubCommand {
         taint_output_sink: None,
         credential_arg: None,
         sensitive_headers: &[],
+        pattern_type: None,
+        format_string_type: None,
+        xc_operation: None,
     };
 
     /// Run this subcommand's constant folder for `args` under `dialect` —

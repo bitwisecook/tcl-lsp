@@ -99,6 +99,9 @@ pub fn spec() -> CommandSpec {
             &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
             "Tcl regexp(1)",
         )),
+        // GAP-D1: `exp` is an ARE pattern — drives regex sub-tokens and
+        // pattern validation. Mirrors `tcl/regexp_.py`.
+        pattern_type: Some(PatternType::Regex),
         ..CommandSpec::DEFAULT
     }
 }

@@ -40,6 +40,7 @@ pub mod events;
 pub mod forms;
 pub mod hooks;
 pub mod hover;
+pub mod patterns;
 pub mod profiles;
 pub mod registry;
 pub mod side_effects;
@@ -64,6 +65,7 @@ pub mod prelude {
         WasmCodegenHookId,
     };
     pub use crate::hover::{ArgValue, FormKind, FormSpec, HoverSnippet, OptionSpec};
+    pub use crate::patterns::{FormatType, PatternType};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};
     pub use crate::taint::{SetterConstraint, TaintColour};
@@ -76,6 +78,7 @@ pub use arg_role::ArgRole;
 pub use arity::Arity;
 pub use body_kind::BodyKind;
 pub use hover::ArgValue;
+pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
 pub use taint::{SetterConstraint, TaintColour};
