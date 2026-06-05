@@ -338,6 +338,16 @@ class IRForeach:
     is_lmap: bool = False
     raw_args: tuple[str, ...] = ()
     is_dict_iteration: bool = False
+    # Original parsed tokens (incl. braced/quoted flags).  Threaded
+    # through so the cfg's namespace-qualified / non-inline foreach →
+    # IRBarrier lowering can preserve the ``{...}`` braces around the
+    # loop's varLists, lists, and body when codegen falls back to
+    # ``tcl_eval``.  Without this a body word like ``{ puts \n }`` would
+    # be reconstructed with the backslash already substituted (and a
+    # body starting with ``[`` mis-parsed as a command substitution),
+    # diverging from the braced source the runtime should re-parse.
+    # Mirrors :class:`IRCatch.tokens`.
+    tokens: CommandTokens | None = None
 
 
 @dataclass(frozen=True, slots=True)
