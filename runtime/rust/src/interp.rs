@@ -472,6 +472,28 @@ mod tests {
         });
     }
 
+    #[cfg(have_tommath)]
+    #[test]
+    fn expr_command_end_to_end() {
+        leak_free(|i| {
+            // braced arithmetic with precedence
+            assert_eq!(i.eval_str(b"expr {2 + 3 * 4}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"14");
+            // a variable resolved through the frame store (object-preserving)
+            assert_eq!(i.eval_str(b"set x 20"), Code::Ok);
+            assert_eq!(i.eval_str(b"expr {$x * 2 + 2}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            // overflow promotes to a bignum, then a command substitution feeds back in
+            assert_eq!(i.eval_str(b"expr {2 ** 64}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"18446744073709551616");
+            assert_eq!(i.eval_str(b"expr {[set x] < 100}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // divide by zero surfaces the verbatim error
+            assert_eq!(i.eval_str(b"expr {1 / 0}"), Code::Error);
+            assert_eq!(i.result_bytes(), b"divide by zero");
+        });
+    }
+
     #[test]
     fn array_element_via_set_and_subst() {
         leak_free(|i| {

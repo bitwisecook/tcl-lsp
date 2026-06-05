@@ -64,6 +64,15 @@ impl Owned {
         self.0
     }
 
+    /// The borrowed object pointer (the `+1` stays with this `Owned`). Callers
+    /// that retain it (e.g. `Tcl_SetObjResult`, which takes its own `+1`) read
+    /// through this and let the `Owned` drop its reference normally.
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> *mut TclObj {
+        self.0
+    }
+
     /// Hand the `+1` to the caller without releasing it here.
     pub fn into_raw(self) -> *mut TclObj {
         let o = self.0;
@@ -79,28 +88,23 @@ impl Drop for Owned {
     }
 }
 
-/// The tower [`ExprOps`]: `$var`/`[cmd]` resolve through the supplied closures.
-pub struct TowerOps<V, C> {
-    get_var: V,
-    eval_cmd: C,
+/// The evaluation context the tower `ExprOps` resolves `$var`/`[cmd]` through —
+/// one `&mut` borrow (the interp implements this; tests use a mock). A single
+/// trait (vs two closures) avoids double-borrowing the interp for var-read +
+/// command-eval.
+pub trait ExprCtx {
+    /// Resolve a `$name` reference to an owned value, or `Err` (`can't read …`).
+    fn read_var(&mut self, name: &str) -> Result<Owned, ExprError>;
+    /// Evaluate a `[script]` (brackets stripped) to an owned result.
+    fn eval_command(&mut self, script: &str) -> Result<Owned, ExprError>;
 }
 
-impl<V, C> TowerOps<V, C>
-where
-    V: FnMut(&str) -> Result<Owned, ExprError>,
-    C: FnMut(&str) -> Result<Owned, ExprError>,
-{
-    /// Construct from a variable resolver + command evaluator.
-    pub fn new(get_var: V, eval_cmd: C) -> Self {
-        TowerOps { get_var, eval_cmd }
-    }
+/// The tower [`ExprOps`] over an [`ExprCtx`].
+struct TowerOps<'a> {
+    ctx: &'a mut dyn ExprCtx,
 }
 
-impl<V, C> ExprOps for TowerOps<V, C>
-where
-    V: FnMut(&str) -> Result<Owned, ExprError>,
-    C: FnMut(&str) -> Result<Owned, ExprError>,
-{
+impl ExprOps for TowerOps<'_> {
     type Value = Owned;
     type Error = ExprError;
 
@@ -111,10 +115,10 @@ where
         Ok(Owned::fresh(obj::new_string_bytes(inner.as_bytes())))
     }
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {
-        (self.get_var)(name)
+        self.ctx.read_var(name)
     }
     fn command(&mut self, script: &str) -> Result<Owned, ExprError> {
-        (self.eval_cmd)(script)
+        self.ctx.eval_command(script)
     }
     fn call(&mut self, function: &str, _args: Vec<Owned>) -> Result<Owned, ExprError> {
         // Math functions dispatch through ::tcl::mathfunc — wired with the
@@ -188,13 +192,9 @@ where
     }
 }
 
-/// Evaluate `node` over the tower, resolving `$var`/`[cmd]` via the closures.
-pub fn eval_expr<V, C>(node: &ExprNode, get_var: V, eval_cmd: C) -> Result<Owned, ExprError>
-where
-    V: FnMut(&str) -> Result<Owned, ExprError>,
-    C: FnMut(&str) -> Result<Owned, ExprError>,
-{
-    let mut ops = TowerOps::new(get_var, eval_cmd);
+/// Evaluate `node` over the tower, resolving `$var`/`[cmd]` via `ctx`.
+pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprError> {
+    let mut ops = TowerOps { ctx };
     eval(node, &mut ops)
 }
 
@@ -255,21 +255,25 @@ mod tests {
     use super::*;
     use tcl_syntax::expr::parser::parse_expr;
 
+    /// A mock context: a `$var` table; `[cmd]` is unsupported in these tests.
+    struct MockCtx(std::collections::HashMap<String, i64>);
+    impl ExprCtx for MockCtx {
+        fn read_var(&mut self, name: &str) -> Result<Owned, ExprError> {
+            self.0
+                .get(name)
+                .map(|&v| Owned::fresh(obj::new_wide_int_obj(v)))
+                .ok_or_else(|| ExprError::msg(b"can't read var"))
+        }
+        fn eval_command(&mut self, _script: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"no commands"))
+        }
+    }
+
     fn ev(src: &str, vars: &[(&str, i64)]) -> Result<Vec<u8>, ExprError> {
         crate::counters::reset();
         let node = parse_expr(src, None);
-        let table: std::collections::HashMap<String, i64> =
-            vars.iter().map(|&(k, v)| (k.to_string(), v)).collect();
-        let r = eval_expr(
-            &node,
-            |name: &str| {
-                table
-                    .get(name)
-                    .map(|&v| Owned::fresh(obj::new_wide_int_obj(v)))
-                    .ok_or_else(|| ExprError::msg(b"can't read var"))
-            },
-            |_script: &str| Err(ExprError::msg(b"no commands")),
-        )?;
+        let mut ctx = MockCtx(vars.iter().map(|&(k, v)| (k.to_string(), v)).collect());
+        let r = eval_expr(&node, &mut ctx)?;
         let out = obj::bytes_of(r.ptr());
         drop(r);
         assert_eq!(crate::counters::finalize(), 0, "leak");

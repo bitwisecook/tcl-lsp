@@ -19,6 +19,9 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"incr", incr);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
+    // `expr` needs the numeric tower (libtommath); registered only when linked.
+    #[cfg(have_tommath)]
+    interp.register_builtin(b"expr", expr_cmd);
     crate::cmd_list::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
@@ -235,4 +238,78 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
         acc = acc.checked_mul(radix as i64)?.checked_add(d)?;
     }
     Some(if neg { -acc } else { acc })
+}
+
+// -- expr ------------------------------------------------------------------
+
+/// The interp's [`ExprCtx`](crate::expr::ExprCtx): `$var` resolves through the
+/// frame store (preserving the value's object → `$bignum` stays a bignum), and
+/// `[cmd]` recurses through the eval loop.
+#[cfg(have_tommath)]
+struct InterpExprCtx<'a> {
+    interp: &'a mut Interp,
+}
+
+#[cfg(have_tommath)]
+impl crate::expr::ExprCtx for InterpExprCtx<'_> {
+    fn read_var(&mut self, name: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        let (base, elem) = split_array_ref(name.as_bytes());
+        let obj = match &elem {
+            Some(k) => self.interp.frames.get_elem(&base, k),
+            None => self.interp.frames.get(&base),
+        };
+        match obj {
+            Some(o) => Ok(crate::expr::Owned::retain(o)),
+            None => {
+                let mut m = b"can't read \"".to_vec();
+                m.extend_from_slice(name.as_bytes());
+                m.extend_from_slice(b"\": no such variable");
+                Err(crate::expr::ExprError(m))
+            }
+        }
+    }
+
+    fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        if self.interp.eval_str(script.as_bytes()) == Code::Error {
+            return Err(crate::expr::ExprError(obj_bytes(
+                self.interp.get_obj_result(),
+            )));
+        }
+        Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+    }
+}
+
+/// `expr arg ?arg ...?` — concatenate the args (space-separated), parse as a Tcl
+/// expression, and evaluate it over the numeric tower
+/// ([shared walk](tcl_syntax::expr::eval)).
+#[cfg(have_tommath)]
+fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"expr arg ?arg ...?");
+    }
+    let mut text = Vec::new();
+    for (i, &a) in argv[1..].iter().enumerate() {
+        if i > 0 {
+            text.push(b' ');
+        }
+        text.extend_from_slice(&obj_bytes(a));
+    }
+    let Ok(src) = core::str::from_utf8(&text) else {
+        return interp.set_error(b"expr operand is not valid UTF-8");
+    };
+    let node = tcl_syntax::expr::parse_expr(src, None);
+    let result = {
+        let mut ctx = InterpExprCtx {
+            interp: &mut *interp,
+        };
+        crate::expr::eval_expr(&node, &mut ctx)
+    };
+    match result {
+        Ok(r) => {
+            // `set_result` takes its own `+1`; `r` drops its reference after.
+            interp.set_result(r.as_ptr());
+            Code::Ok
+        }
+        Err(e) => interp.set_error(&e.0),
+    }
 }
