@@ -273,7 +273,7 @@ class TestBodyTokenAnchoring:
         "outer",
         [
             "proc p {} {\n  set x [foo bar\n  puts hi\n}\n",
-            "proc p {} {\n  set x \"\n  puts hi\n}\n",
+            'proc p {} {\n  set x "\n  puts hi\n}\n',
             "namespace eval n {\n  set y [bar\n  set z 1\n}\n",
             "if {1} {\n  set x [foo\n  return\n}\n",
         ],
@@ -289,12 +289,8 @@ class TestBodyTokenAnchoring:
         base_line = body.start.line
         base_col = body.start.character + 1
         vi = compute_virtual_insertions(inner, body) or None
-        old_t, old_w = tokenise(
-            inner, base_off, base_line, base_col, virtual_insertions=vi
-        )
-        new_t, new_w = tokenise_recovering(
-            inner, base_off, base_line, base_col, body_token=body
-        )
+        old_t, old_w = tokenise(inner, base_off, base_line, base_col, virtual_insertions=vi)
+        new_t, new_w = tokenise_recovering(inner, base_off, base_line, base_col, body_token=body)
         assert _tok_key(new_t) == _tok_key(old_t), (
             f"body tokens diverged for {inner!r}\n  old={_tok_key(old_t)}\n  new={_tok_key(new_t)}"
         )
@@ -347,6 +343,10 @@ class TestExprBraceRecovery:
             ("while {$i < 3\nputs hi\n", "puts"),
             ("expr {1 + 2\nreturn\n", "return"),
             ("for {set i 0} {$i < 3\nputs hi\n", "puts"),  # condition expr brace
+            # No trailing newline: a two-line expr brace must recover identically
+            # (regression — the outcome must not hinge on a trailing \n).
+            ("if {$x > 5\nset", "set"),
+            ("while {$i < 3\nputs hi", "puts"),
         ],
     )
     def test_expr_brace_recovers_before_command(self, source, tail_name):

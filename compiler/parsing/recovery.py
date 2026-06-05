@@ -524,7 +524,12 @@ def _detect_missing_brace_at_command(
     """
     text = tok.text
     lines = text.split("\n")
-    if len(lines) < 3:
+    # Need the opening line plus at least one following line to close before.
+    # (A trailing newline must not change the outcome: ``if {$x > 5\nset`` and
+    # ``...\nset\n`` recover identically.)  The de-indent path naturally finds
+    # nothing on two lines; the relaxed expr path closes before the command on
+    # the second line.
+    if len(lines) < 2:
         return None
 
     # Determine indentation of the first content line (only needed when the

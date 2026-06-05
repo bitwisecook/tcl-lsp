@@ -129,7 +129,10 @@ def uri_factory(request: pytest.FixtureRequest):
     so the long-lived shared server never serves one test a buffer another
     test left open, and so version-tagged diagnostics never collide.
     """
-    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.name)
+    # Use the full node id (path::class::name), not just the function name, so
+    # two same-named tests in different files/classes can never collide on a URI
+    # and read each other's buffered, version-tagged diagnostics.
+    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.nodeid)
     counter = {"n": 0}
 
     def make(suffix: str = "tcl") -> str:
