@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_REQUEST {\n        puts [RTSP::version]\n    }",
             return_value: "Returns the version in the current RTSP request/response.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RTSP::version" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

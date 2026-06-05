@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        set result [RESOLVER::name_lookup \"/Common/r1\" www.abc.com a]\n        set result [RESOLVER::name_lookup \"/Common/r1\" 206.6.177.2 ptr]\n}",
             return_value: "The response will be a dns_message structure usable by the RESOLVER::summarize, DNSMSG::header, and DNSMSG::section iRule commands.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RESOLVER::name_lookup NET_RESOLVER_NAME NAME TYPE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

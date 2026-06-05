@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in an assigned DIAMETER profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::diameter ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

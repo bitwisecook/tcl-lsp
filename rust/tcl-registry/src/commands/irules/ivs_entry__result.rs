@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IVS_ENTRY::result (noop | modified | response)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

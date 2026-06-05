@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVERSSL_HANDSHAKE {\n  set server_cert [SSL::cert 0]\n  log local0. \"Server Certificate Valid Date -\n   [X509::not_valid_before $server_cert] -\n   [X509::not_valid_after $server_cert]\"\n}",
             return_value: "Returns the not-valid-before date of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::not_valid_before CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

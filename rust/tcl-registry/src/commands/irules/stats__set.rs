@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Workaround for CR117956 (see version specific notes below for details)\nwhen RULE_INIT {\n    set ::stats_rst 1\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STATS::set PROFILE_NAME FIELD_NAME (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

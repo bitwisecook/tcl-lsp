@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::payload ( 'length' )?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

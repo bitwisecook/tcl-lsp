@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST_DATA {\n    set request_id [AAA::auth_send $internal_radius_aaa_vip $username $password]\n\n    set aaa_result [AAA::auth_result $request_id]\n    if { $aaa_result == \"OK\" } {\n        # request was successfull\n    } else {\n        # handle errors\n    }\n}",
             return_value: "request_id - the id of the current connection that can be used to check the status later with AAA::auth_result command",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AAA::auth_send VIRTUAL_SERVER USERNAME (PASSWORD)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

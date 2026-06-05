@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    set listener [XLAT::listen 30 {\n        proto [IP::protocol]\n        bind -allow [serverside {LINK::vlan_id}] -ip [serverside {IP::local_addr}]\n        server [IP::client_addr] [expr [TCP::local_port] + 1]\n        allow [LB::server addr] 0\n    }]\n    log local0. \"[XLAT::listen_lifetime $listener]\"\n}",
             return_value: "Return the listener lifetime value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "XLAT::listen_lifetime (HANDLE)+ (XLAT_LIFETIME)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

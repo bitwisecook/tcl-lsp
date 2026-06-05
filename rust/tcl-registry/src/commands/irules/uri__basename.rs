@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set base [URI::basename [HTTP::uri]]\n  log local0. \"Basename of uri [HTTP::uri] is $base\"\n}",
             return_value: "Return the basename part of a given uri string.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::basename URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

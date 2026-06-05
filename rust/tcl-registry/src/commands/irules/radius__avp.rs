@@ -30,6 +30,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RADIUS::avp (ATTR_NAME|ATTR_CODE) (ATTR_TYPE)? ('index' INDEX)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

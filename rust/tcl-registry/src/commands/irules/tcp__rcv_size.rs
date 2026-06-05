@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # Get BIGIP's receive window size.\n    log local0. \"BIGIP's rcv wnd size: [TCP::rcv_size]\"\n}",
             return_value: "The maximum receive window in bytes.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rcv_size" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

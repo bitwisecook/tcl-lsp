@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set location [findclass [HTTP::uri] URIredirects_dg \" \"]\n  if { $location ne \"\" } {\n    HTTP::redirect $location\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "findclass STRING DATA_GROUP (SEPARATOR)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

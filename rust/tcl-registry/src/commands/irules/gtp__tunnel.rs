@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP tunnel TCP src port [GTP::tunnel tcp_src_port]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::tunnel <subcommand> ?-message MESSAGE?" },
+        ],
+        options: &[
+            OptionSpec { name: "-message", takes_value: true, value_hint: "MESSAGE", detail: "Operate on a specific GTP message object.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n  set static::payload {<meta HTTP-EQUIV=\"REFRESH\" CONTENT=\"0; URL=https://host.domain.com/path/file.ext?...&var=val\">}\n  set static::term {\">}\n  set urlresponse [findstr $static::payload URL= 4 $static::term]\n  log local0. \"urlresponse $urlresponse\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "findstr STRING SEARCH_STRING (" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

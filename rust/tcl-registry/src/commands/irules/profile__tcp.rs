@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n   # Log the idle timeout on the serverside TCP profile of the VIP (default of 300 seconds)\n   log local0. \"\\[PROFILE::tcp idle_timeout\\]: [PROFILE::tcp idle_timeout]\"\n}",
             return_value: "Returns the current value of the specified setting in an assigned TCP profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::tcp ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

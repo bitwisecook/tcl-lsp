@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set ::key [AES::key]\n}",
             return_value: "b64encode <string> Returns a string that is base-64 encoded, or if an error occurs, an empty string.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "b64encode ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

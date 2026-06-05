@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    GENERICMESSAGE::route add dst \"client-[IP::remote_addr]\" host \"[IP::remote_addr]:[TCP::remote_port]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GENERICMESSAGE::route (add | delete | lookup) ((('virtual' VIRTUAL_SERVER_OBJ)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

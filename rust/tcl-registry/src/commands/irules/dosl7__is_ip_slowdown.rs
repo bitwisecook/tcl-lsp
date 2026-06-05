@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DOSL7::is_ip_slowdown",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

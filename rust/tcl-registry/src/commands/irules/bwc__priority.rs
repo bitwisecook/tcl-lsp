@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n\n    set my_policy bwc_policy set my_cat none set my_cookie [IP::remote_addr] switch -glob [TCP::remote_port] {\n        \"101\" {\n            set my_cat c1\n        }\n        \"102\" {\n            set my_cat c2\n        }\n    }\n    BWC::policy attach $my_policy $my_cookie if { $my_cat != \"none\" } {\n        log local0. \"BWC::color set $my_policy $my_cat\" BWC::color set $my_policy $my_cat BWC::priority \"tc1\" 60 \"tc2\" 40\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BWC::priority (PRIORITY_CLASS WEIGHT)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

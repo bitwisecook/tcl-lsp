@@ -24,6 +24,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "node ip_addr ?service_port?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

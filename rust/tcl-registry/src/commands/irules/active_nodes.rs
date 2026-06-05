@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    log local0. \"There are [active_nodes http_pool] active nodes in the pool.\"\n}",
             return_value: "active_nodes <pool name> Returns the number of active members of the specified pool (for BIG-IP version 4.X compatibility).",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "active_nodes ('-list')? POOL_OBJ" },
+        ],
+        options: &[
+            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return as list instead of count.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

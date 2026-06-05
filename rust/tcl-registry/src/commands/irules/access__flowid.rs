@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    ACCESS::flowid \"example\"\n    set ctx(FID) [ACCESS::flowid]\n}",
             return_value: "The flow id is returned",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::flowid (FID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n    if { [string tolower [HTTP::header values \"WWW-Authenticate\"]] contains \"negotiate\"} {\n        ONECONNECT::detach disable\n        NTLM::disable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NTLM::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    log local0.info \"SNI name: [SSL::sni name]\"\n    log local0.info \"SNI required: [SSL::sni required]\"\n}",
             return_value: "SSL::sni name Returns the current Server Name Indication as specified in the SSL profile. SSL::sni required Returns the require SNI support as specified in the SSL profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::sni <name | required>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

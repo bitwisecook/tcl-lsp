@@ -13,6 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if { [ HTTP::path ] starts_with \"/test1\" } {\n        call ephemeral_auth_test1\n        HTTP::respond 200 -content \"<html>test1</html>\\n\"\n    }\n}",
             return_value: "ACCESS::ephemeral-auth create [] will return the generated temporary password. ACCESS::ephemeral-auth verify [] will return the session id.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::ephemeral-auth create ('-user' USER) ('-auth_cfg' AUTH_CONFIG)? ('-sid' SESSION_ID)?" },
+        ],
+        options: &[
+            OptionSpec { name: "-user", takes_value: true, value_hint: "", detail: "Option -user.", dialects: None },
+            OptionSpec { name: "-auth_cfg", takes_value: true, value_hint: "", detail: "Option -auth_cfg.", dialects: None },
+            OptionSpec { name: "-sid", takes_value: true, value_hint: "", detail: "Option -sid.", dialects: None },
+            OptionSpec { name: "-password", takes_value: true, value_hint: "", detail: "Option -password.", dialects: None },
+            OptionSpec { name: "-protocol", takes_value: true, value_hint: "", detail: "Option -protocol.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

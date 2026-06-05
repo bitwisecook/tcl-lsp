@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "pem_dtos 'tac' 'lookup' PEM_DTOS_MCRO",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

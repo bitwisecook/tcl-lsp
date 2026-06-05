@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n   # Create a hash value for the host based on crc32\n   # This could also be based on md5 or any other implementation\n   # of a hash like djb or something.\nset key [crc32 [HTTP::host]]\n\n   # Modulo the hash value by 1 - odd goes to one member, even another\nset key [expr {$key & 1}]\n\n   # Route the request to the pool member based on the modulus\n   # of the hash value.\nswitch $key {\n0 { pool my_pool member 1.2.3.4:80 }\n1 { pool my_pool member 5.6.7.8:80 }\n   }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "crc32 ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

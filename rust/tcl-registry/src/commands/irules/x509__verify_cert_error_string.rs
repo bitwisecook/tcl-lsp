@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n  set cert [SSL::cert 0]\n  log local0. \"Cert subject - [X509::subject $cert]\"\n  set error_code [SSL::verify_result]\n  log local0. \"Cert verify result - [X509::verify_cert_error_string $error_code]\"\n}",
             return_value: "Returns an X509 certificate error string.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::verify_cert_error_string ERROR_CODE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

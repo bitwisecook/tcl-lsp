@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Logging example\nwhen CLIENT_ACCEPTED {\n        log local0. \"\\[LINK::lasthop\\]: [LINK::lasthop], \\[LINK::nexhop\\]: [LINK::nexthop]\"\n}",
             return_value: "LINK::nexthop [id]",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LINK::nexthop ('id' | 'type' | 'name')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

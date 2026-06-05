@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when ACCESS_SESSION_STARTED {\n    # Associate the user_key with the session by assigning the value.\n    if { [ info exists user_key ] } {\n        ACCESS::session data set \"session.user.uuid\" $user_key\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::user <subcommand> <arg>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

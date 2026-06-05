@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n    if {$host == \"www.f5.com\"} {\n        HTML::disable\n    }\n    log local0. \"host: $host\"\n}",
             return_value: "empty return code.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTML::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

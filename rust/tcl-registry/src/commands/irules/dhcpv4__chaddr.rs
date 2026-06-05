@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Chaddr [DHCPv4::chaddr]\"\n    }",
             return_value: "This command returns chaddr (client hardware address) from DHCPv4 message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::chaddr" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             return_value: "The bitshift associated with the remote host window scale.",
         }),
         excluded_events: &["SERVER_INIT"],
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rcv_scale" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

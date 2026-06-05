@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Peer_address [DHCPv6::peer_address]\"\n    }",
             return_value: "This command returns peer address field from DHCPv6 RELAY message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::peer_address" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

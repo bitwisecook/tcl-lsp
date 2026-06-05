@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DATAGRAM::dns (id | qr | opcode | qdcount | ancount | nscount | arcount)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

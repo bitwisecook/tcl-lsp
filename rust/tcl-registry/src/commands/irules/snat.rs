@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

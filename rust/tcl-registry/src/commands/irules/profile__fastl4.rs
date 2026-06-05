@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned Fast L4 profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::fastL4 ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

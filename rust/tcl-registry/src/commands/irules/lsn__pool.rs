@@ -29,6 +29,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LSN::pool LSN_POOL",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

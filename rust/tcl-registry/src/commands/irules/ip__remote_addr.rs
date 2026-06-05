@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::remote_addr (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

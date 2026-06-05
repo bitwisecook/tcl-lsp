@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "rt collection for one subnet only.\n     when CLIENT_ACCEPTED {\n         if [IP::addr [IP::client_addr]/8 equals 10.0.0.0] {\n             TCP::analytics enable\n         }\n     }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::analytics (enable | disable | key (KEY)?)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

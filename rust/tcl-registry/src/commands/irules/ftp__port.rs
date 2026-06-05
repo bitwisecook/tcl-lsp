@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
             examples: "when SERVER_CONNECTED {\n  FTP::port 5000 5999\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FTP::port FIRST (LAST)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

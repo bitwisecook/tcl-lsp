@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [TMM::cmp_count] >= 2 } {\n    set cmpstatus 1\n  } else { set cmpstatus 0 }\n}",
             return_value: "Returns the active number of TMM instances running.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TMM::cmp_count" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

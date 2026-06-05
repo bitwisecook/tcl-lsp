@@ -23,6 +23,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACL::eval ('-l7')?" },
+        ],
+        options: &[
+            OptionSpec { name: "-l7", takes_value: false, value_hint: "", detail: "Evaluate L7 ACLs.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

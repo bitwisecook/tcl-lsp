@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the tower id when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::tower_id (TOWER_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

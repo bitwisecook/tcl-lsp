@@ -42,6 +42,13 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n   set users_last_sec 0\n   set new_user_count 0\n   after 1000 ¨Cperiodic {\n      set users_last_sec $new_user_count\n      set new_user_count 0\n   }\n}",
             return_value: "When script is named, an id is returned for the script.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "after MILLI_SECONDS (-periodic)? (NESTING_SCRIPT)?" },
+        ],
+        options: &[
+            OptionSpec { name: "-periodic", takes_value: false, value_hint: "", detail: "Option -periodic.", dialects: None },
+            OptionSpec { name: "-current", takes_value: false, value_hint: "", detail: "Option -current.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

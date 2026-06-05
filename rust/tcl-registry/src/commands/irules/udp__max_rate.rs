@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Get/set the max rate of the UDP flow.\nwhen CLIENT_ACCEPTED {\n    # Set the rate to 1Mbps (125,000 bytes per second)\n    log local0. \"UDP set max rate: [UDP::max_rate 125000]\"\n    log local0. \"UDP get max rate: [UDP::max_rate]\"\n}",
             return_value: "UDP::max_rate returns the maximum transmission rate (bytes per second) of a UDP connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "UDP::max_rate (UDP_MAX_RATE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

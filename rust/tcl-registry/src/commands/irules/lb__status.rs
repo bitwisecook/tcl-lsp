@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when LB_FAILED {\n    if { [LB::status pool $poolname member $ip $port] eq \"down\" } {\n        log \"Server $ip $port down!\"\n    }\n}",
             return_value: "LB::status Returns the status of the currently-selected node (after LB_SELECTED event only). Possible values are: up | down | session_enabled | session_disabled",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::status ?node <addr> | pool <pool> member <addr> <port>? ?status?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

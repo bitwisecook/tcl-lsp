@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MQTT::dup ('0' | '1')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

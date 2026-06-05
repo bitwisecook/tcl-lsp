@@ -23,6 +23,13 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FLOW::create_related (((-translation-loose) (-hairpin))#)? (FLOW_CREATE_RELATED_SUBCMDS)+" },
+        ],
+        options: &[
+            OptionSpec { name: "-translation-loose", takes_value: false, value_hint: "", detail: "Option -translation-loose.", dialects: None },
+            OptionSpec { name: "-hairpin", takes_value: false, value_hint: "", detail: "Option -hairpin.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

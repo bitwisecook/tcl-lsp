@@ -42,6 +42,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LSN::port TRANSLATION_PORT" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

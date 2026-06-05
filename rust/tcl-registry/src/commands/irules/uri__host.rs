@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n        # Loop through some test URLs and URIs and log the URI::host value\n        foreach uri [list \\\n                http://example.com/file.ext \\\n                http://example.com:80/file.ext \\\n                https://example.com:443/file.ext \\\n                ftp://example.com/file.ext \\\n                sip://example.com/file.ext \\\n                myproto://example.com/file.ext \\\n                /example.com \\\n                /uri?url=http://example.com/uri \\\n        ] {",
             return_value: "Returns the host portion of a given URI.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::host URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

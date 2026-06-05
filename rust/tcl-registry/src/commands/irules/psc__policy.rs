@@ -17,6 +17,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Return the list of PSC policies when no argument is given.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PSC::policy (POLICY_NAME)*",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

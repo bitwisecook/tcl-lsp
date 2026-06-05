@@ -13,6 +13,14 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\nif {[class match [b64encode [CRYPTO::hash -alg sha384 [HTTP::host][HTTP::path]]] equals HASH ]} {\n    log local0. \" this FQDN + PATH is mathing - [HTTP::host][HTTP::path]\"\n}\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CRYPTO::hash (('-alg' ('md5' | 'ripemd160' | 'sha1' | 'sha224' | 'sha256' | 'sha384'" },
+        ],
+        options: &[
+            OptionSpec { name: "-alg", takes_value: true, value_hint: "ALG", detail: "Hash algorithm.", dialects: None },
+            OptionSpec { name: "-ctx", takes_value: true, value_hint: "CTX_VAR", detail: "Context variable for multi-step operations.", dialects: None },
+            OptionSpec { name: "-final", takes_value: false, value_hint: "", detail: "Finalize context-based operation.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

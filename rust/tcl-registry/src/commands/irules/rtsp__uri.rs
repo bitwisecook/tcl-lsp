@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when RTSP_REQUEST {\n        puts [RTSP::uri]\n    }",
             return_value: "Returns the complete URI of the RTSP request.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RTSP::uri (URI_STRING)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

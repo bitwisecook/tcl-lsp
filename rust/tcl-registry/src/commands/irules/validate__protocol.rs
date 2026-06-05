@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  TCP::collect 32\n}",
             return_value: "Returns TRUE in case of match, FALSE otherwise.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "VALIDATE::protocol CLASSIFY_APP_NAME ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

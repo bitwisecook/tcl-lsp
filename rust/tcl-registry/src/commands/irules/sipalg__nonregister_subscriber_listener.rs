@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SIPALG::nonregister_subscriber_listener" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

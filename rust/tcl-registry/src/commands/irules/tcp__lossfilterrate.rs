@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    # Remove loss filter if present\n    if { [TCP::lossfilterrate] > 0 } {\n        TCP::lossfilter 0 0\n    }\n}",
             return_value: "TCP Loss Ignore Rate in packets per million.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::lossfilterrate" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

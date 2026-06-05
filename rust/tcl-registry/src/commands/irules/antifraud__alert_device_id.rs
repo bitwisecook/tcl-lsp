@@ -23,6 +23,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::alert_device_id",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

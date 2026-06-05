@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::has_responded" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

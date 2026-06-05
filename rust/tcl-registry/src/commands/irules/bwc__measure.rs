@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n        TCP::collect     set count 0\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BWC::measure ( ('start' | 'stop') |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

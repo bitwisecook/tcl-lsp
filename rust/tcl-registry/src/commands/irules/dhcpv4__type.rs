@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENT_DATA {\n        log local0. \"Type [DHCPv4::type]\"\n    }",
             return_value: "This command returns type of DHCPv4 message",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DHCPv4::type",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "session add SESSION_MODE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

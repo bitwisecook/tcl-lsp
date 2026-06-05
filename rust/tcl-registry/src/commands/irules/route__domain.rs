@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set gateway 10.3.1.11\n    set bandwidth [ROUTE::bandwidth [IP::remote_addr] $gateway%[ROUTE::domain]]\n    if { $bandwidth > 0 } {\n        log local0. \"Destination found in cache, bandwidth = $bandwidth\"\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::domain" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

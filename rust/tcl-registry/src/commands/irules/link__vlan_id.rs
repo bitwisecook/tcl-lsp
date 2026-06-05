@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# log requests\nwhen CLIENT_ACCEPTED {\n    set info \"client { [IP::client_addr]:[TCP::client_port] -> [IP::local_addr]:[TCP::local_port] }\"\n    append info \" ethernet \"\n    append info \" { [string range [LINK::lasthop] 0 16] -> [string range [LINK::nexthop] 0 16] \"\n    append info \"tag [LINK::vlan_id] qos [LINK::qos] }\"\n    log local0. $info\n}",
             return_value: "LINK::vlan_id",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LINK::vlan_id" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

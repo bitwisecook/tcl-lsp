@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        DHCPv4::reject\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::reject" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

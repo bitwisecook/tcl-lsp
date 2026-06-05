@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_REQUEST {\n        puts [RTSP::msg_source]\n    }",
             return_value: "Returns the string \"client\" or \"server\".",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RTSP::msg_source" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

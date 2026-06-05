@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    # Enable auto buffer tuning on HTTP request(s).\n    log local0. \"Send buffer: [TCP::sendbuf] Receive Window: [TCP::recvwnd]\"\n    log local0. \"HTTP request, auto buffer tuning enabled.\"\n    TCP::autowin enable\n    log local0. \"Send buffer: [TCP::sendbuf] Receive Window: [TCP::recvwnd]\"\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::autowin BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

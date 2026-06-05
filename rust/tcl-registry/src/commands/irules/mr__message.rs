@@ -23,6 +23,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::message clone (CLONE_ID)+" },
+        ],
+        options: &[
+            OptionSpec { name: "-count", takes_value: true, value_hint: "", detail: "Option -count.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

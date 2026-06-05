@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when JSON_REQUEST {\n    set cache [JSON::create]\n    set rootval [JSON::root $cache]\n    JSON::set $rootval string HelloWorld\n    set rendered [JSON::render $cache]\n}",
             return_value: "Returns the new JSON cache instance.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "JSON::create" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

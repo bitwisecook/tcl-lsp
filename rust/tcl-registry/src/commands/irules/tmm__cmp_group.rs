@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Note this example won't work in 10.1.0 - 10.2.2 and 11.0.x\n# as the iRule parser doesn't allow these commands in RULE_INIT\nwhen RULE_INIT {\n\n   # Check if we're running on the first CPU right now\nif { [TMM::cmp_unit] == 0 && [TMM::cmp_group] == 0 } {\n      # This execution is happening on the first TMM instance\n      # Conduct any initialization functionality just once here\n      log local0. \"some code\"\n   }\n}",
             return_value: "Returns the number (0-x) of the group of the CPU executing the rule.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TMM::cmp_group" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

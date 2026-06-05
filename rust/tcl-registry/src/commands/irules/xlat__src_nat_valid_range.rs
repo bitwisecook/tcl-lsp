@@ -28,6 +28,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "XLAT::src_nat_valid_range" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

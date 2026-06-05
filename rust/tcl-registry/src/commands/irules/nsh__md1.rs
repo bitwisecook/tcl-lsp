@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "ntext for NSH.\n            when CLIENT_ACCEPTED {\n                set str {1234567890123456}\n                NSH::md1 serverside_egress 1 16 [binary format a* $str]\n                set myctx1 [NSH::md1 serverside_egress 1 16]\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NSH::md1 DIRECTION UNSIGNED_INT UNSIGNED_INT (METADATA)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

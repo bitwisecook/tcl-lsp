@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# EXAMPLE: Always allow client-side actions to be taken on URLs with the .html extension.\nwhen BOTDEFENSE_REQUEST {\n    if {[HTTP::uri] ends_with \".html\"} {\n        BOTDEFENSE::cs_allowed true\n    }\n}",
             return_value: "* When called without any arguments: Returns whether a client-side action is allowed to be taken by Bot Defense. If the value was overridden, the returned value is the overridden one. * When called with an argument for overriding the value of cs_allowed, no value is returned.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::cs_allowed (BOOLEAN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

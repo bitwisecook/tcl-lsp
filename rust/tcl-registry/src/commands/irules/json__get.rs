@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when JSON_REQUEST {\n    set rootval [JSON::root]\n    set content [JSON::get $rootval integer]\n    log local0. \"$content\"\n}",
             return_value: "Returns the content held within the JSON element, according to the types listed in the above description.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "JSON::get JSON_ELEMENT (JSON_TYPE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    if { [SCTP::client_port] > 1000 } {\n        pool slow_pool\n     }\n      else {\n         pool fast_pool\n       }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::client_port" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

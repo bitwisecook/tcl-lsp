@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "urlcatblindquery ENCRYPTED_URL_STRING",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

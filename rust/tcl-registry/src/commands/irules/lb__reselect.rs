@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::reselect (clone pool POOL_OBJ (member IP_ADDR)?)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

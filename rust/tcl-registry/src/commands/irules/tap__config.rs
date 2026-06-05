@@ -16,6 +16,10 @@ pub fn spec() -> CommandSpec {
             return_value:
                 "Returns the current value of the specified setting in an assigned TAP Application.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TAP::config APPLICATION ENTITY",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

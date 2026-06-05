@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "ASN1::decode $ele \"?a?aa?b\" ruleId type matchValue dnAttrs\nif {![info exists ruleId] && ![info exists type]} {\n  log local0. \"ERR: extensibleMatch must contain either a matchingRule or type component\"\n}\n# Handle default value for dnAttributes component\nif {![info exists dnAttrs]} {\n  set dnAttrs 0\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASN1::decode ELEMENT FORMAT (VAR_NAME)*" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

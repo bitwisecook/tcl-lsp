@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Get the TCP Nagle mode of the TCP flow.\nwhen CLIENT_ACCEPTED {\n    log local0. \"TCP Nagle mode: [TCP::naglemode]\"\n}",
             return_value: "- enabled - disabled - auto",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::naglemode" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

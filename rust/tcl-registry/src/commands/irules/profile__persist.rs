@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned persistence profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::persist ((instance PROFILE_PERSIST ATTR) | (mode MODE ATTR))" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -17,6 +17,10 @@ pub fn spec() -> CommandSpec {
             examples: "when RTSP_REQUEST {\n        puts [RTSP::header value \"x-header\"]\n    }",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RTSP::header (exists | remove | value) HEADER_NAME",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

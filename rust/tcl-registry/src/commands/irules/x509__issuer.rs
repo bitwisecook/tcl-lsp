@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVERSSL_HANDSHAKE {\n  set ssl_cert [SSL::cert 0]\n  log local0. \"Cert issuer - [X509::issuer $ssl_cert]\"\n}",
             return_value: "Returns the issuer of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::issuer CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -17,6 +17,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "XML::payload (LENGTH | (OFFSET LENGTH))?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

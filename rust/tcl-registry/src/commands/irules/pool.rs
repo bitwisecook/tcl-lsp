@@ -24,6 +24,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "pool pool_name ?member_addr member_port?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,10 @@ pub fn spec() -> CommandSpec {
             examples: "when SERVER_CONNECTED {\n  peer { TCP::collect }\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "peer ANY_CHARS",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

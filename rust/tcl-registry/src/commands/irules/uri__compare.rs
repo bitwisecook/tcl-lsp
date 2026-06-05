@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set uri_to_check \"/dir1/somepath\"\n  if { [URI::compare [HTTP::uri] $uri_to_check] } {\n    log local0. \"URI's are equal!\"\n  }\n}",
             return_value: "Returns 1 if URIs match; 0 otherwise.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::compare URI_STRING URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

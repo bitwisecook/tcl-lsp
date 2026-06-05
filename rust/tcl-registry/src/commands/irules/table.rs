@@ -24,6 +24,19 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "table <subcommand> ?options? ?--? key ?value? ?lifetime? ?timeout?" },
+        ],
+        options: &[
+            OptionSpec { name: "-mustexist", takes_value: false, value_hint: "", detail: "Fail if key does not already exist.", dialects: None },
+            OptionSpec { name: "-excl", takes_value: false, value_hint: "", detail: "Fail if key already exists.", dialects: None },
+            OptionSpec { name: "-notouch", takes_value: false, value_hint: "", detail: "Do not reset lifetime/timeout on access.", dialects: None },
+            OptionSpec { name: "-subtable", takes_value: true, value_hint: "", detail: "Operate on a named subtable.", dialects: None },
+            OptionSpec { name: "-georedundancy", takes_value: false, value_hint: "", detail: "Enable geo-redundancy for this entry.", dialects: None },
+            OptionSpec { name: "-remaining", takes_value: false, value_hint: "", detail: "Return remaining time.", dialects: None },
+            OptionSpec { name: "-count", takes_value: false, value_hint: "", detail: "Return count of matching keys.", dialects: None },
+            OptionSpec { name: "-all", takes_value: false, value_hint: "", detail: "Delete all keys in a subtable.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

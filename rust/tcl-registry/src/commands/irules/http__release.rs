@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set tmm_auth_ldap_sid [AUTH::start pam default_ldap]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::release" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

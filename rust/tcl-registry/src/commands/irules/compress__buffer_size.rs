@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

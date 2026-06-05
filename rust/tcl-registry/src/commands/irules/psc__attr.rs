@@ -17,6 +17,10 @@ pub fn spec() -> CommandSpec {
             return_value:
                 "* PSC::attr Return the list of custom attribute names when no argument is given.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PSC::attr ((NAME) | (NAME VALUE))?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::option <get|set|noset> <kind> ?value? ?all?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

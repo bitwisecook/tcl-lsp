@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # If the entry almost timed out, keep it a little longer next time.\n    set time_remaining [ROUTE::expiration [IP::remote_addr]]\n    if { $time_remaining > 0 && $time_remaining < 100 } {\n         # Default value is 600\n         TCP::rt_metrics_timeout 700\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::expiration DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

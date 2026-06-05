@@ -23,6 +23,13 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::respond STATUS_CODE (ifile | -ifile) IFILE_OBJ" },
+        ],
+        options: &[
+            OptionSpec { name: "-ifile", takes_value: false, value_hint: "", detail: "Option -ifile.", dialects: None },
+            OptionSpec { name: "-content", takes_value: true, value_hint: "", detail: "Option -content.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

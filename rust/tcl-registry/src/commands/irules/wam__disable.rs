@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Disable WAM for HTTP paths ending in .php\nwhen HTTP_REQUEST {\n  if { [HTTP::path] ends_with \".php\" } {\n    WAM::disable\n  } else {\n    WAM::enable\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "WAM::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

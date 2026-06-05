@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when JSON_REQUEST {\n    JSON::render\n}",
             return_value: "Returns a JSON cache instance handle to use for retrieving and overwriting content, and rendering.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "JSON::parse (JSON_STRING (JSON_MAX_ENTRIES)? )?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

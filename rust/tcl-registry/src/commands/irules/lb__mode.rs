@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when LB_SELECTED {\n    if { $myretry >= 1 } {\n        LB::mode rr\n        LB::reselect pool $mypool\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::mode <mode>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -15,6 +15,10 @@ pub fn spec() -> CommandSpec {
             return_value:
                 "Returns the current value of the specified setting in an assigned XML profile.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::xml ATTR",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTML::tag ((append STRING) | name | (prepend STRING) | remove)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "t/set the retransmission threshold of the TCP flow.\n    when CLIENT_ACCEPTED {\n        log local0. \"TCP set rtx thresh: [TCP::rexmt_thresh 100]\"\n        log local0. \"TCP get rtx thresh: [TCP::rexmt_thresh]\"\n    }",
             return_value: "TCP::rexmt_thresh returns the retransmission threshold of a TCP connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rexmt_thresh (TCP_REXMT_THRESH_VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

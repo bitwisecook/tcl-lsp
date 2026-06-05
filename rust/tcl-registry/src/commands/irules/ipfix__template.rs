@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set static::http_track_dest \"\"\n    set static::http_track_tmplt \"\"\n}",
             return_value: "IPFIX::template create TEMPLATE_STRING returns an IPFIX template object that is used by the IPFIX::msg create command and IPFIX::template delete command.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IPFIX::template ( (create TEMPLATE_STRING) |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

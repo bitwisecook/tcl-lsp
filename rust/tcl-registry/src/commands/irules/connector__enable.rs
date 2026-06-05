@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENTSSL_DATA {\n                CONNECTOR::enable\n            }",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CONNECTOR::enable",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

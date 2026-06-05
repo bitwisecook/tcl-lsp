@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::preview_size (ADAPT_CTX)? (ADAPT_SIDE)? (SIZE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

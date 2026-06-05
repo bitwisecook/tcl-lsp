@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n    if { $headreq } {\n        # Response to HEAD request. Detach after done.\n        ONECONNECT::detach enable\n        ONECONNECT::reuse enable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ONECONNECT::detach BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

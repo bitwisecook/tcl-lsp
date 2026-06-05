@@ -42,6 +42,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LSN::address TRANSLATION_ADDR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

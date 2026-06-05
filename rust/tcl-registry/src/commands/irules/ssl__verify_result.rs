@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n    set cert [X509::verify_cert_error_string [SSL::verify_result]]\n}",
             return_value: "SSL::verify_result Gets the result code from peer certificate verification. The returned code uses the same values as those of OpenSSL's X509 verify_result (X509_V_ERR_) definitions.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::verify_result (RESULT_CODE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

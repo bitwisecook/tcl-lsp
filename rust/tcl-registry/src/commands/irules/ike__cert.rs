@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "IKE::cert (ANY_CHARS)*",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

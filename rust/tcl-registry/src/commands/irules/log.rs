@@ -17,6 +17,17 @@ pub fn spec() -> CommandSpec {
         // GAP-D2: tainted data in a log message → log injection /
         // forging (IRULE3003). Mirrors `irules/log.py`.
         taint_log_sink: Some("IRULE3003"),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "log ?-noname? ?facility.level? message",
+        }],
+        options: &[OptionSpec {
+            name: "-noname",
+            takes_value: false,
+            value_hint: "",
+            detail: "Suppress iRule name prefix in log message.",
+            dialects: None,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

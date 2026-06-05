@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"Client: [client_addr]:[client_port] - Server: [server_addr]:[server_port].\"\n    # Set client-side early retransmit to enabled.\n    clientside {\n        log local0. \"Client: earlyrxmit [TCP::earlyrxmit], enabling\"\n        TCP::earlyrxmit enable\n    }\n    # Set server-side early retransmit to disabled.\n    serverside {\n        log local0. \"Server: earlyrxmit [TCP::earlyrxmit], disabling\"\n        TCP::earlyrxmit disable\n    }\n}",
             return_value: "TCP::earlyrxmit returns whether TCP early retransmit is enabled.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::earlyrxmit (BOOL_VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

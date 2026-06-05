@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CACHE_REQUEST {\n  log local0. \"[CACHE::hits] cache hits for document at [HTTP::uri]\"\n}",
             return_value: "Returns the document cache hits.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CACHE::hits" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
                 "when SIP_RESPONSE {\n    log local0. \"SDP SessionID: [SDP::session_id]\"\n}",
             return_value: "Returns the value of the SDP session id.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SDP::session_id",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

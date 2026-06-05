@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when GTP_SIGNALLING_INGRESS {\n    GTP::discard\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::discard",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

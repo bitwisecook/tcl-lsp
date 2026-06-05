@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                 if { [HTTP::uri] contains \"heavy.php\" } {\n                     DOSL7::slowdown 30 60\n                 }\n             }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DOSL7::slowdown RATE TIMEOUT" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

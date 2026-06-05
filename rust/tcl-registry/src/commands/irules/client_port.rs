@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "client_port Returns the TCP port number/service of the specified client.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "client_port" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

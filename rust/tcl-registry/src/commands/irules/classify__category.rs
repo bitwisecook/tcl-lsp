@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFY::category ('set' | 'add') CLASSIFY_CATEGORY_NAME" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

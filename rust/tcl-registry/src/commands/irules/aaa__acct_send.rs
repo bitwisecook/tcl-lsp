@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST_DATA {\n    set request_id [AAA::acct_send $internal_radius_aaa_vip user-name $username\n                                                            framed-ip-address $framed-ip\n                                                            acct-status-type 1]\n\n    set aaa_result [AAA::acct_result $request_id]\n    if { $aaa_result == \"OK\" } {\n        # request was successfull\n    } else {\n        # handle errors\n    }\n}",
             return_value: "request_id - the id of the current connection that can be used to check the status later with AAA::acct_result command",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AAA::acct_send VIRTUAL_SERVER ((('user-name' USERNAME)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

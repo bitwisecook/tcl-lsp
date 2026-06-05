@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CACHE_REQUEST {\n  if { [CACHE::age] > 60 } {\n    CACHE::expire\n    log local0. \"Expiring content: Age > 60 seconds\"\n   }\n}",
             return_value: "Returns the age of the document in the cache, in seconds.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CACHE::age" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

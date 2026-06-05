@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if {[string tolower [HTTP::uri]] starts_with \"/check\"} {\n    STATS::get stats_profile_1 \"my_first_field\"\n  }\n}",
             return_value: "Returns the value of the specified field of the specified Statistics profile",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STATS::get PROFILE_NAME FIELD_NAME" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

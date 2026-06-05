@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if { [HTTP::uri] contains \"http1_backend\"} {\n        HTTP2::disable serverside\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::disable ('clientside')? ('serverside')? ('discard')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the user name when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::user_name (USERNAME)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST priority 350 {\n    foreach ip [call uniq_sorted_ip_list 1.1.1.1 {2.2.2.2, 3.3.3.3} 2a01:4b00:8480:ae00:acf0:fe84:3bf2:eeee badentry 5.5.5.5] {\n        if {[class match -- $ip eq \"blacklist-ips\"]} {\n            reject\n            return\n        }\n    }\n}",
             return_value: "A Tcl list of unique, sorted IP address strings.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "uniq_sorted_ip_list ?arg ...?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

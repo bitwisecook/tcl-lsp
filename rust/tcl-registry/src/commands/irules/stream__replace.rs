@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when STREAM_MATCHED {\n    set server [string tolower [STREAM::match]]\n    if {$server contains \"mail\"} {\n        STREAM::replace \"webmail.yourdomain.com/$mailhost\"\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STREAM::replace (TARGET_STRING)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

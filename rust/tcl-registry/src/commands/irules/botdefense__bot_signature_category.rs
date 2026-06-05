@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::bot_signature_category" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

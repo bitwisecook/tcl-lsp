@@ -6,6 +6,9 @@ pub fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(1),
+        // Option set mirrors `irules/http__respond.py` (the reference
+        // standard): `-version`/`-content`/`-ifile`/`-noserver`/`-reset`.
+        // (`-status` is the positional status arg, not an option.)
         options: &[
             OptionSpec {
                 name: "-version",
@@ -15,10 +18,17 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
             OptionSpec {
-                name: "-status",
+                name: "-content",
                 takes_value: true,
-                value_hint: "reason",
-                detail: "Override the default reason phrase for the status code.",
+                value_hint: "CONTENT",
+                detail: "Response body content.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-ifile",
+                takes_value: true,
+                value_hint: "IFILE_OBJ",
+                detail: "Serve the response body from an iFile object.",
                 dialects: None,
             },
             OptionSpec {
@@ -26,6 +36,13 @@ pub fn spec() -> CommandSpec {
                 takes_value: false,
                 value_hint: "",
                 detail: "Suppress the auto-injected `Server` response header.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-reset",
+                takes_value: false,
+                value_hint: "",
+                detail: "Reset the connection after sending the response.",
                 dialects: None,
             },
         ],
@@ -60,6 +77,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::respond <status> ?option value ...?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

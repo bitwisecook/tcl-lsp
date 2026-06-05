@@ -45,6 +45,10 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::uri ?-normalized?" },
+            FormSpec { kind: FormKind::Setter, synopsis: "HTTP::uri <URI>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

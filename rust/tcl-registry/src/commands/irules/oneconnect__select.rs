@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST_SEND {\n     if { $keymatch == \"/myuri\"} {\n     ONECONNECT::label update $keymatch\n     }\n   }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ONECONNECT::select (persist | none)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

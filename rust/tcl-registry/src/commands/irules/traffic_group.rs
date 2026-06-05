@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n  log local0. \"traffic_group name: [traffic_group]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "traffic_group" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

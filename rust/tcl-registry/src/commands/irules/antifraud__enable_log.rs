@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                if { [HTTP::header exists \"Antifraud-Enable-log\" ] } {\n                    ANTIFRAUD::enable_log\n                    log local0. \"Logs enabled\"\n                }\n            }",
             return_value: "ANTIFRAUD::enable_log No return value (enables Anti-Fraud TMM logs at default log level for the current transaction).",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::enable_log (LOG_LEVEL)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

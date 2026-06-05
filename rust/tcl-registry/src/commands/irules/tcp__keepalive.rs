@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"Client: [client_addr]:[client_port] - Server: [server_addr]:[server_port].\"\n    # Set server-side keep-alive interval to 60 seconds.\n    TCP::keepalive 60\n}",
             return_value: "TCP::keepalive without an argument returns the keep-alive interval value of a TCP connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::keepalive (KEEP_ALIVE_INTERVAL)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

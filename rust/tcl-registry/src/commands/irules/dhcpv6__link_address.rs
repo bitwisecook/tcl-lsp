@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Link_address [DHCPv6::link_address]\"\n    }",
             return_value: "This command returns link address field from DHCPv6 RELAY message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::link_address" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

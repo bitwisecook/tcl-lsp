@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    # Get a handle to the running extension instance to call into.\n    set RPC_HANDLE [ILX::init my_plugin my_extension]\n    # Make the call and store the response in $rpc_response\n    set rpc_response [ILX::call $RPC_HANDLE my_js_function arg1 arg2]\n}",
             return_value: "Returns a handle to the running extension to call into.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ILX::init (EXTENSION | (PLUGIN EXTENSION))" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

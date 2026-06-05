@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENT_ACCEPTED {\n  log local0. \"Client ttl: [ip_ttl]\"\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ip_ttl",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

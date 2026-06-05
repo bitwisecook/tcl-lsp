@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_REQUEST {\n        puts [RTSP::method]\n    }",
             return_value: "Returns a method/command from the current RTSP request.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RTSP::method" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Returns TRUE if request was mitigated",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DOSL7::is_mitigated",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

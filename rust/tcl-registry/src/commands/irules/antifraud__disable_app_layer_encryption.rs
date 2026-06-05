@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::disable_app_layer_encryption" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

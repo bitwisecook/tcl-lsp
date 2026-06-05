@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# EXAMPLE: Re-enable Bot Defense on the connection if a request arrives with a certain URL prefix.\nwhen HTTP_REQUEST {\n    if {[HTTP::uri] starts_with \"/t/\"} {\n        BOTDEFENSE::enable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::enable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

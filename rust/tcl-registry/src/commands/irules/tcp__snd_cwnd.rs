@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # Get BIGIP's last congestion window.\n    log local0. \"BIGIP's cwnd: [TCP::snd_cwnd]\"\n}",
             return_value: "The cwnd in bytes.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::snd_cwnd" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

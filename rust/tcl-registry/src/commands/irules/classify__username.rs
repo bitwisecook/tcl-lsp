@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    CLASSIFY::username superuser\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFY::username USERNAME (CONTEXT)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::policy <subcommand> ?args?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

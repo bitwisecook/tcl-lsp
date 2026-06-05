@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Iterate violations in parallel using llookup\nwhen ASM_REQUEST_DONE {\n    set details [ASM::violation details]\n    foreach viol_name       [llookup $details viol_name] \\\n            sanity_status   [llookup $details http_sanity_checks_status] \\\n            sub_viol_status [llookup $details http_sub_violation_status] {\n        log local0.info \"$viol_name $sanity_status $sub_viol_status\"\n    }\n}",
             return_value: "A Tcl list of values matching *KEY*.  When used with `[ASM::violation details]`, binary values such as `http_sub_violation` and `sig_data.kw_data.buffer` are base64-encoded.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "llookup MMAP KEY" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

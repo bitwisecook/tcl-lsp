@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"Client: [client_addr]:[client_port] - Server: [server_addr]:[server_port].\"\n    TCP::ecn disable\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::ecn BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

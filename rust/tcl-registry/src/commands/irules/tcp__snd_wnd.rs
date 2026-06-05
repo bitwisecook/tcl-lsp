@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # Get Client's last advertised window.\n    log local0. \"Client's advertised rwnd: [TCP::snd_wnd]\"\n}",
             return_value: "The advertised receive window (rwnd) in bytes.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::snd_wnd" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

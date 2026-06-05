@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when ASM_REQUEST_BLOCKING{\n    log local0. \"The request was blocked using the [ASM::policy] policy\"\n}",
             return_value: "Returns the ASM policy applied on the request or null string if ASM is disabled.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASM::policy" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

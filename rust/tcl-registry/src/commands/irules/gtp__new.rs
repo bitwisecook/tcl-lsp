@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set t2 [GTP::new 2 10]\n    log local0. \"GTP version [GTP::header version -message $t2]\"\n    log local0. \"GTP type [GTP::header type -message $t2]\"\n}",
             return_value: "Returns a TCL object of type \"GTP-Message\"",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::new VERSION TYPE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

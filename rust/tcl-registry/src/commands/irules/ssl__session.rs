@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if { [HTTP::uri] contains \"/maint_mode\" } {\n        ## send content and die\n        HTTP::respond 200 content $::error_html Connection Close\n        event HTTP_REQUEST disable\n        SSL::session invalidate\n    }\n}",
             return_value: "SSL::session invalidate Invalidates the current session. Specifically, this command drops the current SSL session ID from the session cache to prevent reuse of the session.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::session invalidate ( drop | nodrop )?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

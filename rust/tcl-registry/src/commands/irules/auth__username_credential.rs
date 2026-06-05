@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  AUTH::username_credential $asid [HTTP::username]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::username_credential AUTH_ID USERNAME_CREDENTIAL" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

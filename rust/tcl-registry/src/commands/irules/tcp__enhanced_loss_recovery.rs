@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    TCP::enhanced_loss_recovery enable\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::enhanced_loss_recovery BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

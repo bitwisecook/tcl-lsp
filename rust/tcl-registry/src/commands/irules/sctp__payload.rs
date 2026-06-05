@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  SCTP::collect 15\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::payload ( (PAYLOAD_LENGTH) |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

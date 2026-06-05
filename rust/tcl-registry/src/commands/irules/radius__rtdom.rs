@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        if { [RADIUS::code] == 4 } {\n            set rd 0\n            # Extract the APN information from the AVP\n            set called_station_id [RADIUS::avp 30 \"string\"]\n            if {$called_station_id == \"station1\"} {\n                set rd 1\n            } elseif {$called_station_id == \"station2\"} {\n                set rd 2\n            }\n            # Overwrite the default route domain value with the new value.\n            RADIUS::rtdom $rd\n        }\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RADIUS::rtdom (ROUTE_DOMAIN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

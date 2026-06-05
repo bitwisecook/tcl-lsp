@@ -41,6 +41,16 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec {
+                kind: FormKind::Default,
+                synopsis: "when EVENT { body }",
+            },
+            FormSpec {
+                kind: FormKind::Default,
+                synopsis: "when EVENT priority N { body }",
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

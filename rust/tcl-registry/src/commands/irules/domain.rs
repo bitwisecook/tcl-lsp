@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST\nif { [HTTP::uri] ends_with \".html\" } {\n      pool cache_pool\n      set key [crc32 [concat [domain [HTTP::host] 2] [HTTP::uri]]]\n}\n...\n\nThis code:\n\n log local0. [domain www.sub.my.domain.com 1]   ; # result: com\n log local0. [domain www.sub.my.domain.com 2]   ; # result: domain.com\n log local0. [domain www.sub.my.domain.com 3]   ; # result: my.domain.com\n log local0. [domain www.sub.my.domain.com 4]   ; # result: sub.my.domain.com",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "domain DOMAIN COUNT" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

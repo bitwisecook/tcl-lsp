@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n  set client_cert [SSL::cert 0]\n  log local0. \"Cert subject - [X509::subject $client_cert]\"\n  log local0. \"Cert public key type - [X509::subject_public_key_type $client_cert]\"\n  if { [X509::subject_public_key_type $client_cert] equals \"unknown\" } {\n    SSL::verify_result 50\n  }\n  set error_code [SSL::verify_result]\n  log local0. \"Cert verify result - [X509::verify_cert_error_string $error_code]\"\n}",
             return_value: "Returns the subject’s public key type of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::subject_public_key_type CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

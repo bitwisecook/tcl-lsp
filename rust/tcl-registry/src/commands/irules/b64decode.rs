@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when RULE_INIT {\n   set ::key [AES::key]\n}",
             return_value: "b64decode <string> Returns a string that is base-64 decoded",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "b64decode ANY_CHARS",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

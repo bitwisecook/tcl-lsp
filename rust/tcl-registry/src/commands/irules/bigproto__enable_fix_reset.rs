@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    BIGPROTO::enable_fix_reset true\n    BIGPROTO::enable_fix_reset false\n            }",
             return_value: "none",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BIGPROTO::enable_fix_reset BOOLEAN" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

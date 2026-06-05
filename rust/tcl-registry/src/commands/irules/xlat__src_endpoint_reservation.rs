@@ -14,6 +14,16 @@ hover: Some(HoverSnippet {
             return_value: "create returns the translation endpoint used for the reservation.",
         }),
         excluded_events: &["RULE_INIT"],
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "XLAT::src_endpoint_reservation create ?options? <client_ip> <client_port> <protocol> <lifetime>" },
+        ],
+        options: &[
+            OptionSpec { name: "-no-persist", takes_value: false, value_hint: "", detail: "Skip creation of persist entry.", dialects: None },
+            OptionSpec { name: "-dslite", takes_value: true, value_hint: "LOCAL_ADDR REMOTE_ADDR", detail: "DS-Lite local and remote endpoint.", dialects: None },
+            OptionSpec { name: "-pool", takes_value: true, value_hint: "POOL_NAME", detail: "Specify pool for endpoint reservation.", dialects: None },
+            OptionSpec { name: "-translation-loose", takes_value: true, value_hint: "IP PORT", detail: "Hint data; command won't fail if hints can't be used.", dialects: None },
+            OptionSpec { name: "-translation-strict", takes_value: true, value_hint: "IP PORT", detail: "Hint data; command fails if hints can't be used.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

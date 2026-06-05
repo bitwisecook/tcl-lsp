@@ -30,6 +30,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FLOW::idle_duration ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

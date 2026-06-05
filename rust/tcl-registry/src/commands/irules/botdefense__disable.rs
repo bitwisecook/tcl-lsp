@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# EXAMPLE: Disabling Bot Defense for a netmask of client IP addresses\nwhen CLIENT_ACCEPTED {\n    if {[IP::addr [IP::client_addr] equals 10.10.10.0/24]} {\n        BOTDEFENSE::disable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

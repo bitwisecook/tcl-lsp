@@ -28,6 +28,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::hold",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

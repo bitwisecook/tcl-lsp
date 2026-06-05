@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set static::http_track_dest \"\"\n    set static::http_track_tmplt \"\"\n}",
             return_value: "IPFIX::msg create returns an IPFIX_MESSAGE object that is used by the IPFIX::msg set|delete and IPFIX::destination send commands.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IPFIX::msg <subcommand> ?options? args..." },
+        ],
+        options: &[
+            OptionSpec { name: "-pos", takes_value: true, value_hint: "IPFIX_POS", detail: "Position index for duplicate field types.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

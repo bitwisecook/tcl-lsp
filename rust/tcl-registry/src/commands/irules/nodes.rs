@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n        set in_path [HTTP::path]\n        log local0. \"debug request: path $in_path\"\n        switch -glob $in_path {\n                \"/pool*\" {\n                        set pool [string map {\"/pool\" \"\"} $in_path]\n                        HTTP::respond 200 content \"[active_members $pool]:[nodes $pool]\"\n                }\n        }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "nodes (-list)? POOL_OBJ" },
+        ],
+        options: &[
+            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Option -list.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

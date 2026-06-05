@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when MR_FAILED {\n    if {[MR::message retry_count] < [MR::max_retries]} {\n        MR::message nexthop none\n        MR::retry\n    }\n}",
             return_value: "returns the number of retries allowed",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::max_retries" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

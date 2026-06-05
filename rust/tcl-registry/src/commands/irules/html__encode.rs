@@ -18,6 +18,9 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/html__encode.py`.
         taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTML::encode STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

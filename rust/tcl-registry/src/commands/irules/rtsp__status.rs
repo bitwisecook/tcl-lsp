@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_RESPONSE {\n        puts [RTSP::status]\n    }",
             return_value: "Returns the HTTP style status code from the current RTSP response.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RTSP::status" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

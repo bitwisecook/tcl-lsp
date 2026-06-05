@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::persist ?key | cookie?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

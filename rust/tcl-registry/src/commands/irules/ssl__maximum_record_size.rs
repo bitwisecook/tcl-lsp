@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    SSL::maximum_record_size 1234\n}",
             return_value: "SSL::maximum_record_size Returns the currently set maximum egress record size. SSL::maximum_record_size ##### There is no return value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::maximum_record_size (SSL_RECORD_SIZE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

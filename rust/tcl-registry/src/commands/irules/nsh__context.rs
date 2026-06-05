@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "ntext for NSH.\n            when CLIENT_ACCEPTED {\n                NSH::context 1 serverside_egress 1111\n                set myctx1 [NSH::context 1 serverside_egress]\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NSH::context NSH_CONTEXT_IDX DIRECTION (CONTEXT)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

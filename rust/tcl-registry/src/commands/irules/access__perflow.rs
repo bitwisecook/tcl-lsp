@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when ACCESS_PER_REQUEST_AGENT_EVENT {\n                set id [ACCESS::perflow get perflow.irule_agent_id]\n\n                if { $id eq \"irule_agent_one\" } {\n                    log local0. \"Made it to iRule agent in perrequest policy.\"\n                    ACCESS::perflow set perflow.custom \"agent_one\"\n                }\n            }",
             return_value: "ACCESS::perflow get will return the string of perflow variable; empty if value isn't set",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::perflow <get|set> <key> ?value?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

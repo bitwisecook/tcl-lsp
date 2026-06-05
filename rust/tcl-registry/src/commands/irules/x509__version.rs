@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  log local0. \"Cert version - [X509::version ssl_cert]\"\n  if { [X509::version ssl_cert] eq 3 } {\n    pool v3_pool\n  } else {\n    pool default_pool\n  }\n}",
             return_value: "Returns the version number of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::version CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    SSL::allow_nonssl 1\n}",
             return_value: "SSL::allow_nonssl Returns the currently set Allow Non-SSL connections value. SSL::allow_nonssl [0|1] There is no return value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::allow_nonssl (ZERO_ONE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

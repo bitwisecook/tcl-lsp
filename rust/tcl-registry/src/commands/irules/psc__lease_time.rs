@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Return the session lease time.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PSC::lease_time IP_ADDR (LEASE_TIME)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::context_static (ADAPT_SIDE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

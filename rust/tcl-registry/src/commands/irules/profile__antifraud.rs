@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned ANTIFRAUD profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::antifraud ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

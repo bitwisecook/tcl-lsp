@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set ::key [AES::key 128]\n}",
             return_value: "SSL::cert <index> Returns the X509 SSL certificate at the specified index in the peer certificate chain, where index is a value greater than or equal to zero. A value of zero denotes the first certificate in the chain, a value of one denotes the next, and so on.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::cert <subcommand|index> ?args?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

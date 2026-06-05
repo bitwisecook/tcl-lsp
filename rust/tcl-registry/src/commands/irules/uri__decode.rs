@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  log local0. \"The decoded version of \\\"[HTTP::query]\\\" is \\\"[URI::decode [HTTP::query]]\\\"\"\n}",
             return_value: "Returns a decoded version of a given URI.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::decode URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

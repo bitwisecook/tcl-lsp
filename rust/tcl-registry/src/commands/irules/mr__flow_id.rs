@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when MR_INGRESS {\n    set orig_flowid [MR::flow_id]\n    MR::store orig_flowid\n}",
             return_value: "Returns a unique identifier for the current connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::flow_id" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

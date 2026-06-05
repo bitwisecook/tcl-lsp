@@ -23,6 +23,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "active_members ('-list')? POOL_OBJ" },
+        ],
+        options: &[
+            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return as list instead of count.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

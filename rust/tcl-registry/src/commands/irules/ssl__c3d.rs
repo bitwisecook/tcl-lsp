@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_HANDSHAKE {\n    log local0.info \"CLIENTSSL_HANDSHAKE\"\n    SSL::c3d extension CP \"2.16.840.1.101.2.1.11.9, cpsuri:https://localhost/test-statement/pki/cps.txt, cpsuri:https://localhost/test-statement1/pki/cps.txt;2.16.840.1.101.2.1.11.19\"\n    SSL::c3d extension SAN \"DNS:*.test-client.com, IP:1.1.1.1\"\n    SSL::c3d extension 1.2.3.4 \"The oid-vaule for oid 1.2.3.4\"\n    if {[SSL::cert count] > 0} {\n        SSL::c3d subject commonName [X509::subject [SSL::cert 0] commonName]\n    }\n}",
             return_value: "SSL::c3d extension <oid oid-value> Inserts the <oid oid-value> as an extension to C3D certificate with OID=oid and value=oid-value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::c3d <subcommand> <args>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

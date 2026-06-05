@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        set result [RESOLVER::name_lookup \"/Common/r1\" www.abc.com a]\n        set answer [DNSMSG::section $result answer]\n}",
             return_value: "Returns a TCL list of resource records from the specified section.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNSMSG::section DNS_MESSAGE ('question' | 'answer' | 'authority' | 'additional' )" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

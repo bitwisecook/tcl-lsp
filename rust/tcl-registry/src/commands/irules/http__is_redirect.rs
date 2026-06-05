@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::is_redirect" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

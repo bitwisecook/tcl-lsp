@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set str \"hello world\"\n    log local0. \"hash of $str is [fasthash $str]\"\n}",
             return_value: "Returns the numeric hash for the specified string",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "fasthash DATA" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

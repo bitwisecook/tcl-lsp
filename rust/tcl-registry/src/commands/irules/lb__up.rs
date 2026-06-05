@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::up ?node <addr> | pool <pool> member <addr> <port>?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

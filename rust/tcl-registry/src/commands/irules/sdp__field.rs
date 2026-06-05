@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SIP_REQUEST {\n    log local0. \"SDP field b: [SDP::field b]\"\n    SDP::field c 0 \"IN IP4 10.10.1.150\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SDP::field FIELD_NAME ((INDEX) (NEW_VALUE)?)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

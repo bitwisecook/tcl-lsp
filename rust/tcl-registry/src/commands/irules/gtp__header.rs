@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP version [GTP::header version]\"\n    log local0. \"GTP type [GTP::header type]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::header <field> ?set|remove? ?-message msg? ?value?" },
+        ],
+        options: &[
+            OptionSpec { name: "-message", takes_value: true, value_hint: "MESSAGE", detail: "Operate on specific message.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

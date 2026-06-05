@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Transaction_id [DHCPv6::transaction_id]\"\n    }",
             return_value: "This command returns transaction id field from DHCPv6 message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::transaction_id" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

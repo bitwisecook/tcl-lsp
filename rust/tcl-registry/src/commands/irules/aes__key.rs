@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set ::key [AES::key 128]\n}",
             return_value: "Returns the created key.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AES::key ('128' | '192' | '256')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

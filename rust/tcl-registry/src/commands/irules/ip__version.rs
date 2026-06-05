@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n   log local0. \"Client [IP::client_addr], VS: [IP::local_addr],\\\n      \\[IP::version\\]: [IP::version], \\[IP::protocol\\]: [IP::protocol]\"\n}",
             return_value: "IP version of a connection",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::version" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

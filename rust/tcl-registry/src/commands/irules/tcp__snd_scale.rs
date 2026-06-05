@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    # Log snd_scale.\n    log local0. \"snd_scale: [TCP::snd_scale]\"\n}",
             return_value: "The bitshift associated with the local host window scale.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::snd_scale" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

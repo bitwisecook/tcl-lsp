@@ -23,6 +23,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::safesearch URL ('-ip' IP)?" },
+        ],
+        options: &[
+            OptionSpec { name: "-ip", takes_value: true, value_hint: "", detail: "Option -ip.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

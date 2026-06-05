@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "LSN::inbound-entry get <translation IP>:<translation port> <protocol> - Gets inbound entry for the specified translation IP, translation port and protocol. Protocol can be set TCP or UDP. This command returns the client IP address, port and route domain ID.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LSN::inbound-entry (get | delete) IP_TUPLE IP_PROTOCOL" },
+        ],
+        options: &[
+            OptionSpec { name: "-mirror", takes_value: false, value_hint: "", detail: "Option -mirror.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

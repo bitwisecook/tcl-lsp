@@ -18,6 +18,9 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/uri__encode_component.py`.
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::encode_component STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

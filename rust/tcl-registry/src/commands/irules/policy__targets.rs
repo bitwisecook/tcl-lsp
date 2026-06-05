@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Log the policy targets for this virtual server\nwhen HTTP_REQUEST {\n\n        # Log the policy targets enabled on this virtual server\n        log local0. \"\\[POLICY::targets\\]: [POLICY::targets]\"\n\n        # Loop through each possible target type and log whether it is enabled or not (1 for enabled, 0 for not enabled)\n        foreach target {asm wam log http-cookie http-header http-host http-referer http-set-cookie http-uri log tcl tcp-nagle} {",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "POLICY::targets ('ltm-policy' |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

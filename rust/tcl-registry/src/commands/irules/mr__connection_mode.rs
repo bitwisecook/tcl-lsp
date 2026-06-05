@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"[MR::connection_instance] [MR::connection_mode]\"\n}",
             return_value: "returns the connection mode",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::connection_mode" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PCP::reject PCP_RESULT_CODE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

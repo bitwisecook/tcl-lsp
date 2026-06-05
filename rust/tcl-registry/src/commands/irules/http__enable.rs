@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\nlog local0. \"Got request: [HTTP::uri]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::enable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

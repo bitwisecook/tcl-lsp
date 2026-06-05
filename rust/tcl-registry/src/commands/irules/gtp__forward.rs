@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
                 "when GTP_SIGNALLING_INGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::forward $t2\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::forward MESSAGE",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

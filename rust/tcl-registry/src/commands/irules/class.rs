@@ -14,6 +14,18 @@ hover: Some(HoverSnippet {
             examples: "when LB_FAILED {\n      HTTP::respond 200 content [b64decode [class element -value 0 img]] \"Content-Type\" \"image/png\"\n   }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "class <subcommand> ?options? ?--? args..." },
+        ],
+        options: &[
+            OptionSpec { name: "-all", takes_value: false, value_hint: "", detail: "Return all matches.", dialects: None },
+            OptionSpec { name: "-value", takes_value: false, value_hint: "", detail: "Return value instead of name.", dialects: None },
+            OptionSpec { name: "-name", takes_value: false, value_hint: "", detail: "Return name.", dialects: None },
+            OptionSpec { name: "-index", takes_value: false, value_hint: "", detail: "Return index.", dialects: None },
+            OptionSpec { name: "-element", takes_value: false, value_hint: "", detail: "Return full element.", dialects: None },
+            OptionSpec { name: "-nocase", takes_value: false, value_hint: "", detail: "Case-insensitive comparison.", dialects: None },
+            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return value always as a list.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

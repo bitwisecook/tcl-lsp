@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    if { [ROUTE::bandwidth [IP::remote_addr]] > 0 } {\n        log local0. \"cached bandwidth is: [ROUTE::bandwidth [IP::remote_addr]]\"\n    }\n}",
             return_value: "The bandwidth estimate to the destination and/or gateway in kbps.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::bandwidth DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

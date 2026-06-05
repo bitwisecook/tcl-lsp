@@ -23,6 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?" },
+        ],
+        options: &[
+            OptionSpec { name: "-priority", takes_value: true, value_hint: "PRIORITY", detail: "Push priority number.", dialects: None },
+            OptionSpec { name: "-content", takes_value: true, value_hint: "CONTENT", detail: "Pushed response content.", dialects: None },
+            OptionSpec { name: "-ifile", takes_value: true, value_hint: "IFILE_OBJ", detail: "Serve content from iFile.", dialects: None },
+            OptionSpec { name: "-noserver", takes_value: false, value_hint: "", detail: "Suppress \"Server: BigIP\" header.", dialects: None },
+            OptionSpec { name: "-nohost", takes_value: false, value_hint: "", detail: "Disable Host header requirement.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

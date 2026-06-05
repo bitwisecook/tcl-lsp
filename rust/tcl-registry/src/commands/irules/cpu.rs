@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if{ [cpu usage 5sec] <= 1} {\n    pool1\n  } else {\n    HTTP::redirect \"http://anotherpool.com\"\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "cpu usage (" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

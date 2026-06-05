@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             return_value: "HA::status active",
         }),
         excluded_events: &["RULE_INIT"],
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HA::status (active | standby)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

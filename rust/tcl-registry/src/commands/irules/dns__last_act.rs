@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

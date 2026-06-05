@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when DNS_REQUEST {\n  if { [DNS::tsig exists] } {\n    DNS::tsig remove\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::tsig 'remove'" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

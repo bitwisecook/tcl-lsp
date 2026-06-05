@@ -31,6 +31,10 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::query ?-normalized?" },
+            FormSpec { kind: FormKind::Setter, synopsis: "HTTP::query <QUERY_STRING>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

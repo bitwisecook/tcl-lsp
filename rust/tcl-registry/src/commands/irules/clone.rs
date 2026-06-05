@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n   clone nexthop tap_vlan\n}",
             return_value: "clone pool <pool_name> Specifies the pool to which you want to send the cloned traffic.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "clone pool POOL_OBJ (member IP_ADDR (PORT)?)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

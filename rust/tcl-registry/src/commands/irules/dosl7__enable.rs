@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    DOSL7::enable\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DOSL7::enable (DOSL7_PROFILE_OBJ)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when RTSP_REQUEST {\n        RTSP::collect 10\n    }",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RTSP::collect (LENGTH)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

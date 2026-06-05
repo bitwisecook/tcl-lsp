@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_REQUEST {\n        RTSP::respond 401 Unauthorized \"x-header\\r\\n\\r\\n  Hey, you need a password\"\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "RTSP::respond STATUS_CODE STATUS_STRING (HEADERS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

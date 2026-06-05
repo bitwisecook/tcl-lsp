@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Option [DHCPv4::option 18]\"\n    }",
             return_value: "This command returns value by option id number when retrieving",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::option (delete)? OPTION (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

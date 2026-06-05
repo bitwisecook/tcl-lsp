@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # Log rttvar.\n    log local0. \"rttvar: [TCP::rttvar]\"\n}",
             return_value: "The measured RTT variance in units of \"1/16 of a millisecond\". Divide the returned value by 16 to get the actual variance in milliseconds.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rttvar" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

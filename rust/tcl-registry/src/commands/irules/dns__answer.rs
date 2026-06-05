@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::answer ?clear | insert <rr> | remove <rr>?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

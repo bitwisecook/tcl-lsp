@@ -30,6 +30,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::collect (CONTENT_LENGTH)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

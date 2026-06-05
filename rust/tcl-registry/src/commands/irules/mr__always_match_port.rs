@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                MR::always_match_port no\n            }",
             return_value: "Returns the current value of the always_match_port flag. This will be 'true' or 'false'.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::always_match_port (BOOLEAN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

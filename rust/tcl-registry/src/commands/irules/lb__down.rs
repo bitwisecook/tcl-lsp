@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n    if { [HTTP::status] == 500 } {\n        LB::down\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::down ?node <addr> | pool <pool> member <addr> <port>?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

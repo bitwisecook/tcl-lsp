@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when AUTH_ERROR {\n    if {$auth_ldap_sid eq [AUTH::last_event_session_id]} {\n        reject\n    }\n}",
             return_value: "SSL::handshake hold Halts any SSL activity. Typically used when an authentication request is made.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::handshake (hold | resume)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

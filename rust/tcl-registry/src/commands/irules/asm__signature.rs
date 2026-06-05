@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASM::signature (ids | names | set_names | staged_ids | staged_names | staged_set_names)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

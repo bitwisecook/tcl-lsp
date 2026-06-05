@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rt_metrics_timeout TIMEOUT" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

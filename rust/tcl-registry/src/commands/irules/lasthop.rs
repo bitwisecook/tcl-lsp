@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "lasthop (VLAN_OBJ)? (IP_ADDR | MAC_ADDR)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

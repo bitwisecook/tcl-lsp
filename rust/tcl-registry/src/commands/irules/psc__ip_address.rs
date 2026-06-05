@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the list of PSC ip addresses when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::ip_address (IP_ADDR)*" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

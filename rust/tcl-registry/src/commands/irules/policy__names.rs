@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Log the policy names for this virtual server\nwhen HTTP_REQUEST {\n        log local0. \"Enabled on this VS: \\[POLICY::names active\\]: [POLICY::names active]\"\n        log local0. \"Matched: \\[POLICY::names matched\\]: [POLICY::names matched]\"\n        log local0. \"Not matched: \\[POLICY::names unmatched\\]: [POLICY::names unmatched]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "POLICY::names (active | matched | unmatched)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Yiaddr [DHCPv4::yiaddr]\"\n    }",
             return_value: "This command returns yiaddr(your IP) field from DHCPv4 message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::yiaddr" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

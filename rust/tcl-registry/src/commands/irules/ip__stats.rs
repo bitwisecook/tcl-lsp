@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# The following example calculates and logs response time:\nwhen HTTP_REQUEST {\n    set reqAge [IP::stats age]\n    set reqURI [HTTP::uri]\n    set reqClient [IP::remote_addr]:[TCP::remote_port]\n}",
             return_value: "number of packets or bytes being sent or received in a given connection",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::stats ?pkts|bytes|in|out|age? ?in|out?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

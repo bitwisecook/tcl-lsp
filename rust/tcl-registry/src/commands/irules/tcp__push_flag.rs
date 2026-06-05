@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# get/set the PUSH flag mode of the TCP flow.\nwhen CLIENT_ACCEPTED {\n    log local0. \"TCP set PUSH flag mode: [TCP::push_flag auto]\"\n    log local0. \"TCP get PUSH flag more: [TCP::push_flag]\"\n}",
             return_value: "TCP::push_flag returns the PUSH flag mode.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::push_flag ('default' | 'none' | 'one' | 'auto')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

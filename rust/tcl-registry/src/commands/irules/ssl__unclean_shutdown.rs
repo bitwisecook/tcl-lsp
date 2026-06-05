@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Note that for this iRule, unclean shutdown should be disabled in the clientssl profile\nwhen HTTP_REQUEST {\n    if { [HTTP::header \"User-Agent\"] contains \"MSIE\" } {\n        SSL::unclean_shutdown enable\n    }\n}",
             return_value: "SSL::unclean_shutdown <\"enable\" | \"disable\"> Sets the value of the current client-side or server-side SSL connection’s Unclean Shutdown setting.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::unclean_shutdown (enable | disable)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

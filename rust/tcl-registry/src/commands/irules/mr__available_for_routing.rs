@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                MR::available_for_routing no\n            }",
             return_value: "Returns the current value of the available_for_routing flag. This will be 'true' or 'false'.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::available_for_routing (BOOLEAN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

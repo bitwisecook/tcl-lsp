@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set tmm_auth_subscription \"*\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::ssl_cc_ldap_status AUTH_ID" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

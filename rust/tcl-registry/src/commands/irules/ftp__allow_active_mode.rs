@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                FTP::allow_active_mode disable\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FTP::allow_active_mode (enable | disable)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

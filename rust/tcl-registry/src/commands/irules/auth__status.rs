@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n  set authStatus [AUTH::status $authSessionId]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::status (AUTH_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

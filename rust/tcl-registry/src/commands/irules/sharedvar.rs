@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\nlog local0. \"vip1 @ response: private: $private\"\nlog local0. \"vip1 @ response: public: $public\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "sharedvar VARIABLE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

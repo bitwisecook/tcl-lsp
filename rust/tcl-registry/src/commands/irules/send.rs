@@ -13,6 +13,14 @@ hover: Some(HoverSnippet {
             examples: "when LB_SELECTED {\n    # Save some data to send\n    set dest \"10.0.16.1:8888\"\n    set data \"GET /mypage/myindex2.html HTTP/1.0\\r\\n\\r\\n\"\n\n    # Open a new TCP connection to $dest\n    set conn_id [connect -protocol TCP -timeout 30000 -idle 30 $dest]\n\n    # Send the data with a 1000ms timeout on the connection identifier received from the connect command\n    set send_bytes [send -timeout 1000 -status send_status $conn_id $data]\n\n    # Log the number of bytes sent and the send status",
             return_value: "Sends data on a specified sideband connection, and returns an integer representing the amount of data that was sent.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "send ?options? ?--? connection data" },
+        ],
+        options: &[
+            OptionSpec { name: "-timeout", takes_value: true, value_hint: "MSEC", detail: "Time in ms to wait for data to be sent.", dialects: None },
+            OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save send status into variable.", dialects: None },
+            OptionSpec { name: "--", takes_value: false, value_hint: "", detail: "", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

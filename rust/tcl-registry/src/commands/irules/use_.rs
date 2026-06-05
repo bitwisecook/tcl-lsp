@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if { [HTTP::uri] contains \"aol\" } {\n        use pool aol_pool\n    } else {\n        use pool all_pool\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "use clone pool POOL_OBJ (member IP_ADDR)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

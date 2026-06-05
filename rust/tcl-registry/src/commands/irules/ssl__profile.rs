@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    SSL::renegotiate\n}",
             return_value: "SSL::profile <profile_name> Switch to the defined SSL profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::profile PROFILE_OBJ" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

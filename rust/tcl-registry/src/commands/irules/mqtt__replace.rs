@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MQTT::replace ( (('type' 'CONNECT') ('client_id' NAME)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

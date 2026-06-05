@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::notify (request | response | eom)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

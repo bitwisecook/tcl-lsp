@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if { [IP::addr [IP::client_addr] equals 10.1.1.80] } {\n    drop\n    event disable all\n    return\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "drop" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

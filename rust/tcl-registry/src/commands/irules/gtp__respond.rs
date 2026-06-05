@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when GTP_SIGNALLING_EGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::respond $t2\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::respond MESSAGE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

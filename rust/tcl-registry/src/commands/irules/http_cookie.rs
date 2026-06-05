@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "http_cookie ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

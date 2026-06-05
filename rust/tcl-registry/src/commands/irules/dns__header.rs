@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::header <field> ?value?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

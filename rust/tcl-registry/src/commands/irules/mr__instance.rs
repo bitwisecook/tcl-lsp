@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when MR_INGRESS {\n    log local0. \"[MR::protocol] router instance [MR::instance]\"\n}",
             return_value: "returns the name of the current mr_router instance",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::instance" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

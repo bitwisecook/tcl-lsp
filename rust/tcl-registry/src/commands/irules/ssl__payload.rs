@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_HANDSHAKE {\n    log local0. \"[IP::client_addr]:[TCP::client_port]: SSL handshake completed, collecting SSL payload\"\n    SSL::collect\n}",
             return_value: "SSL::payload length Returns the amount of plaintext data collected by the SSL::collect command.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::payload (length |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

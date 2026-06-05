@@ -13,6 +13,17 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "REST::send -method METHOD URI ?BODY?",
+        }],
+        options: &[OptionSpec {
+            name: "-method",
+            takes_value: true,
+            value_hint: "METHOD",
+            detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
+            dialects: None,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

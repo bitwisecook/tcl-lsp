@@ -24,6 +24,13 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::extensions ?options?" },
+        ],
+        options: &[
+            OptionSpec { name: "-index", takes_value: true, value_hint: "EXT_NUMBER", detail: "Return extension at specified index.", dialects: None },
+            OptionSpec { name: "-type", takes_value: true, value_hint: "EXT_TYPE_VALUE", detail: "Return extension matching specified type value.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "L7CHECK::protocol set VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

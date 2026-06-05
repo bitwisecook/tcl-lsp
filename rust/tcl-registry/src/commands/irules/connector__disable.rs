@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENT_ACCEPTED {\n                CONNECTOR::disable\n            }",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CONNECTOR::disable",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

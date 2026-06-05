@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# This section only logs matches, and should be removed before using the rule in production.\nwhen STREAM_MATCHED {\n    log local0. \"Matched: [STREAM::match]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STREAM::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n        # Loop through some test URLs and URIs and log the URI::protocol value\n        foreach uri [list \\\n                http://test.com \\\n                https://test.com \\\n                ftp://test.com \\\n                sip://test.com \\\n                myproto://test.com \\\n                /test.com \\\n                /uri?url=http://test.example.com/uri \\\n        ] {\n                log local0. \"\\[URI::protocol $uri\\]: [URI::protocol $uri]\"\n        }\n}",
             return_value: "Returns the protocol of the given URI.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::protocol URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

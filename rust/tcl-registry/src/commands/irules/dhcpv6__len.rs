@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Len [DHCPv6::len]\"\n    }",
             return_value: "This command returns the length of the DHCP packet length",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::len" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

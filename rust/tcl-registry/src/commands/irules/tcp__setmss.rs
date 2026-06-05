@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Match clientside MSS to serverside MSS\nwhen SERVER_CONNECTED {\n    set cli_mss [clientside { TCP::mss }]\n    set svr_mss [TCP::mss]\n    if { $cli_mss > $svr_mss } {\n        clientside { TCP::setmss $svr_mss }\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::setmss TCP_MAX_SEGMENT_SIZE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

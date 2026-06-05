@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Returns the value of an web acceleration profile setting",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::webacceleration ATTR",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

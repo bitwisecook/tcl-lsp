@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MQTT::client_id (CLIENTID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

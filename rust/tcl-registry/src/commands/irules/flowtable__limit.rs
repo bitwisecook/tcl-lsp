@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

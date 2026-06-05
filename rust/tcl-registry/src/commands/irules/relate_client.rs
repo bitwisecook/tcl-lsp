@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SIP_REQUEST {\n    # Taken from https://devcentral.f5.com/wiki/irules.Load-Balance-Outbound-SIP-Voice-Traffic-Signaling-AND-Media-with-SNAT.ashx\n    # Pre-establish the UDP connection to allow RTP from Server -> Client (and vice versa)\n    relate_client {\n        proto 17\n        clientflow $source_VLAN $destination_RTP $destination_RTP_port $source_inside $source_RTP_port\n        serverflow $destination_VLAN $source_outside $source_RTP_port $destination_RTP $destination_RTP_port\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "relate_client CONFIG" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

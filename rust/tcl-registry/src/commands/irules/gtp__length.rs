@@ -14,6 +14,17 @@ pub fn spec() -> CommandSpec {
                 "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP length [GTP::length]\"\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::length ('-message' MESSAGE)?",
+        }],
+        options: &[OptionSpec {
+            name: "-message",
+            takes_value: true,
+            value_hint: "",
+            detail: "Option -message.",
+            dialects: None,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

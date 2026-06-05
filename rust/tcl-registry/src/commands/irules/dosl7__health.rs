@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return health value as integer. Lower values are good health. Bad health is value > 1^23.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DOSL7::health" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

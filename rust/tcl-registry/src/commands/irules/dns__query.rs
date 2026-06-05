@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::query ('dnsx' | 'dns-express') NAME DNS_TYPE (DNSSEC)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

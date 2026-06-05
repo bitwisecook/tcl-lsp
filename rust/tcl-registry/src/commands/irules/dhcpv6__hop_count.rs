@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Hop-count [DHCPv6::hop_count]\"\n    }",
             return_value: "This command returns hop-count field from DHCPv6 relay message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::hop_count" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

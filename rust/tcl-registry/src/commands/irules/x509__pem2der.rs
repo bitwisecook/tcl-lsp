@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if { [SSL::cert count] > 0 } {\n        SSL::c3d cert [X509::pem2der [X509::whole [SSL::cert 0]]]\n    }\n}",
             return_value: "Returns an X509 certificate in DER format.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::pem2der <cert-in-pem>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

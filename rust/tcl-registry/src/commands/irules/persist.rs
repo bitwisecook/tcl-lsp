@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "persist <mode> ?args?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

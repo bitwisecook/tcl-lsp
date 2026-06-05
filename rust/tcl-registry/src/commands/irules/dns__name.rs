@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::name RR_OBJECT (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

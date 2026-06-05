@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when LB_QUEUED {\n    log local0. \"[IP::local_addr] was queued - [LB::queue depth one pool1] / [LB::queue limit depth pool1]\"\n}",
             return_value: "LB::queue limit depth|time [<pool name>] Returns queue limit info (depth is per-tmm)",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::queue queued" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

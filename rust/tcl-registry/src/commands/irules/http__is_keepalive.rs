@@ -24,6 +24,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "HTTP::is_keepalive",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

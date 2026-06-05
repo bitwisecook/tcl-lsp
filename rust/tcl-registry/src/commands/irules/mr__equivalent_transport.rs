@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    MR::equivalent_transport config /Common/inbound_tc\n}",
             return_value: "Returns the current equivalent transport. This will contain the transport type and transport name. For example: 'config /Common/inbound_tc'.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::equivalent_transport" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

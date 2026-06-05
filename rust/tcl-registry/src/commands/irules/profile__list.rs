@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns all the names of the profiles of the class asked for that are attached to this virtual server",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::list 'auth'" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

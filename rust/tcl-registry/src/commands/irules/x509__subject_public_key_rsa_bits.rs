@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if { [info exist error_code] } {\n    if { $error_code > 0 } {\n      HTTP::redirect \"https://some_other_site/\"\n    }\n  }\n}",
             return_value: "Returns the size of the subject’s public RSA key of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::subject_public_key_RSA_bits CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

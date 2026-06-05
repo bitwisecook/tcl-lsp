@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    FTP::ftps_mode require\n                }\n\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    set mode [FTP::ftps_mode]\n                }\n            }",
             return_value: "Returns the current activation mode.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FTP::ftps_mode (disallow | allow | require)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

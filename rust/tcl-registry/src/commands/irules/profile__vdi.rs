@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    log local0. \"\\[PROFILE::vdi msrdp_ntlm_auth_name\\]:    [PROFILE::vdi msrdp_ntlm_auth_name]\"\n    log local0. \"\\[PROFILE::vdi citrix_storefront_replacement\\]:   [PROFILE::vdi citrix_storefront_replacement]\"\n}",
             return_value: "Returns the current value of the specified setting in the assigned VDI profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::vdi ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

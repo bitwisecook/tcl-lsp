@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "WS::payload_processing ('enable' | 'disable')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

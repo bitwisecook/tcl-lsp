@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    SSL::allow_dynamic_record_sizing 1\n}",
             return_value: "SSL::allow_dynamic_record_sizing Returns the currently set dynamic record sizing value. SSL::allow_dynamic_record_sizing [0|1] There is no return value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::allow_dynamic_record_sizing (ZERO_ONE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

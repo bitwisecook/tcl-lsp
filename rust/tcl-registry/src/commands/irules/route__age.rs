@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    log local0. \"Cached age is: [ROUTE::age [IP::remote_addr]]\"\n}",
             return_value: "The age of the route metrics in seconds",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::age DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

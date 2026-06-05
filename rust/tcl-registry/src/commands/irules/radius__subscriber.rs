@@ -30,6 +30,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RADIUS::subscriber (SUBSCRIBER_ID)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

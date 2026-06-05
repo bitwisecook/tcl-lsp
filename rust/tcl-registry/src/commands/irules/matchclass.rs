@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [matchclass [IP::remote_addr] equals aol] } {\n     pool aol_pool\n  } else {\n     pool all_pool\n }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "matchclass CLASS_OR_VALUE KEYWORDS VALUE_OR_CLASS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

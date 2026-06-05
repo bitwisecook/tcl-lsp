@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n\n   # Disable the stream filter for all requests\n   STREAM::disable\n}",
             return_value: "Returns the matching characters.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STREAM::match" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

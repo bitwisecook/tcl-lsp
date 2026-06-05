@@ -14,6 +14,12 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    # Call a proc which returns no values\n    call proc_rule::printArguments one two three\n\n    # Save the return value of a proc\n    set return_values [call proc_rule::returnArguments one two three]\n}",
             return_value: "Returns the value(s) that return (if any).",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "call ?-debug? <proc_name> ?arg ...?" },
+        ],
+        options: &[
+            OptionSpec { name: "-debug", takes_value: false, value_hint: "", detail: "Enable debug mode.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

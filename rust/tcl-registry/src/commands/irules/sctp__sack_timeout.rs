@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n        log local0.info \"SCTP selective acknowledgement timeout value is [SCTP::sack_timeout]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::sack_timeout (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

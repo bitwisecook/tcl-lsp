@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  log local0. \"Current virtual server name: [virtual name]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "virtual" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

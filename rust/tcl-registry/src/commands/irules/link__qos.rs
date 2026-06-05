@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [LINK::qos] > 2 } {\n     pool fast_pool\n  } else {\n     pool slow_pool\n }\n}",
             return_value: "LINK::qos",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LINK::qos" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

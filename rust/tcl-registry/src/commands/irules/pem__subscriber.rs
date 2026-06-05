@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    PEM::subscriber create 4086007577 subscriber-type e164 ip-address 10.10.10.10\n    PEM::subscriber config policy referential set 4086007577 e164 policy1\n    PEM::subscriber ip 4086007577 e164 10.0.0.92 2001::101\n    PEM::subscriber info 4086007577 e164 imsi 1223456\n    PEM::subscriber info 4086007577 e164 imeisv 2534535\n    PEM::subscriber info 4086007577 e164 tower-id 8248249\n    PEM::subscriber info 4086007577 e164 user-name 2139449",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PEM::subscriber config policy ( (get SUBS_ID (PEM_SUBS_TYPE2))" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

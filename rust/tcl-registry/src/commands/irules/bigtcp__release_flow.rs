@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    BIGTCP::release_flow;\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BIGTCP::release_flow" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

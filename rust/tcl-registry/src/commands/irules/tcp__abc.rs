@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"Client: [client_addr]:[client_port] - Server: [server_addr]:[server_port].\"\n    # If an HTTP connection, enable ABC on the client side and\n    # disable ABC on the server side.\n    if { [server_port] == 80 } {\n        clientside {\n            TCP::abc enable\n            log local0. \"Client MSS: [TCP::mss]\"\n        }\n        serverside {\n            TCP::abc disable\n            log local0. \"Server MSS: [TCP::mss]\"\n        }\n    }\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::abc BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

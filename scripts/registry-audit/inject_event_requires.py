@@ -105,11 +105,12 @@ def main() -> None:
         if not m:
             continue
         indent = m.group(1)
+        has_field = lambda name: re.search(r"^\s*" + name + r":", text, re.M) is not None
         blocks: list[str] = []
-        if er and "event_requires:" not in text:
+        if er and not has_field("event_requires"):
             blocks.append(event_requires_literal(er, indent))
             er_count += 1
-        if excluded and "excluded_events:" not in text:
+        if excluded and not has_field("excluded_events"):
             blocks.append(f"excluded_events: {str_slice(excluded)},")
             ex_count += 1
         if not blocks:

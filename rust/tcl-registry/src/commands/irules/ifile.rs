@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n   # Retrieve the file contents, send it in an HTTP 200 response and clear the temporary variable\n   set ifileContent [ifile get \"/Common/iFile-index.html\"]\n   HTTP::respond 200 content $ifileContent\n   unset ifileContent\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ifile 'listall'" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

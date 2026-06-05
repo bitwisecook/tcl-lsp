@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNS::is_wideip DNS_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

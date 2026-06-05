@@ -27,6 +27,18 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "connect ?options? destination" },
+        ],
+        options: &[
+            OptionSpec { name: "-protocol", takes_value: true, value_hint: "PROTO", detail: "IP protocol (default TCP).", dialects: None },
+            OptionSpec { name: "-myaddr", takes_value: true, value_hint: "IP_ADDR", detail: "Source address for the connection.", dialects: None },
+            OptionSpec { name: "-myport", takes_value: true, value_hint: "PORT", detail: "Source port for the connection.", dialects: None },
+            OptionSpec { name: "-timeout", takes_value: true, value_hint: "MSEC", detail: "Time in ms to wait for connection.", dialects: None },
+            OptionSpec { name: "-idle", takes_value: true, value_hint: "SEC", detail: "Idle timeout in seconds (default 300).", dialects: None },
+            OptionSpec { name: "-tos", takes_value: true, value_hint: "TOS", detail: "IP TOS value.", dialects: None },
+            OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save connection status into variable.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

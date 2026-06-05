@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Return the name of the traffic class that matched the connection",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LB::class",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when USER_RESPONSE {\n    LB::detach\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::detach ('disable')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

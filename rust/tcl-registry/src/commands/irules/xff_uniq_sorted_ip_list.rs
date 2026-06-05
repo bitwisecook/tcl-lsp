@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "xff_uniq_sorted_ip_list ?xff_header_name?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

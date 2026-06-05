@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  set auth_id [AUTH::start pam default_radius]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::start TYPE SERVICE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

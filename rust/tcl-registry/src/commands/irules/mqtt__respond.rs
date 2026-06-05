@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MQTT::respond ( (('type' 'CONNACK') ('return_code' RETURN_CODE)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

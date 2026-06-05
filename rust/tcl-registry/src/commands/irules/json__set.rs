@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when JSON_REQUEST {\n    set rootval [JSON::root]\n    JSON::set $rootval string HelloWorld\n}",
             return_value: "Returns the JSON element whose value was set (same element as the first argument passed to the command).",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "JSON::set JSON_ELEMENT JSON_TYPE (JSON_VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

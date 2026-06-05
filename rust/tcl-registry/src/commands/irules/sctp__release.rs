@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENT_ACCEPTED {\n  SCTP::collect 15\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SCTP::release (RELEASE_BYTES)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

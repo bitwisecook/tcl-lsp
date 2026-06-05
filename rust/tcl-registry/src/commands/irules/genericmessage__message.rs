@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GENERICMESSAGE::message (len | length)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

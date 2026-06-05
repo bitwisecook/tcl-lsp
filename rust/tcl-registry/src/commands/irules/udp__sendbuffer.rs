@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Get/set the send buffer size of the UDP flow.\nwhen CLIENT_ACCEPTED {\n    log local0. \"UDP get send buffer: [UDP::sendbuffer]\"\n    # Set the send buffer to 2,000,000 bytes\n    log local0. \"UDP set send buffer: [UDP::sendbuffer 2000000]\"\n    log local0. \"UDP get send buffer: [UDP::sendbuffer]\"\n}",
             return_value: "UDP::sendbuffer returns the maximum send buffer size (bytes) of a UDP connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "UDP::sendbuffer (UDP_SNDBUF_SIZE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_SERVERHELLO_SEND {\n    set secure_renegotiation_enabled [SSL::is_renegotiation_secure]\n}",
             return_value: "SSL::is_renegotiation_secure",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::is_renegotiation_secure" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "#Drop the packet after initial TCP handshake if the client has a bad reputation\nwhen CLIENT_ACCEPTED {\n    # Check if the IP reputation list for the client IP is not 0\n    if {[llength [IP::reputation [IP::client_addr]]] != 0}{\n        # Drop the connection\n        drop\n    }\n}",
             return_value: "Return a TCL list containing reputation categories.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::reputation (IP_ADDR)+" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

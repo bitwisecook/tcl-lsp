@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CONNECTOR_OPEN {\n                if {([CONNECTOR::profile] eq \"/Common/connector_profile_1\")} {\n                    CONNECTOR::remap client_addr 10.10.10.2\n                    log local0. \"Remap client IP address from connector to 10.10.10.2\"\n                    CONNECTOR::remap client_port 333\n                    log local0. \"Remap client port from connector to 333\"\n                    CONNECTOR::remap server_addr 20.20.20.2",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CONNECTOR::remap server_addr IP_ADDR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

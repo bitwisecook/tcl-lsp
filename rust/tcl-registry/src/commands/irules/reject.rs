@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [TCP::local_port] != 443 } {\n    reject\n    event disable all\n    return\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "reject" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

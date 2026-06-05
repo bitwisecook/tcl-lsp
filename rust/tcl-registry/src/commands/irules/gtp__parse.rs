@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set payload [UDP::payload]\n    set t2 [GTP::parse $payload]\n    log local0. \"GTP type [GTP::header type -message $t2]\"\n    log local0. \"GTP teid [GTP::header teid -message $t2]\"\n}",
             return_value: "Returns a TCL object of type \"GTP-Message\"",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::parse BYTE_STREAM" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::password_credential AUTH_ID PASSWORD_CREDENTIAL" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

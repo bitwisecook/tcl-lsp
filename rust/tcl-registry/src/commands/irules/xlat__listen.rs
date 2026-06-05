@@ -23,6 +23,15 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "XLAT::listen (-hairpin)? (-inherit-main-rules)? (-single-connection)? (-translation-loose)? (XLAT_LISTEN_SUBCMDS)+" },
+        ],
+        options: &[
+            OptionSpec { name: "-hairpin", takes_value: false, value_hint: "", detail: "Enable hairpin mode for the listener.", dialects: None },
+            OptionSpec { name: "-inherit-main-rules", takes_value: false, value_hint: "", detail: "Execute main rules attached to parent virtual.", dialects: None },
+            OptionSpec { name: "-single-connection", takes_value: false, value_hint: "", detail: "Listener expires after one connection.", dialects: None },
+            OptionSpec { name: "-translation-loose", takes_value: false, value_hint: "", detail: "Use hint data as suggestion; don't fail if unusable.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

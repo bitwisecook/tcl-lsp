@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when MR_EGRESS {\n    log local0. \"sending message via [MR::transport]\"\n}",
             return_value: "Returns the name and type (virtual or config) of the transport used to configure the current connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::transport" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

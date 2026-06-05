@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    log local0. \"Cached rtt is: [ROUTE::rtt [IP::remote_addr]]\"\n}",
             return_value: "RTT in units of 100ns.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::rtt DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

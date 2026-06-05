@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when TAP_REQUEST {\n    if { ([TAP::insight] eq \"block\") } {\n        drop\n    }\n}",
             return_value: "Returns one of the following actions: allow, block, captcha, conviction, deception, timeout.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TAP::insight set (TAP_INSIGHT_KEY TAP_INSIGHT_VALUE)*" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

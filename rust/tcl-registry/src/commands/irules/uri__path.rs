@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n\n    # You can use URI::query against a static string and not in a client-triggered event!\n    log local0. \"\\[URI::query \\\"?param1=val1&param2=val2\\\" param1\\]: [URI::query \"?param1=val1&param2=val2\" param1]\"\n\n    # This doesn't work, as URI::query expects a query string to start with a question mark\n    log local0. \"\\[URI::query \\\"param1=val1&param2=val2\\\" param1\\]: [URI::query \"param1=val1&param2=val2\" param1]\"\n}",
             return_value: "Returns the path portion of the given URI.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::path URI_STRING (depth | START | (START END))?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

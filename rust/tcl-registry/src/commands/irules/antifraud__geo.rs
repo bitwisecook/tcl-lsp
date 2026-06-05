@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when ANTIFRAUD_ALERT {\n                log local0. \"geolocation: [ANTIFRAUD::geo].\"\n            }",
             return_value: "Returns L3 geoIP and geolocation collected by client.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::geo" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

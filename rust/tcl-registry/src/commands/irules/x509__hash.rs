@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if { [info exist cert_hash] } {\n    if { $cert_hash equals \"XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX\"} {\n      HTTP::redirect \"https://somesite/\"\n    } else {\n      HTTP::redirect \"https://someothersite/\"\n    }\n  }\n}",
             return_value: "Returns the MD5 hash (fingerprint) of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::hash CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when AUTH_WANTCREDENTIAL {\n  HTTP::respond 401 \"WWW-Authenticate\" \"Basic realm=\\\"\\\"\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::wantcredential_type AUTH_ID" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

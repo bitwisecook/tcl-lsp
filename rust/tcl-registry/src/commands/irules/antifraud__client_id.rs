@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when ANTIFRAUD_ALERT {\n                log local0. \"client id: [ANTIFRAUD::client_id].\"\n            }",
             return_value: "Returns client id collected on client side.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::client_id" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

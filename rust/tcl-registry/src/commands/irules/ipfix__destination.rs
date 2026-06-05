@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set static::http_track_dest \"\"\n    set static::http_track_tmplt \"\"\n}",
             return_value: "IPFIX::destination open returns an IPFIX_DESTINATION object that is used by the IPFIX::destination close or send command.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IPFIX::destination ((open (-publisher LOG_PUBLISHER)) |" },
+        ],
+        options: &[
+            OptionSpec { name: "-publisher", takes_value: true, value_hint: "", detail: "Option -publisher.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

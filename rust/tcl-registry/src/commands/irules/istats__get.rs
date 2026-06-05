@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n        if { [string tolower [HTTP::uri]] equals \"/12345\" } {\n                ISTATS::incr \"uri /12345 counter Requests\" 1\n                HTTP::uri \"/\"\n                HTTP::redirect \"http://www.mysite.com\"\n        } elseif { [string tolower [HTTP::uri]] equals \"/stats\" } {\n                  HTTP::respond 200 content \"<html><body>Requests for /12345: [ISTATS::get \"uri /12345 counter Requests\"]</body></html>\"\n        }\n}",
             return_value: "Returns the value associated with the given key.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ISTATS::get KEY" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

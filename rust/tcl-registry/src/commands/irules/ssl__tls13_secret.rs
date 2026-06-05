@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::tls13_secret <side> <secret_type>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

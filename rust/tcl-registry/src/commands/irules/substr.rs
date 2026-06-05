@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set uri [substr $uri 1 \"?\"]\n  log local0. \"Uri Part = $uri\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "substr STRING SKIP_COUNT (TERMINATOR)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

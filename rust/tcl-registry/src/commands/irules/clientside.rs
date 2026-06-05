@@ -22,6 +22,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n   # Check if the client IP address is 10.1.1.80\n   # [clientside {IP::remote_addr}] is equivalent to [IP::client_addr]\n   if { [IP::addr [clientside {IP::remote_addr}] equals 10.1.1.80] } {\n      # Do something like drop the packets in this example\n      discard\n   }\n}",
             return_value: "clientside Returns 1 if the current event is in the clientside context or 0 if not.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "clientside (NESTING_SCRIPT)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

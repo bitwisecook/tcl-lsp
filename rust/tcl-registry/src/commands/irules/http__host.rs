@@ -24,6 +24,10 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::host" },
+            FormSpec { kind: FormKind::Setter, synopsis: "HTTP::host <name>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

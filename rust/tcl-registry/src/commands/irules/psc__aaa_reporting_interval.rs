@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return AAA reporting interval when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::aaa_reporting_interval (INTERVAL)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

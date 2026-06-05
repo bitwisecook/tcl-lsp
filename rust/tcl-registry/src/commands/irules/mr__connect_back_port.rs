@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                MR::connect_back_port 5678\n            }",
             return_value: "Returns current connect_back_port value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::connect_back_port (NONNEGATIVE_INTEGER)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

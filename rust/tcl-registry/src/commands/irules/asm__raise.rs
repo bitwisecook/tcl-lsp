@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASM::raise VIOLATION_NAME (VIOLATION_DETAILS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

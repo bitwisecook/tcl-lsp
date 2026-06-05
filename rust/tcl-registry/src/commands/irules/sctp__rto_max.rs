@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n        log local0.info \"SCTP retransmission timeout maximum value is [SCTP::rto_max]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::rto_max (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

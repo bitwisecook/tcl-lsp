@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n            BWC::policy attach gold_class\n        }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BWC::policy ('attach' | 'detach') POLICY_NAME (SESSION_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

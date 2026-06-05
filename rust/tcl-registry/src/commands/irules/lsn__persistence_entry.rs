@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set clientIP [IP::client_addr]\n}",
             return_value: "LSN::persistence-entry create",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LSN::persistence-entry (delete|get) CLIENT_ADDR" },
+        ],
+        options: &[
+            OptionSpec { name: "-override", takes_value: false, value_hint: "", detail: "Option -override.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::payload ( LENGTH | (OFFSET LENGTH) )?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

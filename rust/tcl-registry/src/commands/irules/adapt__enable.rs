@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::enable (ADAPT_CTX)? (ADAPT_SIDE)? (BOOLEAN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

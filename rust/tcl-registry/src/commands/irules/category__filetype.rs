@@ -23,6 +23,13 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::filetype HTTP_PAYLOAD ?options?" },
+        ],
+        options: &[
+            OptionSpec { name: "-mimetype", takes_value: true, value_hint: "TYPE", detail: "Variable name to store MIME type.", dialects: None },
+            OptionSpec { name: "-mimesubtype", takes_value: true, value_hint: "SUBTYPE", detail: "Variable name to store MIME subtype.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

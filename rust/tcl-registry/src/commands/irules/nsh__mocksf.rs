@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "cksf option for NSH.\n            when FLOW_INIT {\n                NSH::mocksf\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NSH::mocksf" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

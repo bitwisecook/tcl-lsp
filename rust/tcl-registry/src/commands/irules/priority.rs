@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n       log \"Client [IP::remote_addr] connected\"\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "priority EVENT_PRIORITY" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -28,6 +28,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "UDP::unused_port REMOTE_ADDR REMOTE_PORT LOCAL_ADDR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

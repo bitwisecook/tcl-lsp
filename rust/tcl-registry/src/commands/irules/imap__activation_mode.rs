@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    IMAP::activation_mode require\n                }\n\n                if { ([IP::addr [IP::client_addr] equals 10.0.0.0/8]) } {\n                    set mode [IMAP::activation_mode]\n                }\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IMAP::activation_mode (none | allow | require)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

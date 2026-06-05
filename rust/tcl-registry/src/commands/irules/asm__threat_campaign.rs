@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASM::threat_campaign ( names | staged_names )" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

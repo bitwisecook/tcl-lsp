@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_HANDSHAKE {\n    log local0.info \"negotiated protocol: [SSL::clientrandom]\"\n}",
             return_value: "The ClientRandom value.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::clientrandom" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

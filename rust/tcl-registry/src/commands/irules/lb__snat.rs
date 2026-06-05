@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    # Check if SNAT is enabled on the VIP\n    if {[LB::snat] eq \"none\"}{\n        log local0. \"Snat disabled on [virtual name]\"\n    } else {\n        log local0. \"Snat enabled on [virtual name].  Currently set to [LB::snat]\"\n    }\n}",
             return_value: "LB::snat",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::snat" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

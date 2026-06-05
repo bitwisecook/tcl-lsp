@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  TCP::collect\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASN1::element init ('BER' | 'DER')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

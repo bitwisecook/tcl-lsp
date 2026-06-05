@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    # Set the rate to 1Mbps (125,000 bytes per second)\n    log local0. \"UDP set max rate: [UDP::max_rate 125000]\"\n    log local0. \"UDP get max rate: [UDP::max_rate]\"\n    # Enable printing debug messages.\n    log local0. \"Enable debugging [UDP::debug_queue enable]\"\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "UDP::debug_queue BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

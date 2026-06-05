@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set port [URI::port [HTTP::uri]]\n  log local0. \"Host port of uri [HTTP::uri] is $port\"\n}",
             return_value: "Returns the host port from the given URI.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "URI::port URI_STRING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

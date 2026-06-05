@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set key \"AES 128 43047ad71173be644498b98de6a32fe3\"\n  set decryptedData [AES::decrypt $key $encryptedData]\n  log local0. \"The decrypted data is $decryptedData\"\n}",
             return_value: "Returns the decrypted data.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AES::decrypt KEY DATA" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set mtu [ROUTE::mtu [IP::remote_addr]]\n    if { $mtu > 0 && $mtu < 300 } {\n        #Ignore extremely small cached MTUs\n        ROUTE::clear [IP::remote_addr]\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::mtu DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set cwnd [ROUTE::cwnd [IP::remote_addr]]\n    if { $cwnd > 0 } {\n        log local0. \"Destination found in cache. Initializing cwnd to $cwnd\"\n    } else {\n        log local0. \"Destination not found in cache.\"\n    }\n}",
             return_value: "The cached congestion window in bytes.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::cwnd DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

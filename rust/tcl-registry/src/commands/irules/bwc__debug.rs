@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set mycookie [IP::remote_addr]:[TCP::remote_port]\n    BWC::policy attach test_pol $mycookie\n    log  local0. \"BWC::policy attach  $mycookie\"\n    BWC::debug start session\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BWC::debug ('start')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,19 @@ hover: Some(HoverSnippet {
             examples: "when ACCESS_ACL_ALLOWED {\nset user [ACCESS::session data get \"session.logon.last.username\"]\nHTTP::header insert \"X-USERNAME\" $user\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::session <subcommand> ?options? ?args?" },
+        ],
+        options: &[
+            OptionSpec { name: "-flow", takes_value: false, value_hint: "", detail: "Create a flow-scoped session.", dialects: None },
+            OptionSpec { name: "-timeout", takes_value: true, value_hint: "SECONDS", detail: "Session timeout in seconds.", dialects: None },
+            OptionSpec { name: "-lifetime", takes_value: true, value_hint: "SECONDS", detail: "Session lifetime in seconds.", dialects: None },
+            OptionSpec { name: "-sid", takes_value: true, value_hint: "SESSION_ID", detail: "Session ID.", dialects: None },
+            OptionSpec { name: "-remaining", takes_value: true, value_hint: "", detail: "Remaining time.", dialects: None },
+            OptionSpec { name: "-secure", takes_value: false, value_hint: "", detail: "Access secure session data.", dialects: None },
+            OptionSpec { name: "-config", takes_value: false, value_hint: "", detail: "Access config session data.", dialects: None },
+            OptionSpec { name: "-ssid", takes_value: true, value_hint: "SESSION_ID", detail: "Sub-session ID.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

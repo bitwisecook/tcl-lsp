@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set hsl [HSL::open -proto UDP -pool syslog_server_pool]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HSL::send HANDLE DATA" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

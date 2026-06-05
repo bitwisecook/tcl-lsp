@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    IP::idle_timeout $idle\n}",
             return_value: "idle timeout value in seconds",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::idle_timeout (TIMEOUT)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

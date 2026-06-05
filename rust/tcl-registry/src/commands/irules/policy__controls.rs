@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Log the policy controls for this virtual server\nwhen HTTP_REQUEST {\n\n        # Log the policy controls enabled on this virtual server\n        log local0. \"\\[POLICY::controls\\]: [POLICY::controls]\"\n\n        # Loop through each possible control type and log whether it is enabledor not (1 for enabled, 0 for not enabled)\n        foreach control {acceleration asm avr caching classification compression forwarding l7dos bot-defense request-adaptation response-adaptation server-ssl} {",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "POLICY::controls ('acceleration' |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

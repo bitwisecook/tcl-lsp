@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n        if {not [info exists auth_pass]} {\n            set auth_sid [AUTH::start pam auth_method_user]\n            AUTH::subscribe $auth_sid\n            set auth_username [HTTP::username]\n            set auth_password [HTTP::password]\n            AUTH::username_credential $auth_sid $auth_username\n            AUTH::password_credential $auth_sid $auth_password\n            AUTH::authenticate $auth_sid\n            set auth_pass 1\n        }\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::subscribe AUTH_ID" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

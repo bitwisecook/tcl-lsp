@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set bandwidth [ROUTE::bandwidth [IP::remote_addr]]\n    if { $bandwidth > 0 && $bandwidth < 1000 } {\n        # Reject cache entries below 1000 kbps\n        ROUTE::clear [IP::remote_addr]\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ROUTE::clear DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

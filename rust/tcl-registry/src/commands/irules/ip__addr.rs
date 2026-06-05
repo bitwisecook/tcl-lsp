@@ -13,6 +13,14 @@ hover: Some(HoverSnippet {
             examples: "# To select a specific pool for a specific client IP address.\nwhen CLIENT_ACCEPTED {\n   if { [IP::addr [IP::client_addr] equals 10.10.10.10] } {\n      pool my_pool\n   }\n}",
             return_value: "Returns 0 IF NO MATCH, 1 for a match.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK" },
+        ],
+        options: &[
+            OptionSpec { name: "-swap", takes_value: false, value_hint: "", detail: "Swap byte order.", dialects: None },
+            OptionSpec { name: "-ipv4", takes_value: false, value_hint: "", detail: "Parse as IPv4 address.", dialects: None },
+            OptionSpec { name: "-ipv6", takes_value: false, value_hint: "", detail: "Parse as IPv6 address.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

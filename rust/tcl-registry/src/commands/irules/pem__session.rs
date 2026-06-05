@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    PEM::session create 10.10.10.10 subscriber-id 12345 subscriber-type e164 policy pem-policy1 pem-policy2\n\n    set polisy_var [PEM::session config policy get 10.10.10.10]\n    set ip_var [PEM::session ip 12345 e164]\n    set id_var [PEM::session info 10.10.10.10 subscriber-id]\n\n    PEM::session delete 10.10.10.10\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PEM::session config policy ((get IP_ADDR) |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

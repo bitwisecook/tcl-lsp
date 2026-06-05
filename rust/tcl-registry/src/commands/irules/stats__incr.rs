@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n\n   # Increment the number of unanswered HTTP requests\n   log local0. \"Incremented the current count to: [STATS::incr my_stats_profile_name \"current_count\"]\"\n}",
             return_value: "Returns the current value of the field which was incremented.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STATS::incr PROFILE_NAME FIELD_NAME (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

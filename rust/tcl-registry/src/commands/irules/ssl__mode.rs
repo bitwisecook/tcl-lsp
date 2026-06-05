@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    if { [TCP::local_port] != 443 } {\n        SSL::disable\n    }\n}",
             return_value: "SSL::mode Gets the enabled/disabled state of SSL. Returns 1 if it is enabled, and 0 if it is disabled.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::mode" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

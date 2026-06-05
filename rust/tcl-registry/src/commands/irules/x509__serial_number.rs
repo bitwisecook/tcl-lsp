@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    log local0. \"Certificate Serial Number: [X509::serial_number cert_x]\"\n}",
             return_value: "Returns the serial number of an X509 certificate.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::serial_number CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

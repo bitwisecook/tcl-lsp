@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  set hostname [getfield [HTTP::host] \":\" 1]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "getfield STRING SEPARATOR FIELD_NUMBER" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

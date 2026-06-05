@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when IN_DOSL7_ATTACK {\n    DOSL7::disable\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DOSL7::disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

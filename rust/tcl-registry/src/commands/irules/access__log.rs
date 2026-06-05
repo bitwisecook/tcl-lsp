@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    ACCESS::log debug \"an Access Control debug log\"\n    ACCESS::log sso.error \"an SSO error log\"\n    ACCESS::log eca. \"an ECA notice log\"\n    ACCESS::log \"an Access Control notice log\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::log (COMPONENT_LOGLEVEL)? MSG" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

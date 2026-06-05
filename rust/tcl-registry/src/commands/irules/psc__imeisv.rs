@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the imeisv value when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::imeisv (IMEISV)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

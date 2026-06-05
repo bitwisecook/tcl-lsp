@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    # HTTP::redirect, HTTP::host and HTTP::uri should be used instead\n    redirect to \"https://[http_host][http_uri]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "redirect to HOST_URI" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

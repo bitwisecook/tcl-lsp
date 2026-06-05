@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        set result [RESOLVER::name_lookup \"/Common/r1\" www.abc.com a]\n        set answer [DNSMSG::section $result answer]\n        set first_rr [lindex $answer 1]\n        set rdata [DNSMSG::record $first_rr rdata]\n}",
             return_value: "Returns the specified field from the resource record object.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNSMSG::record RESOURCE_RECORD ('owner' | 'type' | 'ttl' | 'class' | 'rdata')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

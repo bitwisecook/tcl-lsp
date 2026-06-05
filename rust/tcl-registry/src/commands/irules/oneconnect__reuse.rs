@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\nif {[HTTP::method] equals GET } {\n      ONECONNECT::reuse enable\n   } else {\n      ONECONNECT::reuse disable\n   }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ONECONNECT::reuse (BOOL_VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

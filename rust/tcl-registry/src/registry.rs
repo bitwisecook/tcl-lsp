@@ -1334,9 +1334,15 @@ mod tests {
 
         let respond = reg.get("HTTP::respond").expect("HTTP::respond loaded");
         let opts: Vec<&str> = respond.options.iter().map(|o| o.name).collect();
+        // Option set mirrors the Python reference standard
+        // (`irules/http__respond.py`): -version/-content/-ifile/
+        // -noserver/-reset. (`-status` is the positional status arg.)
         assert!(
-            opts.contains(&"-version") && opts.contains(&"-status") && opts.contains(&"-noserver"),
-            "HTTP::respond options {opts:?} should include -version / -status / -noserver",
+            opts.contains(&"-version")
+                && opts.contains(&"-content")
+                && opts.contains(&"-noserver")
+                && opts.contains(&"-reset"),
+            "HTTP::respond options {opts:?} should include -version / -content / -noserver / -reset",
         );
         let noserver = respond
             .options

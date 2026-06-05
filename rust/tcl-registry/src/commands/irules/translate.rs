@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    if { [IP::addr [IP::remote_addr] equals 10.0.8.0/24] } {\n        translate address disable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "translate (address | port | service)" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

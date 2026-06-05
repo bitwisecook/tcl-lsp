@@ -23,6 +23,13 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::result (('category' ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')?) | 'safesearch')" },
+        ],
+        options: &[
+            OptionSpec { name: "-display", takes_value: false, value_hint: "", detail: "Return categories in display name format.", dialects: None },
+            OptionSpec { name: "-id", takes_value: false, value_hint: "", detail: "Return categories in ID format.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

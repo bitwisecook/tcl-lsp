@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    binary scan [rmd160 [HTTP::host]] w1 key\n\n    set key [expr {$key & 1}]\n    switch $key {\n        0 { pool my_pool member 1.2.3.4:80 }\n        1 { pool my_pool member 5.6.7.8:80 }\n    }\n}",
             return_value: "rmd160 <string> Returns the RIPEMD-160 message digest of the specified string, or an empty string if an error occurs.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "rmd160 ANY_CHARS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

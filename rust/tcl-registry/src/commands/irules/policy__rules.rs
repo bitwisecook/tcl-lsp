@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# Log the policy targets for this virtual server\nwhen HTTP_REQUEST {\n\n        log local0. \"Looping through \\[POLICY::names matched\\]: [POLICY::names matched]\"\n        foreach policy [POLICY::names matched] {\n                log local0. \"\\[POLICY::rules matched $policy\\]: [POLICY::rules matched $policy]\"\n        }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "POLICY::rules ('matched')? POLICY_NAME" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

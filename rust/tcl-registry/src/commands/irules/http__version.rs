@@ -24,6 +24,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::version ('0.9' | '1.0' | '1.1')?\nHTTP::version -string ?value?" },
+        ],
+        options: &[
+            OptionSpec { name: "-string", takes_value: true, value_hint: "version", detail: "Get/set version as raw string.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

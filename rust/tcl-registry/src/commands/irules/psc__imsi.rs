@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "Return the imsi value when no argument is given.",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PSC::imsi (IMSI)?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                MR::ignore_peer_port yes\n            }",
             return_value: "Returns the current value of the ignore_peer_port flag. This will be 'true' or 'false'.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::ignore_peer_port (BOOLEAN)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

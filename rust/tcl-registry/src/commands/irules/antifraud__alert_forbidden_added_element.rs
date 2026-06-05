@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_forbidden_added_element" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

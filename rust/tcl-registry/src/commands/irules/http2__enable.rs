@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    HTTP2::disable\n    if { !([IP::addr [IP::client_addr] eq 10.0.0.0/8]) } {\n        HTTP2::enable\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::enable ('clientside')? ('serverside')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

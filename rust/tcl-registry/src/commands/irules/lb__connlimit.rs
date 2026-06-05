@@ -15,6 +15,10 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LB::connlimit <target> ?args?",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

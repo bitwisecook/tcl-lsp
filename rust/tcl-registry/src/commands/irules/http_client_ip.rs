@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "http_client_ip ?xff_header_name?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

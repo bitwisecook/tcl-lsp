@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        log local0.info \"SCTP retransmission timeout initial value is [SCTP::rto_initial]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::rto_initial (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

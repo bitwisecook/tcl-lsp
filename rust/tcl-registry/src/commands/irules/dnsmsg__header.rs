@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        set result [RESOLVER::name_lookup \"/Common/r1\" www.abc.com a]\n        set rcode [DNSMSG::header $result rcode]\n}",
             return_value: "Returns a field from the header.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DNSMSG::header DNS_MESSAGE ('rcode' | 'opcode' | 'id' | 'ra' | 'rd' | 'tc' | 'qr' | 'aa' | 'ad' | 'cd')" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

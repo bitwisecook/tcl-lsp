@@ -13,6 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when ACCESS_SESSION_CLOSED {\n    call delete_jws_cache\n}",
             return_value: "JSON Web Signature string.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::oauth sign ((-payload VALUE) (-key JWK_OBJECT)" },
+        ],
+        options: &[
+            OptionSpec { name: "-header", takes_value: true, value_hint: "RAW_DATA", detail: "Raw data for JOSE header section.", dialects: None },
+            OptionSpec { name: "-payload", takes_value: true, value_hint: "RAW_DATA", detail: "Raw data for JWS payload.", dialects: None },
+            OptionSpec { name: "-key", takes_value: true, value_hint: "JWK_OBJECT", detail: "JWK object for signing.", dialects: None },
+            OptionSpec { name: "-alg", takes_value: true, value_hint: "ALG", detail: "Signing algorithm.", dialects: None },
+            OptionSpec { name: "-ignore-cert-expiry", takes_value: false, value_hint: "", detail: "Allow expired certificate.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

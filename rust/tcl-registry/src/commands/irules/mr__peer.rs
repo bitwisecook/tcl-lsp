@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    MR::peer self_peer config tc1 host \"[IP::remote_addr]:[TCP::remote_port]\"\n    GENERICMESSAGE::route add dest \"[IP::remote_addr]\" peer self_peer\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "MR::peer PEER (((virtual VIRTUAL_SERVER_OBJ) | (config TRANSPORT_CONFIG))" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

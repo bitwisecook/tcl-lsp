@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# This irule can be used to test IP Intelligence dwbl (feed lists).\n# if a request comes in with a URI query:  ?ip=10.0.0.2, it returns the intelligence record.\n# if no query is supplied, it returns the intelligence file.  You can use this in the feed list configuration.\nwhen HTTP_REQUEST {\n    set ip [URI::query [HTTP::uri] ip]\n    if { $ip equals \"\" } {\n        log local0. \"Got a Feed List update request from [IP::client_addr]\"\n    HTTP::respond 200 content {10.0.0.2,32,bl,spam_sources",
             return_value: "Return a Tcl list of IP intelligence category names for a given IP address",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::intelligence IP_ADDR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

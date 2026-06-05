@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::result (DIAMETER_RESULT_CODE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

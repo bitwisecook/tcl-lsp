@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n  set client_cert [SSL::cert 0]\n  log local0. \"[X509::whole $client_cert]\"\n}",
             return_value: "Returns an X509 certificate in PEM format.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::whole CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

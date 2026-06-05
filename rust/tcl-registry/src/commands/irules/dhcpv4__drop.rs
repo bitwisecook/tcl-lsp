@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
             examples: "when CLIENT_DATA {\n        DHCPv4::drop\n    }",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DHCPv4::drop",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set session_flag 0\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::authenticate <once | always | depth <number>>" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

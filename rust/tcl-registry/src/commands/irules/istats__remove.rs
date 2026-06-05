@@ -13,6 +13,10 @@ pub fn spec() -> CommandSpec {
             examples: "ISTATS::remove \"ltm.pool /Common/mypool counter some_counter\"",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ISTATS::remove KEY",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -16,6 +16,10 @@ pub fn spec() -> CommandSpec {
                 "when HTTP_REQUEST {\n  set netshort 1234\n  set hostshort [ntohs $netshort]\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ntohs NUMBER",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

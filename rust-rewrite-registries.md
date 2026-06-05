@@ -289,7 +289,7 @@ Only dimensions where Python and Rust differ are shown. `py→rust`.
 - **`tcl`** — `forms` 199→1, `hover` 211→125, `hover_synopsis` 196→125, `arity_bounded` 160→119, `side_effects` 84→46, `hover_return_value` 9→0, `options` 19→12, `arg_types` 19→13, `hover_examples` 1→0, `const_fold` 10→12, `required_package` 0→2, `subcommands` 13→18, `arg_roles` 30→36, `codegen_hook` 0→7, `return_type` 92→110, `lowering_hook` 0→23, `traits` 42→104
 - **`stdlib`** — `side_effects` 12→0, `forms` 2→0, `subcommands` 2→0, `arg_roles` 1→0, `options` 1→0, `traits` 23→24
 - **`tcllib`** — `forms` 206→0, `hover_return_value` 68→0, `side_effects` 62→0, `hover_examples` 25→0, `arg_roles` 17→3, `subcommands` 3→0
-- **`irules`** — `side_effects` 1002→0, `forms` 999→0, `options` 54→5, `subcommands` 47→0, `arg_roles` 4→5, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
+- **`irules`** — `side_effects` 1002→0, `subcommands` 47→0, `arg_roles` 4→5, `options` 54→55, `lowering_hook` 0→2, `arity_bounded` 31→34, `traits` 62→69
 - **`iapps`** — `forms` 49→0
 - **`tk`** — `forms` 55→0, `side_effects` 55→0, `options` 44→0, `subcommands` 17→0
 - **`expect`** — `forms` 35→0, `options` 26→0, `arg_roles` 1→0

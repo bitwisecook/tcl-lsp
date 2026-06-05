@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    ...\n  }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "timing TIMING" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

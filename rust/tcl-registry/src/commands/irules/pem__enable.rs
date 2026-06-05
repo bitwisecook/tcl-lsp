@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    PEM::enable;\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PEM::enable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

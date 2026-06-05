@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# LDAP String Modify\nappend base_mod $base \",dc=supercalafragalisticexpialadoshus\"\nASN1::encode replace $ele 1 \"a\" $base_mod\n\n# LDAP Encode/Rewrite - The size field is 4 elements forward from $ele\nASN1::encode replace $ele 4 \"i\" [incr size 2]\n\n# LDAP Encode/Rewrite - The time field is 5 elements forward from $ele\nASN1::encode replace $ele 5 \"i\" [expr $time + 100]\n\n# Encode an LDAP SearchRequest Extensible Match filter where RuleId and Type are optional,",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ASN1::encode ('BER' | 'DER') FORMAT (VALUE)*" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

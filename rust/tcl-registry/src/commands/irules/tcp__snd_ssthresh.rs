@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    # Get BIGIP's last slow-start threshold.\n    log local0. \"BIGIP's ssthresh: [TCP::snd_ssthresh]\"\n}",
             return_value: "The connection slow start threshold in bytes.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::snd_ssthresh" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

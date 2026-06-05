@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  set lastmac [LINK::lasthop]\n  session add uie [IP::client_addr] $lastmac 180\n}",
             return_value: "LINK::lasthop [id]",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LINK::lasthop ('id' | 'type' | 'name')?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

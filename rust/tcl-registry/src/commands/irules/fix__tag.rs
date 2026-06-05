@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FIX::tag map set SENDER DATA_GROUP" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

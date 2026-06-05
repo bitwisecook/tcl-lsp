@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned authentication profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::auth PROFILE_AUTH ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

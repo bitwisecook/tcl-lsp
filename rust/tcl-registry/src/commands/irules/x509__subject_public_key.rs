@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n  set client_cert [SSL::cert 0]\n  log local0. \"Cert subject - [X509::subject $client_cert]\"\n  log local0. \"Cert public key - [X509::subject_public_key $client_cert]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "X509::subject_public_key (type | bits | curve_name)? CERTIFICATE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

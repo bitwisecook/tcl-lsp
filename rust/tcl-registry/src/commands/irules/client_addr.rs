@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "client_addr Returns the client IP address of a connection.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "client_addr" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "th ID for NSH.\n            when CLIENT_ACCEPTED {\n                NSH::path_id serverside_egress 10\n                set mypath_id [NSH::path_id serverside_egress]\n            }",
             return_value: "None for set, value of path id for get.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NSH::path_id DIRECTION (NSH_PATH_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

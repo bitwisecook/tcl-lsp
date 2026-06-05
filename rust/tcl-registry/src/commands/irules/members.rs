@@ -13,6 +13,12 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    set response \"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?><rss version=\\\"2.0\\\"><channel>\"\n    append response \"<title>BigIP Server Pool Status</title>\"\n    append response \"<description>Server Pool Status</description>\"\n    append response \"<language>en</language>\"\n    append response \"<pubDate>[clock format [clock seconds]]</pubDate>\"\n    append response \"<ttl>60</ttl>\"\n    if { [HTTP::uri] eq \"/status\" } {\n                foreach { selectedpool } [class get pooltest] {",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "members ('-list')? (POOL_OBJ)" },
+        ],
+        options: &[
+            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return as list instead of count.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

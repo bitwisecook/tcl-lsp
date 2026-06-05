@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  if { [IP::hops] >= 10 } {\n      COMPRESS::disable\n  }\n}",
             return_value: "Number of hops",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IP::hops" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "t the send buffer size of the TCP flow.\n    when CLIENT_ACCEPTED {\n        log local0. \"TCP set send buffer: [TCP::sendbuf 100000]\"\n        log local0. \"TCP get send buffer: [TCP::sendbuf]\"\n    }",
             return_value: "TCP::sendbuf returns the number of bytes that can be stored at the send buffer.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::sendbuf ('auto' | BUFFER_SIZE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

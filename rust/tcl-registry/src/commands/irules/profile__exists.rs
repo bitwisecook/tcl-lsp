@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n   if { [PROFILE::exists clientssl] == 1} {\n      log local0. \"client SSL profile enabled on virtual server\"\n   }\n}",
             return_value: "Returns 1 if the profile is configured on the current virtual server. Returns 0 if the profile is not configured on the current virtual server.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::exists TYPE (NAME)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

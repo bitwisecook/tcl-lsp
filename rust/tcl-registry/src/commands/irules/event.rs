@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n  COMPRESS::method prefer gzip\n  event disable\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "event info" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

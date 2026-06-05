@@ -14,6 +14,15 @@ hover: Some(HoverSnippet {
             examples: "#2\nwhen CLIENT_ACCEPTED {\n    set hsl [HSL::open -publisher /Common/lpAll]\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HSL::open ('-publisher' | '-pub') PUBLISHER" },
+        ],
+        options: &[
+            OptionSpec { name: "-publisher", takes_value: true, value_hint: "", detail: "Option -publisher.", dialects: None },
+            OptionSpec { name: "-pub", takes_value: true, value_hint: "", detail: "Option -pub.", dialects: None },
+            OptionSpec { name: "-proto", takes_value: true, value_hint: "", detail: "Option -proto.", dialects: None },
+            OptionSpec { name: "-pool", takes_value: true, value_hint: "", detail: "Option -pool.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

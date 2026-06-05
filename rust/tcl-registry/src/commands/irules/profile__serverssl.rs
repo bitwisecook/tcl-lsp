@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if {[PROFILE::exists serverssl] == 1}{\n        log local0. \"server SSL profile enabled: [PROFILE::serverssl name]\"\n    }\n}",
             return_value: "Returns the current value of the specified setting in the assigned Server SSL profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::serverssl ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

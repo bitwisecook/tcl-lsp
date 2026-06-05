@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    HTTP::header insert [SSL::modssl_sessionid_headers]\n}",
             return_value: "SSL::modssl_sessionid_headers Returns a header name of \"SSLClientSessionId\", and a header value of the session id requested by the client.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::modssl_sessionid_headers (initial | current)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

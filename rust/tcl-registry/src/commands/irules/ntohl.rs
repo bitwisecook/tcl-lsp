@@ -14,6 +14,10 @@ pub fn spec() -> CommandSpec {
                 "when HTTP_REQUEST{\n  set netlong 12345678\n  set hostlong [ntohl $netlong]\n}",
             return_value: "",
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ntohl NUMBER",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

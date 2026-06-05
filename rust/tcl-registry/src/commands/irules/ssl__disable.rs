@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    if { $usessl == 0 } {\n        SSL::disable\n    }\n}",
             return_value: "SSL::disable [clientside | serverside] Disables SSL processing on one side of the LTM. Sends an SSL alert to the peer requesting termination of SSL processing.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SSL::disable (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

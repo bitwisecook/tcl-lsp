@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when AUTH_SUCCESS {\n  if {$auth_id eq [AUTH::last_event_session_id]} {\n    log local0. \"auth success event\"\n    set authorized 1\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::last_event_session_id" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

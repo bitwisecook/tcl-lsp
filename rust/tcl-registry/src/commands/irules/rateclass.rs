@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [IP::addr [IP::client_addr] equals xxx.xxx.xxx.xxx] } {\n    log local0. \"[IP::client_addr] being handled by rateclass class1\"\n    rateclass class1\n  }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "rateclass RATE_CLASS" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    GENERICMESSAGE::peer name \"[IP::remote_addr]:[TCP::remote_port]\"\n}",
             return_value: "Returns the peer's route name.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GENERICMESSAGE::peer name (NAME)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

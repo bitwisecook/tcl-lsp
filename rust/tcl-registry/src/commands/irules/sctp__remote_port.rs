@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    SCTP::remote_port\n    set x [SCTP::remote_port]\n    SCTP::remote_port clientside\n    SCTP::remote_port serverside\n    SCTP::remote_port client\n    SCTP::remote_port server\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SCTP::remote_port (clientside | serverside)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

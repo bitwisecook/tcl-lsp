@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_CLOSED {\n    set rto [TCP::rto]\n    log local0. \"Final RTO value is $rto\"\n}",
             return_value: "Retransmit timer value in milliseconds.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::rto" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

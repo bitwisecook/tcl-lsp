@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return boolean value if TAP modules wants to get an insight from any module.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TAP::insight_requested" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

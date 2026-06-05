@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::retry DIAMETER_MESSAGE (BOOL_ACROSS)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "# For examples of the command output, add a simple logging iRule to a VIP:\nwhen HTTP_REQUEST {\n   log local0. \"\\[PROFILE::http name\\]: [PROFILE::http name]\"\n}",
             return_value: "Returns the current value of the specified setting in the assigned HTTP profile.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::http ATTR" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

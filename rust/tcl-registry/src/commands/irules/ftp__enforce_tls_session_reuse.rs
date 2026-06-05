@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n                FTP::enforce_tls_session_reuse enable\n            }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "FTP::enforce_tls_session_reuse (enable | disable)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

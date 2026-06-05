@@ -24,6 +24,12 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "HTTP::retry ('-reset')? HTTP_REQUEST" },
+        ],
+        options: &[
+            OptionSpec { name: "-reset", takes_value: false, value_hint: "", detail: "Reset the server-side connection.", dialects: None },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

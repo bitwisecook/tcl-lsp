@@ -28,6 +28,20 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec {
+                kind: FormKind::Getter,
+                synopsis: "HTTP::class",
+            },
+            FormSpec {
+                kind: FormKind::Setter,
+                synopsis: "HTTP::class <enable | disable>",
+            },
+            FormSpec {
+                kind: FormKind::Getter,
+                synopsis: "HTTP::class <asm | wa>",
+            },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

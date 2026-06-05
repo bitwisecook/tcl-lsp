@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SERVER_CONNECTED {\n    log local0. \"Client: [client_addr]:[client_port] - Server: [server_addr]:[server_port].\"\n    # Set client-side delayed ACKs to enabled.\n    clientside {\n        TCP::delayed_ack enable\n    }\n    # Set server-side delayed ACKs to disabled.\n    serverside {\n        TCP::delayed_ack disable\n    }\n}",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::delayed_ack BOOL_VALUE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

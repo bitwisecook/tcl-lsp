@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "t the receive window size of the TCP flow.\n    when CLIENT_ACCEPTED {\n        log local0. \"TCP set receive window: [TCP::recvwnd 100000]\"\n        log local0. \"TCP get receive window: [TCP::recvwnd]\"\n    }",
             return_value: "TCP::recvwnd returns the number of bytes that can be stored at the receive window.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "TCP::recvwnd ('auto' | WINDOW_SIZE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

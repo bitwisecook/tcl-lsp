@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when SIP_REQUEST {\n    log local0. \"SDP media count: [SDP::media count]\"\n    log local0. \"SDP media transport: [SDP::media transport 0]\"\n    log local0. \"SDP media port: [SDP::media port 0]\"\n    log local0. \"SDP media connection: [SDP::media conn 0]\"\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "SDP::media (count | MEDIA_INDEX)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

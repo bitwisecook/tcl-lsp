@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "REWRITE::post_process (SWITCH)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

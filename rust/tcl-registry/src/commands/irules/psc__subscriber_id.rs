@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the subscriber id when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::subscriber_id ((SUBSCRIBER_ID) (e164 |" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

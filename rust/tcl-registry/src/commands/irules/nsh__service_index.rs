@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "rvice index for NSH.\n            when CLIENT_ACCEPTED {\n                NSH::service_index serverside_egress 20\n                set myservice_index [NSH::service_index serverside_egress]\n            }",
             return_value: "None.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "NSH::service_index DIRECTION (NSH_SERVICE_IDX)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

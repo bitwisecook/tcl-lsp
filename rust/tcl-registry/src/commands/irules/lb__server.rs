@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    # Save the name of the VIP's default pool\n    set default_pool [LB::server pool]\n}",
             return_value: "LB::server returns a Tcl list with pool, pool member address and port. If no server was selected yet or all servers are down, returns default pool name only.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "LB::server ?field?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

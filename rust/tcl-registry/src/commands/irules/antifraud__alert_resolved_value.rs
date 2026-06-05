@@ -23,6 +23,9 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_resolved_value (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

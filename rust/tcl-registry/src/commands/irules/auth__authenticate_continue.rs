@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set auth_stage 0\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::authenticate_continue AUTH_ID RESPONSE" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

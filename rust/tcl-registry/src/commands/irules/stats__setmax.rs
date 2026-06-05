@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "STATS::setmax PROFILE_NAME FIELD_NAME (VALUE)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

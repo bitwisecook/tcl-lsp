@@ -24,6 +24,10 @@ pub fn spec() -> CommandSpec {
             flow: false,
             capability: None,
         }),
+        forms: &[FormSpec {
+            kind: FormKind::Setter,
+            synopsis: "HTTP::fallback <host>",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

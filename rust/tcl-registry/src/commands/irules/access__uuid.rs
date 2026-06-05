@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    set apm_cookie_list [ ACCESS::uuid getsid \"[PROFILE::access name].[HTTP::username]\" ]\n    log local0. \"[PROFILE::access name].[HTTP::username] => session number [llength $apm_cookie_list]\"\n    for {set i 0} {$i < [llength $apm_cookie_list]} {incr i} {\n        log local0. \"MRHSession => [ lindex $apm_cookie_list $i]\"\n    }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::uuid getsid SESSION_ID" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

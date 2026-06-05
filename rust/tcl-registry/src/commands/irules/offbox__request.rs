@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                 if { [HTTP::uri] eq \"login.php\" } {\n                     OFFBOX::request \"/Common/offbox::ip_reputation\" [TCP::client_addr] cache [TCP::client_addr] blocking\n                 }\n             }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "OFFBOX::request SERVICE PAYLOAD (((cache KEY) blocking) | (blocking | (cache KEY)) | (blocking TIMEOUT))?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

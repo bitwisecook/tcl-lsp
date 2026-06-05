@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the calling station id when no argument is given.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PSC::calling_id (CALLING_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

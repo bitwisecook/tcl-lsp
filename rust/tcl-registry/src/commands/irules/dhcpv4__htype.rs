@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Htype [DHCPv4::htype]\"\n    }",
             return_value: "This command returns htype (hardware type) field from DHCPv4 message",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::htype" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

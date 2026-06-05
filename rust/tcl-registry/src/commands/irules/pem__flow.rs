@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    PEM::flow transactional disable;\n    PEM::flow eval;\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "PEM::flow transactional disable" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

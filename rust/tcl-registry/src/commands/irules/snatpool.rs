@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [TCP::local_port] == 531 } {\n     snatpool chat_snatpool\n}\n  elseif { [TCP::local_port] == 25 } {\n     snatpool smtp_snatpool member 10.20.30.40\n }\n}",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "snatpool SNAT_POOL_OBJ (member IP_ADDR)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CONNECTOR_OPEN {\n                if {([CONNECTOR::profile] eq \"/Common/connector_profile_1\")} {\n                    log local0. \"CONNECTOR_OPEN raised by connector_profile_1\"\n                }\n            }",
             return_value: "CONNECTOR::profile Return the connector profile name.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CONNECTOR::profile" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

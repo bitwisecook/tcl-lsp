@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        set tmm_auth_subscription \"*\"\n    }",
             return_value: "",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "AUTH::response_data (AUTH_ID)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

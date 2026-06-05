@@ -14,6 +14,9 @@ hover: Some(HoverSnippet {
             return_value: "Return the source translation configuration as a list. On error an exception is thrown with a message indicating the cause of failure.",
         }),
         excluded_events: &["RULE_INIT"],
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "XLAT::src_config" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

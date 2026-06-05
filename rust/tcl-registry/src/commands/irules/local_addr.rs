@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    log local0. \"client ip addr: [local_addr]\"\n}",
             return_value: "Returns the IP address being used in the connection. In the clientside context, this is the destination IP address from the client request (not necessarily the virtual IP address).",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "local_addr" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,9 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    set payload [UDP::payload]\n    set t2 [GTP::parse $payload]\n    set t3 [GTP::clone $t2]\n    log local0. \"GTP type [GTP::header type -message $t3]\"\n    log local0. \"GTP teid [GTP::header teid -message $t3]\"\n}",
             return_value: "Returns a cloned copy of the GTP message.",
         }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "GTP::clone (MESSAGE_VAR)?" },
+        ],
         ..CommandSpec::DEFAULT
     }
 }
