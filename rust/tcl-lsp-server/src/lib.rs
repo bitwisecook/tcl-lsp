@@ -1445,10 +1445,18 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let ranges = tokio::task::spawn_blocking(move || {
-            core_declaration::declaration(&text, pos.line, pos.character, &dialect, &analysis)
+            core_declaration::declaration(
+                &text,
+                pos.line,
+                pos.character,
+                &dialect,
+                &analysis,
+                &registry,
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -2552,12 +2560,20 @@ impl LanguageServer for Backend {
         params: RenameFilesParams,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
         // Collect the byte-span edits for every rename in the batch.
+        let roots: Vec<String> = self
+            .workspace_folder_urls()
+            .await
+            .iter()
+            .map(Url::to_string)
+            .collect();
         let raw_edits: Vec<core_file_ops::RenameEdit> = {
             let index = self.workspace_index.lock().await;
             params
                 .files
                 .iter()
-                .flat_map(|f| core_file_ops::compute_rename_edits(&f.old_uri, &f.new_uri, &index))
+                .flat_map(|f| {
+                    core_file_ops::compute_rename_edits(&f.old_uri, &f.new_uri, &index, &roots)
+                })
                 .collect()
         };
         if raw_edits.is_empty() {

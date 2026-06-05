@@ -22,6 +22,12 @@ use tcl_compiler::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 use tcl_lexer::{LexerConfig, LineIndex, Span};
+use tcl_registry::arg_role::ArgRole;
+use tcl_registry::CommandRegistry;
+
+/// Recursion depth guard for nested body walks (mirrors Python's
+/// `depth > 20` cap in `_collect_declaration_ranges`).
+const MAX_BODY_DEPTH: u32 = 20;
 
 use crate::definition::{byte_offset_at, definition, scope_body_spans_at, span_to_range, LspRange};
 use crate::hover::find_var_at_position;
@@ -34,6 +40,7 @@ pub fn declaration(
     character: u32,
     dialect: &str,
     analysis: &AnalysisResult,
+    registry: &CommandRegistry,
 ) -> Vec<LspRange> {
     // Only a `$var` reference has a distinct declaration site; every
     // other symbol resolves through plain go-to-definition.
@@ -54,9 +61,16 @@ pub fn declaration(
         visible.clone()
     };
 
+    let scan = DeclScan {
+        source,
+        dialect,
+        target,
+        visible: &visible,
+        registry,
+    };
     let mut found = DeclSpans::default();
     for region in &regions {
-        collect_declarations_in_region(source, dialect, *region, target, &visible, &mut found);
+        collect_declarations_in_region(&scan, *region, 0, &mut found);
     }
 
     if found.spans.is_empty() {
@@ -87,17 +101,39 @@ impl DeclSpans {
     }
 }
 
-/// Scan the top-level commands of `region` for `global` / `variable` /
-/// `upvar` / `namespace upvar` statements declaring `target`, recording
-/// each matching declaration token span (when visible) into `found`.
+/// The constant context for a declaration scan, threaded through the
+/// body-recursion so the per-call signature stays small.
+struct DeclScan<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    target: &'a str,
+    visible: &'a [Span],
+    registry: &'a CommandRegistry,
+}
+
+/// Scan the commands of `region` for `global` / `variable` / `upvar` /
+/// `namespace upvar` statements declaring `scan.target`, recording each
+/// matching declaration token span (when visible) into `found`, and
+/// recursing into body-role arguments (`proc` / `if` / `foreach` /
+/// `while` / `catch` / `namespace eval` … bodies) so declarations nested
+/// in control-flow blocks are reached.  Mirrors the registry-driven
+/// `iter_body_arguments` recursion in `_collect_declaration_ranges`.
 fn collect_declarations_in_region(
-    source: &str,
-    dialect: &str,
+    scan: &DeclScan<'_>,
     region: Span,
-    target: &str,
-    visible: &[Span],
+    depth: u32,
     found: &mut DeclSpans,
 ) {
+    if depth > MAX_BODY_DEPTH {
+        return;
+    }
+    let (source, dialect, target, visible, registry) = (
+        scan.source,
+        scan.dialect,
+        scan.target,
+        scan.visible,
+        scan.registry,
+    );
     let (mut start, mut end) = (region.start() as usize, region.end() as usize);
     if start >= end || end > source.len() {
         return;
@@ -127,9 +163,6 @@ fn collect_declarations_in_region(
             continue;
         };
         let head = token_text(source, head_tok.span);
-        if !matches!(head, "global" | "variable" | "upvar" | "namespace") {
-            continue;
-        }
         // Argument tokens, excluding the command word — the coordinate
         // system the `var_scoping` index helpers expect.
         let arg_tokens = &cmd.argv[1..];
@@ -138,27 +171,50 @@ fn collect_declarations_in_region(
             .map(|t| token_text(source, t.span).to_owned())
             .collect();
 
-        let indices = match head {
-            "global" => global_declaration_indices(&arg_texts),
-            "variable" => variable_declaration_indices(&arg_texts),
-            // `upvar …` and the lowered `namespace upvar …` form both
-            // route through the upvar grammar helper.
-            "upvar" | "namespace" => upvar_local_declaration_indices(head, &arg_texts),
-            _ => continue,
-        };
+        // A scoping statement records its declared-name token spans …
+        record_declaration_tokens(head, arg_tokens, &arg_texts, target, visible, found);
 
-        for i in indices {
-            let Some(tok) = arg_tokens.get(i) else {
-                continue;
-            };
-            if bare_name(&arg_texts[i]) != target {
-                continue;
+        // … and *every* command may carry body-role arguments to recurse
+        // into (control-flow blocks, `namespace eval`, `catch`, …).
+        let arg_refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
+        for body_idx in registry.arg_indices_for_role(head, &arg_refs, ArgRole::Body) {
+            if let Some(body_tok) = arg_tokens.get(body_idx) {
+                collect_declarations_in_region(scan, body_tok.span, depth + 1, found);
             }
-            if !is_visible(tok.span, visible) {
-                continue;
-            }
-            found.push(tok.span);
         }
+    }
+}
+
+/// Record the visible declaration-name token spans for a single `global`
+/// / `variable` / `upvar` / `namespace upvar` command into `found`.
+fn record_declaration_tokens(
+    head: &str,
+    arg_tokens: &[tcl_lexer::Token],
+    arg_texts: &[String],
+    target: &str,
+    visible: &[Span],
+    found: &mut DeclSpans,
+) {
+    let indices = match head {
+        "global" => global_declaration_indices(arg_texts),
+        "variable" => variable_declaration_indices(arg_texts),
+        // `upvar …` and the lowered `namespace upvar …` form both
+        // route through the upvar grammar helper.
+        "upvar" | "namespace" => upvar_local_declaration_indices(head, arg_texts),
+        _ => return,
+    };
+
+    for i in indices {
+        let Some(tok) = arg_tokens.get(i) else {
+            continue;
+        };
+        if bare_name(&arg_texts[i]) != target {
+            continue;
+        }
+        if !is_visible(tok.span, visible) {
+            continue;
+        }
+        found.push(tok.span);
     }
 }
 
@@ -202,6 +258,10 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn reg() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
     fn pos_of(src: &str, needle: &str, occurrence: usize) -> (u32, u32) {
         let mut start = 0;
         for _ in 0..occurrence {
@@ -225,7 +285,7 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the `$counter` reference in the proc body.
         let (l, c) = pos_of(src, "$counter", 1);
-        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         // The `global counter` declaration is on line 1.
         assert_eq!(locs[0].start_line, 1);
@@ -243,7 +303,7 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `$config` inside `get`.
         let (l, c) = pos_of(src, "$config", 1);
-        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
         // The `variable config` inside the proc body is the visible
         // declaration (the namespace-level one may also be visible).
         assert!(!locs.is_empty(), "{locs:?}");
@@ -260,10 +320,44 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$local", 1);
-        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `upvar 1 other local` declares `local` on line 1.
         assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn global_declared_inside_control_flow_body_is_found() {
+        // A `global` nested in an `if` body (no scope of its own) must be
+        // reached via body recursion, not just the top-level proc scan.
+        let src = "proc p {} {\n\
+                   if {[info exists x]} { global x }\n\
+                   puts $x\n\
+                   }\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "$x", 1);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        // `global x` is on line 1 (the `if` line).
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn variable_inside_namespace_eval_seen_at_global_scope() {
+        // At global scope (empty visible set) a `variable` declared inside
+        // a `namespace eval { … }` body is reached by recursing into the
+        // namespace-eval body argument.
+        let src = "namespace eval ns {\n\
+                   variable cfg 1\n\
+                   }\n\
+                   puts $cfg\n";
+        let analysis = analyse(src);
+        let (l, c) = pos_of(src, "$cfg", 1);
+        let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &reg());
+        assert!(
+            locs.iter().any(|r| r.start_line == 1),
+            "expected the `variable cfg` decl on line 1; got {locs:?}"
+        );
     }
 
     #[test]
@@ -272,7 +366,7 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the `greet` call — not a variable, so this defers
         // to go-to-definition (the proc name span on line 0).
-        let locs = declaration(src, 1, 2, "tcl8.6", &analysis);
+        let locs = declaration(src, 1, 2, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0);
     }

@@ -2671,11 +2671,7 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
                     continue;
                 }
                 b'{' => brace_depth += 1,
-                b'}' => {
-                    if brace_depth > 0 {
-                        brace_depth -= 1;
-                    }
-                }
+                b'}' if brace_depth > 0 => brace_depth -= 1,
                 b'$' | b'[' if brace_depth == 0 => return true,
                 _ => {}
             }

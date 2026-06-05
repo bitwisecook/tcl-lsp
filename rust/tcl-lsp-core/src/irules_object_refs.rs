@@ -85,6 +85,24 @@ fn walk(full: &str, slice: &str, base: u32, registry: &CommandRegistry, out: &mu
                 out,
             );
         }
+        // EXPR-role words (`if` / `while` / `expr` conditions, …) are
+        // braced/quoted (`Str` / `Esc`) words whose `[…]` substitutions
+        // are *not* separate `Cmd` tokens in `all_tokens`.  Recurse into
+        // the expression text so object refs nested in a condition —
+        // `if {[class match $h equals dg]} { … }` — are found; the
+        // inner `[…]` is then picked up by the `all_tokens` scan one
+        // level down.  Mirrors the EXPR re-lex in `_walk_irules_commands`.
+        let expr_indices = registry.arg_indices_for_role(cmd.name(), &args, ArgRole::Expr);
+        for expr_idx in expr_indices {
+            recurse_into(
+                full,
+                &cmd,
+                expr_idx + 1,
+                &[TokenType::Str, TokenType::Esc],
+                registry,
+                out,
+            );
+        }
         // `[…]` command substitutions anywhere in the command.
         for tok in &cmd.all_tokens {
             if matches!(tok.kind, TokenType::Cmd) {
@@ -318,6 +336,20 @@ mod tests {
     fn class_lookup_data_group_ref() {
         let got = spans("when HTTP_REQUEST {\n  class lookup [HTTP::host] my_dg\n}\n");
         assert!(got.iter().any(|(_, n)| *n == "my_dg"), "{got:?}");
+    }
+
+    #[test]
+    fn data_group_ref_inside_if_condition() {
+        // `class match` inside an `if` *condition* (an EXPR-role word)
+        // lives in a braced expression, not a top-level `[…]` token; the
+        // EXPR recursion must still find the `dg` data-group reference.
+        let got = spans(
+            "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals dg]} {\n    pool p\n  }\n}\n",
+        );
+        let names: Vec<&str> = got.iter().map(|(_, n)| *n).collect();
+        assert!(names.contains(&"dg"), "{names:?}");
+        // The body ref is still found too.
+        assert!(names.contains(&"p"), "{names:?}");
     }
 
     #[test]

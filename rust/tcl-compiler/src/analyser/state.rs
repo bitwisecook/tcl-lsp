@@ -574,15 +574,16 @@ impl Analyser {
         emitted
     }
 
-    /// GAP-A1 strip 2: emit the lexer-warning recovery codes E204
-    /// (extra characters after a close-brace), E205 (after a
-    /// close-quote), and E206 (missing close-brace for a `${…}`
-    /// variable name).  These are surfaced from the dialect-aware
-    /// lexer's `LexWarning`s; the E201 / E202 / E203 "missing closer"
-    /// messages are deliberately skipped here (the recovery detectors
-    /// own those with better positions + fixes).  Mirrors
-    /// `recovery.py::_lexer_warnings_to_diagnostics` (the E204-E206
-    /// slice).
+    /// GAP-A1 strip 2: convert the dialect-aware lexer's `LexWarning`s
+    /// into recovery diagnostics.  E204 (extra characters after a
+    /// close-brace), E205 (after a close-quote) and E206 (missing
+    /// close-brace for a `${…}` variable name) map by message; the
+    /// "missing closer" messages that overlap E201 / E202 / E203 are
+    /// skipped (the recovery detectors own those with better positions +
+    /// fixes); every *other* message maps to the catch-all E200.  Mirrors
+    /// `recovery.py::_lexer_warnings_to_diagnostics`
+    /// (`_WARNING_CODE_MAP.get(message, "E200")` minus the
+    /// recovery-handled set).
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
             tcl_lexer::SourceMap::new(&self.source),
@@ -593,11 +594,13 @@ impl Analyser {
         };
         for w in warnings {
             let code = match w.message.as_str() {
+                // Owned by the E201/E202/E203 recovery heuristics.
+                "missing close-bracket" | "missing \"" | "missing close-brace" => continue,
                 "extra characters after close-brace" => "E204",
                 "extra characters after close-quote" => "E205",
                 "missing close-brace for variable name" => "E206",
-                // E200 / E201 / E202 / E203 are owned by other paths.
-                _ => continue,
+                // Any unexpected lexer warning → catch-all E200.
+                _ => "E200",
             };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: code.to_string(),
@@ -989,6 +992,21 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("proc foo {} { set x 1 }", "tcl");
         assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn unknown_lexer_warning_maps_to_e200() {
+        // An unterminated `$arr(idx` array index makes the lexer emit a
+        // "missing )" warning, which has no dedicated recovery code — it
+        // must surface as the catch-all E200 (not be silently dropped).
+        let mut a = Analyser::new();
+        let r = a.analyse("set x $arr(idx\n", "tcl8.6");
+        let e200 = r.diagnostics.iter().find(|d| d.code == "E200");
+        assert!(
+            e200.is_some_and(|d| d.message == "missing )"),
+            "{:?}",
+            r.diagnostics
+        );
     }
 
     #[test]

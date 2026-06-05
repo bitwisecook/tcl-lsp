@@ -475,12 +475,8 @@ fn intervening_is_safe(
             // any name the inlined expression reads, so it is a kill too.
             Statement::Barrier { .. } | Statement::UpFrame { .. } => return false,
             Statement::AssignValue { value, .. } if value.contains('[') => return false,
-            Statement::AssignExpr { expr, .. } => {
-                if expr_has_command_subst(expr) {
-                    return false;
-                }
-            }
-            Statement::Call { command, args, .. } => {
+            Statement::AssignExpr { expr, .. } if expr_has_command_subst(expr) => return false,
+            Statement::Call { command, args, .. }
                 if !is_pure_command_with_traces(
                     env.registry,
                     command,
@@ -488,9 +484,9 @@ fn intervening_is_safe(
                     env.ctx.dialect,
                     env.traced,
                     env.has_dynamic_trace,
-                ) {
-                    return false;
-                }
+                ) =>
+            {
+                return false;
             }
             _ => {}
         }

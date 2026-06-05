@@ -257,9 +257,38 @@ fn builtin_command_hover_text(
     // Only iRules commands carry `event_requires`, so its presence is the
     // dialect gate.  Mirrors `hover.py:1039-1065`.
     if let Some(requires) = spec.event_requires.as_ref() {
-        append_valid_events(&mut out, requires);
+        let effective = effective_event_requires(name, requires);
+        append_valid_events(&mut out, &effective);
     }
     Some(out)
+}
+
+/// Augment a command's `EventRequires` with namespace-backed profile
+/// metadata.  For an iRules `NS::cmd` whose own `profiles` are empty, the
+/// profiles declared by the `NS` protocol namespace are substituted, so
+/// the **Valid events** list narrows and a profile **Requires** line is
+/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).  Mirrors
+/// `core/commands/registry/info.py::effective_event_requires` (the
+/// f5-irules gate is implicit — only iRules specs carry `event_requires`).
+fn effective_event_requires(
+    command_name: &str,
+    requires: &tcl_registry::events::EventRequires,
+) -> tcl_registry::events::EventRequires {
+    // A command with its own profiles, or no `NS::` qualifier, is unchanged.
+    if !requires.profiles.is_empty() {
+        return requires.clone();
+    }
+    let Some((prefix, _)) = command_name.split_once("::") else {
+        return requires.clone();
+    };
+    let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
+    match profile_reg.get_namespace(prefix) {
+        Some(ns) if !ns.profiles.is_empty() => tcl_registry::events::EventRequires {
+            profiles: ns.profiles,
+            ..*requires
+        },
+        _ => requires.clone(),
+    }
 }
 
 /// Append the iRules "**Valid events**" list (first 8 + total) and the
@@ -2600,6 +2629,57 @@ mod tests {
             assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
             assert!(text.contains("**Requires**: profile ASM"), "{text}");
         }
+    }
+
+    #[test]
+    fn irules_namespace_backed_profiles_injected_into_hover() {
+        // `DIAMETER::retransmission_default` carries `event_requires` with
+        // *empty* profiles; `effective_event_requires` substitutes the
+        // `DIAMETER` namespace's profiles, so the hover shows a profile
+        // **Requires** line (none would appear without the injection).
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        let text =
+            builtin_command_hover_text(&registry, "DIAMETER::retransmission_default", &analyse(""))
+                .expect("hover");
+        assert!(
+            text.contains("**Requires**: profile DIAMETER or DIAMETERSESSION or DIAMETER_ENDPOINT"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn effective_event_requires_injects_namespace_profiles() {
+        // Unit check: empty own-profiles + a known `NS::` prefix → the
+        // namespace's profiles; a non-namespaced name is unchanged.
+        let base = tcl_registry::events::EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        };
+        let eff = super::effective_event_requires("DIAMETER::foo", &base);
+        assert_eq!(
+            eff.profiles,
+            &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
+        );
+        // No `::` qualifier → unchanged (still empty).
+        assert!(super::effective_event_requires("puts", &base)
+            .profiles
+            .is_empty());
+        // Already-populated profiles are left as-is.
+        let with = tcl_registry::events::EventRequires {
+            profiles: &["HTTP"],
+            ..base
+        };
+        assert_eq!(
+            super::effective_event_requires("HTTP::uri", &with).profiles,
+            &["HTTP"]
+        );
     }
 
     #[test]

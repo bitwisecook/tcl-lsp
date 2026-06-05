@@ -27,22 +27,30 @@ pub struct RenameEdit {
 /// Compute the `source`-rewrite edits for renaming `old_uri` → `new_uri`.
 ///
 /// Scans every literal `source` target in the index, resolves it
-/// against its own document's path, and — when it points at `old_uri`'s
-/// path — emits an edit replacing the literal with the new path
-/// (preserving absolute-vs-relative style).  Returns an empty vector
-/// when nothing references the renamed file.  Mirrors
-/// `compute_rename_edits` / `_collect_edits_for_rename`.
+/// against its own document's path (and each workspace root), and — when
+/// it points at `old_uri`'s path — emits an edit replacing the literal
+/// with the new path (preserving absolute-vs-relative style).
+/// `workspace_roots` are `file://` URIs of the workspace folders, tried
+/// for a relative literal that doesn't resolve next to its script.
+/// Returns an empty vector when nothing references the renamed file.
+/// Mirrors `compute_rename_edits` / `_collect_edits_for_rename`.
 #[must_use]
 pub fn compute_rename_edits(
     old_uri: &str,
     new_uri: &str,
     index: &WorkspaceIndex,
+    workspace_roots: &[String],
 ) -> Vec<RenameEdit> {
     let (Some(old_raw), Some(new_raw)) = (uri_to_path(old_uri), uri_to_path(new_uri)) else {
         return Vec::new(); // non-file URIs are not renameable
     };
     let old_path = normpath(&old_raw);
     let new_path = normpath(&new_raw);
+    // Workspace roots as filesystem paths (non-file URIs are dropped).
+    let root_paths: Vec<String> = workspace_roots
+        .iter()
+        .filter_map(|r| uri_to_path(r))
+        .collect();
 
     let mut edits = Vec::new();
     for src in index.sources() {
@@ -52,8 +60,7 @@ pub fn compute_rename_edits(
         let Some(dep_path) = uri_to_path(&src.uri) else {
             continue;
         };
-        let resolved = resolve_source_literal(&src.raw_path, &dep_path);
-        if normpath(&resolved) != old_path {
+        if !source_resolves_to(&src.raw_path, &dep_path, &root_paths, &old_path) {
             continue;
         }
         let new_text = compute_new_literal(&src.raw_path, &dep_path, &new_path);
@@ -131,16 +138,25 @@ fn hex_val(b: u8) -> Option<u8> {
     }
 }
 
-/// Resolve a literal `source` path against the dependent script's
-/// path: an absolute literal stays as-is; a relative one resolves
-/// against the script's directory.  Mirrors `resolve_source_target`
-/// for the literal case.
-fn resolve_source_literal(raw: &str, dep_path: &str) -> String {
+/// True when a literal `source` path resolves to `old_path` under any of
+/// the candidate bases Python's `resolve_source_target` tries (for the
+/// literal case): the script's own directory first, then each workspace
+/// root; an absolute literal resolves only to itself.  The pure analog
+/// of the filesystem `isfile` probes — a match against *any* candidate
+/// counts, since the renamed file is known to exist at `old_path`.
+fn source_resolves_to(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> bool {
     if raw.starts_with('/') {
-        return raw.to_string();
+        return normpath(raw) == old_path;
     }
+    // Relative to the script's own directory.
     let dir = posix_dirname(dep_path);
-    posix_join(dir, raw)
+    if normpath(&posix_join(dir, raw)) == old_path {
+        return true;
+    }
+    // Relative to each workspace root.
+    roots
+        .iter()
+        .any(|root| normpath(&posix_join(root, raw)) == old_path)
 }
 
 /// The new path literal preserving the existing style: an absolute
@@ -238,8 +254,12 @@ mod tests {
         // /proj/main.tcl sources lib/old.tcl → rename to lib/new.tcl
         // rewrites the literal to `lib/new.tcl`.
         let idx = index_of("file:///proj/main.tcl", "source lib/old.tcl\n");
-        let edits =
-            compute_rename_edits("file:///proj/lib/old.tcl", "file:///proj/lib/new.tcl", &idx);
+        let edits = compute_rename_edits(
+            "file:///proj/lib/old.tcl",
+            "file:///proj/lib/new.tcl",
+            &idx,
+            &[],
+        );
         assert_eq!(edits.len(), 1);
         assert_eq!(edits[0].uri, "file:///proj/main.tcl");
         assert_eq!(edits[0].new_text, "lib/new.tcl");
@@ -256,8 +276,12 @@ mod tests {
             "source lib/old.tcl\n",
         ] {
             let idx = index_of("file:///proj/main.tcl", src);
-            let edits =
-                compute_rename_edits("file:///proj/lib/old.tcl", "file:///proj/lib/new.tcl", &idx);
+            let edits = compute_rename_edits(
+                "file:///proj/lib/old.tcl",
+                "file:///proj/lib/new.tcl",
+                &idx,
+                &[],
+            );
             assert_eq!(edits.len(), 1, "{src:?}");
             // The edit's span must cover exactly the old path content.
             let covered = &src[edits[0].span.as_range()];
@@ -274,8 +298,12 @@ mod tests {
     #[test]
     fn rewrites_absolute_source_literal_to_new_absolute() {
         let idx = index_of("file:///proj/main.tcl", "source /proj/lib/old.tcl\n");
-        let edits =
-            compute_rename_edits("file:///proj/lib/old.tcl", "file:///proj/lib/new.tcl", &idx);
+        let edits = compute_rename_edits(
+            "file:///proj/lib/old.tcl",
+            "file:///proj/lib/new.tcl",
+            &idx,
+            &[],
+        );
         assert_eq!(edits.len(), 1);
         assert_eq!(edits[0].new_text, "/proj/lib/new.tcl");
     }
@@ -288,9 +316,38 @@ mod tests {
             "file:///proj/main.tcl",
             "source other.tcl\nsource $dynamic\n",
         );
-        let edits =
-            compute_rename_edits("file:///proj/lib/old.tcl", "file:///proj/lib/new.tcl", &idx);
+        let edits = compute_rename_edits(
+            "file:///proj/lib/old.tcl",
+            "file:///proj/lib/new.tcl",
+            &idx,
+            &[],
+        );
         assert!(edits.is_empty());
+    }
+
+    #[test]
+    fn resolves_relative_source_via_workspace_root() {
+        // `/proj/sub/main.tcl` does `source helper.tcl`, but the file lives
+        // at the workspace root `/proj/helper.tcl`, not next to the script.
+        // Without a workspace root it isn't matched; with one it is, and
+        // the rewrite re-relativises to the script's directory.
+        let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
+        let no_root = compute_rename_edits(
+            "file:///proj/helper.tcl",
+            "file:///proj/helper2.tcl",
+            &idx,
+            &[],
+        );
+        assert!(no_root.is_empty(), "no root → no match: {no_root:?}");
+
+        let with_root = compute_rename_edits(
+            "file:///proj/helper.tcl",
+            "file:///proj/helper2.tcl",
+            &idx,
+            &["file:///proj".to_string()],
+        );
+        assert_eq!(with_root.len(), 1, "{with_root:?}");
+        assert_eq!(with_root[0].new_text, "../helper2.tcl");
     }
 
     #[test]
