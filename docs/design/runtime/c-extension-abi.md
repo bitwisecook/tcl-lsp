@@ -300,8 +300,19 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
 
 ## 11. Open questions / production work
 
-- **GOT-heavy side modules.** `pkga.c` emits no `GOT.func`/`GOT.mem`; larger
-  extensions do. The loader must resolve them (data/function address fixups).
+- **GOT relocations are narrowly scoped (measured).** Linked as `-shared` side
+  modules, `pkga`/`pkgb`/`pkgt` and even `synth_surface` (static `Tcl_ObjType` /
+  `Tcl_ChannelType` / `Tcl_Filesystem` tables of function pointers) emit **zero**
+  GOT entries — their imports are exactly `memory`, the shared table, the three
+  PIC base globals (`__memory_base`, `__table_base`, `__stack_pointer`), and the
+  `Tcl_*` functions. GOT entries appear **only** when an extension takes the
+  *address of a runtime-exported symbol*: `pkgooa.c` (stubs introspection) emits
+  4 — `GOT.mem.{tclStubsPtr, tclOOStubsPtr, tclOOIntStubsPtr}` and
+  `GOT.func.Tcl_CopyObjectInstance`. Resolution is mechanical: `GOT.mem.X` → the
+  runtime's linear-memory address of data symbol `X`; `GOT.func.X` → a
+  shared-table index for function `X`. So the loader's GOT path is small and
+  tied to the (rare) stubs-introspection / address-of-runtime-symbol pattern,
+  not to extension size — it is **not** a blocker, just a finite list to wire.
 - **Refcount ownership across the boundary.** Define and document the
   caller/callee `+1` rules for every API entry point (extends
   `refcount-contract.md` to the C API surface).
@@ -329,3 +340,70 @@ Executable proof lives under [`runtime/rust-spike/`](../../../runtime/rust-spike
 
 All three are green. They are throwaway; this document is the artifact to build
 the production runtime against.
+
+The compile-check corpus is now the nine in-tree Tcl 9.0.3 dltest extensions
+(`pkga`–`pkge`, `pkgt`, `pkgua`, `pkgπ`, `pkgooa`) plus the two synthetic
+probes. `embtest.c` is excluded — it *embeds* Tcl (`main()` +
+`Tcl_FindExecutable`), the opposite of extending it. `pkgua` adds the hash-table
+API, thread-local data, the load/unload protocol, and `Tcl_SetVar2` /
+`Tcl_DeleteCommandFromToken`; `pkgπ` adds non-ASCII init-function naming.
+
+## 13. Planned next steps (scoped, not yet done)
+
+Two items are scoped here so the context survives; neither is a blocker for the
+decision, both are required before shipping.
+
+### 13.1 The C-API ownership / error contract
+
+**Why.** The spikes leak every `Tcl_Obj` and only return `TCL_OK`, so the
+refcount-ownership and error protocols — the contracts that make extensions
+leak-free and correct — are entirely unspecified in our artifacts. This is the
+single largest remaining *design* gap.
+
+**Deliverable.** A contract doc (sibling to `refcount-contract.md`) that, for
+every public C-API function we ship, states its refcount category
+(callee-consumes / callee-borrows / returns-owned-`+1` / returns-borrowed) and
+its error-path behaviour (`errorCode`/`errorInfo`/`Tcl_SetErrorCode`/return
+codes), plus a parity-style gate that rejects a new C-API export lacking an
+ownership annotation.
+
+**Approach.** Transcribe from Tcl's documented rules (`tmp/tcl9.0.3/doc/*.3` —
+`Tcl_Obj.3`, `Tcl_SetObjResult.3`, …; e.g. `Tcl_NewObj` returns refCount 0,
+`Tcl_SetObjResult` consumes a `+1`, list-append borrows), enumerate the shipped
+surface, annotate each, and encode the categories in the runtime
+implementation. Map onto the existing `refcount-contract.md` ownership
+vocabulary.
+
+**Effort / risk.** Moderate (~50–100 functions; rules are documented, so this is
+transcribe-and-enforce, not discovery). Risk is low conceptually but demands
+exhaustiveness — one wrong category leaks or double-frees.
+
+**Acceptance.** Every shipped C-API function carries an ownership category; a
+round-trip extension (`Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` →
+`Tcl_DecrRefCount`) shows zero residual under the `-Dleak-check` counter.
+
+### 13.2 Real-compiler dispatch spike
+
+**Why.** The spikes used a hand-written driver as a stand-in for "compiled user
+code". The one seam not yet proven against the actual product is: a Tcl script
+compiled by `core/compiler/codegen/wasm/` calling an *extension-registered*
+command and dispatching into the extension.
+
+**Deliverable.** An end-to-end run where a compiled `.tcl` that calls `foo a b`
+resolves `foo` — registered by a loaded C extension — through the runtime's
+dynamic command dispatch into the extension, and returns its result.
+
+**Approach.** Reuse the existing compiled-module + runtime harness
+(`tests/test_wasm_real_tcl.py`); add the extension as a side module (the
+`dynamic-link` loader) or static link; have `Foo_Init` register `foo` in the
+runtime's command table; run a compiled script that reaches `foo` via the
+eval-fallback / command-table lookup path (the same path unknown commands take
+today). Confirms §4.6 with real compiled code.
+
+**Effort / risk.** Small–moderate. Risk: medium — depends on the runtime
+exposing a "register external command (name → shared-table index)" entry that
+the compiled-code dispatch consults; this spike may surface that the
+command-table lookup needs a small addition.
+
+**Acceptance.** A compiled `.tcl` calling an extension command returns the
+extension's result under `wasmtime`.

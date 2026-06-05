@@ -302,6 +302,73 @@ extern void Tcl_DStringFree(Tcl_DString *dsPtr);
 extern void *Tcl_Alloc(Tcl_Size size);
 extern void Tcl_Free(void *ptr);
 
+/* ---- hash tables (survey surface; e.g. pkgua.c keeps per-interp state) ---- */
+#define TCL_SMALL_HASH_TABLE 4
+#define TCL_STRING_KEYS (0)
+#define TCL_ONE_WORD_KEYS (1)
+#define TCL_CUSTOM_TYPE_KEYS (-2)
+
+struct Tcl_HashKeyType;
+typedef struct Tcl_HashEntry Tcl_HashEntry;
+typedef struct Tcl_HashTable Tcl_HashTable;
+
+struct Tcl_HashEntry {
+    Tcl_HashEntry *nextPtr;
+    Tcl_HashTable *tablePtr;
+    size_t hash;
+    void *clientData;
+    union {
+        char *oneWordValue;
+        Tcl_Obj *objPtr;
+        int words[1];
+        char string[1];
+    } key;
+};
+
+struct Tcl_HashTable {
+    Tcl_HashEntry **buckets;
+    Tcl_HashEntry *staticBuckets[TCL_SMALL_HASH_TABLE];
+    Tcl_Size numBuckets;
+    Tcl_Size numEntries;
+    Tcl_Size rebuildSize;
+    int downShift;
+    int mask;
+    int keyType;
+    Tcl_HashEntry *(*findProc)(Tcl_HashTable *tablePtr, const char *key);
+    Tcl_HashEntry *(*createProc)(Tcl_HashTable *tablePtr, const char *key,
+                                 int *newPtr);
+    const struct Tcl_HashKeyType *typePtr;
+};
+
+typedef struct Tcl_HashSearch {
+    Tcl_HashTable *tablePtr;
+    Tcl_Size nextIndex;
+    Tcl_HashEntry *nextEntryPtr;
+} Tcl_HashSearch;
+
+#define Tcl_GetHashValue(h) ((h)->clientData)
+#define Tcl_SetHashValue(h, value) ((h)->clientData = (void *) (value))
+
+extern void Tcl_InitHashTable(Tcl_HashTable *tablePtr, int keyType);
+extern void Tcl_DeleteHashTable(Tcl_HashTable *tablePtr);
+extern Tcl_HashEntry *Tcl_CreateHashEntry(Tcl_HashTable *tablePtr,
+                                          const void *key, int *newPtr);
+extern Tcl_HashEntry *Tcl_FindHashEntry(Tcl_HashTable *tablePtr,
+                                        const void *key);
+extern void Tcl_DeleteHashEntry(Tcl_HashEntry *entryPtr);
+extern Tcl_HashEntry *Tcl_FirstHashEntry(Tcl_HashTable *tablePtr,
+                                         Tcl_HashSearch *searchPtr);
+extern Tcl_HashEntry *Tcl_NextHashEntry(Tcl_HashSearch *searchPtr);
+
+/* ---- variables, command teardown, unload (pkgua.c) ---- */
+#define TCL_GLOBAL_ONLY 1
+#define TCL_APPEND_VALUE 4
+#define TCL_UNLOAD_DETACH_FROM_PROCESS (1 << 1)
+extern const char *Tcl_SetVar2(Tcl_Interp *interp, const char *part1,
+                               const char *part2, const char *newValue,
+                               int flags);
+extern int Tcl_DeleteCommandFromToken(Tcl_Interp *interp, Tcl_Command command);
+
 /* ---- stubs-table presence (some extensions, e.g. pkgooa, introspect it).
  * Under our direct-ABI model these are nominal: the pointers are non-NULL and,
  * in a production runtime, would be populated with our real implementations. */

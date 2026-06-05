@@ -26,8 +26,8 @@ runtime/rust-spike/
 │   ├── tclOO.h          TclOO C API subset
 │   └── tclTomMath.h     mp_* bignum API subset
 ├── ext/                 the extensions (real dltest samples + 2 synthetic probes)
-│   ├── pkga.c pkgb.c pkgt.c pkgooa.c   unmodified, byte-identical to Tcl 9.0.3
-│   └── synth_surface.c synth_tommath.c synthetic compile-probes (never run)
+│   ├── pkg{a,b,c,d,e,t,ua,π}.c pkgooa.c  9 unmodified dltest samples (Tcl 9.0.3)
+│   └── synth_surface.c synth_tommath.c   synthetic compile-probes (never run)
 ├── compile-check/       SPIKE 3: every ext/*.c compiles unmodified vs include/
 │   └── check.sh
 ├── static-link/         SPIKE 1: extension + runtime linked into ONE wasm
@@ -71,10 +71,17 @@ for real-world extension source. Covers:
 |---|---|
 | `pkga.c` (real) | command/obj/result/UTF core |
 | `pkgb.c` (real) | `Tcl_GetIntFromObj`, `Tcl_GetWideIntFromObj`, `Tcl_GetErrorLine`, `Tcl_AppendResult`, `Tcl_EvalEx`, `snprintf` |
+| `pkgc.c` / `pkgd.c` (real) | int accessor + string/int obj results |
+| `pkge.c` (real) | error-returning init via `Tcl_EvalEx` |
 | `pkgt.c` (real) | Tcl 9 `Tcl_CreateObjCommand2` / `Tcl_CreateObjTrace2` (`Tcl_Size` arity) |
+| `pkgua.c` (real) | hash tables, thread-local data, load/unload, `Tcl_SetVar2`, `Tcl_DeleteCommandFromToken` |
+| `pkgπ.c` (real) | non-ASCII init-function naming (`Pkgπ_Init`) |
 | `pkgooa.c` (real) | `tclOO.h` + stub-table introspection (compile-only; see note) |
 | `synth_surface.c` | custom `Tcl_ObjType`, channels, `Tcl_FSRegister`, threading, NRE |
 | `synth_tommath.c` | `tclTomMath.h` `mp_*` + `Tcl_NewBignumObj` |
+
+(`embtest.c` from dltest is excluded: it is an *embedder* — `main()` +
+`Tcl_FindExecutable`/`Tcl_InitSubsystems` — not a loadable extension.)
 
 `pkgooa.c` deliberately introspects the *binary stub table* — a concept our
 direct-linking ABI does not use. We provide the `TclOOStubs` shape so its source
@@ -150,8 +157,11 @@ X11, audio, libtcc) can itself reach WASM.
 - **Faithful struct bodies.** `Tcl_ChannelType` / `Tcl_Filesystem` /
   `Tcl_ObjType` carry only the fields the probes touch (designated-initialiser
   usage); a production header mirrors the full versioned structs.
-- **GOT-heavy side modules.** `pkga.c` produces no `GOT.func`/`GOT.mem` imports;
-  a production loader must also resolve those.
+- **GOT relocations (measured, narrowly scoped).** The dltest samples and the
+  struct-heavy `synth_surface` emit **zero** GOT entries when linked `-shared`;
+  only `pkgooa.c` (stubs introspection) does — 4, all address-of-runtime-symbol.
+  The production loader must resolve those, but it is a small finite path, not a
+  blocker. See the design doc §11 for the measured breakdown.
 - **One interp / fixed command table** in the dynamic runtime.
 
 ## Provenance / licence

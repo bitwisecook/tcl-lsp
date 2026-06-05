@@ -21,10 +21,17 @@ mkdir -p build
 INC=../include
 
 # Real Tcl 9.0.3 dltest samples (byte-identical) + synthetic surface probes.
+# embtest.c is intentionally excluded: it is an *embedder* (has main(), calls
+# Tcl_FindExecutable / Tcl_InitSubsystems), not a loadable extension.
 SOURCES=(
     ../ext/pkga.c          # core: command/obj/result/UTF
     ../ext/pkgb.c          # int/wide accessors, error line, AppendResult, EvalEx, snprintf
+    ../ext/pkgc.c          # int accessor + string/int obj results
+    ../ext/pkgd.c          # int accessor + string/int obj results
+    ../ext/pkge.c          # error-returning init via Tcl_EvalEx
     ../ext/pkgt.c          # Tcl 9 Tcl_CreateObjCommand2 / Tcl_CreateObjTrace2 (Tcl_Size)
+    ../ext/pkgua.c         # hash tables, thread-local data, load/unload, Tcl_SetVar2
+    ../ext/pkgπ.c          # non-ASCII init-function naming (Pkgπ_Init)
     ../ext/pkgooa.c        # TclOO header + stub-table introspection (compile-only)
     ../ext/synth_surface.c # widened surface: Tcl_ObjType, channels, FS, threads, NRE
     ../ext/synth_tommath.c # tclTomMath.h bignum + Tcl_NewBignumObj
