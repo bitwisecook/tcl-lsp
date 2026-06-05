@@ -5387,12 +5387,14 @@ ARE components (`regexpGroup` / `regexpCharClass` / `regexpQuantifier` /
 `regexpAnchor` / `regexpEscape` / `regexpBackref` / `regexpAlternation`),
 porting `_collect_regex_pattern_tokens` + `_REGEX_PART_RE` (the one
 malformed BRE-quantifier branch, dead in Python too, is omitted).
-The **sprintf `format`/`scan`** component sub-tokens have also landed
-(`push_sprintf_subtokens` → `formatPercent` / `formatSpec` / `formatFlag`
-/ `formatWidth`, command-name gated since `format_string_type` is never
-stamped).  **Still pending:** the `clock format` (`%Y`) / `binary`
-(`a3`/`Su`) / `regsub`-replacement (`\1`) format dialects, and the
-`BigIP` object taxonomy (`pool` / `profile` / `ipAddress` / …).
+The **sprintf `format`/`scan`** (`push_sprintf_subtokens` → `formatPercent`
+/ `formatSpec` / `formatFlag` / `formatWidth`) and **`clock format`/`scan`**
+(`push_clock_subtokens` → `clockPercent` / `clockSpec` / `clockModifier`,
+the `-format` value) component sub-tokens have also landed — all
+command-name gated since `format_string_type` is never stamped.  **Still
+pending:** the `binary` (`a3`/`Su`) and `regsub`-replacement (`\1`) format
+dialects, and the `BigIP` object taxonomy (`pool` / `profile` /
+`ipAddress` / …).
 
 ### E. Doc defects corrected in place by this audit
 

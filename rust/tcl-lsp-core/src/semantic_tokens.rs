@@ -25,8 +25,10 @@
 //!   `RegexpCharClass` / `RegexpQuantifier` / `RegexpAnchor` /
 //!   `RegexpEscape` / `RegexpBackref` / `RegexpAlternation`).
 //! * **Event** — an iRules `when EVENT` event name.
-//! * **Format** — `format` / `scan` conversion strings sub-tokenised
-//!   into `FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`.
+//! * **Format** — `format` / `scan` conversion strings
+//!   (`FormatPercent` / `FormatFlag` / `FormatWidth` / `FormatSpec`)
+//!   and `clock format` / `scan` field strings (`ClockPercent` /
+//!   `ClockSpec` / `ClockModifier`).
 //!
 //! The legend is exposed via [`legend_token_types`] and
 //! [`legend_token_modifiers`] so the server advertises it in
@@ -46,10 +48,9 @@
 //! What is *still deferred* (planned as further
 //! `S-semantic-tokens-rich` sub-strips):
 //!
-//! * `clock format` (`%Y`) / `binary` (`a3` / `Su`) / `regsub`
-//!   replacement (`\1`) component highlighting — the `format`/`scan`
-//!   sprintf case has landed; these other format dialects are the
-//!   remaining format sub-token slices.
+//! * `binary` (`a3` / `Su`) and `regsub`-replacement (`\1`) component
+//!   highlighting — the sprintf and clock format dialects have landed;
+//!   these two are the remaining format sub-token slices.
 //! * The `BigIP` object taxonomy (`pool` / `profile` /
 //!   `ipAddress` / …) for iRules string arguments.
 
@@ -105,6 +106,12 @@ enum TokenKind {
     FormatFlag = 18,
     /// `format`/`scan` numeric width / precision values.
     FormatWidth = 19,
+    /// `clock format`/`scan` `%` introducer.
+    ClockPercent = 20,
+    /// `clock` specifier letter (`Y` `m` `d` `H` `M` `S` …).
+    ClockSpec = 21,
+    /// `clock` locale modifier (`E` / `O`).
+    ClockModifier = 22,
 }
 
 /// The token-type / token-modifier legend the server
@@ -132,6 +139,9 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "formatSpec",
         "formatFlag",
         "formatWidth",
+        "clockPercent",
+        "clockSpec",
+        "clockModifier",
     ]
 }
 
@@ -271,6 +281,10 @@ enum ArgOverride {
     /// (`%[pos$][flags][width][.prec][len]type`); falls back to the
     /// default classification when it has no `%` specifiers.
     SprintfFormat,
+    /// Sub-tokenise the token as a `clock format`/`scan` field string
+    /// (`%Y` / `%Ey` / …); falls back to the default classification when
+    /// it has no `%` specifiers.
+    ClockFormat,
 }
 
 /// Per-command argument-token classification overrides, keyed by the
@@ -338,7 +352,99 @@ fn special_arg_kinds(
         }
     }
 
+    // `clock format/scan … -format FMT` — the `-format` option value.
+    // Mirrors `_clock_format_arg_index`.
+    if head == "clock" && seg.texts.len() >= 3 && matches!(seg.texts[1].as_str(), "format" | "scan")
+    {
+        if let Some(i) = (2..seg.texts.len()).find(|&i| seg.texts[i] == "-format") {
+            if let Some(tok) = seg.argv.get(i + 1) {
+                overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
+            }
+        }
+    }
+
     overrides
+}
+
+/// Sub-tokenise a `clock format`/`scan` field string into its `%`
+/// specifiers (`ClockPercent` + optional `ClockModifier` + `ClockSpec`),
+/// literal runs classified as `string`.  Returns `false` when there are
+/// no specifiers.  Mirrors `_collect_clock_format_spec_tokens` +
+/// `_CLOCK_FORMAT_RE`.
+fn push_clock_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    if !matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+        return false;
+    }
+    let cstart = tok.span.start() as usize + tok.content_offset as usize;
+    let cend = (tok.span.end() as usize).min(source.len());
+    let Some(inner) = source.get(cstart..cend) else {
+        return false;
+    };
+    let re = regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
+        .expect("valid clock regex");
+    let mut matched_any = false;
+    let mut pos = 0usize;
+    for m in re.find_iter(inner) {
+        matched_any = true;
+        if m.start() > pos {
+            push_subtoken(
+                line_index,
+                cstart + pos,
+                &inner[pos..m.start()],
+                TokenKind::String,
+                entries,
+            );
+        }
+        // `%`
+        push_subtoken(
+            line_index,
+            cstart + m.start(),
+            "%",
+            TokenKind::ClockPercent,
+            entries,
+        );
+        let mut spec = &m.as_str()[1..]; // after `%`
+        let mut off = m.start() + 1;
+        if spec.len() > 1 && matches!(spec.as_bytes()[0], b'E' | b'O') {
+            push_subtoken(
+                line_index,
+                cstart + off,
+                &spec[..1],
+                TokenKind::ClockModifier,
+                entries,
+            );
+            off += 1;
+            spec = &spec[1..];
+        }
+        if !spec.is_empty() {
+            push_subtoken(
+                line_index,
+                cstart + off,
+                spec,
+                TokenKind::ClockSpec,
+                entries,
+            );
+        }
+        pos = m.end();
+    }
+    if !matched_any {
+        return false;
+    }
+    if pos < inner.len() {
+        push_subtoken(
+            line_index,
+            cstart + pos,
+            &inner[pos..],
+            TokenKind::String,
+            entries,
+        );
+    }
+    true
 }
 
 /// Sub-tokenise a `format`/`scan` conversion string into its `%`
@@ -715,6 +821,13 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
                     // Sub-tokenise the conversion string; if it has no
                     // `%` specifiers, fall back to the default kind.
                     if !push_sprintf_subtokens(&line_index, source, *tok, &mut entries) {
+                        if let Some(kind) = classify_arg_token(*tok, source) {
+                            push_token(&line_index, source, *tok, kind, 0, &mut entries);
+                        }
+                    }
+                }
+                Some(ArgOverride::ClockFormat) => {
+                    if !push_clock_subtokens(&line_index, source, *tok, &mut entries) {
                         if let Some(kind) = classify_arg_token(*tok, source) {
                             push_token(&line_index, source, *tok, kind, 0, &mut entries);
                         }
@@ -1135,6 +1248,29 @@ mod tests {
     fn format_without_specifiers_stays_string() {
         let ks = kinds("format {plain} $x\n", "tcl", &reg());
         assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn clock_format_subtokens() {
+        // `clock format $t -format {%Y-%m-%d}` → %/letter pairs.
+        let ks = kinds("clock format $t -format {%Y-%m-%d}\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn clock_locale_modifier_subtoken() {
+        // `%Ey` → percent, `E` modifier, `y` spec.
+        let ks = kinds("clock scan $s -format {%Ey}\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::ClockModifier as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn clock_format_without_specifiers_stays_string() {
+        let ks = kinds("clock format $t -format {plain}\n", "tcl", &reg());
+        assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
 
