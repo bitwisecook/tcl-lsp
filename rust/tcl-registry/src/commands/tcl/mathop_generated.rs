@@ -10,6 +10,7 @@
 use crate::prelude::*;
 
 /// All `tcl::mathop` operator-command specs (every spelling).
+#[allow(clippy::too_many_lines)]
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
