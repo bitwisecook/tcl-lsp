@@ -1088,10 +1088,22 @@ impl Backend {
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
     async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+        // GAP-C1: the base analyser only surfaces `Analyser::analyse`
+        // diagnostics.  The optimiser O-codes, GVN redundancies,
+        // shimmer/thunking, taint (W2xx / T1xx), and the iRules
+        // control-flow checks are all implemented in `tcl-compiler`
+        // but, until now, reached no server caller — only the PyO3
+        // bridge.  Run `compiler_checks::run_all_checks` +
+        // `optimiser::optimise_with_dialect` on the same worker and
+        // merge their diagnostics into the published set.  Both need
+        // the dialect-aware registry, so resolve it before the
+        // blocking hop and move an `Arc` clone in.
+        let registry = self.registry_for_dialect(&dialect).await;
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(&text, &dialect).clone();
-            let diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
             (analysis, diagnostics)
         })
         .await;
@@ -2643,6 +2655,25 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// shape.  Shared by both the push-based `publish_diagnostics`
 /// path (via `publish_analyser_diagnostics`) and the pull-
 /// based `textDocument/diagnostic` handler.
+/// Resolve a byte `span` to an LSP `Range` through `line_index`.
+/// Shared by every `lift_*_diagnostics` helper so the offset →
+/// (line, character) mapping is identical for analyser, compiler-
+/// check, and optimiser diagnostics.
+fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
+    let start = line_index.position_at(span.start());
+    let end = line_index.position_at(span.end());
+    Range {
+        start: Position {
+            line: start.line,
+            character: start.character,
+        },
+        end: Position {
+            line: end.line,
+            character: end.character,
+        },
+    }
+}
+
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
@@ -2651,42 +2682,108 @@ fn lift_analyser_diagnostics(
     diagnostics
         .iter()
         .cloned()
-        .map(|d| {
-            let start = line_index.position_at(d.span.start());
-            let end = line_index.position_at(d.span.end());
-            tower_lsp::lsp_types::Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: start.line,
-                        character: start.character,
-                    },
-                    end: Position {
-                        line: end.line,
-                        character: end.character,
-                    },
-                },
-                severity: Some(match d.severity {
-                    tcl_compiler::analyser::Severity::Error => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::ERROR
-                    }
-                    tcl_compiler::analyser::Severity::Warning => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::WARNING
-                    }
-                    tcl_compiler::analyser::Severity::Hint
-                    | tcl_compiler::analyser::Severity::Suggestion => {
-                        tower_lsp::lsp_types::DiagnosticSeverity::HINT
-                    }
-                }),
-                code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
-                code_description: None,
-                source: Some("tcl-lsp".to_string()),
-                message: d.message,
-                related_information: None,
-                tags: None,
-                data: None,
-            }
+        .map(|d| tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, d.span),
+            severity: Some(match d.severity {
+                tcl_compiler::analyser::Severity::Error => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::ERROR
+                }
+                tcl_compiler::analyser::Severity::Warning => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::WARNING
+                }
+                tcl_compiler::analyser::Severity::Hint
+                | tcl_compiler::analyser::Severity::Suggestion => {
+                    tower_lsp::lsp_types::DiagnosticSeverity::HINT
+                }
+            }),
+            code: Some(tower_lsp::lsp_types::NumberOrString::String(d.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
         })
         .collect()
+}
+
+/// GAP-C1: lift the compiler-checks pipeline (GVN redundancies,
+/// shimmer / thunking, taint W2xx / T1xx, iRules control-flow
+/// IRULE1xxx-5xxx, SCCP constant branches) **and** the optimiser
+/// O-codes into LSP diagnostics.  These analyses are implemented in
+/// `tcl-compiler` but were previously only reachable through the
+/// `PyO3` bridge — the native server published nothing from them.
+///
+/// `dialect` is the resolved per-document dialect string (empty for
+/// plain Tcl); `registry` must already carry that dialect's specs
+/// loaded (the caller resolves it via `registry_for_dialect`).
+///
+/// Note: this builds a `CompilationUnit` for the checks and the
+/// optimiser builds its own internally, so the source is lowered
+/// twice.  That is acceptable for the initial wiring (the analyses
+/// themselves are the cost); sharing a single lowered unit across
+/// both is a follow-up once the document-store lands.
+fn lift_compiler_diagnostics(
+    text: &str,
+    registry: &CommandRegistry,
+    dialect: &str,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    use tcl_compiler::compilation_unit::CompilationUnit;
+    use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
+    use tcl_compiler::optimiser::optimise_with_dialect;
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+
+    let line_index = tcl_lexer::LineIndex::new(text);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let mut out: Vec<tower_lsp::lsp_types::Diagnostic> = Vec::new();
+
+    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow
+    // / SCCP, all keyed off a single interprocedurally-summarised
+    // compilation unit (mirrors the `compiler_checks_run_all` PyO3
+    // bridge's construction).
+    let cu = CompilationUnit::build_for_with_config(
+        text,
+        registry,
+        false,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    )
+    .with_interprocedural(registry, dialect_opt);
+    for d in run_all_checks(&cu, registry, dialect_opt) {
+        out.push(tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, d.span),
+            severity: Some(match d.severity {
+                CheckSeverity::Error => DiagnosticSeverity::ERROR,
+                CheckSeverity::Warning => DiagnosticSeverity::WARNING,
+                CheckSeverity::Hint | CheckSeverity::Suggestion => DiagnosticSeverity::HINT,
+            }),
+            code: Some(NumberOrString::String(d.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        });
+    }
+
+    // Optimiser O-codes — actionable + hint-only rewrites, surfaced
+    // as HINT-severity suggestions (the editor renders the code-action
+    // fix from the diagnostic; the fix plumbing itself is GAP-C3).
+    for o in optimise_with_dialect(text, registry, dialect_opt) {
+        out.push(tower_lsp::lsp_types::Diagnostic {
+            range: lift_span(&line_index, o.span),
+            severity: Some(DiagnosticSeverity::HINT),
+            code: Some(NumberOrString::String(o.code)),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: o.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        });
+    }
+
+    out
 }
 
 /// Build an empty `DocumentDiagnosticReportResult` for callers
@@ -3057,6 +3154,47 @@ mod tests {
     use tower_lsp::lsp_types::{
         PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    /// GAP-C1: the constant-true `if` is folded by SCCP and surfaced
+    /// as an `O100` constant-branch diagnostic from `run_all_checks`.
+    /// The base analyser never emits it, so a non-empty result with an
+    /// O-code proves `lift_compiler_diagnostics` carries the compiler-
+    /// check pipeline's output into the published diagnostic set.
+    #[test]
+    fn lift_compiler_diagnostics_surfaces_compiler_check_codes() {
+        let registry = CommandRegistry::build_default();
+        let src = "if {1} { set x 1 } else { set y 2 }\n";
+        let diags = lift_compiler_diagnostics(src, &registry, "");
+        assert!(
+            diags.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100"
+            )),
+            "expected an O100 constant-branch diagnostic, got: {:?}",
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+        // Every lifted diagnostic carries the shared source tag.
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// An iRules taint flow (`HTTP::uri` → `HTTP::respond`) is an
+    /// IRULE3001 the base analyser does not emit; the dialect-aware
+    /// registry path must surface it through `lift_compiler_diagnostics`.
+    #[test]
+    fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
+        let diags = lift_compiler_diagnostics(src, &registry, "f5-irules");
+        assert!(
+            diags.iter().any(|d| matches!(
+                &d.code,
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "IRULE3001"
+            )),
+            "expected IRULE3001, got: {:?}",
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+    }
 
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {

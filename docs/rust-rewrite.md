@@ -4449,6 +4449,29 @@ specific omissions are not enumerated.  **Fix:** extend
 (+ a source-style pass) and merge their diagnostics, behind the existing
 feature-config toggles.
 
+**LANDED (strip 1, 2026-06-05).**  `publish_analyser_diagnostics`
+(`tcl-lsp-server/src/lib.rs`) now resolves the per-document dialect-aware
+registry via `registry_for_dialect`, moves an `Arc<CommandRegistry>` clone
+into the `spawn_blocking` worker, and merges a new
+`lift_compiler_diagnostics(text, &registry, &dialect)` into the published
+set.  That helper builds a `CompilationUnit` (`build_for_with_config` +
+`with_interprocedural`, mirroring the `compiler_checks_run_all` PyO3
+bridge), runs `compiler_checks::run_all_checks` (GVN redundancies, shimmer /
+thunking, taint W2xx / T1xx, iRules-flow IRULE1xxx-5xxx, SCCP constant
+branches) **and** `optimiser::optimise_with_dialect` (the O-codes, surfaced
+as HINT-severity), lifting each through the shared `lift_span` offset →
+`Range` helper that `lift_analyser_diagnostics` now also uses.  Two server
+unit tests pin the wiring (an O100 constant-branch fold; an IRULE3001
+HTTP::uri→HTTP::respond taint flow on the dialect-aware registry).
+**Remaining (strip 2):** the source-level style pass (line-length /
+trailing-whitespace / line-endings / comment-continuation / missing
+`package require`) has no Rust home yet — it lands with the GAP-A8 / GAP-A4
+`_style.py` / `_bounds.py` ports; and a feature-config toggle surface
+(currently the checks run unconditionally, matching the Python server which
+publishes them by default).  The double lowering (checks build a CU; the
+optimiser builds its own) is a known follow-up for the document-store
+era.
+
 **GAP-C2 — semantic tokens: 7 of 53 token types, 0 of 4 modifiers.**
 `semantic_tokens.rs:79-97` returns `keyword / function / variable / string
 / number / comment / namespace` and `legend_token_modifiers() ->
@@ -4568,7 +4591,7 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
-| — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05.  Highest user-facing leverage, no new analysis needed.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs:1090`) surfaces only base `Analyser::analyse()`; the optimiser O-codes, taint, iRules-flow, shimmer, GVN, and source-style diagnostics are *implemented* in `tcl-compiler` but reach no server caller (only the PyO3 bridge).  Wire `run_all_checks` + `find_optimisations` behind the feature-config toggles.  See GAP-AUDIT-JUN05 §C1. |
+| — | `GAP-C1` (wire deep diagnostics into the native server) | **Opened 2026-06-05 by GAP-AUDIT-JUN05; strip 1 LANDED 2026-06-05.**  `publish_analyser_diagnostics` (`tcl-lsp-server/src/lib.rs`) now merges `lift_compiler_diagnostics` — `compiler_checks::run_all_checks` (taint / iRules-flow / shimmer / thunking / GVN / SCCP) **and** `optimiser::optimise_with_dialect` (O-codes, HINT severity) — over the per-document dialect-aware registry, alongside the base `Analyser::analyse()` set.  Two unit tests pin it (O100 fold; IRULE3001 taint flow).  **Strip 2 remaining:** the source-style pass (line-length / trailing-whitespace / line-endings / comment-continuation / missing-`package require`) lands with the GAP-A8 `_style.py` port; feature-config toggles (checks currently run unconditionally — Python default); CU-sharing to avoid the double lowering.  See GAP-AUDIT-JUN05 §C1. |
 | — | `GAP-B3` (goto-type-definition / goto-implementation correctness) | **Correctness — an advertised capability returns wrong results today.**  Both alias `compute_definition` (`lib.rs:1437` / `:1454`); implement the type-lattice→`ClassDef` jump and the TclOO subclass/override walk over `analyser/class_hierarchy.rs` + `mro.rs`.  See §B3. |
 | — | `GAP-B2` / `GAP-B1` (GVN O106/O107 relabel + O127 forwarding) | **"Ported but wrong" — silent and baseline-affecting.**  GVN loop-invariant emits under **O107** (canonically "unreachable dead code"); O127 store-to-load forwarding is literal-only under **O102** (the computed-expr pass is absent).  See §B2 / §B1. |
 | — | `GAP-A2` + `GAP-D2` (security-check family + granular taint fields) | **Highest-severity checks silently absent** (injection / ReDoS / hardcoded credentials).  Port the granular taint-sink `CommandSpec` fields, then the W102/W103/W300/W301/W303/W309/W310/W312 emitters (+ T106 / W313).  See §A2 / §D2. |
