@@ -727,6 +727,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("cm", "traffic-group")],
         properties: &[
             BigipPropertySpec {
+                name: "monitor",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["cm_ha_group"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -878,6 +885,19 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("cm", "trust-domain")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                in_sections: &["add-device"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "add-device",
                 value_type: ValueKind::Unknown,

@@ -18,6 +18,10 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "remote-user"),),
         properties=(
+            BigipPropertySpec(
+                name="default-partition", value_type="reference", references=("auth_partition",)
+            ),
+            BigipPropertySpec(name="operator", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(name="default-partition", value_type="reference", default="all"),
             BigipPropertySpec(
                 name="default-role",

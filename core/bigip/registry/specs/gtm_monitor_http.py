@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "monitor http"),),
         properties=(
             BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 references=("gtm_monitor_http",),

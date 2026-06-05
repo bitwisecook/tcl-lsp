@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor wmi"),),
         properties=(
+            BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
             BigipPropertySpec(name="agent", value_type="string"),
             BigipPropertySpec(
                 name="app-service",

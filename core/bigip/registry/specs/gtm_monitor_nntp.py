@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "monitor nntp"),),
         properties=(
             BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
+            BigipPropertySpec(
                 name="debug",
                 value_type="enum",
                 enum_values=("no", "yes"),

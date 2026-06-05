@@ -19,6 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "datacenter"),),
         properties=(
             BigipPropertySpec(
+                name="prober-pool",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_pool",),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

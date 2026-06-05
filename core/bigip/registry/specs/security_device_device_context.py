@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "device device-context"),),
         properties=(
+            BigipPropertySpec(
+                name="nat-rules", value_type="reference", repeated=True, references=("ltm_rule",)
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="nat-policy",

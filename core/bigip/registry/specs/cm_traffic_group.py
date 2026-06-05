@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("cm", "traffic-group"),),
         properties=(
             BigipPropertySpec(
+                name="monitor", value_type="reference", repeated=True, references=("cm_ha_group",)
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

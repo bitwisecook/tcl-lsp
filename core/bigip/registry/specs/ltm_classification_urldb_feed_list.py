@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "classification urldb-feed-list"),),
         properties=(
+            BigipPropertySpec(name="user", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="default-url-category", value_type="reference"),
             BigipPropertySpec(name="description", value_type="string"),

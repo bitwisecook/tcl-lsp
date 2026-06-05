@@ -18,6 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall management-ip-rules"),),
         properties=(
+            BigipPropertySpec(name="place-after", value_type="reference", references=("ltm_rule",)),
+            BigipPropertySpec(
+                name="place-before", value_type="reference", references=("ltm_rule",)
+            ),
+            BigipPropertySpec(name="rule-list", value_type="reference", references=("ltm_rule",)),
+            BigipPropertySpec(
+                name="vlans",
+                value_type="reference",
+                in_sections=("source",),
+                enum_values=("add", "default", "delete", "replace-all-with"),
+                references=("net_vlan",),
+            ),
+            BigipPropertySpec(name="security", value_type="reference", references=("ltm_rule",)),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="rules",

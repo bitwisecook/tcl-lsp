@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "region"),),
         properties=(
+            BigipPropertySpec(name="pool", value_type="reference", references=("ltm_pool",)),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",

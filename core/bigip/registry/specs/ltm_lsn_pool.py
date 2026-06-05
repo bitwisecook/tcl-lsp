@@ -19,6 +19,23 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "lsn-pool"),),
         properties=(
             BigipPropertySpec(
+                name="persistence",
+                value_type="reference",
+                references=(
+                    "ltm_persistence_cookie",
+                    "ltm_persistence_dest_addr",
+                    "ltm_persistence_global_settings",
+                    "ltm_persistence_hash",
+                    "ltm_persistence_host",
+                    "ltm_persistence_msrdp",
+                    "ltm_persistence_persist_records",
+                    "ltm_persistence_sip",
+                    "ltm_persistence_source_addr",
+                    "ltm_persistence_ssl",
+                    "ltm_persistence_universal",
+                ),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

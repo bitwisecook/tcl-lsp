@@ -18,6 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile mssql"),),
         properties=(
+            BigipPropertySpec(name="read-pool", value_type="reference", references=("ltm_pool",)),
+            BigipPropertySpec(name="write-pool", value_type="reference", references=("ltm_pool",)),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",

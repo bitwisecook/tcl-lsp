@@ -19,6 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "stp"),),
         properties=(
             BigipPropertySpec(
+                name="vlans",
+                value_type="reference",
+                enum_values=("add", "delete", "replace-all-with"),
+                references=("net_vlan",),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "zone"),),
         properties=(
+            BigipPropertySpec(
+                name="vlans",
+                value_type="reference",
+                enum_values=("add", "delete", "modify", "replace-all-with"),
+                references=("net_vlan",),
+            ),
             BigipPropertySpec(name="copy-from", value_type="string"),
             BigipPropertySpec(
                 name="vlans",

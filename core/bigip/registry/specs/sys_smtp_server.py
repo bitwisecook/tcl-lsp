@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "smtp-server"),),
         properties=(
+            BigipPropertySpec(name="username", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",

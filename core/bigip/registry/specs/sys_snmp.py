@@ -19,6 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "snmp"),),
         properties=(
             BigipPropertySpec(
+                name="username",
+                value_type="reference",
+                in_sections=("users",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
                 name="agent-addresses",
                 value_type="list",
                 allow_none=True,

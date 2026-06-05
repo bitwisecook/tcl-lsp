@@ -24,7 +24,6 @@ Run from repo root: python3 scripts/registry-audit/reconcile_bigip.py
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,12 +43,13 @@ def git_show(path: str) -> str:
 def main_spec_stems() -> list[str]:
     out = subprocess.run(
         ["git", "ls-tree", "-r", "--name-only", MAIN, "--", f"{MAIN_REG}/specs"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     ).stdout
     return [
-        l.split("/")[-1][:-3]
-        for l in out.splitlines()
-        if l.endswith(".py") and l.split("/")[-1] not in ("__init__.py", "_base.py")
+        line.split("/")[-1][:-3]
+        for line in out.splitlines()
+        if line.endswith(".py") and line.split("/")[-1] not in ("__init__.py", "_base.py")
     ]
 
 
@@ -64,9 +64,7 @@ def main() -> None:
         (SPECS / f"{stem}.py").write_text(git_show(f"{MAIN_REG}/specs/{stem}.py"))
 
     # 3+4. Regenerate __init__ over the union of every spec file present.
-    stems = sorted(
-        p.stem for p in SPECS.glob("*.py") if p.name not in ("__init__.py", "_base.py")
-    )
+    stems = sorted(p.stem for p in SPECS.glob("*.py") if p.name not in ("__init__.py", "_base.py"))
     imports = "\n".join(f"    {s},  # noqa: F401" for s in stems)
     init = (
         '"""BIG-IP object spec modules — imported here so each '

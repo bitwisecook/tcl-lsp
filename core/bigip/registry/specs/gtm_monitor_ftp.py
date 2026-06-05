@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor ftp"),),
         properties=(
+            BigipPropertySpec(name="username", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(
                 name="debug",
                 value_type="enum",

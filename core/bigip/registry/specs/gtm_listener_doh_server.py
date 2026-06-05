@@ -19,6 +19,25 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "listener-doh-server"),),
         properties=(
             BigipPropertySpec(
+                name="last-hop-pool",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_pool",),
+            ),
+            BigipPropertySpec(
+                name="pool", value_type="reference", allow_none=True, references=("ltm_pool",)
+            ),
+            BigipPropertySpec(
+                name="pool",
+                value_type="reference",
+                in_sections=("source-address-translation",),
+                allow_none=True,
+                references=("ltm_snatpool", "ltm_pool"),
+            ),
+            BigipPropertySpec(
+                name="vlans", value_type="reference", allow_none=True, references=("net_vlan",)
+            ),
+            BigipPropertySpec(
                 name="address",
                 value_type="string",
                 required=True,

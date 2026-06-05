@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
+    BigipPropertySpec,
 )
 from ._base import register
 
@@ -16,5 +17,7 @@ def register_spec() -> BigipObjectSpec:
             object_types=("persistence persist-records",),
         ),
         header_types=(("ltm", "persistence persist-records"),),
-        properties=(),
+        properties=(
+            BigipPropertySpec(name="pool", value_type="reference", references=("ltm_pool",)),
+        ),
     )

@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "tacdb customdb"),),
         properties=(
+            BigipPropertySpec(name="user", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="password", value_type="string"),

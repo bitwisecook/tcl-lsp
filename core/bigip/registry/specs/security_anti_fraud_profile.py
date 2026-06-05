@@ -19,6 +19,36 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "anti-fraud profile"),),
         properties=(
             BigipPropertySpec(
+                name="alert-pool", value_type="reference", allow_none=True, references=("ltm_pool",)
+            ),
+            BigipPropertySpec(
+                name="cloud-service-pool",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_pool",),
+            ),
+            BigipPropertySpec(
+                name="generic-malware",
+                value_type="reference",
+                in_sections=("rules",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="action",
+                value_type="reference",
+                in_sections=("server-side-missing-components",),
+                enum_values=(
+                    "block-user",
+                    "forensic",
+                    "inspection",
+                    "redirect",
+                    "remediation",
+                    "route",
+                    "web-service",
+                ),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
                 name="alert-client-side-caching",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),

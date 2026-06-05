@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "monitor imap"),),
         properties=(
             BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

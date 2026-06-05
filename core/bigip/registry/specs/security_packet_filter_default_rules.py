@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "packet-filter default-rules"),),
         properties=(
+            BigipPropertySpec(name="security", value_type="reference", references=("ltm_rule",)),
             BigipPropertySpec(
                 name="policy",
                 value_type="reference",

@@ -29,6 +29,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "datacenter")],
         properties: &[
             BigipPropertySpec {
+                name: "prober-pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -820,6 +827,35 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "listener")],
         properties: &[
             BigipPropertySpec {
+                name: "last-hop-pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
                 required: true,
@@ -1194,6 +1230,35 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "listener-doh-proxy")],
         properties: &[
             BigipPropertySpec {
+                name: "last-hop-pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
                 required: true,
@@ -1566,6 +1631,35 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "listener-doh-server")],
         properties: &[
+            BigipPropertySpec {
+                name: "last-hop-pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
@@ -2150,6 +2244,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor firepass")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -2243,6 +2343,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor ftp")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
@@ -2486,6 +2592,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor http")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "defaults-from",
                 value_type: ValueKind::Reference,
                 references: &["gtm_monitor_http"],
@@ -2590,6 +2703,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor https")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "cert",
                 value_type: ValueKind::Unknown,
@@ -2730,6 +2850,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor imap")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -2823,6 +2950,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor ldap")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "base",
                 value_type: ValueKind::String,
@@ -2939,6 +3073,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor mssql")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
                 enum_values: &["0", "1"],
@@ -3053,6 +3194,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor mysql")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3169,6 +3317,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor nntp")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -3264,6 +3419,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor oracle")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3380,6 +3542,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor pop3")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -3457,6 +3626,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor postgresql")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3573,6 +3749,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor radius")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -3671,6 +3854,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor radius-accounting")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -3899,6 +4089,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor sip")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "cert",
                 value_type: ValueKind::Unknown,
@@ -4298,6 +4495,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor soap")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
@@ -4839,6 +5043,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor wmi")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "command",
                 value_type: ValueKind::Unknown,
@@ -7174,6 +7385,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "region")],
         properties: &[
             BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -7323,6 +7540,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "server")],
         properties: &[
+            BigipPropertySpec {
+                name: "prober-pool",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "addresses",
                 value_type: ValueKind::Unknown,

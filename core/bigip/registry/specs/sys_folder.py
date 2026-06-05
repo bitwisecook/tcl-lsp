@@ -19,6 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "folder"),),
         properties=(
             BigipPropertySpec(
+                name="device-group",
+                value_type="reference",
+                allow_none=True,
+                references=("cm_device_group",),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

@@ -18,6 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall global-rules"),),
         properties=(
+            BigipPropertySpec(name="reset-stats", value_type="reference", references=("ltm_rule",)),
+            BigipPropertySpec(
+                name="enforced-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="staged-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(name="security", value_type="reference", references=("ltm_rule",)),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="enforced-policy",

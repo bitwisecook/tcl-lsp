@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "crypto cert-validator ocsp"),),
         properties=(
             BigipPropertySpec(
+                name="proxy-server-pool", value_type="reference", references=("ltm_pool",)
+            ),
+            BigipPropertySpec(
                 name="cache-error-timeout",
                 value_type="integer",
                 default="3600 seconds",

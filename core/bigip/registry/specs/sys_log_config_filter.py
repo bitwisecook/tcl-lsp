@@ -18,6 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config filter"),),
         properties=(
+            BigipPropertySpec(name="icrd", value_type="reference", references=("ltm_rule",)),
+            BigipPropertySpec(name="rewrite", value_type="reference", references=("ltm_rule",)),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",

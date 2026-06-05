@@ -19,6 +19,13 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "message-routing diameter transport-config"),),
         properties=(
             BigipPropertySpec(
+                name="pool",
+                value_type="reference",
+                in_sections=("source-address-translation",),
+                allow_none=True,
+                references=("ltm_snatpool", "ltm_pool"),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

@@ -76,6 +76,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "bwc policy")],
         properties: &[
             BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -289,6 +295,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "bwc traffic-group")],
         properties: &[
+            BigipPropertySpec {
+                name: "net",
+                value_type: ValueKind::Reference,
+                references: &["cm_traffic_group"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -1107,6 +1119,20 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "ipsec ike-peer")],
         properties: &[
+            BigipPropertySpec {
+                name: "my-id-type",
+                value_type: ValueKind::Reference,
+                enum_values: &["address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "peers-id-type",
+                value_type: ValueKind::Reference,
+                enum_values: &["address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "address-list",
                 value_type: ValueKind::String,
@@ -1976,6 +2002,21 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "packet-filter-trusted")],
         properties: &[
             BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                in_sections: &["modify"],
+                repeated: true,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
                 ..BigipPropertySpec::DEFAULT
@@ -2458,6 +2499,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "route")],
         properties: &[
             BigipPropertySpec {
+                name: "gw",
+                value_type: ValueKind::Reference,
+                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                references: &["net_self", "net_route", "ltm_virtual_address"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "blackhole",
                 value_type: ValueKind::Unknown,
                 ..BigipPropertySpec::DEFAULT
@@ -2525,6 +2573,27 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "route-domain")],
         properties: &[
+            BigipPropertySpec {
+                name: "fw-enforced-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-staged-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "security-nat-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -6041,6 +6110,27 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "self")],
         properties: &[
             BigipPropertySpec {
+                name: "address-source",
+                value_type: ValueKind::Reference,
+                enum_values: &["from-management", "from-user"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-enforced-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-staged-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
@@ -6610,6 +6700,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "stp")],
         properties: &[
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                enum_values: &["add", "delete", "replace-all-with"],
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,

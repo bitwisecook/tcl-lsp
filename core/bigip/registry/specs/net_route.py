@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "route"),),
         properties=(
+            BigipPropertySpec(
+                name="gw",
+                value_type="reference",
+                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                references=("net_self", "net_route", "ltm_virtual_address"),
+            ),
             BigipPropertySpec(name="blackhole", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(

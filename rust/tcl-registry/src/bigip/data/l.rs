@@ -967,6 +967,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "auth ssl-cc-ldap")],
         properties: &[
             BigipPropertySpec {
+                name: "search-type",
+                value_type: ValueKind::Reference,
+                enum_values: &["cert", "certmap", "user"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "admin-dn",
                 value_type: ValueKind::Reference,
                 required: true,
@@ -1261,6 +1268,27 @@ pub static SPECS: &[BigipObjectSpec] = &[
         properties: &[
             BigipPropertySpec {
                 name: "allow",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "exclude",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "require",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "allow",
                 value_type: ValueKind::List,
                 repeated: true,
                 list_operators: &["add"],
@@ -1428,6 +1456,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "classification ce")],
         properties: &[
+            BigipPropertySpec {
+                name: "policies",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                enum_values: &["add", "delete", "default", "replace-all-with", "none"],
+                references: &["ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "allow-reclassification",
                 value_type: ValueKind::Enum,
@@ -1730,6 +1766,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "classification urldb-feed-list")],
         properties: &[
+            BigipPropertySpec {
+                name: "user",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::Reference,
@@ -4202,6 +4244,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "lsn-pool")],
         properties: &[
             BigipPropertySpec {
+                name: "persistence",
+                value_type: ValueKind::Reference,
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -5020,6 +5068,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "message-routing diameter transport-config")],
         properties: &[
             BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -5424,6 +5480,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "message-routing generic transport-config")],
         properties: &[
             BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -5721,6 +5785,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "message-routing mqtt transport-config")],
         properties: &[
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -6114,6 +6186,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "message-routing sip profile session")],
         properties: &[
             BigipPropertySpec {
+                name: "persistence",
+                value_type: ValueKind::Reference,
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "allow-unknown-methods",
                 value_type: ValueKind::Enum,
                 enum_values: &["disabled", "enabled"],
@@ -6382,6 +6460,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "message-routing sip transport-config")],
         properties: &[
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                in_sections: &["source-address-translation"],
+                allow_none: true,
+                references: &["ltm_snatpool", "ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -6863,6 +6949,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor firepass")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -6955,6 +7048,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor ftp")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -7164,6 +7263,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor http")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "adaptive",
                 value_type: ValueKind::Enum,
                 enum_values: &["disabled", "enabled"],
@@ -7317,6 +7423,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor http2")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "adaptive",
                 value_type: ValueKind::Enum,
@@ -7472,6 +7585,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor https")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "adaptive",
                 value_type: ValueKind::Enum,
@@ -7764,6 +7884,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor imap")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -7914,6 +8041,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor ldap")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -8138,6 +8272,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor mqtt")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -8233,6 +8374,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor mssql")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -8361,6 +8509,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor mysql")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -8488,6 +8643,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor nntp")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -8597,6 +8759,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor oracle")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -8725,6 +8894,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor pop3")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -8814,6 +8990,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor postgresql")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -8942,6 +9125,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor radius")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -9045,6 +9235,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor radius-accounting")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -9461,6 +9658,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor sip")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -9597,6 +9801,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor smb")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -9987,6 +10198,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "monitor soap")],
         properties: &[
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -10805,6 +11023,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "monitor wmi")],
         properties: &[
             BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "agent",
                 value_type: ValueKind::String,
                 ..BigipPropertySpec::DEFAULT
@@ -10890,6 +11115,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "nat")],
         properties: &[
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                enum_values: &["add", "delete", "replace-all-with"],
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -10985,6 +11217,27 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "node")],
         properties: &[
+            BigipPropertySpec {
+                name: "session",
+                value_type: ValueKind::Reference,
+                enum_values: &["user-enabled", "user-disabled"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "state",
+                value_type: ValueKind::Reference,
+                enum_values: &["user-down", "user-up"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                enum_values: &["true", "false"],
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
@@ -11721,7 +11974,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "persistence persist-records")],
         properties: &[
-
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
         ],
     },
     BigipObjectSpec {
@@ -12100,6 +12358,90 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "policy")],
         properties: &[
             BigipPropertySpec {
+                name: "vlan",
+                value_type: ValueKind::Reference,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlan-id",
+                value_type: ValueKind::Reference,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "route-domain",
+                value_type: ValueKind::Reference,
+                references: &["net_route_domain"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "username",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "with",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fallback-pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "clone-pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "snatpool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_snatpool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "connection",
+                value_type: ValueKind::Reference,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "by",
+                value_type: ValueKind::Reference,
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "universal",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "policy",
+                value_type: ValueKind::Reference,
+                references: &["ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "copy-from",
                 value_type: ValueKind::Reference,
                 ..BigipPropertySpec::DEFAULT
@@ -12169,6 +12511,29 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "pool")],
         properties: &[
+            BigipPropertySpec {
+                name: "session",
+                value_type: ValueKind::Reference,
+                in_sections: &["members"],
+                enum_values: &["user-enabled", "user-disabled"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "state",
+                value_type: ValueKind::Reference,
+                in_sections: &["members"],
+                enum_values: &["user-up", "user-down"],
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                enum_values: &["true", "false"],
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "allow-nat",
                 value_type: ValueKind::Enum,
@@ -18758,6 +19123,18 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("ltm", "profile mssql")],
         properties: &[
             BigipPropertySpec {
+                name: "read-pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "write-pool",
+                value_type: ValueKind::Reference,
+                references: &["ltm_pool"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -23043,7 +23420,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "rule")],
         properties: &[
-
+            BigipPropertySpec {
+                name: "generate",
+                value_type: ValueKind::Reference,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
         ],
     },
     BigipObjectSpec {
@@ -23069,6 +23451,21 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "snat")],
         properties: &[
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                enum_values: &["default", "none"],
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                enum_values: &["true", "false"],
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -23259,6 +23656,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "tacdb customdb")],
         properties: &[
+            BigipPropertySpec {
+                name: "user",
+                value_type: ValueKind::Reference,
+                references: &["auth_user"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::Reference,
@@ -23531,6 +23934,89 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "virtual")],
         properties: &[
+            BigipPropertySpec {
+                name: "fallback-persistence",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-enforced-policy",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["security_firewall_policy", "ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-staged-policy",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["security_firewall_policy", "ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "policies",
+                value_type: ValueKind::Reference,
+                enum_values: &["add", "delete", "replace-all-with"],
+                references: &["ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "security-nat-policy",
+                value_type: ValueKind::Reference,
+                references: &["security_nat_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "service-policy",
+                value_type: ValueKind::Reference,
+                allow_none: true,
+                references: &["security_firewall_policy", "ltm_policy"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "vlans",
+                value_type: ValueKind::Reference,
+                enum_values: &["add", "delete", "replace-all-with"],
+                references: &["net_vlan"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                in_sections: &["metadata"],
+                enum_values: &["true", "false"],
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-enforced-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "fw-staged-policy-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "security-nat-rules",
+                value_type: ValueKind::Reference,
+                repeated: true,
+                references: &["ltm_rule"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "address-status",
                 value_type: ValueKind::Enum,
@@ -24097,6 +24583,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("ltm", "virtual-address")],
         properties: &[
+            BigipPropertySpec {
+                name: "persist",
+                value_type: ValueKind::Reference,
+                enum_values: &["true", "false"],
+                references: &["ltm_persistence_cookie", "ltm_persistence_dest_addr", "ltm_persistence_global_settings", "ltm_persistence_hash", "ltm_persistence_host", "ltm_persistence_msrdp", "ltm_persistence_persist_records", "ltm_persistence_sip", "ltm_persistence_source_addr", "ltm_persistence_ssl", "ltm_persistence_universal"],
+                ..BigipPropertySpec::DEFAULT
+            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,

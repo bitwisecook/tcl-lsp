@@ -18,6 +18,39 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "nat policy"),),
         properties=(
+            BigipPropertySpec(
+                name="place-after",
+                value_type="reference",
+                in_sections=("rules",),
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="place-before",
+                value_type="reference",
+                in_sections=("rules",),
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="vlans",
+                value_type="reference",
+                in_sections=("source",),
+                enum_values=("add", "default", "delete", "replace-all-with"),
+                references=("net_vlan",),
+            ),
+            BigipPropertySpec(
+                name="gw",
+                value_type="reference",
+                in_sections=("next-hop",),
+                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                references=("net_self", "net_route", "ltm_virtual_address"),
+            ),
+            BigipPropertySpec(
+                name="type",
+                value_type="reference",
+                in_sections=("next-hop",),
+                enum_values=("default", "pool", "gateway", "vlan"),
+                references=("net_vlan",),
+            ),
             BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(

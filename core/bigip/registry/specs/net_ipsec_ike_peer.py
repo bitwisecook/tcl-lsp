@@ -18,6 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "ipsec ike-peer"),),
         properties=(
+            BigipPropertySpec(
+                name="my-id-type",
+                value_type="reference",
+                enum_values=("address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="peers-id-type",
+                value_type="reference",
+                enum_values=("address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"),
+                references=("auth_user",),
+            ),
             BigipPropertySpec(name="address-list", value_type="string"),
             BigipPropertySpec(
                 name="app-service",

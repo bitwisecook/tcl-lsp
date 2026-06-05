@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "dos dos-signature"),),
         properties=(
+            BigipPropertySpec(
+                name="origin",
+                value_type="reference",
+                enum_values=("dynamic-bdos", "user-defined"),
+                references=("auth_user",),
+            ),
             BigipPropertySpec(name="alias", value_type="string", default="empty string"),
             BigipPropertySpec(
                 name="app-service",

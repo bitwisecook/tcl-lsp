@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "ha-group"),),
         properties=(
+            BigipPropertySpec(
+                name="pools", value_type="reference", allow_none=True, references=("ltm_pool",)
+            ),
             BigipPropertySpec(name="active-bonus", value_type="integer", default="10 (ten)"),
             BigipPropertySpec(
                 name="app-service",

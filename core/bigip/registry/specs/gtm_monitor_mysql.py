@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor mysql"),),
         properties=(
+            BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
             BigipPropertySpec(name="count", value_type="enum", enum_values=("0", "1")),
             BigipPropertySpec(
                 name="database",

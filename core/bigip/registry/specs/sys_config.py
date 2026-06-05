@@ -18,6 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "config"),),
         properties=(
+            BigipPropertySpec(
+                name="gateway",
+                value_type="reference",
+                in_sections=("sys",),
+                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                references=("net_self", "net_route", "ltm_virtual_address"),
+            ),
             BigipPropertySpec(name="base", value_type="unknown"),
             BigipPropertySpec(name="binary", value_type="unknown"),
             BigipPropertySpec(name="current-partition", value_type="unknown"),

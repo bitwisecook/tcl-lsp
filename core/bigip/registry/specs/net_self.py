@@ -19,6 +19,24 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "self"),),
         properties=(
             BigipPropertySpec(
+                name="address-source",
+                value_type="reference",
+                enum_values=("from-management", "from-user"),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="fw-enforced-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="fw-staged-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
                 name="address",
                 value_type="string",
                 shape_kind="ip-address",

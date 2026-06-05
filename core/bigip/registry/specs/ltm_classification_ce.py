@@ -19,6 +19,13 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "classification ce"),),
         properties=(
             BigipPropertySpec(
+                name="policies",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("add", "delete", "default", "replace-all-with", "none"),
+                references=("ltm_policy",),
+            ),
+            BigipPropertySpec(
                 name="allow-reclassification",
                 value_type="enum",
                 enum_values=("off", "on"),

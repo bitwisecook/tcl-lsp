@@ -19,6 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "auth ssl-cc-ldap"),),
         properties=(
             BigipPropertySpec(
+                name="search-type",
+                value_type="reference",
+                enum_values=("cert", "certmap", "user"),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
                 name="admin-dn",
                 value_type="reference",
                 required=True,

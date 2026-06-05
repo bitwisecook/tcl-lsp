@@ -19,6 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "monitor https"),),
         properties=(
             BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
+            BigipPropertySpec(
                 name="adaptive",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),

@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "ip-intelligence feed-list"),),
         properties=(
+            BigipPropertySpec(
+                name="user",
+                value_type="reference",
+                in_sections=("poll",),
+                references=("auth_user",),
+            ),
             BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(

@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor wmi"),),
         properties=(
+            BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
             BigipPropertySpec(name="command", value_type="unknown", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",

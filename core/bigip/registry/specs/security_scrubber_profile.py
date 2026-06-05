@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "scrubber profile"),),
         properties=(
+            BigipPropertySpec(
+                name="silverline", value_type="reference", repeated=True, references=("auth_user",)
+            ),
             BigipPropertySpec(name="advertisement-ttl", value_type="integer"),
             BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="recursive", value_type="unknown"),

@@ -19,6 +19,13 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("cm", "trust-domain"),),
         properties=(
             BigipPropertySpec(
+                name="username",
+                value_type="reference",
+                in_sections=("add-device",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(name="username", value_type="reference", references=("auth_user",)),
+            BigipPropertySpec(
                 name="add-device",
                 value_type="unknown",
                 shape_kind="object",

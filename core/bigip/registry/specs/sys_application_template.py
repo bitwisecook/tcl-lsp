@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "application template"),),
         properties=(
+            BigipPropertySpec(name="pool", value_type="reference", references=("ltm_pool",)),
             BigipPropertySpec(
                 name="actions",
                 value_type="list",

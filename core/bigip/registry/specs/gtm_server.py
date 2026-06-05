@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "server"),),
         properties=(
+            BigipPropertySpec(
+                name="prober-pool",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_pool",),
+            ),
             BigipPropertySpec(name="addresses", value_type="unknown"),
             BigipPropertySpec(
                 name="app-service",

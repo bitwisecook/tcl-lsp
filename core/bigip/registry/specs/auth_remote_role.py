@@ -18,6 +18,45 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "remote-role"),),
         properties=(
+            BigipPropertySpec(
+                name="firewall-manager",
+                value_type="reference",
+                in_sections=("role-info",),
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="no-access",
+                value_type="reference",
+                in_sections=("role-info",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="attribute",
+                value_type="reference",
+                in_sections=("dc1",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="console",
+                value_type="reference",
+                in_sections=("dc1",),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="role", value_type="reference", in_sections=("dc1",), references=("auth_user",)
+            ),
+            BigipPropertySpec(
+                name="user-partition",
+                value_type="reference",
+                in_sections=("dc1",),
+                references=("auth_partition", "auth_user"),
+            ),
+            BigipPropertySpec(
+                name="attribute",
+                value_type="reference",
+                in_sections=("dc2",),
+                references=("auth_user",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="role-info",

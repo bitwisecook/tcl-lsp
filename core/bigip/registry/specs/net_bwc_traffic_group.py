@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "bwc traffic-group"),),
         properties=(
+            BigipPropertySpec(name="net", value_type="reference", references=("cm_traffic_group",)),
             BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="dynamic", value_type="unknown"),

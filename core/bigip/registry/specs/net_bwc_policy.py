@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "bwc policy"),),
         properties=(
+            BigipPropertySpec(name="vlans", value_type="reference", references=("net_vlan",)),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",

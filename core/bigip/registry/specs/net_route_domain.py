@@ -19,6 +19,24 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "route-domain"),),
         properties=(
             BigipPropertySpec(
+                name="fw-enforced-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="fw-staged-policy-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
+                name="security-nat-rules",
+                value_type="reference",
+                repeated=True,
+                references=("ltm_rule",),
+            ),
+            BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 allow_none=True,

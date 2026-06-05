@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor ldap"),),
         properties=(
+            BigipPropertySpec(
+                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+            ),
             BigipPropertySpec(name="base", value_type="string", default="none"),
             BigipPropertySpec(
                 name="chase-referrals",

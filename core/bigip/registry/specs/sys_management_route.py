@@ -18,6 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "management-route"),),
         properties=(
+            BigipPropertySpec(
+                name="gateway",
+                value_type="reference",
+                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                references=("net_self", "net_route", "ltm_virtual_address"),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="gateway", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(name="mtu", value_type="unknown"),

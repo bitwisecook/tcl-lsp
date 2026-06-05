@@ -19,6 +19,38 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "pool"),),
         properties=(
             BigipPropertySpec(
+                name="session",
+                value_type="reference",
+                in_sections=("members",),
+                enum_values=("user-enabled", "user-disabled"),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="state",
+                value_type="reference",
+                in_sections=("members",),
+                enum_values=("user-up", "user-down"),
+                references=("auth_user",),
+            ),
+            BigipPropertySpec(
+                name="persist",
+                value_type="reference",
+                enum_values=("true", "false"),
+                references=(
+                    "ltm_persistence_cookie",
+                    "ltm_persistence_dest_addr",
+                    "ltm_persistence_global_settings",
+                    "ltm_persistence_hash",
+                    "ltm_persistence_host",
+                    "ltm_persistence_msrdp",
+                    "ltm_persistence_persist_records",
+                    "ltm_persistence_sip",
+                    "ltm_persistence_source_addr",
+                    "ltm_persistence_ssl",
+                    "ltm_persistence_universal",
+                ),
+            ),
+            BigipPropertySpec(
                 name="allow-nat",
                 value_type="enum",
                 enum_values=("no", "yes"),

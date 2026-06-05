@@ -18,6 +18,9 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "internal-proxy"),),
         properties=(
+            BigipPropertySpec(
+                name="proxy-server-pool", value_type="reference", references=("ltm_pool",)
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="dns-resolver",
