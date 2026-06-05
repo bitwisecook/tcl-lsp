@@ -77,6 +77,7 @@
 pub mod alias;
 pub mod analyser;
 pub mod analyses;
+pub mod auto_path_eval;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod codegen;

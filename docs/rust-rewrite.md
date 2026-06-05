@@ -4516,6 +4516,21 @@ the idiom-resolver is missing.  **Fix:** port the `[file join]` /
 `[file dirname]` / `[info script]` / `~` mini-evaluator and feed resolved
 paths to the workspace/package index.
 
+**LANDED (2026-06-05).**  New `tcl-compiler/src/auto_path_eval.rs` ports
+`evaluate_auto_path_expr` — the tokenise → parse → eval mini-evaluator
+over the supported subset (`[info script]`, `[file dirname …]`, `[file
+join …]`, literal words, `~` expansion), with faithful posix
+`dirname` / `join` / `expanduser` / `abspath` (`normpath` collapsing
+`..`/`.`/`//`) helpers so `lappend auto_path [file join [file dirname
+[info script]] ..]` resolves to the script's parent directory.  Variable
+substitutions and unsupported commands return `None` (never guesses).
+Exposed to the Python consumer via the `auto_path_eval` PyO3 binding
+(`tcl-lsp-py/src/signature_scan.rs`), matching the rewrite's
+Python-delegates-to-Rust transitional pattern; the native
+workspace/package-index consumer adopts it when the Rust path-resolution
+side lands.  12 unit tests (the parent-dir idiom, nested `dirname`,
+literal/`~`/unsupported/`$`-substitution cases, posix-helper parity).
+
 **GAP-B6 — no whole-pipeline fixpoint.**  Python iterates passes to
 fixpoint (`optimiser/_manager.py:532`, `max_iterations=5` — the aggressive
 profile loops propagation → fold → DCE).  Rust `optimiser/manager.rs:46`
