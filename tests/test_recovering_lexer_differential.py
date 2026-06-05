@@ -244,34 +244,47 @@ def _rand_soup_source(rng: random.Random) -> str:
     return "".join(rng.choice(_SOUP) for _ in range(rng.randint(0, 120)))
 
 
-class TestPromotedFuzzFindings:
-    """Minimal repros the offline campaign shrank out — frozen as regressions."""
+class TestDistilledCorpus:
+    """A small, readable corpus distilled from the offline fuzz exploration.
+
+    One *sane* case per recovery behaviour the campaign surfaces — which closers
+    get inserted and which E2xx diagnostics fire — plus the minimal bug repros it
+    found.  The exhaustive random sweep stays offline (``make
+    test-fuzz-recovery``); this is the deterministic standard set CI runs.
+    """
 
     @pytest.mark.parametrize(
         "source",
         [
-            # Fast-path soundness: a suspicious quote that closes at a *later*
-            # stray quote (nothing reaches EOF in-quote) yet still recovers; and
-            # an unterminated quote whose tail is a VAR/CMD substitution.
+            # nested [ whose single inserted ] cannot balance -> command over-runs
+            "set x [foo [bar baz\n",
+            "set x [a [b [c\nputs hi\n",
+            # multiple independent recoveries in one source (two inserted ])
+            "set a [foo\nset b 2\nset c [bar\nset d 4\n",
+            # fast-path soundness: a " that closes at a later stray ", and a "
+            # whose tail is a VAR/CMD substitution (nothing reaches EOF in-quote)
             '"\nforeach"$x',
             'set y "\nproc q {\n$v',
-            'set y "\nputs [foo]',
-            'set x "\nputs hi\nputs "more\n',
-            # Nested unterminated [ where the inserted ] cannot balance both
-            # levels — must keep the over-running command, not truncate.
-            "set x [foo [bar baz\n",
-            "[foo [bar\n",
-            "set x [a [b [c\nputs hi\n",
-            # Diagnostic de-dup: first parse and recovered re-parse both flag the
-            # same lexer warning for an unchanged region.
+            # unterminated braced expression recovers before a known command
+            "if {$x > 5\nset\n",
+            # unterminated data value: de-indented command still closes it
+            "set v {\n  a b\nset y 2\n",
+            # mixed closers in one source
+            "set x [foo {a b\n",
+            'puts [foo "bar\n',
+            # lexer diagnostics for trailing/var-name braces (E204/E205/E206)
+            "set x {a b}c\n",
+            'set x "ab"c\n',
+            "puts ${a b\n",
+            # de-dup: first parse and recovered re-parse both flag one region
             '{\nif\n""[\nset',
             'set x "\nif {1} {\n  puts [foo\n}\nset\n',
-            # Character-soup repros that exercised tricky bracket/brace/quote
-            # interleavings (extra closers, ${}, escapes).
-            "]; xt] [}u c [ #cp}ep }\"ooqo1}{c} ersp\n} [rx\np  \nsx;rt{xe }pc#  }   ]c#t  p   # $ee  p{;] ",
-            'a "\nset\n\nb "\nputs\n',
+            # empty delimiters
+            "[]\n",
+            'set x ""\n',
+            "set x {}\n",
         ],
     )
-    def test_promoted(self, source):
+    def test_case(self, source):
         _assert_equivalent(source)
         _assert_no_duplicate_diagnostics(source)
