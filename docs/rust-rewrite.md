@@ -4296,6 +4296,25 @@ quick-fix.  **Fix:** add E100/E102 token-scan emitters + `CodeFix`
 actions.  **Not previously documented** (the two E102 doc hits are about
 a *Python* false-positive fix, unrelated).
 
+**LANDED (2026-06-05).**  New `analyser/syntax_checks.rs` ports both
+checks: `stray_closer_diagnostics` scans a command's `all_tokens` for a
+bare `}` (**E102**) or a first-unescaped `]` (**E100**) in an `Esc` token
+that is *not* in a double-quoted word — quoted context classified
+byte-for-byte as `classify_quoted_contexts` (`in_quote` flag +
+content-shift).  E100 attaches the `[`-insertion fix from a faithful
+`find_bracket_insertion_point` port (known-command-name prefix / backward
+scan / enclosing-command arity-overflow heuristics); E102 attaches the
+`stray_brace_fix` line-deletion when the `}` owns its line.  Wired into the
+production `Analyser::analyse` loop on the *original* token stream, before
+the recovery clone mutates it — **coexisting** with the recovery path
+(which repairs unclosed *openers*; a stray *closer* previously went
+unreported, confirmed by running both the live Python and Rust analysers:
+`puts foo]` → E100, `\n}` → E102+W123, `puts "a ]"` → none).  4 unit tests
+pin the parity (stray `]`/`}`, quoted-literal skip, balanced
+substitution).  **Remaining:** nested-body recursion (the check runs at the
+top level today; Python runs it on every analysed body) and the
+`analyse_commands_inner` chunked path — both follow-ups.
+
 **GAP-A7 — `core/compiler/source_inliner.py` (472 LOC) — absent (low
 urgency).**  Compile-time static `source FILE` splicing for
 self-contained WASM (`inline_static_sources`, matches bare-literal and the

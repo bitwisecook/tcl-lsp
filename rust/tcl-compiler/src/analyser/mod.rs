@@ -42,6 +42,7 @@ pub mod recovery;
 pub mod scope;
 pub mod snapshot;
 pub mod state;
+pub mod syntax_checks;
 pub mod types;
 pub mod utils;
 

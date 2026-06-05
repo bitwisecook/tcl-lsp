@@ -402,6 +402,21 @@ impl Analyser {
                 continue;
             }
             let mut cmd = cmd_ref.clone();
+            // GAP-A6: E100 (stray `]`) / E102 (stray `}`) token checks,
+            // run on the *original* token stream before recovery mutates
+            // the clone.  Distinct from the recovery repairs below, which
+            // handle unclosed openers; a stray closer otherwise goes
+            // unreported.  (Top-level only for now — nested body
+            // recursion is a follow-up, mirroring how Python runs the
+            // check on every analysed body.)
+            {
+                let diags = super::syntax_checks::stray_closer_diagnostics(
+                    cmd_ref,
+                    &self.source,
+                    self.registry.as_ref(),
+                );
+                self.result.diagnostics.extend(diags);
+            }
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
