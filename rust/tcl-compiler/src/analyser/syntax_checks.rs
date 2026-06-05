@@ -56,23 +56,6 @@ pub(crate) fn unterminated_bracket_diagnostics(
     out
 }
 
-/// Ghost `]` insertions (offset → `b']'`) for the unterminated `[`
-/// commands in `cmd` that a heuristic could place — i.e. the
-/// comment / known-command / brace cases, whose E201 diagnostic carries
-/// a `]`-insertion fix whose offset *is* the ghost offset.  The bare
-/// fallback (no heuristic, no fix) yields no ghost.  Feeds
-/// `segment_with_recovery` (GAP-A1 strip 3b).
-pub(crate) fn bracket_ghost_insertions(
-    cmd: &SegmentedCommand,
-    source: &str,
-    registry: Option<&CommandRegistry>,
-) -> Vec<(u32, u8)> {
-    unterminated_bracket_diagnostics(cmd, source, registry)
-        .iter()
-        .filter_map(|d| d.fixes.first().map(|f| (f.span.start(), b']')))
-        .collect()
-}
-
 /// True when `tok` (a `Cmd` token) has no closing `]` — the byte at the
 /// token's inner end is not `]`.  Mirrors `_is_unterminated_cmd`.
 fn is_unterminated_cmd(tok: &Token, source: &str) -> bool {
@@ -545,6 +528,22 @@ mod tests {
         assert_eq!(e201("set z [\n"), vec![("missing close-bracket".into(), 0)]);
         // A balanced `[foo]` is fine.
         assert!(e201("set ok [foo]\n").is_empty());
+    }
+
+    #[test]
+    fn e201_recovery_replaces_e200_for_swallowed_command() {
+        // GAP-A1 strip 3c: `set x [foo bar` whose next line is a known
+        // command now emits a single E201 (not E200) and analyses
+        // `puts done` as a real command.
+        let mut a = Analyser::new();
+        let r = a.analyse("set x [foo bar\nputs done\n", "tcl8.6");
+        let codes: Vec<&str> = r
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "E200" | "E201"))
+            .map(|d| d.code.as_str())
+            .collect();
+        assert_eq!(codes, vec!["E201"], "{codes:?}");
     }
 
     #[test]

@@ -4288,11 +4288,28 @@ ghost offset; the bare fallback yields none), and re-lexes with those
 ghosts.  A swallowed following command splits cleanly:
 `set x [foo bar` + `puts done` → `[set x [foo bar]]` + `[puts done]`,
 **byte-identical to Python**; clean input is an exact no-op.  2 unit
-tests.  **Remaining (strip 3c):** route the analyser's body segmentation
-through `segment_with_recovery` so the at-known-command case emits E201 +
-the clean stream instead of the current E200 — the final integration,
-held separate because it swaps the analyser's recovery substrate and
-warrants a focused differential check.
+tests.
+
+**LANDED (strip 3c — analyser integration; GAP-A1 complete, 2026-06-05).**
+`Analyser::apply_ghost_recovery` runs *only* when the scan-to-next
+recovery left a `is_partial` command (the shape that emits E200) — so the
+common clean/fallback path never pays a second parse.  When a heuristic
+ghost applies it replaces the command stream with the ghost-recovered one
+and emits the E201 diagnostics from `segment_with_recovery` (now
+`(commands, diagnostics)`), and the per-command strip-1 E201 detector is
+skipped (a ghost-terminated command looks unterminated against the
+*original* bytes, so re-running it would double-report).  Result: the
+at-known-command case now emits a single **E201 instead of E200** and
+analyses `puts done` as a real command — matching Python; the bare
+fallback (`set x [foo`) still emits E201 via the strip-1 detector, and
+all other input is byte-unchanged (full suite green, 2496).  3 unit /
+integration tests across the segmenter + analyser.  **GAP-A1 is
+complete** for the in-pipeline behaviour: E201 + E204-E206 diagnostics,
+the zero-width ghost lexer engine, the recovery module, and the analyser
+integration.  The E202 / E203 *heuristic* detectors (the conservative
+unterminated-`"` / `{` cases that don't fire in the live pipeline) and
+the `SegmentedCommand.partial_delimiter` precise-E200-suffix field remain
+as low-value follow-ups.
 
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).

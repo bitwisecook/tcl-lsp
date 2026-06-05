@@ -372,12 +372,15 @@ impl Analyser {
             .expect("registry just stashed")
             .command_names()
             .collect();
-        let commands = crate::segmenter::segment_commands_with_recovery_and_config(
+        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
             &known_commands,
             self.lexer_config(),
         );
         drop(known_commands);
+
+        // GAP-A1 strip 3c: ghost-token recovery (see method doc).
+        let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
 
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
@@ -409,7 +412,7 @@ impl Analyser {
             // unreported.  (Top-level only for now — nested body
             // recursion is a follow-up, mirroring how Python runs the
             // check on every analysed body.)
-            self.emit_syntax_recovery_diagnostics(cmd_ref);
+            self.emit_syntax_recovery_diagnostics(cmd_ref, ghost_recovery_applied);
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
@@ -476,23 +479,64 @@ impl Analyser {
         result
     }
 
+    /// GAP-A1 strip 3c: ghost-token recovery.  When the scan-to-next
+    /// recovery left a partial command (the shape that otherwise emits
+    /// E200), re-lex the document with zero-width ghost `]` insertions
+    /// derived from the E201 heuristics.  When any apply, the
+    /// swallowed-command case (`set x [foo bar` then `puts done`) splits
+    /// into a clean `[foo bar]` + `puts done` stream, `commands` is
+    /// replaced with it, its E201 diagnostics are emitted, and `true` is
+    /// returned (the caller then skips its own E201 detector to avoid a
+    /// double-report).  Clean / fallback input has no partial command,
+    /// so this never runs a second parse on the common path.
+    fn apply_ghost_recovery(
+        &mut self,
+        source: &str,
+        commands: &mut Vec<crate::segmenter::SegmentedCommand>,
+    ) -> bool {
+        if !commands.iter().any(|c| c.is_partial) {
+            return false;
+        }
+        let (clean, e201) = crate::segmenter::segment_with_recovery(
+            source,
+            self.lexer_config(),
+            self.registry.as_ref(),
+        );
+        if e201.is_empty() {
+            return false;
+        }
+        *commands = clean;
+        self.result.diagnostics.extend(e201);
+        true
+    }
+
     /// Emit the source-recovery syntax diagnostics for one command's
-    /// token stream: E100 / E102 stray closers (GAP-A6) and E201
-    /// unterminated `[` command substitutions (GAP-A1), run on the
-    /// original (pre-recovery) tokens.
-    fn emit_syntax_recovery_diagnostics(&mut self, cmd: &crate::segmenter::SegmentedCommand) {
+    /// token stream: E100 / E102 stray closers (GAP-A6) and, unless
+    /// ghost recovery already emitted them, E201 unterminated `[`
+    /// command substitutions (GAP-A1).  When `ghost_recovery_applied`,
+    /// the stream is the ghost-recovered one and the E201s came from
+    /// `segment_with_recovery`; a ghost-terminated command would look
+    /// unterminated against the original bytes, so the detector is
+    /// skipped to avoid a double-report.
+    fn emit_syntax_recovery_diagnostics(
+        &mut self,
+        cmd: &crate::segmenter::SegmentedCommand,
+        ghost_recovery_applied: bool,
+    ) {
         let stray = super::syntax_checks::stray_closer_diagnostics(
             cmd,
             &self.source,
             self.registry.as_ref(),
         );
         self.result.diagnostics.extend(stray);
-        let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
-            cmd,
-            &self.source,
-            self.registry.as_ref(),
-        );
-        self.result.diagnostics.extend(e201);
+        if !ghost_recovery_applied {
+            let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
+                cmd,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(e201);
+        }
     }
 
     /// GAP-A1 strip 2: emit the lexer-warning recovery codes E204
