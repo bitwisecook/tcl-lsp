@@ -5367,11 +5367,16 @@ already carries; and **W313** destructive-file-on-tainted-path
 variable path, suppressed when the path is normalised *and* bounds-checked
 via the `[string match …]` branch-guard analysis — `taint`-diagnostic
 severity is uniformly `Error` in Rust, a pre-existing convention).
-**Still pending (need more than a registry field — additional
-engine/infra):** the GAP-C2 regex/format **sub-token** taxonomy (the ~1600-LOC
-per-component sub-tokenisers, with `pattern_type`/`format_string_type` as
-the registry input); the hover **"Valid events"** list (needs an
-`events_matching` / `effective_event_requires` port); and the
+Subsequently landed: the GAP-C2 `regexp`/`event` **token types**
+(registry-driven `special_arg_kinds`); **W313** destructive-file-on-
+tainted-path (the branch-guard taint pass); and the hover **"Valid
+events"** list — `valid_events` ports `events_matching` + `event_satisfies`
++ `profile_stack_satisfies` + `expand_profile_stack` over the registry's
+event / profile graphs (the `effective_event_requires` namespace-profile
+augmentation is a no-op here — the Rust specs already bake the profiles
+into `event_requires`).  **Still pending (need more than a registry field
+— additional engine/infra):** the GAP-C2 *per-component* regex/format
+**sub-token** taxonomy (the ~1600-LOC sub-tokenisers); and the
 `package_suggestions` fuzzy catalogue (needs a workspace
 `package_resolver`, not the registry).
 
