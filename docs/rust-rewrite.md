@@ -4333,13 +4333,19 @@ depth scan for the matching `]`) wired into `dispatch_expr_arguments`
 alongside W110 / W003; fires one warning per EXPR-role arg that nests a
 `[expr …]` (`expr {[expr {…}]}`, `if {[expr …]}`), skips the
 command-substitution-value form (`set y [expr …]`) and plain braced
-exprs — verified against the live Python analyser; 4 unit tests.  Still
+exprs — verified against the live Python analyser; 4 unit tests.  **W212 LANDED
+(2026-06-05)** — `emit_w212_name_vs_value` + the `name_arg_indices`
+resolver (port of `_NAME_ARG_INDICES` + `_first_arg_name` /
+`_unset_name_args` / `_info_exists_arg` / `_upvar_local_name_args`) wired
+into `emit_dispatch_site_diagnostics`; fires when a name-position
+argument (`set $x`, `incr $x`, `info exists $x`, `upvar 1 a $b`) is a
+`Var` token, skipping plain names and `$`-values in value positions —
+verified against the live Python analyser; 3 unit tests.  Still
 absent: **W100** unbraced expr, **W104** string-concat-builds-list,
 **W106** dangerous unbraced `switch` body, **W121** non-contiguous subnet
 mask, **W200** (two checks
 share the code — exec-result-not-captured *and* binary-format-modifiers),
-**W212** `$`-subst where a name is expected, **W311** unsafe channel
-encoding mismatch.  The doc gestures at "the `_style.py` port"
+**W311** unsafe channel encoding mismatch.  The doc gestures at "the `_style.py` port"
 generically (tied to W108) but none of these is itemised, so they are
 easy to drop.  **Fix:** itemise + port each as a `diagnostics.rs`
 emitter.

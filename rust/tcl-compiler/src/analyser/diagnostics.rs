@@ -87,6 +87,67 @@ use crate::expr_ast::{BinOp, ExprNode};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
+/// Resolve which argument indices (into `args`, command-name excluded)
+/// must be plain variable *names* for `cmd_name`.  Port of
+/// `_NAME_ARG_INDICES` + its four resolvers (`_first_arg_name`,
+/// `_unset_name_args`, `_info_exists_arg`, `_upvar_local_name_args`).
+fn name_arg_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        // First argument is the variable name.
+        "set" | "incr" | "append" | "lappend" => {
+            if args.is_empty() {
+                vec![]
+            } else {
+                vec![0]
+            }
+        }
+        // `unset ?-nocomplain? ?--? var ?var …?` — names start after the
+        // leading option flags.
+        "unset" => {
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        // Only the `exists` subcommand of `info` takes a name.
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                vec![]
+            }
+        }
+        // `upvar ?level? other local ?other local …?` — the *local*
+        // names are every other arg after an optional level word.
+        "upvar" => {
+            if args.is_empty() {
+                return vec![];
+            }
+            let head = &args[0];
+            let is_level = head.starts_with('#')
+                || (!head.is_empty()
+                    && head
+                        .trim_start_matches('-')
+                        .bytes()
+                        .all(|b| b.is_ascii_digit())
+                    && head.trim_start_matches('-').bytes().next().is_some());
+            let start = usize::from(is_level);
+            (start + 1..args.len()).step_by(2).collect()
+        }
+        _ => vec![],
+    }
+}
+
 /// Find the first `[`-`expr`-whitespace sequence in `slice` (the
 /// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
 /// `(open_bracket_index, matching_close_bracket_index)`.  The close is
@@ -744,6 +805,46 @@ Use braces: {{ \u{2026} }}"
     /// spaces before calling.  `diag_span` is the source span the
     /// diagnostic anchors to (the source range of the argument
     /// token, or the full token range for `expr`).
+    /// W212 (GAP-A8): a command argument that must be a variable
+    /// *name* (`set $x 1`, `incr $x`, `info exists $x`, `upvar 1 a $b`)
+    /// instead uses a `$`-substitution.  `args` / `arg_tokens` exclude
+    /// the command name.  Fires when the resolved name-position argument
+    /// is a `Var` token.  Mirrors `check_name_vs_value`.
+    pub(super) fn emit_w212_name_vs_value(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        for idx in name_arg_indices(cmd_name, args) {
+            let (Some(tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+                continue;
+            };
+            if tok.kind != tcl_lexer::TokenType::Var {
+                continue;
+            }
+            let bare = text
+                .trim_start_matches('$')
+                .trim_start_matches('{')
+                .trim_end_matches('}');
+            let display_cmd = if cmd_name == "info" && !args.is_empty() {
+                format!("info {}", args[0])
+            } else {
+                cmd_name.to_string()
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W212".to_string(),
+                span: tok.span,
+                message: format!(
+                    "'{display_cmd}' expects a variable name, got substitution (${bare}). \
+                     Did you mean '{bare}'?"
+                ),
+                severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     /// W114 (GAP-A8): a nested `[expr …]` inside an argument that is
     /// *already* an expression context (`expr` / `if` / `while` / `for`
     /// conditions) is redundant.  `diag_span` is the source span of the
@@ -4469,6 +4570,53 @@ mod tests {
             .iter()
             .filter(|d| d.code == "W114")
             .count()
+    }
+
+    fn w212_count(src: &str) -> usize {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W212")
+            .count()
+    }
+
+    #[test]
+    fn w212_flags_name_position_substitution() {
+        // Matches the live Python analyser.
+        assert_eq!(w212_count("set $x 1\n"), 1);
+        assert_eq!(w212_count("incr $counter\n"), 1);
+        assert_eq!(w212_count("info exists $v\n"), 1);
+        assert_eq!(w212_count("upvar 1 a $b\n"), 1);
+    }
+
+    #[test]
+    fn w212_ignores_plain_names() {
+        assert_eq!(w212_count("set x 1\n"), 0);
+        assert_eq!(w212_count("info exists v\n"), 0);
+        // A `$`-value in a non-name position is fine.
+        assert_eq!(w212_count("set x $y\n"), 0);
+    }
+
+    #[test]
+    fn name_arg_indices_resolvers() {
+        assert_eq!(name_arg_indices("set", &["a".into(), "b".into()]), vec![0]);
+        assert_eq!(
+            name_arg_indices("unset", &["-nocomplain".into(), "a".into(), "b".into()]),
+            vec![1, 2],
+        );
+        assert_eq!(
+            name_arg_indices("info", &["exists".into(), "v".into()]),
+            vec![1]
+        );
+        assert_eq!(
+            name_arg_indices("info", &["level".into()]),
+            Vec::<usize>::new()
+        );
+        assert_eq!(
+            name_arg_indices("upvar", &["1".into(), "a".into(), "b".into()]),
+            vec![2],
+        );
     }
 
     #[test]
