@@ -103,6 +103,18 @@ suite("Error Recovery (contract)", () => {
     );
   });
 
+  test("C2: a command after an unterminated braced expression is analysed", async () => {
+    // `if {$x > 5` is an unterminated braced *expression*; recovery must let the
+    // following command be analysed — a bare `set` still raises its arity error.
+    await activate(docUri);
+    const editor = vscode.window.activeTextEditor!;
+    const diags = await setContentAndWait(editor, docUri, "if {$x > 5\nset\n");
+    assert.ok(
+      diags.some((d) => codeOf(d) === "E002"),
+      `tail \`set\` after \`if {\` should arity-error; got [${diags.map(codeOf)}]`,
+    );
+  });
+
   test("C2: proc after an unterminated namespace body is still a symbol", async () => {
     await activate(docUri);
     const editor = vscode.window.activeTextEditor!;

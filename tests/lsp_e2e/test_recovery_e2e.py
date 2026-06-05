@@ -145,6 +145,13 @@ class TestC2RecoveryContinues:
         diags = lsp_server.open_ready(uri, "set x [foo bar\nset\n")
         assert "E002" in _codes(diags), f"tail `set` should arity-error; got {_codes(diags)}"
 
+    def test_bare_set_after_unterminated_expr_brace_still_analysed(self, lsp_server, uri_factory):
+        # An unterminated braced *expression* (`if {…`) must also recover so the
+        # following command is analysed — a bare `set` still arity-errors.
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "if {$x > 5\nset\n")
+        assert "E002" in _codes(diags), f"tail `set` after `if {{` should arity-error; got {_codes(diags)}"
+
 
 # --------------------------------------------------------------------------- #
 # C3 — recovered token stream is well-formed
