@@ -4296,11 +4296,18 @@ the backslash-aware runtime-length back-off).  Ports the shared index
 helpers `is_literal_index` / `resolve_index` (`end` / `end±N` / strict
 `-?\d+`) / `describe_index` / `is_braced_or_esc` / `has_subst`, reusing
 `tcl_expr_eval::split_tcl_list` (now `pub(crate)`); verified across a
-battery against the live Python analyser; 3 unit tests.  **Remaining:**
-the `lrange` / `lreplace` arm of W230, **W231** (`lset`), the
-`string range` / `replace` / `insert` arms of W232, the default-off
-**W242**, and the `for`-step `_for_is_provably_infinite` heuristic —
-follow-ups.
+battery against the live Python analyser; 3 unit tests.
+**LANDED (W230 lrange/lreplace + W232 range/replace, 2026-06-05).**  The
+`(first, last)` pair arms now fire when the slice is provably empty — a
+shared `pair_slice_empty` (both-below / both-above / clamped-first >
+clamped-last / empty container) drives both `lrange` / `lreplace`
+(W230, with the prepend/append/touches-no-element verb) and
+`string range` / `replace` (W232, with the both-negative-literal
+early-fire even on a dynamic string and the backslash-aware length
+back-off); `describe_index_string` ported.  Verified against the live
+Python analyser; 3 unit tests.  **Remaining:** **W231** (`lset` — needs
+const-var tracking), the default-off **W242**, and the `for`-step
+`_for_is_provably_infinite` heuristic — follow-ups.
 
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed

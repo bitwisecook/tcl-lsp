@@ -57,17 +57,21 @@ pub(crate) fn loop_termination_diagnostics(
     }
 }
 
-/// W230 (lindex form): a constant list literal indexed by a constant
-/// out-of-range index silently returns the empty string.  `args` /
-/// `arg_tokens` exclude the command name.  Mirrors the `lindex` arm of
-/// `check_list_index_out_of_range` (the `lrange` / `lreplace` arms and
-/// W231 are follow-ups).
+/// W230: a constant list literal with a constant out-of-range index
+/// (`lindex`) or a provably-empty slice (`lrange` / `lreplace`)
+/// silently returns empty / clamps.  `args` / `arg_tokens` exclude the
+/// command name.  Mirrors `check_list_index_out_of_range` (W231 `lset`
+/// needs const-var tracking and is a follow-up).
+#[allow(clippy::similar_names)] // first_text/first_tok/first_val read clearly
 pub(crate) fn list_index_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
 ) -> Vec<Diagnostic> {
-    if cmd_name != "lindex" || args.len() < 2 || arg_tokens.len() < 2 {
+    if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
+        || args.len() < 2
+        || arg_tokens.len() < 2
+    {
         return Vec::new();
     }
     let list_tok = &arg_tokens[0];
@@ -77,6 +81,57 @@ pub(crate) fn list_index_diagnostics(
     let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(strip_braces(&args[0])).len())
         .unwrap_or(i64::MAX);
 
+    if cmd_name == "lindex" {
+        return lindex_diagnostics(args, arg_tokens, length);
+    }
+
+    // lrange / lreplace: a (first, last) pair that resolves to an empty
+    // slice.
+    if args.len() < 3 || arg_tokens.len() < 3 || (cmd_name == "lrange" && args.len() != 3) {
+        return Vec::new();
+    }
+    let (first_text, last_text) = (&args[1], &args[2]);
+    let (first_tok, last_tok) = (&arg_tokens[1], &arg_tokens[2]);
+    if has_subst(first_text, first_tok)
+        || !is_literal_index(first_text)
+        || has_subst(last_text, last_tok)
+        || !is_literal_index(last_text)
+    {
+        return Vec::new();
+    }
+    let (Some(first_val), Some(last_val)) = (
+        resolve_index(first_text, length),
+        resolve_index(last_text, length),
+    ) else {
+        return Vec::new();
+    };
+    if !pair_slice_empty(first_val, last_val, length) {
+        return Vec::new();
+    }
+    let verb = if cmd_name == "lrange" {
+        "lrange slice is empty".to_string()
+    } else if first_val < 0 && last_val < 0 {
+        "lreplace prepends instead of replacing (both indices resolve before the list)".to_string()
+    } else if first_val >= length && last_val >= length {
+        "lreplace appends instead of replacing (both indices resolve past the list)".to_string()
+    } else {
+        "lreplace touches no element (first > last after clamping)".to_string()
+    };
+    vec![Diagnostic {
+        code: "W230".to_string(),
+        span: tcl_lexer::Span::new(first_tok.span.start(), last_tok.span.end()),
+        message: format!(
+            "{verb}: first='{first_text}' resolves to {first_val}, last='{last_text}' resolves \
+             to {last_val} (list has {length} element{}).",
+            if length == 1 { "" } else { "s" }
+        ),
+        severity: Severity::Warning,
+        fixes: Vec::new(),
+    }]
+}
+
+/// The per-index `lindex` arm of W230.
+fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for (pos, idx_text) in args.iter().enumerate().skip(1) {
         let Some(idx_tok) = arg_tokens.get(pos) else {
@@ -106,20 +161,40 @@ pub(crate) fn list_index_diagnostics(
     out
 }
 
-/// W232 (string index form): a constant `string index` into a literal
-/// string with a constant out-of-range (or negative) index returns the
-/// empty string.  Mirrors the `string index` arm of
-/// `check_string_index_out_of_range` (range / replace / insert are
-/// follow-ups).
+/// True when a `(first, last)` index pair resolves to a provably-empty
+/// slice over `length`: both below, both above, clamped first > clamped
+/// last, or an empty container.  Mirrors the shared clamp logic in
+/// `check_list_index_out_of_range` / `check_string_index_out_of_range`.
+fn pair_slice_empty(first: i64, last: i64, length: i64) -> bool {
+    if length == 0 {
+        return true;
+    }
+    let both_below = first < 0 && last < 0;
+    let both_above = first >= length && last >= length;
+    let clamped_first = first.clamp(0, length - 1);
+    let clamped_last = last.clamp(0, length - 1);
+    both_below || both_above || clamped_first > clamped_last
+}
+
+/// W232: a constant `string index` / `range` / `replace` / `insert`
+/// into a literal string with a constant out-of-range (or negative)
+/// index returns empty / is a no-op.  Mirrors
+/// `check_string_index_out_of_range`.
 pub(crate) fn string_index_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
 ) -> Vec<Diagnostic> {
-    if cmd_name != "string" || args.len() < 3 || arg_tokens.len() < 3 {
+    if cmd_name != "string" || args.len() < 2 {
         return Vec::new();
     }
-    if args[0] != "index" {
+    let sub = args[0].as_str();
+    let min_args = match sub {
+        "index" => 3,
+        "range" | "replace" | "insert" => 4,
+        _ => return Vec::new(),
+    };
+    if args.len() < min_args || arg_tokens.len() < min_args {
         return Vec::new();
     }
     let str_tok = &arg_tokens[1];
@@ -137,13 +212,24 @@ pub(crate) fn string_index_diagnostics(
         i64::try_from(str_text.chars().count()).ok()
     };
 
-    let idx_text = &args[2];
-    let idx_tok = &arg_tokens[2];
+    if sub == "index" || sub == "insert" {
+        return string_single_index(sub, args, arg_tokens, str_len);
+    }
+    string_pair_index(sub, args, arg_tokens, str_len)
+}
+
+/// The single-index `string index` / `string insert` arm of W232.
+fn string_single_index(
+    sub: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    str_len: Option<i64>,
+) -> Vec<Diagnostic> {
+    let (idx_text, idx_tok) = (&args[2], &arg_tokens[2]);
     if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text) {
         return Vec::new();
     }
     let stripped = idx_text.trim();
-
     // A plain negative literal is always invalid.
     if let Some(n) = parse_strict_int(stripped) {
         if n < 0 {
@@ -151,31 +237,114 @@ pub(crate) fn string_index_diagnostics(
                 code: "W232".to_string(),
                 span: idx_tok.span,
                 message: format!(
-                    "string index: index '{stripped}' is negative; result is empty or a no-op."
+                    "string {sub}: index '{stripped}' is negative; result is empty or a no-op."
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
             }];
         }
     }
-    if let Some(len) = str_len {
-        if let Some(resolved) = resolve_index(stripped, len) {
-            if !(0..len).contains(&resolved) {
-                return vec![Diagnostic {
-                    code: "W232".to_string(),
-                    span: idx_tok.span,
-                    message: format!(
-                        "string index: '{stripped}' resolves to {resolved} (string has {len} \
-                         character{})",
-                        if len == 1 { "" } else { "s" }
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                }];
+    // `string insert` clamps other overshoots; only `string index`
+    // flags an in-bounds miss.
+    if sub == "index" {
+        if let Some(len) = str_len {
+            if let Some(resolved) = resolve_index(stripped, len) {
+                if !(0..len).contains(&resolved) {
+                    return vec![Diagnostic {
+                        code: "W232".to_string(),
+                        span: idx_tok.span,
+                        message: format!(
+                            "string index: '{stripped}' {}; returns empty string.",
+                            describe_index_string(resolved, len)
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    }];
+                }
             }
         }
     }
     Vec::new()
+}
+
+/// The `string range` / `string replace` `(first, last)` arm of W232.
+fn string_pair_index(
+    sub: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    str_len: Option<i64>,
+) -> Vec<Diagnostic> {
+    let (first_text, last_text) = (&args[2], &args[3]);
+    let (first_tok, last_tok) = (&arg_tokens[2], &arg_tokens[3]);
+    if has_subst(first_text, first_tok)
+        || !is_literal_index(first_text)
+        || has_subst(last_text, last_tok)
+        || !is_literal_index(last_text)
+    {
+        return Vec::new();
+    }
+    let verb = if sub == "range" {
+        "slice is empty"
+    } else {
+        "replace is a no-op"
+    };
+    let span = tcl_lexer::Span::new(first_tok.span.start(), last_tok.span.end());
+
+    // Both plain negative literals → always empty, even for a dynamic
+    // string.
+    if let (Some(f), Some(l)) = (
+        parse_strict_int(first_text.trim()),
+        parse_strict_int(last_text.trim()),
+    ) {
+        if f < 0 && l < 0 {
+            return vec![Diagnostic {
+                code: "W232".to_string(),
+                span,
+                message: format!(
+                    "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
+                     {verb}."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            }];
+        }
+    }
+    let Some(len) = str_len else {
+        return Vec::new();
+    };
+    let (Some(first_val), Some(last_val)) = (
+        resolve_index(first_text, len),
+        resolve_index(last_text, len),
+    ) else {
+        return Vec::new();
+    };
+    if !pair_slice_empty(first_val, last_val, len) {
+        return Vec::new();
+    }
+    vec![Diagnostic {
+        code: "W232".to_string(),
+        span,
+        message: format!(
+            "string {sub}: {verb}: first='{first_text}' resolves to {first_val}, \
+             last='{last_text}' resolves to {last_val} (string has {len} character{}).",
+            if len == 1 { "" } else { "s" }
+        ),
+        severity: Severity::Warning,
+        fixes: Vec::new(),
+    }]
+}
+
+/// Human-readable description of a resolved out-of-range string index.
+/// Mirrors `_describe_index_string`.
+fn describe_index_string(resolved: i64, length: i64) -> String {
+    if resolved < 0 {
+        format!("resolves to {resolved} (before start of string)")
+    } else {
+        format!(
+            "resolves to {resolved} (string has {length} character{})",
+            if length == 1 { "" } else { "s" }
+        )
+    }
 }
 
 /// Token is a literal word (braced string or plain word).  Mirrors
@@ -363,6 +532,32 @@ mod tests {
         assert_eq!(idx_codes("string index abc -1\n"), vec!["W232"]);
         assert!(idx_codes("string index abc 1\n").is_empty());
         assert!(idx_codes("string index abc end\n").is_empty());
+    }
+
+    #[test]
+    fn w230_lrange_lreplace_empty_slice() {
+        assert_eq!(idx_codes("lrange {a b c} 5 7\n"), vec!["W230"]);
+        assert_eq!(idx_codes("lrange {a b c} -3 -1\n"), vec!["W230"]);
+        assert_eq!(idx_codes("lrange {a b c} 2 0\n"), vec!["W230"]); // clamped first>last
+        assert_eq!(idx_codes("lreplace {a b c} 5 7 X\n"), vec!["W230"]);
+        assert!(idx_codes("lrange {a b c} 0 1\n").is_empty());
+    }
+
+    #[test]
+    fn w232_string_range_replace_empty_slice() {
+        assert_eq!(idx_codes("string range abc 5 7\n"), vec!["W232"]);
+        assert_eq!(idx_codes("string range abc -3 -1\n"), vec!["W232"]);
+        assert_eq!(idx_codes("string replace abc 5 7 X\n"), vec!["W232"]);
+        assert!(idx_codes("string range abc 0 1\n").is_empty());
+    }
+
+    #[test]
+    fn pair_slice_empty_logic() {
+        assert!(super::pair_slice_empty(5, 7, 3)); // both above
+        assert!(super::pair_slice_empty(-3, -1, 3)); // both below
+        assert!(super::pair_slice_empty(2, 0, 3)); // clamped first>last
+        assert!(super::pair_slice_empty(0, 0, 0)); // empty container
+        assert!(!super::pair_slice_empty(0, 1, 3)); // valid
     }
 
     #[test]
