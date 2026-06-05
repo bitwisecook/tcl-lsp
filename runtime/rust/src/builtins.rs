@@ -92,7 +92,75 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- incr ------------------------------------------------------------------
 
-/// `incr varName ?increment?` — add (default 1), storing and returning the sum.
+/// `incr varName ?increment?` — add (default 1) over the **numeric tower**,
+/// storing and returning the sum. Both operands must be integers; the sum
+/// promotes to a bignum on overflow (Tcl integers never wrap) and an existing
+/// bignum cell increments correctly. Object-preserving (reads the cell's value
+/// object, not its string).
+#[cfg(have_tommath)]
+fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 || argv.len() > 3 {
+        return wrong_args(interp, b"incr varName ?increment?");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = split_array_ref(&name);
+
+    // Current cell value (borrowed) or a fresh 0 for an unset variable; the
+    // fresh-0 is `rc 0` and freed below whether or not it's used.
+    let existing = match &elem {
+        Some(k) => interp.frames.get_elem(&base, k),
+        None => interp.frames.get(&base),
+    };
+    let zero = obj::new_wide_int_obj(0);
+    let cur = existing.unwrap_or(zero);
+    if !crate::bignum::is_integer(cur) {
+        let bytes = obj_bytes(cur);
+        drop_fresh(zero);
+        return not_integer(interp, &bytes);
+    }
+
+    // Increment object: `argv[2]` (borrowed) or a fresh 1 (freed below).
+    let one = obj::new_wide_int_obj(1);
+    let amount = if argv.len() == 3 { argv[2] } else { one };
+    if !crate::bignum::is_integer(amount) {
+        let bytes = obj_bytes(amount);
+        drop_fresh(zero);
+        drop_fresh(one);
+        return not_integer(interp, &bytes);
+    }
+
+    // Both integers → integer sum (wide fast path; bignum on overflow; the
+    // result demotes back to a wide when it fits).
+    let sum = match crate::bignum::add(cur, amount) {
+        Ok(s) => s, // rc 0
+        Err(_) => {
+            drop_fresh(zero);
+            drop_fresh(one);
+            return interp.set_error(b"out of memory");
+        }
+    };
+    drop_fresh(zero); // `cur` no longer needed
+    drop_fresh(one); // `amount` no longer needed
+
+    let stored = match &elem {
+        Some(k) => interp.frames.set_elem(&base, k, sum),
+        None => interp.frames.set(&base, sum),
+    };
+    match stored {
+        Ok(()) => {
+            interp.set_result(sum);
+            Code::Ok
+        }
+        Err(e) => {
+            drop_fresh(sum);
+            var_error(interp, &name, e)
+        }
+    }
+}
+
+/// `incr` fallback for a build without the bignum tower (`have_tommath` off):
+/// `i64` only, failing loudly on overflow rather than wrapping.
+#[cfg(not(have_tommath))]
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return wrong_args(interp, b"incr varName ?increment?");
@@ -116,15 +184,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         1
     };
-
-    // Tcl integers NEVER wrap: on overflow they promote to bignum. Until the
-    // numeric tower lands, fail loudly rather than return a silently-wrong wrap
-    // (the low-O()/no-silent-wrong tenet; Zig "numeric tower" lesson).
     let sum = match cur.checked_add(amount) {
         Some(s) => s,
-        None => {
-            return interp.set_error(b"integer overflow (bignum promotion not yet implemented)")
-        }
+        None => return interp.set_error(b"integer overflow (bignum promotion needs the tower)"),
     };
     let obj = obj::new_wide_int_obj(sum); // rc 0
     let stored = match &elem {
@@ -143,6 +205,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+#[cfg(not(have_tommath))]
 fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
     let obj = match elem {
         Some(k) => interp.frames.get_elem(base, k),
@@ -198,9 +261,9 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- helpers ---------------------------------------------------------------
 
-/// Minimal Tcl integer parse: optional surrounding whitespace, optional sign,
-/// decimal or `0x` hex. (Full `Tcl_GetIntFromObj` — octal/binary, bignum,
-/// underscores — arrives with the numeric value type in T1.5.)
+/// Minimal Tcl integer parse for the no-tower `incr` fallback (the tower build
+/// reads operands through `tcl_syntax::number` via `bignum`).
+#[cfg(not(have_tommath))]
 fn parse_i64(bytes: &[u8]) -> Option<i64> {
     let s = bytes;
     let mut i = 0;

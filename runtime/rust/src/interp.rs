@@ -494,6 +494,27 @@ mod tests {
         });
     }
 
+    #[cfg(have_tommath)]
+    #[test]
+    fn incr_promotes_to_bignum() {
+        leak_free(|i| {
+            // incr starts at 0 for an unset var
+            assert_eq!(i.eval_str(b"incr n"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // incr past a wide promotes to a bignum (never wraps)
+            assert_eq!(i.eval_str(b"set big 9223372036854775807"), Code::Ok); // i64::MAX
+            assert_eq!(i.eval_str(b"incr big"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9223372036854775808");
+            // incrementing a bignum cell keeps working, and demotes when it fits
+            assert_eq!(i.eval_str(b"incr big -1"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9223372036854775807");
+            // a non-integer value is rejected verbatim
+            assert_eq!(i.eval_str(b"set f 1.5"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr f"), Code::Error);
+            assert_eq!(i.result_bytes(), b"expected integer but got \"1.5\"");
+        });
+    }
+
     #[test]
     fn array_element_via_set_and_subst() {
         leak_free(|i| {

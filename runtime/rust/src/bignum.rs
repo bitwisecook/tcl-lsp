@@ -433,6 +433,13 @@ fn mp_floor_divmod(a: &Mp, b: &Mp) -> Result<(Mp, Mp), ArithError> {
 }
 
 /// Numeric three-way comparison over the tower (for `< > <= >= == !=`). `None`
+/// Whether `obj` reads as an integer (a wide or a bignum, not a float or a
+/// non-number) — the `incr` / bit-op operand check.
+#[must_use]
+pub fn is_integer(obj: *mut TclObj) -> bool {
+    matches!(read(obj), Some(NumVal::Wide(_) | NumVal::Big(_)))
+}
+
 /// on a non-numeric operand (NaN compares as the IEEE result via `f64`).
 #[must_use]
 pub fn compare(a: *mut TclObj, b: *mut TclObj) -> Option<core::cmp::Ordering> {
