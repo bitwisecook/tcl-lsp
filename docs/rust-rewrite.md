@@ -4226,6 +4226,30 @@ field so the precise E200 suffix and stolen-brace routing match.
 (now corrected) had called this a "single edge case" handled by the
 Python fallback.
 
+**LANDED (strip 1 — E201 detectors, 2026-06-05).**  The user-facing E201
+diagnostic (unterminated `[` command substitution → "missing
+close-bracket") is ported into `analyser/syntax_checks.rs::
+unterminated_bracket_diagnostics`, wired into the `Analyser::analyse`
+loop alongside the E100 / E102 stray-closer checks (via the new
+`emit_syntax_recovery_diagnostics` helper).  An unterminated `Cmd` token
+(`is_unterminated_cmd` — no `]` at the token's inner end) picks where the
+`]` belongs in priority order — before a `#` comment line
+(`e201_at_comment`), before a known-command line (`e201_at_command` —
+needs the registry), or before a `{` (`e201_at_brace`) — else anchors at
+the bare `[` with no fix; the heuristic forms attach a `]`-insertion
+`CodeFix` whose description (`before comment` / `before command` /
+`before '{'`) is byte-identical to Python.  Verified against the live
+Python analyser (EOF fallback; comment / brace heuristics with fixes);
+3 unit tests.  **Remaining strips:** (2) the at-known-command case where
+the Rust **recovery** segmenter splits at the next command and emits E200
+before the detector sees the full token — closing this needs the
+ghost-token re-lex so the split produces a clean stream (and suppresses
+the E200), which is also (3) the `virtual_insertions` lexer engine +
+`compute_virtual_insertions` recovery module; (4) the E202 / E203
+detectors (conservative, rarely fire in the live pipeline) and the
+E204 / E205 / E206 lexer-warning codes; (5) the `SegmentedCommand.
+partial_delimiter` field.
+
 **GAP-A2 — `core/analysis/checks/_security.py` — 8 of 9 security checks
 absent.**  Only W101 (`eval` string-concat) is ported (`diagnostics.rs`).
 Absent (all verified with zero `rust/` emitter): **W102** subst injection

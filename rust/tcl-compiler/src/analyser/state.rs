@@ -409,14 +409,7 @@ impl Analyser {
             // unreported.  (Top-level only for now — nested body
             // recursion is a follow-up, mirroring how Python runs the
             // check on every analysed body.)
-            {
-                let diags = super::syntax_checks::stray_closer_diagnostics(
-                    cmd_ref,
-                    &self.source,
-                    self.registry.as_ref(),
-                );
-                self.result.diagnostics.extend(diags);
-            }
+            self.emit_syntax_recovery_diagnostics(cmd_ref);
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
@@ -480,6 +473,25 @@ impl Analyser {
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
         result
+    }
+
+    /// Emit the source-recovery syntax diagnostics for one command's
+    /// token stream: E100 / E102 stray closers (GAP-A6) and E201
+    /// unterminated `[` command substitutions (GAP-A1), run on the
+    /// original (pre-recovery) tokens.
+    fn emit_syntax_recovery_diagnostics(&mut self, cmd: &crate::segmenter::SegmentedCommand) {
+        let stray = super::syntax_checks::stray_closer_diagnostics(
+            cmd,
+            &self.source,
+            self.registry.as_ref(),
+        );
+        self.result.diagnostics.extend(stray);
+        let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
+            cmd,
+            &self.source,
+            self.registry.as_ref(),
+        );
+        self.result.diagnostics.extend(e201);
     }
 
     /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
