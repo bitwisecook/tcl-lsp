@@ -34,6 +34,7 @@ pub mod capi;
 pub mod counters;
 pub mod frame;
 pub mod interp;
+pub mod list;
 pub mod obj;
 pub mod parse;
 pub mod subst;

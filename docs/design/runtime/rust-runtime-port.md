@@ -1,5 +1,11 @@
 # Rust runtime port — productionising C-Tcl-extension-to-WASM
 
+> **Based on `rust`@`8150eca`** (#549, the spike merge) — the commit this entire
+> WASM runtime port is built on. Every Rust module mirrors its Zig/C sources
+> *as of this hash*; the [upstream sync log](#upstream-sync-log-zig--rust) diffs
+> `runtime/zig/` against it. **Update this hash (and re-baseline the sync log)
+> only on a deliberate rebase onto a newer `rust`.**
+
 Status: **bootstrapping.** The end-to-end mechanism (compile an unmodified C
 Tcl extension to WASM and link it against our runtime + compiled user code,
 API-not-ABI) is proven by the three throwaway spikes under
@@ -382,7 +388,7 @@ any row.
 | Zig module | Files (lines) | Role | Rust target | Status | Gate that proves it |
 |---|---|---|---|---|---|
 | `valtypes/tcl_obj.zig` | 1 (1104) | `Tcl_Obj` model, refcount, shimmer | `runtime/rust/` obj core | **partial** (T1.1) | `make runtime-rust-test` — `round_trip_zero_residual` leaves zero residual under the alloc/free counters |
-| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | not-started | per-type unit tests mirror `runtime/zig/test_tcl_*.zig`; tcltest sweep no-regress; **+ a representation-decision note per structure** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
+| `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** type, T1.6) | `make runtime-rust-test` — list build/index/length/append/shimmer leak-checked; dict/string/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3: frames + var store) | `make runtime-rust-test` — frame/var leak-checked round-trips (scalar/array/upvar/global); ns/procs/catch follow |
@@ -893,6 +899,14 @@ it in the same or a follow-up PR.
   recursive `[cmd]` eval) rather than the closure API; **no deferred-free
   queue** (immediate `TclFreeObj` + retain-into-result). Behaviour-diffed going
   forward.
+- `runtime/rust/src/list.rs` + the typed-internal-rep machinery in `obj.rs`
+  (T1.6) mirror `runtime/zig/valtypes/tcl_list*.zig` for **semantics**,
+  cross-checked against `tclListObj.c` (the `List` array backing, the
+  `Tcl_ConvertElement` quoting). **Structural choice:** `Tcl_ObjType` carries
+  real free/dup/update-string fn-pointer procs dispatched via `typePtr` (the
+  shimmer keystone, also the path extension custom types take), and the list
+  backing is `Vec<*mut TclObj>` (the contiguous array the ABI forces) hung off
+  `internalRep`. Behaviour-diffed going forward.
 
 ### Outstanding
 
@@ -939,18 +953,22 @@ compiler/LSP or the Zig runtime.
    scalar/array/upvar/global, leak-checked; closed subst's variable half).
 6. ✅ **T1.4** — eval loop + command table + dispatch (`interp.rs`/`builtins.rs`:
    parse→subst→dispatch, `{*}`, completion codes, starter builtins; **closed
-   subst's command half**; no deferred-free queue needed). **Next: T1.5/T1.6** —
-   namespaces (the ns tree) and the builtin surface (each value-type chunk with
-   its representation-decision note); procs + the proc-call frame path.
-7. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+   subst's command half**; no deferred-free queue needed).
+7. ◐ **T1.6 (value types)** — the obj **typed-internal-rep machinery**
+   (free/dup/update-string via `typePtr` — the shimmer keystone + the custom-
+   `Tcl_ObjType` path) + the **list** type (`list.rs`: `Vec<*mut TclObj>`
+   backing, shimmer, leak-checked) landed. **Next:** list *commands*
+   (`list`/`llength`/`lindex`/`lappend`/`lrange`/…), then dict/string value
+   types, `proc` + the proc-call frame path, and **T1.5 namespaces**.
+8. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
    bound to the editor command registry; `NoEmitImpl` error for unimplemented
    commands (the codegen-side single-source-of-truth that all later AOT work
    builds on).
-8. **T2.3** (de-risk against Zig first) — production loader, validated on
+9. **T2.3** (de-risk against Zig first) — production loader, validated on
    Tier 0 dltest, separating loader risk from port risk.
-9. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
-   harness (seeds the scoreboard).
-10. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+10. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+    harness (seeds the scoreboard).
+11. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 
@@ -958,6 +976,11 @@ compiler/LSP or the Zig runtime.
 
 - Keep **this doc and `c-extension-abi.md` current every PR** (flip §13 items
   as they land; log every upstream Zig sync).
+- **Always record the base git hash** the port is built on — the banner at the
+  top of this doc (`rust`@`8150eca` today) and the sync-log anchor. Every Rust
+  module's doc comment / the sync log states which Zig+C sources it mirrors *as
+  of that hash*. On a deliberate rebase onto a newer `rust`, bump the hash here
+  and open a fresh SYNC family.
 - **Re-derive every data structure** via the three-step method above
   (investigate the commands/subcommands → run WASM-compiled experiments →
   reason through C-extension ABI support); never transliterate a representation

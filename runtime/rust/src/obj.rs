@@ -38,38 +38,65 @@ pub type TclSize = isize;
 /// `Tcl_WideInt` — always 64-bit.
 pub type TclWideInt = i64;
 
-/// `Tcl_ObjType` — the registered type descriptor (`tcl.h`). For T1.1 only the
-/// `name` is load-bearing (so `typePtr` discriminates int/double/string and a
-/// future `Tcl_GetObjType` can find it); the four procs are filled in when
-/// custom `Tcl_ObjType` registration lands (Track 2).
+/// `Tcl_ObjType` — the registered type descriptor (`tcl.h`). The four procs are
+/// the **shimmer keystone** (`rust-runtime-port.md` value-kinds): the runtime
+/// dispatches free / dup / string-generation through `typePtr`, so built-in
+/// types (int, double, list, …) and extension-registered custom types share one
+/// mechanism — type handling is open, never a closed enum (the §6/Track-2
+/// custom-`Tcl_ObjType` requirement). Signatures match `tcl.h` so an extension's
+/// `Tcl_ObjType` slots in unchanged.
+pub type FreeInternalRepProc = extern "C" fn(*mut TclObj);
+pub type DupInternalRepProc = extern "C" fn(*mut TclObj, *mut TclObj);
+pub type UpdateStringProc = extern "C" fn(*mut TclObj);
+pub type SetFromAnyProc = extern "C" fn(*mut c_void, *mut TclObj) -> core::ffi::c_int;
+
 #[repr(C)]
 pub struct TclObjType {
     pub name: *const c_char,
-    pub free_int_rep_proc: *const c_void,
-    pub dup_int_rep_proc: *const c_void,
-    pub update_string_proc: *const c_void,
-    pub set_from_any_proc: *const c_void,
+    pub free_int_rep_proc: Option<FreeInternalRepProc>,
+    pub dup_int_rep_proc: Option<DupInternalRepProc>,
+    pub update_string_proc: Option<UpdateStringProc>,
+    pub set_from_any_proc: Option<SetFromAnyProc>,
 }
 
 // SAFETY: these are immortal `'static` descriptors; the raw `name` pointer is
 // to a `'static` NUL-terminated byte string. They are read-only and shared.
 unsafe impl Sync for TclObjType {}
 
-const fn obj_type(name: &'static [u8]) -> TclObjType {
-    TclObjType {
-        name: name.as_ptr() as *const c_char,
-        free_int_rep_proc: core::ptr::null(),
-        dup_int_rep_proc: core::ptr::null(),
-        update_string_proc: core::ptr::null(),
-        set_from_any_proc: core::ptr::null(),
+/// The `int` (wide) type descriptor. `typePtr == &TCL_INT_TYPE` ⇒ the value is
+/// in `internal_rep` as a `TclWideInt`; `bytes` may be null until shimmered.
+pub static TCL_INT_TYPE: TclObjType = TclObjType {
+    name: c"int".as_ptr(),
+    free_int_rep_proc: None, // an int rep owns nothing
+    dup_int_rep_proc: None,  // the i64 is copied with the header
+    update_string_proc: Some(int_update_string),
+    set_from_any_proc: None,
+};
+/// The `double` type descriptor.
+pub static TCL_DOUBLE_TYPE: TclObjType = TclObjType {
+    name: c"double".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(double_update_string),
+    set_from_any_proc: None,
+};
+
+extern "C" fn int_update_string(obj: *mut TclObj) {
+    // SAFETY: `obj` is a live int object whose string rep needs generating.
+    unsafe {
+        let s = itoa((*obj).wide());
+        set_owned_string(obj, s.as_ptr(), s.len());
     }
 }
 
-/// The `int` (wide) type descriptor. `typePtr == &TCL_INT_TYPE` ⇒ the value is
-/// in `internal_rep` as a `TclWideInt`; `bytes` may be null until shimmered.
-pub static TCL_INT_TYPE: TclObjType = obj_type(b"int\0");
-/// The `double` type descriptor.
-pub static TCL_DOUBLE_TYPE: TclObjType = obj_type(b"double\0");
+extern "C" fn double_update_string(obj: *mut TclObj) {
+    // SAFETY: `obj` is a live double object. Tcl-faithful `%.17g`-style
+    // formatting lands with the numeric value type (T1.6); this is a placeholder.
+    unsafe {
+        let s = format!("{}", (*obj).double());
+        set_owned_string(obj, s.as_ptr(), s.len());
+    }
+}
 
 /// `Tcl_Obj` — ABI-faithful to `tcl.h` (§4.2). `internal_rep` models the
 /// 8-byte `Tcl_ObjInternalRep` union; core-API extensions never touch its
@@ -138,10 +165,98 @@ unsafe fn obj_free(obj: *mut TclObj) {
     }
     // SAFETY: caller guarantees `obj` is a live, uniquely-owned header.
     unsafe {
+        // Dispatch the type's free-internal-rep proc (releases list elements,
+        // frees the list/dict backing, runs an extension's freeIntRepProc, …).
+        let tp = (*obj).type_ptr;
+        if !tp.is_null() {
+            if let Some(free) = (*tp).free_int_rep_proc {
+                free(obj);
+            }
+        }
         free_string_buffer(obj);
         dealloc(obj as *mut u8, obj_layout());
     }
     counters::obj_freed();
+}
+
+// ---------------------------------------------------------------------------
+// Typed internal-rep helpers — the shimmer keystone's plumbing, used by the
+// value-type modules (`list`, future `dict`, …). pub(crate): internal only.
+// ---------------------------------------------------------------------------
+
+/// Allocate a fresh (`rc 0`) object with a typed internal rep and no string rep.
+pub(crate) fn alloc_typed(type_ptr: *const TclObjType, internal_rep: u64) -> *mut TclObj {
+    let obj = obj_alloc();
+    if obj.is_null() {
+        return obj;
+    }
+    // SAFETY: `obj` is a freshly owned header.
+    unsafe {
+        (*obj).type_ptr = type_ptr;
+        (*obj).internal_rep = internal_rep;
+    }
+    obj
+}
+
+/// Read the raw 8-byte internal rep (a value type stores its backing pointer here).
+pub(crate) fn internal_rep(obj: *mut TclObj) -> u64 {
+    // SAFETY: `obj` is a live object.
+    unsafe { (*obj).internal_rep }
+}
+
+/// `obj`'s current type descriptor (null for a plain string).
+pub(crate) fn obj_type_ptr(obj: *mut TclObj) -> *const TclObjType {
+    // SAFETY: `obj` is a live object.
+    unsafe { (*obj).type_ptr }
+}
+
+/// Shimmer `obj` to a new type: free the **old** internal rep (its proc), then
+/// install `new_type` + `new_rep`. The string rep is left intact (Tcl keeps it
+/// across a string→typed shimmer; a typed→string mutation invalidates it via
+/// [`invalidate_string`]).
+pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep: u64) {
+    // SAFETY: `obj` is live; we free the prior typed rep before overwriting it.
+    unsafe {
+        let old = (*obj).type_ptr;
+        if !old.is_null() {
+            if let Some(free) = (*old).free_int_rep_proc {
+                free(obj);
+            }
+        }
+        (*obj).type_ptr = new_type;
+        (*obj).internal_rep = new_rep;
+    }
+}
+
+/// Invalidate the string rep (drop the buffer) so it regenerates via the type's
+/// `update_string_proc` on the next read — call after mutating a typed rep.
+pub(crate) fn invalidate_string(obj: *mut TclObj) {
+    // SAFETY: `obj` is live; dropping its owned buffer is sound (it will be
+    // regenerated lazily).
+    unsafe { free_string_buffer(obj) }
+}
+
+/// Set `obj`'s string rep to a copy of `bytes` (for `update_string_proc` impls).
+///
+/// # Safety
+/// `obj` must be live.
+pub(crate) unsafe fn set_string_rep(obj: *mut TclObj, bytes: &[u8]) {
+    // SAFETY: forwarded — `obj` live, slice readable.
+    unsafe { set_owned_string(obj, bytes.as_ptr(), bytes.len()) }
+}
+
+/// Copy `obj`'s string rep (shimmering via `update_string_proc` if needed).
+pub(crate) fn bytes_of(obj: *mut TclObj) -> Vec<u8> {
+    // SAFETY: `obj` is a live object; `get_string` returns a borrowed pointer
+    // into its (possibly just-generated) string rep, copied immediately.
+    unsafe {
+        let mut len: TclSize = 0;
+        let p = get_string(obj, &mut len);
+        if p.is_null() {
+            return Vec::new();
+        }
+        core::slice::from_raw_parts(p as *const u8, len as usize).to_vec()
+    }
 }
 
 /// Allocate an owned, NUL-terminated buffer holding `src[..len]` and attach it
@@ -240,6 +355,13 @@ pub unsafe fn new_string_obj(bytes: *const c_char, length: TclSize) -> *mut TclO
     obj
 }
 
+/// A fresh (`rc 0`) string object holding `bytes` (the internal byte-slice
+/// constructor the value-type modules use).
+pub(crate) fn new_string_bytes(bytes: &[u8]) -> *mut TclObj {
+    // SAFETY: `bytes` is a valid readable slice.
+    unsafe { new_string_obj(bytes.as_ptr() as *const c_char, bytes.len() as TclSize) }
+}
+
 /// `Tcl_NewWideIntObj` — pure int obj (no string rep yet). `fresh_zero`.
 pub fn new_wide_int_obj(value: TclWideInt) -> *mut TclObj {
     let obj = obj_alloc();
@@ -336,16 +458,16 @@ pub unsafe fn get_string(obj: *mut TclObj, length_out: *mut TclSize) -> *mut c_c
     // shimmer write.
     unsafe {
         if (*obj).bytes.is_null() {
-            // Generate the string rep from the internal rep.
-            if (*obj).type_ptr == &TCL_INT_TYPE {
-                let s = itoa((*obj).wide());
-                set_owned_string(obj, s.as_ptr(), s.len());
-            } else if (*obj).type_ptr == &TCL_DOUBLE_TYPE {
-                // T1.1 placeholder formatting — Tcl-faithful %.17g-style double
-                // string generation lands with the string-ops port (T1.5).
-                let s = format!("{}", (*obj).double());
-                set_owned_string(obj, s.as_ptr(), s.len());
-            } else {
+            // Generate the string rep via the type's update_string_proc (int,
+            // double, list, an extension's custom type, …). A typed obj with no
+            // proc, or an untyped obj, gets the empty string rep.
+            let tp = (*obj).type_ptr;
+            if !tp.is_null() {
+                if let Some(update) = (*tp).update_string_proc {
+                    update(obj);
+                }
+            }
+            if (*obj).bytes.is_null() {
                 set_owned_string(obj, core::ptr::null(), 0);
             }
         }
