@@ -231,6 +231,40 @@ observe through the public C API (`c-extension-abi.md` §4, `tcl.h`). This often
   generated on demand) constrain mutation: an unshared (`refCount == 1`) value
   may mutate in place; a shared one must copy. The structure must support both.
 
+#### The shim escape-hatch — decouple the internal rep from the ABI view
+
+The ABI constrains the **boundary behaviour**, not necessarily the **internal**
+representation. Where there are **big gains to be had**, the runtime may use a
+different (better) data structure or algorithm internally — optimised for the
+hot AOT-compiled paths — and provide a **shim that materialises the
+ABI-expected view on demand** when an extension crosses the boundary. The
+internal/dual-rep machinery already does exactly this for strings (lazy string
+rep); the same pattern generalises to other types when it pays.
+
+Whether a surface is shimmable depends on **how the extension observes it**:
+
+- **Function-mediated surfaces are shimmable.** When the extension only ever
+  reaches the data through C-API calls (`Tcl_ListObjGetElements`,
+  `Tcl_DictObjGet`/`First`/`Next`, the `Tcl_Get*FromObj` accessors), the runtime
+  can keep a smarter internal rep and **lazily build the ABI view inside the
+  call** (e.g. materialise the contiguous `Tcl_Obj**` only when
+  `Tcl_ListObjGetElements` is actually called, and cache it on the obj until the
+  next mutation). The internal rep wins on the hot path; the shim cost is paid
+  only at the (often rare) boundary crossing.
+- **By-value / direct-layout surfaces are *not* shimmable** (or only by keeping
+  the layout). When the extension embeds the struct **by value** and reads its
+  raw memory — `Tcl_HashTable` walked via `Tcl_HashEntry.nextPtr`, or
+  `objPtr->bytes` dereferenced directly — there is no call to interpose on, so
+  the layout itself is the contract and must be honoured (a nominal/faithful
+  struct, §6/§11). A shim cannot help here.
+
+Decide with the same evidence as everything else: the gain is only real if the
+internal-rep speedup on the hot path (step 2's WASM numbers) **exceeds the
+shim's materialisation cost amortised over the boundary-crossing frequency**
+(step 1's op-profile — how often extension code actually touches this value).
+Record a shimmed type's two reps and the materialise-on-demand contract in its
+representation-decision note.
+
 ### The value kinds to reason through (and their two relationships)
 
 Work through **every** value kind below. Each has a representation question and
