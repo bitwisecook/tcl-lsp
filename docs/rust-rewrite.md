@@ -4925,9 +4925,10 @@ new path from disk).  `build_server_capabilities` now advertises
 `**/*.{tcl,tm,itcl,irule,irul}` glob (`file` scheme), matching the Python
 `_RENAME_FILE_OPERATION_OPTIONS`.  4 core unit tests + 3 server handler
 tests (relative + absolute rewrite, no-dependent → `None`, didRename
-reindex).  **Remaining GAP-A9:** the iRules event snippet templates, the
-`package_suggestions` fuzzy catalogue (registry-gated), and the
-`irules_context` enrichment (folds into GAP-C5).
+reindex).  **GAP-A9 update:** the iRules event snippet templates, the
+`package_suggestions` fuzzy catalogue, and the snippet-completion half of
+the `irules_context` enrichment have since landed (see the LANDED notes
+below); GAP-A9's remainder folds into GAP-C5.
 
 **LANDED (completion provenance detail — `required_package`, 2026-06-09).**
 Now the merged registry populates `required_package` (369 specs) and
@@ -4965,11 +4966,41 @@ suppresses event templates inside an enclosing `when` block.
 `completion::completions` now takes a `dialect: &str` (threaded from the
 document's dialect by the server) so iRules templates surface only in
 `f5-irules`.  6 snippet unit tests (dialect gating, decline-on-declared,
-top-level guard, collect/release split).  **Deferred:** extracting the
-real `current_event` / `file_events` from the analysis (v1 treats every
-position as top level with no declared events) — a follow-up.  Remaining
-GAP-A9 providers: `package_suggestions` fuzzy catalogue (registry-gated)
-and `irules_context` enrichment (folds into GAP-C5).
+top-level guard, collect/release split).
+
+**LANDED (iRules `when`-context for snippet completion — GAP-A9, 2026-06-06).**
+The `current_event` / `file_events` that the snippet templates above
+consumed as v1 stubs (`None` / `&[]`) are now real, supplied by a new
+`tcl-lsp-core/src/irules_context.rs` — a port of
+`irules_context.py::find_enclosing_when_event` +
+`namespace_data.py::scan_file_events`.  `find_enclosing_when_event(source,
+line, dialect)` segments the source and descends only into `when` bodies
+(mirroring Python's `_scan_when_context`) to return the innermost
+enclosing `when EVENT` whose braced body's line range contains the cursor
+(uppercased; the body word is the first `Str` arg token, barewords being
+`Esc`).  `scan_file_events(source, dialect)` walks the segmenter into
+*every* braced word — collecting all `when EVENT` at any nesting (sorted,
+deduped).  `completions` now calls both (only for the `f5-irules` dialect,
+so plain Tcl skips the extra segmentation) and feeds the result to the
+snippet context, so the top-level guard and duplicate-event decline fire
+on the real document.  **Two documented divergences:** the conf-wrapped
+`embedded_rules` mode isn't modelled (Rust analyses the raw iRule body);
+and `scan_file_events` is segmenter-driven rather than Python's
+`\bwhen\s+…` regex (the project never parses Tcl with regex) — both find
+`when` at any brace nesting, differing only on the literal text `when X`
+in a non-command position, which the parse-accurate walk correctly skips.
+8 `irules_context` unit tests + 4 end-to-end completion tests (surface at
+top level, decline declared event, suppress inside `when` body, hidden in
+plain Tcl).  This is the completion half of the `irules_context`
+enrichment; the **hover** "Valid events" / event-ordering list and the
+event-aware command *ranking* (`_event_bucket`) remain under GAP-C5.
+
+**GAP-A9 status:** the `package_suggestions` fuzzy `package require`
+catalogue is **already landed** (`code_actions.rs::package_require_actions`
++ `rank_package_suggestions` + `package_catalogue`, wired into the
+server's `code_action` handler) — the earlier "remaining" note was stale.
+What is left of GAP-A9 folds entirely into GAP-C5 (hover event enrichment
++ event-aware completion ranking).
 
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
@@ -5357,7 +5388,14 @@ enumeration (`completion.py:223,263`) is acknowledged-deferred in Rust
 return-value — a registry-data richness loss across the brief-constructed
 spec corpus.  **Fix:** port the event-list / ordering hover, the RULE_INIT
 enumeration, and populate the `brief()`-dropped fields where the spec
-carries them.
+carries them.  **Partially landed (2026-06-06):** the `irules_context`
+`when`-context detection (`find_enclosing_when_event` / `scan_file_events`)
+now exists in `tcl-lsp-core/src/irules_context.rs` and drives the
+snippet-completion `current_event` / `file_events` (see the GAP-A9 LANDED
+note).  Still open here: the **hover** "Valid events" / event-ordering list,
+the cross-file RULE_INIT / `static::` enumeration, the event-aware command
+*ranking* (`_event_bucket` / `commands_for_event`), and the `brief()`
+field loss.
 
 ### D. Registry data-model gaps (`CommandSpec` fields with no Rust field)
 

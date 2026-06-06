@@ -256,18 +256,24 @@ pub fn completions(
     let scope_vars: Vec<String> = analysis.global_scope.variables.keys().cloned().collect();
     let snippet_partial = snippet_partial_at_position(source, line, character);
     // `current_event` / `file_events` drive the iRules event templates'
-    // top-level guard and duplicate-event decline.  Extracting them from
-    // the analysis (the enclosing `when` block and every declared event)
-    // is a follow-up; v1 treats every position as top level with no
-    // declared events, so all dialect-appropriate templates are offered.
+    // top-level guard and duplicate-event decline.  Only `f5-irules`
+    // carries those templates, so skip the segmentation otherwise.
+    let (current_event, file_events) = if dialect == "f5-irules" {
+        (
+            crate::irules_context::find_enclosing_when_event(source, line, dialect),
+            crate::irules_context::scan_file_events(source, dialect),
+        )
+    } else {
+        (None, Vec::new())
+    };
     items.extend(crate::snippets::snippet_completions(
         &crate::snippets::SnippetContext {
             dialect,
             indent_unit: "    ",
             scope_vars: &scope_vars,
             partial: &snippet_partial,
-            current_event: None,
-            file_events: &[],
+            current_event: current_event.as_deref(),
+            file_events: &file_events,
         },
     ));
     items
@@ -1453,5 +1459,75 @@ mod tests {
         let items = completions(cur_src, 1, 2, &cur, None, None, "tcl8.6");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["greet"], "{labels:?}");
+    }
+
+    /// iRule event snippet labels surfaced at a cursor.
+    fn irule_snippet_labels(src: &str, line: u32, character: u32, dialect: &str) -> Vec<String> {
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        completions(
+            src,
+            line,
+            character,
+            &analysis,
+            Some(&registry),
+            None,
+            dialect,
+        )
+        .into_iter()
+        .filter(|i| i.label.starts_with("iRule"))
+        .map(|i| i.label)
+        .collect()
+    }
+
+    #[test]
+    fn irules_event_snippets_surface_at_top_level() {
+        // `irule` partial at a top-level command position in the iRules
+        // dialect offers every event template.
+        let labels = irule_snippet_labels("irule", 0, 5, "f5-irules");
+        assert!(
+            labels.iter().any(|l| l == "iRule RULE_INIT"),
+            "expected RULE_INIT; got {labels:?}",
+        );
+        assert!(
+            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+            "expected HTTP_REQUEST; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_snippets_decline_for_already_declared_event() {
+        // `when RULE_INIT { }` already declared → the RULE_INIT template
+        // drops out, but other event templates remain.
+        let src = "when RULE_INIT {\n}\nirule";
+        let labels = irule_snippet_labels(src, 2, 5, "f5-irules");
+        assert!(
+            !labels.iter().any(|l| l == "iRule RULE_INIT"),
+            "RULE_INIT already declared, should decline; got {labels:?}",
+        );
+        assert!(
+            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+            "HTTP_REQUEST not declared, should remain; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_event_snippets_suppressed_inside_when_body() {
+        // Cursor inside a `when HTTP_REQUEST { }` body → the top-level
+        // guard suppresses every event template.
+        let src = "when HTTP_REQUEST {\n    irule\n}\n";
+        let labels = irule_snippet_labels(src, 1, 9, "f5-irules");
+        assert!(
+            labels.is_empty(),
+            "event templates must not offer inside a when block; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_snippets_hidden_in_plain_tcl_dialect() {
+        // Same source, but the `tcl8.6` dialect carries no iRule
+        // templates at all.
+        let labels = irule_snippet_labels("irule", 0, 5, "tcl8.6");
+        assert!(labels.is_empty(), "got {labels:?}");
     }
 }
