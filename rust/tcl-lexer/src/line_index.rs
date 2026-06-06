@@ -151,11 +151,96 @@ impl LineIndex {
             offset,
         )
     }
+
+    /// Inverse of [`Self::position_at_utf16`]: resolve an LSP
+    /// `(line, character)` position — where `character` is a count of
+    /// UTF-16 code units from the line start — to a byte offset into
+    /// `source`.
+    ///
+    /// Used to apply LSP ranged edits (incremental document sync). Out-of
+    /// -range inputs clamp: a `line` past the end maps to `source.len()`,
+    /// and a `character` past the line's content maps to the line's
+    /// terminating newline (or `source.len()` for the last line). A
+    /// `character` landing mid-code-point rounds up to the next char
+    /// boundary so the result is always a valid byte index.
+    #[must_use]
+    pub fn offset_at_utf16(&self, line: u32, character: u32, source: &str) -> u32 {
+        let line_count = self.line_starts.len();
+        let line_idx = line as usize;
+        if line_idx >= line_count {
+            return u32::try_from(source.len()).expect("source length fits u32");
+        }
+        let line_start = self.line_starts[line_idx] as usize;
+        // The line's content ends at the next line's start (or EOF for
+        // the last line), excluding the trailing line terminator so a
+        // `character` at/after the content end maps before the newline.
+        let raw_end = if line_idx + 1 < line_count {
+            self.line_starts[line_idx + 1] as usize
+        } else {
+            source.len()
+        };
+        let bytes = source.as_bytes();
+        let mut content_end = raw_end;
+        if content_end > line_start && bytes[content_end - 1] == b'\n' {
+            content_end -= 1;
+        }
+        if content_end > line_start && bytes[content_end - 1] == b'\r' {
+            content_end -= 1;
+        }
+        let line_text = &source[line_start..content_end];
+        // Walk chars accumulating UTF-16 units until we reach `character`.
+        let mut utf16 = 0u32;
+        for (byte_off, ch) in line_text.char_indices() {
+            if utf16 >= character {
+                return u32::try_from(line_start + byte_off).expect("offset fits u32");
+            }
+            utf16 += u32::try_from(ch.len_utf16()).expect("len_utf16 fits u32");
+        }
+        // `character` is at or past the line's content end.
+        u32::try_from(content_end).expect("offset fits u32")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offset_at_utf16_roundtrips_and_clamps() {
+        let src = "ab\ncde\nf";
+        let idx = LineIndex::new(src);
+        // (line, char) -> byte offset.
+        assert_eq!(idx.offset_at_utf16(0, 0, src), 0); // 'a'
+        assert_eq!(idx.offset_at_utf16(0, 2, src), 2); // end of line 0 (the '\n')
+        assert_eq!(idx.offset_at_utf16(1, 0, src), 3); // 'c'
+        assert_eq!(idx.offset_at_utf16(1, 3, src), 6); // end of line 1 (the '\n')
+        assert_eq!(idx.offset_at_utf16(2, 1, src), 8); // end of last line (EOF)
+                                                       // Clamps: char past content -> line content end; line past EOF -> len.
+        assert_eq!(idx.offset_at_utf16(0, 99, src), 2);
+        assert_eq!(
+            idx.offset_at_utf16(9, 0, src),
+            u32::try_from(src.len()).unwrap()
+        );
+        // Round-trips with position_at_utf16 at char boundaries.
+        for off in [0u32, 1, 2, 3, 5, 6, 7, 8] {
+            let p = idx.position_at_utf16(off, src);
+            assert_eq!(
+                idx.offset_at_utf16(p.line, p.character, src),
+                off,
+                "off {off}"
+            );
+        }
+    }
+
+    #[test]
+    fn offset_at_utf16_counts_surrogate_pairs() {
+        // 'a' + U+1F600 (2 UTF-16 units, 4 bytes) + 'b'.
+        let src = "a\u{1F600}b";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.offset_at_utf16(0, 0, src), 0); // 'a'
+        assert_eq!(idx.offset_at_utf16(0, 1, src), 1); // emoji start
+        assert_eq!(idx.offset_at_utf16(0, 3, src), 5); // 'b' (after 2 units)
+    }
 
     #[test]
     fn empty_source_has_one_line() {

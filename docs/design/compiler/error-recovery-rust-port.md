@@ -290,6 +290,20 @@ confirms the repair is complete and `puts hi` parses as its own command),
 whereas the data brace `set x {`⏎`puts hi` stays conservative. Verified by
 behavioural tests on both the expr and data paths.
 
+### INCREMENTAL document sync (landed)
+
+The server now advertises `TextDocumentSyncKind::INCREMENTAL` and applies ranged
+edits: `did_change` folds each content change over the stored text —
+full-document replacement when `range == None`, otherwise a byte-spliced ranged
+edit via the new `LineIndex::offset_at_utf16` (the inverse of
+`position_at_utf16`, with surrogate-pair-correct UTF-16 columns). This is the
+prerequisite for partial re-analysis. The re-analysis itself is still
+whole-document; bounding it to `reparse_window` (so only the changed commands
+are re-segmented / re-analysed, which needs cross-command analysis-state
+stitching) is the remaining follow-up — the primitives
+(`command_boundaries` / `reparse_window` / `script_is_complete`) are all in
+place and verified.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as

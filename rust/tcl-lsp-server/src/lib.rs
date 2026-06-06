@@ -1261,28 +1261,28 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        // FULL sync — the last content-change carries the entire
-        // document. INCREMENTAL sync is a follow-up chunk.
-        let Some(change) = params.content_changes.into_iter().last() else {
-            return;
-        };
+        // INCREMENTAL sync: each content change is either a full-document
+        // replacement (`range == None`) or a ranged edit applied to the
+        // current text. Apply them in order. (The re-analysis below is
+        // still whole-document; bounding it to `reparse_window` is a
+        // documented follow-up — the primitives exist in `tcl-lexer`.)
         let uri = params.text_document.uri.clone();
+        if params.content_changes.is_empty() {
+            return;
+        }
         let mut docs = self.documents.lock().await;
-        let (text, dialect) = if let Some(doc) = docs.get_mut(&uri) {
-            // Preserve the document's dialect across edits; only the
-            // text content changes here.
-            doc.text.clone_from(&change.text);
-            (change.text, doc.dialect.clone())
-        } else {
-            // didChange before didOpen — fall back to the session
-            // default dialect; the languageId is not available here.
-            let dialect = self.default_dialect.lock().await.clone();
-            docs.insert(
-                uri.clone(),
-                DocumentState::new(change.text.clone(), dialect.clone()),
-            );
-            (change.text, dialect)
-        };
+        let default_dialect = self.default_dialect.lock().await.clone();
+        let entry = docs
+            .entry(uri.clone())
+            // didChange before didOpen — start from empty text and the
+            // session default dialect (no languageId is available here).
+            .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
+        let mut text = std::mem::take(&mut entry.text);
+        for change in &params.content_changes {
+            text = apply_content_change(&text, change.range, &change.text);
+        }
+        entry.text = text.clone();
+        let dialect = entry.dialect.clone();
         drop(docs);
         // `S-hover-sync11`: drop every cached hover response
         // for this URI so subsequent requests return answers
@@ -2861,6 +2861,30 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// Shared by every `lift_*_diagnostics` helper so the offset →
 /// (line, character) mapping is identical for analyser, compiler-
 /// check, and optimiser diagnostics.
+/// Apply one LSP content change to `text` (incremental document sync).
+///
+/// A `None` range is a full-document replacement; a `Some` range is a
+/// ranged edit whose `(line, character)` UTF-16 positions are resolved to
+/// byte offsets via [`tcl_lexer::LineIndex::offset_at_utf16`] and spliced.
+/// Offsets are clamped and ordered so the splice indices are always valid
+/// char boundaries within `text`.
+fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
+    let Some(range) = range else {
+        return new_text.to_owned();
+    };
+    let index = tcl_lexer::LineIndex::new(text);
+    let a = index.offset_at_utf16(range.start.line, range.start.character, text) as usize;
+    let b = index.offset_at_utf16(range.end.line, range.end.character, text) as usize;
+    let len = text.len();
+    let start = a.min(b).min(len);
+    let end = a.max(b).min(len);
+    let mut out = String::with_capacity(len - (end - start) + new_text.len());
+    out.push_str(&text[..start]);
+    out.push_str(new_text);
+    out.push_str(&text[end..]);
+    out
+}
+
 fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
     let start = line_index.position_at(span.start());
     let end = line_index.position_at(span.end());
@@ -3194,7 +3218,9 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// literal lives here rather than inside the trait method.
 fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::INCREMENTAL,
+        )),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -3517,6 +3543,74 @@ mod tests {
             "expected IRULE3001, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
+    }
+
+    fn pos(line: u32, character: u32) -> Position {
+        Position { line, character }
+    }
+
+    #[test]
+    fn apply_content_change_full_replacement() {
+        // A `None` range replaces the whole document.
+        assert_eq!(apply_content_change("old text", None, "new"), "new");
+    }
+
+    #[test]
+    fn apply_content_change_ranged_edits() {
+        // Replace "hi" with "bye" on line 1.
+        let text = "set x 1\nputs hi\n";
+        let r = Range {
+            start: pos(1, 5),
+            end: pos(1, 7),
+        };
+        assert_eq!(
+            apply_content_change(text, Some(r), "bye"),
+            "set x 1\nputs bye\n"
+        );
+
+        // Pure insertion (empty range) at the start of line 1.
+        let r = Range {
+            start: pos(1, 0),
+            end: pos(1, 0),
+        };
+        assert_eq!(
+            apply_content_change(text, Some(r), "# "),
+            "set x 1\n# puts hi\n",
+        );
+
+        // Multi-line deletion: drop from mid-line-0 through mid-line-1.
+        let r = Range {
+            start: pos(0, 4),
+            end: pos(1, 5),
+        };
+        assert_eq!(apply_content_change(text, Some(r), ""), "set hi\n");
+    }
+
+    #[test]
+    fn apply_content_change_sequence_matches_full_text() {
+        // Applying a sequence of ranged edits (as INCREMENTAL sync
+        // delivers them) reproduces the intended final document.
+        let mut text = "abc\ndef\n".to_string();
+        // Edit 1: insert "X" at (0,1) -> "aXbc".
+        text = apply_content_change(
+            &text,
+            Some(Range {
+                start: pos(0, 1),
+                end: pos(0, 1),
+            }),
+            "X",
+        );
+        assert_eq!(text, "aXbc\ndef\n");
+        // Edit 2: replace "def" with "ghij".
+        text = apply_content_change(
+            &text,
+            Some(Range {
+                start: pos(1, 0),
+                end: pos(1, 3),
+            }),
+            "ghij",
+        );
+        assert_eq!(text, "aXbc\nghij\n");
     }
 
     /// GAP-C1 strip 2: the source-style pass must reach the
