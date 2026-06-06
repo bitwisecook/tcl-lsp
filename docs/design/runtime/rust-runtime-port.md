@@ -383,11 +383,12 @@ and namespace command/var resolution is the same problem one level up.
   refcounted and **may be an alias** (points at another cell); **traces hang off
   cells**; every var op goes through it; non-aliased hot locals are optimised
   later behind a guard. → **partial**: `frame.rs` has `Var::Scalar|Array|Link`
-  (the alias) with path resolution (T1.3). **Gaps to design in**: independent
-  *cell* refcounting (Tcl `VarInHash`), the **trace** hook on cells +
-  re-entrancy/ordering model, and the single documented resolution order
-  (local → upvar link → namespace → global). These are designed before traces
-  and namespaces land, **not appended**.
+  (the alias) with path resolution (T1.3); the single resolution order
+  (qualified → frame-local-in-proc → current/global namespace, then link walk)
+  is **done** as one classification + cross-table walk over a `VarHome`
+  (`vars.rs`, T1.5). **Gaps to design in**: independent *cell* refcounting (Tcl
+  `VarInHash`) and the **trace** hook on cells + re-entrancy/ordering model.
+  These are designed before traces land, **not appended**.
 - **Namespaces**: hierarchical `::a::b` with own var+command tables, `namespace
   path`, `import`/`rename`, `which`/`origin`, **ensembles**, `namespace
   eval/code/inscope` (capture/restore current-ns). Command resolution =
@@ -1144,9 +1145,9 @@ any row.
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** + **string** capacity/char-ops, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) + string (capacity-backed append + ASCII-fast char ops, EXP-STRING) leak-checked; array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
-| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + resolver**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); procs/catch + ns-variables follow |
+| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + command *and* variable resolvers**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); **`vars.rs` variable resolver** (per-namespace var tables, `VarHome` links, `global`/`variable`/`upvar`); procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4/T1.5) | `make runtime-rust-test` — dispatch resolves through the **namespace tree** (`Builtin`/`Alias`/`Imported` handles), no flat table; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace`; per-command parity + tcltest sweep as more land |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace` + `global`/`variable`/`upvar`; per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -1338,12 +1339,32 @@ the Zig rep.
     `matches_glob` const-fold (`tcl_expr_eval.rs`) and the `switch -glob` fold
     (`structure_elimination.rs`) — and the runtime's `namespace export`/`import`/
     `forget` use it. (`string match`/`lsearch -glob`/`array names` land on it next.)
+  - **Variable-namespace side — ✅ done** (`vars.rs` + `cmd_var.rs`, the
+    variable parallel of the command resolver; `tclVar.c:TclLookupSimpleVar` +
+    `namespace-tree.md` §5.3). Variables live in **per-namespace var tables**
+    (`Namespace.vars`; the global ns holds globals) instead of a flat per-frame
+    map. A `VarTable` (name→`Var` cell + scalar/array/element ops + the refcount
+    discipline + release-on-`Drop`) is shared by both a call `Frame` and a
+    `Namespace`. `Var::Link` generalised to a **`VarHome`** (frame level **or**
+    namespace id), so `global`/`variable`/`upvar` all produce one link shape
+    (level-0 frame ⇒ global ns, since they share a table). One classification
+    (qualified → namespace; else in-proc → frame-local, at global/`namespace
+    eval` scope → current ns) + one cross-table link walk; `set ::ns::x`,
+    `$::ns::x`, `unset ::ns::x` resolve through the tree, and `::pinged` ≡
+    `pinged` at top level (the headline fix — before, `::pinged` was a literal
+    frame key). `global`/`variable` (`cmd_var.rs`) link the tail to a namespace
+    var (no-op at namespace scope; `variable name value` still initialises);
+    `upvar ?#N|N? other local` links to a caller frame or, qualified, a
+    namespace var. `set`-into-a-missing-namespace raises `parent namespace
+    doesn't exist` (reads/unsets just miss) — verified vs tclsh 9.0. The
+    `::`-qualifier split is the shared `tcl_syntax::naming::qualifier_segments`.
+    Gate: `make runtime-rust-test` (142 tower / 117 reduced) + `-lint` green.
   - **Remaining:** ensembles (the `dict for`→`::tcl::dict::for` rewrite is the
     canonical ensemble alias — generalise it), registering
-    `::tcl::mathfunc::*`/`::tcl::mathop::*` as overridable commands, the
-    variable-namespace side (`set ::ns::x` / `variable` / `global` resolving
-    through ns var tables), `namespace delete`, and per-frame `current_ns` (a proc
-    runs in its defining namespace) — gated on the proc chunk.
+    `::tcl::mathfunc::*`/`::tcl::mathop::*` as overridable commands,
+    `namespace delete`, and per-frame `current_ns` + the proc-local var branch
+    (wired in `vars.rs` but inert — a proc runs in its defining namespace) —
+    gated on the proc chunk (which pushes the proc frames).
 - **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
@@ -1740,7 +1761,7 @@ close against them:
 
 | Contract | Rust port alignment | Gaps to close |
 |---|---|---|
-| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3) | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar cycle must *error*** (today a 1000-hop guard silently stops — fix); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; **qualified `::a::b::x`** + the "unqualified ≠ namespace var" rule (with namespaces, T1.5) |
+| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3); **per-namespace var tables + one classification/link-walk over a `VarHome` (frame ∣ namespace), qualified `::a::b::x`, `global`/`variable`/`upvar` (T1.5, `vars.rs`)** | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar/global/variable-link cycle must *error*** (today the shared 1000-hop `LINK_LIMIT` silently stops — fix with the proc-chunk recursion bound); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; the **proc-local branch** of the classifier is wired but inert until procs push frames; the "unqualified ≠ namespace var inside a proc" rule then becomes observable |
 | parser-and-aot-interpret-boundary | the **LSP/compiler `tcl-lexer` is now the canonical scanner** for command/word parsing (`parse.rs` lowers its tokens → the eval `Command`/`WordPart` model); object-passthrough; spans from byte 0 | converge `subst`/`Tcl_SplitList` onto `tcl-lexer` too (step 3, co-evolving a subst + list mode); the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
 | numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
@@ -1874,11 +1895,19 @@ compiler/LSP or the Zig runtime.
    **`namespace` command** (`current`/`eval`/`exists`/`parent`/`children`/
    `qualifiers`/`tail`/`which`/`export`/`import`/`forget`/`path`, with the
    `Imported` redirect); the **shared `string match` glob** (`tcl_syntax::glob`,
-   converging two compiler copies). **Next in T1.5:** ensembles (generalise the
-   `dict for`→`::tcl::dict::for` rewrite), `::tcl::mathfunc`/`mathop` as
-   overridable commands, the **variable-namespace side** (`set ::ns::x`,
-   `variable`/`global` through ns var tables), `namespace delete`, and per-frame
-   `current_ns` (gated on the proc chunk).
+   converging two compiler copies); and the **variable-namespace side** — the
+   variable parallel of the command resolver: per-namespace var tables
+   (`Namespace.vars`; the global ns holds globals), one classification + link
+   walk (`vars.rs`) over a `VarHome` (frame level **or** namespace id), so
+   `set ::ns::x` / `$::ns::x` / `unset ::ns::x` resolve through the tree and
+   `::pinged` ≡ `pinged` at top level; plus **`global`/`variable`/`upvar`**
+   (`cmd_var.rs`) installing the links, and `set`-into-a-missing-namespace
+   raising `parent namespace doesn't exist`. The `::`-qualifier split is shared
+   with the compiler (`tcl_syntax::naming::qualifier_segments`). **Next in
+   T1.5:** ensembles (generalise the `dict for`→`::tcl::dict::for` rewrite),
+   `::tcl::mathfunc`/`mathop` as overridable commands, `namespace delete`, and
+   per-frame `current_ns` + the proc-local var branch (wired but inert — gated
+   on the proc chunk, which is what pushes proc frames).
 10. **Procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
     + control flow — the call protocol (CallFrame + CmdFrame), return-options,
     stack traces, AOT↔interp interop; carries per-frame `current_ns`.
