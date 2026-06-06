@@ -240,7 +240,7 @@ pub(crate) fn unset_elem(
 }
 
 /// Whether `name` resolves to an array variable (the `set a` array-vs-scalar
-/// diagnostic).
+/// diagnostic; `array exists`).
 pub(crate) fn is_array(
     frames: &FrameStack,
     ns: &Namespaces,
@@ -252,6 +252,48 @@ pub(crate) fn is_array(
             table(frames, ns, p.home).is_some_and(|t| t.is_array(&p.name))
         }
         _ => false,
+    }
+}
+
+/// Whether the scalar/array `name` is set (`info exists`, scalar form).
+pub(crate) fn exists(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> bool {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.is_set(&p.name))
+        }
+        // A link resolved to an element, or a missing namespace: fall back to the
+        // element check / not-found.
+        Resolved::Place(p) => table(frames, ns, p.home)
+            .and_then(|t| p.elem.as_ref().map(|e| t.load_elem(&p.name, e).is_some()))
+            .unwrap_or(false),
+        Resolved::NoNamespace => false,
+    }
+}
+
+/// Whether the array element `name(key)` is set (`info exists arr(key)`).
+pub(crate) fn exists_elem(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+    key: &[u8],
+) -> bool {
+    get_elem(frames, ns, current_ns, name, key).is_some()
+}
+
+/// The element names of array `name` (`array names`/`array get`), or `None` if
+/// `name` isn't an array. Sorted (deterministic).
+pub(crate) fn array_names(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Option<Vec<Vec<u8>>> {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => table(frames, ns, p.home)?
+            .array_names(&p.name)
+            .map(|ks| ks.into_iter().map(<[u8]>::to_vec).collect()),
+        _ => None,
     }
 }
 

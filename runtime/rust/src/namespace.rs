@@ -255,6 +255,28 @@ impl Namespaces {
         Some((ns, (*simple).to_vec()))
     }
 
+    /// Sorted variable names in namespace `ns` (`info vars`/`globals`).
+    #[must_use]
+    pub(crate) fn var_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .vars
+            .names()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect()
+    }
+
+    /// Sorted names of the commands in `ns` that are procs (`info procs`).
+    #[must_use]
+    pub(crate) fn proc_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .commands
+            .iter()
+            .filter(|(_, c)| matches!(c, Command::Proc(_)))
+            .map(|(k, _)| k.clone())
+            .collect()
+    }
+
     /// Namespace `ns`'s variable table (read).
     #[must_use]
     pub(crate) fn var_table(&self, ns: NsId) -> &VarTable {

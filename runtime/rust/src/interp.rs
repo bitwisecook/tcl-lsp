@@ -378,6 +378,91 @@ impl Interp {
         self.namespaces.ensure_namespace(self.current_ns, name)
     }
 
+    // -- introspection (`info` / `array`) -------------------------------------
+
+    /// `info exists name` — whether a scalar/array/element variable is set
+    /// (splitting `arr(key)`, the Zig discovery).
+    pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
+        let (base, elem) = crate::frame::split_array_ref(name);
+        match elem {
+            Some(k) => {
+                crate::vars::exists_elem(&self.frames, &self.namespaces, self.current_ns, &base, &k)
+            }
+            None => crate::vars::exists(&self.frames, &self.namespaces, self.current_ns, &base),
+        }
+    }
+
+    /// The element names of array `name` (`array names`/`get`), or `None`.
+    pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+        crate::vars::array_names(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// `info level` — the current frame level (proc nesting depth).
+    pub(crate) fn level(&self) -> usize {
+        self.frames.current_level()
+    }
+
+    /// Variable names visible in the current scope (`info vars`): the active
+    /// frame's locals in a proc, else the current namespace's variables.
+    pub(crate) fn visible_var_names(&self) -> Vec<Vec<u8>> {
+        if self.frames.in_proc() {
+            self.frames.local_names()
+        } else {
+            self.namespaces.var_names(self.current_ns)
+        }
+    }
+
+    /// `info locals` — the active frame's local variable names.
+    pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
+        self.frames.local_names()
+    }
+
+    /// `info globals` — the global namespace's variable names.
+    pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
+        self.namespaces.var_names(GLOBAL)
+    }
+
+    /// Command names visible from the current namespace (`info commands`):
+    /// current ns ∪ global, sorted/deduped.
+    pub(crate) fn visible_command_names(&self) -> Vec<Vec<u8>> {
+        self.visible(self.namespaces.command_names(self.current_ns), |ns| {
+            ns.command_names(GLOBAL)
+        })
+    }
+
+    /// Proc names visible from the current namespace (`info procs`).
+    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
+        let mut v = self.namespaces.proc_names(self.current_ns);
+        if self.current_ns != GLOBAL {
+            v.extend(self.namespaces.proc_names(GLOBAL));
+        }
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    fn visible(
+        &self,
+        local: Vec<&[u8]>,
+        global: impl Fn(&Namespaces) -> Vec<&[u8]>,
+    ) -> Vec<Vec<u8>> {
+        let mut v: Vec<Vec<u8>> = local.iter().map(|s| s.to_vec()).collect();
+        if self.current_ns != GLOBAL {
+            v.extend(global(&self.namespaces).iter().map(|s| s.to_vec()));
+        }
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    /// The proc definition bound to `name` (for `info body`/`args`/`default`).
+    pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
+        match self.namespaces.resolve(self.current_ns, name) {
+            Some(Command::Proc(def)) => Some(def),
+            _ => None,
+        }
+    }
+
     /// `upvar` — link `local` in the current frame to the resolved `target`.
     pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
         crate::vars::make_upvar(

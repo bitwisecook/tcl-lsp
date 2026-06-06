@@ -217,9 +217,30 @@ impl VarTable {
     }
 
     /// Whether `name` is an array variable here (the `set a` array-vs-scalar
-    /// diagnostic; `array exists` later).
+    /// diagnostic; `array exists`).
     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
         matches!(self.vars.get(name), Some(Var::Array(_)))
+    }
+
+    /// Whether `name` is a defined scalar or array here (not a link) — the
+    /// terminal check behind `info exists`.
+    pub(crate) fn is_set(&self, name: &[u8]) -> bool {
+        matches!(self.vars.get(name), Some(Var::Scalar(_) | Var::Array(_)))
+    }
+
+    /// Names of all variables in this table, sorted (`info vars`/`locals`/
+    /// `globals`).
+    pub(crate) fn names(&self) -> Vec<&[u8]> {
+        self.vars.keys().map(|k| k.as_slice()).collect()
+    }
+
+    /// Element names of array `name`, sorted (`array names`); `None` if not an
+    /// array.
+    pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<&[u8]>> {
+        match self.vars.get(name) {
+            Some(Var::Array(map)) => Some(map.keys().map(|k| k.as_slice()).collect()),
+            _ => None,
+        }
     }
 }
 
@@ -334,6 +355,14 @@ impl FrameStack {
         self.frames
             .get(level)
             .map_or(crate::namespace::GLOBAL, |f| f.ns)
+    }
+
+    /// Local variable names of the active frame, sorted (`info locals`).
+    pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
+        self.frames
+            .get(self.active_level)
+            .map(|f| f.table.names().into_iter().map(<[u8]>::to_vec).collect())
+            .unwrap_or_default()
     }
 
     /// The variable table at `level` (read).

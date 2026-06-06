@@ -39,10 +39,12 @@ pub mod bignum;
 pub mod builtins;
 pub mod capi;
 pub mod cmd_alias;
+pub mod cmd_array;
 pub mod cmd_control;
 pub mod cmd_dict;
 pub mod cmd_error;
 pub mod cmd_eval;
+pub mod cmd_info;
 pub mod cmd_list;
 // `::tcl::mathfunc::*` / `::tcl::mathop::*` commands; need the numeric tower.
 #[cfg(have_tommath)]
