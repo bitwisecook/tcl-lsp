@@ -1,5 +1,8 @@
 # KCS: feature — Tk Preview
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Live preview pane for Tk GUI applications that updates as you edit.

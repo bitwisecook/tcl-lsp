@@ -1,5 +1,8 @@
 # KCS: feature — Inlay Hints
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Inline type and value information displayed alongside code.

@@ -1,5 +1,8 @@
 # KCS: feature — Refactoring Tools
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Mechanical code refactorings: extract/inline variables, if-to-switch, switch-to-dict, brace expr, and data-group extraction with type-aware IP/CIDR support.

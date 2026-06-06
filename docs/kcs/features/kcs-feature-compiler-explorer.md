@@ -1,5 +1,8 @@
 # KCS: feature — Compiler Explorer
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes, plus a structured WebAssembly disassembly view with click-to-source navigation, call and branch target cross-linking, control-flow arrows, and labelled structural ops.

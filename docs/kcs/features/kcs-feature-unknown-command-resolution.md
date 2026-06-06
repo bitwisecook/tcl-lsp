@@ -1,5 +1,8 @@
 # KCS: feature — Unknown Command Resolution (W123)
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Detects unresolved commands and offers "did you mean?" suggestions. Static

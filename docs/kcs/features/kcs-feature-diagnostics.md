@@ -1,5 +1,8 @@
 # KCS: feature — Diagnostics
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Errors, warnings, security, taint tracking, and style checks shown as you type.

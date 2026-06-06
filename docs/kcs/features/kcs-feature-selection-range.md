@@ -1,5 +1,8 @@
 # KCS: feature — Selection Range
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Smart expand/shrink selection by syntactic structure.

@@ -1,5 +1,8 @@
 # KCS: feature — Unused Variable Detection
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Detects variables that are set but never read, unused procedure parameters, and dead stores where a value is overwritten before use. Offers quick-fix code actions to remove unused assignments.

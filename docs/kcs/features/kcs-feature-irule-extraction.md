@@ -1,5 +1,8 @@
 # KCS: feature — iRule Extraction
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Extract iRules from BIG-IP configuration files into individual editor tabs or files.

@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Brace expr
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Convert an unbraced `expr "..."` argument to braced `expr {...}` for safety and performance.

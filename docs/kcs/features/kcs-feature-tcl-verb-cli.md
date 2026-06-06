@@ -1,5 +1,8 @@
 # KCS: feature — Unified Tcl Verb CLI
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 `tcl.pyz` provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.

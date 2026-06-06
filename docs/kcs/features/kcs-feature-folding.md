@@ -1,5 +1,8 @@
 # KCS: feature — Folding
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Code folding for procs, namespaces, event handlers, and braced blocks.

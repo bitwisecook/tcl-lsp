@@ -1,5 +1,8 @@
 # KCS: feature — Workspace Symbols
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Search symbols across all open files in the workspace.
