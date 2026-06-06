@@ -1951,18 +1951,30 @@ compiler/LSP or the Zig runtime.
     (C's default 1000) makes infinite recursion a catchable error; **control
     flow** `if`/`while`/`for`/`foreach` + `break`/`continue`; **`puts`**; and an
     `examples/run_script.rs` that runs a fib/for/namespace/foreach script end to
-    end. **Next:** PC-1 `CmdFrame` source/line stack; PC-3 `uplevel` + `eval` +
-    generalised `upvar`; PC-4 exceptions (`error`/`catch`/`return -options` +
-    `errorInfo`); PC-5 `info level`/`info frame`/`source`; PC-6 AOT interop.
-11. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+    end. A body-level `break`/`continue` that escapes a proc now errors
+    (`invoked "break" outside of a loop` — Zig-oracle fix). **Next:** PC-1
+    `CmdFrame` source/line stack; PC-3 `uplevel` + `eval` + generalised `upvar`;
+    PC-4 exceptions (`error`/`catch`/`return -options` + `errorInfo`); PC-5
+    `info level`/`info frame`/`source`; PC-6 AOT interop.
+11. **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
+    [`tcltest-bringup.md`](tcltest-bringup.md)). Run the **unmodified** pure-Tcl
+    `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
+    command surface** (not re-porting the library): L1 eval/exception/
+    introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return
+    -options`/`switch`/`info`/`array`/`package` + list ops — this is PC-3/PC-4),
+    then L2 VFS + channels (`source`/`file`/`glob`/`open`/…), then L3 host
+    (`clock`/`encoding`/`format`/`scan`/`regexp`/`exec`/…). Reason over the
+    library code, reference C Tcl + the Zig oracle (the discoveries appendix in
+    the bring-up doc), empirical loop (source → wall → port → repeat).
+12. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
     bound to the editor command registry; `NoEmitImpl` error for unimplemented
     commands (the codegen-side single-source-of-truth that all later AOT work
     builds on).
-12. **T2.3** (de-risk against Zig first) — production loader, validated on
+13. **T2.3** (de-risk against Zig first) — production loader, validated on
     Tier 0 dltest, separating loader risk from port risk.
-13. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+14. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
     harness (seeds the scoreboard).
-14. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+15. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 

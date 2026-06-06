@@ -233,6 +233,18 @@ mod tests {
     }
 
     #[test]
+    fn break_continue_escaping_a_proc_is_an_error() {
+        leak_free(|i| {
+            run(i, b"proc f {} {break}");
+            assert_eq!(i.eval_str(b"f"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invoked \"break\" outside of a loop");
+            run(i, b"proc g {} {continue}");
+            assert_eq!(i.eval_str(b"g"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invoked \"continue\" outside of a loop");
+        });
+    }
+
+    #[test]
     fn infinite_recursion_is_caught() {
         // An unbounded proc loop raises a catchable error, not a stack overflow.
         // The tree-walking interpreter recurses on the native stack (~one deep

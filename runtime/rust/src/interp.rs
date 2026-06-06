@@ -568,9 +568,13 @@ impl Interp {
         self.frames.pop();
         self.current_ns = saved_ns;
         self.recursion_depth -= 1;
-        // A proc-level `return` is the proc's normal completion.
+        // A proc-level `return` is the proc's normal completion; a `break`/
+        // `continue` that escapes the body (no enclosing loop) is an error
+        // (C Tcl: `invoked "break" outside of a loop`).
         match code {
             Code::Return => Code::Ok,
+            Code::Break => self.error(b"invoked \"break\" outside of a loop"),
+            Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
             other => other,
         }
     }
