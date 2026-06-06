@@ -168,10 +168,10 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// Parse an `upvar` level spec to an **absolute** frame level, or `None` if it
-/// isn't a valid level for the `current` depth. `#N` is absolute; a bare `N` is
-/// relative (`current - N`).
-fn parse_level(spec: &[u8], current: usize) -> Option<usize> {
+/// Parse an `upvar`/`uplevel` level spec to an **absolute** frame level, or
+/// `None` if it isn't a valid level for the `current` depth. `#N` is absolute; a
+/// bare `N` is relative (`current - N`).
+pub(crate) fn parse_level(spec: &[u8], current: usize) -> Option<usize> {
     if let Some(rest) = spec.strip_prefix(b"#") {
         let n = parse_usize(rest)?;
         (n <= current).then_some(n)

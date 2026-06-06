@@ -38,6 +38,7 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_control::install(interp);
     crate::cmd_proc::install(interp);
     crate::cmd_error::install(interp);
+    crate::cmd_eval::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {

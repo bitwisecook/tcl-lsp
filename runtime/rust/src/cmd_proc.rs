@@ -15,9 +15,10 @@ use crate::interp::{obj_bytes, Code, Interp, Param};
 use crate::obj::TclObj;
 use crate::parse::split_list;
 
-/// Register `proc` and `puts`.
+/// Register `proc`, `apply`, and `puts`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"proc", proc_cmd);
+    interp.register_builtin(b"apply", apply_cmd);
     interp.register_builtin(b"puts", puts);
 }
 
@@ -71,6 +72,38 @@ fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         }
     }
     Ok(params)
+}
+
+// -- apply -----------------------------------------------------------------
+
+/// `apply {params body ?namespace?} ?arg ...?` — invoke an anonymous procedure.
+/// The lambda runs in `namespace` (default global), via the shared proc-call
+/// protocol (`Interp::run_proc`).
+fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"apply lambdaExpr ?arg ...?");
+    }
+    let lambda = obj_bytes(argv[1]);
+    let parts = match split_list(&lambda) {
+        Ok(p) => p,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    if parts.len() < 2 || parts.len() > 3 {
+        let mut m = b"can't interpret \"".to_vec();
+        m.extend_from_slice(&lambda);
+        m.extend_from_slice(b"\" as a lambda expression");
+        return interp.set_error(&m);
+    }
+    let params = match parse_params(&parts[0]) {
+        Ok(p) => p,
+        Err(e) => return interp.set_error(&e),
+    };
+    let ns = if parts.len() == 3 {
+        interp.ensure_namespace(&parts[2])
+    } else {
+        crate::namespace::GLOBAL
+    };
+    interp.run_proc(&params, &parts[1], ns, &argv[2..], b"apply lambdaExpr")
 }
 
 // -- puts ------------------------------------------------------------------
@@ -229,6 +262,24 @@ mod tests {
             assert_eq!(run(i, b"ctr::bump"), b"2");
             assert_eq!(run(i, b"set ::ctr::n"), b"2");
             i.eval_str(b"unset ::ctr::n");
+        });
+    }
+
+    #[test]
+    fn apply_lambda() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"apply {{a b} {return $b}} 1 2"), b"2");
+            assert_eq!(run(i, b"apply {{a {b 9}} {return $b}} 1"), b"9");
+            assert_eq!(run(i, b"apply {{args} {return $args}} a b c"), b"a b c");
+            assert_eq!(i.eval_str(b"apply {{a b} {return x}} 1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"apply lambdaExpr a b\""
+            );
+            // a 3-element lambda runs in the named namespace.
+            run(i, b"namespace eval foo { variable v 42 }");
+            assert_eq!(run(i, b"apply {{} {variable v; return $v} foo}"), b"42");
+            i.eval_str(b"unset ::foo::v");
         });
     }
 

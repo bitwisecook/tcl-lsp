@@ -109,13 +109,6 @@ pub struct ProcDef {
     pub ns: NsId,
 }
 
-impl ProcDef {
-    /// Whether the last parameter is the `args` catch-all (collects extra args).
-    fn has_args(&self) -> bool {
-        self.params.last().is_some_and(|p| p.name == b"args")
-    }
-}
-
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
 /// result object (a `+1` it holds; never null after `new`).
 #[repr(C)]
@@ -247,6 +240,20 @@ impl Interp {
         &mut self.namespaces
     }
 
+    /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
+    /// frame `target_level` (the Zig oracle's "restore caller ns + frame depth
+    /// together" discovery), then restore. Transparent — the body's completion
+    /// code (incl. `return`) propagates unchanged.
+    pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
+        let prev_level = self.frames.set_active_level(target_level);
+        let prev_ns = self.current_ns;
+        self.current_ns = self.frames.frame_ns(target_level);
+        let code = self.eval_str(script);
+        self.frames.set_active_level(prev_level);
+        self.current_ns = prev_ns;
+        code
+    }
+
     /// `namespace eval name body`: switch the current namespace to `name`
     /// (creating it, relative to the current ns unless `::`-anchored), evaluate
     /// `body` there, then restore. The current-ns switch is what makes commands
@@ -363,6 +370,12 @@ impl Interp {
             target_ns,
             tail,
         );
+    }
+
+    /// Resolve (creating if needed) a namespace by name, relative to the current
+    /// namespace — for `apply`'s optional namespace term.
+    pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
+        self.namespaces.ensure_namespace(self.current_ns, name)
     }
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.
@@ -515,26 +528,50 @@ impl Interp {
         }
     }
 
-    /// Call a user proc (`TclObjInterpProc`): arity-check, push a call frame in
-    /// the proc's defining namespace, bind the params (defaults; an `args`
-    /// catch-all collects the rest), run the body, then pop. A body-level
-    /// `return` becomes `Ok` (the proc's normal completion). Conservative-first
-    /// per `proc-call-and-stack-traces.md` PC-2 (the CmdFrame/stack-trace +
-    /// `info level`/`info frame` bookkeeping land with PC-1/PC-4/PC-5).
+    /// Call a user proc (`TclObjInterpProc`): a thin wrapper over [`run_proc`]
+    /// with the proc's `(params, body, ns)` and the call args (`argv[1..]`).
+    ///
+    /// [`run_proc`]: Interp::run_proc
     fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
-        let has_args = def.has_args();
+        self.run_proc(
+            &def.params,
+            &def.body,
+            def.ns,
+            &argv[1..],
+            &obj_bytes(argv[0]),
+        )
+    }
+
+    /// The shared proc-call protocol (`TclObjInterpProc`), used by both `proc`
+    /// dispatch and `apply`: arity-check `call_args` against `params`, push a call
+    /// frame in namespace `ns`, bind the params (defaults; an `args` catch-all
+    /// collects the rest), run `body`, then pop. A body-level `return` becomes
+    /// `Ok`; an escaping `break`/`continue` is an error. `usage_called` is the
+    /// prefix of the `wrong # args` message (`name` for a proc, `apply
+    /// lambdaExpr` for `apply`). Conservative-first per
+    /// `proc-call-and-stack-traces.md` PC-2 (the CmdFrame/stack-trace +
+    /// `info level`/`info frame` bookkeeping land with PC-1/PC-4/PC-5).
+    pub(crate) fn run_proc(
+        &mut self,
+        params: &[Param],
+        body: &[u8],
+        ns: NsId,
+        call_args: &[*mut TclObj],
+        usage_called: &[u8],
+    ) -> Code {
+        let has_args = params.last().is_some_and(|p| p.name == b"args");
         let positional = if has_args {
-            &def.params[..def.params.len() - 1]
+            &params[..params.len() - 1]
         } else {
-            &def.params[..]
+            params
         };
         // Arity (defaults assumed trailing — the common shape): supplied must
         // cover the no-default params, and not exceed the positionals unless an
         // `args` catch-all soaks up the rest.
-        let supplied = argv.len() - 1;
+        let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&proc_usage(&obj_bytes(argv[0]), &def.params));
+            return self.error(&proc_usage(usage_called, params));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth >= RECURSION_LIMIT {
@@ -542,15 +579,14 @@ impl Interp {
         }
         self.recursion_depth += 1;
 
-        self.frames.push();
+        self.frames.push(ns);
         let saved_ns = self.current_ns;
-        self.current_ns = def.ns;
+        self.current_ns = ns;
 
         // Bind positionals: the supplied arg, else the default.
         for (i, p) in positional.iter().enumerate() {
-            let idx = i + 1;
-            let stored = if idx < argv.len() {
-                self.var_set(&p.name, argv[idx])
+            let stored = if i < call_args.len() {
+                self.var_set(&p.name, call_args[i])
             } else {
                 // SAFETY-balance: a fresh rc-0 default; `var_set` retains it, so
                 // on the (here-unreachable) error path it must be dropped.
@@ -572,14 +608,14 @@ impl Interp {
         }
         // The `args` catch-all: a list of the remaining args.
         if has_args {
-            let rest = &argv[1 + positional.len()..];
+            let rest = &call_args[positional.len()..];
             let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
             if self.var_set(b"args", list).is_err() {
                 drop_fresh(list);
             }
         }
 
-        let code = self.eval_str(&def.body);
+        let code = self.eval_str(body);
         self.frames.pop();
         self.current_ns = saved_ns;
         self.recursion_depth -= 1;

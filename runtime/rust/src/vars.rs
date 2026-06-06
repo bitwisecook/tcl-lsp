@@ -482,7 +482,7 @@ mod tests {
     fn global_in_proc_links_to_global() {
         leak_free(|f, ns| {
             set(f, ns, GLOBAL, b"g", sobj(b"global-val")).unwrap();
-            f.push(); // enter a proc frame
+            f.push(GLOBAL); // enter a proc frame
             assert_eq!(get(f, ns, GLOBAL, b"g"), None); // not visible without `global`
             make_variable(f, ns, GLOBAL, GLOBAL, b"g"); // `global g` == variable in :: context
             assert_eq!(
@@ -502,7 +502,7 @@ mod tests {
         leak_free(|f, ns| {
             let a = ns.ensure_namespace(GLOBAL, b"::a");
             set(f, ns, GLOBAL, b"::a::v", sobj(b"10")).unwrap();
-            f.push();
+            f.push(a);
             set(f, ns, a, b"v", sobj(b"99")).unwrap(); // current_ns = ::a, but in a proc
             assert_eq!(as_str(get(f, ns, a, b"v")), Some(b"99".to_vec())); // the local
             f.pop();
@@ -515,7 +515,7 @@ mod tests {
     fn variable_in_proc_links_to_namespace_var() {
         leak_free(|f, ns| {
             let a = ns.ensure_namespace(GLOBAL, b"::a");
-            f.push();
+            f.push(a);
             make_variable(f, ns, a, a, b"v"); // `variable v` inside a proc of ::a
             set(f, ns, a, b"v", sobj(b"7")).unwrap(); // writes through to ::a::v
             f.pop();
