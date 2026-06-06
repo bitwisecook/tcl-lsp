@@ -124,10 +124,36 @@ test.
     enclosing proc's locals; and relative `upvar 0` at namespace scope aliases a
     namespace var/element (tcltest's option/accessor machinery — e.g.
     `upvar 0 Option(-debug) debug`).
-- **M4 — run a real `*.test` file**: pick a compute-only suite first
-  (e.g. `expr.test` / `string.test` slices), add L3 commands (`format`/`scan`/
-  `regexp`/`clock`/`encoding`) as the chosen suites demand, gated by the
-  pass-delta vs the Zig baseline (no regression of a file the Zig runtime passes).
+- **M4 — run real compute-only `*.test` files — ✅ first suites green.** The
+  unmodified C-Tcl-9 list/string suites run on the runtime with high pass rates:
+  `list.test` **78/78**, `split.test` **18/18**, `llength`/`concat` 100%,
+  `lrange` 1752/1766, `lindex` 41/84 (+37 skipped for the C-only `testevalex`),
+  `join` 9/10, `linsert` 27/28. What landed for M4:
+  - **`scan`** (`cmd_scan.rs`) — `%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%s`/`%e`/
+    `%f`/`%g`/`%[...]`/`%n`/`%%` with `*`/width/size-modifiers, inline + var
+    modes, codepoint-based (`tclScan.c`).
+  - **`format`** (`cmd_format.rs`) — the `sprintf` analogue: flags
+    (`-`/`+`/space/`0`/`#`), width + precision (literal or `*`), positional
+    `%N$`, all numeric/string/float conversions (`tclStringObj.c`).
+  - **List-element quoting** rewritten to the faithful COMPAT
+    `TclScanElement`/`TclConvertElement` four-mode algorithm (none / brace /
+    mask / escape), fixing `[`/`$`/`;`/`]`/`"`/leading-`#` cases — the single
+    biggest pass-rate lift (`list.test` 65→78).
+  - **`split`** made codepoint-based (was byte-based — broke multi-byte
+    separators / empty-split on non-ASCII); **`lindex`** extended to a full
+    index *path* (`lindex $l 1 2` / `lindex $l {1 0}` nested indexing).
+  - **`expr` array-index substitution** (`expr {$a($k)}` now substitutes `$k`)
+    — also unblocked tcltest's constraint evaluation.
+  - Generic errors now stamp `::errorInfo` (the message) + `::errorCode`
+    (`TCL WRONGARGS` for wrong-args, else `NONE`).
+  - **Frame model:** logical call level decoupled from the stack index, so a
+    proc invoked under `uplevel` (tcltest's `uplevel 1 [list Eval …]`) gets the
+    right level — fixed `$errorCode`-style resolution across the test harness.
+  - **Known remaining gaps** (deferred): the full `-errorcode` taxonomy (only
+    `TCL WRONGARGS` so far), the incremental `errorInfo` source-trace, the
+    Tcl-9 lone-surrogate (`\uD83D`) encoding (`append.test`), and C-only test/
+    introspection commands (`testevalex`, `tcl::unsupported::representation`,
+    `ledit`).
 
 ## Appendix — Zig-runtime discoveries to honour
 

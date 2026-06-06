@@ -99,36 +99,57 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// `lindex list ?index?` — element at `index`, the whole list if no index, or
-/// the empty string if out of range.
+/// `lindex list ?index ...?` — drill into a (nested) list. With no index the
+/// whole list is returned; a single index argument is itself split into an
+/// index *path* (so `lindex {{a b} c} {0 1}` works); multiple index arguments
+/// each step one level. An out-of-range step yields the empty string. Mirrors
+/// `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
 fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match argv.len() {
-        2 => {
-            interp.set_result(argv[1]);
-            Code::Ok
+    if argv.len() < 2 {
+        return wrong_args(interp, b"lindex list ?index ...?");
+    }
+    let index_args = &argv[2..];
+    if index_args.is_empty() {
+        interp.set_result(argv[1]);
+        return Code::Ok;
+    }
+    // Build the index path: a lone argument is split into a list of indices;
+    // multiple arguments are each a single index.
+    let path: Vec<Vec<u8>> = if index_args.len() == 1 {
+        match crate::parse::split_list(&obj_bytes(index_args[0])) {
+            Ok(p) => p,
+            Err(e) => return interp.set_error(e.message()),
         }
-        3 => {
-            let n = match list::list_length(argv[1]) {
-                Ok(n) => n,
-                Err(e) => return bad_list(interp, e),
-            };
-            let spec = obj_bytes(argv[2]);
-            let idx = match index_spec(&spec, n) {
-                Some(i) => i,
-                None => return bad_index(interp, &spec),
-            };
-            if idx < 0 || idx as usize >= n {
-                interp.set_result_bytes(b""); // out of range → empty (Tcl)
+    } else {
+        index_args.iter().map(|&a| obj_bytes(a)).collect()
+    };
+
+    let mut cur = argv[1];
+    for spec in &path {
+        let n = match list::list_length(cur) {
+            Ok(n) => n,
+            Err(e) => return bad_list(interp, e),
+        };
+        let idx = match index_spec(spec, n) {
+            Some(i) => i,
+            None => return bad_index(interp, spec),
+        };
+        if idx < 0 || idx as usize >= n {
+            interp.set_result_bytes(b""); // out of range → empty (Tcl)
+            return Code::Ok;
+        }
+        match list::list_index(cur, idx as usize) {
+            // Each element is owned by its parent list (alive up the chain to
+            // `argv[1]`), so borrowing it for the next step is safe.
+            Ok(Some(e)) => cur = e,
+            _ => {
+                interp.set_result_bytes(b"");
                 return Code::Ok;
             }
-            match list::list_index(argv[1], idx as usize) {
-                Ok(Some(e)) => interp.set_result(e),
-                _ => interp.set_result_bytes(b""),
-            }
-            Code::Ok
         }
-        _ => wrong_args(interp, b"lindex list ?index?"),
     }
+    interp.set_result(cur);
+    Code::Ok
 }
 
 /// `lappend varName ?value ...?` — append to the list in `varName` (creating it
@@ -275,31 +296,42 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let mut elems: Vec<*mut TclObj> = Vec::new();
 
+    // `split` works on characters (code points), not bytes — a multi-byte
+    // separator or an empty split string must respect UTF-8 boundaries.
+    let s_chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
+    let push_str = |elems: &mut Vec<*mut TclObj>, cur: &str| {
+        elems.push(obj::new_string_bytes(cur.as_bytes()));
+    };
+
     match chars {
         Some(ref c) if c.is_empty() => {
-            // each byte becomes its own element
-            for &b in &s {
-                elems.push(obj::new_string_bytes(&[b]));
+            // Each character becomes its own element.
+            let mut b = [0u8; 4];
+            for &ch in &s_chars {
+                elems.push(obj::new_string_bytes(ch.encode_utf8(&mut b).as_bytes()));
             }
         }
         _ => {
-            let is_sep = |b: u8| match &chars {
-                Some(c) => c.contains(&b),
-                None => is_ws(b),
+            let sep: Vec<char> = chars
+                .as_ref()
+                .map(|c| String::from_utf8_lossy(c).chars().collect())
+                .unwrap_or_default();
+            let is_sep = |ch: char| match &chars {
+                Some(_) => sep.contains(&ch),
+                None => matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}'),
             };
-            let mut cur: Vec<u8> = Vec::new();
-            for &b in &s {
-                if is_sep(b) {
-                    elems.push(obj::new_string_bytes(&cur));
+            let mut cur = String::new();
+            for &ch in &s_chars {
+                if is_sep(ch) {
+                    push_str(&mut elems, &cur);
                     cur.clear();
                 } else {
-                    cur.push(b);
+                    cur.push(ch);
                 }
             }
-            // trailing element (also handles the empty-string → {} case only
-            // when there was a separator; Tcl: split "" -> "" i.e. empty list)
-            if !s.is_empty() {
-                elems.push(obj::new_string_bytes(&cur));
+            // Trailing element (Tcl: split "" → empty list, no trailing "").
+            if !s_chars.is_empty() {
+                push_str(&mut elems, &cur);
             }
         }
     }

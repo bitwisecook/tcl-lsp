@@ -20,6 +20,8 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
     interp.register_builtin(b"subst", subst_cmd);
+    crate::cmd_scan::install(interp);
+    crate::cmd_format::install(interp);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
     interp.register_builtin(b"expr", expr_cmd);
@@ -487,6 +489,24 @@ struct InterpExprCtx<'a> {
 impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     fn read_var(&mut self, name: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         let (base, elem) = split_array_ref(name.as_bytes());
+        // `expr {$arr($i)}`: the array index is itself substituted (Tcl parses
+        // `$name(index)` with `$`/`[`/`\` substitution in the index).
+        let elem = match elem {
+            Some(k) if k.iter().any(|&c| matches!(c, b'$' | b'[' | b'\\')) => {
+                match self
+                    .interp
+                    .do_subst(&k, crate::subst::SubstFlags::default())
+                {
+                    Ok(v) => Some(v),
+                    Err(_) => {
+                        return Err(crate::expr::ExprError(obj_bytes(
+                            self.interp.get_obj_result(),
+                        )))
+                    }
+                }
+            }
+            other => other,
+        };
         let obj = match &elem {
             Some(k) => self.interp.var_get_elem(&base, k),
             None => self.interp.var_get(&base),

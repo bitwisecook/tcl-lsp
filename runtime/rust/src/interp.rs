@@ -737,6 +737,26 @@ impl Interp {
     /// Set an error result and return [`Code::Error`].
     fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
+        // Every error stamps `::errorInfo` (the message — the incremental
+        // source-trace is deferred) and `::errorCode` (`NONE` for a generic
+        // error). `error`/`throw` set richer values on their own paths and do
+        // not route through here, so they aren't clobbered. (Zig oracle: errors
+        // stamp the globals in and out of `catch`.)
+        let ei = new_string(msg);
+        if self.var_set(b"::errorInfo", ei).is_err() {
+            drop_fresh(ei);
+        }
+        // The common error codes Tcl stamps (the full `-errorcode` taxonomy is a
+        // follow-up): `wrong # args` ⇒ `TCL WRONGARGS`, else `NONE`.
+        let code: &[u8] = if msg.starts_with(b"wrong # args:") {
+            b"TCL WRONGARGS"
+        } else {
+            b"NONE"
+        };
+        let ec = new_string(code);
+        if self.var_set(b"::errorCode", ec).is_err() {
+            drop_fresh(ec);
+        }
         Code::Error
     }
 

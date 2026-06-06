@@ -92,7 +92,7 @@ extern "C" fn list_update_string(obj: *mut TclObj) {
             if i > 0 {
                 buf.push(b' ');
             }
-            append_list_element(&mut buf, &obj::bytes_of(e));
+            append_list_element(&mut buf, &obj::bytes_of(e), i == 0);
         }
         obj::set_string_rep(obj, &buf);
     }
@@ -174,55 +174,132 @@ pub fn list_append(obj: *mut TclObj, elem: *mut TclObj) -> Result<(), ListError>
 
 // -- list-element string quoting --------------------------------------------
 
-const LIST_SPECIAL: &[u8] = b" \t\n\r\x0b\x0c{}\\\"";
+/// Tcl list whitespace (the bytes `TclFindElement` treats as separators).
+#[inline]
+fn is_ws(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+}
 
-/// Append `elem` to `buf` in canonical Tcl list-element form: brace-quoted when
-/// that round-trips, backslash-escaped otherwise, `{}` for empty.
+/// Append `elem` to `buf` in canonical Tcl list-element form. Faithful port of
+/// `TclScanElement`/`TclConvertElement` (`tclUtil.c`) in the **COMPAT** build
+/// configuration Tcl 9.0.3 ships, which picks among four renderings:
 ///
-/// A pragmatic `TclConvertElement`: covers empty, whitespace/brace/backslash/
-/// quote content, brace-balance and trailing-backslash. The leading-`#` and
-/// COMPAT-mask edge cases are refined when the list commands land (T1.6b).
-/// Shared with `dict` (key/value quoting).
-pub(crate) fn append_list_element(buf: &mut Vec<u8>, elem: &[u8]) {
+/// - **none** — bare, when nothing needs protection;
+/// - **brace** — `{…}`, when something forces quoting and braces round-trip;
+/// - **mask** — backslash-escape everything *except* braces, used when the only
+///   reason to quote is a `]` or `"` (Tcl's `CONVERT_MASK`);
+/// - **escape** — backslash-escape everything incl. braces, when braces can't be
+///   used (unbalanced `{}`, a trailing `\`, or a `\<newline>`).
+///
+/// `quote_hash` (the first element of a list) forces a leading `#` to be quoted
+/// so the rendered list can't be misread as starting a comment. Shared with
+/// `dict` (key/value quoting).
+pub(crate) fn append_list_element(buf: &mut Vec<u8>, elem: &[u8], quote_hash: bool) {
     if elem.is_empty() {
         buf.extend_from_slice(b"{}");
         return;
     }
-    let mut needs = false;
-    let mut depth: i32 = 0;
-    let mut went_negative = false;
-    for &c in elem {
-        if LIST_SPECIAL.contains(&c) {
-            needs = true;
+    let mut forbid_none = false; // something needs quoting/escaping
+    let mut require_escape = false; // braces won't work
+    let mut prefer_escape = false; // a `]`/`"` seen (mask mode)
+    let mut prefer_brace = false; // a `[`/`$`/`;`/`\`/ws/leading-quote seen
+    let mut nesting: i32 = 0;
+
+    // Leading character: `{`/`"` would be misread as element syntax; a leading
+    // `#` (first element only) must be quoted so it isn't taken as a comment.
+    match elem[0] {
+        b'{' | b'"' => {
+            forbid_none = true;
+            prefer_brace = true;
         }
-        match c {
-            b'{' => depth += 1,
+        b'#' if quote_hash => prefer_brace = true,
+        _ => {}
+    }
+
+    let mut i = 0;
+    while i < elem.len() {
+        match elem[i] {
+            b'{' => nesting += 1,
             b'}' => {
-                depth -= 1;
-                if depth < 0 {
-                    went_negative = true;
+                nesting -= 1;
+                if nesting < 0 {
+                    require_escape = true; // unbalanced close brace
                 }
+            }
+            b']' | b'"' => {
+                forbid_none = true;
+                prefer_escape = true;
+            }
+            b'[' | b'$' | b';' => {
+                forbid_none = true;
+                prefer_brace = true;
+            }
+            b'\\' => {
+                forbid_none = true;
+                prefer_brace = true;
+                if i + 1 >= elem.len() || elem[i + 1] == b'\n' {
+                    require_escape = true; // trailing `\` or `\<newline>`
+                } else if matches!(elem[i + 1], b'{' | b'}' | b'\\') {
+                    i += 1; // the backslash escapes the next byte
+                }
+            }
+            c if is_ws(c) => {
+                forbid_none = true;
+                prefer_brace = true;
             }
             _ => {}
         }
+        i += 1;
     }
-    if !needs {
-        buf.extend_from_slice(elem);
-        return;
+    if nesting > 0 {
+        require_escape = true; // unbalanced open brace
     }
-    let trailing_backslash = elem.last() == Some(&b'\\');
-    let brace_ok = depth == 0 && !went_negative && !trailing_backslash;
-    if brace_ok {
+
+    let esc_hash = quote_hash && elem[0] == b'#';
+    if require_escape {
+        convert_escaped(buf, elem, true, esc_hash);
+    } else if forbid_none {
+        if prefer_escape && !prefer_brace {
+            convert_escaped(buf, elem, false, esc_hash); // CONVERT_MASK
+        } else {
+            buf.push(b'{');
+            buf.extend_from_slice(elem);
+            buf.push(b'}');
+        }
+    } else if quote_hash && elem[0] == b'#' {
         buf.push(b'{');
         buf.extend_from_slice(elem);
         buf.push(b'}');
     } else {
-        // Backslash-escape mode: prefix every special char with `\`.
-        for &c in elem {
-            if LIST_SPECIAL.contains(&c) {
+        buf.extend_from_slice(elem);
+    }
+}
+
+/// `TclConvertElement` escape rendering. Always backslash-protects the list
+/// metacharacters (`[ ] $ ; \ "`, whitespace via C-style escapes); braces are
+/// escaped only in full-escape mode (`escape_braces`), left literal in mask mode.
+fn convert_escaped(buf: &mut Vec<u8>, elem: &[u8], escape_braces: bool, escape_lead_hash: bool) {
+    for (i, &c) in elem.iter().enumerate() {
+        if i == 0 && escape_lead_hash && c == b'#' {
+            buf.push(b'\\');
+            buf.push(b'#');
+            continue;
+        }
+        match c {
+            b'\n' => buf.extend_from_slice(b"\\n"),
+            b'\t' => buf.extend_from_slice(b"\\t"),
+            b'\r' => buf.extend_from_slice(b"\\r"),
+            0x0b => buf.extend_from_slice(b"\\v"),
+            0x0c => buf.extend_from_slice(b"\\f"),
+            b' ' | b'[' | b']' | b'$' | b';' | b'\\' | b'"' => {
                 buf.push(b'\\');
+                buf.push(c);
             }
-            buf.push(c);
+            b'{' | b'}' if escape_braces => {
+                buf.push(b'\\');
+                buf.push(c);
+            }
+            _ => buf.push(c),
         }
     }
 }
@@ -311,10 +388,28 @@ mod tests {
     }
 
     #[test]
-    fn backslash_escape_mode_for_unbalanced_braces() {
-        let mut buf = Vec::new();
-        append_list_element(&mut buf, b"a{b"); // unbalanced brace → escape mode
-        assert_eq!(buf, b"a\\{b");
+    fn list_element_quoting_modes() {
+        let q = |e: &[u8]| {
+            let mut buf = Vec::new();
+            append_list_element(&mut buf, e, true);
+            buf
+        };
+        // escape mode (unbalanced open brace) — braces escaped too.
+        assert_eq!(q(b"a{b"), b"a\\{b");
+        // bare — balanced braces need no quoting.
+        assert_eq!(q(b"a{b}c"), b"a{b}c");
+        // brace mode — `[`/`$`/`;` force quoting but braces round-trip.
+        assert_eq!(q(b"[append"), b"{[append}");
+        assert_eq!(q(b"a$b"), b"{a$b}");
+        assert_eq!(q(b"a;b"), b"{a;b}");
+        assert_eq!(q(b"a[b]c"), b"{a[b]c}");
+        // mask mode — a lone `]`/`"` escapes (braces left literal).
+        assert_eq!(q(b".b]"), b".b\\]");
+        assert_eq!(q(b"x]y"), b"x\\]y");
+        // leading `#` (first element) → brace.
+        assert_eq!(q(b"#c"), b"{#c}");
+        // whitespace → brace.
+        assert_eq!(q(b"a b"), b"{a b}");
         let _ = release; // silence unused in this pure test
     }
 }

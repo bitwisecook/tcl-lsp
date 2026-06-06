@@ -263,7 +263,11 @@ impl Drop for VarTable {
 /// the `CallFrame.nsPtr` analogue).
 struct Frame {
     table: VarTable,
-    #[allow(dead_code)] // used by info level / upvar level translation (procs)
+    /// The logical call level (`info level`, `upvar`/`uplevel` arithmetic) — the
+    /// invoking var-frame's level + 1, **not** the stack index. They diverge
+    /// when a proc is invoked while `uplevel` has redirected the active frame:
+    /// e.g. `uplevel 1 [list SomeProc …]` (tcltest's idiom) pushes `SomeProc` at
+    /// a deeper stack index but logical level `target+1`.
     level: usize,
     ns: NsId,
     /// The command words that invoked this frame (`info level N`): the proc name
@@ -273,6 +277,10 @@ struct Frame {
     /// *namespace* frame (`namespace eval`/`inscope` — unqualified names resolve
     /// to the namespace, not frame-local). The global frame is non-proc.
     is_proc: bool,
+    /// The `active_level` to restore when this frame is popped (the var-frame in
+    /// effect when it was pushed). Restores correctly even when the push
+    /// happened under an `uplevel` redirection.
+    saved_active: usize,
 }
 
 impl Frame {
@@ -283,6 +291,7 @@ impl Frame {
             ns,
             words: Vec::new(),
             is_proc: false,
+            saved_active: 0,
         }
     }
 }
@@ -323,23 +332,23 @@ impl FrameStack {
     /// frame-local only here; at global / `namespace eval` scope they resolve to
     /// the current namespace.
     pub fn in_proc(&self) -> bool {
-        self.frames
-            .get(self.active_level)
-            .is_some_and(|f| f.is_proc)
+        self.index_of_level(self.active_level)
+            .is_some_and(|i| self.frames[i].is_proc)
     }
 
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
     /// redirection of the active level.
     pub fn top_level(&self) -> usize {
-        self.frames.len() - 1
+        self.frames.last().map_or(0, |f| f.level)
     }
 
     /// Push a new proc call frame running in namespace `ns`; returns its level
     /// and makes it the active frame.
     pub fn push(&mut self, ns: NsId) -> usize {
-        let level = self.frames.len();
+        let level = self.active_level + 1;
         let mut f = Frame::new(level, ns);
         f.is_proc = true;
+        f.saved_active = self.active_level;
         self.frames.push(f);
         self.active_level = level;
         level
@@ -349,20 +358,29 @@ impl FrameStack {
     /// unqualified variables resolve to the namespace (not frame-local). Returns
     /// its level and makes it active.
     pub fn push_namespace(&mut self, ns: NsId) -> usize {
-        let level = self.frames.len();
-        self.frames.push(Frame::new(level, ns)); // is_proc = false
+        let level = self.active_level + 1;
+        let mut f = Frame::new(level, ns); // is_proc = false
+        f.saved_active = self.active_level;
+        self.frames.push(f);
         self.active_level = level;
         level
     }
 
     /// Pop the current (top) frame, releasing its locals (via `VarTable::drop`),
-    /// and re-point the active level at the new top. The global level is never
+    /// and restore the active level to whatever was in effect when it was pushed
+    /// (correct even under an `uplevel` redirection). The global level is never
     /// popped.
     pub fn pop(&mut self) {
         if self.frames.len() > 1 {
-            self.frames.pop();
+            let f = self.frames.pop().expect("non-global frame");
+            self.active_level = f.saved_active;
         }
-        self.active_level = self.frames.len() - 1;
+    }
+
+    /// The stack index of the topmost frame with logical `level` (levels are not
+    /// stack indices once `uplevel` is in play; the most recent wins).
+    fn index_of_level(&self, level: usize) -> Option<usize> {
+        self.frames.iter().rposition(|f| f.level == level)
     }
 
     /// Redirect the active variable frame to `level` (for `uplevel`), returning
@@ -383,32 +401,40 @@ impl FrameStack {
     /// The command words that invoked frame `level` (`info level N`); empty if
     /// the level has none (e.g. the global frame).
     pub(crate) fn words_at(&self, level: usize) -> Option<&[Vec<u8>]> {
-        self.frames.get(level).map(|f| f.words.as_slice())
+        let i = self.index_of_level(level)?;
+        Some(self.frames[i].words.as_slice())
     }
 
     /// The namespace frame `level` runs in (for `uplevel` ns restoration).
     pub fn frame_ns(&self, level: usize) -> NsId {
-        self.frames
-            .get(level)
-            .map_or(crate::namespace::GLOBAL, |f| f.ns)
+        self.index_of_level(level)
+            .map_or(crate::namespace::GLOBAL, |i| self.frames[i].ns)
     }
 
     /// Local variable names of the active frame, sorted (`info locals`).
     pub(crate) fn local_names(&self) -> Vec<Vec<u8>> {
-        self.frames
-            .get(self.active_level)
-            .map(|f| f.table.names().into_iter().map(<[u8]>::to_vec).collect())
+        self.index_of_level(self.active_level)
+            .map(|i| {
+                self.frames[i]
+                    .table
+                    .names()
+                    .into_iter()
+                    .map(<[u8]>::to_vec)
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
     /// The variable table at `level` (read).
     pub(crate) fn table(&self, level: usize) -> Option<&VarTable> {
-        self.frames.get(level).map(|f| &f.table)
+        let i = self.index_of_level(level)?;
+        Some(&self.frames[i].table)
     }
 
     /// The variable table at `level` (mutable).
     pub(crate) fn table_mut(&mut self, level: usize) -> Option<&mut VarTable> {
-        self.frames.get_mut(level).map(|f| &mut f.table)
+        let i = self.index_of_level(level)?;
+        Some(&mut self.frames[i].table)
     }
 }
 
