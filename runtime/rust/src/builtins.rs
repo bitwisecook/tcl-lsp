@@ -251,15 +251,107 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
 
 // -- return ----------------------------------------------------------------
 
-/// `return ?value?` — set the result and complete with [`Code::Return`].
-/// (The `-code`/`-options` forms arrive with full `return` support in T1.5.)
+/// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or 0–4) to a
+/// [`Code`]; `None` for an unrecognised spelling.
+fn parse_code(b: &[u8]) -> Option<Code> {
+    match b {
+        b"ok" | b"0" => Some(Code::Ok),
+        b"error" | b"1" => Some(Code::Error),
+        b"return" | b"2" => Some(Code::Return),
+        b"break" | b"3" => Some(Code::Break),
+        b"continue" | b"4" => Some(Code::Continue),
+        _ => None,
+    }
+}
+
+/// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
+/// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
+/// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
+/// by `catch`) seeds the options; explicit flags override it.
 fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() >= 2 {
-        interp.set_result(argv[1]);
+    let mut code = Code::Ok;
+    let mut level: usize = 1;
+    let mut errorcode: Option<Vec<u8>> = None;
+    let mut errorinfo: Option<Vec<u8>> = None;
+
+    let mut i = 1;
+    while i + 1 < argv.len() {
+        let opt = obj_bytes(argv[i]);
+        match opt.as_slice() {
+            b"-code" => match parse_code(&obj_bytes(argv[i + 1])) {
+                Some(c) => code = c,
+                None => {
+                    let mut m = b"bad completion code \"".to_vec();
+                    m.extend_from_slice(&obj_bytes(argv[i + 1]));
+                    m.extend_from_slice(
+                        b"\": must be ok, error, return, break, continue, or an integer",
+                    );
+                    return interp.set_error(&m);
+                }
+            },
+            b"-level" => match core::str::from_utf8(&obj_bytes(argv[i + 1]))
+                .ok()
+                .and_then(|s| s.trim().parse::<usize>().ok())
+            {
+                Some(l) => level = l,
+                None => return interp.set_error(b"bad -level value"),
+            },
+            b"-errorcode" => errorcode = Some(obj_bytes(argv[i + 1])),
+            b"-errorinfo" => errorinfo = Some(obj_bytes(argv[i + 1])),
+            b"-options" => {
+                // Seed code/level/errorcode/errorinfo from the options dict.
+                let opts = obj_bytes(argv[i + 1]);
+                if let Ok(d) = crate::parse::split_list(&opts) {
+                    let mut j = 0;
+                    while j + 1 < d.len() {
+                        match d[j].as_slice() {
+                            b"-code" => code = parse_code(&d[j + 1]).unwrap_or(code),
+                            b"-level" => {
+                                level = core::str::from_utf8(&d[j + 1])
+                                    .ok()
+                                    .and_then(|s| s.trim().parse().ok())
+                                    .unwrap_or(level);
+                            }
+                            b"-errorcode" => errorcode = Some(d[j + 1].clone()),
+                            b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
+                            _ => {}
+                        }
+                        j += 2;
+                    }
+                }
+            }
+            _ => break, // not an option → the result word
+        }
+        i += 2;
+    }
+    // The optional trailing result word.
+    if i < argv.len() {
+        interp.set_result(argv[i]);
     } else {
         interp.set_result_bytes(b"");
     }
-    Code::Return
+    // On an error completion, stamp the error globals (like `error`).
+    if code == Code::Error {
+        let info = errorinfo.unwrap_or_else(|| obj_bytes(interp.get_obj_result()));
+        let ecode = errorcode.unwrap_or_else(|| b"NONE".to_vec());
+        set_global(interp, b"::errorInfo", &info);
+        set_global(interp, b"::errorCode", &ecode);
+    }
+    if level == 0 {
+        // No unwinding: complete with `code` right here.
+        code
+    } else {
+        interp.set_return_state(level, code);
+        Code::Return
+    }
+}
+
+/// Set a global (`::name`) to `bytes` (for the error globals).
+fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
+    let o = obj::new_string_bytes(bytes);
+    if interp.var_set(name, o).is_err() {
+        drop_fresh(o);
+    }
 }
 
 // -- unset -----------------------------------------------------------------

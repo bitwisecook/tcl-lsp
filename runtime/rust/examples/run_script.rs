@@ -13,7 +13,13 @@ use std::io::Read;
 use tcl_runtime::interp::{Code, Interp};
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    // `--init` bootstraps the standard library (TCL_LIBRARY → source init.tcl)
+    // before evaluating, like a real `tclsh`.
+    let init = args.get(1).map(String::as_str) == Some("--init");
+    if init {
+        args.remove(1);
+    }
     let src = if let Some(path) = args.get(1) {
         std::fs::read(path).unwrap_or_else(|e| {
             eprintln!("run_script: cannot read {path}: {e}");
@@ -26,6 +32,13 @@ fn main() {
     };
 
     let mut interp = Interp::new();
+    if init && interp.init_library() == Code::Error {
+        eprintln!(
+            "init error: {}",
+            String::from_utf8_lossy(&interp.result_bytes())
+        );
+        std::process::exit(1);
+    }
     let code = interp.eval_str(&src);
     let result = interp.result_bytes();
     if code == Code::Error {

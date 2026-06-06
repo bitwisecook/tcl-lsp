@@ -126,35 +126,71 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name = obj_bytes(name_obj);
     let reqs: Vec<Vec<u8>> = argv[i + 1..].iter().map(|&a| obj_bytes(a)).collect();
 
+    // 1. Already provided and satisfactory?
     if let Some(found) = check_provided(interp, &name, exact, &reqs) {
-        match found {
+        return match found {
             Ok(v) => {
+                interp.set_result_bytes(&v);
+                Code::Ok
+            }
+            Err(code) => code,
+        };
+    }
+    // 2. Try an `ifneeded` load script for a satisfying version; if none yet,
+    //    run the `unknown` handler (auto-loader / pkgIndex search) and retry.
+    for attempt in 0..2 {
+        if let Some(ver) = best_ifneeded(interp, &name, exact, &reqs) {
+            let script = interp.packages.ifneeded[&(name.clone(), ver)].clone();
+            if interp.eval_str(&script) == Code::Error {
+                return Code::Error;
+            }
+            if let Some(Ok(v)) = check_provided(interp, &name, exact, &reqs) {
                 interp.set_result_bytes(&v);
                 return Code::Ok;
             }
-            Err(code) => return code,
         }
-    }
-    // Not present (satisfactorily): invoke the `unknown` handler if any, then
-    // retry once. The handler is the pure-Tcl auto-loader (needs the VFS, L2).
-    let handler = interp.packages.unknown.clone();
-    if !handler.is_empty() {
-        let mut script = handler;
-        for w in std::iter::once(&name).chain(reqs.iter()) {
-            script.push(b' ');
-            script.extend_from_slice(w);
-        }
-        if interp.eval_str(&script) == Code::Error {
-            return Code::Error;
-        }
-        if let Some(Ok(v)) = check_provided(interp, &name, exact, &reqs) {
-            interp.set_result_bytes(&v);
-            return Code::Ok;
+        if attempt == 0 {
+            let handler = interp.packages.unknown.clone();
+            if handler.is_empty() {
+                break;
+            }
+            let mut script = handler;
+            for w in std::iter::once(&name).chain(reqs.iter()) {
+                script.push(b' ');
+                script.extend_from_slice(w);
+            }
+            if interp.eval_str(&script) == Code::Error {
+                return Code::Error;
+            }
         }
     }
     let mut m = b"can't find package ".to_vec();
     m.extend_from_slice(&name);
     interp.set_error(&m)
+}
+
+/// The highest `ifneeded` version of `name` satisfying the requirements (for
+/// `-exact`, an exact match), or `None`.
+fn best_ifneeded(interp: &Interp, name: &[u8], exact: bool, reqs: &[Vec<u8>]) -> Option<Vec<u8>> {
+    let mut best: Option<Vec<u8>> = None;
+    for (n, v) in interp.packages.ifneeded.keys() {
+        if n != name {
+            continue;
+        }
+        let ok = if exact {
+            reqs.first().map_or(true, |r| r == v)
+        } else {
+            reqs.iter().all(|r| vsatisfies(v, r))
+        };
+        if ok
+            && best
+                .as_ref()
+                .map_or(true, |b| vcompare(v, b) == core::cmp::Ordering::Greater)
+        {
+            best = Some(v.clone());
+        }
+    }
+    best
 }
 
 /// If `name` is provided and satisfies the requirements, `Some(Ok(version))`; if

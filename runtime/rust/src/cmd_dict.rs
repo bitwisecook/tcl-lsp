@@ -35,11 +35,14 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"values" => values(interp, argv),
         b"merge" => merge(interp, argv),
         b"for" => for_(interp, argv),
+        b"append" => append(interp, argv),
+        b"lappend" => lappend(interp, argv),
+        b"incr" => incr(interp, argv),
         _ => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(&sub);
             m.extend_from_slice(
-                b"\": must be create, exists, for, get, keys, merge, set, size, unset, or values",
+                b"\": must be append, create, exists, for, get, incr, keys, lappend, merge, set, size, unset, or values",
             );
             interp.set_error(&m)
         }
@@ -167,6 +170,133 @@ fn merge(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 // -- variable-mutating subcommands (copy-on-write) -------------------------
+
+/// The dict object to mutate for `dictVar`: the variable's (mutated in place if
+/// unshared), a COW copy, or a fresh empty dict. Returns `(obj, is_new)`.
+fn working_dict(interp: &mut Interp, name: &[u8]) -> (*mut TclObj, bool) {
+    match interp.var_get(name) {
+        None => (dict::new_dict_obj(&[]), true),
+        Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
+        Some(o) => (o, false),
+    }
+}
+
+/// Store a freshly built dict back into `dictVar` (when `is_new`) and set it as
+/// the result.
+fn store_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, is_new: bool) -> Code {
+    if is_new && interp.var_set(name, target).is_err() {
+        drop_fresh(target);
+        return cant_set(interp, name);
+    }
+    interp.set_result(target);
+    Code::Ok
+}
+
+/// `dict append dictVarName key ?value ...?` — string-append to the key's value.
+fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"dict append dictVarName key ?value ...?");
+    }
+    let name = obj_bytes(argv[2]);
+    let key = argv[3];
+    let (target, is_new) = working_dict(interp, &name);
+    let mut buf = match dict::dict_get(target, &obj_bytes(key)) {
+        Ok(Some(v)) => obj_bytes(v),
+        _ => Vec::new(),
+    };
+    for &s in &argv[4..] {
+        buf.extend_from_slice(&obj_bytes(s));
+    }
+    let val = crate::interp::new_string(&buf); // rc 0; dict_set retains
+    if dict::dict_set(target, key, val).is_err() {
+        drop_fresh(val);
+        if is_new {
+            drop_fresh(target);
+        }
+        return bad_dict(interp);
+    }
+    store_dict(interp, &name, target, is_new)
+}
+
+/// `dict lappend dictVarName key ?value ...?` — list-append to the key's value.
+fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"dict lappend dictVarName key ?value ...?");
+    }
+    let name = obj_bytes(argv[2]);
+    let key = argv[3];
+    let (target, is_new) = working_dict(interp, &name);
+    let mut elems: Vec<*mut TclObj> = match dict::dict_get(target, &obj_bytes(key)) {
+        Ok(Some(v)) => crate::list::list_elements(v).unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    elems.extend_from_slice(&argv[4..]);
+    let val = crate::list::new_list_obj(&elems); // rc 0; dict_set retains
+    if dict::dict_set(target, key, val).is_err() {
+        drop_fresh(val);
+        if is_new {
+            drop_fresh(target);
+        }
+        return bad_dict(interp);
+    }
+    store_dict(interp, &name, target, is_new)
+}
+
+/// `dict incr dictVarName key ?increment?` — integer-add to the key's value.
+fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 || argv.len() > 5 {
+        return wrong_args(interp, b"dict incr dictVarName key ?increment?");
+    }
+    let name = obj_bytes(argv[2]);
+    let key = argv[3];
+    let (target, is_new) = working_dict(interp, &name);
+    let cur = match dict::dict_get(target, &obj_bytes(key)) {
+        Ok(Some(v)) => match parse_i64(&obj_bytes(v)) {
+            Some(n) => n,
+            None => {
+                if is_new {
+                    drop_fresh(target);
+                }
+                return not_integer(interp, &obj_bytes(v));
+            }
+        },
+        _ => 0,
+    };
+    let amount = if argv.len() == 5 {
+        match parse_i64(&obj_bytes(argv[4])) {
+            Some(n) => n,
+            None => {
+                if is_new {
+                    drop_fresh(target);
+                }
+                return not_integer(interp, &obj_bytes(argv[4]));
+            }
+        }
+    } else {
+        1
+    };
+    let sum = cur.wrapping_add(amount);
+    let val = crate::interp::new_string(sum.to_string().as_bytes());
+    if dict::dict_set(target, key, val).is_err() {
+        drop_fresh(val);
+        if is_new {
+            drop_fresh(target);
+        }
+        return bad_dict(interp);
+    }
+    store_dict(interp, &name, target, is_new)
+}
+
+fn parse_i64(b: &[u8]) -> Option<i64> {
+    core::str::from_utf8(b).ok()?.trim().parse().ok()
+}
+
+fn not_integer(interp: &mut Interp, b: &[u8]) -> Code {
+    let mut m = b"expected integer but got \"".to_vec();
+    m.extend_from_slice(b);
+    m.push(b'"');
+    interp.set_error(&m)
+}
 
 /// `dict set dictVarName key value` — set in the dict held by the variable.
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

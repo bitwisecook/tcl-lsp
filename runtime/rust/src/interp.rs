@@ -128,6 +128,10 @@ pub struct Interp {
     pub(crate) packages: crate::cmd_package::PackageState,
     /// The `source` script stack (`info script` — the file being sourced).
     script_stack: Vec<Vec<u8>>,
+    /// Pending `return -code`/`-level` state (`TclUpdateReturnInfo`): the code to
+    /// complete with once `-level` boundaries are unwound.
+    return_code: Code,
+    return_level: usize,
     result: *mut TclObj,
 }
 
@@ -148,6 +152,8 @@ impl Interp {
             recursion_depth: 0,
             packages: crate::cmd_package::PackageState::with_core(),
             script_stack: Vec::new(),
+            return_code: Code::Ok,
+            return_level: 1,
             result,
         });
         builtins::install(&mut interp);
@@ -246,17 +252,98 @@ impl Interp {
         &mut self.namespaces
     }
 
+    /// Bootstrap the standard library like C's `Tcl_Init`: set the startup
+    /// globals (`tcl_library` from `$TCL_LIBRARY`, version/platform/env/argv,
+    /// `auto_path`), then `source $tcl_library/init.tcl`. After this the
+    /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
+    /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
+    pub fn init_library(&mut self) -> Code {
+        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
+            let o = new_string(val);
+            if i.var_set(name, o).is_err() {
+                drop_fresh(o);
+            }
+        };
+        set(self, b"::tcl_library", lib.as_bytes());
+        set(self, b"::tcl_version", b"9.0");
+        set(self, b"::tcl_patchLevel", b"9.0.3");
+        set(self, b"::tcl_interactive", b"0");
+        set(self, b"::argv", b"");
+        set(self, b"::argv0", b"");
+        set(self, b"::argc", b"0");
+        set(self, b"::auto_path", b"");
+        // tcl_platform array (the fields init.tcl + tcltest read).
+        for (k, v) in [
+            (&b"platform"[..], &b"unix"[..]),
+            (b"os", b"Linux"),
+            (b"osVersion", b"0"),
+            (b"byteOrder", b"littleEndian"),
+            (b"wordSize", b"8"),
+            (b"pointerSize", b"8"),
+            (b"engine", b"Tcl"),
+            (b"threaded", b"0"),
+            (b"pathSeparator", b":"),
+        ] {
+            let o = new_string(v);
+            if self.var_set_elem(b"tcl_platform", k, o).is_err() {
+                drop_fresh(o);
+            }
+        }
+        // env array from the host environment (no quoting hazards via var_set_elem).
+        for (k, v) in std::env::vars() {
+            let o = new_string(v.as_bytes());
+            if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
+                drop_fresh(o);
+            }
+        }
+        // Source init.tcl, which sets up unknown/auto-load/package + appends
+        // tcl_library (and its parent) to auto_path.
+        let init_path = format!("{lib}/init.tcl");
+        match std::fs::read(&init_path) {
+            Ok(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
+            Err(_) => {
+                let mut m = b"can't find ".to_vec();
+                m.extend_from_slice(init_path.as_bytes());
+                m.extend_from_slice(b" (set TCL_LIBRARY)");
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Record `return -level L -code C` state (set by the `return` command).
+    pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
+        self.return_level = level;
+        self.return_code = code;
+    }
+
+    /// Apply a procedure/source **return boundary** to a body completion code
+    /// (`TclUpdateReturnInfo`): a `Code::Return` decrements the pending
+    /// `-level`; when it reaches 0 the boundary completes with the pending
+    /// `-code` (so `return` → Ok, `return -code error` → Error). Other codes
+    /// pass through.
+    fn settle_return(&mut self, code: Code) -> Code {
+        if code != Code::Return {
+            return code;
+        }
+        self.return_level = self.return_level.saturating_sub(1);
+        if self.return_level == 0 {
+            let c = self.return_code;
+            self.return_code = Code::Ok;
+            c
+        } else {
+            Code::Return
+        }
+    }
+
     /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
-    /// the script stack (`info script`). A top-level `return` ends the file (maps
-    /// to `Ok`); other codes propagate.
+    /// the script stack (`info script`). A top-level `return` ends the file (the
+    /// return boundary maps `return` → Ok); other codes propagate.
     pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
         self.script_stack.push(name.to_vec());
         let code = self.eval_str(script);
         self.script_stack.pop();
-        match code {
-            Code::Return => Code::Ok,
-            other => other,
-        }
+        self.settle_return(code)
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
@@ -613,13 +700,33 @@ impl Interp {
         code
     }
 
-    /// Look up `argv[0]` and invoke it.
+    /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler
+    /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
+    /// matching C's `TclEvalObjvInternal`.
     fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
-        match self.namespaces.resolve(self.current_ns, &name) {
-            Some(cmd) => self.invoke(cmd, argv),
-            None => self.invalid_command(&name),
+        if let Some(cmd) = self.namespaces.resolve(self.current_ns, &name) {
+            return self.invoke(cmd, argv);
         }
+        // Command miss: dispatch through `unknown <name> <args…>` if it exists
+        // (and we're not already resolving `unknown` itself).
+        if name != b"unknown" {
+            if let Some(unk) = self.namespaces.resolve(GLOBAL, b"unknown") {
+                let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
+                let head = new_string(b"unknown");
+                // SAFETY: fresh + live argv elements; take the owning +1.
+                unsafe { obj::incr_ref_count(head) };
+                new_argv.push(head);
+                for &a in argv {
+                    unsafe { obj::incr_ref_count(a) };
+                    new_argv.push(a);
+                }
+                let code = self.invoke(unk, &new_argv);
+                release_all(&new_argv);
+                return code;
+            }
+        }
+        self.invalid_command(&name)
     }
 
     /// Invoke an already-resolved command handle with `argv`.
@@ -728,11 +835,10 @@ impl Interp {
         self.frames.pop();
         self.current_ns = saved_ns;
         self.recursion_depth -= 1;
-        // A proc-level `return` is the proc's normal completion; a `break`/
-        // `continue` that escapes the body (no enclosing loop) is an error
-        // (C Tcl: `invoked "break" outside of a loop`).
-        match code {
-            Code::Return => Code::Ok,
+        // Apply the return boundary (`return`/`return -code -level`), then a
+        // bare `break`/`continue` that escaped the body (no enclosing loop) is an
+        // error (C Tcl: `invoked "break" outside of a loop`).
+        match self.settle_return(code) {
             Code::Break => self.error(b"invoked \"break\" outside of a loop"),
             Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
             other => other,
