@@ -74,11 +74,14 @@ test.
     restore)/`apply` (shared `run_proc`); `info` (`exists`[arr(key)]/`commands`/
     `procs`/`vars`/`globals`/`locals`/`level`/`tclversion`/`patchlevel`/`body`/
     `args`/`default`); `array` (`set`/`get`/`names`/`exists`/`size`/`unset`).
-  - **next:** `switch`; the extra list ops (`lsort`/`lsearch`/`linsert`/
-    `lreplace`/`lrepeat`/`lset`/`lmap`/`lpop`/`lremove`/`lseq`); `subst` (cmd);
-    `package` (require/provide/ifneeded/unknown/vsatisfies/present); the
-    incremental `errorInfo` source-trace (`return -options`/`try`/`throw` +
-    PC-1's `CmdFrame` stack).
+  - **also done:** `switch` (-exact/-glob/-nocase/--, default, `-` fall-through);
+    list ops `lrepeat`/`linsert`/`lreplace`/`lsearch`/`lsort`; `package`
+    (provide/require/present/ifneeded/unknown/names/versions/vsatisfies/vcompare,
+    with the core `tcl`/`Tcl` pre-provided + TIP-268 version reqs).
+  - **next (closing L1):** `subst` (cmd); `lset`/`lmap`/`lpop`/`lremove`/`lseq`;
+    `-regexp` modes (with the regex engine); the incremental `errorInfo`
+    source-trace (`return -options`/`try`/`throw` + PC-1's `CmdFrame` stack).
+    Then **L2** (VFS + `source`/`file`/`glob`/channels) to load `init.tcl`.
 - **M2 — VFS + channels (L2)**: a host file/VFS layer (WASI preview1 native; a
   shim under test) behind `source`/`file`/`glob`/`open`/`read`/`gets`/`close`/
   `fconfigure`. Gate: `source init.tcl` loads cleanly; `info script` correct.

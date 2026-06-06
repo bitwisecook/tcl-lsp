@@ -52,6 +52,7 @@ pub mod cmd_mathfunc;
 #[cfg(have_tommath)]
 pub mod cmd_mathop;
 pub mod cmd_namespace;
+pub mod cmd_package;
 pub mod cmd_proc;
 pub mod cmd_string;
 pub mod cmd_switch;

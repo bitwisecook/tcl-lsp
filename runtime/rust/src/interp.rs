@@ -124,6 +124,8 @@ pub struct Interp {
     /// recursion so an infinite proc loop raises a catchable error instead of
     /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
     recursion_depth: usize,
+    /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
+    pub(crate) packages: crate::cmd_package::PackageState,
     result: *mut TclObj,
 }
 
@@ -142,6 +144,7 @@ impl Interp {
             namespaces: Namespaces::new(),
             current_ns: GLOBAL,
             recursion_depth: 0,
+            packages: crate::cmd_package::PackageState::with_core(),
             result,
         });
         builtins::install(&mut interp);
