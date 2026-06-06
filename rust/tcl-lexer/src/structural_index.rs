@@ -9,13 +9,20 @@
 //! index alone — **no re-lex** — and prove the answer matches a real
 //! re-scan.
 //!
-//! Scope: the **script `[`/`]` (bracket)** and **`{`/`}` (brace)**
-//! sublanguages — the doc's headline script claim covers both
-//! ([`BracketIndex`], [`BraceIndex`]). The expr `(` dimension slots in
-//! the same way. It is deliberately *not wired into production* — like
-//! the Python prototypes (kept only in git history), it instruments the
-//! model and adds no production value yet; the incremental green-tree
-//! engine will build the productionised index.
+//! Scope: all three structural-index dimensions the doc names — the
+//! script **`[`/`]` (bracket)** and **`{`/`}` (brace)** sublanguages
+//! ([`BracketIndex`], [`BraceIndex`]) and the expr **`(`/`)` (paren)**
+//! sublanguage ([`ExprParenIndex`]). It is deliberately *not wired into
+//! production* — like the Python prototypes (kept only in git history),
+//! it instruments the model and adds no production value yet; the
+//! incremental green-tree engine will build the productionised index.
+//!
+//! The **expr paren** dimension is built directly from the expr lexer's
+//! token stream (`$arr(idx)` is one `Variable`; strings / command subs
+//! are whole tokens), so its grouping-paren count is the lexer's — the
+//! cleanest realisation of "store the lexer's entry-state per token". It
+//! is verified against C Tcl 9.0.3 `expr`'s `unbalanced open/close paren`
+//! diagnostics over an adversarial fuzz corpus.
 //!
 //! ### Brace-dimension boundary (documented, pinned)
 //!
@@ -734,6 +741,147 @@ impl BraceBuilder<'_> {
     }
 }
 
+// ===========================================================================
+// Expr paren dimension (`(` / `)`) — the doc's third structural index. Parens
+// nest in expressions where they don't at script level, and the opaque tokens
+// `[…]` / `"…"` / `{…}` / `${…}` / `$arr(idx)` are whole tokens whose interior
+// parens never count. The Rust expr lexer already tokenises exactly that way
+// (`$arr(idx)` is one `Variable`; strings / command subs are whole tokens), so
+// the paren index is built **directly from the lexer's token stream** — the
+// most faithful possible "store the lexer's entry-state per token".
+// ===========================================================================
+
+/// The paren-balance verdict of an expression, matching C Tcl 9.0.3
+/// `expr`'s paren diagnostics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParenBalance {
+    /// Every `(` is matched and no `)` precedes its opener.
+    Balanced,
+    /// At least one unmatched `(` remains at EOF (C Tcl: "unbalanced
+    /// open paren").
+    OpenHeavy,
+    /// A `)` appears with no open `(` (C Tcl: "unbalanced close paren").
+    CloseHeavy,
+}
+
+/// A structural-state index for the expr paren (`(` / `)`) dimension,
+/// built from the expr lexer's token stream.
+#[derive(Debug, Clone)]
+pub struct ExprParenIndex {
+    /// Grouping-paren events in ascending offset order (`+1` / `-1`).
+    events: Vec<(u32, i32)>,
+    /// Inert byte ranges `[start, end)` — the opaque expr tokens
+    /// (`String` / `Variable` / `Command`) whose interior parens never
+    /// count. Sorted, merged.
+    inert: Vec<(u32, u32)>,
+    /// Source length in bytes.
+    len: u32,
+}
+
+impl ExprParenIndex {
+    /// Build the index for an expression `source`.
+    #[must_use]
+    pub fn build(source: &str) -> Self {
+        let tokens = crate::expr_lexer::tokenise_expr(source, None);
+        let mut events = Vec::new();
+        let mut inert = Vec::new();
+        for t in &tokens {
+            match t.kind {
+                crate::expr_lexer::ExprTokenType::ParenOpen => events.push((t.start, 1)),
+                crate::expr_lexer::ExprTokenType::ParenClose => events.push((t.start, -1)),
+                // Opaque whole tokens: their interior parens are inert.
+                // `end` is inclusive, so the half-open span ends at
+                // `end + 1`.
+                crate::expr_lexer::ExprTokenType::String
+                | crate::expr_lexer::ExprTokenType::Variable
+                | crate::expr_lexer::ExprTokenType::Command => {
+                    inert.push((t.start, t.end.saturating_add(1)));
+                }
+                _ => {}
+            }
+        }
+        // The lexer emits tokens left-to-right, so both vectors are
+        // already sorted; merge inert overlaps defensively.
+        inert.sort_unstable();
+        let mut merged: Vec<(u32, u32)> = Vec::with_capacity(inert.len());
+        for (s, e) in inert {
+            match merged.last_mut() {
+                Some(last) if s <= last.1 => last.1 = last.1.max(e),
+                _ => merged.push((s, e)),
+            }
+        }
+        ExprParenIndex {
+            events,
+            inert: merged,
+            len: u32::try_from(source.len()).expect("source length fits u32"),
+        }
+    }
+
+    /// The paren-balance verdict (signed running level: a negative
+    /// running minimum is a close before its opener; a positive final
+    /// level is unmatched opens).
+    #[must_use]
+    pub fn balance(&self) -> ParenBalance {
+        let mut lvl = 0i32;
+        let mut min = 0i32;
+        for &(_, d) in &self.events {
+            lvl += d;
+            min = min.min(lvl);
+        }
+        if min < 0 {
+            ParenBalance::CloseHeavy
+        } else if lvl > 0 {
+            ParenBalance::OpenHeavy
+        } else {
+            ParenBalance::Balanced
+        }
+    }
+
+    /// Number of unmatched `(` at EOF (the clamped open level).
+    #[must_use]
+    pub fn unmatched_opens(&self) -> i32 {
+        let mut lvl = 0i32;
+        for &(_, d) in &self.events {
+            lvl = (lvl + d).max(0);
+        }
+        lvl
+    }
+
+    /// `true` when inserting a `)` *at* `off` would be absorbed by an
+    /// opaque token (strictly inside an inert span).
+    #[must_use]
+    fn inert_for_insert(&self, off: u32) -> bool {
+        let idx = self.inert.partition_point(|&(s, _)| s < off);
+        if idx == 0 {
+            return false;
+        }
+        let (start, end) = self.inert[idx - 1];
+        start < off && off < end
+    }
+
+    /// `true` when inserting a single `)` at byte offset `off` makes the
+    /// expression paren-balanced, from the index alone.
+    #[must_use]
+    pub fn close_paren_balances(&self, off: u32) -> bool {
+        if off > self.len || self.inert_for_insert(off) {
+            return false;
+        }
+        let mut lvl = 0i32;
+        let mut inserted = false;
+        for &(o, d) in &self.events {
+            if !inserted && o >= off {
+                lvl = (lvl - 1).max(0);
+                inserted = true;
+            }
+            lvl = (lvl + d).max(0);
+        }
+        if !inserted {
+            lvl = (lvl - 1).max(0);
+        }
+        lvl == 0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1419,6 +1567,243 @@ while {1} {
                 pred,
                 "index failed to predict the original close site: {s:?}"
             );
+        }
+    }
+
+    // ===================================================================
+    // Expr paren dimension (`(` / `)`).
+    // ===================================================================
+
+    /// C Tcl 9.0.3 `expr` paren verdict for a batch of expressions.
+    /// `Some('B')` balanced / OK, `'O'` unbalanced-open, `'C'`
+    /// unbalanced-close, `'X'` a non-paren error (paren state
+    /// indeterminate from the oracle). Returns `None` if `tclsh9.0` is
+    /// unavailable.
+    fn tcl_expr_paren_verdicts(exprs: &[String]) -> Option<Vec<char>> {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+
+        const ORACLE: &str = r#"
+fconfigure stdin -translation binary
+fconfigure stdout -translation binary
+while {1} {
+    set line [gets stdin]
+    if {[eof stdin] && $line eq ""} break
+    if {$line eq ""} continue
+    set nbytes [expr {int($line)}]
+    set data [read stdin $nbytes]
+    read stdin 1
+    if {[catch {expr $data} m]} {
+        if {[string match {*unbalanced open paren*} $m]} {
+            puts O
+        } elseif {[string match {*unbalanced close paren*} $m]} {
+            puts C
+        } else {
+            puts X
+        }
+    } else {
+        puts B
+    }
+}
+"#;
+        let mut child = Command::new("tclsh9.0")
+            .arg("-")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        {
+            let mut stdin = child.stdin.take()?;
+            stdin.write_all(ORACLE.as_bytes()).ok()?;
+            for e in exprs {
+                let bytes = e.as_bytes();
+                writeln!(stdin, "{}", bytes.len()).ok()?;
+                stdin.write_all(bytes).ok()?;
+                stdin.write_all(b"\n").ok()?;
+            }
+        }
+        let out = child.wait_with_output().ok()?;
+        let text = String::from_utf8(out.stdout).ok()?;
+        let verdicts: Vec<char> = text
+            .split_whitespace()
+            .filter_map(|t| t.chars().next())
+            .collect();
+        (verdicts.len() == exprs.len()).then_some(verdicts)
+    }
+
+    /// Adversarial expr corpus: parens, operands, operators, and the
+    /// opaque tokens (`$arr(i)`, `[f]`, `"s"`, `{b}`) whose interior
+    /// parens must not count.
+    fn expr_corpus(n: usize) -> Vec<String> {
+        let atoms = [
+            "(", ")", "1", "2", " ", "+", "*", "+1", "*2", "$a", "$arr(1)", "[f]", "\"s)\"",
+            "{x)}", "(1+2)", "a", "==", "!",
+        ];
+        let mut out = Vec::with_capacity(n);
+        let mut rng = Lcg(0x00ff_a5a5_1234_9876);
+        for _ in 0..n {
+            let len = 1 + (rng.next_u32() as usize % 9);
+            let mut s = String::new();
+            for _ in 0..len {
+                s.push_str(rng.pick(&atoms));
+            }
+            out.push(s);
+        }
+        out
+    }
+
+    #[test]
+    fn expr_paren_index_counts_only_grouping_parens() {
+        // `$arr(i)` / `"(s)"` / `{(b)}` / `[f(x)]` interiors do not count.
+        assert_eq!(
+            ExprParenIndex::build("$arr(1+2)").balance(),
+            ParenBalance::Balanced
+        );
+        assert_eq!(
+            ExprParenIndex::build("\"(((\"").balance(),
+            ParenBalance::Balanced
+        );
+        assert_eq!(
+            ExprParenIndex::build("{(((}").balance(),
+            ParenBalance::Balanced
+        );
+        assert_eq!(
+            ExprParenIndex::build("[f ((( ]").balance(),
+            ParenBalance::Balanced
+        );
+        // Real grouping parens do count.
+        assert_eq!(
+            ExprParenIndex::build("(1+2)").balance(),
+            ParenBalance::Balanced
+        );
+        assert_eq!(
+            ExprParenIndex::build("(1+2").balance(),
+            ParenBalance::OpenHeavy
+        );
+        assert_eq!(
+            ExprParenIndex::build("1+2)").balance(),
+            ParenBalance::CloseHeavy
+        );
+        assert_eq!(
+            ExprParenIndex::build("$a(1)+(2").balance(),
+            ParenBalance::OpenHeavy
+        );
+    }
+
+    #[test]
+    fn ctcl9_expr_paren_verdict_matches_reference() {
+        // The index's paren-balance verdict must match C Tcl 9.0.3
+        // `expr` wherever `expr` gives a *definitive* paren verdict (OK,
+        // unbalanced-open, unbalanced-close). Non-paren errors ('X') are
+        // excluded — `expr` may hit a different error before reaching the
+        // paren check, leaving the paren state indeterminate from the
+        // oracle.
+        let cases = expr_corpus(8000);
+        let Some(oracle) = tcl_expr_paren_verdicts(&cases) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        let mut checked = 0usize;
+        let mut violations: Vec<String> = Vec::new();
+        for (s, &v) in cases.iter().zip(&oracle) {
+            let want = match v {
+                'B' => ParenBalance::Balanced,
+                'O' => ParenBalance::OpenHeavy,
+                'C' => ParenBalance::CloseHeavy,
+                _ => continue, // 'X' indeterminate
+            };
+            checked += 1;
+            let got = ExprParenIndex::build(s).balance();
+            if got != want && violations.len() < 20 {
+                violations.push(format!("{s:?}: index={got:?} tcl={want:?}"));
+            }
+        }
+        assert!(checked > 1000, "too few definitive cases: {checked}");
+        assert!(
+            violations.is_empty(),
+            "expr paren index disagreed with C Tcl 9.0.3: {violations:#?}",
+        );
+    }
+
+    #[test]
+    fn ctcl9_realistic_expr_paren_recovery() {
+        // A single forgotten `)` in a real expression: the index
+        // predicts the original close site, and the repair evaluates
+        // under C Tcl 9.0.3.
+        let bases = &[
+            "(1 + 2) * 3",
+            "max(1, (2 + 3))",
+            "($a + $b) / ($c - 1)",
+            "(($x == 1) && ($y != 2))",
+            "abs((1 - 2) * (3 + 4))",
+        ];
+        let mut repaired: Vec<String> = Vec::new();
+        let mut predicted: Vec<bool> = Vec::new();
+        for base in bases {
+            for (cp, _) in base.match_indices(')') {
+                let mut broken = String::new();
+                broken.push_str(&base[..cp]);
+                broken.push_str(&base[cp + 1..]);
+                let idx = ExprParenIndex::build(&broken);
+                if idx.balance() != ParenBalance::OpenHeavy {
+                    continue;
+                }
+                predicted.push(idx.close_paren_balances(u32::try_from(cp).unwrap()));
+                repaired.push((*base).to_string());
+            }
+        }
+        let Some(oracle) = tcl_expr_paren_verdicts(&repaired) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        for ((s, &v), &pred) in repaired.iter().zip(&oracle).zip(&predicted) {
+            assert_ne!(v, 'O', "repaired expr still open-heavy: {s:?}");
+            assert_ne!(v, 'C', "repaired expr close-heavy: {s:?}");
+            assert!(
+                pred,
+                "index failed to predict the original close site: {s:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn expr_paren_correction_extra_closer_clamps() {
+        // Extra `)` clamps in `unmatched_opens` (recovery never inserts a
+        // `)` to fix a close-heavy expr), but `balance` still reports the
+        // close-heavy direction.
+        assert_eq!(ExprParenIndex::build(")))").unmatched_opens(), 0);
+        assert_eq!(
+            ExprParenIndex::build(")))").balance(),
+            ParenBalance::CloseHeavy
+        );
+        assert_eq!(ExprParenIndex::build("()()").unmatched_opens(), 0);
+        assert_eq!(ExprParenIndex::build("(((").unmatched_opens(), 3);
+    }
+
+    #[test]
+    fn expr_paren_scalar_diverges_on_opaque_tokens() {
+        fn scalar(s: &str) -> bool {
+            let mut lvl = 0i32;
+            for &b in s.as_bytes() {
+                match b {
+                    b'(' => lvl += 1,
+                    b')' => lvl -= 1,
+                    _ => {}
+                }
+            }
+            lvl == 0
+        }
+        // `$arr(1)` and `"(s)"`: balanced for the index (opaque), but a
+        // scalar counter that ignores opacity also happens to balance —
+        // use an *unbalanced* interior to force divergence.
+        for s in ["$arr((1)", "\"(((\"", "{(((}"] {
+            assert_eq!(
+                ExprParenIndex::build(s).balance(),
+                ParenBalance::Balanced,
+                "index should see balanced (opaque): {s:?}",
+            );
+            assert!(!scalar(s), "scalar counter should diverge: {s:?}");
         }
     }
 }

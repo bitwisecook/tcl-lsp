@@ -214,6 +214,27 @@ command-sub interiors need the full recursive `Tcl_CommandComplete` parse —
 the productionised engine must parse `[…]` interiors as nested scripts, not
 count braces.
 
+### Expr paren dimension (`(` / `)`) — added
+
+`ExprParenIndex` completes the three structural-index dimensions. Because the
+expr lexer already tokenises `$arr(idx)` as one `Variable` and strings / command
+substitutions / braced literals as whole tokens, the paren index is built
+**directly from the lexer's token stream** — counting only `ParenOpen` /
+`ParenClose`. Opaque tokens are inert (their interior parens never count); the
+clamp and opaque-to-EOF corrections fall out for free. Verified against C Tcl
+9.0.3 `expr`:
+
+- **Verdict match** — over an adversarial fuzz corpus, the index's
+  `{Balanced, OpenHeavy, CloseHeavy}` verdict matches `expr`'s `unbalanced
+  open/close paren` diagnostics wherever `expr` gives a definitive paren verdict
+  (non-paren errors are excluded — `expr` may report a different error before
+  the paren check).
+- **Realistic recovery** — a single forgotten `)` in a real expression is
+  predicted and the repair evaluates under the reference interpreter.
+
+This is the most faithful of the three dimensions: the index *is* the lexer's
+paren tokens, exactly the doc's "store the lexer's entry-state per token".
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
