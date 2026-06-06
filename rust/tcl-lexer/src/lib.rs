@@ -51,7 +51,8 @@ pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{
-    script_is_complete, BraceIndex, BracketIndex, ExprParenIndex, ParenBalance,
+    command_boundaries, reparse_window, script_is_complete, BraceIndex, BracketIndex,
+    ExprParenIndex, ParenBalance,
 };
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};

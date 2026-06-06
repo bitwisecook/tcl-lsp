@@ -1136,6 +1136,141 @@ fn scan_var_brace(b: &[u8], brace: usize) -> (usize, bool) {
     (n, false)
 }
 
+// ===========================================================================
+// Incremental-reparse primitives. A cheap single byte-scan finds the top-level
+// command boundaries (the stable split points an incremental reparser snaps
+// edits to); `reparse_window` snaps a changed byte range outward to whole
+// commands so only those need re-segmenting / re-analysing. Nesting (`[…]`,
+// `"…"`, `{…}`, `${…}`, comments, escapes) is skipped via the same recursive
+// scanner that backs `script_is_complete`, so the boundaries agree with the
+// segmenter without tokenising the whole document.
+// ===========================================================================
+
+/// The byte offsets that split `source` into top-level commands — each is
+/// the position immediately after a top-level command terminator (`\n` or
+/// `;`), plus `source.len()`. Separators inside braces / quotes / command
+/// substitutions / comments do not split. Every returned offset `b`
+/// satisfies `script_is_complete(&source[..b])` on well-formed input.
+#[must_use]
+pub fn command_boundaries(source: &str) -> Vec<u32> {
+    let b = source.as_bytes();
+    let n = b.len();
+    let mut out: Vec<u32> = Vec::new();
+    let mut i = 0usize;
+    let mut command_start = true;
+    let mut newword = true;
+    let mut brace_level: u32 = 0;
+    let mut brace_is_var = false;
+    while i < n {
+        if brace_level > 0 {
+            match b[i] {
+                b'\\' => i = (i + 2).min(n),
+                b'{' => {
+                    brace_level += 1;
+                    i += 1;
+                }
+                b'}' => {
+                    brace_level -= 1;
+                    i += 1;
+                    if brace_level == 0 {
+                        command_start = false;
+                        newword = !brace_is_var;
+                    }
+                }
+                _ => i += 1,
+            }
+            continue;
+        }
+        match b[i] {
+            b'#' if command_start => loop {
+                let line_start = i;
+                while i < n && b[i] != b'\n' {
+                    i += 1;
+                }
+                let mut bs = 0usize;
+                let mut k = i;
+                while k > line_start && b[k - 1] == b'\\' {
+                    bs += 1;
+                    k -= 1;
+                }
+                if bs % 2 == 1 && i < n {
+                    i += 1;
+                    continue;
+                }
+                break;
+            },
+            b'\\' if matches!(b.get(i + 1), Some(b'\n' | b'\r')) => {
+                i = (i + 2).min(n);
+                newword = true;
+            }
+            b'\\' => {
+                i = (i + 2).min(n);
+                newword = false;
+                command_start = false;
+            }
+            b'\n' | b';' => {
+                i += 1;
+                out.push(u32::try_from(i).expect("offset fits u32"));
+                newword = true;
+                command_start = true;
+            }
+            b' ' | b'\t' | b'\r' => {
+                i += 1;
+                newword = true;
+            }
+            b'{' if newword => {
+                brace_level = 1;
+                brace_is_var = false;
+                i += 1;
+                command_start = false;
+            }
+            b'"' if newword => {
+                i = scan_complete_quoted(b, i + 1).0;
+                newword = false;
+                command_start = false;
+            }
+            b'$' if b.get(i + 1) == Some(&b'{') => {
+                brace_level = 1;
+                brace_is_var = true;
+                i += 2;
+                command_start = false;
+            }
+            b'[' => {
+                i = scan_complete(b, i + 1, true).0;
+                newword = false;
+                command_start = false;
+            }
+            _ => {
+                i += 1;
+                newword = false;
+                command_start = false;
+            }
+        }
+    }
+    if out.last() != Some(&u32::try_from(n).expect("offset fits u32")) {
+        out.push(u32::try_from(n).expect("offset fits u32"));
+    }
+    out
+}
+
+/// Snap a changed byte range `[start, end)` outward to the smallest
+/// window of **whole top-level commands** that contains it — the minimal
+/// region an incremental reparser must re-segment / re-analyse. Returns
+/// `(lo, hi)` byte offsets aligned to [`command_boundaries`] (or `0` /
+/// `source.len()`).
+#[must_use]
+pub fn reparse_window(source: &str, start: u32, end: u32) -> (u32, u32) {
+    let len = u32::try_from(source.len()).expect("offset fits u32");
+    let start = start.min(len);
+    let end = end.clamp(start, len);
+    let bounds = command_boundaries(source);
+    // `lo` = the greatest boundary <= start (commands before it are
+    // unaffected); `hi` = the least boundary >= end.
+    let lo = bounds.iter().copied().rfind(|&b| b <= start).unwrap_or(0);
+    let hi = bounds.iter().copied().find(|&b| b >= end).unwrap_or(len);
+    (lo, hi)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2224,5 +2359,97 @@ while {1} {
             both_t > 200 && both_f > 200,
             "corpus not exercising both verdicts: complete={both_t} incomplete={both_f}",
         );
+    }
+
+    // ===================================================================
+    // Incremental-reparse primitives.
+    // ===================================================================
+
+    #[test]
+    fn command_boundaries_split_top_level_commands() {
+        assert_eq!(command_boundaries("set x 1\nputs hi\n"), vec![8, 16]);
+        assert_eq!(command_boundaries("a; b; c"), vec![2, 5, 7]);
+        // No trailing terminator: the final boundary is the length.
+        assert_eq!(command_boundaries("set x 1"), vec![7]);
+        assert_eq!(command_boundaries(""), vec![0]);
+    }
+
+    #[test]
+    fn command_boundaries_ignore_nested_separators() {
+        // Newlines inside a brace body / quoted string / command sub do
+        // not split a top-level command.
+        let src = "if {1} {\n  puts a\n  puts b\n}\nputs done\n";
+        let bounds = command_boundaries(src);
+        // Two commands: the whole `if {...}` then `puts done`.
+        assert_eq!(bounds.len(), 2, "{bounds:?}");
+        // The first boundary is just past the `}` that closes the body.
+        let close = src.find("}\n").unwrap() + 2;
+        assert_eq!(bounds[0] as usize, close);
+
+        // `;` inside a quoted string and a command sub don't split.
+        let q = "puts \"a;b\"\nset y [a;b]\n";
+        assert_eq!(command_boundaries(q), vec![11, 23]);
+    }
+
+    #[test]
+    fn command_boundaries_are_complete_prefixes() {
+        // Every boundary is a point where the prefix is a complete script
+        // — the invariant that makes it a safe incremental split point.
+        for s in general_corpus(6000) {
+            for &b in &command_boundaries(&s) {
+                if (b as usize) < s.len() && s.is_char_boundary(b as usize) {
+                    assert!(
+                        script_is_complete(&s[..b as usize]),
+                        "boundary {b} of {s:?} is not a complete prefix",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reparse_window_snaps_to_whole_commands() {
+        let src = "set x 1\nputs hi\nset y 2\n"; // boundaries: 8, 16, 24
+                                                 // An edit inside `puts hi` (bytes 8..16) snaps to exactly that
+                                                 // command's window.
+        assert_eq!(reparse_window(src, 10, 12), (8, 16));
+        // An edit spanning the first two commands snaps to cover both.
+        assert_eq!(reparse_window(src, 3, 10), (0, 16));
+        // An edit at the very start.
+        assert_eq!(reparse_window(src, 0, 1), (0, 8));
+        // A point edit at a boundary stays minimal.
+        assert_eq!(reparse_window(src, 16, 16), (16, 16));
+    }
+
+    #[test]
+    fn reparse_window_is_aligned_and_contains_edit() {
+        // Property check over a corpus: the window is boundary-aligned,
+        // contains the edit, and is minimal (no boundary strictly inside
+        // (lo, start] or [end, hi)).
+        let mut rng = Lcg(0x7777_3333_1111_9999);
+        for s in general_corpus(4000) {
+            if s.is_empty() {
+                continue;
+            }
+            let len = u32::try_from(s.len()).unwrap();
+            let a = rng.next_u32() % (len + 1);
+            let b = a + rng.next_u32() % (len + 1 - a);
+            let (lo, hi) = reparse_window(&s, a, b);
+            assert!(
+                lo <= a && b <= hi && hi <= len,
+                "window ({lo},{hi}) edit ({a},{b}) len {len}"
+            );
+            let bounds = command_boundaries(&s);
+            let aligned = |x: u32| x == 0 || x == len || bounds.contains(&x);
+            assert!(
+                aligned(lo) && aligned(hi),
+                "unaligned window ({lo},{hi}) for {s:?}"
+            );
+            // Minimality: no boundary in (lo, a] (else lo wasn't maximal).
+            assert!(
+                !bounds.iter().any(|&x| x > lo && x <= a),
+                "non-minimal lo for {s:?}",
+            );
+        }
     }
 }

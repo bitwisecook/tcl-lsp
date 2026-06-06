@@ -487,6 +487,40 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
 mod tests {
     use super::*;
 
+    /// Cross-check the cheap incremental-reparse boundary scanner
+    /// (`tcl_lexer::command_boundaries`) against the production
+    /// segmenter: no segmented command may straddle a top-level
+    /// boundary, so the cheap byte-scan agrees with the full tokeniser
+    /// on where commands split.
+    #[test]
+    fn command_boundaries_agree_with_segmenter() {
+        let cases = [
+            "set x 1\nputs hi\n",
+            "if {1} {\n  puts a\n  puts b\n}\nputs done\n",
+            "set y [a; b]\nputs \"a;b\"\n",
+            "proc p {} {\n  return [expr {1 + 2}]\n}\np\n",
+            "namespace eval n {\n  variable v 1\n}\n",
+            "a; b; c\nd\n",
+            "set s {a\nb\nc}\nputs $s\n",
+        ];
+        for src in cases {
+            let bounds = tcl_lexer::command_boundaries(src);
+            for cmd in segment_commands(src) {
+                if cmd.argv.is_empty() {
+                    continue;
+                }
+                let (s, e) = (cmd.span.start(), cmd.span.end());
+                // The command must lie within a single boundary interval
+                // [prev, next): no boundary may fall strictly inside it.
+                let straddles = bounds.iter().any(|&b| b > s && b < e);
+                assert!(
+                    !straddles,
+                    "command {s}..{e} straddles a boundary in {bounds:?} for {src:?}",
+                );
+            }
+        }
+    }
+
     #[test]
     fn empty_source() {
         assert!(segment_commands("").is_empty());

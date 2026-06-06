@@ -260,6 +260,22 @@ dangling line carries content) that are not worth reproducing exactly for a
 shape real Tcl never emits; the fuzz test asserts every disagreement is that
 class and stays vanishingly rare.
 
+### Incremental-reparse primitives (`command_boundaries` / `reparse_window` — landed)
+
+Building on `script_is_complete`, two pure primitives bound the dirty region an
+incremental reparser must touch. `command_boundaries(source)` is a cheap single
+byte-scan returning the top-level command split points (offsets after each
+top-level `\n` / `;`, skipping braces / quotes / command subs / comments via the
+same recursive scanner) — every boundary is a complete-prefix point.
+`reparse_window(source, start, end)` snaps a changed byte range outward to the
+smallest window of whole top-level commands containing it, so only those need
+re-segmenting / re-analysing. Verified: boundaries are complete prefixes over a
+fuzz corpus, the window is boundary-aligned / edit-containing / minimal, and —
+cross-checked in `tcl-compiler` — no production-segmented command ever straddles
+a boundary. These are the building blocks for wiring INCREMENTAL document sync
+into the server (a follow-up): the server can re-lex/re-analyse `reparse_window`
+instead of the whole document.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
