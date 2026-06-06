@@ -407,6 +407,33 @@ mod tests {
     }
 
     #[test]
+    fn string_rep_survives_shimmer() {
+        // A string→list shimmer (here via `llength`) keeps the original spelling
+        // (irregular spacing), Tcl's dual-rep — not the canonical list form.
+        assert_eq!(ok(b"set x {a  b   c}; llength $x; set x"), b"a  b   c");
+        // An in-place mutation invalidates the cached rep → canonical regenerates.
+        assert_eq!(
+            ok(b"set x {a  b   c}; llength $x; lappend x d; set x"),
+            b"a b c d"
+        );
+    }
+
+    #[test]
+    fn duplicate_preserves_string_rep() {
+        // `set y $x` shares x's (shimmered) obj; `lappend x d` copies-on-write,
+        // so the original obj y holds must keep its original spelling, and x gets
+        // the canonical mutated form.
+        assert_eq!(
+            ok(b"set x {a  b   c}; llength $x; set y $x; lappend x d; set y"),
+            b"a  b   c"
+        );
+        assert_eq!(
+            ok(b"set x {a  b   c}; llength $x; set y $x; lappend x d; set x"),
+            b"a b c d"
+        );
+    }
+
+    #[test]
     fn lindex_and_lrange() {
         assert_eq!(ok(b"lindex {a b c} 1"), b"b");
         assert_eq!(ok(b"lindex {a b c} end"), b"c");

@@ -212,26 +212,65 @@ pub(crate) fn obj_type_ptr(obj: *mut TclObj) -> *const TclObjType {
 }
 
 /// Shimmer `obj` to a new type: free the **old** internal rep (its proc), then
-/// install `new_type` + `new_rep`. The string rep is left intact (Tcl keeps it
-/// across a string→typed shimmer; a typed→string mutation invalidates it via
-/// [`invalidate_string`]).
+/// install `new_type` + `new_rep`. The string rep is **kept** across a
+/// string→typed shimmer (Tcl's dual-rep: the original spelling survives until
+/// the typed value is mutated, which invalidates it via [`invalidate_string`]).
 pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep: u64) {
     // SAFETY: `obj` is live; free the prior rep before overwriting `internal_rep`.
     unsafe {
         let old = (*obj).type_ptr;
         if old.is_null() {
             // Leaving a *plain string*: its capacity lives in `internal_rep`,
-            // which the new type is about to claim for its backing. Free the
-            // string buffer now (with its real capacity — `free_string_buffer`
-            // reads it while the type is still null) so the new type regenerates
-            // an exact string rep lazily. This avoids carrying the string
-            // capacity across the shimmer (and any dealloc-layout mismatch).
-            free_string_buffer(obj);
+            // which `new_type` is about to claim for its backing. Keep the bytes
+            // as the cached (immutable) string rep, but first shrink the buffer
+            // to exactly `length + 1` — once `type_ptr` is non-null,
+            // `free_string_buffer` computes the dealloc size as `length + 1`, so
+            // the buffer must match (any spare capacity from `append` would
+            // otherwise be a layout mismatch). The next read returns these bytes
+            // verbatim; an in-place mutation of the new rep drops them.
+            shrink_string_to_exact(obj);
         } else if let Some(free) = (*old).free_int_rep_proc {
             free(obj);
         }
         (*obj).type_ptr = new_type;
         (*obj).internal_rep = new_rep;
+    }
+}
+
+/// Shrink a plain string's buffer to exactly `length + 1` so its cached rep can
+/// outlive a shimmer (after which `internal_rep` no longer tracks capacity and
+/// `free_string_buffer` assumes the exact `length + 1` layout). No-op when there
+/// is no buffer or it is already exact (set-only strings). On a rare shrink
+/// failure, drop the rep (it regenerates lazily) rather than carry an unknown
+/// capacity across the shimmer.
+///
+/// # Safety
+/// `obj` must be live and a plain string (`type_ptr` null, capacity in
+/// `internal_rep`).
+unsafe fn shrink_string_to_exact(obj: *mut TclObj) {
+    // SAFETY: caller guarantees a live plain-string `obj`; `bytes` (when
+    // non-null) was allocated by `set_owned_string` with `Layout(internal_rep,1)`.
+    unsafe {
+        let bytes = (*obj).bytes;
+        if bytes.is_null() {
+            return;
+        }
+        let cur_cap = (*obj).internal_rep as usize; // allocated bytes incl. NUL
+        let exact = (*obj).length as usize + 1;
+        if cur_cap <= exact {
+            return; // already exact — nothing to reclaim
+        }
+        let old_layout = Layout::from_size_align(cur_cap, 1).expect("buffer layout");
+        let nb = realloc(bytes as *mut u8, old_layout, exact);
+        if nb.is_null() {
+            // Shrink failed; the original block is intact — free it (the rep
+            // regenerates on next read) to avoid a later layout mismatch.
+            free_string_buffer(obj);
+            return;
+        }
+        (*obj).bytes = nb as *mut c_char;
+        // `internal_rep` is left as-is here; `change_type` overwrites it with the
+        // new typed rep immediately after this returns.
     }
 }
 

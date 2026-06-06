@@ -1805,17 +1805,17 @@ the rest are deferred with the reviewer's concurrence):
   the exported function. Capture both in
   [`c-api-ownership-contract.md`](c-api-ownership-contract.md) (the
   extension-side decref→free path is a Track-2 loader/ABI item).
-- ❓ **String rep not preserved across a string→typed shimmer** (`obj.rs`
-  `change_type`/`duplicate`) — **open decision (awaiting direction).** A plain
-  string overloads `internal_rep` to carry its buffer capacity, so a
-  string→list/dict/bignum shimmer (and `Tcl_DuplicateObj` of a typed obj) frees
-  the original bytes and the next read regenerates the *canonical* form
-  (`set x {a  b   c}; llength $x; set x` → `a b c`). Tcl keeps `bytes`+`length`
-  alongside the new `internalRep`. Either (a) give `TclObj` a `bytes`+`length`
-  slot independent of `internal_rep` (true dual-rep — the "dual-ported obj from
-  day one" tenet), or (b) accept canonical-only round-trips as a documented T1.6
-  limitation. Either way the inaccurate `ensure_list`/`ensure_dict`
-  "string rep is kept" comments must be corrected.
+- ✅ **String rep now preserved across a string→typed shimmer** (`obj.rs`
+  `change_type`). A plain string keeps its buffer's capacity in `internal_rep`;
+  rather than free the bytes when the typed rep claims that slot, `change_type`
+  now **shrinks the buffer to exact `length + 1` and keeps it** as the cached
+  (immutable) string rep — so `set x {a  b   c}; llength $x; set x` returns the
+  original `a  b   c`, and an in-place mutation (`lappend`/`dict set`, which
+  already `invalidate_string`) regenerates the canonical form. No `TclObj`
+  layout change was needed (spare capacity only matters while mutable-as-string);
+  this also fixes `Tcl_DuplicateObj` of a typed obj (the `dup_int_rep_proc` path
+  routes through `change_type`), and the `ensure_list`/`ensure_dict` "string rep
+  is kept" comments are now accurate.
 
 ---
 
