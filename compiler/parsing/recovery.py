@@ -466,6 +466,8 @@ def _is_suspicious_str(
     tok: Token,
     source: str,
     base_offset: int,
+    *,
+    min_line_span: int = 2,
 ) -> bool:
     """Return True when *tok* is a STR from an unterminated ``{``.
 
@@ -489,9 +491,11 @@ def _is_suspicious_str(
     # level — that's E103 (stolen close brace), not E203.
     if "}" in tok.text:
         return False
-    # Must span multiple lines.
+    # Must span multiple lines.  The default threshold (3 lines, i.e. span >= 2)
+    # is conservative because a braced *value* is often legitimately multi-line;
+    # callers that know the brace is an expression relax it to span >= 1.
     line_span = tok.end.line - tok.start.line
-    if line_span < 2:
+    if line_span < min_line_span:
         return False
     return True
 
@@ -501,30 +505,46 @@ def _detect_missing_brace_at_command(
     source: str,
     base_offset: int,
     known_commands: frozenset[str],
+    *,
+    require_dedent: bool = True,
 ) -> VirtualToken | None:
-    """Detect ``}`` missing when a de-indented known command follows brace data.
+    """Detect ``}`` missing when a known command follows the brace content.
 
-    Scans the STR token text line by line.  When a line is de-indented
-    relative to the first content line AND starts with a known command,
-    ``}`` should be inserted at the ``\\n`` before that line.
+    Scans the STR token text line by line and inserts ``}`` at the ``\\n``
+    before a line that starts with a known command.  By default the line must
+    also be *de-indented* relative to the first content line — the conservative
+    rule for braces, whose content is often multi-line data where a
+    command-looking word is data, not a real command.
+
+    With ``require_dedent=False`` the de-indent condition is dropped (any
+    following known-command line triggers, as for ``[`` recovery).  This is used
+    only for ``ArgRole.EXPR`` braces: an expression's content is structured, so a
+    bare known-command word at the start of a following line cannot be expression
+    syntax and is a strong "forgotten close-brace" signal.
     """
     text = tok.text
     lines = text.split("\n")
-    if len(lines) < 3:
+    # Need the opening line plus at least one following line to close before.
+    # (A trailing newline must not change the outcome: ``if {$x > 5\nset`` and
+    # ``...\nset\n`` recover identically.)  The de-indent path naturally finds
+    # nothing on two lines; the relaxed expr path closes before the command on
+    # the second line.
+    if len(lines) < 2:
         return None
 
-    # Determine indentation of the first content line.
+    # Determine indentation of the first content line (only needed when the
+    # de-indent condition applies).
     first_indent: int | None = None
-    for line in lines[1:]:  # skip first line (may be empty right after {)
-        stripped = line.lstrip()
-        if stripped:
-            first_indent = len(line) - len(stripped)
-            break
+    if require_dedent:
+        for line in lines[1:]:  # skip first line (may be empty right after {)
+            stripped = line.lstrip()
+            if stripped:
+                first_indent = len(line) - len(stripped)
+                break
+        if first_indent is None:
+            return None
 
-    if first_indent is None:
-        return None
-
-    # Scan for a de-indented line starting with a known command.
+    # Scan for a (de-indented) line starting with a known command.
     cumulative = 0
     for i, line in enumerate(lines):
         if i == 0:
@@ -535,7 +555,7 @@ def _detect_missing_brace_at_command(
             cumulative += len(line) + 1
             continue
         indent = len(line) - len(stripped)
-        if indent < first_indent:
+        if not require_dedent or (first_indent is not None and indent < first_indent):
             first_word = _extract_first_word(stripped)
             if first_word in known_commands:
                 # Verify that brace content before this point is balanced
@@ -604,6 +624,33 @@ def _detect_missing_brace_no_heuristic(
 # Virtual token detection
 
 
+def _brace_arg_is_expr(cmd: SegmentedCommand) -> bool:
+    """True when the unterminated trailing ``{`` is a known ``ArgRole.EXPR`` arg.
+
+    Uses the command registry to classify the brace's argument (``if {…``,
+    ``while {…``, ``expr {…``).  Conservative: ``False`` for unknown/user
+    commands and any non-expression role, so it can only *enable* the extra
+    EXPR-brace recovery, never disable an existing one.
+    """
+    name = cmd.name
+    args = list(cmd.args)
+    if not name or not args:
+        return False
+    try:
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import ArgRole, _resolve_arg_roles
+
+        if REGISTRY.get_any(name) is None:
+            return False
+        roles, base = _resolve_arg_roles(name, args)
+    except Exception:
+        log.debug("recovery: arg-role classification failed", exc_info=True)
+        return False
+    last = len(args) - 1
+    rs = roles.get(last - base, frozenset()) or roles.get(last, frozenset())
+    return ArgRole.EXPR in rs
+
+
 def _detect_all_virtual_tokens(
     commands: list[SegmentedCommand],
     source: str,
@@ -663,8 +710,15 @@ def _detect_all_virtual_tokens(
                         _detect_missing_quote_no_heuristic(tok, source, base_offset),
                     )
 
-            # E203: unterminated {
-            elif _is_suspicious_str(tok, source, base_offset):
+            # E203: unterminated {  (relaxed span; a 2-line brace only qualifies
+            # when it is an expression — see below)
+            elif _is_suspicious_str(tok, source, base_offset, min_line_span=1):
+                is_expr = _brace_arg_is_expr(cmd)
+                line_span = tok.end.line - tok.start.line
+                if line_span < 2 and not is_expr:
+                    # A 2-line braced *value* is too likely intentional to treat
+                    # as unterminated — leave it alone (no E203), as before.
+                    continue
                 if known_cmds is None:
                     try:
                         known_cmds = known_command_names()
@@ -677,6 +731,18 @@ def _detect_all_virtual_tokens(
                     base_offset,
                     known_cmds,
                 )
+                if vt is None and is_expr:
+                    # A braced expression (if/while/expr {…): a known command on a
+                    # following line can't be expr syntax, so close before it even
+                    # without a de-indent — recovering cases the conservative
+                    # brace rule declines.
+                    vt = _detect_missing_brace_at_command(
+                        tok,
+                        source,
+                        base_offset,
+                        known_cmds,
+                        require_dedent=False,
+                    )
                 if vt is not None:
                     virtuals.append(vt)
                 else:
@@ -687,27 +753,64 @@ def _detect_all_virtual_tokens(
     return virtuals, fallback_diags
 
 
+@dataclass(frozen=True, slots=True)
+class RecoveryDetection:
+    """The result of one recovery-detection pass over a region.
+
+    A single first parse plus heuristic scan yields *everything* recovery needs,
+    so the token path and the diagnostic path can share it rather than each
+    re-detecting:
+
+    - :attr:`insertions` — ``offset -> closer`` for re-lexing the recovered
+      token/command stream (what the old ``compute_virtual_insertions`` returned).
+    - :attr:`virtuals` — the recovery points, each carrying the rich
+      :class:`VirtualToken.diagnostic` (range + quick-fix) the LSP surfaces.
+    - :attr:`fallback_diags` — diagnostics for unterminated delimiters where no
+      heuristic matched (no insertion, an over-running token is kept).
+    - :attr:`commands` / :attr:`lexer_warnings` — the first-parse commands and
+      raw lexer warnings, reused by :func:`segment_with_recovery` so it need not
+      re-segment for the no-recovery case.
+    """
+
+    commands: list[SegmentedCommand]
+    insertions: dict[int, str]
+    virtuals: list[VirtualToken]
+    fallback_diags: list[Diagnostic]
+    lexer_warnings: list[tuple[SourcePosition, str]]
+
+
+def detect_recovery(
+    source: str,
+    body_token: Token | None = None,
+) -> RecoveryDetection:
+    """Detect unterminated delimiters and decide their recovery in one pass.
+
+    The single detection both the tokeniser and the analyser build on: it parses
+    *source* once, scans for unterminated ``[``/``{``/``"``, and returns the
+    insertions to re-lex with *and* the diagnostics (with quick-fixes) to show.
+    """
+    lexer_warnings: list[tuple[SourcePosition, str]] = []
+    commands = segment_commands(source, body_token, collect_warnings=lexer_warnings)
+    if not commands:
+        return RecoveryDetection([], {}, [], [], lexer_warnings)
+
+    base_offset = _base_offset_for(body_token)
+    virtuals, fallback_diags = _detect_all_virtual_tokens(commands, source, base_offset)
+    insertions = {vt.offset: vt.char for vt in virtuals}
+    return RecoveryDetection(commands, insertions, virtuals, fallback_diags, lexer_warnings)
+
+
 def compute_virtual_insertions(
     source: str,
     body_token: Token | None = None,
 ) -> dict[int, str]:
     """Compute virtual token insertions for error recovery.
 
-    Does a first parse, detects imbalances, and returns the insertions
-    dict that can be passed to :class:`TclLexer`.  Returns an empty dict
-    when no recovery is needed.
+    Thin offset-only view over :func:`detect_recovery`, kept for callers that
+    only need the insertions to re-lex with and not the diagnostics.  Returns an
+    empty dict when no recovery is needed.
     """
-    commands = segment_commands(source, body_token)
-    if not commands:
-        return {}
-
-    base_offset = _base_offset_for(body_token)
-    virtuals, _ = _detect_all_virtual_tokens(commands, source, base_offset)
-
-    if not virtuals:
-        return {}
-
-    return {vt.offset: vt.char for vt in virtuals}
+    return detect_recovery(source, body_token).insertions
 
 
 # Lexer warning messages
@@ -751,16 +854,62 @@ def _lexer_warnings_to_diagnostics(
     return diagnostics
 
 
+def assemble_recovery_diagnostics(
+    det: RecoveryDetection,
+    reparse_warnings: list[tuple[SourcePosition, str]],
+) -> list[Diagnostic]:
+    """Build the LSP diagnostics for a recovery detection.
+
+    The single place the recovery diagnostic set is assembled, so the token path
+    and the analyser path surface byte-identical diagnostics: the rich
+    per-recovery diagnostics (with quick-fixes), the no-heuristic fallbacks, the
+    first-parse lexer warnings, and any warnings the recovered re-lex produced.
+    *reparse_warnings* is empty when nothing was inserted.
+    """
+    diags = [vt.diagnostic for vt in det.virtuals] + list(det.fallback_diags)
+    diags += _lexer_warnings_to_diagnostics(det.lexer_warnings)
+    if reparse_warnings:
+        diags += _lexer_warnings_to_diagnostics(reparse_warnings)
+    return _dedupe_diagnostics(diags)
+
+
+def _dedupe_diagnostics(diags: list[Diagnostic]) -> list[Diagnostic]:
+    """Drop exact-duplicate diagnostics, preserving first-seen order.
+
+    The first parse and the recovered re-parse can each emit the same lexer
+    warning (e.g. "extra characters after close-quote") for an unchanged region,
+    which would otherwise surface as two identical squiggles.  Two diagnostics
+    that match in code, range, message *and* quick-fixes are the same diagnostic.
+    """
+    seen: set[tuple] = set()
+    out: list[Diagnostic] = []
+    for d in diags:
+        key = (
+            d.code,
+            d.range.start.offset,
+            d.range.end.offset,
+            d.message,
+            tuple(
+                (f.range.start.offset, f.range.end.offset, f.new_text, f.description)
+                for f in (d.fixes or ())
+            ),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+
 def segment_with_recovery(
     source: str,
     body_token: Token | None = None,
 ) -> tuple[list[SegmentedCommand], list[Diagnostic]]:
     """Parse source, detect imbalances, re-parse with virtual tokens.
 
-    1. ``segment_commands(source, body_token)`` — first parse
-    2. Scan for unterminated CMD tokens — find virtual tokens
-    3. ``segment_commands(source, body_token, virtual_insertions=...)`` — clean re-parse
-    4. Return ``(clean_commands, diagnostics)``
+    1. ``detect_recovery(source, body_token)`` — first parse + heuristic scan
+    2. ``segment_commands(source, body_token, virtual_insertions=...)`` — clean re-parse
+    3. Return ``(clean_commands, diagnostics)``
 
     When no imbalances are detected, the first parse result is returned
     directly (zero overhead for clean files).
@@ -768,42 +917,17 @@ def segment_with_recovery(
     Lexer warnings (e.g. "extra characters after close-brace") are also
     harvested and converted to diagnostics.
     """
-    lexer_warnings: list[tuple[SourcePosition, str]] = []
-    commands = segment_commands(
-        source,
-        body_token,
-        collect_warnings=lexer_warnings,
-    )
+    det = detect_recovery(source, body_token)
 
-    if not commands:
-        return commands, _lexer_warnings_to_diagnostics(lexer_warnings)
-
-    base_offset = _base_offset_for(body_token)
-    virtuals, fallback_diags = _detect_all_virtual_tokens(
-        commands,
-        source,
-        base_offset,
-    )
-
-    warning_diags = _lexer_warnings_to_diagnostics(lexer_warnings)
-
-    if not virtuals:
-        return commands, fallback_diags + warning_diags
+    if not det.commands or not det.virtuals:
+        return det.commands, assemble_recovery_diagnostics(det, [])
 
     # Re-parse with virtual tokens injected.
-    virtual_insertions = {vt.offset: vt.char for vt in virtuals}
     reparse_warnings: list[tuple[SourcePosition, str]] = []
     clean_commands = segment_commands(
         source,
         body_token,
-        virtual_insertions=virtual_insertions,
+        virtual_insertions=det.insertions,
         collect_warnings=reparse_warnings,
     )
-    diagnostics = (
-        [vt.diagnostic for vt in virtuals]
-        + fallback_diags
-        + warning_diags
-        + _lexer_warnings_to_diagnostics(reparse_warnings)
-    )
-
-    return clean_commands, diagnostics
+    return clean_commands, assemble_recovery_diagnostics(det, reparse_warnings)

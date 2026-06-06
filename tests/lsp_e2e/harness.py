@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -88,6 +90,8 @@ class LspServerClient:
         self._stderr: list[bytes] = []
         self._reader: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
+        #: Throwaway XDG root isolating the server's config/cache (see start()).
+        self._xdg_root: Path | None = None
         #: ``serverInfo`` from the initialize result, populated by initialize().
         self.server_info: dict | None = None
         self.initialize_result: dict | None = None
@@ -95,12 +99,26 @@ class LspServerClient:
     # -- lifecycle ---------------------------------------------------------
 
     def start(self) -> None:
+        # Isolate the server from the developer machine's user config/cache so a
+        # local ``~/.../tcl-lsp/config.ini`` (e.g. ``[features] hover = false``)
+        # can't poison the default e2e suites.  ``XDG_CONFIG_HOME`` /
+        # ``XDG_CACHE_HOME`` take precedence on every platform (incl. macOS's
+        # ``~/Library/Application Support``), so pointing them at fresh empty
+        # dirs makes the server fall back to built-in defaults.  Config-specific
+        # suites opt into their own settings via ``workspace/configuration``.
+        self._xdg_root = Path(tempfile.mkdtemp(prefix="tcl-lsp-e2e-xdg-"))
+        env = {
+            **os.environ,
+            "XDG_CONFIG_HOME": str(self._xdg_root / "config"),
+            "XDG_CACHE_HOME": str(self._xdg_root / "cache"),
+        }
         self._proc = subprocess.Popen(
             self._argv,
             cwd=str(self._cwd),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
         )
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
@@ -144,6 +162,10 @@ class LspServerClient:
         except subprocess.TimeoutExpired:  # pragma: no cover
             self._proc.kill()
             self._proc.wait(timeout=5.0)
+        finally:
+            if self._xdg_root is not None:
+                shutil.rmtree(self._xdg_root, ignore_errors=True)
+                self._xdg_root = None
 
     # -- requests / notifications -----------------------------------------
 
@@ -184,6 +206,348 @@ class LspServerClient:
                 }
             },
         )
+
+    def change_document(
+        self,
+        uri: str,
+        version: int,
+        changes: list[dict],
+    ) -> None:
+        """Send a ``didChange`` with arbitrary content changes.
+
+        ``changes`` is the raw LSP ``contentChanges`` array — each entry is
+        either a full replace (``{"text": ...}``) or an incremental edit
+        (``{"range": {...}, "text": ...}``).  The server advertises
+        incremental sync (``change == 2``), so range edits exercise the
+        real per-edit buffer-tracking path an editor drives.
+        """
+        self.notify(
+            "textDocument/didChange",
+            {
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": changes,
+            },
+        )
+
+    def replace_document(self, uri: str, version: int, text: str) -> None:
+        """Full-document replace ``didChange`` (single ``{"text": ...}``)."""
+        self.change_document(uri, version, [{"text": text}])
+
+    def close_document(self, uri: str) -> None:
+        self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+
+    def open_ready(
+        self,
+        uri: str,
+        text: str,
+        *,
+        language_id: str = "tcl",
+        version: int = 1,
+        timeout: float = 30.0,
+    ) -> list[dict]:
+        """Open ``text`` and block until its analysis is ready, then return diags.
+
+        Analysis-backed handlers (hover, definition, references, …) read the
+        per-document *analysis snapshot*, which is built on the main thread.
+        The first ``publishDiagnostics`` can arrive *before* that snapshot
+        exists — the fast diagnostics pass runs in a subprocess — so waiting on
+        diagnostics alone leaves a window where hover returns ``None``.  Block
+        on both: the diagnostics publish (for the version handshake and the
+        returned diagnostics) and the ``workspace_state.update`` log line that
+        the server emits for this URI once the snapshot is populated.
+        """
+        self.open_document(uri, text, language_id=language_id, version=version)
+        diags = self.await_diagnostics(uri, version=version, timeout=timeout)
+        # The snapshot-built marker carries ``uri=<uri>``; for a fresh unique
+        # URI there is exactly one, so a substring match can't catch a stale
+        # earlier build.
+        self.await_log("workspace_state.update", uri, timeout=timeout)
+        return diags
+
+    def notification_cursor(self) -> int:
+        """A marker into the notification log for ``await_log(..., since=)``."""
+        with self._notify_cv:
+            return len(self._notifications)
+
+    def await_log(self, *needles: str, timeout: float = 30.0, since: int = 0) -> str:
+        """Block until a ``window/logMessage`` whose text contains all ``needles``.
+
+        The packaged server routes its ``[timing] …`` instrumentation through
+        ``window/logMessage`` (it emits nothing on stderr), so this is how a
+        test observes server-side progress markers such as the analysis-snapshot
+        build.  ``since`` skips log entries recorded before a
+        :meth:`notification_cursor` marker, so a freshly produced marker can be
+        distinguished from identical earlier ones (e.g. the per-edit
+        ``workspace_state.update`` line for a long-lived document).  Returns the
+        matching message text.
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        with self._notify_cv:
+            while True:
+                for note in self._notifications[since:]:
+                    if note.get("method") != "window/logMessage":
+                        continue
+                    msg = str((note.get("params") or {}).get("message", ""))
+                    if all(n in msg for n in needles):
+                        return msg
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    raise AssertionError(
+                        f"no window/logMessage containing all of {needles!r} within {timeout}s"
+                    )
+                self._notify_cv.wait(remaining)
+
+    def settle_analysis(self, uri: str, version: int, text: str, *, timeout: float = 30.0) -> int:
+        """Force ``uri``'s analysis snapshot to ``text`` and block until it is built.
+
+        Sends a no-op full-replace at ``version`` (the content is unchanged, so
+        the buffer is identical to the post-edit text) and waits for *that*
+        version's diagnostics plus the per-URI ``workspace_state.update`` log
+        recorded after the replace — guaranteeing the analysis-backed features
+        read the final content rather than a snapshot still trailing behind a
+        burst of incremental edits.  Returns ``version``.
+        """
+        cursor = self.notification_cursor()
+        self.replace_document(uri, version, text)
+        self.await_diagnostics(uri, version=version, timeout=timeout)
+        self.await_log("workspace_state.update", uri, since=cursor, timeout=timeout)
+        return version
+
+    # -- feature requests --------------------------------------------------
+
+    @staticmethod
+    def _pos(line: int, char: int) -> dict:
+        return {"line": line, "character": char}
+
+    def _doc_pos(self, uri: str, line: int, char: int) -> dict:
+        return {"textDocument": {"uri": uri}, "position": self._pos(line, char)}
+
+    def hover(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request("textDocument/hover", self._doc_pos(uri, line, char), timeout=timeout)
+
+    def completion(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/completion", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def signature_help(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/signatureHelp", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def definition(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/definition", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def type_definition(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/typeDefinition", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def declaration(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/declaration", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def references(
+        self,
+        uri: str,
+        line: int,
+        char: int,
+        *,
+        include_declaration: bool = True,
+        timeout: float = 30.0,
+    ) -> Any:
+        params = self._doc_pos(uri, line, char)
+        params["context"] = {"includeDeclaration": include_declaration}
+        return self.request("textDocument/references", params, timeout=timeout)
+
+    def document_highlight(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentHighlight", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def document_symbols(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentSymbol", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def workspace_symbols(self, query: str, *, timeout: float = 30.0) -> Any:
+        return self.request("workspace/symbol", {"query": query}, timeout=timeout)
+
+    def semantic_tokens(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/semanticTokens/full", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def implementation(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/implementation", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def document_links(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/documentLink", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def code_lens(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/codeLens", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def inlay_hints(
+        self, uri: str, start: tuple[int, int], end: tuple[int, int], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+        }
+        return self.request("textDocument/inlayHint", params, timeout=timeout)
+
+    def linked_editing_range(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/linkedEditingRange", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def prepare_call_hierarchy(
+        self, uri: str, line: int, char: int, *, timeout: float = 30.0
+    ) -> Any:
+        return self.request(
+            "textDocument/prepareCallHierarchy", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def incoming_calls(self, item: dict, *, timeout: float = 30.0) -> Any:
+        return self.request("callHierarchy/incomingCalls", {"item": item}, timeout=timeout)
+
+    def outgoing_calls(self, item: dict, *, timeout: float = 30.0) -> Any:
+        return self.request("callHierarchy/outgoingCalls", {"item": item}, timeout=timeout)
+
+    def range_formatting(
+        self, uri: str, start: tuple[int, int], end: tuple[int, int], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+            "options": {"tabSize": 4, "insertSpaces": True},
+        }
+        return self.request("textDocument/rangeFormatting", params, timeout=timeout)
+
+    def prepare_rename(self, uri: str, line: int, char: int, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/prepareRename", self._doc_pos(uri, line, char), timeout=timeout
+        )
+
+    def rename(
+        self, uri: str, line: int, char: int, new_name: str, *, timeout: float = 30.0
+    ) -> Any:
+        params = self._doc_pos(uri, line, char)
+        params["newName"] = new_name
+        return self.request("textDocument/rename", params, timeout=timeout)
+
+    def code_actions(
+        self,
+        uri: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        *,
+        diagnostics: list[dict] | None = None,
+        only: list[str] | None = None,
+        timeout: float = 30.0,
+    ) -> Any:
+        context: dict[str, Any] = {"diagnostics": diagnostics or []}
+        if only is not None:
+            context["only"] = only
+        params = {
+            "textDocument": {"uri": uri},
+            "range": {"start": self._pos(*start), "end": self._pos(*end)},
+            "context": context,
+        }
+        return self.request("textDocument/codeAction", params, timeout=timeout)
+
+    def folding_range(self, uri: str, *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "textDocument/foldingRange", {"textDocument": {"uri": uri}}, timeout=timeout
+        )
+
+    def selection_range(
+        self, uri: str, positions: list[tuple[int, int]], *, timeout: float = 30.0
+    ) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "positions": [self._pos(line, char) for line, char in positions],
+        }
+        return self.request("textDocument/selectionRange", params, timeout=timeout)
+
+    def formatting(self, uri: str, *, timeout: float = 30.0) -> Any:
+        params = {
+            "textDocument": {"uri": uri},
+            "options": {"tabSize": 4, "insertSpaces": True},
+        }
+        return self.request("textDocument/formatting", params, timeout=timeout)
+
+    def execute_command(self, command: str, arguments: list[Any], *, timeout: float = 30.0) -> Any:
+        return self.request(
+            "workspace/executeCommand",
+            {"command": command, "arguments": arguments},
+            timeout=timeout,
+        )
+
+    # -- push diagnostics --------------------------------------------------
+
+    def await_diagnostics(
+        self,
+        uri: str,
+        *,
+        version: int | None = None,
+        timeout: float = 30.0,
+    ) -> list[dict]:
+        """Block until a ``publishDiagnostics`` for ``uri`` arrives; return it.
+
+        The server pushes diagnostics (it advertises no pull provider), debounced
+        per document and tagged with the document version.  When ``version`` is
+        given, wait for the publish carrying *exactly* that version so a stale
+        earlier publish can't satisfy the wait — the supersession contract the
+        async pipeline guards.  Returns the ``diagnostics`` array of the matching
+        publish.
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        with self._notify_cv:
+            while True:
+                match = None
+                for note in self._notifications:
+                    if note.get("method") != "textDocument/publishDiagnostics":
+                        continue
+                    params = note.get("params") or {}
+                    if params.get("uri") != uri:
+                        continue
+                    if version is not None and params.get("version") != version:
+                        continue
+                    match = params  # keep the latest matching publish
+                if match is not None:
+                    return list(match.get("diagnostics") or [])
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    seen = [
+                        (n["params"].get("uri"), n["params"].get("version"))
+                        for n in self._notifications
+                        if n.get("method") == "textDocument/publishDiagnostics"
+                    ]
+                    raise AssertionError(
+                        f"no publishDiagnostics for {uri!r} "
+                        f"{'version ' + str(version) if version is not None else ''} "
+                        f"within {timeout}s; saw {seen}"
+                    )
+                self._notify_cv.wait(remaining)
+
+    def clear_diagnostics_log(self) -> None:
+        """Drop buffered notifications so a later ``await_diagnostics`` only sees fresh ones."""
+        with self._notify_cv:
+            self._notifications.clear()
 
     def await_notification(self, method: str, *, timeout: float = 30.0) -> dict:
         """Block until a notification with ``method`` arrives; return it."""
@@ -279,7 +643,17 @@ class LspServerClient:
         method = msg.get("method", "")
         if method == "workspace/configuration":
             items = (msg.get("params") or {}).get("items") or []
-            result: Any = [None] * len(items)
+            # Reply per requested section.  For the ``tclLsp`` section, model an
+            # editor that has opted into the features the schema leaves off by
+            # default (linked editing inherits ``editor.linkedEditing``, which is
+            # off in VS Code) so those providers are exercised in e2e.  Every
+            # other section falls back to ``null`` (server defaults).
+            result: Any = [
+                {"features": {"linkedEditingRange": True}}
+                if (item or {}).get("section") == "tclLsp"
+                else None
+                for item in items
+            ]
         else:
             result = None
         self._send({"jsonrpc": "2.0", "id": msg["id"], "result": result})

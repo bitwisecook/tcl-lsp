@@ -7,6 +7,7 @@ just "take ``lsp_server`` and send it a request".
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -33,7 +34,21 @@ def _lsp_build() -> _Build:
     current sources.  Both the file name and the bundled build-info carry the
     same ``git describe`` version, so we read it back and address the artifact
     by its exact path rather than guessing from a glob.
+
+    When ``TCL_LSP_SERVER_PYZ`` points at an already-built zipapp (the runner
+    builds it once before launching parallel pytest workers — see
+    ``_ci-fast-pytest``), reuse it directly.  That avoids every xdist worker
+    re-running ``make zipapp-lsp`` concurrently against the same output path,
+    and keeps the ci-fast gate fast.
     """
+    prebuilt = os.environ.get("TCL_LSP_SERVER_PYZ")
+    if prebuilt:
+        # Resolve to absolute: the server subprocess runs with cwd set to a
+        # throwaway workspace, so a relative argv path would not resolve.
+        pyz = Path(prebuilt).resolve()
+        if not pyz.exists():
+            pytest.fail(f"TCL_LSP_SERVER_PYZ={prebuilt!r} does not exist")
+        return _Build(pyz, ensure_build_info())
     if shutil.which("make") is None:
         pytest.skip("make is required to build the LSP zipapp")
     proc = subprocess.run(
@@ -82,3 +97,46 @@ def lsp_server(
         yield client
     finally:
         client.shutdown()
+
+
+@pytest.fixture(scope="session")
+def lsp_server_irules(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A second server dedicated to F5 iRules-dialect documents.
+
+    The server's active command/signature pack is process-global: opening an
+    iRules document auto-switches the whole server into the ``f5-irules``
+    dialect, which would then resolve a plain-Tcl ``socket`` hover in iRules
+    context.  Rather than fight that statefulness, dialect-sensitive iRules
+    tests run against their own server so the main ``lsp_server`` stays Tcl.
+    """
+    workspace = tmp_path_factory.mktemp("lsp-irules-workspace")
+    client = LspServerClient([sys.executable, str(lsp_pyz)], cwd=workspace)
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
+@pytest.fixture
+def uri_factory(request: pytest.FixtureRequest):
+    """Return a callable producing a fresh, unique ``file://`` URI per call.
+
+    Every test gets its own document URIs (namespaced by the test's node id)
+    so the long-lived shared server never serves one test a buffer another
+    test left open, and so version-tagged diagnostics never collide.
+    """
+    # Use the full node id (path::class::name), not just the function name, so
+    # two same-named tests in different files/classes can never collide on a URI
+    # and read each other's buffered, version-tagged diagnostics.
+    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.nodeid)
+    counter = {"n": 0}
+
+    def make(suffix: str = "tcl") -> str:
+        counter["n"] += 1
+        return f"file:///e2e/{safe}_{counter['n']}.{suffix}"
+
+    return make
