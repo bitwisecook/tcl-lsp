@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -88,6 +90,8 @@ class LspServerClient:
         self._stderr: list[bytes] = []
         self._reader: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
+        #: Throwaway XDG root isolating the server's config/cache (see start()).
+        self._xdg_root: Path | None = None
         #: ``serverInfo`` from the initialize result, populated by initialize().
         self.server_info: dict | None = None
         self.initialize_result: dict | None = None
@@ -95,12 +99,26 @@ class LspServerClient:
     # -- lifecycle ---------------------------------------------------------
 
     def start(self) -> None:
+        # Isolate the server from the developer machine's user config/cache so a
+        # local ``~/.../tcl-lsp/config.ini`` (e.g. ``[features] hover = false``)
+        # can't poison the default e2e suites.  ``XDG_CONFIG_HOME`` /
+        # ``XDG_CACHE_HOME`` take precedence on every platform (incl. macOS's
+        # ``~/Library/Application Support``), so pointing them at fresh empty
+        # dirs makes the server fall back to built-in defaults.  Config-specific
+        # suites opt into their own settings via ``workspace/configuration``.
+        self._xdg_root = Path(tempfile.mkdtemp(prefix="tcl-lsp-e2e-xdg-"))
+        env = {
+            **os.environ,
+            "XDG_CONFIG_HOME": str(self._xdg_root / "config"),
+            "XDG_CACHE_HOME": str(self._xdg_root / "cache"),
+        }
         self._proc = subprocess.Popen(
             self._argv,
             cwd=str(self._cwd),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
         )
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
@@ -144,6 +162,10 @@ class LspServerClient:
         except subprocess.TimeoutExpired:  # pragma: no cover
             self._proc.kill()
             self._proc.wait(timeout=5.0)
+        finally:
+            if self._xdg_root is not None:
+                shutil.rmtree(self._xdg_root, ignore_errors=True)
+                self._xdg_root = None
 
     # -- requests / notifications -----------------------------------------
 
