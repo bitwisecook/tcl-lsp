@@ -136,7 +136,7 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let values = &argv[2..];
 
     // Determine the target list object (in-place if unshared, else a copy/new).
-    let (target, is_new) = match interp.frames.get(&name) {
+    let (target, is_new) = match interp.var_get(&name) {
         None => (list::new_list_obj(&[]), true), // fresh empty list (rc 0)
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true), // COW copy (rc 0)
         Some(o) => (o, false),                   // mutate in place (frame owns it)
@@ -155,7 +155,7 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if is_new {
         // `target` is rc 0; `set` retains it into the variable (and releases the
         // prior value for the COW/overwrite case).
-        if interp.frames.set(&name, target).is_err() {
+        if interp.var_set(&name, target).is_err() {
             drop_fresh(target);
             let mut m = b"can't set \"".to_vec();
             m.extend_from_slice(&name);
@@ -325,7 +325,7 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             obj::new_string_bytes(b"")
         };
         let fresh = i >= elems.len();
-        let r = interp.frames.set(&name, val);
+        let r = interp.var_set(&name, val);
         if fresh {
             // `set` retained `val`; release our construction ref to the empty obj
             drop_fresh(val);

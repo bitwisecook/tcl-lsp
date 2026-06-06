@@ -550,11 +550,16 @@ mod tests {
                 i.eval_str(b"namespace eval app { namespace path ::lib }"),
                 Code::Ok
             );
-            // Now from ::app, bare `ping` resolves through the path.
+            // Now from ::app, bare `ping` resolves through the path. Its body
+            // `set pinged` runs with the current namespace = ::app, so the
+            // variable lands in ::app's table (NOT global — the T1.5 var-namespace
+            // fix; before it, every unqualified `set` leaked to the global frame).
             assert_eq!(i.eval_str(b"namespace eval app { ping yes }"), Code::Ok);
             assert_eq!(i.result_bytes(), b"yes");
-            assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::app::pinged"), Code::Ok);
             assert_eq!(i.result_bytes(), b"yes");
+            // …and it is NOT visible as a bare global.
+            assert_eq!(i.eval_str(b"set pinged"), Code::Error);
         });
     }
 
@@ -570,7 +575,8 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.eval_str(b"namespace eval app { greet hi }"), Code::Ok);
-            assert_eq!(i.eval_str(b"set greeted"), Code::Ok);
+            // `set greeted` ran in ::app (the call's current namespace).
+            assert_eq!(i.eval_str(b"set ::app::greeted"), Code::Ok);
             assert_eq!(i.result_bytes(), b"hi");
             // Forget removes the redirect.
             assert_eq!(

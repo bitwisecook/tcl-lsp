@@ -22,6 +22,7 @@ use tcl_syntax::naming::{
     is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
 };
 
+use crate::frame::VarTable;
 use crate::interp::Command;
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
@@ -54,6 +55,10 @@ struct Namespace {
     /// `namespace export` patterns — gate what `import` may pull (matched with
     /// `string match` glob via the shared [`tcl_syntax::glob`]).
     exports: Vec<Vec<u8>>,
+    /// Per-namespace variable table (`Namespace.varTable`). The global
+    /// namespace's holds the global variables; the variable resolver
+    /// ([`crate::vars`]) routes qualified / global / namespace-eval names here.
+    vars: VarTable,
 }
 
 impl Namespace {
@@ -65,6 +70,7 @@ impl Namespace {
             commands: BTreeMap::new(),
             path: Vec::new(),
             exports: Vec::new(),
+            vars: VarTable::default(),
         }
     }
 }
@@ -212,6 +218,36 @@ impl Namespaces {
             ns = *self.arena[ns].children.get(part)?;
         }
         Some(ns)
+    }
+
+    // -- per-namespace variable tables (the variable resolver's storage) ------
+
+    /// For a **qualified** variable name, the `(namespace, simple tail)` it
+    /// addresses, or `None` if that namespace doesn't exist. Absolute when
+    /// `::`-led, else relative to `current`. The variable parallel of command
+    /// `resolve_qualified` (`tclVar.c` / `namespace-tree.md` §5.3). Callers
+    /// guard with `is_qualified` first, so `None` means *namespace missing*.
+    #[must_use]
+    pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+        let absolute = name.starts_with(b"::");
+        let segments = split_qualifier(name);
+        let (simple, ns_parts) = segments.split_last()?;
+        let mut ns = if absolute { GLOBAL } else { current };
+        for part in ns_parts {
+            ns = *self.arena[ns].children.get(*part)?;
+        }
+        Some((ns, (*simple).to_vec()))
+    }
+
+    /// Namespace `ns`'s variable table (read).
+    #[must_use]
+    pub(crate) fn var_table(&self, ns: NsId) -> &VarTable {
+        &self.arena[ns].vars
+    }
+
+    /// Namespace `ns`'s variable table (mutable).
+    pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable {
+        &mut self.arena[ns].vars
     }
 
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).

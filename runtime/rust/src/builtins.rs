@@ -27,6 +27,7 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_string::install(interp);
     crate::cmd_alias::install(interp);
     crate::cmd_namespace::install(interp);
+    crate::cmd_var::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -36,10 +37,11 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&msg)
 }
 
-fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
+        VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -56,8 +58,8 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let name = obj_bytes(argv[1]);
             let (base, elem) = split_array_ref(&name);
             let val = match &elem {
-                Some(k) => interp.frames.get_elem(&base, k),
-                None => interp.frames.get(&base),
+                Some(k) => interp.var_get_elem(&base, k),
+                None => interp.var_get(&base),
             };
             match val {
                 Some(o) => {
@@ -70,7 +72,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     // reports — matches `var_error(IsArray)`).
                     let mut msg = b"can't read \"".to_vec();
                     msg.extend_from_slice(&name);
-                    if elem.is_none() && interp.frames.is_array(&base) {
+                    if elem.is_none() && interp.var_is_array(&base) {
                         msg.extend_from_slice(b"\": variable is array");
                     } else {
                         msg.extend_from_slice(b"\": no such variable");
@@ -84,8 +86,8 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let (base, elem) = split_array_ref(&name);
             let value = argv[2];
             let stored = match &elem {
-                Some(k) => interp.frames.set_elem(&base, k, value),
-                None => interp.frames.set(&base, value),
+                Some(k) => interp.var_set_elem(&base, k, value),
+                None => interp.var_set(&base, value),
             };
             match stored {
                 Ok(()) => {
@@ -117,8 +119,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Current cell value (borrowed) or a fresh 0 for an unset variable; the
     // fresh-0 is `rc 0` and freed below whether or not it's used.
     let existing = match &elem {
-        Some(k) => interp.frames.get_elem(&base, k),
-        None => interp.frames.get(&base),
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
     };
     let zero = obj::new_wide_int_obj(0);
     let cur = existing.unwrap_or(zero);
@@ -152,8 +154,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     drop_fresh(one); // `amount` no longer needed
 
     let stored = match &elem {
-        Some(k) => interp.frames.set_elem(&base, k, sum),
-        None => interp.frames.set(&base, sum),
+        Some(k) => interp.var_set_elem(&base, k, sum),
+        None => interp.var_set(&base, sum),
     };
     match stored {
         Ok(()) => {
@@ -199,8 +201,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let obj = obj::new_wide_int_obj(sum); // rc 0
     let stored = match &elem {
-        Some(k) => interp.frames.set_elem(&base, k, obj),
-        None => interp.frames.set(&base, obj),
+        Some(k) => interp.var_set_elem(&base, k, obj),
+        None => interp.var_set(&base, obj),
     };
     match stored {
         Ok(()) => {
@@ -217,8 +219,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(have_tommath))]
 fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
     let obj = match elem {
-        Some(k) => interp.frames.get_elem(base, k),
-        None => interp.frames.get(base),
+        Some(k) => interp.var_get_elem(base, k),
+        None => interp.var_get(base),
     }?;
     Some(obj_bytes(obj))
 }
@@ -254,8 +256,8 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
         let existed = match &elem {
-            Some(k) => interp.frames.unset_elem(&base, k),
-            None => interp.frames.unset(&base),
+            Some(k) => interp.var_unset_elem(&base, k),
+            None => interp.var_unset(&base),
         };
         if !existed {
             let mut msg = b"can't unset \"".to_vec();
@@ -327,8 +329,8 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     fn read_var(&mut self, name: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         let (base, elem) = split_array_ref(name.as_bytes());
         let obj = match &elem {
-            Some(k) => self.interp.frames.get_elem(&base, k),
-            None => self.interp.frames.get(&base),
+            Some(k) => self.interp.var_get_elem(&base, k),
+            None => self.interp.var_get(&base),
         };
         match obj {
             Some(o) => Ok(crate::expr::Owned::retain(o)),

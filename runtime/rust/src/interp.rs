@@ -21,7 +21,7 @@
 use core::ffi::c_char;
 
 use crate::builtins;
-use crate::frame::FrameStack;
+use crate::frame::{FrameStack, Link, VarError};
 use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
@@ -174,6 +174,122 @@ impl Interp {
         let code = self.eval_str(body);
         self.current_ns = saved;
         code
+    }
+
+    // -- variables (the var resolver; `crate::vars`) --------------------------
+    //
+    // Every variable op routes through the one classification + link walk
+    // (frame-local vs namespace, qualified vs not), instead of the old flat
+    // per-frame table. The `name` here is the array *base* (callers split
+    // `a(k)` via `split_array_ref` first), so `::ns::base` qualifies correctly.
+
+    /// `set name` — borrowed value (the table keeps its +1), or `None`.
+    pub(crate) fn var_get(&self, name: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::get(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// `set name(key)` — borrowed.
+    pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::get_elem(&self.frames, &self.namespaces, self.current_ns, name, key)
+    }
+
+    /// `set name value` — the cell takes a **+1** on `obj`.
+    pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        crate::vars::set(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            obj,
+        )
+    }
+
+    /// `set name(key) value`.
+    pub(crate) fn var_set_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        crate::vars::set_elem(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            key,
+            obj,
+        )
+    }
+
+    /// `unset name` — returns whether it existed.
+    pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
+        crate::vars::unset(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+        )
+    }
+
+    /// `unset name(key)` — returns whether it existed.
+    pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        crate::vars::unset_elem(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            key,
+        )
+    }
+
+    /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
+    /// diagnostic, `array exists`).
+    pub(crate) fn var_is_array(&self, name: &[u8]) -> bool {
+        crate::vars::is_array(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// Resolve a `global`/`variable`/`upvar` name argument to its
+    /// `(target namespace, simple tail)`, in the given `context_ns` (global for
+    /// `global`, the current ns for `variable`). `None` if the name is qualified
+    /// into a namespace that doesn't exist.
+    pub(crate) fn resolve_var_target(
+        &self,
+        context_ns: NsId,
+        name: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        if tcl_syntax::naming::is_qualified(name) {
+            self.namespaces.var_home(context_ns, name)
+        } else {
+            Some((context_ns, name.to_vec()))
+        }
+    }
+
+    /// The current call-frame level (`upvar` relative-level arithmetic).
+    pub(crate) fn current_level(&self) -> usize {
+        self.frames.current_level()
+    }
+
+    /// `variable tail` / `global tail` — link `tail` in the current frame to
+    /// `target_ns::tail` (a no-op when the current context already is that var).
+    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
+        crate::vars::make_variable(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            target_ns,
+            tail,
+        );
+    }
+
+    /// `upvar` — link `local` in the current frame to the resolved `target`.
+    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
+        crate::vars::make_upvar(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            target,
+            local,
+        );
     }
 
     // -- result ---------------------------------------------------------------
@@ -375,8 +491,8 @@ impl Interp {
                                 None => None,
                             };
                             let obj = match index.as_deref() {
-                                Some(key) => self.frames.get_elem(v.name, key),
-                                None => self.frames.get(v.name),
+                                Some(key) => self.var_get_elem(v.name, key),
+                                None => self.var_get(v.name),
                             };
                             return match obj {
                                 Some(o) => {
@@ -463,9 +579,9 @@ impl Interp {
         Ok(buf)
     }
 
-    /// Read a variable's value bytes via the frame store.
+    /// Read a variable's value bytes via the variable resolver.
     fn read_var(&self, name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
-        self.frames.resolve_var_bytes(name, index)
+        crate::vars::resolve_var_bytes(&self.frames, &self.namespaces, self.current_ns, name, index)
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
@@ -665,6 +781,67 @@ mod tests {
             assert_eq!(i.eval_str(b"set f 1.5"), Code::Ok);
             assert_eq!(i.eval_str(b"incr f"), Code::Error);
             assert_eq!(i.result_bytes(), b"expected integer but got \"1.5\"");
+        });
+    }
+
+    #[test]
+    fn qualified_global_aliases_plain_at_top_level() {
+        // The headline T1.5 fix: `::pinged` and `pinged` are the SAME global
+        // (before, `::pinged` was a literal frame key distinct from `pinged`).
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set ::pinged 1"), Code::Ok);
+            assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"set pinged 2"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::pinged"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2");
+            assert_eq!(i.eval_str(b"unset ::pinged"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn qualified_var_resolves_through_namespace_table() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval a {}"), Code::Ok);
+            // qualified write lands in ::a's var table …
+            assert_eq!(i.eval_str(b"set ::a::x 5"), Code::Ok);
+            // … visible as the unqualified `x` from inside ::a …
+            assert_eq!(i.eval_str(b"namespace eval a { set x }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            // … and through `$::a::x` substitution.
+            assert_eq!(i.eval_str(b"set y $::a::x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            assert_eq!(i.eval_str(b"unset ::a::x"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn qualified_set_into_missing_namespace_errors() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set ::nosuch::x 1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't set \"::nosuch::x\": parent namespace doesn't exist"
+            );
+            // a read of the same name reports the ordinary no-such-variable.
+            assert_eq!(i.eval_str(b"set ::nosuch::x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't read \"::nosuch::x\": no such variable"
+            );
+        });
+    }
+
+    #[test]
+    fn namespace_eval_body_set_is_a_namespace_var() {
+        // `set x` inside `namespace eval` (a non-proc context) creates a ns var,
+        // not a global.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval b { set v 10 }"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::b::v"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"10");
+            assert_eq!(i.eval_str(b"set v"), Code::Error); // not a global
+            assert_eq!(i.eval_str(b"unset ::b::v"), Code::Ok);
         });
     }
 

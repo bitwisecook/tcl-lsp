@@ -177,7 +177,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let key = argv[3];
     let value = argv[4];
 
-    let (target, is_new) = match interp.frames.get(&name) {
+    let (target, is_new) = match interp.var_get(&name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
@@ -188,7 +188,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         return bad_dict(interp);
     }
-    if is_new && interp.frames.set(&name, target).is_err() {
+    if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
@@ -204,7 +204,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name = obj_bytes(argv[2]);
     let key = obj_bytes(argv[3]);
 
-    let (target, is_new) = match interp.frames.get(&name) {
+    let (target, is_new) = match interp.var_get(&name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
@@ -215,7 +215,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         return bad_dict(interp);
     }
-    if is_new && interp.frames.set(&name, target).is_err() {
+    if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
@@ -247,10 +247,10 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let body = obj_bytes(argv[4]);
 
     for (k, v) in pairs {
-        if interp.frames.set(&kvar, k).is_err() {
+        if interp.var_set(&kvar, k).is_err() {
             return cant_set(interp, &kvar);
         }
-        if interp.frames.set(&vvar, v).is_err() {
+        if interp.var_set(&vvar, v).is_err() {
             return cant_set(interp, &vvar);
         }
         match interp.eval_str(&body) {

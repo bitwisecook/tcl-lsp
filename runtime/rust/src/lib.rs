@@ -43,6 +43,7 @@ pub mod cmd_dict;
 pub mod cmd_list;
 pub mod cmd_namespace;
 pub mod cmd_string;
+pub mod cmd_var;
 pub mod counters;
 pub mod dict;
 #[cfg(have_tommath)]
@@ -54,6 +55,7 @@ pub mod namespace;
 pub mod obj;
 pub mod parse;
 pub mod subst;
+pub mod vars;
 
 #[cfg(test)]
 mod tests {

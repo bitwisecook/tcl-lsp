@@ -34,7 +34,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     if values.is_empty() {
         // `append x` with no values just reads the variable.
-        return match interp.frames.get(&name) {
+        return match interp.var_get(&name) {
             Some(o) => {
                 interp.set_result(o);
                 Code::Ok
@@ -45,7 +45,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Pick the target: in place if it's an unshared plain string; else a fresh
     // plain string seeded from the current value (or empty).
-    let (target, is_new) = match interp.frames.get(&name) {
+    let (target, is_new) = match interp.var_get(&name) {
         Some(o) if obj::is_plain_string(o) && !obj::is_shared(o) => (o, false),
         Some(o) => (obj::new_string_bytes(&obj_bytes(o)), true), // typed/shared → copy
         None => (obj::new_string_bytes(b""), true),
@@ -56,7 +56,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         obj::string_append_inplace(target, &bytes);
     }
 
-    if is_new && interp.frames.set(&name, target).is_err() {
+    if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
