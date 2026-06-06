@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
@@ -121,12 +122,42 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "cannot be fetched (no network or no git)."
         ),
     )
+    parser.addoption(
+        "--run-manual",
+        action="store_true",
+        dest="run_manual",
+        default=False,
+        help=(
+            "Collect tests marked @pytest.mark.manual, which are excluded "
+            "from every default run (including test-slow) because they are "
+            "too expensive. Also enabled by RUN_MANUAL_TESTS=1."
+        ),
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
     global TCL9_REQUIRED
     if config.getoption("tcl9_required", default=False):
         TCL9_REQUIRED = True
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Deselect ``@pytest.mark.manual`` tests unless explicitly opted in.
+
+    These are heavyweight soak/stress tests that should only run on demand
+    (e.g. ``pytest --run-manual tests/test_buffer_mvcc.py``), never as part
+    of the default suite or the ``test-slow`` gate.
+    """
+    if config.getoption("run_manual", default=False) or os.environ.get(
+        "RUN_MANUAL_TESTS"
+    ):
+        return
+    deselected = [it for it in items if it.get_closest_marker("manual") is not None]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = [it for it in items if it not in deselected]
 
 
 _RESULTS_KEY = "_tcl9_results"

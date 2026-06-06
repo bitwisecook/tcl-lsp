@@ -237,6 +237,7 @@ def _giant_body_interior_offset(source: str) -> int:
 
 
 @pytest.mark.slow
+@pytest.mark.manual
 def test_mvcc_document_path_tens_of_thousands_of_edits_no_leak():
     """Punish the MVCC through the *real document edit path* at scale.
 

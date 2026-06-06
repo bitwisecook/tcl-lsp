@@ -116,6 +116,7 @@ exclude = [
 testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "manual: marks tests that are NOT collected by default (even under test-slow); run them explicitly with '--run-manual' or RUN_MANUAL_TESTS=1",
 ]
 
 [tool.ruff]
