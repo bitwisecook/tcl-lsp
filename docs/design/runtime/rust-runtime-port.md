@@ -1155,7 +1155,7 @@ any row.
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + command *and* variable resolvers**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); **`vars.rs` variable resolver** (per-namespace var tables, `VarHome` links, `global`/`variable`/`upvar`); procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4/T1.5) | `make runtime-rust-test` — dispatch resolves through the **namespace tree** (`Builtin`/`Alias`/`Imported` handles), no flat table; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace` (+ `ensemble`) + `global`/`variable`/`upvar` + `::tcl::mathfunc::*`/`::tcl::mathop::*` (overridable, A3); per-command parity + tcltest sweep as more land |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace` (+ `ensemble`) + `global`/`variable`/`upvar` + `::tcl::mathfunc::*`/`::tcl::mathop::*` (overridable, A3) + `proc`/`if`/`while`/`for`/`foreach`/`break`/`continue`/`puts` (runs simple scripts end to end); per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -1788,7 +1788,7 @@ close against them:
 
 | Contract | Rust port alignment | Gaps to close |
 |---|---|---|
-| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3); **per-namespace var tables + one classification/link-walk over a `VarHome` (frame ∣ namespace), qualified `::a::b::x`, `global`/`variable`/`upvar` (T1.5, `vars.rs`)** | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar/global/variable-link cycle must *error*** (today the shared 1000-hop `LINK_LIMIT` silently stops — fix with the proc-chunk recursion bound); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; the **proc-local branch** of the classifier is wired but inert until procs push frames; the "unqualified ≠ namespace var inside a proc" rule then becomes observable |
+| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3); **per-namespace var tables + one classification/link-walk over a `VarHome` (frame ∣ namespace), qualified `::a::b::x`, `global`/`variable`/`upvar` (T1.5, `vars.rs`)** | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar/global/variable-link cycle must *error*** (today the shared 1000-hop `LINK_LIMIT` silently stops — fix with the proc-chunk recursion bound); independent **cell refcount**; **traces on cells** + re-entrancy/ordering. The **proc-local branch** of the classifier is now **live** (procs push frames): `set` in a body is frame-local and the "unqualified ≠ namespace var inside a proc" rule holds; proc-call recursion is bounded (1000), though the var-link `LINK_LIMIT` still silently stops rather than erroring (separate fix) |
 | parser-and-aot-interpret-boundary | the **LSP/compiler `tcl-lexer` is now the canonical scanner** for command/word parsing (`parse.rs` lowers its tokens → the eval `Command`/`WordPart` model); object-passthrough; spans from byte 0 | converge `subst`/`Tcl_SplitList` onto `tcl-lexer` too (step 3, co-evolving a subst + list mode); the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
 | numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
@@ -1837,11 +1837,12 @@ the rest are deferred with the reviewer's concurrence):
   `tcl_syntax` message (the `…FollowedByJunk` byte-exact `"<frag>" instead of
   space` suffix still needs the offending fragment surfaced from the splitter —
   minor follow-up).
-- ⏳ **Recursion / alias-cycle bound** (`interp.rs`) — `dispatch_alias`→`invoke`
-  chains and unbounded `eval`/`[...]` nesting trap on a wasm stack overflow
-  instead of raising a catchable Tcl error. Add a depth counter on `Interp`
-  (C Tcl's `interp recursionlimit`, default 1000) **with the proc chunk**, where
-  the call-frame depth lives.
+- ◐ **Recursion / alias-cycle bound** (`interp.rs`) — **partly done with the
+  proc chunk:** `Interp.recursion_depth` bounds **proc-call** nesting at C's
+  default 1000, so infinite proc recursion raises the catchable `too many nested
+  evaluations (infinite loop?)` instead of a stack overflow. **Remaining:**
+  extend the same counter to unbounded `eval`/`[...]`/`dispatch_alias` nesting
+  (land with PC-3's `eval`), and make `interp recursionlimit` configurable.
 - ⏳ **NaN ordering in `bignum::compare`** — a NaN operand maps to
   `Ordering::Greater`, so `x > NaN` is spuriously true. Tcl makes every ordered
   comparison with NaN false (and in `expr` a NaN-producing op is itself a domain
@@ -1939,12 +1940,20 @@ compiler/LSP or the Zig runtime.
    with `-map`/`-subcommands`/`-prefixes`/`-command`, dispatching to `-map` or
    `<ns>::<sub>`), the generalisation of the `dict for`→`::tcl::dict::for`
    rewrite. **Next in T1.5:** `rand`/`srand` (interp RNG state), `namespace
-   delete`, `namespace ensemble configure`, and per-frame `current_ns` + the
-   proc-local var branch (wired but inert — gated on the proc chunk, which
-   pushes proc frames).
-10. **Procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
-    + control flow — the call protocol (CallFrame + CmdFrame), return-options,
-    stack traces, AOT↔interp interop; carries per-frame `current_ns`.
+   delete`, `namespace ensemble configure`. (Per-frame `current_ns` + the
+   proc-local var branch are now **live** — see #10.)
+10. ◐ **Procs + control flow** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
+    — **done (PC-2, conservative):** `Command::Proc(Rc<ProcDef>)` + `call_proc`
+    (arity/`wrong # args`, push a frame in the proc's defining namespace, bind
+    params/defaults/`args`, eval body, `return`→Ok, pop) — this **activates the
+    proc-local var branch + per-frame current namespace** (`set` in a body is
+    frame-local; `variable`/`global` hit the proc's ns); a **recursion bound**
+    (C's default 1000) makes infinite recursion a catchable error; **control
+    flow** `if`/`while`/`for`/`foreach` + `break`/`continue`; **`puts`**; and an
+    `examples/run_script.rs` that runs a fib/for/namespace/foreach script end to
+    end. **Next:** PC-1 `CmdFrame` source/line stack; PC-3 `uplevel` + `eval` +
+    generalised `upvar`; PC-4 exceptions (`error`/`catch`/`return -options` +
+    `errorInfo`); PC-5 `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
     bound to the editor command registry; `NoEmitImpl` error for unimplemented
     commands (the codegen-side single-source-of-truth that all later AOT work
