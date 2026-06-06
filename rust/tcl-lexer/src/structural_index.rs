@@ -9,13 +9,26 @@
 //! index alone — **no re-lex** — and prove the answer matches a real
 //! re-scan.
 //!
-//! Scope: the **script `[` / `]` (bracket) sublanguage**. The doc's
-//! headline script claim covers `[` and `}`; this prototype proves the
-//! bracket dimension end-to-end and is structured so the brace and expr
-//! dimensions slot in the same way. It is deliberately *not wired into
-//! production* — like the Python prototypes (kept only in git history),
-//! it instruments the model and adds no production value yet; the
-//! incremental green-tree engine will build the productionised index.
+//! Scope: the **script `[`/`]` (bracket)** and **`{`/`}` (brace)**
+//! sublanguages — the doc's headline script claim covers both
+//! ([`BracketIndex`], [`BraceIndex`]). The expr `(` dimension slots in
+//! the same way. It is deliberately *not wired into production* — like
+//! the Python prototypes (kept only in git history), it instruments the
+//! model and adds no production value yet; the incremental green-tree
+//! engine will build the productionised index.
+//!
+//! ### Brace-dimension boundary (documented, pinned)
+//!
+//! `info complete` parses a `[…]` **interior recursively as a script**
+//! (word-based braces + terminal "extra characters after close-brace"),
+//! so `[set x {b}{` is **complete** even though the outer `[` is
+//! unterminated. The prototype's `scan_cmd_sub` uses the lexer's
+//! *count-based* brace rule and so over-reports unterminated braces
+//! *inside* command substitutions. Faithful command-sub interiors need
+//! the full recursive `Tcl_CommandComplete` parse. The brace index is
+//! verified against C Tcl 9.0.3 on the bracketless and bracket-isolated
+//! corpora where it is faithful, and the boundary is pinned by
+//! `ctcl9_command_sub_interior_is_a_documented_boundary`.
 //!
 //! ## The two contexts the scanner must mirror (the doc's warning)
 //!
@@ -399,6 +412,326 @@ fn scan_dollar_brace(bytes: &[u8], start: usize) -> usize {
         i += 1;
     }
     n
+}
+
+// ===========================================================================
+// Brace dimension (`{` / `}`) — the second script sublanguage the doc names
+// alongside brackets. Same methodology and decision procedure; the *rules*
+// differ: a `{` opens a brace word only at a word boundary (mid-word `{` is
+// literal — `a{` is complete in C Tcl 9.0.3), inside a brace word nesting is
+// verbatim (`\}` does not close), and a `#` at command start begins a comment
+// whose braces are ignored. Quotes make braces literal; command-substitution
+// interiors count braces (`[set x {` is incomplete).
+// ===========================================================================
+
+/// A structural-state index for the script brace (`{` / `}`) dimension,
+/// captured in a single forward scan. See the module header; the decision
+/// procedure mirrors [`BracketIndex`].
+#[derive(Debug, Clone)]
+pub struct BraceIndex {
+    /// Structural brace events in ascending offset order: `+1` for a
+    /// structural `{`, `-1` for a structural `}`.
+    events: Vec<(u32, i32)>,
+    /// Inert byte ranges `[start, end)` where `{` / `}` are literal
+    /// (comments, quoted runs, escape pairs, `${…}`). Sorted, merged.
+    inert: Vec<(u32, u32)>,
+    /// Source length in bytes.
+    len: u32,
+}
+
+impl BraceIndex {
+    /// Build the index for `source` (one forward scan).
+    #[must_use]
+    pub fn build(source: &str) -> Self {
+        let bytes = source.as_bytes();
+        let mut b = BraceBuilder {
+            bytes,
+            events: Vec::new(),
+            inert: Vec::new(),
+        };
+        b.scan_top();
+        b.inert.sort_unstable();
+        let mut merged: Vec<(u32, u32)> = Vec::with_capacity(b.inert.len());
+        for (s, e) in b.inert {
+            match merged.last_mut() {
+                Some(last) if s <= last.1 => last.1 = last.1.max(e),
+                _ => merged.push((s, e)),
+            }
+        }
+        BraceIndex {
+            events: b.events,
+            inert: merged,
+            len: u32::try_from(bytes.len()).expect("source length fits u32"),
+        }
+    }
+
+    /// `true` when inserting a `}` *at* `off` would be absorbed as a
+    /// literal (strictly inside an inert span).
+    #[must_use]
+    fn inert_for_insert(&self, off: u32) -> bool {
+        let idx = self.inert.partition_point(|&(s, _)| s < off);
+        if idx == 0 {
+            return false;
+        }
+        let (start, end) = self.inert[idx - 1];
+        start < off && off < end
+    }
+
+    /// Number of unterminated `{` at EOF — the final clamped brace level.
+    #[must_use]
+    pub fn unterminated_count(&self) -> i32 {
+        let mut lvl = 0i32;
+        for &(_, d) in &self.events {
+            lvl = (lvl + d).max(0);
+        }
+        lvl
+    }
+
+    /// `true` when inserting a single `}` at byte offset `off` makes the
+    /// source brace-balanced (zero unterminated `{`), from the index
+    /// alone (prefix + forward walk).
+    #[must_use]
+    pub fn close_brace_balances(&self, off: u32) -> bool {
+        if off > self.len || self.inert_for_insert(off) {
+            return false;
+        }
+        let mut lvl = 0i32;
+        let mut inserted = false;
+        for &(o, d) in &self.events {
+            if !inserted && o >= off {
+                lvl = (lvl - 1).max(0);
+                inserted = true;
+            }
+            lvl = (lvl + d).max(0);
+        }
+        if !inserted {
+            lvl = (lvl - 1).max(0);
+        }
+        lvl == 0
+    }
+}
+
+/// Brace-dimension scanner state.
+struct BraceBuilder<'a> {
+    bytes: &'a [u8],
+    events: Vec<(u32, i32)>,
+    inert: Vec<(u32, u32)>,
+}
+
+impl BraceBuilder<'_> {
+    fn push_inert(&mut self, start: usize, end: usize) {
+        if end > start {
+            self.inert.push((
+                u32::try_from(start).expect("offset fits u32"),
+                u32::try_from(end).expect("offset fits u32"),
+            ));
+        }
+    }
+
+    fn push_event(&mut self, off: usize, delta: i32) {
+        self.events
+            .push((u32::try_from(off).expect("offset fits u32"), delta));
+    }
+
+    /// Top-level command/word context scan for the brace dimension.
+    #[allow(clippy::too_many_lines)] // one cohesive state machine
+    fn scan_top(&mut self) {
+        let n = self.bytes.len();
+        let mut i = 0usize;
+        // `command_start`: a `#` here begins a comment (only at the
+        // start of a command — after Eol / `;` / source start).
+        let mut command_start = true;
+        // `is_newword`: a `{` / `"` here is a delimiter-word opener.
+        let mut newword = true;
+        // Verbatim brace-word nesting depth (0 = command/word context).
+        let mut brace_level: u32 = 0;
+        // Set right after a brace/quote *word* closes: the next char
+        // decides whether it is a separator (normal) or "extra
+        // characters after close-brace/quote" — a terminal parse error C
+        // Tcl 9.0.3 reports as *complete* (`{b}{`, `"x"{`, `{a}}` are all
+        // complete). On that error we stop the scan: nothing after it
+        // affects completeness.
+        let mut just_closed_word = false;
+        while i < n {
+            if brace_level > 0 {
+                // Verbatim brace-word context: nested `{` / `}` count,
+                // `\}` is escaped (does not close).
+                match self.bytes[i] {
+                    b'\\' => {
+                        let end = (i + 2).min(n);
+                        self.push_inert(i, end);
+                        i = end;
+                    }
+                    b'{' => {
+                        brace_level += 1;
+                        self.push_event(i, 1);
+                        i += 1;
+                    }
+                    b'}' => {
+                        brace_level -= 1;
+                        self.push_event(i, -1);
+                        i += 1;
+                        if brace_level == 0 {
+                            newword = true;
+                            command_start = false;
+                            just_closed_word = true;
+                        }
+                    }
+                    _ => i += 1,
+                }
+                continue;
+            }
+            // "Extra characters after close-brace/quote" gate.
+            if just_closed_word {
+                match self.bytes[i] {
+                    b' ' | b'\t' | b'\r' | b'\n' | b';' => just_closed_word = false,
+                    // A backslash-newline continuation after a close is
+                    // fine (the lexer special-cases it); anything else is
+                    // the terminal extra-chars error -> stop.
+                    b'\\' if matches!(self.bytes.get(i + 1), Some(b'\n' | b'\r')) => {
+                        just_closed_word = false;
+                    }
+                    _ => return,
+                }
+            }
+            // Command / word context.
+            match self.bytes[i] {
+                b'#' if command_start => {
+                    // Comment to end of line — braces inside are inert.
+                    let mut j = i;
+                    while j < n && self.bytes[j] != b'\n' {
+                        j += 1;
+                    }
+                    self.push_inert(i, j);
+                    i = j;
+                }
+                b'\\' => {
+                    let end = (i + 2).min(n);
+                    self.push_inert(i, end);
+                    i = end;
+                    newword = false;
+                    command_start = false;
+                }
+                b'\n' | b';' => {
+                    i += 1;
+                    newword = true;
+                    command_start = true;
+                }
+                b' ' | b'\t' | b'\r' => {
+                    i += 1;
+                    newword = true;
+                    command_start = false;
+                }
+                b'{' if newword => {
+                    brace_level = 1;
+                    self.push_event(i, 1);
+                    i += 1;
+                    command_start = false;
+                }
+                b'"' if newword => {
+                    i = self.scan_quoted(i + 1);
+                    newword = false;
+                    command_start = false;
+                    just_closed_word = true;
+                }
+                b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
+                    // `${name}` is a substitution, not a brace word: a
+                    // balanced one is inert, but an *unterminated* `${`
+                    // is a missing-close-brace (`${a` is incomplete).
+                    let end = scan_dollar_brace(self.bytes, i);
+                    if end >= n && self.bytes.get(n - 1) != Some(&b'}') {
+                        self.push_event(i + 1, 1); // unterminated `{`
+                    }
+                    self.push_inert(i, end);
+                    i = end;
+                    newword = false;
+                    command_start = false;
+                }
+                b'[' => {
+                    i = self.scan_cmd_sub(i + 1);
+                    newword = false;
+                    command_start = false;
+                }
+                b'}' => {
+                    // A `}` with no open brace word: extra/literal close;
+                    // record it so `unterminated_count` clamps (matching
+                    // C Tcl, where `}{` is complete).
+                    self.push_event(i, -1);
+                    i += 1;
+                    newword = false;
+                    command_start = false;
+                }
+                _ => {
+                    i += 1;
+                    newword = false;
+                    command_start = false;
+                }
+            }
+        }
+    }
+
+    /// Scan a `"…"` quoted run (the opening `"` already consumed).
+    /// Braces inside are literal, but command substitutions inside still
+    /// count braces. Returns the offset past the closing `"`, or EOF.
+    fn scan_quoted(&mut self, start: usize) -> usize {
+        let n = self.bytes.len();
+        let mut i = start;
+        while i < n {
+            match self.bytes[i] {
+                b'\\' => i = (i + 2).min(n),
+                b'"' => return i + 1,
+                b'[' => i = self.scan_cmd_sub(i + 1),
+                b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
+                    i = scan_dollar_brace(self.bytes, i);
+                }
+                _ => i += 1,
+            }
+        }
+        n
+    }
+
+    /// Scan a `[…]` command-substitution interior (the `[` already
+    /// consumed), counting braces with the command-sub's count-based
+    /// rules (mirrors `Lexer::scan_command_substitution`). Returns the
+    /// offset past the closing `]`, or EOF.
+    fn scan_cmd_sub(&mut self, start: usize) -> usize {
+        let n = self.bytes.len();
+        let mut i = start;
+        let mut in_quotes = false;
+        let mut blevel: u32 = 0;
+        while i < n {
+            match self.bytes[i] {
+                b'"' if blevel == 0 => {
+                    in_quotes = !in_quotes;
+                    i += 1;
+                }
+                b'[' if blevel == 0 && !in_quotes => {
+                    i = self.scan_cmd_sub(i + 1);
+                }
+                b']' if blevel == 0 && !in_quotes => {
+                    return i + 1;
+                }
+                b'\\' => i = (i + 2).min(n),
+                b'$' if !in_quotes && blevel == 0 && self.bytes.get(i + 1) == Some(&b'{') => {
+                    let end = scan_dollar_brace(self.bytes, i);
+                    self.push_inert(i, end);
+                    i = end;
+                }
+                b'{' if !in_quotes => {
+                    blevel += 1;
+                    self.push_event(i, 1);
+                    i += 1;
+                }
+                b'}' if !in_quotes => {
+                    blevel = blevel.saturating_sub(1);
+                    self.push_event(i, -1);
+                    i += 1;
+                }
+                _ => i += 1,
+            }
+        }
+        n
+    }
 }
 
 #[cfg(test)]
@@ -845,6 +1178,247 @@ while {1} {
                 "expected balanced: {s:?}",
             );
             assert!(!lexer_has_unterminated_bracket(s), "lexer parity: {s:?}");
+        }
+    }
+
+    // ===================================================================
+    // Brace dimension (`{` / `}`) — same methodology as brackets.
+    // ===================================================================
+
+    /// Top-level brace corpus (no `[…]` command subs), where the brace
+    /// scanner's word-based + extra-chars + comment logic is faithful to
+    /// `info complete`.
+    fn brace_top_level_corpus(n: usize) -> Vec<String> {
+        let atoms = [
+            "{", "}", "\"", "\\", "$", "a", " ", "\n", "x ", "${v}", "{b}", "\\{", "\\}", "set ",
+            "puts ", ";",
+        ];
+        let mut out = Vec::with_capacity(n);
+        let mut rng = Lcg(0x5eed_1234_abcd_0001);
+        for _ in 0..n {
+            let len = 1 + (rng.next_u32() as usize % 12);
+            let mut s = String::new();
+            for _ in 0..len {
+                s.push_str(rng.pick(&atoms));
+            }
+            out.push(s);
+        }
+        out
+    }
+
+    /// Brace-isolated corpus: brackets and quotes appear only as
+    /// balanced, word-separated forms, and there are no comments or
+    /// extra-`}`-after-close, so `info complete` reflects *only* brace
+    /// balance.
+    fn brace_separated_corpus(n: usize) -> Vec<String> {
+        let atoms = [
+            "a ",
+            "x ",
+            "set ",
+            "puts ",
+            "{b} ",
+            "{a {b} c} ",
+            "[x] ",
+            "${v} ",
+            "{ ",
+            "set x { ",
+            "\n",
+            "foo {a ",
+            "{} ",
+        ];
+        let mut out = Vec::with_capacity(n);
+        let mut rng = Lcg(0xcafe_f00d_0042_1337);
+        for _ in 0..n {
+            let len = 1 + (rng.next_u32() as usize % 9);
+            let mut s = String::new();
+            for _ in 0..len {
+                s.push_str(rng.pick(&atoms));
+            }
+            out.push(s);
+        }
+        out
+    }
+
+    #[test]
+    fn ctcl9_brace_completeness_is_necessary_no_cmd_subs() {
+        // Reference-grounded soundness across an adversarial *bracketless*
+        // corpus (the brace scanner's top-level word-based + extra-chars +
+        // comment logic is faithful to `info complete` here): whenever C
+        // Tcl 9.0.3 reports the script complete, its braces must be
+        // balanced, so the brace index must report zero unterminated `{`.
+        //
+        // Command substitutions are excluded on purpose: `info complete`
+        // parses a `[…]` interior *recursively as a script* (word-based
+        // braces + terminal extra-chars — `[set x {b}{` is **complete**),
+        // whereas this prototype's `scan_cmd_sub` uses the lexer's
+        // count-based rule. Faithful command-sub interiors need the full
+        // recursive `Tcl_CommandComplete` parse — a documented boundary
+        // (see the module header).
+        let cases = brace_top_level_corpus(8000);
+        let Some(oracle) = ctcl9_info_complete(&cases) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        let mut violations: Vec<String> = Vec::new();
+        for (s, &complete) in cases.iter().zip(&oracle) {
+            if complete && BraceIndex::build(s).unterminated_count() > 0 && violations.len() < 20 {
+                violations.push(format!("{s:?}: tcl=complete but index=unterminated"));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "index found an unterminated `{{` C Tcl 9.0.3 considers complete: {violations:#?}",
+        );
+    }
+
+    #[test]
+    fn ctcl9_command_sub_interior_is_a_documented_boundary() {
+        // Pin the command-sub-interior recursion boundary: C Tcl 9.0.3
+        // parses `[…]` interiors as scripts, so a brace word followed by
+        // a non-separator inside a `[…]` is a *terminal* extra-chars error
+        // -> complete, even though the outer `[` is unterminated. The
+        // count-based `scan_cmd_sub` does not model that recursion, so it
+        // over-reports here.
+        let Some(v) = ctcl9_info_complete(&[
+            "[set x {b}{".to_string(),   // extra-chars inside cmd sub -> complete
+            "[set x {".to_string(),      // genuinely open brace -> incomplete
+            "[set x {b}] {".to_string(), // top-level open brace after balanced sub
+        ]) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        assert_eq!(v, vec![true, false, false], "C Tcl 9.0.3 semantics drifted");
+        // Top-level cases the prototype *does* get right:
+        assert!(BraceIndex::build("[set x {").unterminated_count() > 0);
+        assert!(BraceIndex::build("[set x {b}] {").unterminated_count() > 0);
+    }
+
+    #[test]
+    fn ctcl9_brace_completeness_iff_on_separated_corpus() {
+        // Reference-grounded brace contract: on a corpus where brackets /
+        // quotes are balanced and word-separated (and no comments /
+        // extra-`}`), C Tcl 9.0.3 `info complete` reflects only brace
+        // balance, so the brace index must match it both ways.
+        let cases = brace_separated_corpus(8000);
+        let Some(oracle) = ctcl9_info_complete(&cases) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        let mut both_complete = 0usize;
+        let mut both_incomplete = 0usize;
+        let mut violations: Vec<String> = Vec::new();
+        for (s, &complete) in cases.iter().zip(&oracle) {
+            let index_complete = BraceIndex::build(s).unterminated_count() == 0;
+            if index_complete == complete {
+                if complete {
+                    both_complete += 1;
+                } else {
+                    both_incomplete += 1;
+                }
+            } else if violations.len() < 20 {
+                violations.push(format!(
+                    "{s:?}: index_complete={index_complete} tcl={complete}"
+                ));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "brace index disagreed with C Tcl 9.0.3 `info complete`: {violations:#?}",
+        );
+        assert!(
+            both_complete > 100 && both_incomplete > 100,
+            "corpus not exercising both verdicts: complete={both_complete} incomplete={both_incomplete}",
+        );
+    }
+
+    #[test]
+    fn brace_semantics_match_reference_examples() {
+        // Pin the canonical C Tcl 9.0.3 brace rules the index must honour.
+        // (incomplete == unterminated_count > 0)
+        let pin: &[(&str, bool)] = &[
+            ("set x {", false),     // open brace word -> incomplete
+            ("set x {a}", true),    // balanced
+            ("a{", true),           // mid-word `{` is literal -> complete
+            ("{", false),           // word-start open brace
+            ("{a {b", false),       // depth 2 unterminated
+            ("puts \"{\"", true),   // brace in quote is literal
+            ("set x {a\\}", false), // `\}` escaped -> still open
+            ("[set x {", false),    // brace in command sub counts
+            ("set x {[}", true),    // `[` inside brace word is literal
+            ("# {", true),          // brace in comment is ignored
+            ("}{", true),           // extra `}` then mid-word `{` -> complete
+            ("{}", true),           // balanced empty
+        ];
+        for &(s, want_complete) in pin {
+            let complete = BraceIndex::build(s).unterminated_count() == 0;
+            assert_eq!(complete, want_complete, "brace verdict for {s:?}");
+        }
+    }
+
+    #[test]
+    fn brace_correction_extra_closer_closes_nothing() {
+        assert_eq!(BraceIndex::build("}}}").unterminated_count(), 0);
+        assert_eq!(BraceIndex::build("{}{}").unterminated_count(), 0);
+        assert_eq!(BraceIndex::build("{{}").unterminated_count(), 1);
+    }
+
+    #[test]
+    fn brace_scalar_only_index_diverges_from_reference() {
+        // A scalar counter that ignores word-position / quotes / comments
+        // mis-judges `a{` (mid-word literal) and `# {` (comment).
+        fn scalar_unterminated(s: &str) -> i32 {
+            let mut lvl = 0i32;
+            for &b in s.as_bytes() {
+                match b {
+                    b'{' => lvl += 1,
+                    b'}' => lvl = (lvl - 1).max(0),
+                    _ => {}
+                }
+            }
+            lvl
+        }
+        for s in ["a{", "# {", "puts \"{\""] {
+            assert_eq!(BraceIndex::build(s).unterminated_count(), 0, "full: {s:?}");
+            assert!(scalar_unterminated(s) > 0, "scalar should diverge: {s:?}");
+        }
+    }
+
+    #[test]
+    fn ctcl9_realistic_brace_recovery_completes_under_reference() {
+        // A single forgotten `}` in real code: the index predicts the
+        // original close site and the repair is reference-complete.
+        let bases = &[
+            "proc p {} { return 1 }\n",
+            "if {$x} { puts hi }\n",
+            "namespace eval ns { variable v 1 }\n",
+            "foreach a $l { incr n }\n",
+            "set d {a b c}\n",
+        ];
+        let mut repaired: Vec<String> = Vec::new();
+        let mut predicted: Vec<bool> = Vec::new();
+        for base in bases {
+            for (cp, _) in base.match_indices('}') {
+                let mut broken = String::new();
+                broken.push_str(&base[..cp]);
+                broken.push_str(&base[cp + 1..]);
+                let idx = BraceIndex::build(&broken);
+                if idx.unterminated_count() == 0 {
+                    continue;
+                }
+                predicted.push(idx.close_brace_balances(u32::try_from(cp).unwrap()));
+                repaired.push((*base).to_string());
+            }
+        }
+        let Some(oracle) = ctcl9_info_complete(&repaired) else {
+            eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+            return;
+        };
+        for ((s, &complete), &pred) in repaired.iter().zip(&oracle).zip(&predicted) {
+            assert!(complete, "expected reference-complete after repair: {s:?}");
+            assert!(
+                pred,
+                "index failed to predict the original close site: {s:?}"
+            );
         }
     }
 }

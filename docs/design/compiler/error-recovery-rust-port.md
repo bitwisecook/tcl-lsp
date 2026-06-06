@@ -185,6 +185,35 @@ differential/fuzz harness. Results:
 - **The two corrections** (extra-closer clamp, opaque-to-EOF) and **scalar
   insufficiency** reproduce the doc's findings as pinned tests.
 
+### Brace dimension (`{` / `}`) — added, same methodology
+
+`BraceIndex` extends the prototype to the second script sublanguage. The brace
+rules differ from brackets and are mirrored exactly: a `{` opens a brace word
+only at a **word boundary** (mid-word `{` is literal — `a{` is *complete* in C
+Tcl 9.0.3); inside a brace word nesting is **verbatim** (`\}` does not close);
+`#` at command start begins a **comment** whose braces are ignored (`# {` is
+complete); quotes make braces literal; `${…}` is a substitution (balanced =
+inert, unterminated = a missing close-brace); and the **extra-characters-after-
+close** rule (finding 1 below) is *terminal* for braces too (`{b}{`, `"x"{`,
+`{a}}` are all complete). Validated against C Tcl 9.0.3:
+
+- **Reference iff** on a bracket/quote-isolated corpus (both ways, 8000 cases).
+- **Necessary condition** on an adversarial *bracketless* corpus (`info
+  complete` ⇒ braces balanced).
+- **Realistic recovery** — a single forgotten `}` in real code is predicted and
+  the repair is reference-complete.
+- 12 canonical-semantics pins (word-position, comments, quotes, escapes, `${}`,
+  extra-`}`).
+
+**Brace boundary (pinned).** `info complete` parses a `[…]` interior
+*recursively as a script* (word-based braces + terminal extra-chars), so
+`[set x {b}{` is **complete** even though the outer `[` is unterminated. The
+prototype's `scan_cmd_sub` uses the lexer's count-based brace rule and so
+over-reports unterminated braces *inside* command substitutions. Faithful
+command-sub interiors need the full recursive `Tcl_CommandComplete` parse —
+the productionised engine must parse `[…]` interiors as nested scripts, not
+count braces.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
