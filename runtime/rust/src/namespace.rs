@@ -198,6 +198,22 @@ impl Namespaces {
         self.arena[ns].path = path;
     }
 
+    /// The namespace a (possibly qualified) **command** `name` lives in, creating
+    /// any intermediate namespaces — i.e. everything before the simple tail
+    /// (`::a::b::foo` → `::a::b`; `foo` → `current`). For `proc`/`define_proc`,
+    /// which needs the proc's home ns id (its run-time current namespace).
+    pub(crate) fn command_home_ns(&mut self, current: NsId, name: &[u8]) -> NsId {
+        let absolute = name.starts_with(b"::");
+        let segments = split_qualifier(name);
+        let mut ns = if absolute { GLOBAL } else { current };
+        if let Some((_tail, ns_parts)) = segments.split_last() {
+            for part in ns_parts {
+                ns = self.ensure_child(ns, part);
+            }
+        }
+        ns
+    }
+
     /// Find (creating if needed) the namespace named `qualified`, rooted at
     /// `current` (absolute if it leads with `::`). For `namespace eval`.
     pub fn ensure_namespace(&mut self, current: NsId, qualified: &[u8]) -> NsId {

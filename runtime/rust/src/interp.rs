@@ -19,6 +19,7 @@
 //! + retain-into-result is the whole discipline.
 
 use core::ffi::c_char;
+use std::rc::Rc;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -72,6 +73,32 @@ pub enum Command {
     /// command prefix (`-map`, else `<ns>::<sub>`) and forwards `argv[2..]` — the
     /// generalised `dict for`→`::tcl::dict::for` redirect. See [`crate::ensemble`].
     Ensemble(crate::ensemble::EnsembleConfig),
+    /// A user procedure (`proc`). Dispatch pushes a call frame, binds the args to
+    /// the params (defaults + an `args` catch-all), runs the body in the proc's
+    /// defining namespace, and maps a body-level `return` to `Ok`. Behind an `Rc`
+    /// so the dispatch-time clone of the command handle is O(1), not a body copy.
+    Proc(Rc<ProcDef>),
+}
+
+/// One formal parameter of a [`ProcDef`]: a name and an optional default value.
+pub struct Param {
+    pub name: Vec<u8>,
+    pub default: Option<Vec<u8>>,
+}
+
+/// A compiled `proc` definition: its parameters, body script, and the namespace
+/// it was defined in (which becomes the current namespace while it runs).
+pub struct ProcDef {
+    pub params: Vec<Param>,
+    pub body: Vec<u8>,
+    pub ns: NsId,
+}
+
+impl ProcDef {
+    /// Whether the last parameter is the `args` catch-all (collects extra args).
+    fn has_args(&self) -> bool {
+        self.params.last().is_some_and(|p| p.name == b"args")
+    }
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -85,8 +112,15 @@ pub struct Interp {
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: NsId,
+    /// Active proc-call nesting depth — C Tcl's `interp recursionlimit`. Bounds
+    /// recursion so an infinite proc loop raises a catchable error instead of
+    /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
+    recursion_depth: usize,
     result: *mut TclObj,
 }
+
+/// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
+const RECURSION_LIMIT: usize = 1000;
 
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
@@ -99,6 +133,7 @@ impl Interp {
             frames: FrameStack::new(),
             namespaces: Namespaces::new(),
             current_ns: GLOBAL,
+            recursion_depth: 0,
             result,
         });
         builtins::install(&mut interp);
@@ -150,6 +185,21 @@ impl Interp {
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
         self.namespaces.register(name, Command::Ensemble(cfg));
+    }
+
+    /// Define a user proc (`proc name params body`). The proc's defining
+    /// namespace (where its body runs, and where it is bound) is the namespace
+    /// `name` lands in — **relative to the current namespace** (so `proc next`
+    /// inside `namespace eval counter` binds `::counter::next`, not a global).
+    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body: Vec<u8>) {
+        let ns = self.namespaces.command_home_ns(self.current_ns, name);
+        let tail = tcl_syntax::naming::qualifier_segments(name)
+            .last()
+            .copied()
+            .unwrap_or(name)
+            .to_vec();
+        let def = Rc::new(ProcDef { params, body, ns });
+        self.namespaces.bind(ns, &tail, Command::Proc(def));
     }
 
     /// Whether `name` resolves to an ensemble command (`namespace ensemble
@@ -446,6 +496,82 @@ impl Interp {
                 None => self.invalid_command(&source),
             },
             Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
+            Command::Proc(def) => self.call_proc(&def, argv),
+        }
+    }
+
+    /// Call a user proc (`TclObjInterpProc`): arity-check, push a call frame in
+    /// the proc's defining namespace, bind the params (defaults; an `args`
+    /// catch-all collects the rest), run the body, then pop. A body-level
+    /// `return` becomes `Ok` (the proc's normal completion). Conservative-first
+    /// per `proc-call-and-stack-traces.md` PC-2 (the CmdFrame/stack-trace +
+    /// `info level`/`info frame` bookkeeping land with PC-1/PC-4/PC-5).
+    fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
+        let has_args = def.has_args();
+        let positional = if has_args {
+            &def.params[..def.params.len() - 1]
+        } else {
+            &def.params[..]
+        };
+        // Arity (defaults assumed trailing — the common shape): supplied must
+        // cover the no-default params, and not exceed the positionals unless an
+        // `args` catch-all soaks up the rest.
+        let supplied = argv.len() - 1;
+        let required = positional.iter().filter(|p| p.default.is_none()).count();
+        if supplied < required || (!has_args && supplied > positional.len()) {
+            return self.error(&proc_usage(&obj_bytes(argv[0]), &def.params));
+        }
+        // Recursion bound (catchable, not a stack overflow).
+        if self.recursion_depth >= RECURSION_LIMIT {
+            return self.error(b"too many nested evaluations (infinite loop?)");
+        }
+        self.recursion_depth += 1;
+
+        self.frames.push();
+        let saved_ns = self.current_ns;
+        self.current_ns = def.ns;
+
+        // Bind positionals: the supplied arg, else the default.
+        for (i, p) in positional.iter().enumerate() {
+            let idx = i + 1;
+            let stored = if idx < argv.len() {
+                self.var_set(&p.name, argv[idx])
+            } else {
+                // SAFETY-balance: a fresh rc-0 default; `var_set` retains it, so
+                // on the (here-unreachable) error path it must be dropped.
+                let o = new_string(p.default.as_ref().expect("arity guaranteed default"));
+                match self.var_set(&p.name, o) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        drop_fresh(o);
+                        Err(e)
+                    }
+                }
+            };
+            if stored.is_err() {
+                self.frames.pop();
+                self.current_ns = saved_ns;
+                self.recursion_depth -= 1;
+                return self.error(b"proc parameter binding failed");
+            }
+        }
+        // The `args` catch-all: a list of the remaining args.
+        if has_args {
+            let rest = &argv[1 + positional.len()..];
+            let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
+            if self.var_set(b"args", list).is_err() {
+                drop_fresh(list);
+            }
+        }
+
+        let code = self.eval_str(&def.body);
+        self.frames.pop();
+        self.current_ns = saved_ns;
+        self.recursion_depth -= 1;
+        // A proc-level `return` is the proc's normal completion.
+        match code {
+            Code::Return => Code::Ok,
+            other => other,
         }
     }
 
@@ -728,6 +854,29 @@ impl Interp {
     pub(crate) fn set_error(&mut self, msg: &[u8]) -> Code {
         self.error(msg)
     }
+}
+
+/// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc
+/// call — required params bare, defaulted params `?p?`, the `args` catch-all
+/// `?arg ...?` (mirrors C's `Tcl_WrongNumArgs` for procs).
+fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    m.extend_from_slice(called);
+    let n = params.len();
+    for (i, p) in params.iter().enumerate() {
+        m.push(b' ');
+        if i + 1 == n && p.name == b"args" {
+            m.extend_from_slice(b"?arg ...?");
+        } else if p.default.is_some() {
+            m.push(b'?');
+            m.extend_from_slice(&p.name);
+            m.push(b'?');
+        } else {
+            m.extend_from_slice(&p.name);
+        }
+    }
+    m.push(b'"');
+    m
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
