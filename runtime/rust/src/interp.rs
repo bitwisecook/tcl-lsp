@@ -37,6 +37,21 @@ pub enum Code {
     Continue,
 }
 
+impl Code {
+    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4) — what
+    /// `catch` returns and `return -code` / the `-code` options-dict entry use.
+    #[must_use]
+    pub(crate) fn as_int(self) -> i64 {
+        match self {
+            Code::Ok => 0,
+            Code::Error => 1,
+            Code::Return => 2,
+            Code::Break => 3,
+            Code::Continue => 4,
+        }
+    }
+}
+
 /// A built-in command handler. Receives the full argv (`argv[0]` is the command
 /// name, like Tcl's `objv`); sets the result via [`Interp::set_result`] /
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
