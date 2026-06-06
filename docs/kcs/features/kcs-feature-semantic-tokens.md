@@ -1,5 +1,8 @@
 # KCS: feature — Semantic Tokens
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Rich syntax highlighting for regex, format strings, binary specs, and clock formats with incremental delta delivery and per-chunk caching.

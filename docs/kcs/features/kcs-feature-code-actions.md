@@ -1,5 +1,8 @@
 # KCS: feature — Code Actions
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Quick fixes for diagnostics and refactoring actions: brace expressions, add

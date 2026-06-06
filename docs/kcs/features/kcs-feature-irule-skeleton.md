@@ -1,5 +1,8 @@
 # KCS: feature — iRule Event Skeleton
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Pick iRules events from a list and generate a skeleton iRule with those event handlers.

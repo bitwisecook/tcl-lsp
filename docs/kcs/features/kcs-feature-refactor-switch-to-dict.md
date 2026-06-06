@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: switch to dict lookup
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Convert a `switch -exact` where every arm sets the same variable (or returns a value) into a `dict create` + `dict get`.

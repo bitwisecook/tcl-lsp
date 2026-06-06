@@ -1,5 +1,8 @@
 # KCS: feature — Formatting
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Configurable code formatting: indent size/style, brace style, line length, whitespace.

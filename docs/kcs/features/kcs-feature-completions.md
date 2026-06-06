@@ -1,5 +1,8 @@
 # KCS: feature — Completions
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Context-aware completions for commands, subcommands, variables, switches, and procs.

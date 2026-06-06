@@ -1,5 +1,8 @@
 # KCS: feature — Tcl Debugger
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Interactive CLI debugger for Tcl scripts with single-stepping, breakpoints,

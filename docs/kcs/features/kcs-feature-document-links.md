@@ -1,5 +1,8 @@
 # KCS: feature — Document Links
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Clickable links for URLs and file paths in comments and strings.

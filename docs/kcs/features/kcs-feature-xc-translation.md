@@ -1,5 +1,8 @@
 # KCS: feature — XC Translation
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Translate F5 BIG-IP iRules to F5 Distributed Cloud (XC) routes and service policies.

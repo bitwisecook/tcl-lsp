@@ -1,5 +1,8 @@
 # KCS: feature — Call Hierarchy
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 View incoming and outgoing calls for a proc.

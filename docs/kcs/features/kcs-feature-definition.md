@@ -1,5 +1,8 @@
 # KCS: feature — Go to Definition
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Jump to proc or variable definitions within and across files.

@@ -1,5 +1,8 @@
 # KCS: feature — Hover
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Command documentation, proc signatures, variable info, and taint status on hover.

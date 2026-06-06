@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: if/elseif to switch
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Convert an if/elseif equality chain on a single variable into a `switch -exact` statement.

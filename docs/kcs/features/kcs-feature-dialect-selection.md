@@ -1,5 +1,8 @@
 # KCS: feature — Dialect Selection
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Switch between Tcl versions and iRules/iApps/BIG-IP/EDA dialects to get dialect-specific analysis.

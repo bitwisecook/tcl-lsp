@@ -1,5 +1,8 @@
 # KCS: feature — Document Symbols
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Outline of procs, namespaces, event handlers, and variables in the current file.

@@ -1,5 +1,8 @@
 # KCS: feature — Signature Help
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Parameter hints for commands and procs as you type arguments.

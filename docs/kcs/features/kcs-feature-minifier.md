@@ -1,5 +1,8 @@
 # KCS: feature — Minifier
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Code minification: strips comments, collapses whitespace, joins commands with semicolons, recursively minifies body arguments.  Optional name compaction shortens variable and proc names with a symbol map for debugging.

@@ -1,5 +1,8 @@
 # KCS: feature — Text Transforms
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Escape, unescape, and base64 encode/decode selected text.

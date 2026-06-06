@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Extract Variable
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Extract a selected expression into a named variable, replacing the selection with `$var`.
