@@ -19,6 +19,42 @@ const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
+const list_parse = @import("tcl_list_parse.zig");
+
+// ─── forward cursor cache for tcl_cmd_list_index ─────────────────────────────
+// The compiled ``foreach`` / forward ``lindex`` loops call
+// ``tcl_cmd_list_index(L, i)`` with monotonically increasing ``i`` on the
+// same list object.  Re-deriving element ``i`` from the string each time is
+// O(i) (plus an O(N) ``list_count_elements`` for index resolution), so a loop
+// over an N-element list is O(N^2) — ``foreach {k v} $huge`` was ~35 s at 20k
+// elements and trapped at 40k.  Caching the last (object, buffer, element
+// index, cursor position, count) lets a forward step advance the cursor in
+// O(1), making the loop O(N).  Random / cold access falls back to a full
+// walk (no worse than before).  The cache is validated by object handle +
+// buffer pointer + length + count, and invalidated when the cached object is
+// released (see ``list_index_cache_invalidate``, called from
+// ``tcl_obj.release_now``), so a recycled slab can never produce a stale hit.
+var lic_obj: i32 = 0;
+var lic_buf: u32 = 0;
+var lic_len: u32 = 0;
+var lic_count: i64 = 0;
+var lic_idx: i64 = -1; // element index the cursor currently sits *after*
+var lic_cursor: list_parse.Cursor = .{ .pos = 0 };
+
+/// Drop the cursor cache if it refers to object ``o`` (a TclObj about to be
+/// freed).  Keyed on the object *handle* so it fires for every rep — crucially
+/// including inline strings, whose buffer lives inside the obj header
+/// (``cap == 0``) and so never reaches ``release_now``'s external-buffer free
+/// path.  Without this, a freed slab reissued to another same-length inline
+/// list could satisfy the (handle, ptr, len) cache check and return an element
+/// from the stale cursor position instead of reparsing the new bytes.
+pub fn list_index_cache_invalidate(o: i32) void {
+    if (o != 0 and o == lic_obj) {
+        lic_obj = 0;
+        lic_buf = 0;
+        lic_idx = -1;
+    }
+}
 
 // Exported: list length — count elements by whitespace-splitting.
 //
@@ -63,8 +99,18 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // raise ``unmatched open brace in list`` (listobj-4.4).  Without
     // this guard the fast path below appended ``" abc"`` to the
     // malformed string and silently produced a still-malformed list.
+    //
+    // Phase 1 list rep: a value tagged ``TYPE_LIST`` already carries a
+    // canonical list string by construction — every byte we appended
+    // was quoted canonically, so the buffer is known-valid and the
+    // O(N) re-scan is redundant.  Skipping it for the canonical case is
+    // what turns an N-element accumulate from O(N^2) back into O(N):
+    // ``lsearch -all`` over a 100k list (dict-24.24/24.25) went from a
+    // >120 s watchdog timeout to ~0.1 s.  We only validate when the
+    // source is NOT a known-canonical list.
     const lp = @import("tcl_list_parse.zig");
-    if (sc.len > 0 and lp.check_list_syntax(sc.ptr, sc.len) != 0) {
+    const cur_is_canon_list = is_canonical_list(current);
+    if (sc.len > 0 and !cur_is_canon_list and lp.check_list_syntax(sc.ptr, sc.len) != 0) {
         return 0;
     }
     // Fast path: when ``current`` is non-empty AND we own its byte
@@ -101,7 +147,7 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
-        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0 and cap <= FAST_PATH_LEN_LIMIT / 2) {
+        if (rc == 1 and (tag == obj.TYPE_STRING or tag == obj.TYPE_LIST) and cap > 0 and cap <= FAST_PATH_LEN_LIMIT / 2) {
             // Worst case for the new tail: a single space + sv.len*2 + 2
             // (for surrounding braces if the value needs them).
             const tail_max: u32 = 1 + sv.len * 2 + 4;
@@ -131,10 +177,36 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
             d[0] = ' ';
             const off = list_elem_quote_nth(buf, sc.len + 1, sv.ptr, sv.len);
             obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(off));
+            // The buffer is still a canonical list (we appended one
+            // canonically-quoted element) — mark it so the next lappend
+            // skips the O(N) re-validation above.
+            obj.write_i32(addr + obj.OBJ_TYPE_TAG, obj.TYPE_LIST);
             return current;
         }
     }
     return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
+}
+
+/// True when *obj* is a heap value carrying a canonical list string rep
+/// (``TYPE_LIST``) — its bytes are valid-by-construction so list ops can
+/// trust them without re-parsing.
+inline fn is_canonical_list(o: i32) bool {
+    if (o <= 0 or obj.is_immediate(o)) return false;
+    return obj.read_i32(@as(u32, @intCast(o)) + obj.OBJ_TYPE_TAG) == obj.TYPE_LIST;
+}
+
+/// Tag a freshly-built heap list string as ``TYPE_LIST`` so subsequent
+/// list operations skip re-validation / re-parsing.  Only promotes a
+/// plain heap ``TYPE_STRING`` (which keeps its materialised string rep
+/// in the same OBJ_STR_PTR/LEN/CAP slots TYPE_LIST reads from); leaves
+/// immediates, inline strings, ints, etc. untouched.
+inline fn mark_canonical_list(o: i32) i32 {
+    if (o > 0 and !obj.is_immediate(o)) {
+        const a: u32 = @intCast(o);
+        if (obj.read_i32(a + obj.OBJ_TYPE_TAG) == obj.TYPE_STRING)
+            obj.write_i32(a + obj.OBJ_TYPE_TAG, obj.TYPE_LIST);
+    }
+    return o;
 }
 
 /// Parse the existing list, re-quote each element canonically, then
@@ -211,7 +283,9 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     // Switch to ``obj_new_string_take`` so the cap is set atomically
     // with the new TclObj — the older ``obj_new_string`` + manual
     // ``OBJ_STR_CAP`` write pattern leaks ``buf`` if obj_alloc OOMs.
-    return obj.obj_new_string_take(buf, off, cap);
+    // Mark TYPE_LIST: this rebuild produced a canonical list, so the
+    // next lappend against the result skips re-validation.
+    return mark_canonical_list(obj.obj_new_string_take(buf, off, cap));
 }
 
 // Exported: list — append one value to a list accumulator.  The
@@ -628,10 +702,29 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
 // Exported: list index — extract the nth element (0-based).
 pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     const s = obj_ensure_string(list);
-    const n = list_count_elements(s.ptr, s.len);
+    // Forward cursor cache: when this is the same list buffer we just
+    // walked, reuse the cached element count (skip the O(N) re-count) and,
+    // for the very common forward step (i == cached_i + 1), advance the
+    // cached cursor in O(1) instead of re-scanning from the start.
+    const cache_hit = lic_buf != 0 and list == lic_obj and s.ptr == lic_buf and s.len == lic_len;
+    const n = if (cache_hit) lic_count else list_count_elements(s.ptr, s.len);
     const i_val = resolve_list_index(idx, n);
     if (i_val < 0 or i_val >= n) return obj_new_string(0, 0);
-    const elem = list_element_at(s.ptr, s.len, i_val);
+    var elem: list_parse.Element = undefined;
+    if (cache_hit and i_val == lic_idx + 1) {
+        elem = list_parse.cursor_next(s.ptr, s.len, &lic_cursor);
+        lic_idx = i_val;
+    } else {
+        var cur = list_parse.Cursor{ .pos = 0 };
+        if (i_val > 0) list_parse.cursor_skip(s.ptr, s.len, &cur, @intCast(i_val));
+        elem = list_parse.cursor_next(s.ptr, s.len, &cur);
+        lic_obj = list;
+        lic_buf = s.ptr;
+        lic_len = s.len;
+        lic_count = n;
+        lic_idx = i_val;
+        lic_cursor = cur;
+    }
     if (elem.braced) return obj_new_string_copy(s.ptr + elem.start, elem.len);
     // Unbraced element: process backslash escapes.  Issue #317:
     // ``obj_new_string_take`` so the resulting TclObj owns its

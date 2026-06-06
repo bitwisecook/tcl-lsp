@@ -5480,11 +5480,60 @@ fn apply_pending_return_code(rv: i32) void {
 
 // -- Main eval entry point --
 
-// Maximum number of words after {*} expansion.  The parse limit is
-// MAX_WORDS per command, but each {*}$var can expand to many elements.
-// 128 is generous enough for realistic Tcl calls while staying cheap
-// on the WASM stack.
-const MAX_EXPANDED_WORDS: u32 = 128;
+// Initial (stack) capacity for the post-{*}-expansion word array.  A
+// single ``{*}$list`` can expand to an unbounded number of words — far
+// more than the MAX_WORDS parse limit — so this is only the starting
+// size: ``WordBuf`` spills to a heap array once it overflows.  The old
+// code used a *fixed* 128-slot array and silently dropped every word
+// past 127, so e.g. ``tcl::mathop::+ {*}[lseq 1 1000]`` summed only the
+// first 127 elements (dict-24.24's wrong result, list-/concat-/proc-arg
+// truncation).
+const EXPAND_STACK_WORDS: u32 = 128;
+
+/// Growable argument vector for the ``{*}`` expansion slow path.  Starts
+/// in an inline stack buffer and grows geometrically onto the heap when
+/// the expanded word count exceeds it, so the argument list is never
+/// truncated.  ``deinit`` frees the heap spill (the stack buffer needs
+/// no cleanup); the caller still owns and releases each word TclObj.
+const WordBuf = struct {
+    stack: [EXPAND_STACK_WORDS]i32 = undefined,
+    ptr: [*]i32 = undefined,
+    cap: u32 = EXPAND_STACK_WORDS,
+    len: u32 = 0,
+    heap: u32 = 0, // heap buffer addr (0 ⇒ still using the stack array)
+
+    fn init(self: *WordBuf) void {
+        self.ptr = &self.stack;
+        self.cap = EXPAND_STACK_WORDS;
+        self.len = 0;
+        self.heap = 0;
+    }
+    /// Append a word handle; grows to the heap on overflow.  Returns
+    /// false only on allocation failure (caller bails the command).
+    fn push(self: *WordBuf, v: i32) bool {
+        if (self.len >= self.cap) {
+            const new_cap = self.cap * 2;
+            const nb = alloc(new_cap * 4);
+            if (nb == 0) return false;
+            const dst: [*]i32 = @ptrFromInt(nb);
+            var i: u32 = 0;
+            while (i < self.len) : (i += 1) dst[i] = self.ptr[i];
+            if (self.heap != 0) obj_mod.free_sized(self.heap, self.cap * 4);
+            self.heap = nb;
+            self.ptr = dst;
+            self.cap = new_cap;
+        }
+        self.ptr[self.len] = v;
+        self.len += 1;
+        return true;
+    }
+    fn slice(self: *WordBuf) []i32 {
+        return self.ptr[0..self.len];
+    }
+    fn deinit(self: *WordBuf) void {
+        if (self.heap != 0) obj_mod.free_sized(self.heap, self.cap * 4);
+    }
+};
 
 /// Public entry point into ``eval_command`` — lets cmds/flow.zig (tailcall)
 /// dispatch a command by words slice without exposing the private function.
@@ -6379,9 +6428,12 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
         return result;
     }
 
-    // Slow path: at least one {*} expansion.
-    var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
-    var ecount: u32 = 0;
+    // Slow path: at least one {*} expansion.  ``WordBuf`` grows onto
+    // the heap so the expanded argument list is never truncated.
+    const list_parse = @import("../valtypes/tcl_list_parse.zig");
+    var wb: WordBuf = .{};
+    wb.init();
+    defer wb.deinit();
     var pending_expand = false;
     var t: u32 = 0;
     while (t < tokens_len) : (t += 1) {
@@ -6402,68 +6454,76 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             pending_expand = false;
             const s = obj_ensure_string(word_obj);
             const n = list_count_elements(s.ptr, s.len);
+            // Walk with a forward cursor (O(1) per element) instead of
+            // ``list_element_at(j)`` (O(j) — a ``{*}`` of an N-element
+            // list would otherwise be O(N^2)).
+            var cur = list_parse.Cursor{ .pos = 0 };
             var j: i64 = 0;
             while (j < n) : (j += 1) {
-                if (ecount >= MAX_EXPANDED_WORDS) break;
-                const elem = list_element_at(s.ptr, s.len, j);
-                if (elem.braced) {
-                    expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
-                } else {
+                const elem = list_parse.cursor_next(s.ptr, s.len, &cur);
+                const ew: i32 = if (elem.braced)
+                    obj_new_string_copy(s.ptr + elem.start, elem.len)
+                else blk: {
                     const buf = alloc(elem.len);
                     if (buf == 0) {
                         obj_mod.tcl_obj_release(word_obj);
-                        return 0;
+                        return release_wordbuf_and_return(&wb, 0);
                     }
                     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-                    expanded[ecount] = obj_new_string_take(buf, out_len, elem.len);
+                    break :blk obj_new_string_take(buf, out_len, elem.len);
+                };
+                if (!wb.push(ew)) {
+                    obj_mod.tcl_obj_release(ew);
+                    obj_mod.tcl_obj_release(word_obj);
+                    return release_wordbuf_and_return(&wb, 0);
                 }
-                ecount += 1;
             }
             // Release the source word obj — its bytes have been copied
-            // into independently-owned ``expanded[]`` entries above.
-            // Without this release, every ``{*}$args`` expansion leaked
-            // the source list object, growing the heap monotonically
-            // across long-running tcltest sweeps and exhausting the
-            // 32-byte slab class.
+            // into independently-owned ``wb`` entries above.  Without
+            // this release, every ``{*}$args`` expansion leaked the
+            // source list object, growing the heap monotonically across
+            // long-running tcltest sweeps and exhausting the 32-byte
+            // slab class.
             obj_mod.tcl_obj_release(word_obj);
         } else {
-            if (ecount < MAX_EXPANDED_WORDS) {
-                expanded[ecount] = word_obj;
-                ecount += 1;
+            if (!wb.push(word_obj)) {
+                obj_mod.tcl_obj_release(word_obj);
+                return release_wordbuf_and_return(&wb, 0);
             }
         }
     }
-    // MM-B.4 (slow path): release expanded[] elements after
-    // dispatch, with the same alias-aware retain pattern as the
-    // fast path.  Each ``{*}$args`` expansion element is a fresh
-    // TclObj that owns its bytes — braced elements via
-    // ``obj_new_string_copy`` (cap = rounded-up alloc), unbraced
-    // via ``obj_new_string_take`` (cap matches the per-element
-    // ``alloc(elem.len)`` that backed the backslash-decoded copy).
-    // Issue #317: the older ``obj_new_string`` borrowing form left
-    // ``cap = 0`` and leaked one buf per unbraced element on
-    // release — observed under io.test as the residual heap
-    // pressure that pushed the runtime past its 4 GiB ceiling.
-    // In both cases an element's release is independent of any
-    // peer; releasing one doesn't free a buffer another element
-    // borrows.
-    const result = eval_command(expanded[0..ecount]);
+    // MM-B.4 (slow path): release the word TclObjs after dispatch, with
+    // the same alias-aware retain pattern as the fast path.  Each
+    // ``{*}$args`` expansion element is a fresh TclObj that owns its
+    // bytes — braced elements via ``obj_new_string_copy`` (cap =
+    // rounded-up alloc), unbraced via ``obj_new_string_take`` (cap
+    // matches the per-element ``alloc(elem.len)``).  Releasing one is
+    // independent of any peer.
+    const words_slice = wb.slice();
+    const result = eval_command(words_slice);
     var result_is_word = false;
-    if (result != 0) {
-        var sc: u32 = 0;
-        while (sc < ecount) : (sc += 1) {
-            if (expanded[sc] == result) {
-                result_is_word = true;
-                break;
-            }
+    for (words_slice) |w| {
+        if (w == result) {
+            result_is_word = true;
+            break;
         }
     }
     if (result_is_word) obj_mod.tcl_obj_retain(result);
-    var ri: u32 = 0;
-    while (ri < ecount) : (ri += 1) {
-        if (expanded[ri] != 0) obj_mod.tcl_obj_release(expanded[ri]);
+    for (words_slice) |w| {
+        if (w != 0) obj_mod.tcl_obj_release(w);
     }
     return result;
+}
+
+/// Release every word TclObj staged in ``wb`` and return ``ret`` —
+/// the bail-out path for the ``{*}`` expansion slow path when an
+/// allocation fails mid-assembly.  ``wb.deinit`` (via the caller's
+/// ``defer``) frees the heap spill afterwards.
+fn release_wordbuf_and_return(wb: *WordBuf, ret: i32) i32 {
+    for (wb.slice()) |w| {
+        if (w != 0) obj_mod.tcl_obj_release(w);
+    }
+    return ret;
 }
 
 // Exported: evaluate a Tcl script string.

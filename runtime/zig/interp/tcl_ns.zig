@@ -1074,12 +1074,16 @@ fn ensure_var_obj_owned(o: i32) i32 {
     // pointers would read unrelated memory (or trap above 2 GiB).
     if (obj.is_immediate(o)) return o;
     const addr: u32 = @bitCast(o);
-    // Only string-typed objs have a borrowed-buffer concern.  Int /
-    // float / list / dict objs use the value slot for their payload
-    // (the str_* slots may be lazily-materialised string reps the
-    // borrower owns themselves).
+    // String AND list objs keep their primary bytes in the OBJ_STR_*
+    // slots, so both carry the borrowed-buffer concern and must reach
+    // the cap check below.  A TYPE_LIST is a canonical list string; it
+    // is currently always created owning its buffer (cap > 0), but
+    // routing it through the cap check — rather than relying on that
+    // (load-bearing) invariant — keeps this helper correct even if a
+    // borrowing (cap == 0) TYPE_LIST is ever introduced.  Int / float /
+    // dict objs carry their payload in the value slot and pass through.
     const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
-    if (tag != obj.TYPE_STRING) return o;
+    if (tag != obj.TYPE_STRING and tag != obj.TYPE_LIST) return o;
     const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
     if (cap > 0) return o;
     const sptr: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_PTR));

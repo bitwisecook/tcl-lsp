@@ -232,6 +232,38 @@ are its rules, and what are the failure modes". One contract per file.
   the reference implementations we copied each piece of behaviour
   from.
 
+### First-principles runtime contracts (v2 / "if starting over")
+
+Forward-looking semantic contracts — the models a from-scratch Tcl
+runtime + AOT compiler should commit to *before* writing commands.
+Distilled from the trickiest scars in the WASM runtime history
+(frame aliasing, the parser/interpreter seam, the numeric tower):
+
+- [runtime-variable-frame-model.md](contracts/runtime-variable-frame-model.md)
+  — the cell/frame/namespace resolution algorithm behind `upvar`,
+  `global`, `variable`, arrays, and traces; why locals are not slots.
+- [parser-and-aot-interpret-boundary.md](contracts/parser-and-aot-interpret-boundary.md)
+  — the one canonical grammar, and the AOT-compile vs. runtime-interpret
+  boundary that `eval`/`uplevel`/`source`/`apply`/`{*}` straddle.
+- [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
+  — the small-int→wide→bignum→double tower and `expr` as a separate
+  language with overridable `mathfunc` dispatch.
+- [compiled-scope-and-name-lowering.md](contracts/compiled-scope-and-name-lowering.md)
+  — scope class (local/qualified/global) as an explicit lowering output,
+  the "emits-nothing" trap, token-faithful eval fallback, and why
+  introspection must read live state (`foreach ::v` ran zero times; stale
+  `info exists` after `unset`).
+- [variable-trace-dispatch-and-introspection.md](contracts/variable-trace-dispatch-and-introspection.md)
+  — variable traces as re-entrant interrupts: firing order, the
+  read/write error reshape (`can't read/set "NAME": …`), unset-error
+  ignore, mutation independent of trace outcome, and live `info`/`trace`
+  queries.
+- [command-binding-and-aliasing.md](contracts/command-binding-and-aliasing.md)
+  — the one resolution model behind `rename`, `interp alias`, `namespace
+  import`/`export`/`forget`/`path`, ensembles, and `::tcl::mathop` /
+  `::tcl::mathfunc`; the binding lattice that gates compile-time
+  resolution (the command-layer parallel of the variable-frame model).
+
 ## Templates
 
 Templates for new design docs live at
