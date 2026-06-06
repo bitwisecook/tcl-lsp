@@ -50,7 +50,7 @@ pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
-pub use structural_index::BracketIndex;
+pub use structural_index::{BraceIndex, BracketIndex};
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};
 
