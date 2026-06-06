@@ -331,6 +331,36 @@ it; the window's definitions affect everything after) — a larger analyser
 refactor for a dedicated effort, with this verified incremental segmenter as its
 foundation.
 
+### Incremental analysis (`analyse_incremental` — contract + oracle landed)
+
+`Analyser::analyse_incremental(prev_text, prev_commands, new_text, dialect)`
+threads the incremental segmenter through the analysis layer: it reuses the
+unchanged command prefix (`segment_commands_incremental`) and runs the analysis
+over the spliced stream via `analyse_commands`, falling back to a full `analyse`
+for inputs needing error recovery or carrying inline `# tcl-lsp: stub`
+directives. The result is **observably identical to a full `analyse`** —
+diagnostics, procs, globals, and command invocations — pinned by a differential
+fuzz oracle (5 bases × random edits) plus an explicit fallback test.
+
+Building the oracle surfaced and fixed a real latent bug: `analyse_commands`
+(and thus `analyse_chunked`) **omitted the lexer-warning pass** (E204 / E205 /
+E206 extra-characters / var-brace warnings) that `analyse` runs, so those entry
+points under-reported. The pass is now part of their finalise.
+
+**Honest limitation (the real boundary).** With the current analyser
+architecture the incremental path saves little: `analyse_commands` still *walks*
+every spliced command, the lexer-warning pass re-lexes the whole document, and
+the global deferred passes (W123 unknown-command resolution, CFG/SSA /
+interprocedural checks, dedupe) are inherently whole-document — a definition
+inside the edited window can change a diagnostic anywhere. A genuine speed-up
+needs (a) analyser-state snapshot/restore so the prefix *walk* is reused (the
+`analyse_chunked` snapshot mechanism is the seed), (b) incremental lexer-warning
+collection, and (c) an incremental-merge contract for each global pass. Those
+are a multi-chunk analyser refactor; `analyse_incremental` lands the verified
+contract and the differential oracle as their safety net, so each future
+optimization can be added behind a gate that proves it never diverges from a
+full re-analysis.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
