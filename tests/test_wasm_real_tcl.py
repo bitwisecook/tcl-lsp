@@ -278,76 +278,81 @@ def _run_wasm(
         linker, store, host_spawn=host_spawn
     )
 
-    rt_instance = linker.instantiate(store, rt_module)
-    rt_instance_box[0] = rt_instance
-
-    # Apply the requested capability mask.  Default is 0 — sandboxed
-    # posture refuses ``exec`` / ``exit`` / ``glob``.  Tests that
-    # need those primitives pass ``capabilities=tcl.CAP_*`` and a
-    # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
-    if capabilities:
-        set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
-        if set_caps_fn is None:
-            # An old runtime build without the capability bitset
-            # would silently leave the sandboxed posture in place
-            # and the test would diagnose the resulting refusal as
-            # a Tcl-level capability denial — wrong root cause.
-            # Surface the runtime-mismatch directly.
-            raise RuntimeError(
-                "runtime does not export 'tcl_set_capabilities'; "
-                f"cannot apply requested capability mask {capabilities!r}"
-            )
-        set_caps_fn(store, capabilities)
-
-    # WASI reactor initialisation — wasi-libc installs its ctors
-    # (preopen-fd scanner, global locks, etc.) in ``_initialize``
-    # rather than at instantiation.  Calling it once per store
-    # populates the ``__wasilibc_cwd`` / preopen table so
-    # subsequent ``access``/``stat`` calls can resolve paths
-    # against the configured ``preopen_dir``.  If the runtime
-    # doesn't export ``_initialize`` (old build), this is a no-op.
-    init_fn = rt_instance.exports(store).get("_initialize")
-    if init_fn is not None:
-        init_fn(store)
-
-    # Re-export under "tcl" namespace
-    for export in rt_module.exports:
-        name = export.name
-        if name.startswith("__"):
-            continue
-        val = rt_instance.exports(store)[name]
-        if isinstance(val, wasmtime.Func):
-            linker.define(store, "tcl", name, val)
-        elif name == "memory":
-            linker.define(store, "tcl", name, val)
-
-    # Instantiate compiled Tcl module
-    tcl_module = wasmtime.Module(engine, wasm_bytes)
-    tcl_instance = linker.instantiate(store, tcl_module)
-    tcl_instance_box[0] = tcl_instance
-    memory_box[0] = rt_instance.exports(store)["memory"]
-
-    obj_new_int = rt_instance.exports(store)["obj_new_int"]
-    obj_get_int = rt_instance.exports(store)["obj_get_int"]
-
-    func = tcl_instance.exports(store).get(func_name)
-    if func is None:
-        raise RuntimeError(f"function {func_name} not found in WASM exports")
-
-    boxed_args = tuple(obj_new_int(store, a) for a in args)
+    # Everything past ``store.set_wasi`` runs inside the try so the
+    # ``finally`` below always reaches ``store.close()`` — the store now
+    # owns the WASI capture FDs and any preopen handles, so an
+    # exception during instantiation must not leak them.
     watchdog = None
     watchdog_fired = [False]
-    if timeout_s is not None:
-        import threading
-
-        def _bump_epoch():
-            engine.increment_epoch()
-            watchdog_fired[0] = True
-
-        watchdog = threading.Timer(timeout_s, _bump_epoch)
-        watchdog.daemon = True
-        watchdog.start()
     try:
+        rt_instance = linker.instantiate(store, rt_module)
+        rt_instance_box[0] = rt_instance
+
+        # Apply the requested capability mask.  Default is 0 — sandboxed
+        # posture refuses ``exec`` / ``exit`` / ``glob``.  Tests that
+        # need those primitives pass ``capabilities=tcl.CAP_*`` and a
+        # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
+        if capabilities:
+            set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
+            if set_caps_fn is None:
+                # An old runtime build without the capability bitset
+                # would silently leave the sandboxed posture in place
+                # and the test would diagnose the resulting refusal as
+                # a Tcl-level capability denial — wrong root cause.
+                # Surface the runtime-mismatch directly.
+                raise RuntimeError(
+                    "runtime does not export 'tcl_set_capabilities'; "
+                    f"cannot apply requested capability mask {capabilities!r}"
+                )
+            set_caps_fn(store, capabilities)
+
+        # WASI reactor initialisation — wasi-libc installs its ctors
+        # (preopen-fd scanner, global locks, etc.) in ``_initialize``
+        # rather than at instantiation.  Calling it once per store
+        # populates the ``__wasilibc_cwd`` / preopen table so
+        # subsequent ``access``/``stat`` calls can resolve paths
+        # against the configured ``preopen_dir``.  If the runtime
+        # doesn't export ``_initialize`` (old build), this is a no-op.
+        init_fn = rt_instance.exports(store).get("_initialize")
+        if init_fn is not None:
+            init_fn(store)
+
+        # Re-export under "tcl" namespace
+        for export in rt_module.exports:
+            name = export.name
+            if name.startswith("__"):
+                continue
+            val = rt_instance.exports(store)[name]
+            if isinstance(val, wasmtime.Func):
+                linker.define(store, "tcl", name, val)
+            elif name == "memory":
+                linker.define(store, "tcl", name, val)
+
+        # Instantiate compiled Tcl module
+        tcl_module = wasmtime.Module(engine, wasm_bytes)
+        tcl_instance = linker.instantiate(store, tcl_module)
+        tcl_instance_box[0] = tcl_instance
+        memory_box[0] = rt_instance.exports(store)["memory"]
+
+        obj_new_int = rt_instance.exports(store)["obj_new_int"]
+        obj_get_int = rt_instance.exports(store)["obj_get_int"]
+
+        func = tcl_instance.exports(store).get(func_name)
+        if func is None:
+            raise RuntimeError(f"function {func_name} not found in WASM exports")
+
+        boxed_args = tuple(obj_new_int(store, a) for a in args)
+        if timeout_s is not None:
+            import threading
+
+            def _bump_epoch():
+                engine.increment_epoch()
+                watchdog_fired[0] = True
+
+            watchdog = threading.Timer(timeout_s, _bump_epoch)
+            watchdog.daemon = True
+            watchdog.start()
+
         result_obj = func(store, *boxed_args)
         result_val = obj_get_int(store, result_obj) if result_obj else 0
     except BaseException:
@@ -390,6 +395,20 @@ def _run_wasm(
             # single ``increment_epoch`` can reach.
             if watchdog_fired[0]:
                 _epoch_count_set(deadline_value)
+        # Release the store deterministically.  The store owns the OS
+        # file descriptors backing the WASI ``stdout_file`` /
+        # ``stderr_file`` captures and every ``preopen_dir`` mapping;
+        # without an explicit close those FDs only drop when CPython's
+        # cyclic GC eventually reclaims the store (the host-function
+        # closures defined on the linker capture ``store``, forming a
+        # reference cycle that defeats prompt refcount cleanup).  Across
+        # the thousands of ``_run_wasm`` calls in the suite that leak
+        # exhausts the process FD limit — fatal under macOS's default
+        # ``ulimit -n 256`` — and the whole run collapses into
+        # ``OSError: [Errno 24] Too many open files``.  The try opens
+        # right after ``set_wasi`` so this also fires when instantiation
+        # itself raises; ``close`` is idempotent regardless.
+        store.close()
 
     stdout_text = _maybe_read(stdout_path)
     stderr_text = _maybe_read(stderr_path)
