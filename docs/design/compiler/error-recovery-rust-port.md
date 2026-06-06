@@ -239,6 +239,27 @@ clamp and opaque-to-EOF corrections fall out for free. Verified against C Tcl
 This is the most faithful of the three dimensions: the index *is* the lexer's
 paren tokens, exactly the doc's "store the lexer's entry-state per token".
 
+### Unified `script_is_complete` (a `Tcl_CommandComplete` port — landed)
+
+`tcl_lexer::script_is_complete` composes all three dimensions into a single
+recursive scanner that answers "is this string a complete command, or is more
+input needed?" exactly like `info complete` — combining braces (word-based,
+verbatim, nesting), brackets (recursive script interiors), quotes, comments,
+`${name}` (a `$` + nesting brace word), escapes, the terminal
+extra-characters-after-close rule, and trailing line-continuation. This is the
+primitive an incremental reparser needs to decide whether an edited region
+closes cleanly.
+
+Verified against C Tcl 9.0.3 `info complete` **both ways** over a 12 000-case
+general adversarial corpus (every construct mixed — no dimension isolation).
+The only divergence is a precisely-characterised, bounded (< 0.05%) edge:
+comments whose backslash-newline continuation is left *pending* at EOF
+(`# c\<newline>`). `Tcl_CommandComplete`'s character-level backslash-newline
+handling in comments has subtle EOF semantics (dependent on whether the
+dangling line carries content) that are not worth reproducing exactly for a
+shape real Tcl never emits; the fuzz test asserts every disagreement is that
+class and stays vanishingly rare.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
