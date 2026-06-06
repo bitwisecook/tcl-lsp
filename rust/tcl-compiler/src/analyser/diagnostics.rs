@@ -106,6 +106,47 @@ fn is_standard_ascii(ch: char) -> bool {
     matches!(ch, '\t' | '\n' | '\r' | ' '..='~')
 }
 
+/// W108 "common" mode benign-Unicode test — mirrors
+/// `core/analysis/checks/_style.py::_is_benign_unicode`. A character is
+/// *intentional* (not flagged) when its Unicode general category is a
+/// Letter, Number, Mark, Symbol, or Punctuation (any script). Control,
+/// format, separator, surrogate, private-use, and unassigned characters
+/// are *not* benign (they almost always indicate encoding/copy-paste
+/// issues) and are flagged.
+fn is_benign_unicode(ch: char) -> bool {
+    use unicode_general_category::{get_general_category, GeneralCategory as G};
+    matches!(
+        get_general_category(ch),
+        // Letters (L*)
+        G::UppercaseLetter
+            | G::LowercaseLetter
+            | G::TitlecaseLetter
+            | G::ModifierLetter
+            | G::OtherLetter
+            // Numbers (N*)
+            | G::DecimalNumber
+            | G::LetterNumber
+            | G::OtherNumber
+            // Marks (M*)
+            | G::NonspacingMark
+            | G::SpacingMark
+            | G::EnclosingMark
+            // Symbols (S*)
+            | G::MathSymbol
+            | G::CurrencySymbol
+            | G::ModifierSymbol
+            | G::OtherSymbol
+            // Punctuation (P*)
+            | G::ConnectorPunctuation
+            | G::DashPunctuation
+            | G::OpenPunctuation
+            | G::ClosePunctuation
+            | G::InitialPunctuation
+            | G::FinalPunctuation
+            | G::OtherPunctuation
+    )
+}
+
 /// Integer format specifiers for `binary format` / `binary scan` that
 /// accept the Tcl 8.5+ `u` / `s` modifier.  Mirrors
 /// `_BINARY_INT_SPECIFIERS`.
@@ -1541,9 +1582,25 @@ Use braces: {{ \u{2026} }}"
     /// is known.
     pub(super) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
         use super::confusables_table::{auto_fix_for, confusable_to_ascii};
-        // No config wiring yet: confusables is the product default, and
-        // ASCII-only F5 dialects use strict.
-        let strict = matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps");
+        use super::state::NonAsciiMode;
+
+        // Resolve the effective mode: an explicit `tclLsp.style.nonAscii`
+        // setting, or the per-dialect default (strict for ASCII-only F5
+        // dialects, confusables otherwise).  Mirrors Python's
+        // `_non_ascii_mode` + the iRules override in `check_non_ascii`.
+        let mode = match self.non_ascii_mode {
+            NonAsciiMode::Default => {
+                if matches!(self.dialect.as_str(), "f5-irules" | "f5-iapps") {
+                    NonAsciiMode::Strict
+                } else {
+                    NonAsciiMode::Confusables
+                }
+            }
+            explicit => explicit,
+        };
+        if mode == NonAsciiMode::Off {
+            return;
+        }
 
         let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
         for tok in arg_tokens {
@@ -1564,9 +1621,15 @@ Use braces: {{ \u{2026} }}"
                     continue;
                 }
                 let fix = auto_fix_for(ch).or_else(|| confusable_to_ascii(ch));
-                // In confusables mode, only flag confusables / artifacts.
-                if !strict && fix.is_none() {
-                    continue;
+                let is_confusable = fix.is_some();
+                // Mode-dependent filtering (strict flags everything):
+                //  * confusables — only confusables / auto-fix artifacts;
+                //  * common — those plus any non-benign character
+                //    (control / format / separator / unassigned / …).
+                match mode {
+                    NonAsciiMode::Confusables if !is_confusable => continue,
+                    NonAsciiMode::Common if !is_confusable && is_benign_unicode(ch) => continue,
+                    _ => {}
                 }
                 flagged_here = true;
                 let start = tok.span.start() + u32::try_from(rel).unwrap_or(0);
@@ -6197,6 +6260,89 @@ mod tests {
         // F5 iRules default to strict — every non-ASCII char fires,
         // including `é` (which has no ASCII equivalent → no fix).
         assert_eq!(w108("puts caf\u{e9}\n", "f5-irules"), vec![(0xe9, 0)]);
+    }
+
+    fn w108_mode(src: &str, dialect: &str, mode: crate::analyser::NonAsciiMode) -> Vec<u32> {
+        let mut a = crate::analyser::Analyser::new().with_non_ascii_mode(mode);
+        let mut out: Vec<u32> = a
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W108")
+            .map(|d| {
+                d.message
+                    .chars()
+                    .find(|c| !c.is_ascii())
+                    .map_or(0, |c| c as u32)
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    #[test]
+    fn is_benign_unicode_matches_reference() {
+        // Cross-checked against `_style.py::_is_benign_unicode`.
+        for cp in [
+            0x00E9, 0x00B0, 0x00B5, 0x2212, 0x4E2D, 0xFFFD, 0x2014, 0x2026,
+        ] {
+            assert!(
+                super::is_benign_unicode(char::from_u32(cp).unwrap()),
+                "U+{cp:04X}"
+            );
+        }
+        for cp in [0x200B, 0x00A0, 0x0007, 0x202E] {
+            assert!(
+                !super::is_benign_unicode(char::from_u32(cp).unwrap()),
+                "U+{cp:04X}"
+            );
+        }
+    }
+
+    #[test]
+    fn w108_off_mode_disables_entirely() {
+        use crate::analyser::NonAsciiMode::Off;
+        // Even smart quotes / NBSP are silent when W108 is off.
+        assert!(w108_mode("set x \u{201c}hi\u{201d}\u{a0}\n", "tcl8.6", Off).is_empty());
+        // ...and off wins even for iRules (which would otherwise be strict).
+        assert!(w108_mode("puts caf\u{e9}\n", "f5-irules", Off).is_empty());
+    }
+
+    #[test]
+    fn w108_strict_mode_explicit_flags_all_in_plain_tcl() {
+        use crate::analyser::NonAsciiMode::Strict;
+        // Explicit strict flags `é` even in a non-F5 dialect.
+        assert_eq!(w108_mode("puts caf\u{e9}\n", "tcl8.6", Strict), vec![0xe9]);
+    }
+
+    #[test]
+    fn w108_common_mode_allows_intentional_unicode() {
+        use crate::analyser::NonAsciiMode::Common;
+        // Benign letters / symbols / punctuation in any script are allowed.
+        assert!(w108_mode("set x caf\u{e9}\n", "tcl8.6", Common).is_empty()); // é (Ll)
+        assert!(w108_mode("set x 90\u{b0}\n", "tcl8.6", Common).is_empty()); // ° (So)
+        assert!(w108_mode("set x \u{4e2d}\n", "tcl8.6", Common).is_empty()); // 中 (Lo)
+    }
+
+    #[test]
+    fn w108_common_mode_flags_confusables_and_non_benign() {
+        use crate::analyser::NonAsciiMode::Common;
+        // Confusables / auto-fix artifacts still fire in common mode.
+        assert_eq!(
+            w108_mode("set x \u{201c}\n", "tcl8.6", Common),
+            vec![0x201c]
+        );
+        // Non-benign characters (control / zero-width / format) fire even
+        // without being confusables — these are the encoding-issue chars
+        // `common` mode is meant to catch.
+        assert_eq!(
+            w108_mode("set x a\u{200b}b\n", "tcl8.6", Common),
+            vec![0x200b]
+        ); // ZWSP (Cf)
+        assert_eq!(
+            w108_mode("set x a\u{202e}b\n", "tcl8.6", Common),
+            vec![0x202e]
+        ); // RLO (Cf)
     }
 
     #[test]

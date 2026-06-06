@@ -4649,9 +4649,24 @@ multi-line braced bodies skipped, the command word not scanned (matching
 Python).  Verified against the live Python analyser (smart quotes / NBSP
 / em-dash fire with fixes; `é` is silent under confusables but flagged
 under iRules strict; a Cyrillic command word is not scanned); 3 unit
-tests.  **Remaining:** the **common** mode (needs Unicode
-general-category data Rust std lacks — a `unicode-general-category` crate
-or generated table) and a `non_ascii_mode` config knob — follow-ups.
+tests.  **LANDED (common mode + `non_ascii_mode` knob, 2026-06-09).**  All
+four modes now ship: `NonAsciiMode::{Default, Off, Strict, Confusables,
+Common}` on `Analyser` (`with_non_ascii_mode`), resolved per-dialect at
+emit time (`Default` → strict for `f5-irules`/`f5-iapps`, confusables
+otherwise — mirrors `_non_ascii_mode` + the iRules override).  **common**
+mode allows intentional Unicode (letters / numbers / marks / symbols /
+punctuation in any script) and flags only confusables, auto-fix
+artifacts, and non-benign characters (control / format / separator /
+surrogate / private-use / unassigned) via `is_benign_unicode` — a faithful
+port of `_is_benign_unicode` using the `unicode-general-category` crate
+(pure-Rust, pyo3-free), cross-checked against the live Python predicate (é
+/ ° / 中 / − benign; ZWSP / NBSP / bell / RLO non-benign).  5 unit tests
+(off / explicit-strict / common-allows / common-flags-non-benign /
+benign-reference).  **Remaining (server plumbing, not analyser):** the
+server threads no analyser config to its `Analyser::new()` call sites yet,
+so `tclLsp.style.nonAscii` (and `disabled_diagnostics`) reach the analyser
+only once that surface lands — orthogonal to the diagnostic logic, which
+is complete.
 
 **GAP-A4 — `core/analysis/checks/_bounds.py` (961 LOC) — absent +
 mistracked.**  Index-bounds + loop-termination checks: **W230/W231/W232**

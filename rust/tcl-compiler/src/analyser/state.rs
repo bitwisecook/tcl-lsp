@@ -203,6 +203,33 @@ pub struct Analyser {
     /// Mirrors Python's `_arity_checks` over the fully-resolved IR
     /// (#475) rather than checking inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
+    /// [`NonAsciiMode::Default`] resolves per dialect at emit time
+    /// (strict for F5 iRules/iApps, confusables otherwise), matching
+    /// Python's `_non_ascii_mode` + the iRules override.
+    pub non_ascii_mode: NonAsciiMode,
+}
+
+/// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
+/// setting (`core/analysis/checks/_style.py`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NonAsciiMode {
+    /// No explicit setting: resolve per dialect at emit time — `Strict`
+    /// for F5 iRules/iApps (ASCII-only environments), `Confusables`
+    /// otherwise.
+    #[default]
+    Default,
+    /// Disable W108 entirely.
+    Off,
+    /// Flag every non-ASCII character.
+    Strict,
+    /// Flag Unicode confusables + known copy-paste artifacts only.
+    Confusables,
+    /// Allow intentional Unicode (letters / numbers / marks / symbols /
+    /// punctuation in any script); flag only confusables, artifacts, and
+    /// non-benign characters (control / format / separators / surrogates
+    /// / private-use / unassigned).
+    Common,
 }
 
 impl Analyser {
@@ -261,7 +288,16 @@ impl Analyser {
             stub_overlay: None,
             line_offsets: None,
             pending_arity: Vec::new(),
+            non_ascii_mode: NonAsciiMode::Default,
         }
+    }
+
+    /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
+    /// returning `self` for builder-style configuration.
+    #[must_use]
+    pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
+        self.non_ascii_mode = mode;
+        self
     }
 
     /// Analyse a Tcl source for the given dialect, returning a

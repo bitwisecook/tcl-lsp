@@ -51,7 +51,7 @@ pub mod utils;
 pub use class_hierarchy::{build_class_hierarchy, ClassHierarchy};
 pub use mro::{build_mro_map, tcloo_linearise, MroError};
 pub use snapshot::AnalyserSnapshot;
-pub use state::Analyser;
+pub use state::{Analyser, NonAsciiMode};
 pub use types::{
     AnalysisResult, ClassDef, CodeFix, Diagnostic, MethodDef, ProcArgTrait, ProcDef, PropertyDef,
     Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,
