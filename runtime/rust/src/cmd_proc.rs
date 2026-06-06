@@ -9,8 +9,6 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use std::io::Write;
-
 use crate::interp::{obj_bytes, Code, Interp, Param};
 use crate::obj::TclObj;
 use crate::parse::split_list;
@@ -19,7 +17,6 @@ use crate::parse::split_list;
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"proc", proc_cmd);
     interp.register_builtin(b"apply", apply_cmd);
-    interp.register_builtin(b"puts", puts);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -106,50 +103,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.run_proc(&params, &parts[1], ns, &argv[2..], b"apply lambdaExpr")
 }
 
-// -- puts ------------------------------------------------------------------
-
-/// `puts ?-nonewline? ?channelId? string` — write to stdout (default) or stderr.
-fn puts(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let usage = b"puts ?-nonewline? ?channelId? string";
-    let mut rest = &argv[1..];
-    let mut newline = true;
-    if let Some(&first) = rest.first() {
-        if obj_bytes(first).as_slice() == b"-nonewline" {
-            newline = false;
-            rest = &rest[1..];
-        }
-    }
-    // Remaining is `string` or `channelId string`.
-    let (channel, string) = match rest {
-        [s] => (b"stdout".to_vec(), obj_bytes(*s)),
-        [ch, s] => (obj_bytes(*ch), obj_bytes(*s)),
-        _ => return wrong_args(interp, usage),
-    };
-
-    let result = match channel.as_slice() {
-        b"stdout" => write_out(&mut std::io::stdout(), &string, newline),
-        b"stderr" => write_out(&mut std::io::stderr(), &string, newline),
-        _ => {
-            let mut m = b"can not find channel named \"".to_vec();
-            m.extend_from_slice(&channel);
-            m.push(b'"');
-            return interp.set_error(&m);
-        }
-    };
-    if result.is_err() {
-        return interp.set_error(b"error writing to channel");
-    }
-    interp.set_result_bytes(b"");
-    Code::Ok
-}
-
-fn write_out(w: &mut impl Write, bytes: &[u8], newline: bool) -> std::io::Result<()> {
-    w.write_all(bytes)?;
-    if newline {
-        w.write_all(b"\n")?;
-    }
-    w.flush()
-}
+// `puts` lives in `cmd_chan` (it is a channel write — stdout/stderr/file).
 
 #[cfg(test)]
 mod tests {

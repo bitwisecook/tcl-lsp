@@ -40,6 +40,7 @@ pub mod builtins;
 pub mod capi;
 pub mod cmd_alias;
 pub mod cmd_array;
+pub mod cmd_chan;
 pub mod cmd_control;
 pub mod cmd_dict;
 pub mod cmd_error;

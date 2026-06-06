@@ -128,6 +128,8 @@ pub struct Interp {
     pub(crate) packages: crate::cmd_package::PackageState,
     /// The `source` script stack (`info script` — the file being sourced).
     script_stack: Vec<Vec<u8>>,
+    /// Open channels (`open`/`read`/`gets`/`puts`/`close`).
+    pub(crate) channels: crate::cmd_chan::ChannelTable,
     /// Pending `return -code`/`-level` state (`TclUpdateReturnInfo`): the code to
     /// complete with once `-level` boundaries are unwound.
     return_code: Code,
@@ -152,6 +154,7 @@ impl Interp {
             recursion_depth: 0,
             packages: crate::cmd_package::PackageState::with_core(),
             script_stack: Vec::new(),
+            channels: crate::cmd_chan::ChannelTable::default(),
             return_code: Code::Ok,
             return_level: 1,
             result,

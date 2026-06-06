@@ -82,9 +82,16 @@ test.
     `-regexp` modes (with the regex engine); the incremental `errorInfo`
     source-trace (`return -options`/`try`/`throw` + PC-1's `CmdFrame` stack).
     Then **L2** (VFS + `source`/`file`/`glob`/channels) to load `init.tcl`.
-- **M2 — VFS + channels (L2)**: a host file/VFS layer (WASI preview1 native; a
-  shim under test) behind `source`/`file`/`glob`/`open`/`read`/`gets`/`close`/
-  `fconfigure`. Gate: `source init.tcl` loads cleanly; `info script` correct.
+- **M2 — VFS + channels (L2) — ✅ done.** Host file/VFS layer via `std::fs`
+  (native / `wasm32-wasip1`; a non-WASI shim can swap in): `source`/`file`/
+  `glob`/`pwd`/`cd` (`cmd_fs.rs`) + channels `open`/`close`/`read`/`gets`/`puts`/
+  `flush`/`eof`/`seek`/`tell`/`fconfigure`/`fblocked` (`cmd_chan.rs`). Plus the
+  `Tcl_Init` bootstrap (`Interp::init_library`: `$TCL_LIBRARY` → startup globals
+  + `auto_path` → `source init.tcl`), the `unknown` auto-load hook in `dispatch`,
+  `package require` via `ifneeded`/`pkgIndex`, and `return -code/-options`. Gate:
+  the **unmodified Tcl 9 `init.tcl` loads cleanly**, and `package require tcltest`
+  drives the real auto-load chain (finds `tcltest/pkgIndex.tcl`, runs `ifneeded`,
+  sources `tcltest.tcl`) — reaching `regsub` (the regex/L3 boundary, M3).
 - **M3 — `package require tcltest`**: the package-unknown → `pkgIndex.tcl` search
   (needs `glob`+`file`+`source`) → `source tcltest.tcl`. Gate: tcltest's
   namespace + `test`/`Configure` defined; `test` with a trivial body runs.
