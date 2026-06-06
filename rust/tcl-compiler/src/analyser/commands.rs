@@ -90,6 +90,22 @@ impl Analyser {
                 cmd_idx += 1;
                 continue;
             }
+            // GAP-A6 follow-up: run the E100 (stray `]`) / E102
+            // (stray `}`) token checks on every analysed body, not
+            // just the top level — mirrors Python's
+            // ``_UNIVERSAL_CHECKS`` (`check_unmatched_close_bracket`
+            // / `check_unmatched_close_brace`) running on every
+            // command.  Run on the *original* token stream before
+            // ``recover_stray_close_bracket`` repairs the clone,
+            // matching the top-level loop's ordering.  Token spans
+            // are absolute into the full document, so the full
+            // ``self.source`` is the right slice base.
+            let stray = super::syntax_checks::stray_closer_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(stray);
             let mut cmd = cmd_ref.clone();
             // **C41e4.** Repair stray ``]`` (missing ``[``) so
             // downstream handlers see the intended argv shape

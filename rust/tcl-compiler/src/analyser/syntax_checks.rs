@@ -896,4 +896,58 @@ mod tests {
         assert_eq!(&src[..off], "set x {\n    aaa\n    bbb");
         assert_eq!(fix.new_text, "}");
     }
+
+    #[test]
+    fn stray_close_bracket_fires_inside_proc_body() {
+        // GAP-A6 follow-up: the E100 stray-`]` check runs on every
+        // analysed body, not just the top level.  The live Python
+        // analyser fires E100 at the `puts foo]` line inside the
+        // proc body (`check_unmatched_close_bracket` is a
+        // `_UNIVERSAL_CHECKS` member, run on every command).
+        let mut a = Analyser::new();
+        let r = a.analyse("proc p {} {\n  puts foo]\n}\n", "tcl8.6");
+        let e100: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E100").collect();
+        assert_eq!(
+            e100.len(),
+            1,
+            "expected one E100 in the body, got {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.clone(), d.span))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn body_check_does_not_false_positive_on_literals() {
+        // Quoted `]` / `}` and balanced `[…]` inside a body are
+        // literals / well-formed substitutions — none fires, matching
+        // the live Python analyser.
+        let mut a = Analyser::new();
+        for src in [
+            "proc p {} {\n  puts \"a ]\"\n}\n",
+            "proc p {} {\n  set x [llength $l]\n}\n",
+            "proc p {} {\n  puts \"a }\"\n}\n",
+        ] {
+            let r = a.analyse(src, "tcl8.6");
+            let n = r
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "E100" | "E102"))
+                .count();
+            assert_eq!(n, 0, "unexpected stray-closer diag for {src:?}");
+        }
+    }
+
+    #[test]
+    fn stray_close_brace_fires_inside_nested_body() {
+        // A bare `}` line inside a nested (control-flow) body must
+        // also surface E102, matching the per-body universal check.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc p {} {\n  if {1} {\n    set x 1\n  }\n  puts foo]\n}\n",
+            "tcl8.6",
+        );
+        assert_eq!(r.diagnostics.iter().filter(|d| d.code == "E100").count(), 1,);
+    }
 }
