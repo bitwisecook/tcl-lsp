@@ -240,6 +240,73 @@ pub fn segment_commands_with_offset_and_config(
         .collect()
 }
 
+/// Incrementally re-segment `new_text` from the segmentation of
+/// `old_text` (`old_commands`), reusing the unchanged **prefix** of
+/// top-level commands and re-lexing only from the first affected command
+/// onward.
+///
+/// The edit's start is recovered as the byte length of the common prefix
+/// of the two texts. `lo` is then the start of the *last old command that
+/// begins at or before that point* — a clean command boundary in the
+/// shared prefix region (where `old_text` and `new_text` are
+/// byte-identical), so it is equally a command boundary in `new_text`.
+/// Old commands that begin before `lo` are byte-identical and reused
+/// verbatim; `new_text[lo..]` is re-segmented (with its spans offset by
+/// `lo`) and replaces everything from `lo` on.
+///
+/// Because `lo` is a command boundary determined solely by the shared
+/// bytes `[0, lo)`, segmenting `new_text[lo..]` in isolation is identical
+/// to the `[lo..]` tail of [`segment_commands`] on the whole `new_text`,
+/// so the result is byte-for-byte identical to a full re-segmentation
+/// (pinned by a differential fuzz harness). The win is avoiding the
+/// re-lex of the unchanged prefix; suffix reuse is intentionally *not*
+/// attempted — a matching byte-suffix is not a safe split point because
+/// command-boundary-ness depends on the differing bytes that precede it.
+#[must_use]
+pub fn segment_commands_incremental(
+    old_text: &str,
+    old_commands: &[SegmentedCommand],
+    new_text: &str,
+) -> Vec<SegmentedCommand> {
+    if old_text == new_text {
+        return old_commands.to_vec();
+    }
+    if old_commands.is_empty() {
+        return segment_commands(new_text);
+    }
+    let prefix = common_prefix_len(old_text, new_text);
+    // `lo` = start of the last old command beginning at or before the
+    // edit; everything strictly before it is byte-identical and reused.
+    let lo = old_commands
+        .iter()
+        .map(|c| c.span.start())
+        .filter(|&s| (s as usize) <= prefix)
+        .max()
+        .unwrap_or(0);
+    let mut out: Vec<SegmentedCommand> = old_commands
+        .iter()
+        .filter(|c| c.span.start() < lo)
+        .cloned()
+        .collect();
+    out.extend(segment_commands_with_offset(&new_text[lo as usize..], lo));
+    out
+}
+
+/// Longest common prefix of `a` and `b` in bytes, backed off to a `char`
+/// boundary.
+fn common_prefix_len(a: &str, b: &str) -> usize {
+    let (ab, bb) = (a.as_bytes(), b.as_bytes());
+    let max = ab.len().min(bb.len());
+    let mut i = 0;
+    while i < max && ab[i] == bb[i] {
+        i += 1;
+    }
+    while i > 0 && !a.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
 /// Segment with Python-parity error recovery.
 ///
 /// Mirrors `segment_commands(source, recovery=True)` in
@@ -486,6 +553,128 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `(start, end, texts, is_partial, token-spans)` — the fields that
+    /// define a command's identity for incremental-vs-full comparison.
+    type CmdProjection = (u32, u32, Vec<String>, bool, Vec<(u32, u32)>);
+
+    fn project(c: &SegmentedCommand) -> CmdProjection {
+        (
+            c.span.start(),
+            c.span.end(),
+            c.texts.clone(),
+            c.is_partial,
+            c.all_tokens
+                .iter()
+                .map(|t| (t.span.start(), t.span.end()))
+                .collect(),
+        )
+    }
+
+    fn projected(cmds: &[SegmentedCommand]) -> Vec<CmdProjection> {
+        cmds.iter().map(project).collect()
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next_u32(&mut self) -> u32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            (self.0 >> 33) as u32
+        }
+    }
+
+    #[test]
+    fn segment_commands_incremental_pins() {
+        // Edit inside one command.
+        let old = "set x 1\nputs hi\nset y 2\n";
+        let new = "set x 1\nputs bye\nset y 2\n";
+        assert_eq!(
+            projected(&segment_commands_incremental(
+                old,
+                &segment_commands(old),
+                new
+            )),
+            projected(&segment_commands(new)),
+        );
+        // Insert a whole new command.
+        let new2 = "set x 1\nputs hi\nincr n\nset y 2\n";
+        assert_eq!(
+            projected(&segment_commands_incremental(
+                old,
+                &segment_commands(old),
+                new2
+            )),
+            projected(&segment_commands(new2)),
+        );
+        // Delete a command.
+        let new3 = "set x 1\nset y 2\n";
+        assert_eq!(
+            projected(&segment_commands_incremental(
+                old,
+                &segment_commands(old),
+                new3
+            )),
+            projected(&segment_commands(new3)),
+        );
+        // Append at the end.
+        let new4 = "set x 1\nputs hi\nset y 2\nputs done\n";
+        assert_eq!(
+            projected(&segment_commands_incremental(
+                old,
+                &segment_commands(old),
+                new4
+            )),
+            projected(&segment_commands(new4)),
+        );
+    }
+
+    #[test]
+    fn segment_commands_incremental_matches_full_under_fuzz() {
+        // Differential acceptance gate: a random edit applied to a base
+        // document, then incremental re-segmentation must byte-for-byte
+        // match a full re-segmentation of the edited text.
+        let bases = [
+            "set x 1\nputs hi\nset y 2\nproc p {} { return 1 }\n",
+            "if {$a} {\n  puts a\n} else {\n  puts b\n}\nputs done\n",
+            "namespace eval n {\n  variable v 1\n  proc q {} {}\n}\nn::q\n",
+            "set s {a\nb\nc}\nputs $s\nset t \"x;y\"\n",
+            "# comment\nset x [expr {1 + 2}]\nputs $x\n",
+        ];
+        let inserts = [
+            "", "z", "puts Z\n", "}", "{", "\n", "[a]", "; ", "\"q\"", "\\",
+        ];
+        let mut rng = Lcg(0xC0FF_EE12_3456_789A);
+        let mut checked = 0usize;
+        for base in bases {
+            let old_cmds = segment_commands(base);
+            let blen = base.len();
+            for _ in 0..600 {
+                // Random byte range [s, e) on char boundaries.
+                let mut s = (rng.next_u32() as usize) % (blen + 1);
+                while !base.is_char_boundary(s) {
+                    s -= 1;
+                }
+                let mut e = s + (rng.next_u32() as usize) % (blen + 1 - s);
+                while !base.is_char_boundary(e) {
+                    e += 1;
+                }
+                let ins = inserts[(rng.next_u32() as usize) % inserts.len()];
+                let new = format!("{}{}{}", &base[..s], ins, &base[e..]);
+                let inc = segment_commands_incremental(base, &old_cmds, &new);
+                let full = segment_commands(&new);
+                assert_eq!(
+                    projected(&inc),
+                    projected(&full),
+                    "incremental != full for base {base:?} edit [{s},{e}) ins {ins:?} -> {new:?}",
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 2000, "fuzz corpus too small: {checked}");
+    }
 
     /// Cross-check the cheap incremental-reparse boundary scanner
     /// (`tcl_lexer::command_boundaries`) against the production

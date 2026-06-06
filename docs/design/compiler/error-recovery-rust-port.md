@@ -304,6 +304,33 @@ stitching) is the remaining follow-up — the primitives
 (`command_boundaries` / `reparse_window` / `script_is_complete`) are all in
 place and verified.
 
+### Incremental segmentation (`segment_commands_incremental` — landed)
+
+The first layer of partial re-analysis: `segment_commands_incremental(old_text,
+old_commands, new_text)` reuses the unchanged **prefix** of top-level commands
+and re-lexes only from the first affected command onward. `lo` is the start of
+the last old command beginning at or before the common-prefix length — a clean
+command boundary in the shared prefix region, hence equally a boundary in
+`new_text` — so commands before `lo` are byte-identical and reused verbatim,
+and `new_text[lo..]` is re-segmented (spans offset by `lo`).
+
+Result is byte-for-byte identical to a full `segment_commands(new_text)`, pinned
+by a differential fuzz harness (5 bases × 600 random edits). Two soundness
+findings the harness forced, both now respected: (1) the synthetic
+end-of-input boundary is **not** a clean split (an unterminated trailing command
+runs to EOF); (2) **suffix reuse is unsound** — a matching byte-suffix is not a
+safe split point because command-boundary-ness depends on the differing bytes
+that *precede* it, and `command_boundaries` (built on `info complete`
+semantics) and the lexer-based segmenter legitimately disagree on malformed
+input (`[…}}`), so only prefix reuse is attempted.
+
+Remaining for full partial re-analysis: the analysis-pass layer (diagnostics,
+scopes, cross-refs, CFG/SSA) still runs whole-document. Reusing it incrementally
+needs an analysis-state merge contract (a definition before the window affects
+it; the window's definitions affect everything after) — a larger analyser
+refactor for a dedicated effort, with this verified incremental segmenter as its
+foundation.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as
