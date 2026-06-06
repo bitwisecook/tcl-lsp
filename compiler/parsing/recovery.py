@@ -116,6 +116,43 @@ def _is_unterminated_cmd(tok: Token, source: str, base_offset: int) -> bool:
 # E201 detectors
 
 
+def _bracket_insert_inert(text: str, idx: int) -> bool:
+    """True when offset *idx* in a CMD's content is inside an open brace/quote.
+
+    A ``]`` inserted at such a position is *literal* — brace or quote content,
+    not a real close-bracket — so it cannot terminate the ``[`` and the
+    recovered command stays incomplete.  This mirrors C Tcl 9: e.g. for
+    ``set x [foo {bar`` / ``puts baz}`` the ``puts`` line is inside the balanced
+    brace word ``{bar … baz}``, so ``info complete {set x [foo {bar]…}`` is
+    ``0`` (incomplete) while the end-insert is ``1``.  The comment- and
+    command-break heuristics must therefore *veto* a candidate landing here —
+    the "syntactic validates; veto if the offset is inert" rule of the recovery
+    design (``docs/design/compiler/error-recovery-rust-port.md``).
+
+    Tracks brace nesting (escape-aware) and, at brace depth 0, double-quote
+    state — quotes inside a brace word are literal, so they only toggle at
+    depth 0.  A stray ``}`` clamps at depth 0 (an extra closer closes nothing).
+    """
+    depth = 0
+    in_quote = False
+    i = 0
+    n = min(idx, len(text))
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            i += 2  # backslash escapes the next char (incl. \{ \} \")
+            continue
+        if depth == 0 and c == '"':
+            in_quote = not in_quote
+        elif not in_quote:
+            if c == "{":
+                depth += 1
+            elif c == "}" and depth > 0:
+                depth -= 1
+        i += 1
+    return depth > 0 or in_quote
+
+
 def _detect_missing_bracket_at_comment(
     tok: Token,
     source: str,
@@ -139,6 +176,16 @@ def _detect_missing_bracket_at_comment(
             cumulative += len(line) + 1  # +1 for \n
             continue
         stripped = line.lstrip()
+        if not stripped:
+            cumulative += len(line) + 1
+            continue
+        # A '#' inside an open brace/quote word is literal, not a comment, and a
+        # ] inserted at the previous line's end would be inert (see
+        # _bracket_insert_inert): veto it and keep scanning until the word
+        # closes — the legitimate plain-text comment-break still fires.
+        if _bracket_insert_inert(text, cumulative):
+            cumulative += len(line) + 1
+            continue
         if stripped.startswith("#"):
             # Found a comment.  Insert ] at the end of the previous line.
             # The end of the previous line's content (excluding trailing ws).
@@ -189,10 +236,8 @@ def _detect_missing_bracket_at_comment(
                     ),
                 ),
             )
-        # Non-empty, non-comment line — keep looking only if it's blank.
-        if stripped:
-            break
-        cumulative += len(line) + 1
+        # Script-level, non-blank, non-comment line — stop looking.
+        break
 
     return None
 
@@ -208,6 +253,15 @@ def _detect_missing_bracket_at_command(
     Scans the CMD token text line by line.  If a non-blank line (after
     line 0) starts with a known command, the previous line's content end
     is where ``]`` should be inserted.
+
+    A line that begins *inside* an open brace/quote word is content, not a
+    command position — a known-command word there (e.g. ``puts`` inside the
+    balanced brace of ``[foo {bar`` / ``puts baz}``) is brace text and a ``]``
+    inserted before it is inert, leaving the command incomplete (confirmed
+    against C Tcl 9.0.3).  Such candidates are vetoed and scanning continues
+    until the word closes, so the legitimate plain-text command-break
+    (``[foo bar`` / ``puts done``) keeps its fix.  See ``_bracket_insert_inert``
+    and ``docs/design/compiler/error-recovery-rust-port.md``.
     """
     text = tok.text
     lines = text.split("\n")
@@ -223,6 +277,11 @@ def _detect_missing_bracket_at_command(
         if not stripped:
             cumulative += len(line) + 1
             continue  # skip blank lines
+        # Veto: inside an open brace/quote word the line is content, not a
+        # command — keep scanning past it rather than inserting an inert ].
+        if _bracket_insert_inert(text, cumulative):
+            cumulative += len(line) + 1
+            continue
         first_word = _extract_first_word(stripped)
         if first_word in known_commands:
             # Found a known command.  Insert ] at end of previous line.
