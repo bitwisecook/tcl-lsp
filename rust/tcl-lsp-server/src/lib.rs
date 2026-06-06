@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
@@ -154,6 +154,15 @@ pub struct Backend {
     /// longest-prefix folder's dialect when a document is
     /// opened.
     folder_dialects: Mutex<Vec<(Url, String)>>,
+    /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
+    /// [`NonAsciiMode::Default`] until an editor configures it via
+    /// `initializationOptions` or `workspace/didChangeConfiguration`.
+    /// Threaded into every `Analyser` the diagnostics path builds.
+    non_ascii_mode: Mutex<NonAsciiMode>,
+    /// Diagnostic codes the user has disabled (`tclLsp.diagnostics.<CODE>
+    /// = false`). Threaded into every analyser build so the disabled
+    /// codes are filtered, and consulted by the source-style pass.
+    disabled_diagnostics: Mutex<HashSet<String>>,
     /// Cached `AnalysisResult` per document, populated by
     /// `did_open` / `did_change` and consumed by request
     /// handlers that previously re-analysed on every call.
@@ -298,6 +307,8 @@ impl Backend {
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            non_ascii_mode: Mutex::new(NonAsciiMode::Default),
+            disabled_diagnostics: Mutex::new(HashSet::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
@@ -328,8 +339,9 @@ impl Backend {
         if let Some(cached) = self.cached_analysis(uri).await {
             return cached;
         }
+        let (disabled, na_mode) = self.analyser_config().await;
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
+            let mut analyser = Self::configured_analyser(disabled, na_mode);
             analyser.analyse(&text, &dialect).clone()
         })
         .await
@@ -374,27 +386,36 @@ impl Backend {
         let Some(opts) = &params.initialization_options else {
             return;
         };
-        let Some(entries) = opts
+        // `folderDialects` map (per-folder dialect overrides).
+        if let Some(entries) = opts
             .as_object()
             .and_then(|m| m.get("folderDialects"))
             .and_then(serde_json::Value::as_object)
-        else {
-            return;
-        };
-        let mut parsed: Vec<(Url, String)> = Vec::new();
-        for (folder_url, dialect_val) in entries {
-            let Ok(url) = Url::parse(folder_url) else {
-                continue;
-            };
-            let Some(dialect) = dialect_val.as_str() else {
-                continue;
-            };
-            if DialectSet::parse(dialect).is_none() {
-                continue;
+        {
+            let mut parsed: Vec<(Url, String)> = Vec::new();
+            for (folder_url, dialect_val) in entries {
+                let Ok(url) = Url::parse(folder_url) else {
+                    continue;
+                };
+                let Some(dialect) = dialect_val.as_str() else {
+                    continue;
+                };
+                if DialectSet::parse(dialect).is_none() {
+                    continue;
+                }
+                parsed.push((url, dialect.to_owned()));
             }
-            parsed.push((url, dialect.to_owned()));
+            *self.folder_dialects.lock().await = parsed;
         }
-        *self.folder_dialects.lock().await = parsed;
+        // Diagnostic settings (`tclLsp.style.nonAscii` /
+        // `tclLsp.diagnostics.<CODE>`), accepted in either the nested or
+        // flat-dotted shape.
+        if let Some(mode) = settings_non_ascii_mode(opts) {
+            *self.non_ascii_mode.lock().await = mode;
+        }
+        if let Some(disabled) = settings_disabled_diagnostics(opts) {
+            *self.disabled_diagnostics.lock().await = disabled;
+        }
     }
 
     /// Resolve the dialect string a freshly opened document should
@@ -1045,6 +1066,21 @@ impl Backend {
         }))
     }
 
+    /// Snapshot the user-configured analyser settings (disabled
+    /// diagnostic codes + W108 non-ASCII mode) so a blocking analysis
+    /// worker can build its `Analyser` without holding any async mutex.
+    async fn analyser_config(&self) -> (HashSet<String>, NonAsciiMode) {
+        let disabled = self.disabled_diagnostics.lock().await.clone();
+        let mode = *self.non_ascii_mode.lock().await;
+        (disabled, mode)
+    }
+
+    /// Build an `Analyser` carrying the configured disabled-diagnostics
+    /// set and W108 mode.
+    fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
+        Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(mode)
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
@@ -1105,17 +1141,19 @@ impl Backend {
         // the dialect-aware registry, so resolve it before the
         // blocking hop and move an `Arc` clone in.
         let registry = self.registry_for_dialect(&dialect).await;
+        let (disabled, na_mode) = self.analyser_config().await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
+            let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
             let analysis = analyser.analyse(&text, &dialect).clone();
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
             // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
             // / W118), suppression-filtered via the analyser's
-            // `suppressed_lines`.
+            // `suppressed_lines` and the user's disabled-diagnostics set.
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
                 &analysis.suppressed_lines,
+                &disabled,
             ));
             (analysis, diagnostics)
         })
@@ -1320,6 +1358,15 @@ impl LanguageServer for Backend {
             .map(str::to_owned);
         if let Some(d) = dialect {
             *self.default_dialect.lock().await = d;
+        }
+        // W108 mode + disabled-diagnostics reconfiguration. Existing
+        // documents pick the change up on their next analyse (the
+        // analyses cache is keyed per URI and refreshed on edit).
+        if let Some(mode) = settings_non_ascii_mode(&params.settings) {
+            *self.non_ascii_mode.lock().await = mode;
+        }
+        if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
+            *self.disabled_diagnostics.lock().await = disabled;
         }
     }
 
@@ -2861,6 +2908,66 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// Shared by every `lift_*_diagnostics` helper so the offset →
 /// (line, character) mapping is identical for analyser, compiler-
 /// check, and optimiser diagnostics.
+/// Map a `tclLsp.style.nonAscii` setting string to a [`NonAsciiMode`].
+/// An unknown / absent value resolves to [`NonAsciiMode::Default`] (the
+/// per-dialect auto behaviour).
+fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
+    match s {
+        "off" => NonAsciiMode::Off,
+        "strict" => NonAsciiMode::Strict,
+        "confusables" => NonAsciiMode::Confusables,
+        "common" => NonAsciiMode::Common,
+        _ => NonAsciiMode::Default,
+    }
+}
+
+/// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
+/// both the nested (`{"tclLsp":{"style":{"nonAscii":"…"}}}`) and the
+/// flat-dotted (`{"tclLsp.style.nonAscii":"…"}`) shapes editors send.
+fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode> {
+    let nested = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("style"))
+        .and_then(|v| v.get("nonAscii"));
+    nested
+        .or_else(|| settings.get("tclLsp.style.nonAscii"))
+        .and_then(serde_json::Value::as_str)
+        .map(parse_non_ascii_mode)
+}
+
+/// Extract the disabled diagnostic codes from a settings payload — the
+/// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
+/// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
+/// the flat-dotted (`{"tclLsp.diagnostics.W001":false}`) shapes. Returns
+/// `None` when no diagnostics config is present (so the caller leaves the
+/// current set untouched).
+fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet<String>> {
+    if let Some(map) = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("diagnostics"))
+        .and_then(serde_json::Value::as_object)
+    {
+        return Some(
+            map.iter()
+                .filter(|(_, v)| v.as_bool() == Some(false))
+                .map(|(k, _)| k.clone())
+                .collect(),
+        );
+    }
+    let obj = settings.as_object()?;
+    let mut set = HashSet::new();
+    let mut found = false;
+    for (k, v) in obj {
+        if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
+            found = true;
+            if v.as_bool() == Some(false) {
+                set.insert(code.to_owned());
+            }
+        }
+    }
+    found.then_some(set)
+}
+
 /// Apply one LSP content change to `text` (incremental document sync).
 ///
 /// A `None` range is a full-document replacement; a `Some` range is a
@@ -2958,17 +3065,21 @@ fn lift_analyser_diagnostics(
 fn lift_source_style_diagnostics(
     text: &str,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
+    user_disabled: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_lsp_core::source_style::{
         style_diagnostics, StyleSeverity, DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH,
     };
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
 
-    // The file-level (`-1`) directive bucket doubles as the
-    // per-code disabled set (mirrors how the Rust analyser folds a
+    // The file-level (`-1`) directive bucket doubles as a per-code
+    // disabled set (mirrors how the Rust analyser folds a
     // `# tcl-lsp: disable=…` directive into both `suppressed_lines`
-    // and its internal `disabled_diagnostics`).
-    let disabled = suppressed.get(&-1).cloned().unwrap_or_default();
+    // and its internal `disabled_diagnostics`); union it with the
+    // user's `tclLsp.diagnostics.<CODE> = false` settings so W111 /
+    // W112 / W115 / W118 can be turned off from the editor.
+    let mut disabled = suppressed.get(&-1).cloned().unwrap_or_default();
+    disabled.extend(user_disabled.iter().cloned());
 
     style_diagnostics(
         text,
@@ -3550,6 +3661,58 @@ mod tests {
     }
 
     #[test]
+    fn parse_non_ascii_mode_maps_settings() {
+        assert_eq!(parse_non_ascii_mode("off"), NonAsciiMode::Off);
+        assert_eq!(parse_non_ascii_mode("strict"), NonAsciiMode::Strict);
+        assert_eq!(
+            parse_non_ascii_mode("confusables"),
+            NonAsciiMode::Confusables
+        );
+        assert_eq!(parse_non_ascii_mode("common"), NonAsciiMode::Common);
+        assert_eq!(parse_non_ascii_mode("bogus"), NonAsciiMode::Default);
+    }
+
+    #[test]
+    fn settings_non_ascii_mode_nested_and_flat() {
+        let nested = serde_json::json!({"tclLsp": {"style": {"nonAscii": "common"}}});
+        assert_eq!(settings_non_ascii_mode(&nested), Some(NonAsciiMode::Common));
+        let flat = serde_json::json!({"tclLsp.style.nonAscii": "off"});
+        assert_eq!(settings_non_ascii_mode(&flat), Some(NonAsciiMode::Off));
+        let none = serde_json::json!({"tclLsp": {"dialect": "tcl9.0"}});
+        assert_eq!(settings_non_ascii_mode(&none), None);
+    }
+
+    #[test]
+    fn settings_disabled_diagnostics_nested_and_flat() {
+        let nested = serde_json::json!({
+            "tclLsp": {"diagnostics": {"W001": true, "W108": false, "W111": false}}
+        });
+        let got = settings_disabled_diagnostics(&nested).unwrap();
+        assert!(got.contains("W108") && got.contains("W111") && !got.contains("W001"));
+        let flat = serde_json::json!({
+            "tclLsp.diagnostics.W210": false, "tclLsp.diagnostics.W211": true
+        });
+        let got = settings_disabled_diagnostics(&flat).unwrap();
+        assert!(got.contains("W210") && !got.contains("W211"));
+        // No diagnostics config -> None (leave current set untouched).
+        assert!(settings_disabled_diagnostics(&serde_json::json!({"x": 1})).is_none());
+    }
+
+    #[test]
+    fn configured_analyser_threads_mode_and_disabled() {
+        // `Off` mode suppresses W108 entirely.
+        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
+        let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+        // A disabled code is filtered from the analyser's output.
+        let mut disabled = HashSet::new();
+        disabled.insert("W108".to_string());
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict);
+        let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+    }
+
+    #[test]
     fn apply_content_change_full_replacement() {
         // A `None` range replaces the whole document.
         assert_eq!(apply_content_change("old text", None, "new"), "new");
@@ -3623,7 +3786,11 @@ mod tests {
     fn lift_source_style_diagnostics_surfaces_style_codes() {
         let long = "x".repeat(130);
         let src = format!("{long}  \r\nputs ok\r\n");
-        let diags = lift_source_style_diagnostics(&src, &std::collections::HashMap::new());
+        let diags = lift_source_style_diagnostics(
+            &src,
+            &std::collections::HashMap::new(),
+            &std::collections::HashSet::new(),
+        );
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
@@ -3651,7 +3818,8 @@ mod tests {
         let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
             std::collections::HashMap::new();
         suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
-        let diags = lift_source_style_diagnostics(&src, &suppressed);
+        let diags =
+            lift_source_style_diagnostics(&src, &suppressed, &std::collections::HashSet::new());
         let codes: Vec<String> = diags
             .iter()
             .filter_map(|d| match &d.code {
@@ -3854,6 +4022,8 @@ mod tests {
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            non_ascii_mode: Mutex::new(NonAsciiMode::Default),
+            disabled_diagnostics: Mutex::new(HashSet::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),

@@ -4662,11 +4662,19 @@ port of `_is_benign_unicode` using the `unicode-general-category` crate
 (pure-Rust, pyo3-free), cross-checked against the live Python predicate (é
 / ° / 中 / − benign; ZWSP / NBSP / bell / RLO non-benign).  5 unit tests
 (off / explicit-strict / common-allows / common-flags-non-benign /
-benign-reference).  **Remaining (server plumbing, not analyser):** the
-server threads no analyser config to its `Analyser::new()` call sites yet,
-so `tclLsp.style.nonAscii` (and `disabled_diagnostics`) reach the analyser
-only once that surface lands — orthogonal to the diagnostic logic, which
-is complete.
+benign-reference).  **Server config plumbing LANDED (2026-06-09).**  The
+server now threads analyser config end-to-end: `Backend` holds
+`non_ascii_mode` + `disabled_diagnostics`, populated from
+`initializationOptions` and `workspace/didChangeConfiguration` (both the
+nested `{"tclLsp":{"style":{"nonAscii":…},"diagnostics":{"W…":false}}}`
+and flat-dotted `{"tclLsp.style.nonAscii":…,"tclLsp.diagnostics.W…":false}`
+shapes), and `analysis_for` / `publish_analyser_diagnostics` build their
+`Analyser` via `configured_analyser(disabled, mode)`.  The disabled set is
+also unioned into the source-style pass so `tclLsp.diagnostics.W111/112/
+115/118 = false` take effect.  (Index-builder analyses — cross-doc
+references / call-hierarchy / workspace scan — keep the default config:
+their diagnostics are discarded, only proc/ref data is consumed.)  4
+server tests pin the parse helpers + the `configured_analyser` threading.
 
 **GAP-A4 — `core/analysis/checks/_bounds.py` (961 LOC) — absent +
 mistracked.**  Index-bounds + loop-termination checks: **W230/W231/W232**
