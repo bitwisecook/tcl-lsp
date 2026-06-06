@@ -68,6 +68,10 @@ pub enum Command {
     /// unchanged. The importing-ns binding is transparent to callers; `namespace
     /// forget` removes redirects by matching `source`.
     Imported { source: Vec<u8> },
+    /// A `namespace ensemble`: dispatch maps `argv[1]` (a subcommand) to a target
+    /// command prefix (`-map`, else `<ns>::<sub>`) and forwards `argv[2..]` — the
+    /// generalised `dict for`→`::tcl::dict::for` redirect. See [`crate::ensemble`].
+    Ensemble(crate::ensemble::EnsembleConfig),
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -140,6 +144,21 @@ impl Interp {
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
         self.namespaces.delete(self.current_ns, name)
+    }
+
+    /// Register an ensemble command (`namespace ensemble create`); `name` is the
+    /// ensemble command (possibly qualified — rooted at global like any builtin).
+    pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
+        self.namespaces.register(name, Command::Ensemble(cfg));
+    }
+
+    /// Whether `name` resolves to an ensemble command (`namespace ensemble
+    /// exists`).
+    pub(crate) fn is_ensemble(&self, name: &[u8]) -> bool {
+        matches!(
+            self.namespaces.resolve(self.current_ns, name),
+            Some(Command::Ensemble(_))
+        )
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
@@ -426,7 +445,84 @@ impl Interp {
                 Some(cmd) => self.invoke(cmd, argv),
                 None => self.invalid_command(&source),
             },
+            Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
         }
+    }
+
+    /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
+    /// (exact, then unambiguous prefix unless `-prefixes 0`), map it to a target
+    /// command prefix (`-map`, else `<ns>::<sub>`), and re-dispatch
+    /// `[target… , argv[2..]…]`. Mirrors C Tcl's `tclEnsemble.c` (the A3 contract).
+    fn dispatch_ensemble(
+        &mut self,
+        cfg: &crate::ensemble::EnsembleConfig,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        if argv.len() < 2 {
+            let mut m = b"wrong # args: should be \"".to_vec();
+            m.extend_from_slice(&obj_bytes(argv[0]));
+            m.extend_from_slice(b" subcommand ?arg ...?\"");
+            return self.error(&m);
+        }
+        // The valid subcommand set (sorted): explicit `-subcommands`, else the
+        // `-map` keys, else the namespace's exported commands.
+        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
+            (Some(list), _) => list.clone(),
+            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
+            (None, None) => self.namespaces.exported_commands(cfg.ns),
+        };
+        subs.sort();
+        subs.dedup();
+
+        let sub = obj_bytes(argv[1]);
+        let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) else {
+            // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
+            let mut m = if cfg.prefixes {
+                b"unknown or ambiguous subcommand \"".to_vec()
+            } else {
+                b"unknown subcommand \"".to_vec()
+            };
+            m.extend_from_slice(&sub);
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&crate::ensemble::must_be(&subs));
+            return self.error(&m);
+        };
+        let resolved = &subs[idx];
+
+        // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
+        let prefix: Vec<Vec<u8>> = cfg
+            .map
+            .as_ref()
+            .and_then(|m| {
+                m.iter()
+                    .find(|(k, _)| k == resolved)
+                    .map(|(_, p)| p.clone())
+            })
+            .unwrap_or_else(|| {
+                let mut t = self.namespaces.qualified_name(cfg.ns);
+                if cfg.ns != GLOBAL {
+                    t.extend_from_slice(b"::");
+                }
+                t.extend_from_slice(resolved);
+                vec![t]
+            });
+
+        // Build [target…, argv[2..]…], each owned (+1), and re-dispatch.
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 2);
+        for w in &prefix {
+            let o = new_string(w);
+            // SAFETY: fresh obj; take the owning +1 the new argv holds.
+            unsafe { obj::incr_ref_count(o) };
+            new_argv.push(o);
+        }
+        for &a in &argv[2..] {
+            // SAFETY: live arg; take an owning +1.
+            unsafe { obj::incr_ref_count(a) };
+            new_argv.push(a);
+        }
+        let code = self.dispatch(&new_argv);
+        release_all(&new_argv);
+        code
     }
 
     /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works

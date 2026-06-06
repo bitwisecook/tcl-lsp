@@ -304,6 +304,18 @@ impl Namespaces {
         &self.arena[ns].exports
     }
 
+    /// The sorted command names in `ns` that match its export patterns — the
+    /// default subcommand set of an ensemble over `ns` (`namespace ensemble`).
+    #[must_use]
+    pub fn exported_commands(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .commands
+            .keys()
+            .filter(|k| self.is_exported(ns, k))
+            .cloned()
+            .collect()
+    }
+
     /// Does `name` match any of `ns`'s export patterns (`string match` glob)?
     #[must_use]
     pub fn is_exported(&self, ns: NsId, name: &[u8]) -> bool {

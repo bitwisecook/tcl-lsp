@@ -51,6 +51,7 @@ pub mod cmd_string;
 pub mod cmd_var;
 pub mod counters;
 pub mod dict;
+pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
 pub mod frame;
