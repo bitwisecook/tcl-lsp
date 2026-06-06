@@ -3,6 +3,46 @@
 //! Ports the relevant parts of `core/common/naming.py`. These live in
 //! the compiler crate because they are consumed by the expression
 //! parser and lowering — not by the lexer itself.
+//!
+//! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) is the
+//! **one** canonical source for namespace-name parsing, shared by the compiler
+//! (`normalise_qualified_name`) and the WASM runtime's command **and** variable
+//! resolvers (`runtime/rust/src/namespace.rs`, the var coordinator) — mirroring
+//! C Tcl's `TclGetNamespaceForQualName` segmentation (`tmp/tcl9.0.3`). Byte-based
+//! so the runtime (which works in UTF-8 bytes) and the compiler (`&str`) share it
+//! without one re-deriving the other.
+
+/// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
+#[must_use]
+pub fn is_qualified(name: &[u8]) -> bool {
+    name.windows(2).any(|w| w == b"::")
+}
+
+/// Split a (possibly qualified) name on `::`, dropping empty segments — so
+/// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
+/// Each `::` (or run of colons) is one separator; the trailing component is the
+/// simple name. Mirrors `TclGetNamespaceForQualName`'s component walk.
+#[must_use]
+pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
+    let mut out = Vec::new();
+    let mut seg_start = 0;
+    let mut i = 0;
+    while i < name.len() {
+        if name[i] == b':' && i + 1 < name.len() && name[i + 1] == b':' {
+            if i > seg_start {
+                out.push(&name[seg_start..i]);
+            }
+            i += 2;
+            seg_start = i;
+        } else {
+            i += 1;
+        }
+    }
+    if seg_start < name.len() {
+        out.push(&name[seg_start..]);
+    }
+    out
+}
 
 /// Normalise a Tcl variable reference to its base name.
 ///
@@ -51,7 +91,12 @@ pub fn normalise_qualified_name(name: &str) -> String {
     if name.is_empty() {
         return String::new();
     }
-    let parts: Vec<&str> = name.split("::").filter(|p| !p.is_empty()).collect();
+    // Share the one canonical `::` segmentation. Each segment is a subslice of a
+    // `&str` split on ASCII `::`, so it is valid UTF-8.
+    let parts: Vec<&str> = qualifier_segments(name.as_bytes())
+        .into_iter()
+        .map(|s| core::str::from_utf8(s).expect("subslice of valid UTF-8"))
+        .collect();
     if parts.is_empty() {
         return "::".to_owned();
     }
@@ -190,5 +235,32 @@ mod tests {
     #[test]
     fn qualified_extra_colons() {
         assert_eq!(normalise_qualified_name("::::x"), "::x");
+    }
+
+    // qualifier_segments / is_qualified
+
+    #[test]
+    fn qualifier_segments_cases() {
+        assert_eq!(
+            qualifier_segments(b"::a::b::cmd"),
+            vec![&b"a"[..], b"b", b"cmd"]
+        );
+        assert_eq!(qualifier_segments(b"::cmd"), vec![&b"cmd"[..]]);
+        assert_eq!(qualifier_segments(b"cmd"), vec![&b"cmd"[..]]);
+        assert_eq!(qualifier_segments(b"a::b"), vec![&b"a"[..], b"b"]);
+        assert!(qualifier_segments(b"::").is_empty());
+        // a trailing separator drops the empty tail; a lone interior colon stays.
+        assert_eq!(qualifier_segments(b"a::b::"), vec![&b"a"[..], b"b"]);
+        assert_eq!(qualifier_segments(b"a:::b"), vec![&b"a"[..], b":b"]);
+    }
+
+    #[test]
+    fn is_qualified_cases() {
+        assert!(is_qualified(b"::a"));
+        assert!(is_qualified(b"a::b"));
+        assert!(is_qualified(b"::"));
+        assert!(!is_qualified(b"plain"));
+        assert!(!is_qualified(b"a:b"));
+        assert!(!is_qualified(b""));
     }
 }

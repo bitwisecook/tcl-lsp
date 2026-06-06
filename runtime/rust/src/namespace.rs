@@ -18,6 +18,10 @@
 
 use std::collections::BTreeMap;
 
+use tcl_syntax::naming::{
+    is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
+};
+
 use crate::interp::Command;
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
@@ -372,34 +376,6 @@ impl Namespaces {
     }
 }
 
-/// Does `name` contain a `::` namespace separator?
-fn contains_qualifier(name: &[u8]) -> bool {
-    name.windows(2).any(|w| w == b"::")
-}
-
-/// Split a (possibly qualified) name on `::`, dropping empty segments — so
-/// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
-fn split_qualifier(name: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
-    let mut seg_start = 0;
-    let mut i = 0;
-    while i < name.len() {
-        if i + 1 < name.len() && name[i] == b':' && name[i + 1] == b':' {
-            if i > seg_start {
-                out.push(&name[seg_start..i]);
-            }
-            i += 2;
-            seg_start = i;
-        } else {
-            i += 1;
-        }
-    }
-    if seg_start < name.len() {
-        out.push(&name[seg_start..]);
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,18 +389,6 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
-    }
-
-    #[test]
-    fn split_qualifier_cases() {
-        assert_eq!(
-            split_qualifier(b"::a::b::cmd"),
-            vec![&b"a"[..], b"b", b"cmd"]
-        );
-        assert_eq!(split_qualifier(b"::cmd"), vec![&b"cmd"[..]]);
-        assert_eq!(split_qualifier(b"cmd"), vec![&b"cmd"[..]]);
-        assert_eq!(split_qualifier(b"a::b"), vec![&b"a"[..], b"b"]);
-        assert!(split_qualifier(b"::").is_empty());
     }
 
     #[test]
