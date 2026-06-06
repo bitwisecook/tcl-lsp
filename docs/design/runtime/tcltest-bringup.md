@@ -65,13 +65,20 @@ test.
 
 - **M0 — L0 correctness fixes** (done as found): `break`/`continue` escaping a
   proc → `invoked "break"/"continue" outside of a loop` (Zig discovery 4/9) — **done**.
-- **M1 — eval/exception/introspection core (L1)**: `eval`, `uplevel` (+ ns
-  restore), `apply`, `subst`; `catch`/`error`/`return -options`/`throw`/`try`;
-  `switch`; `info` (the ~20 subcommands the library uses); `array`; the extra
-  list ops; `package` (require/provide/ifneeded/unknown/vsatisfies/present). Gate:
-  leak-checked unit tests per command + the cross-scope cases vs tclsh. This is
-  PC-3 + PC-4 of [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md)
-  plus the introspection/list/package builtins.
+- **M1 — eval/exception/introspection core (L1)**: Gate: leak-checked unit
+  tests per command + the cross-scope cases vs tclsh. PC-3 + PC-4 of
+  [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) plus the
+  introspection/list/package builtins.
+  - **done:** `catch`/`error` (+ the `-options` dict, `::errorInfo`/`::errorCode`
+    stamping); `eval`/`uplevel` (+ active-level/varFramePtr + per-frame ns
+    restore)/`apply` (shared `run_proc`); `info` (`exists`[arr(key)]/`commands`/
+    `procs`/`vars`/`globals`/`locals`/`level`/`tclversion`/`patchlevel`/`body`/
+    `args`/`default`); `array` (`set`/`get`/`names`/`exists`/`size`/`unset`).
+  - **next:** `switch`; the extra list ops (`lsort`/`lsearch`/`linsert`/
+    `lreplace`/`lrepeat`/`lset`/`lmap`/`lpop`/`lremove`/`lseq`); `subst` (cmd);
+    `package` (require/provide/ifneeded/unknown/vsatisfies/present); the
+    incremental `errorInfo` source-trace (`return -options`/`try`/`throw` +
+    PC-1's `CmdFrame` stack).
 - **M2 — VFS + channels (L2)**: a host file/VFS layer (WASI preview1 native; a
   shim under test) behind `source`/`file`/`glob`/`open`/`read`/`gets`/`close`/
   `fconfigure`. Gate: `source init.tcl` loads cleanly; `info script` correct.
