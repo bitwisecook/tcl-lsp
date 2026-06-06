@@ -429,6 +429,38 @@ impl Interp {
         }
     }
 
+    /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works
+    /// from any current namespace) with `args` as `objv` — the hook `expr`'s
+    /// function-call path uses so a user-defined / overridden / renamed
+    /// `::tcl::mathfunc::NAME` wins (the A3 contract). Leaves the result in the
+    /// interp result; a missing command reports C's `invalid command name
+    /// "tcl::mathfunc::NAME"` (no leading `::`, matching tclsh).
+    #[cfg(have_tommath)]
+    pub(crate) fn eval_math_call(&mut self, fname: &[u8], args: &[*mut TclObj]) -> Code {
+        let mut full = b"::tcl::mathfunc::".to_vec();
+        full.extend_from_slice(fname);
+        let Some(cmd) = self.namespaces.resolve(GLOBAL, &full) else {
+            let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
+            m.extend_from_slice(fname);
+            m.push(b'"');
+            return self.error(&m);
+        };
+        // Build [name, args…], each owned (+1), and invoke the resolved command
+        // directly (no re-resolution through current_ns).
+        let mut argv: Vec<*mut TclObj> = Vec::with_capacity(args.len() + 1);
+        let name_obj = new_string(&full);
+        // SAFETY: name_obj is fresh; args are live; take the owning +1 the argv holds.
+        unsafe { obj::incr_ref_count(name_obj) };
+        argv.push(name_obj);
+        for &a in args {
+            unsafe { obj::incr_ref_count(a) };
+            argv.push(a);
+        }
+        let code = self.invoke(cmd, &argv);
+        release_all(&argv);
+        code
+    }
+
     /// The alias trampoline (`docs/design/runtime/rename-alias.md` §4.2): resolve
     /// the stored `target` by name **anchored at the global namespace** (so a
     /// target deleted after the alias was created surfaces lazily here, but a

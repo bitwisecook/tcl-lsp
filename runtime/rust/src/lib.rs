@@ -41,6 +41,9 @@ pub mod capi;
 pub mod cmd_alias;
 pub mod cmd_dict;
 pub mod cmd_list;
+// `::tcl::mathfunc::*` commands; need the numeric tower, like `expr`.
+#[cfg(have_tommath)]
+pub mod cmd_mathfunc;
 pub mod cmd_namespace;
 pub mod cmd_string;
 pub mod cmd_var;

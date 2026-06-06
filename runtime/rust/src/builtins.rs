@@ -22,6 +22,10 @@ pub fn install(interp: &mut Interp) {
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
     interp.register_builtin(b"expr", expr_cmd);
+    // `::tcl::mathfunc::*` are real commands `expr`'s function path resolves
+    // through (overridable); they need the tower too.
+    #[cfg(have_tommath)]
+    crate::cmd_mathfunc::install(interp);
     crate::cmd_list::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
@@ -345,6 +349,23 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
 
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         if self.interp.eval_str(script.as_bytes()) == Code::Error {
+            return Err(crate::expr::ExprError(obj_bytes(
+                self.interp.get_obj_result(),
+            )));
+        }
+        Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+    }
+
+    fn call_function(
+        &mut self,
+        name: &str,
+        args: &[crate::expr::Owned],
+    ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        // Route through the command table so an overridden/renamed
+        // `::tcl::mathfunc::NAME` wins (A3); the default builtins forward to the
+        // shared dispatch. Args are passed as live objects (object-preserving).
+        let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
+        if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
             return Err(crate::expr::ExprError(obj_bytes(
                 self.interp.get_obj_result(),
             )));
