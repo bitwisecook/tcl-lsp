@@ -116,6 +116,72 @@ def _is_unterminated_cmd(tok: Token, source: str, base_offset: int) -> bool:
 # E201 detectors
 
 
+def _bracket_insert_inert(text: str, idx: int) -> bool:
+    """True when offset *idx* in a CMD's content is inside an open brace/quote word.
+
+    A ``]`` inserted at such a position is *literal* — the content of an
+    unclosed brace or quoted word — so it cannot terminate the ``[`` and the
+    recovered command stays incomplete.  The comment- and command-break
+    heuristics therefore *veto* a candidate landing here — the "syntactic
+    validates; veto if the offset is inert" rule of the recovery design
+    (``docs/design/compiler/error-recovery-rust-port.md``).  Grounded in
+    C Tcl 9.0.3: for ``set x [foo {bar`` / ``puts baz}`` the ``puts`` line is
+    inside the balanced brace word ``{bar … baz}``, so ``info complete {set x
+    [foo {bar]…}`` is ``0`` (incomplete) while the end-insert is ``1``.
+
+    Mirrors the one Tcl rule that decides this: ``"`` and ``{`` only *open* a
+    quoted or braced word when they are the **first character of a word** (rules
+    8 and 9 of the dodekalogue).  A ``"`` or ``{`` mid-word — ``foo abc"``,
+    ``a{b``, ``${var}`` — is an ordinary literal and must not count, otherwise a
+    genuine script-level command-break (``set x [foo abc"`` / ``puts done``,
+    which C Tcl 9.0.3 *completes* via ``set x [foo abc"]``) would be wrongly
+    suppressed.  Backslash escapes the next character in every context; a stray
+    ``}`` at script level closes nothing.
+    """
+    brace_depth = 0
+    in_quote = False
+    at_word_start = True  # the first character of the content begins a word
+    i = 0
+    n = min(idx, len(text))
+    while i < n:
+        c = text[i]
+        if in_quote:  # only \ and the closing " are significant
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_quote = False
+            i += 1
+            continue
+        if brace_depth > 0:  # braces nest; only \ { } are significant
+            if c == "\\":
+                i += 2
+                continue
+            if c == "{":
+                brace_depth += 1
+            elif c == "}":
+                brace_depth -= 1
+            i += 1
+            continue
+        # Script level: no open brace/quote word.
+        if c == "\\":
+            at_word_start = False
+            i += 2
+            continue
+        if c in " \t\n;[":
+            # Word/command separators ('[' begins a nested command word too).
+            at_word_start = True
+            i += 1
+            continue
+        if at_word_start and c == '"':
+            in_quote = True
+        elif at_word_start and c == "{":
+            brace_depth += 1
+        at_word_start = False
+        i += 1
+    return brace_depth > 0 or in_quote
+
+
 def _detect_missing_bracket_at_comment(
     tok: Token,
     source: str,
@@ -139,6 +205,16 @@ def _detect_missing_bracket_at_comment(
             cumulative += len(line) + 1  # +1 for \n
             continue
         stripped = line.lstrip()
+        if not stripped:
+            cumulative += len(line) + 1
+            continue
+        # A '#' inside an open brace/quote word is literal, not a comment, and a
+        # ] inserted at the previous line's end would be inert (see
+        # _bracket_insert_inert): veto it and keep scanning until the word
+        # closes — the legitimate plain-text comment-break still fires.
+        if _bracket_insert_inert(text, cumulative):
+            cumulative += len(line) + 1
+            continue
         if stripped.startswith("#"):
             # Found a comment.  Insert ] at the end of the previous line.
             # The end of the previous line's content (excluding trailing ws).
@@ -189,10 +265,8 @@ def _detect_missing_bracket_at_comment(
                     ),
                 ),
             )
-        # Non-empty, non-comment line — keep looking only if it's blank.
-        if stripped:
-            break
-        cumulative += len(line) + 1
+        # Script-level, non-blank, non-comment line — stop looking.
+        break
 
     return None
 
@@ -208,6 +282,15 @@ def _detect_missing_bracket_at_command(
     Scans the CMD token text line by line.  If a non-blank line (after
     line 0) starts with a known command, the previous line's content end
     is where ``]`` should be inserted.
+
+    A line that begins *inside* an open brace/quote word is content, not a
+    command position — a known-command word there (e.g. ``puts`` inside the
+    balanced brace of ``[foo {bar`` / ``puts baz}``) is brace text and a ``]``
+    inserted before it is inert, leaving the command incomplete (confirmed
+    against C Tcl 9.0.3).  Such candidates are vetoed and scanning continues
+    until the word closes, so the legitimate plain-text command-break
+    (``[foo bar`` / ``puts done``) keeps its fix.  See ``_bracket_insert_inert``
+    and ``docs/design/compiler/error-recovery-rust-port.md``.
     """
     text = tok.text
     lines = text.split("\n")
@@ -223,6 +306,11 @@ def _detect_missing_bracket_at_command(
         if not stripped:
             cumulative += len(line) + 1
             continue  # skip blank lines
+        # Veto: inside an open brace/quote word the line is content, not a
+        # command — keep scanning past it rather than inserting an inert ].
+        if _bracket_insert_inert(text, cumulative):
+            cumulative += len(line) + 1
+            continue
         first_word = _extract_first_word(stripped)
         if first_word in known_commands:
             # Found a known command.  Insert ] at end of previous line.

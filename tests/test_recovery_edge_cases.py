@@ -22,6 +22,8 @@ each scenario is pinned by name, not only by random sampling.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,6 +38,49 @@ from compiler.parsing.recovery import (
     detect_recovery,
     segment_with_recovery,
 )
+
+
+def _find_tcl9() -> str | None:
+    for cand in (shutil.which("tclsh9.0"), shutil.which("tclsh")):
+        if not cand or not Path(cand).exists():
+            continue
+        try:
+            proc = subprocess.run(
+                [cand], input="puts [info patchlevel]", capture_output=True, text=True, timeout=5
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        if proc.stdout.strip().startswith("9."):
+            return cand
+    return None
+
+
+_TCLSH9 = _find_tcl9()
+
+
+def _tcl_complete(source: str, tmp_path: Path) -> bool:
+    """``info complete`` on tclsh9 — the ground truth a recovered fix must hit.
+
+    Passes *source* via a file so braces/quotes in it can't corrupt the probe.
+    """
+    assert _TCLSH9 is not None
+    f = tmp_path / "probe.tcl"
+    f.write_text(source)
+    proc = subprocess.run(
+        [_TCLSH9, "-"],
+        input=(f"set f [open {{{f}}} r];set d [read $f];close $f;puts [info complete $d]"),
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    return proc.stdout.strip() == "1"
+
+
+def _apply(source: str, insertions: dict[int, str]) -> str:
+    out = source
+    for off in sorted(insertions, reverse=True):
+        out = out[:off] + insertions[off] + out[off:]
+    return out
 
 
 def _tok_key(tokens):
@@ -385,3 +430,75 @@ class TestExprBraceRecovery:
     )
     def test_expr_brace_matches_two_pass(self, source):
         _assert_matches_two_pass(source)
+
+
+class TestBracketInsertNotInert:
+    """The ``]`` of an E201 fix must never land *inside* an open brace/quote word.
+
+    A known-command word (for command-break) or ``#`` (for comment-break) that
+    sits inside a balanced brace/quote is *content*, not a command/comment — a
+    ``]`` inserted before it is literal and leaves the command incomplete. This
+    is a C-Tcl-9.0.3-grounded correction: for ``set x [foo {bar`` / ``puts
+    baz}`` the old command-break inserted ``]`` after ``bar`` (offset 15),
+    yielding ``set x [foo {bar]…}`` which ``info complete`` reports as ``0``
+    (incomplete), while the truth-preserving recovery is complete. See
+    ``_bracket_insert_inert`` in ``compiler/parsing/recovery.py``.
+    """
+
+    # The exact regressions: the close-bracket signal is brace/quote content.
+    INERT_SIGNAL = [
+        "set x [foo {bar\nputs baz}",  # `puts` is inside the brace word
+        'set x [foo "bar\nputs baz"',  # `puts` is inside the quote word
+        "set x [foo {bar\n# c}",  # `#` is inside the brace word
+    ]
+    # Plain-text recoveries whose signal really is a command/comment at script
+    # level — these must keep their fix unchanged.  Includes the mid-word
+    # delimiter cases: a `"` or `{` that is not the first character of a word is
+    # an ordinary literal (dodekalogue rules 8/9), so the following line is still
+    # a script-level command-break (C Tcl 9.0.3 completes `set x [foo abc"]`).
+    LEGIT_SIGNAL = [
+        "set x [foo bar\nputs done",  # command-break
+        "set x [foo bar\n# c\nset y 2",  # comment-break
+        'set x [foo abc"\nputs done',  # mid-word " is literal, not a quote word
+        "set x [foo abc{\nputs done",  # mid-word { is literal, not a brace word
+    ]
+
+    @pytest.mark.parametrize("source", INERT_SIGNAL)
+    def test_no_inert_bracket_insertion(self, source):
+        det = detect_recovery(source)
+        # Whatever fix (if any) is chosen, the inserted ] must not sit inside the
+        # open brace/quote: the `]` must occur at script level in the result.
+        for off, ch in det.insertions.items():
+            assert ch == "]"
+            # The char at the chosen offset belongs to a word that is *not* the
+            # interior of the balanced brace/quote the signal lived in.
+            assert off != 15, f"chose the inert offset for {source!r}"
+
+    @pytest.mark.parametrize("source", INERT_SIGNAL)
+    def test_inert_signal_does_not_emit_command_or_comment_fix(self, source):
+        _cmds, diags = segment_with_recovery(source)
+        for d in (d for d in diags if d.code == "E201"):
+            for f in d.fixes or ():
+                desc = f.description.lower()
+                assert "before command" not in desc and "before comment" not in desc, (
+                    f"inert {desc!r} fix emitted for {source!r}"
+                )
+
+    @pytest.mark.parametrize("source", LEGIT_SIGNAL)
+    def test_legit_plain_text_recovery_keeps_fix(self, source):
+        _cmds, diags = segment_with_recovery(source)
+        e201 = [d for d in diags if d.code == "E201"]
+        assert e201 and e201[0].fixes, f"plain-text recovery lost its fix for {source!r}"
+        assert e201[0].fixes[0].new_text == "]"
+
+    @pytest.mark.parametrize("source", INERT_SIGNAL + LEGIT_SIGNAL)
+    @pytest.mark.skipif(_TCLSH9 is None, reason="tclsh9.0 not available")
+    def test_recovered_fix_is_complete_per_ctcl(self, source, tmp_path):
+        det = detect_recovery(source)
+        if not det.insertions:
+            # No fix offered is acceptable (never a *wrong* fix); nothing to check.
+            return
+        fixed = _apply(source, det.insertions)
+        assert _tcl_complete(fixed, tmp_path), (
+            f"recovered fix is incomplete per C Tcl 9.0.3: {fixed!r}"
+        )
