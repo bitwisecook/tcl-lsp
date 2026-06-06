@@ -81,10 +81,14 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // **C41e5.** Stolen-close-brace detection ⇒ E103;
-                // otherwise the generic E200 fires so the user
-                // still sees a parse-error diagnostic.
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // **C41e5.** Stolen-close-brace detection ⇒ E103 (brace
+                // partials only); otherwise the generic E200 fires so the
+                // user still sees a parse-error diagnostic.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
+                if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;

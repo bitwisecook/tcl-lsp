@@ -464,18 +464,26 @@ impl Analyser {
         if self.disabled_diagnostics.contains("E200") {
             return;
         }
-        // Pick the last token whose span reaches EOF / the
-        // command end; that's the unclosed delimiter.
-        let kind = cmd
-            .all_tokens
-            .iter()
-            .rev()
-            .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
-            .map(|t| t.kind);
-        let suffix = match kind {
-            Some(TokenType::Cmd) => "missing close-bracket",
-            Some(TokenType::Esc) => "missing \"",
-            _ => "missing close-brace",
+        // Prefer the delimiter the recovery segmenter recorded (from the
+        // suspicious EOF-reaching token); fall back to the last
+        // Str/Cmd/Esc token only when a partial wasn't produced by the
+        // recovery path (so `partial_delimiter` is unset). Mirrors
+        // Python's `_DELIMITER_MSG[cmd.partial_delimiter]`.
+        let suffix = match cmd.partial_delimiter {
+            Some(delim) => delim.missing_message(),
+            None => {
+                let kind = cmd
+                    .all_tokens
+                    .iter()
+                    .rev()
+                    .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
+                    .map(|t| t.kind);
+                match kind {
+                    Some(TokenType::Cmd) => "missing close-bracket",
+                    Some(TokenType::Esc) => "missing \"",
+                    _ => "missing close-brace",
+                }
+            }
         };
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "E200".to_string(),
@@ -887,6 +895,32 @@ mod tests {
         // ``}``.
         let detected = a.detect_stolen_close_brace(cmd);
         assert!(!detected);
+    }
+
+    #[test]
+    fn emit_partial_uses_stored_delimiter_for_e200_message() {
+        use crate::segmenter::UnclosedDelimiter;
+        // The precise E200 message comes from the recorded
+        // `partial_delimiter`, not the last-token heuristic.
+        for (delim, want) in [
+            (UnclosedDelimiter::Brace, "missing close-brace"),
+            (UnclosedDelimiter::Bracket, "missing close-bracket"),
+            (UnclosedDelimiter::Quote, "missing \""),
+        ] {
+            let source = "x";
+            let mut a = analyser_with_source(source);
+            let mut cmd = crate::segmenter::segment_commands_with_offset(source, 0)[0].clone();
+            cmd.is_partial = true;
+            cmd.partial_delimiter = Some(delim);
+            a.emit_partial_command_diagnostic(&cmd);
+            let d = a
+                .result
+                .diagnostics
+                .iter()
+                .find(|d| d.code == "E200")
+                .unwrap();
+            assert_eq!(d.message, want, "{delim:?}");
+        }
     }
 
     #[test]

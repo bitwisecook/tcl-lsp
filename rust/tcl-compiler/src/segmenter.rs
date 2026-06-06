@@ -8,6 +8,43 @@
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
+/// Which delimiter a partial command left unclosed. Mirrors Python's
+/// `command_segmenter.py::UnclosedDelimiter` and its token-type mapping
+/// (`Str` → `Brace`, `Cmd` → `Bracket`, `Esc` → `Quote`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnclosedDelimiter {
+    /// Unclosed `{`.
+    Brace,
+    /// Unclosed `[`.
+    Bracket,
+    /// Unclosed `"`.
+    Quote,
+}
+
+impl UnclosedDelimiter {
+    /// Map the suspicious EOF-reaching token's kind to the delimiter it
+    /// left open, or `None` for a token kind that is never a delimiter.
+    #[must_use]
+    pub fn from_token_kind(kind: TokenType) -> Option<Self> {
+        match kind {
+            TokenType::Str => Some(Self::Brace),
+            TokenType::Cmd => Some(Self::Bracket),
+            TokenType::Esc => Some(Self::Quote),
+            _ => None,
+        }
+    }
+
+    /// The E200 "missing …" message for this unclosed delimiter.
+    #[must_use]
+    pub fn missing_message(self) -> &'static str {
+        match self {
+            Self::Brace => "missing close-brace",
+            Self::Bracket => "missing close-bracket",
+            Self::Quote => "missing \"",
+        }
+    }
+}
+
 /// A single Tcl command parsed from the token stream.
 #[derive(Debug, Clone)]
 pub struct SegmentedCommand {
@@ -23,6 +60,11 @@ pub struct SegmentedCommand {
     pub all_tokens: Vec<Token>,
     /// Whether the command is incomplete (unclosed delimiter).
     pub is_partial: bool,
+    /// Which delimiter was left unclosed, when `is_partial`. Set by the
+    /// recovery segmenter from the suspicious EOF-reaching token; drives
+    /// the precise E200 message and gates stolen-close-brace detection to
+    /// brace partials only (mirrors Python's `partial_delimiter`).
+    pub partial_delimiter: Option<UnclosedDelimiter>,
     /// `{*}` expansion markers per word, if any word uses expansion.
     pub expand_word: Option<Vec<bool>>,
     /// Concatenated text of comment line(s) immediately preceding
@@ -368,6 +410,7 @@ where
         return commands;
     };
     last_cmd.is_partial = true;
+    last_cmd.partial_delimiter = UnclosedDelimiter::from_token_kind(suspicious_tok.kind);
     // Re-segment the slice starting at the recovery point. The
     // recovered slice's spans are relative to the slice; shift them
     // back into the outer source buffer's offset space.
@@ -1069,6 +1112,23 @@ mod recovery_tests {
         // local-to-slice offset.
         let argv0 = cmds[1].argv[0];
         assert_eq!(&src[argv0.span.as_range()], "proc");
+    }
+
+    #[test]
+    fn recovery_records_partial_delimiter() {
+        // Unclosed brace → BRACE; the recovered partial carries the
+        // precise delimiter for the E200 message + stolen-brace gate.
+        let src = "proc early {} {\n    # missing close brace\n\nproc late {} {}\n";
+        let cmds = segment_commands_with_recovery(src, &known(["proc"]));
+        assert_eq!(cmds[0].partial_delimiter, Some(UnclosedDelimiter::Brace));
+        // Unclosed bracket → BRACKET (no line-span threshold for `[`).
+        let src = "set x [foo\nputs done\n";
+        let cmds = segment_commands_with_recovery(src, &known(["set", "puts"]));
+        assert!(cmds[0].is_partial);
+        assert_eq!(cmds[0].partial_delimiter, Some(UnclosedDelimiter::Bracket));
+        // A complete command records no partial delimiter.
+        let cmds = segment_commands_with_recovery("set x 1\n", &known(["set"]));
+        assert_eq!(cmds[0].partial_delimiter, None);
     }
 
     #[test]

@@ -438,8 +438,16 @@ impl Analyser {
                 // (with a closing-delimiter fix) instead of the generic
                 // E200; only fall through to E103 / E200 when no
                 // delimiter-recovery diagnostic applies.
+                // Stolen-close-brace detection (E103) only applies to a
+                // *brace* partial — Python gates it on `partial_delimiter
+                // is BRACE`; a bracket / quote partial goes straight to
+                // E200.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
                 if !self.emit_unterminated_delimiter_diagnostics(cmd_ref)
-                    && !self.detect_stolen_close_brace(cmd_ref)
+                    && !(brace_partial && self.detect_stolen_close_brace(cmd_ref))
                 {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
@@ -886,8 +894,12 @@ impl Analyser {
                 // **C41e5** parity — partial commands surface
                 // E103 / E200 in the chunked path too so the
                 // LSP shows parse errors during incremental
-                // analysis.
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // analysis.  Stolen-close-brace (E103) is brace-only.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
+                if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
