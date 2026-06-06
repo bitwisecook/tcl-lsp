@@ -1110,6 +1110,13 @@ impl Backend {
             let analysis = analyser.analyse(&text, &dialect).clone();
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
+            // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
+            // / W118), suppression-filtered via the analyser's
+            // `suppressed_lines`.
+            diagnostics.extend(lift_source_style_diagnostics(
+                &text,
+                &analysis.suppressed_lines,
+            ));
             (analysis, diagnostics)
         })
         .await;
@@ -2911,6 +2918,68 @@ fn lift_analyser_diagnostics(
         .collect()
 }
 
+/// GAP-C1 strip 2: lift the source-style pass (W111 line length,
+/// W112 trailing whitespace, W115 comment continuation, W118 line
+/// endings) into LSP diagnostics.  These are pure source-text
+/// checks (no analyser / compiler unit needed); see
+/// `tcl_lsp_core::source_style`.
+///
+/// `suppressed` is the analyser's `suppressed_lines` map — it
+/// carries both inline `# noqa` line suppressions and the
+/// file-level (`-1`) `# tcl-lsp: disable=…` directive set, so the
+/// style pass honours the same suppression the analyser diagnostics
+/// do.  The checks run with the Python defaults (line length 120,
+/// expected line ending `\n`); a per-check feature-config surface is
+/// a documented GAP-C1 strip-2 follow-up.
+fn lift_source_style_diagnostics(
+    text: &str,
+    suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    use tcl_lsp_core::source_style::{
+        style_diagnostics, StyleSeverity, DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH,
+    };
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+
+    // The file-level (`-1`) directive bucket doubles as the
+    // per-code disabled set (mirrors how the Rust analyser folds a
+    // `# tcl-lsp: disable=…` directive into both `suppressed_lines`
+    // and its internal `disabled_diagnostics`).
+    let disabled = suppressed.get(&-1).cloned().unwrap_or_default();
+
+    style_diagnostics(
+        text,
+        DEFAULT_LINE_LENGTH,
+        DEFAULT_LINE_ENDING,
+        &disabled,
+        suppressed,
+    )
+    .into_iter()
+    .map(|d| tower_lsp::lsp_types::Diagnostic {
+        range: Range {
+            start: Position {
+                line: d.range.start_line,
+                character: d.range.start_character,
+            },
+            end: Position {
+                line: d.range.end_line,
+                character: d.range.end_character,
+            },
+        },
+        severity: Some(match d.severity {
+            StyleSeverity::Warning => DiagnosticSeverity::WARNING,
+            StyleSeverity::Hint => DiagnosticSeverity::HINT,
+        }),
+        code: Some(NumberOrString::String(d.code.to_string())),
+        code_description: None,
+        source: Some("tcl-lsp".to_string()),
+        message: d.message,
+        related_information: None,
+        tags: None,
+        data: None,
+    })
+    .collect()
+}
+
 /// GAP-C1: lift the compiler-checks pipeline (GVN redundancies,
 /// shimmer / thunking, taint W2xx / T1xx, iRules control-flow
 /// IRULE1xxx-5xxx, SCCP constant branches) **and** the optimiser
@@ -3448,6 +3517,59 @@ mod tests {
             "expected IRULE3001, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
+    }
+
+    /// GAP-C1 strip 2: the source-style pass must reach the
+    /// published set.  A long line + trailing whitespace + CRLF
+    /// endings exercise W111 / W112 / W118 — none of which the
+    /// analyser or compiler-check pipelines emit — so a non-empty
+    /// result with those codes proves `lift_source_style_diagnostics`
+    /// is wired in.
+    #[test]
+    fn lift_source_style_diagnostics_surfaces_style_codes() {
+        let long = "x".repeat(130);
+        let src = format!("{long}  \r\nputs ok\r\n");
+        let diags = lift_source_style_diagnostics(&src, &std::collections::HashMap::new());
+        let codes: Vec<String> = diags
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        for want in ["W111", "W112", "W118"] {
+            assert!(
+                codes.iter().any(|c| c == want),
+                "expected {want}, got: {codes:?}",
+            );
+        }
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// A file-level `# tcl-lsp: disable=W111` directive (recorded by
+    /// the analyser against the `-1` suppression bucket) must drop
+    /// W111 from the lifted style set while leaving the other style
+    /// codes intact.
+    #[test]
+    fn lift_source_style_diagnostics_honours_file_suppression() {
+        let long = "y".repeat(130);
+        let src = format!("{long}  \n");
+        let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
+        let diags = lift_source_style_diagnostics(&src, &suppressed);
+        let codes: Vec<String> = diags
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !codes.iter().any(|c| c == "W111"),
+            "W111 should be suppressed"
+        );
+        assert!(codes.iter().any(|c| c == "W112"), "W112 should remain");
     }
 
     #[test]

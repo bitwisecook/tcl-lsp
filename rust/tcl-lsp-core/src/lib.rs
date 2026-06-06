@@ -34,6 +34,7 @@ pub mod selection_range;
 pub mod semantic_tokens;
 pub mod signature_help;
 pub mod snippets;
+pub mod source_style;
 pub mod type_definition;
 pub mod type_hierarchy;
 pub mod workspace_index;
