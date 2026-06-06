@@ -818,6 +818,19 @@ impl Analyser {
                 cmd_idx += 1;
                 continue;
             }
+            // GAP-A6 follow-up: the E100 (stray `]`) / E102 (stray
+            // `}`) token checks run on the incremental / chunked
+            // path too, mirroring the top-level loop and
+            // ``analyse_body``.  Run on the original token stream
+            // before ``recover_stray_close_bracket`` repairs the
+            // clone.  (Nested bodies dispatched below are covered by
+            // ``analyse_body``'s own per-body check.)
+            let stray = super::syntax_checks::stray_closer_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(stray);
             // **C41e4 + C41e5.** Repair stray ``]`` and missing
             // ``{`` in a clone of the segmented command before
             // dispatch — chunked analysis keeps the original
@@ -1237,6 +1250,26 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse_commands(source, &commands, "tcl", true);
         assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_commands_fires_stray_close_bracket() {
+        // GAP-A6 follow-up: the incremental / chunked path runs the
+        // E100 stray-`]` check too, matching `analyse`.
+        use crate::segmenter::segment_commands;
+        let source = "puts foo]";
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        let r = a.analyse_commands(source, &commands, "tcl", true);
+        assert_eq!(
+            r.diagnostics.iter().filter(|d| d.code == "E100").count(),
+            1,
+            "expected one E100; got {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| d.code.clone())
+                .collect::<Vec<_>>(),
+        );
     }
 
     #[test]
