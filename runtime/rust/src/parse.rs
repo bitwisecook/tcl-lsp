@@ -402,13 +402,12 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
         match t.kind {
             // An `Esc` token's content is one literal+backslash run (`$`/`[` are
             // already separate tokens), so decode it in one shot via the shared
-            // decoder — no per-escape splitting. An empty (quote-marker) `Esc`
-            // contributes nothing.
-            TokenType::Esc => {
-                if !bytes.is_empty() {
-                    parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes(bytes)));
-                }
+            // decoder — no per-escape splitting.
+            TokenType::Esc if !bytes.is_empty() => {
+                parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes(bytes)));
             }
+            // An empty (quote-marker) `Esc` contributes nothing.
+            TokenType::Esc => {}
             // A braced fragment mid-word (rare) is verbatim — no substitution.
             TokenType::Str => parts.push(WordPart::Text(Cow::Borrowed(bytes))),
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(

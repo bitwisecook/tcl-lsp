@@ -24,6 +24,11 @@ use std::{env, fs};
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=TCL_TOMMATH_DIR");
+    // Register the cfg unconditionally — *before* any early return — so the
+    // `#[cfg(have_tommath)]` / `#[cfg(not(have_tommath))]` gates are never
+    // reported as `unexpected_cfgs` (which `-D warnings` turns into a hard lint
+    // failure) in the wasm or no-source builds where the backend is disabled.
+    println!("cargo:rustc-check-cfg=cfg(have_tommath)");
 
     // The wasm cdylib link (Track 3) supplies libtommath; don't cross-compile C
     // with the host toolchain here.
@@ -82,8 +87,8 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", out.display());
     println!("cargo:rustc-link-lib=static=tommath");
     // Signals the bignum obj rep + FFI are available (gates `src/bignum.rs`).
+    // (`rustc-check-cfg` for `have_tommath` is emitted unconditionally up top.)
     println!("cargo:rustc-cfg=have_tommath");
-    println!("cargo:rustc-check-cfg=cfg(have_tommath)");
 }
 
 /// Find the pristine libtommath source dir.

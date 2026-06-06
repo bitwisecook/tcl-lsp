@@ -123,11 +123,10 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
             break;
         }
         match bytes[pos] {
-            b'{' => {
-                if open_braces != 0 {
-                    open_braces += 1;
-                }
-                // Outside braces a `{` is just a literal char of a bare element.
+            // Inside braces a `{` nests; outside, it is a literal char of a bare
+            // element (the `_` arm).
+            b'{' if open_braces != 0 => {
+                open_braces += 1;
             }
             b'}' => {
                 if open_braces == 1 {
@@ -142,16 +141,15 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
                 }
                 // open_braces == 0: literal `}` in a bare element.
             }
-            b'"' => {
-                if in_quotes {
-                    size = pos - elem_start;
-                    pos += 1;
-                    if pos < len && !is_list_space(bytes[pos]) {
-                        return Err(ListError::QuoteFollowedByJunk);
-                    }
-                    break;
+            // A closing quote ends a quoted element; outside quotes a `"` is a
+            // literal char mid bare element (the `_` arm).
+            b'"' if in_quotes => {
+                size = pos - elem_start;
+                pos += 1;
+                if pos < len && !is_list_space(bytes[pos]) {
+                    return Err(ListError::QuoteFollowedByJunk);
                 }
-                // Not in quotes: a literal `"` mid bare element.
+                break;
             }
             b'\\' => {
                 if open_braces == 0 {

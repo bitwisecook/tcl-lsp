@@ -253,12 +253,16 @@ pub(crate) unsafe fn set_string_rep(obj: *mut TclObj, bytes: &[u8]) {
 }
 
 /// Read a `TCL_INT_TYPE` object's wide value from its internal rep.
+/// (Only the bignum tower reads these directly; gated so the no-backend build
+/// stays dead-code-clean under `-D warnings`.)
+#[cfg(have_tommath)]
 pub(crate) fn wide_of(obj: *mut TclObj) -> TclWideInt {
     // SAFETY: caller has checked `obj`'s type is `TCL_INT_TYPE`.
     unsafe { (*obj).wide() }
 }
 
 /// Read a `TCL_DOUBLE_TYPE` object's value from its internal rep.
+#[cfg(have_tommath)]
 pub(crate) fn double_of(obj: *mut TclObj) -> f64 {
     // SAFETY: caller has checked `obj`'s type is `TCL_DOUBLE_TYPE`.
     unsafe { (*obj).double() }
