@@ -364,13 +364,16 @@ need them later the hook point is at the top of `ns_find_command`
 before the context-ns table check — same position as C's
 `Tcl_FindCommand:2678`.
 
-### Ensembles (**defer**)
+### Ensembles (**done in the Rust runtime port**)
 
-`Tcl_Ensemble`, `tclEnsemble.c`.  Our current partial-ensemble
+`Tcl_Ensemble`, `tclEnsemble.c`.  The Zig runtime's partial-ensemble
 support (`namespace ensemble create` compiles to a dispatch helper
-in the compiler) stays as-is.  A real runtime ensemble layer can
-hang off `Namespace.ensembles` when we need it; irrelevant to the
-correctness of command lookup.
+in the compiler) stays as-is.  The **Rust** runtime port now carries a
+real ensemble layer — a `Command::Ensemble` redirect built by
+`namespace ensemble create` (`-map`/`-subcommands`/`-prefixes`/
+`-command`) and dispatched by `runtime/rust/src/ensemble.rs` +
+`interp.rs` (subcommand resolution → `-map` or `<ns>::<sub>` target →
+re-dispatch).  See `rust-runtime-port.md` T1.5.
 
 ### Safe interps / interp aliases (**omit**)
 

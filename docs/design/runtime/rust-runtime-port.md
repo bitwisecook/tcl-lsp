@@ -1155,7 +1155,7 @@ any row.
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
 | `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + command *and* variable resolvers**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); **`vars.rs` variable resolver** (per-namespace var tables, `VarHome` links, `global`/`variable`/`upvar`); procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4/T1.5) | `make runtime-rust-test` — dispatch resolves through the **namespace tree** (`Builtin`/`Alias`/`Imported` handles), no flat table; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace` + `global`/`variable`/`upvar` + `::tcl::mathfunc::*`/`::tcl::mathop::*` (overridable, A3); per-command parity + tcltest sweep as more land |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace` (+ `ensemble`) + `global`/`variable`/`upvar` + `::tcl::mathfunc::*`/`::tcl::mathop::*` (overridable, A3); per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
@@ -1378,11 +1378,20 @@ the Zig rep.
     every operator with variadic-fold / identity / chained-comparison / arity
     semantics over the same tower ops; per A3 these are **commands only** —
     `expr`'s inline `arith` is unchanged. All verified vs tclsh 9.0.
-  - **Remaining:** ensembles (the `dict for`→`::tcl::dict::for` rewrite is the
-    canonical ensemble alias — generalise it), `rand`/`srand` (interp RNG state),
-    `namespace delete`, and per-frame `current_ns` + the proc-local var branch
-    (wired in `vars.rs` but inert — a proc runs in its defining namespace) —
-    gated on the proc chunk (which pushes the proc frames).
+  - **Ensembles — ✅ done** (`ensemble.rs` + `cmd_namespace.rs` + the
+    `Command::Ensemble` trampoline in `interp.rs`). The canonical `ens sub`→
+    target redirect (the generalised `dict for`→`::tcl::dict::for` rewrite, A3):
+    `namespace ensemble create ?-command? ?-map? ?-subcommands? ?-prefixes?` +
+    `exists`. Dispatch picks the subcommand set (explicit `-subcommands`, else
+    `-map` keys, else the namespace's exported commands), resolves it (exact then
+    unambiguous prefix unless `-prefixes 0`), maps to the target (`-map` entry or
+    `<ns>::<sub>`), and re-dispatches; `unknown [or ambiguous] subcommand` errors
+    match tclsh. Same build/dispatch split as `interp alias`. (`namespace
+    ensemble configure` is a follow-up.)
+  - **Remaining:** `rand`/`srand` (interp RNG state), `namespace delete`,
+    `namespace ensemble configure`, and per-frame `current_ns` + the proc-local
+    var branch (wired in `vars.rs` but inert — a proc runs in its defining
+    namespace) — gated on the proc chunk (which pushes the proc frames).
 - **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
@@ -1925,9 +1934,12 @@ compiler/LSP or the Zig runtime.
    **`::tcl::mathfunc::*` / `::tcl::mathop::*` as overridable commands** —
    `expr`'s function-call path resolves `::tcl::mathfunc::NAME` through the
    command table (overrides/`rename` win; A3), and every operator is a real
-   `::tcl::mathop::` command over the shared tower. **Next in T1.5:** ensembles
-   (generalise the `dict for`→`::tcl::dict::for` rewrite), `rand`/`srand`
-   (interp RNG state), `namespace delete`, and per-frame `current_ns` + the
+   `::tcl::mathop::` command over the shared tower; and **ensembles** — the
+   canonical `ens sub`→target redirect (`namespace ensemble create`/`exists`
+   with `-map`/`-subcommands`/`-prefixes`/`-command`, dispatching to `-map` or
+   `<ns>::<sub>`), the generalisation of the `dict for`→`::tcl::dict::for`
+   rewrite. **Next in T1.5:** `rand`/`srand` (interp RNG state), `namespace
+   delete`, `namespace ensemble configure`, and per-frame `current_ns` + the
    proc-local var branch (wired but inert — gated on the proc chunk, which
    pushes proc frames).
 10. **Procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
