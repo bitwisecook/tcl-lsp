@@ -44,6 +44,28 @@ pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
     out
 }
 
+/// Strip a variable reference's substitution sigil (`$`, `${…}`) while
+/// **keeping** any array-index suffix — the form an evaluator needs to read the
+/// actual variable (`$arr(idx)` → `arr(idx)`, `${v}` → `v`, `$x` → `x`). Unlike
+/// [`normalise_var_name`], the `(idx)` is preserved.
+///
+/// ```
+/// use tcl_syntax::naming::var_reference;
+/// assert_eq!(var_reference("$arr(idx)"), "arr(idx)");
+/// assert_eq!(var_reference("${v}"), "v");
+/// assert_eq!(var_reference("$x"), "x");
+/// ```
+#[must_use]
+pub fn var_reference(name: &str) -> &str {
+    if let Some(inner) = name.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        inner
+    } else if let Some(rest) = name.strip_prefix('$') {
+        rest
+    } else {
+        name
+    }
+}
+
 /// Normalise a Tcl variable reference to its base name.
 ///
 /// Strips leading `$`, `${…}` delimiters, and array index `(…)`

@@ -51,6 +51,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"forget" => ns_forget(interp, argv),
         b"path" => ns_path(interp, argv),
         b"ensemble" => ns_ensemble(interp, argv),
+        b"inscope" => ns_inscope(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -454,6 +455,23 @@ fn drop_fresh(obj: *mut TclObj) {
         obj::incr_ref_count(obj);
         obj::decr_ref_count(obj);
     }
+}
+
+/// `namespace inscope ns cmd ?arg ...?` — evaluate `cmd` (with the extra args
+/// appended) in namespace `ns`. Like `namespace eval` but used by
+/// `namespace code` scripts. (The extra args are space-appended — the
+/// list-element-quoting refinement matters only for the multi-arg form.)
+fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"namespace inscope name arg ?arg...?");
+    }
+    let name = obj_bytes(argv[2]);
+    let mut script = obj_bytes(argv[3]);
+    for &a in &argv[4..] {
+        script.push(b' ');
+        script.extend_from_slice(&obj_bytes(a));
+    }
+    interp.ns_eval(&name, &script)
 }
 
 // -- ensemble --------------------------------------------------------------

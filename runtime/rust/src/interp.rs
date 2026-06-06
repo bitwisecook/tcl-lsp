@@ -126,6 +126,8 @@ pub struct Interp {
     recursion_depth: usize,
     /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
     pub(crate) packages: crate::cmd_package::PackageState,
+    /// The `source` script stack (`info script` — the file being sourced).
+    script_stack: Vec<Vec<u8>>,
     result: *mut TclObj,
 }
 
@@ -145,6 +147,7 @@ impl Interp {
             current_ns: GLOBAL,
             recursion_depth: 0,
             packages: crate::cmd_package::PackageState::with_core(),
+            script_stack: Vec::new(),
             result,
         });
         builtins::install(&mut interp);
@@ -241,6 +244,24 @@ impl Interp {
     /// (`export`/`import`/`forget`/`path`).
     pub(crate) fn namespaces_mut(&mut self) -> &mut Namespaces {
         &mut self.namespaces
+    }
+
+    /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
+    /// the script stack (`info script`). A top-level `return` ends the file (maps
+    /// to `Ok`); other codes propagate.
+    pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+        self.script_stack.push(name.to_vec());
+        let code = self.eval_str(script);
+        self.script_stack.pop();
+        match code {
+            Code::Return => Code::Ok,
+            other => other,
+        }
+    }
+
+    /// `info script` — the file currently being sourced (empty at top level).
+    pub(crate) fn current_script(&self) -> Vec<u8> {
+        self.script_stack.last().cloned().unwrap_or_default()
     }
 
     /// `uplevel`: evaluate `script` in the variable scope **and** namespace of

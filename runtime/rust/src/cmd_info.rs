@@ -44,11 +44,33 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"body" => info_body(interp, argv),
         b"args" => info_args(interp, argv),
         b"default" => info_default(interp, argv),
+        b"script" => {
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info script ?filename?");
+            }
+            interp.set_result_bytes(&interp.current_script());
+            Code::Ok
+        }
+        b"nameofexecutable" => {
+            let exe = std::env::current_exe()
+                .ok()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            interp.set_result_bytes(exe.as_bytes());
+            Code::Ok
+        }
+        b"library" => match interp.var_get(b"::tcl_library") {
+            Some(o) => {
+                interp.set_result(o);
+                Code::Ok
+            }
+            None => interp.set_error(b"variable \"::tcl_library\" undefined"),
+        },
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be args, body, commands, default, exists, globals, level, locals, patchlevel, procs, tclversion, or vars",
+                b"\": must be args, body, commands, default, exists, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, tclversion, or vars",
             );
             interp.set_error(&m)
         }
