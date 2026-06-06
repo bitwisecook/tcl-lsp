@@ -452,10 +452,15 @@ class TestBracketInsertNotInert:
         "set x [foo {bar\n# c}",  # `#` is inside the brace word
     ]
     # Plain-text recoveries whose signal really is a command/comment at script
-    # level — these must keep their fix unchanged.
+    # level — these must keep their fix unchanged.  Includes the mid-word
+    # delimiter cases: a `"` or `{` that is not the first character of a word is
+    # an ordinary literal (dodekalogue rules 8/9), so the following line is still
+    # a script-level command-break (C Tcl 9.0.3 completes `set x [foo abc"]`).
     LEGIT_SIGNAL = [
         "set x [foo bar\nputs done",  # command-break
         "set x [foo bar\n# c\nset y 2",  # comment-break
+        'set x [foo abc"\nputs done',  # mid-word " is literal, not a quote word
+        "set x [foo abc{\nputs done",  # mid-word { is literal, not a brace word
     ]
 
     @pytest.mark.parametrize("source", INERT_SIGNAL)

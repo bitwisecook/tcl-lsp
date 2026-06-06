@@ -117,40 +117,69 @@ def _is_unterminated_cmd(tok: Token, source: str, base_offset: int) -> bool:
 
 
 def _bracket_insert_inert(text: str, idx: int) -> bool:
-    """True when offset *idx* in a CMD's content is inside an open brace/quote.
+    """True when offset *idx* in a CMD's content is inside an open brace/quote word.
 
-    A ``]`` inserted at such a position is *literal* — brace or quote content,
-    not a real close-bracket — so it cannot terminate the ``[`` and the
-    recovered command stays incomplete.  This mirrors C Tcl 9: e.g. for
-    ``set x [foo {bar`` / ``puts baz}`` the ``puts`` line is inside the balanced
-    brace word ``{bar … baz}``, so ``info complete {set x [foo {bar]…}`` is
-    ``0`` (incomplete) while the end-insert is ``1``.  The comment- and
-    command-break heuristics must therefore *veto* a candidate landing here —
-    the "syntactic validates; veto if the offset is inert" rule of the recovery
-    design (``docs/design/compiler/error-recovery-rust-port.md``).
+    A ``]`` inserted at such a position is *literal* — the content of an
+    unclosed brace or quoted word — so it cannot terminate the ``[`` and the
+    recovered command stays incomplete.  The comment- and command-break
+    heuristics therefore *veto* a candidate landing here — the "syntactic
+    validates; veto if the offset is inert" rule of the recovery design
+    (``docs/design/compiler/error-recovery-rust-port.md``).  Grounded in
+    C Tcl 9.0.3: for ``set x [foo {bar`` / ``puts baz}`` the ``puts`` line is
+    inside the balanced brace word ``{bar … baz}``, so ``info complete {set x
+    [foo {bar]…}`` is ``0`` (incomplete) while the end-insert is ``1``.
 
-    Tracks brace nesting (escape-aware) and, at brace depth 0, double-quote
-    state — quotes inside a brace word are literal, so they only toggle at
-    depth 0.  A stray ``}`` clamps at depth 0 (an extra closer closes nothing).
+    Mirrors the one Tcl rule that decides this: ``"`` and ``{`` only *open* a
+    quoted or braced word when they are the **first character of a word** (rules
+    8 and 9 of the dodekalogue).  A ``"`` or ``{`` mid-word — ``foo abc"``,
+    ``a{b``, ``${var}`` — is an ordinary literal and must not count, otherwise a
+    genuine script-level command-break (``set x [foo abc"`` / ``puts done``,
+    which C Tcl 9.0.3 *completes* via ``set x [foo abc"]``) would be wrongly
+    suppressed.  Backslash escapes the next character in every context; a stray
+    ``}`` at script level closes nothing.
     """
-    depth = 0
+    brace_depth = 0
     in_quote = False
+    at_word_start = True  # the first character of the content begins a word
     i = 0
     n = min(idx, len(text))
     while i < n:
         c = text[i]
-        if c == "\\":
-            i += 2  # backslash escapes the next char (incl. \{ \} \")
+        if in_quote:  # only \ and the closing " are significant
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_quote = False
+            i += 1
             continue
-        if depth == 0 and c == '"':
-            in_quote = not in_quote
-        elif not in_quote:
+        if brace_depth > 0:  # braces nest; only \ { } are significant
+            if c == "\\":
+                i += 2
+                continue
             if c == "{":
-                depth += 1
-            elif c == "}" and depth > 0:
-                depth -= 1
+                brace_depth += 1
+            elif c == "}":
+                brace_depth -= 1
+            i += 1
+            continue
+        # Script level: no open brace/quote word.
+        if c == "\\":
+            at_word_start = False
+            i += 2
+            continue
+        if c in " \t\n;[":
+            # Word/command separators ('[' begins a nested command word too).
+            at_word_start = True
+            i += 1
+            continue
+        if at_word_start and c == '"':
+            in_quote = True
+        elif at_word_start and c == "{":
+            brace_depth += 1
+        at_word_start = False
         i += 1
-    return depth > 0 or in_quote
+    return brace_depth > 0 or in_quote
 
 
 def _detect_missing_bracket_at_comment(
