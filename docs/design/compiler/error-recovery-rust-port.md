@@ -205,14 +205,18 @@ close** rule (finding 1 below) is *terminal* for braces too (`{b}{`, `"x"{`,
 - 12 canonical-semantics pins (word-position, comments, quotes, escapes, `${}`,
   extra-`}`).
 
-**Brace boundary (pinned).** `info complete` parses a `[…]` interior
-*recursively as a script* (word-based braces + terminal extra-chars), so
-`[set x {b}{` is **complete** even though the outer `[` is unterminated. The
-prototype's `scan_cmd_sub` uses the lexer's count-based brace rule and so
-over-reports unterminated braces *inside* command substitutions. Faithful
-command-sub interiors need the full recursive `Tcl_CommandComplete` parse —
-the productionised engine must parse `[…]` interiors as nested scripts, not
-count braces.
+**Brace command-sub interiors (recursive script parse — landed).** `info
+complete` parses a `[…]` interior *recursively as a script* (word-based braces
++ terminal extra-chars), so `[set x {b}{` is **complete** even though the outer
+`[` is unterminated. The brace scanner now mirrors this: a single recursive
+`scan_script` handles both the top level and a command-sub interior
+(terminating at the matching `]`), with a terminal extra-chars error
+propagating up through every enclosing scope. Two rules the recursion forced:
+a `]` immediately after a brace word is the command-sub terminator (not
+extra-chars), and leading whitespace before `#` preserves command-start (so
+` # foo` is a comment). Verified against C Tcl 9.0.3 across the **full
+adversarial corpus** (command subs included). This is the productionisation
+note discharged: parse `[…]` interiors as nested scripts, not count braces.
 
 ### Expr paren dimension (`(` / `)`) — added
 
