@@ -276,6 +276,20 @@ a boundary. These are the building blocks for wiring INCREMENTAL document sync
 into the server (a follow-up): the server can re-lex/re-analyse `reparse_window`
 instead of the whole document.
 
+### `ArgRole` recovery router (landed)
+
+The E203 unterminated-brace recovery now routes by argument role
+(`registry::arg_indices_for_role`). When the unterminated `{` is an
+**expression** argument (`if`/`while`/`for` condition, `expr`, …), a following
+line that starts with a known command is treated as a forgotten-close signal
+*without* requiring a de-indent — the aggressive command-break the doc
+prescribes. BODY / data braces keep the conservative de-indent heuristic, and
+recovery is never *suppressed* on role (the doc's reverted-change caveat). E.g.
+`if {$x == 1`⏎`puts hi` now closes the condition after `$x == 1` (C Tcl 9.0.3
+confirms the repair is complete and `puts hi` parses as its own command),
+whereas the data brace `set x {`⏎`puts hi` stays conservative. Verified by
+behavioural tests on both the expr and data paths.
+
 ### Two findings to carry into the productionised engine
 
 1. **`info complete` treats "extra characters after a close-brace/quote" as

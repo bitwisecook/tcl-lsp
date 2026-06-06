@@ -266,7 +266,7 @@ pub(crate) fn unterminated_delimiter_diagnostics(
         if is_suspicious_quote(tok, cmd, source) {
             out.push(detect_e202(tok, source, registry));
         } else if is_suspicious_str(tok, source) {
-            out.push(detect_e203(tok, source, registry));
+            out.push(detect_e203(tok, cmd, source, registry));
         }
     }
     out
@@ -390,12 +390,26 @@ fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
 /// known-command heuristic (insert `}` at the newline before that line)
 /// or the fix-less fallback.  Mirrors `_detect_missing_brace_at_command`
 /// / `_detect_missing_brace_no_heuristic`.
-fn detect_e203(tok: &Token, source: &str, registry: Option<&CommandRegistry>) -> Diagnostic {
+fn detect_e203(
+    tok: &Token,
+    cmd: &SegmentedCommand,
+    source: &str,
+    registry: Option<&CommandRegistry>,
+) -> Diagnostic {
     let brace_off = tok.span.start();
     let diag_span = Span::new(brace_off, brace_off);
     let content_start = brace_off + u32::from(tok.content_offset);
     if let Some(reg) = registry {
-        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg) {
+        // recovery-rust-port `ArgRole` router: when the unterminated `{`
+        // is an **expression** argument (`if {…`, `while {…`, `expr {…`,
+        // `for`'s condition, …) a following line that starts with a known
+        // command is a strong forgotten-close signal *even without a
+        // de-indent* — so EXPR braces recover with the aggressive
+        // command-break, unlike BODY / data which keep the conservative
+        // de-indent heuristic. (Never *suppress* recovery on role — the
+        // doc's reverted-change caveat.)
+        let expr_role = unterminated_arg_is_expr(tok, cmd, reg);
+        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg, expr_role) {
             return Diagnostic {
                 code: "E203".to_string(),
                 span: diag_span,
@@ -414,26 +428,62 @@ fn detect_e203(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
     }
 }
 
-/// Locate the `}`-insertion fix for E203: scan the brace body for a
-/// de-indented line starting with a known command whose preceding brace
-/// content is balanced, and insert `}` at the newline before it.
+/// `true` when the unterminated brace-word token `tok` sits in an
+/// expression-role argument of its command (`if`/`while`/`for` condition,
+/// `expr`, …). Resolves the token's argv index, then queries the registry
+/// for the command's `ArgRole::Expr` argument indices.
+fn unterminated_arg_is_expr(
+    tok: &Token,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+) -> bool {
+    // Find the argv word whose representative token is this brace word.
+    let Some(word_idx) = cmd
+        .argv
+        .iter()
+        .position(|w| w.span.start() == tok.span.start())
+    else {
+        return false;
+    };
+    if word_idx == 0 || cmd.texts.is_empty() {
+        return false; // the command name itself is never an expr arg
+    }
+    let name = cmd.texts[0].as_str();
+    let args: Vec<&str> = cmd.texts[1..].iter().map(String::as_str).collect();
+    // `arg_indices_for_role` indexes into `args` (argv[1..]); the token's
+    // arg index is therefore `word_idx - 1`.
+    registry
+        .arg_indices_for_role(name, &args, tcl_registry::arg_role::ArgRole::Expr)
+        .contains(&(word_idx - 1))
+}
+
+/// Locate the `}`-insertion fix for E203: scan the brace body for a line
+/// starting with a known command whose preceding brace content is
+/// balanced, and insert `}` at the newline before it. For BODY / data
+/// braces the line must be **de-indented** (the conservative heuristic);
+/// for `expr_role` braces any following known-command line qualifies (the
+/// aggressive command-break — recovery-rust-port `ArgRole` routing).
 /// Mirrors the scan in `_detect_missing_brace_at_command`.
 fn e203_brace_fix(
     tok: &Token,
     source: &str,
     content_start: u32,
     registry: &CommandRegistry,
+    expr_role: bool,
 ) -> Option<CodeFix> {
     let text = token_inner(source, tok)?;
     let lines: Vec<&str> = text.split('\n').collect();
-    if lines.len() < 3 {
+    // The de-indent heuristic needs a line *after* the first content
+    // line; the aggressive expr heuristic only needs a following line.
+    if lines.len() < if expr_role { 2 } else { 3 } {
         return None;
     }
-    // Indentation of the first content line.
+    // Indentation of the first content line (only the de-indent path
+    // consults it; default to 0 so the expr path is unaffected).
     let first_indent = lines[1..]
         .iter()
         .find(|l| !l.trim_start().is_empty())
-        .map(|l| l.len() - l.trim_start().len())?;
+        .map_or(0, |l| l.len() - l.trim_start().len());
 
     let mut cumulative: usize = 0;
     for (i, line) in lines.iter().enumerate() {
@@ -447,7 +497,9 @@ fn e203_brace_fix(
             continue;
         }
         let indent = line.len() - stripped.len();
-        if indent < first_indent && registry.get(extract_first_word(stripped)).is_some() {
+        if (expr_role || indent < first_indent)
+            && registry.get(extract_first_word(stripped)).is_some()
+        {
             // The brace content before this line must be balanced —
             // otherwise a single `}` can't recover it.  (The token is
             // already known to contain no `}`, so balance reduces to
@@ -990,6 +1042,53 @@ mod tests {
         let off = fix.span.start() as usize;
         assert_eq!(&src[..off], "set x {\n    aaa\n    bbb");
         assert_eq!(fix.new_text, "}");
+    }
+
+    fn e203_fix_offsets(src: &str) -> Vec<u32> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E203")
+            .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
+            .collect()
+    }
+
+    #[test]
+    fn e203_expr_brace_recovers_without_deindent() {
+        // recovery-rust-port `ArgRole` router: an unterminated `if`
+        // *condition* (EXPR role) recovers on the next known-command line
+        // even though it is not de-indented — the aggressive command
+        // break. The `}` lands right after `$x == 1` (offset 11), so
+        // `puts hi` is recovered as its own command.
+        let src = "if {$x == 1\nputs hi\n";
+        assert_eq!(
+            e203_fix_offsets(src),
+            vec![11],
+            "{:?}",
+            e203_fix_offsets(src)
+        );
+        // The repaired source parses `puts hi` as a separate command.
+        let repaired = format!("{}}}{}", &src[..11], &src[11..]);
+        assert_eq!(repaired, "if {$x == 1}\nputs hi\n");
+    }
+
+    #[test]
+    fn e203_data_brace_keeps_conservative_deindent() {
+        // A non-EXPR (data) brace must NOT recover aggressively: a
+        // *non-de-indented* following known command does not trigger a
+        // fix (only the conservative de-indent heuristic applies), so the
+        // recovery behaviour is unchanged for data braces.
+        // `set x {` — arg 1 of `set` is data, not expr.
+        let src = "set x {\nputs hi\n";
+        assert!(
+            e203_fix_offsets(src).is_empty(),
+            "data brace should not aggressively recover: {:?}",
+            e203_fix_offsets(src),
+        );
+        // But a *de-indented* known command still recovers (unchanged).
+        let deindented = "set x {\n    aaa\nputs done\n";
+        assert_eq!(e203_fix_offsets(deindented).len(), 1);
     }
 
     #[test]
