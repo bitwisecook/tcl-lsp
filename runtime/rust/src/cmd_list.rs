@@ -54,22 +54,55 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
     s.parse::<isize>().ok()
 }
 
-/// Resolve a Tcl list index spec against a list of `len` elements:
-/// integer, `end`, `end-N`, `end+N`. Returns a (possibly out-of-range) signed
-/// index; callers clamp/range-check.
+/// Parse a leading optionally-signed integer, returning its value and the
+/// unconsumed tail. `None` if no digits follow the optional sign.
+fn parse_int_prefix(s: &[u8]) -> Option<(isize, &[u8])> {
+    let mut i = 0;
+    if matches!(s.first(), Some(b'+' | b'-')) {
+        i += 1;
+    }
+    let digits_start = i;
+    while i < s.len() && s[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == digits_start {
+        return None;
+    }
+    let val = parse_isize(&s[..i])?;
+    Some((val, &s[i..]))
+}
+
+/// Resolve a Tcl list index spec against a list of `len` elements. Supports the
+/// full `TclGetIntForIndex` grammar: an integer, `end`, and a base (`end` or an
+/// integer) with an optional `±integer` offset (`end-2`, `0-1`, `-2+1`, …).
+/// Returns a (possibly out-of-range) signed index; callers clamp/range-check.
 fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     let len = len as isize;
-    if spec == b"end" {
-        return Some(len - 1);
+    let s = {
+        let t = core::str::from_utf8(spec).ok()?.trim();
+        t.as_bytes()
+    };
+    if s.is_empty() {
+        return None;
     }
-    if let Some(rest) = spec.strip_prefix(b"end") {
-        match rest.first() {
-            Some(b'-') => return parse_isize(&rest[1..]).map(|n| len - 1 - n),
-            Some(b'+') => return parse_isize(&rest[1..]).map(|n| len - 1 + n),
-            _ => return None,
-        }
+    // Base: `end` or a signed integer.
+    let (base, rest) = if let Some(r) = s.strip_prefix(b"end") {
+        (len - 1, r)
+    } else {
+        parse_int_prefix(s)?
+    };
+    if rest.is_empty() {
+        return Some(base);
     }
-    parse_isize(spec)
+    // Optional offset: a `+`/`-` connector then a (possibly signed) integer, so
+    // `end--1` is `end - (-1)` and `0-1` is `0 - 1` (matches `GetEndOffsetFromObj`).
+    let connector = rest[0];
+    if connector != b'+' && connector != b'-' {
+        return None;
+    }
+    let operand = parse_isize(&rest[1..])?;
+    let offset = if connector == b'-' { -operand } else { operand };
+    Some(base + offset)
 }
 
 #[inline]
@@ -420,15 +453,13 @@ fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return bad_list(interp, e),
     };
     let len = elems.len();
-    // For `linsert`, `end` means "after the last element" (append).
+    // For `linsert`, the index names the insertion point, so `end` is *after*
+    // the last element (= `len`); resolving against `len + 1` makes `end`,
+    // `end-N`, etc. land correctly.
     let spec = obj_bytes(argv[2]);
-    let raw = if spec.as_slice() == b"end" {
-        len as isize
-    } else {
-        match index_spec(&spec, len) {
-            Some(i) => i,
-            None => return bad_index(interp, &spec),
-        }
+    let raw = match index_spec(&spec, len + 1) {
+        Some(i) => i,
+        None => return bad_index(interp, &spec),
     };
     let at = raw.clamp(0, len as isize) as usize;
     let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len() - 3);

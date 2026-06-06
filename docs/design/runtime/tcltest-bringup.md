@@ -125,10 +125,11 @@ test.
     namespace var/element (tcltest's option/accessor machinery — e.g.
     `upvar 0 Option(-debug) debug`).
 - **M4 — run real compute-only `*.test` files — ✅ first suites green.** The
-  unmodified C-Tcl-9 list/string suites run on the runtime with high pass rates:
-  `list.test` **78/78**, `split.test` **18/18**, `llength`/`concat` 100%,
-  `lrange` 1752/1766, `lindex` 41/84 (+37 skipped for the C-only `testevalex`),
-  `join` 9/10, `linsert` 27/28. What landed for M4:
+  unmodified C-Tcl-9 list/dict suites run on the runtime with high pass rates:
+  `list.test` **78/78**, `split.test` **18/18**, `linsert` **28/28**,
+  `llength`/`concat` 100%, `lrange` 1759/1766, `dict.test` **272/373** (was
+  136), `lindex` 42/84 (+37 skipped for the C-only `testevalex`), `join` 9/10.
+  What landed for M4:
   - **`scan`** (`cmd_scan.rs`) — `%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%s`/`%e`/
     `%f`/`%g`/`%[...]`/`%n`/`%%` with `*`/width/size-modifiers, inline + var
     modes, codepoint-based (`tclScan.c`).
@@ -142,6 +143,12 @@ test.
   - **`split`** made codepoint-based (was byte-based — broke multi-byte
     separators / empty-split on non-ASCII); **`lindex`** extended to a full
     index *path* (`lindex $l 1 2` / `lindex $l {1 0}` nested indexing).
+  - **`dict`** expanded with `replace`/`remove`/`getdef`/`filter`/`map`/
+    `update`/`with`, multi-key `get`/`exists` paths, and glob-filtered
+    `keys`/`values` (`dict.test` 136→272).
+  - **Index arithmetic** in `index_spec` — the full `TclGetIntForIndex`
+    grammar (`0-1`, `-2+1`, `end--1`); `linsert` resolves `end` to the list
+    length (insertion point).
   - **`expr` array-index substitution** (`expr {$a($k)}` now substitutes `$k`)
     — also unblocked tcltest's constraint evaluation.
   - Generic errors now stamp `::errorInfo` (the message) + `::errorCode`
