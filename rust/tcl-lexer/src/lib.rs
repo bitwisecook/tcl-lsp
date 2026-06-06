@@ -37,6 +37,7 @@ mod line_index;
 mod ranges;
 mod source_map;
 mod span;
+mod structural_index;
 mod substitution;
 mod tokens;
 
@@ -49,6 +50,7 @@ pub use line_index::LineIndex;
 pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
+pub use structural_index::BracketIndex;
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};
 

@@ -162,3 +162,46 @@ the new engine.
    re-parse can emit the same warning); the token path and analyser path share
    one detection so they surface byte-identical diagnostics.
 6. Port the differential + contract tests as the acceptance gate.
+
+## Rust prototype results (`tcl-lexer/src/structural_index.rs`)
+
+A Rust prototype of the **script bracket dimension** validates the design and
+de-risks the productionised engine. Like the Python prototypes it is *not wired
+into production*; it lives as a documented module with a `#[cfg(test)]`
+differential/fuzz harness. Results:
+
+- **Faithfulness to the lexer:** the index's unterminated-`[` verdict matches the
+  production `Lexer`'s `missing close-bracket` warning on **8000/8000** fuzz
+  cases — confirming the two-context scanner (top-level *word-based* braces vs
+  command-sub *count-based* braces, plus escape / `${…}` inert leaves) mirrors
+  the lexer, as the doc requires ("store the lexer's entry-state per token; an
+  approximation diverges").
+- **C Tcl 9.0.3 reference iff:** on a corpus that isolates the bracket dimension
+  (balanced, word-separated braces/quotes), the index agrees with `tclsh9.0`'s
+  `info complete` **both ways**. The harness shells out to the reference
+  interpreter and skips gracefully when it is unavailable.
+- **Realistic recovery:** a single forgotten `]` in real code — the index
+  predicts the correct close site and the repair is reference-complete.
+- **The two corrections** (extra-closer clamp, opaque-to-EOF) and **scalar
+  insufficiency** reproduce the doc's findings as pinned tests.
+
+### Two findings to carry into the productionised engine
+
+1. **`info complete` treats "extra characters after a close-brace/quote" as
+   complete.** C Tcl 9.0.3 reports `{b}[` as *complete* (the trailing `[` is a
+   terminal "extra characters after close-brace" parse error, **not** a command
+   substitution), while the lexer/index see an unterminated `[`. For recovery
+   this is a benign over-offer on an already-erroring line, but the productionised
+   completeness check must special-case post-word-close extra characters if it
+   wants byte-exact `info complete` parity. (`a[` — a bareword command
+   substitution — is correctly incomplete, so the rule is specifically about a
+   delimiter word immediately followed by a non-separator.)
+2. **The naive "replay the prebuilt index with one inserted closer" is not sound
+   for adversarial multi-bracket input** (~88% self-consistency vs a full
+   re-scan, **exact** for the realistic single-`]` case). Inserting a `]` can
+   close a bracket early and re-contextualise the tail (a count-based command-sub
+   interior becomes top-level word-based, or vice-versa), split a `\\` pair and
+   re-align escapes, or be swallowed by a following quote. This is precisely the
+   doc's "command-sub interiors need care": step 2's forward walk must **re-derive
+   tail structural context after a hypothetical close**, not replay the original
+   deltas verbatim.
