@@ -446,8 +446,8 @@ impl Analyser {
                     cmd_ref.partial_delimiter,
                     Some(crate::segmenter::UnclosedDelimiter::Brace)
                 );
-                if !self.emit_unterminated_delimiter_diagnostics(cmd_ref)
-                    && !(brace_partial && self.detect_stolen_close_brace(cmd_ref))
+                if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref)
+                    || brace_partial && self.detect_stolen_close_brace(cmd_ref))
                 {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }

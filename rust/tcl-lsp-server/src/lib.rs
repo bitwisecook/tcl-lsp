@@ -1450,6 +1450,7 @@ impl LanguageServer for Backend {
                 &analysis,
                 Some(&registry),
                 Some(&workspace),
+                &doc.dialect,
             )
         })
         .await

@@ -4949,6 +4949,28 @@ all (`registry.get("package").is_some()` — iRules has no package system).
 Mirrors `hover.py:1032-1038`.  3 unit tests (hint shown when missing,
 suppressed once imported, never for a core built-in).
 
+**LANDED (iRules event snippet templates — GAP-A9 tail, 2026-06-06).**
+`tcl-lsp-core/src/snippets.rs` now ports the five `f5-irules` event
+templates from `snippet_templates.py:209-304` (`irule-rule-init`,
+`irule-http-request`, `irule-redirect-https`, `irule-collect-release`,
+`irule-class-lookup`) alongside the 11 Tcl-core ones.  `SnippetContext`
+gained `current_event: Option<&str>` and `file_events: &[String]`, and
+`Template` gained `requires_top_level`; generators decline by returning
+`""` (the port of Python's `str | None`) — each `when`-event template
+drops out when its event is already declared in the file
+(`HTTP_REQUEST` / `RULE_INIT` / `HTTP_REQUEST_DATA`), and
+`collect-release` emits only the half whose event is missing.  The
+top-level guard (`requires_top_level && current_event.is_some()`)
+suppresses event templates inside an enclosing `when` block.
+`completion::completions` now takes a `dialect: &str` (threaded from the
+document's dialect by the server) so iRules templates surface only in
+`f5-irules`.  6 snippet unit tests (dialect gating, decline-on-declared,
+top-level guard, collect/release split).  **Deferred:** extracting the
+real `current_event` / `file_events` from the analysis (v1 treats every
+position as top level with no declared events) — a follow-up.  Remaining
+GAP-A9 providers: `package_suggestions` fuzzy catalogue (registry-gated)
+and `irules_context` enrichment (folds into GAP-C5).
+
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
 **GAP-B1 — O127 store-to-load forwarding — functionally absent,

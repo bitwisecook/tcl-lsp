@@ -469,20 +469,19 @@ impl Analyser {
         // Str/Cmd/Esc token only when a partial wasn't produced by the
         // recovery path (so `partial_delimiter` is unset). Mirrors
         // Python's `_DELIMITER_MSG[cmd.partial_delimiter]`.
-        let suffix = match cmd.partial_delimiter {
-            Some(delim) => delim.missing_message(),
-            None => {
-                let kind = cmd
-                    .all_tokens
-                    .iter()
-                    .rev()
-                    .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
-                    .map(|t| t.kind);
-                match kind {
-                    Some(TokenType::Cmd) => "missing close-bracket",
-                    Some(TokenType::Esc) => "missing \"",
-                    _ => "missing close-brace",
-                }
+        let suffix = if let Some(delim) = cmd.partial_delimiter {
+            delim.missing_message()
+        } else {
+            let kind = cmd
+                .all_tokens
+                .iter()
+                .rev()
+                .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
+                .map(|t| t.kind);
+            match kind {
+                Some(TokenType::Cmd) => "missing close-bracket",
+                Some(TokenType::Esc) => "missing \"",
+                _ => "missing close-brace",
             }
         };
         self.result.diagnostics.push(super::types::Diagnostic {

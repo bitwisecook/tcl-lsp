@@ -345,6 +345,7 @@ mod frozen_oracle {
                         None
                     },
                     preceding_comment: self.last_comment.take(),
+                    partial_delimiter: None,
                 });
             } else if matches!(tok.kind, TokenType::Eol) {
                 let eol_text = sm.token_text(tok);
@@ -460,6 +461,7 @@ mod frozen_oracle {
                 is_partial: false,
                 expand_word: if has_expand { Some(expand) } else { None },
                 preceding_comment: last_comment.take(),
+                partial_delimiter: None,
             });
             commands
         }
