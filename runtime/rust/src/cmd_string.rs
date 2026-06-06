@@ -297,16 +297,38 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
     }
     let needle = obj_bytes(argv[2]);
     let hay = obj_bytes(argv[3]);
-    // Byte search, then convert the byte offset to a char index (ASCII: equal).
-    let byte_pos = if first {
-        find_sub(&hay, &needle)
+    let n = char_count(&hay);
+
+    // Optional bound index (char-based, `end`/`end±N` aware).
+    let bound = if argv.len() == 5 {
+        let spec = obj_bytes(argv[4]);
+        match index_spec(&spec, n) {
+            Some(i) => Some(i),
+            None => return bad_index(interp, &spec),
+        }
     } else {
-        rfind_sub(&hay, &needle)
+        None
     };
-    let result = match byte_pos {
-        Some(bp) => char_count(&hay[..bp]) as i64,
-        None => -1,
+
+    // Byte search restricted by the bound, then convert to a char index.
+    let byte_pos = if first {
+        // `startIndex`: search at or after it (clamp negatives to 0).
+        let start_char = bound.map_or(0, |i| i.max(0) as usize);
+        let start_byte = char_to_byte(&hay, start_char);
+        find_sub(&hay[start_byte..], &needle).map(|bp| bp + start_byte)
+    } else {
+        // `lastIndex`: the match must *start* at or before it.
+        match bound {
+            Some(i) if i < 0 => None, // nothing can start before a negative index
+            _ => {
+                let last_char = bound.map_or(n, |i| i as usize);
+                let start_max = char_to_byte(&hay, last_char);
+                let slice_end = (start_max + needle.len()).min(hay.len());
+                rfind_sub(&hay[..slice_end], &needle)
+            }
+        }
     };
+    let result = byte_pos.map_or(-1, |bp| char_count(&hay[..bp]) as i64);
     interp.set_result(obj::new_wide_int_obj(result));
     Code::Ok
 }
@@ -507,6 +529,20 @@ mod tests {
         assert_eq!(ok(b"string first lo hello"), b"3");
         assert_eq!(ok(b"string first zz hello"), b"-1");
         assert_eq!(ok(b"string last l hello"), b"3");
+    }
+
+    #[test]
+    fn string_first_last_honour_index() {
+        // `string first` searches at or after startIndex.
+        assert_eq!(ok(b"string first a abcabc"), b"0");
+        assert_eq!(ok(b"string first a abcabc 2"), b"3");
+        assert_eq!(ok(b"string first a abcabc 4"), b"-1");
+        // `string last` finds the last match starting at or before lastIndex.
+        assert_eq!(ok(b"string last a abcabc"), b"3");
+        assert_eq!(ok(b"string last a abcabc 2"), b"0");
+        assert_eq!(ok(b"string last a abcabc end-4"), b"0");
+        // negative bound ⇒ nothing matches.
+        assert_eq!(ok(b"string first a abc -1"), b"0"); // clamped to 0
     }
 
     #[test]

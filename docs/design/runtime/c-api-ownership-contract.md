@@ -56,6 +56,27 @@ honour the documented rc=0 convention exactly, because extension source is
 written to it. We tag every C-API constructor `fresh_zero` to make the
 distinction impossible to miss.
 
+#### Open: single-decref of a fresh obj, and the macro/`TclFreeObj` path (PR #557)
+
+Two related items raised in the runtime-port review, to nail down as the Track-2
+loader/ABI surface lands:
+
+1. **`Tcl_DecrRefCount` on an rc-0 `fresh_zero` obj.** The shipped `tcl.h` macro
+   is `if ((objPtr)->refCount-- <= 1) TclFreeObj(objPtr);`, so a *single* decref
+   of a fresh (rc 0) object **frees it** — and the idiom
+   `o = Tcl_NewObj(); …; Tcl_DecrRefCount(o);` appears in real extension code.
+   The current Rust `Tcl_DecrRefCount` treats decref-at-rc-0 as a counted
+   double-free (the leak-guard) and refuses to free. Decide whether to (a) match
+   the macro (free at rc≤1, dropping the guard for this path) or (b) require the
+   `fresh_zero` "incr-before-decr" discipline and confirm it against the
+   unmodified extension source we intend to run.
+2. **`Tcl_DecrRefCount`/`Tcl_IncrRefCount` are macros**, so a C extension
+   compiled against `tcl.h` never calls our exported functions — it inlines the
+   refcount test and calls `TclFreeObj` directly. `TclFreeObj` is **not** in the
+   current export surface; settle how extension-side decrefs reach this
+   allocator's free path (export `TclFreeObj`, or ship refcount ops as real
+   functions, when the dynamic loader lands).
+
 ---
 
 ## Categories

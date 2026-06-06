@@ -270,9 +270,9 @@ impl Interp {
                             argv.push(eo);
                         }
                     }
-                    Err(_) => {
+                    Err(e) => {
                         release_all(&argv);
-                        return self.error(b"list element in braces followed by junk");
+                        return self.error(e.message());
                     }
                 }
             } else {
@@ -389,8 +389,12 @@ impl Interp {
                             };
                         }
                         WordPart::Command(script) => {
-                            if self.eval_str(script) == Code::Error {
-                                return Err(Code::Error);
+                            // Command substitution propagates *any* non-OK
+                            // completion code (`return`/`break`/`continue`, not
+                            // just error) out of `[...]`, matching C Tcl.
+                            let code = self.eval_str(script);
+                            if code != Code::Ok {
+                                return Err(code);
                             }
                             let r = self.result;
                             // SAFETY: the interp result is live; take an owning +1.
@@ -417,8 +421,8 @@ impl Interp {
                         }
                         WordPart::Command(script) => {
                             let code = self.eval_str(script);
-                            if code == Code::Error {
-                                return Err(Code::Error);
+                            if code != Code::Ok {
+                                return Err(code);
                             }
                             buf.extend_from_slice(&self.result_bytes());
                         }
@@ -448,8 +452,9 @@ impl Interp {
                     }
                 }
                 WordPart::Command(script) => {
-                    if self.eval_str(script) == Code::Error {
-                        return Err(Code::Error);
+                    let code = self.eval_str(script);
+                    if code != Code::Ok {
+                        return Err(code);
                     }
                     buf.extend_from_slice(&self.result_bytes());
                 }
@@ -701,6 +706,38 @@ mod tests {
         leak_free(|i| {
             assert_eq!(i.eval_str(b"set a 1; set b 2\nset c $a$b"), Code::Ok);
             assert_eq!(i.result_bytes(), b"12");
+        });
+    }
+
+    #[test]
+    fn command_substitution_propagates_non_error_codes() {
+        // A non-OK code other than `Error` (here `[return]`) propagates out of
+        // `[...]` rather than being treated as an ordinary value (C Tcl). The
+        // path is uniform (`code != Ok → Err(code)`), so this also covers
+        // `break`/`continue` once those commands land.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set x [return foo]"), Code::Return);
+            assert_eq!(i.result_bytes(), b"foo");
+        });
+    }
+
+    #[test]
+    fn scalar_read_of_array_reports_variable_is_array() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set a(k) v"), Code::Ok);
+            assert_eq!(i.eval_str(b"set a"), Code::Error);
+            assert_eq!(i.result_bytes(), b"can't read \"a\": variable is array");
+        });
+    }
+
+    #[test]
+    fn expand_split_error_names_the_right_failure() {
+        // `{*}` over a value whose list form has an unmatched quote reports the
+        // quote failure, not a hardcoded brace message.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set s {\"abc}"), Code::Ok); // s = "abc
+            assert_eq!(i.eval_str(b"list {*}$s"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unmatched open quote in list");
         });
     }
 }

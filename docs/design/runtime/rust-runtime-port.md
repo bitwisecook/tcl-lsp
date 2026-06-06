@@ -1773,6 +1773,50 @@ _(empty — populated as Zig lands behavioural fixes during the port)_
 |---|---|---|---|---|
 | — | — | — | — | — |
 
+### Review follow-ups — PR #557
+
+Tracked from the T1.1–T1.6 review (the ✅ items were fixed in the same wave;
+the rest are deferred with the reviewer's concurrence):
+
+- ✅ **Command substitution propagated only `Code::Error`** (`interp.rs`) — now
+  propagates any non-`Ok` code (`return`/`break`/`continue`) out of `[...]`.
+- ✅ **`string first`/`last` ignored the optional index** (`cmd_string.rs`) — the
+  `startIndex`/`lastIndex` bound is now honoured (char-based, `end±N` aware).
+- ✅ **`set arr` (scalar read of an array)** reported `no such variable` instead
+  of `variable is array` (`builtins.rs`) — fixed via `frames.is_array`.
+- ✅ **`{*}`/list-parse errors** collapsed to one hardcoded message
+  (`interp.rs`/`cmd_list.rs`) — now map the `ListError` variant to its shared
+  `tcl_syntax` message (the `…FollowedByJunk` byte-exact `"<frag>" instead of
+  space` suffix still needs the offending fragment surfaced from the splitter —
+  minor follow-up).
+- ⏳ **Recursion / alias-cycle bound** (`interp.rs`) — `dispatch_alias`→`invoke`
+  chains and unbounded `eval`/`[...]` nesting trap on a wasm stack overflow
+  instead of raising a catchable Tcl error. Add a depth counter on `Interp`
+  (C Tcl's `interp recursionlimit`, default 1000) **with the proc chunk**, where
+  the call-frame depth lives.
+- ⏳ **NaN ordering in `bignum::compare`** — a NaN operand maps to
+  `Ordering::Greater`, so `x > NaN` is spuriously true. Tcl makes every ordered
+  comparison with NaN false (and in `expr` a NaN-producing op is itself a domain
+  error). Settle the NaN/domain-error semantics when `expr` NaN handling is
+  finished; add `expr {1.0 < (0.0/0.0)}`-style tests then.
+- ⏳ **`Tcl_DecrRefCount` on a `fresh_zero` (rc 0) obj** refuses to free (counted
+  as a double-free), unlike `tcl.h`'s macro which frees at rc≤1; and
+  `Tcl_DecrRefCount`/`TclFreeObj` are a **macro**, so a C extension never calls
+  the exported function. Capture both in
+  [`c-api-ownership-contract.md`](c-api-ownership-contract.md) (the
+  extension-side decref→free path is a Track-2 loader/ABI item).
+- ❓ **String rep not preserved across a string→typed shimmer** (`obj.rs`
+  `change_type`/`duplicate`) — **open decision (awaiting direction).** A plain
+  string overloads `internal_rep` to carry its buffer capacity, so a
+  string→list/dict/bignum shimmer (and `Tcl_DuplicateObj` of a typed obj) frees
+  the original bytes and the next read regenerates the *canonical* form
+  (`set x {a  b   c}; llength $x; set x` → `a b c`). Tcl keeps `bytes`+`length`
+  alongside the new `internalRep`. Either (a) give `TclObj` a `bytes`+`length`
+  slot independent of `internal_rep` (true dual-rep — the "dual-ported obj from
+  day one" tenet), or (b) accept canonical-only round-trips as a documented T1.6
+  limitation. Either way the inaccurate `ensure_list`/`ensure_dict`
+  "string rep is kept" comments must be corrected.
+
 ---
 
 ## Gates summary

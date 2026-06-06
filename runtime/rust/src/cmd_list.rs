@@ -90,7 +90,7 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             set_int(interp, n as i64);
             Code::Ok
         }
-        Err(_) => bad_list(interp),
+        Err(e) => bad_list(interp, e),
     }
 }
 
@@ -105,7 +105,7 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         3 => {
             let n = match list::list_length(argv[1]) {
                 Ok(n) => n,
-                Err(_) => return bad_list(interp),
+                Err(e) => return bad_list(interp, e),
             };
             let spec = obj_bytes(argv[2]);
             let idx = match index_spec(&spec, n) {
@@ -143,11 +143,11 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     for &v in values {
-        if list::list_append(target, v).is_err() {
+        if let Err(e) = list::list_append(target, v) {
             if is_new {
                 drop_fresh(target);
             }
-            return bad_list(interp);
+            return bad_list(interp, e);
         }
     }
 
@@ -175,7 +175,7 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(e) => e,
-        Err(_) => return bad_list(interp),
+        Err(e) => return bad_list(interp, e),
     };
     let n = elems.len();
     let first_b = obj_bytes(argv[2]);
@@ -208,7 +208,7 @@ fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             set_list(interp, &e);
             Code::Ok
         }
-        Err(_) => bad_list(interp),
+        Err(e) => bad_list(interp, e),
     }
 }
 
@@ -243,7 +243,7 @@ fn join(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let elems = match list::list_elements(argv[1]) {
         Ok(e) => e,
-        Err(_) => return bad_list(interp),
+        Err(e) => return bad_list(interp, e),
     };
     let mut out = Vec::new();
     for (i, &e) in elems.iter().enumerate() {
@@ -314,7 +314,7 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(e) => e,
-        Err(_) => return bad_list(interp),
+        Err(e) => return bad_list(interp, e),
     };
     let vars = &argv[2..];
     for (i, &var) in vars.iter().enumerate() {
@@ -347,8 +347,8 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- error helpers ---------------------------------------------------------
 
-fn bad_list(interp: &mut Interp) -> Code {
-    interp.set_error(b"unmatched open brace in list")
+fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
+    interp.set_error(e.message())
 }
 
 fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {

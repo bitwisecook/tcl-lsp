@@ -507,6 +507,29 @@ impl From<tcl_syntax::list::ListError> for ListError {
     }
 }
 
+impl ListError {
+    /// The Tcl error message for this failure — reusing the **shared**
+    /// [`tcl_syntax::list::ListError`] strings (one source). The `…FollowedByJunk`
+    /// variants are the message *prefix*; byte-exact text appends `"<frag>"
+    /// instead of space`, which needs the offending fragment surfaced from the
+    /// splitter (tracked follow-up).
+    #[must_use]
+    pub fn message(self) -> &'static [u8] {
+        match self {
+            ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace.message(),
+            ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote.message(),
+            ListError::BraceFollowedByJunk => {
+                tcl_syntax::list::ListError::BraceFollowedByJunk.message()
+            }
+            ListError::QuoteFollowedByJunk => {
+                tcl_syntax::list::ListError::QuoteFollowedByJunk.message()
+            }
+            ListError::NotUtf8 => "invalid list (not valid UTF-8)",
+        }
+        .as_bytes()
+    }
+}
+
 /// Split `src` into its Tcl list element *values* (owned): `{braced}` elements
 /// verbatim, bare/`"quoted"` elements with backslash escapes decoded. The
 /// `Tcl_SplitList` primitive, delegating to [`tcl_syntax::list::split_list`].

@@ -65,9 +65,16 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Code::Ok
                 }
                 None => {
+                    // A scalar read of an array name is "variable is array", not
+                    // "no such variable" (the array-vs-scalar distinction Tcl
+                    // reports — matches `var_error(IsArray)`).
                     let mut msg = b"can't read \"".to_vec();
                     msg.extend_from_slice(&name);
-                    msg.extend_from_slice(b"\": no such variable");
+                    if elem.is_none() && interp.frames.is_array(&base) {
+                        msg.extend_from_slice(b"\": variable is array");
+                    } else {
+                        msg.extend_from_slice(b"\": no such variable");
+                    }
                     interp.set_error(&msg)
                 }
             }
