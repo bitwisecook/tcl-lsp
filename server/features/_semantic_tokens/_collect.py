@@ -3,9 +3,8 @@ from __future__ import annotations
 import logging
 
 from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from compiler.parsing.green_tree import tokenise
 from compiler.parsing.known_commands import known_command_names
-from compiler.parsing.recovery import compute_virtual_insertions
+from compiler.parsing.recovering_lexer import tokenise_recovering
 from compiler.parsing.syntax.red import build_line_starts
 from compiler.parsing.token_positions import token_content_base, token_content_shift
 from compiler.registry.command_registry import REGISTRY
@@ -544,11 +543,6 @@ def _collect_tokens(
     Recurses into CMD tokens (``[...]``) and into BODY arguments (braced
     bodies of proc, if, while, for, foreach, namespace eval, etc.).
     """
-    # Compute virtual token insertions for error recovery (e.g. missing ]).
-    # This injects zero-width virtual characters into the lexer so that
-    # unterminated CMD tokens are properly terminated and downstream
-    # token classification sees the correct argument structure.
-    vi = compute_virtual_insertions(source, body_token) or None
     # Share line_starts across recursive calls to avoid O(n) newline scanning
     # per call, and capture the full document length so position_from_offset
     # clamps correctly even when ``source`` is a body substring.  build_line_starts
@@ -564,14 +558,16 @@ def _collect_tokens(
         base_col = body_token.start.character + 1
     else:
         base_offset = base_line = base_col = 0
-    # Shared green-tree memo (token-for-token identical to a private TclLexer),
-    # threading the recovery virtual insertions and the shared line index.
-    lex_tokens, _ = tokenise(
+    # Single-pass recovering tokenise: recovers unterminated delimiters (e.g. a
+    # missing ]) so downstream classification sees the correct argument
+    # structure, while well-formed top-level sources skip the recovery pass
+    # entirely.  Shares the green-tree memo and the line index across recursion.
+    lex_tokens, _ = tokenise_recovering(
         source,
         base_offset,
         base_line,
         base_col,
-        virtual_insertions=vi,
+        body_token=body_token,
         line_starts=list(_line_starts) if _line_starts is not None else None,
     )
 

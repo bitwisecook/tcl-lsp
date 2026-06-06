@@ -249,6 +249,53 @@ class TopLevelChunk:
     commands: tuple[SegmentedCommand, ...]
 
 
+def _chunk_content_end(cmd: SegmentedCommand, source: str, start: int, tile_end: int) -> int:
+    """Offset (exclusive) of the text whose hash must track *cmd*'s semantic tokens.
+
+    The per-chunk token cache reuses a chunk's tokens whenever its dirty-key is
+    unchanged, so the hash must change whenever the chunk's *rendered* tokens
+    would.  Two effects make "command text" or "tile minus trailing whitespace"
+    too narrow — both are *false-clean* bugs (a stale cached token):
+
+    * **A token can swallow trailing whitespace.**  An unterminated ``"``/``{``
+      string or a ``#`` line comment runs to end-of-line/EOF, so trailing spaces
+      sit *inside* the rendered token and set its length.  These are not always
+      the command's last ``all_tokens`` entry (a comment after the command's last
+      word is not in ``all_tokens`` at all), so we cannot find them token-by-token
+      — we keep the **whole tile** instead.
+
+    * **A token can over-run the tile.**  An unclosed ``[``/``{``/``"`` that the
+      segmenter could not recover lexes as one token spanning to EOF, past this
+      chunk and over the chunks split off after it; its rendered length therefore
+      depends on downstream text.  So the hash extends to that token's true end
+      (``> tile_end``) — a downstream edit then dirties this chunk, as it must.
+
+    The discriminator is the gap between the command's last token and the tile
+    end.  If that gap is **pure layout whitespace** it is genuine trivia: drop it
+    (``content_end = last_token_end``), which keeps the append-invariant — a
+    well-formed command keeps the same hash when a newline + new command is added
+    after it, so appends don't dirty the preceding chunk.  If the gap holds
+    **anything else** — a ``#`` comment the segmenter folded into a preceding
+    unclosed string, a stray ``;`` — the segmenter's tokens do not cover all the
+    chunk's rendered content, so we conservatively keep the whole tile.  Either
+    way the result is at least ``last_token_end``, so an *over-running* token
+    (``> tile_end``) still extends the hash to its true end.
+    """
+    tok_end = start
+    if cmd.all_tokens:
+        # ``Token.end`` is the last character (inclusive); +1 makes it exclusive.
+        tok_end = min(cmd.all_tokens[-1].end.offset + 1, len(source))
+    gap_start = max(tok_end, start)
+    if gap_start <= tile_end and not source[gap_start:tile_end].strip(_LAYOUT_WHITESPACE):
+        return gap_start  # trailing trivia only — strip it (append-invariant)
+    return max(tile_end, tok_end)  # uncovered content and/or an over-running token
+
+
+# ASCII layout whitespace the lexer skips between commands (``;`` excluded — it
+# is a syntactic terminator, so a trailing ``;`` keeps two chunks distinct).
+_LAYOUT_WHITESPACE = " \t\n\r\x0b\x0c"
+
+
 def tile_commands(
     commands: list[SegmentedCommand],
     source: str,
@@ -276,9 +323,8 @@ def tile_commands(
     last = final_end if final_end is not None else len(source)
     for i, cmd in enumerate(commands):
         start = cmd.range.start.offset
-        cmd_end = cmd.range.end.offset
         tile_end = commands[i + 1].range.start.offset if i + 1 < n else last
-        cmd_text = source[start : cmd_end + 1]
+        cmd_text = source[start : _chunk_content_end(cmd, source, start, tile_end)]
         chunks.append(
             TopLevelChunk(
                 index=start_index + i,
@@ -307,20 +353,31 @@ def find_first_dirty_chunk(
 ) -> int:
     """Return the index of the first chunk that differs between two versions.
 
-    Compares both the ``source_hash`` (command text) **and** ``start_offset``
-    (absolute position) pairwise.  Position matters because a chunk's cached IR
-    / analyser snapshot / diagnostics carry *absolute* source positions: a chunk
-    whose text is unchanged but which *moved* (e.g. a blank line or comment
-    inserted above it, a ``# tcl-dialect:`` directive added) would otherwise be
-    reused with stale line numbers.  Returns the length of the shorter list when
-    all shared chunks match (i.e. one version has extra chunks appended — an
-    append shifts no existing chunk's offset, so that case stays incremental).
+    Compares the ``source_hash`` (command text) **and** the chunk's full absolute
+    start *position* — ``start_offset`` plus the start line/character — pairwise.
+    Position matters because a chunk's cached IR / analyser snapshot / semantic
+    tokens / diagnostics carry *absolute* source positions: a chunk whose text is
+    unchanged but which *moved* would otherwise be reused with stale line numbers.
+
+    Comparing the offset alone is not enough.  An *equal-length* edit before a
+    chunk — e.g. replacing a leading space with a newline, which leading
+    whitespace lives outside every chunk's tile so no hash changes — leaves the
+    chunk's ``start_offset`` untouched while shifting its line down by one.  The
+    cached tokens are keyed by absolute ``(line, character)``, so the line/char
+    comparison is what catches that case (an insertion-style move shifts the
+    offset and is caught there; this catches the equal-length sibling).
+
+    Returns the length of the shorter list when all shared chunks match (i.e. one
+    version has extra chunks appended — an append shifts no existing chunk's
+    position, so that case stays incremental).
     """
     for i in range(min(len(old_chunks), len(new_chunks))):
-        if (
-            old_chunks[i].source_hash != new_chunks[i].source_hash
-            or old_chunks[i].start_offset != new_chunks[i].start_offset
-        ):
+        old, new = old_chunks[i], new_chunks[i]
+        if old.source_hash != new.source_hash or old.start_offset != new.start_offset:
+            return i
+        old_start = old.commands[0].range.start
+        new_start = new.commands[0].range.start
+        if old_start.line != new_start.line or old_start.character != new_start.character:
             return i
     return min(len(old_chunks), len(new_chunks))
 
