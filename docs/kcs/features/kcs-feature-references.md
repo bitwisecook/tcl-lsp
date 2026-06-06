@@ -1,5 +1,8 @@
 # KCS: feature — Find References
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Find all references to a proc or variable across the file.

@@ -1,5 +1,8 @@
 # KCS: feature — Optimiser
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Finds optimisation opportunities in Tcl/iRules code and produces rewritten source.

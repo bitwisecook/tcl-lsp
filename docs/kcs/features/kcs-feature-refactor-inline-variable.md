@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Inline Variable
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Inline a single-use `set var value` — replace the one reference with the value and remove the set command.

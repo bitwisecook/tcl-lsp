@@ -1,5 +1,8 @@
 # KCS: feature — Unminify Error
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Translate Tcl or iRule error messages produced by minified code back to the original variable, proc, and command names using a saved symbol map.  Optionally remaps line-number references from minified single-line output to approximate original source lines.

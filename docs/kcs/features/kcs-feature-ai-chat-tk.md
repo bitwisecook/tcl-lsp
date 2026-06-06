@@ -1,5 +1,8 @@
 # KCS: feature — @tk Chat Participant
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 VS Code Copilot Chat participant for creating, explaining, and previewing Tk GUI applications.

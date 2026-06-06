@@ -1,5 +1,8 @@
 # KCS: feature — APL (iApp Presentation Language) support
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Semantic highlighting, cross-file diagnostics, and embedded Tcl support for

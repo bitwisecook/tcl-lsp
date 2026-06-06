@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Extract to Data-Group
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Extract hardcoded if/elseif chains or switch statements with literal values into F5 BIG-IP data-group lookups, with type-aware inference for IP/CIDR (IPv4 + IPv6), integer, and string values.

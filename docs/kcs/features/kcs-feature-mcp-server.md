@@ -1,5 +1,8 @@
 # KCS: feature — MCP Server
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Model Context Protocol server exposing analysis/refactoring tools for AI agent integration.

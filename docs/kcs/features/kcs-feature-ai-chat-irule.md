@@ -1,5 +1,8 @@
 # KCS: feature — @irule Chat Participant
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, and transforming F5 BIG-IP iRules.
