@@ -28,7 +28,7 @@ impl ExprError {
     }
 }
 
-fn arith_err(e: ArithError) -> ExprError {
+pub(crate) fn arith_err(e: ArithError) -> ExprError {
     ExprError::msg(match e {
         ArithError::NonNumeric => b"can't use non-numeric string as operand of arithmetic",
         ArithError::NonInteger => b"can't use floating-point value as operand of bitwise op",
@@ -227,7 +227,7 @@ pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprEr
 // ---- value helpers ---------------------------------------------------------
 
 /// Tcl boolean coercion (`Tcl_GetBoolean`): the keywords or any non-zero number.
-fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
+pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let bytes = obj::bytes_of(o);
     let s = core::str::from_utf8(&bytes).unwrap_or("");
     match s.trim().to_ascii_lowercase().as_str() {

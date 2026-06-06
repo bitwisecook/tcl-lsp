@@ -26,6 +26,9 @@ pub fn install(interp: &mut Interp) {
     // through (overridable); they need the tower too.
     #[cfg(have_tommath)]
     crate::cmd_mathfunc::install(interp);
+    // `::tcl::mathop::*` — the operators as real commands (tower-gated).
+    #[cfg(have_tommath)]
+    crate::cmd_mathop::install(interp);
     crate::cmd_list::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
