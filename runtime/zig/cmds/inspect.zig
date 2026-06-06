@@ -555,6 +555,21 @@ pub fn remove_all_var_traces(name: i32) void {
     const sn = obj_ensure_string(canon);
     if (sn.ptr != 0 and sn.len != 0) {
         var_trace.remove_all(sn.ptr, sn.len);
+        // Unsetting a whole array drops traces on every element too
+        // (Tcl ``TclDeleteVars``).  Only sweep when the name is not
+        // itself an ``arr(key)`` element — an element unset removes just
+        // that element's trace via the exact-key ``remove_all`` above.
+        var is_elem = false;
+        {
+            const sp2: [*]const u8 = @ptrFromInt(sn.ptr);
+            for (0..sn.len) |k| {
+                if (sp2[k] == '(') {
+                    is_elem = true;
+                    break;
+                }
+            }
+        }
+        if (!is_elem) var_trace.remove_all_array_elements(sn.ptr, sn.len);
         // Also probe the alternate FQ / non-FQ spelling so a trace
         // installed under ``::x`` is dropped when ``unset x`` runs
         // (and vice versa) — matches fire_scalar_trace_op's dual probe.
