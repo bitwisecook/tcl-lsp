@@ -35,6 +35,7 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_alias::install(interp);
     crate::cmd_namespace::install(interp);
     crate::cmd_var::install(interp);
+    crate::cmd_control::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -409,5 +410,26 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Err(e) => interp.set_error(&e.0),
+    }
+}
+
+/// Evaluate `src` as a Tcl expression and coerce the result to a boolean — the
+/// condition evaluator `if`/`while`/`for` share. `Err(code)` carries the
+/// completion code (with the interp result already set to the error message).
+#[cfg(have_tommath)]
+pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Code> {
+    let Ok(s) = core::str::from_utf8(src) else {
+        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let node = tcl_syntax::expr::parse_expr(s, None);
+    let result = {
+        let mut ctx = InterpExprCtx {
+            interp: &mut *interp,
+        };
+        crate::expr::eval_expr(&node, &mut ctx)
+    };
+    match result {
+        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
+        Err(e) => Err(interp.set_error(&e.0)),
     }
 }
