@@ -87,15 +87,37 @@ fn detect_e201(
     bracket_off: u32,
     registry: Option<&CommandRegistry>,
 ) -> Diagnostic {
-    if let Some(d) = e201_at_comment(content, content_start, bracket_off) {
+    // GAP-A1 + recovery-rust-port: the heuristics *propose* an insertion
+    // offset (semantic); the structural index *validates* it
+    // (syntactic). A proposed `]` that lands inside an inert span — a
+    // brace word, an escape pair, a `${…}`, or a command-sub brace
+    // interior — would be a literal, not a real closer, so the re-lex
+    // would split a brace word (`[foo {bar\nputs baz}` must close after
+    // `}`, not after `bar`). Veto such a fix and fall through to the next
+    // heuristic / the fix-less fallback. `is_inert` is the *sound*
+    // signal (it never marks a structural position inert), so this can
+    // only remove wrong fixes, never good ones. The index is built over
+    // the bracket interior (`content`), so offsets are content-relative.
+    let index = tcl_lexer::BracketIndex::build(content);
+    let accept = |d: Diagnostic| -> Option<Diagnostic> {
+        if let Some(fix) = d.fixes.first() {
+            let rel = fix.span.start().saturating_sub(content_start);
+            if index.is_inert(rel) {
+                return None;
+            }
+        }
+        Some(d)
+    };
+    if let Some(d) = e201_at_comment(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
     if let Some(reg) = registry {
-        if let Some(d) = e201_at_command(content, content_start, bracket_off, reg) {
+        if let Some(d) = e201_at_command(content, content_start, bracket_off, reg).and_then(&accept)
+        {
             return d;
         }
     }
-    if let Some(d) = e201_at_brace(content, content_start, bracket_off) {
+    if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
     // Fallback: highlight just the opening `[`, no fix.
@@ -730,6 +752,53 @@ mod tests {
             .filter(|d| d.code == "E201")
             .map(|d| (d.message.clone(), d.fixes.len()))
             .collect()
+    }
+
+    /// Absolute byte offsets of every E201 `]`-insertion fix.
+    fn e201_fix_offsets(src: &str) -> Vec<u32> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E201")
+            .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
+            .collect()
+    }
+
+    #[test]
+    fn e201_fix_vetoed_inside_brace_word() {
+        // `[foo {bar\nputs baz}` — the `[` is unterminated, but `puts baz`
+        // is *inside* a balanced brace word, not a real command. The
+        // command heuristic would propose inserting `]` after `bar`
+        // (inside the brace); the structural-index veto rejects that
+        // (the `]` would be a literal there), so no wrong fix is offered.
+        //
+        // Intentional divergence from the Python analyser, which emits
+        // the after-`bar` fix — C Tcl 9.0.3 confirms it is wrong
+        // (`info complete {set x [foo {bar]}` == 0, incomplete), whereas
+        // the end-insert is complete. The veto does the correct
+        // full-fidelity thing.
+        let src = "set x [foo {bar\nputs baz}\n";
+        // E201 still fires — there genuinely is an unterminated `[`.
+        assert_eq!(e201(src).len(), 1, "expected one E201: {:?}", e201(src));
+        // ...but no fix lands inside the brace word `{bar\nputs baz}`
+        // (bytes 11..=24).
+        for o in e201_fix_offsets(src) {
+            assert!(
+                !(11..25).contains(&o),
+                "E201 fix at {o} lands inside the brace word",
+            );
+        }
+    }
+
+    #[test]
+    fn e201_fix_still_offered_for_plain_text_recovery() {
+        // The veto must not suppress legitimate recoveries: a plain
+        // unterminated `[` followed by a known command still gets its
+        // `]`-insertion fix (the offset is not inert).
+        let src = "set x [foo bar\nputs done\n";
+        let diags = e201(src);
+        assert_eq!(diags, vec![("missing close-bracket".to_string(), 1)]);
     }
 
     fn lexer_recovery_codes(src: &str) -> Vec<String> {
