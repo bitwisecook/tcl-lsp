@@ -112,7 +112,8 @@ fn detect_e201(
         return d;
     }
     if let Some(reg) = registry {
-        if let Some(d) = e201_at_command(content, content_start, bracket_off, reg).and_then(&accept)
+        if let Some(d) =
+            e201_at_command(content, content_start, bracket_off, reg, &index).and_then(&accept)
         {
             return d;
         }
@@ -189,6 +190,7 @@ fn e201_at_command(
     content_start: u32,
     bracket_off: u32,
     registry: &CommandRegistry,
+    index: &tcl_lexer::BracketIndex,
 ) -> Option<Diagnostic> {
     let lines: Vec<&str> = content.split('\n').collect();
     if lines.len() < 2 {
@@ -202,9 +204,17 @@ fn e201_at_command(
         if stripped.is_empty() {
             continue;
         }
+        let insert_idx = prev_line_content_end(&lines, i);
+        // recovery-rust-port "syntactic validates": if this boundary
+        // sits inside an inert span (a brace word / quoted run that
+        // swallowed the line, e.g. `puts baz` inside `{bar\nputs baz}`),
+        // the candidate `]` would be a literal — keep scanning for the
+        // next real command past the inert span rather than giving up.
+        if index.is_inert(u32::try_from(insert_idx).unwrap_or(0)) {
+            continue;
+        }
         let first_word = extract_first_word(stripped);
         if registry.get(first_word).is_some() {
-            let insert_idx = prev_line_content_end(&lines, i);
             return Some(e201_with_insert(
                 content_start,
                 bracket_off,
@@ -789,6 +799,22 @@ mod tests {
                 "E201 fix at {o} lands inside the brace word",
             );
         }
+    }
+
+    #[test]
+    fn e201_recovers_real_command_past_brace_word() {
+        // `[foo {bar\nputs baz}\nputs done` — `puts baz` is inside the
+        // brace word; `puts done` is the real swallowed command. The
+        // index-aware command heuristic skips the inert boundary inside
+        // the brace word and inserts `]` after `}` (offset 25, before
+        // `puts done`), recovering `puts done` as its own command.
+        let src = "set x [foo {bar\nputs baz}\nputs done\n";
+        let offs = e201_fix_offsets(src);
+        assert_eq!(
+            offs,
+            vec![25],
+            "expected the close-bracket after the brace word: {offs:?}"
+        );
     }
 
     #[test]
