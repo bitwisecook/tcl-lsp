@@ -19,6 +19,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"incr", incr);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
+    interp.register_builtin(b"subst", subst_cmd);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
     interp.register_builtin(b"expr", expr_cmd);
@@ -46,6 +47,10 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_fs::install(interp);
     crate::cmd_misc::install(interp);
     crate::cmd_chan::install(interp);
+    crate::cmd_trace::install(interp);
+    // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
+    #[cfg(have_regex)]
+    crate::cmd_regex::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -359,17 +364,32 @@ fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return wrong_args(interp, b"unset ?varName ...?");
+    // `unset ?-nocomplain? ?--? ?name name ...?`. `-nocomplain` suppresses the
+    // no-such-variable error; `--` ends option parsing (so a var literally named
+    // `-nocomplain` can still be unset).
+    let mut i = 1;
+    let mut nocomplain = false;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-nocomplain" => {
+                nocomplain = true;
+                i += 1;
+            }
+            b"--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
+        }
     }
-    for &a in &argv[1..] {
+    for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
         let existed = match &elem {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
         };
-        if !existed {
+        if !existed && !nocomplain {
             let mut msg = b"can't unset \"".to_vec();
             msg.extend_from_slice(&name);
             msg.extend_from_slice(b"\": no such variable");
@@ -378,6 +398,35 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+/// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform the
+/// requested substitutions on `string` (default: all three). Errors from an
+/// unset variable or a failing command substitution propagate.
+fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
+    let mut flags = crate::subst::SubstFlags::default();
+    let mut i = 1;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-nobackslashes" => flags.backslashes = false,
+            b"-nocommands" => flags.cmds = false,
+            b"-novariables" => flags.vars = false,
+            _ => break,
+        }
+        i += 1;
+    }
+    if i != argv.len() - 1 {
+        return wrong_args(interp, USAGE);
+    }
+    let src = obj_bytes(argv[i]);
+    match interp.do_subst(&src, flags) {
+        Ok(bytes) => {
+            interp.set_result_bytes(&bytes);
+            Code::Ok
+        }
+        Err(code) => code, // the failing sub already set the result
+    }
 }
 
 // -- helpers ---------------------------------------------------------------
@@ -533,5 +582,69 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Co
     match result {
         Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
         Err(e) => Err(interp.set_error(&e.0)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::counters;
+    use crate::interp::{Code, Interp};
+
+    fn leak_free(body: impl FnOnce(&mut Interp)) {
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            body(&mut interp);
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        assert_eq!(
+            i.eval_str(src),
+            Code::Ok,
+            "eval {:?} → {:?}",
+            String::from_utf8_lossy(src),
+            String::from_utf8_lossy(&i.result_bytes())
+        );
+        i.result_bytes()
+    }
+
+    #[test]
+    fn subst_variables_commands_backslashes() {
+        leak_free(|i| {
+            ok(i, b"set x hello");
+            assert_eq!(ok(i, b"subst {$x world}"), b"hello world");
+            assert_eq!(ok(i, b"subst {[set x] world}"), b"hello world");
+            // -nocommands leaves [ ] literal but still substitutes $x.
+            assert_eq!(ok(i, b"subst -nocommands {$x [foo]}"), b"hello [foo]");
+            // -novariables leaves $x literal.
+            assert_eq!(ok(i, b"subst -novariables {$x}"), b"$x");
+            // an unset variable is an error.
+            assert_eq!(i.eval_str(b"subst {$nope}"), Code::Error);
+            i.eval_str(b"unset -nocomplain x");
+        });
+    }
+
+    #[test]
+    fn unset_nocomplain_and_dashdash() {
+        leak_free(|i| {
+            // -nocomplain suppresses the no-such-variable error.
+            assert_eq!(i.eval_str(b"unset -nocomplain nope"), Code::Ok);
+            // without it, unsetting a missing var errors.
+            assert_eq!(i.eval_str(b"unset alsonope"), Code::Error);
+            // `--` ends options, so a var literally named -nocomplain is unset.
+            ok(i, b"set -nocomplain 1");
+            assert_eq!(i.eval_str(b"unset -- -nocomplain"), Code::Ok);
+            assert_eq!(i.eval_str(b"info exists -nocomplain"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+        });
     }
 }

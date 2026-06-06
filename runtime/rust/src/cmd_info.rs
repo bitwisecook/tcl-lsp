@@ -41,6 +41,16 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"level" => info_level(interp, argv),
         b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),
         b"patchlevel" => fixed(interp, argv, b"info patchlevel", b"9.0.3"),
+        // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
+        b"sharedlibextension" => fixed(interp, argv, b"info sharedlibextension", b".so"),
+        b"complete" => {
+            if argv.len() != 3 {
+                return wrong_args(interp, b"info complete command");
+            }
+            let ok = command_complete(&obj_bytes(argv[2]));
+            interp.set_result_bytes(if ok { b"1" } else { b"0" });
+            Code::Ok
+        }
         b"body" => info_body(interp, argv),
         b"args" => info_args(interp, argv),
         b"default" => info_default(interp, argv),
@@ -70,7 +80,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be args, body, commands, default, exists, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, tclversion, or vars",
+                b"\": must be args, body, commands, complete, default, exists, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
             );
             interp.set_error(&m)
         }
@@ -114,11 +124,102 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(interp.level().to_string().as_bytes());
             Code::Ok
         }
-        // `info level N` (the args of an enclosing call) needs per-frame argv,
-        // which lands with the CmdFrame work (PC-5).
-        3 => interp.set_error(b"info level N is not yet supported"),
+        // `info level N` — the command words at level N. N<=0 is relative to the
+        // current level (`info level 0` = the current call); N>0 is absolute.
+        3 => {
+            let spec = obj_bytes(argv[2]);
+            let n = match core::str::from_utf8(&spec)
+                .ok()
+                .and_then(|s| s.trim().parse::<i64>().ok())
+            {
+                Some(n) => n,
+                None => {
+                    let mut m = b"expected integer but got \"".to_vec();
+                    m.extend_from_slice(&spec);
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            };
+            let cur = interp.level() as i64;
+            let target = if n <= 0 { cur + n } else { n };
+            if target <= 0 {
+                return bad_level(interp, &spec);
+            }
+            match interp.level_words(target as usize) {
+                Some(words) => {
+                    let objs: Vec<*mut TclObj> =
+                        words.iter().map(|w| crate::interp::new_string(w)).collect();
+                    interp.set_result(crate::list::new_list_obj(&objs));
+                    Code::Ok
+                }
+                None => bad_level(interp, &spec),
+            }
+        }
         _ => wrong_args(interp, b"info level ?number?"),
     }
+}
+
+/// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
+/// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
+/// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
+fn command_complete(s: &[u8]) -> bool {
+    let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
+    let mut in_quote = false;
+    let mut i = 0;
+    while i < s.len() {
+        let c = s[i];
+        if c == b'\\' {
+            // A backslash escapes the next byte; a trailing one leaves the
+            // command incomplete (line continuation awaiting more input).
+            if i + 1 >= s.len() {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+        let in_brace = stack.last() == Some(&b'}');
+        if in_brace {
+            match c {
+                b'{' => stack.push(b'}'),
+                b'}' => {
+                    stack.pop();
+                }
+                _ => {}
+            }
+        } else if in_quote {
+            match c {
+                b'"' => in_quote = false,
+                b'[' => stack.push(b']'),
+                b']' => {
+                    if stack.last() == Some(&b']') {
+                        stack.pop();
+                    }
+                }
+                _ => {}
+            }
+        } else {
+            match c {
+                b'{' => stack.push(b'}'),
+                b'[' => stack.push(b']'),
+                b']' => {
+                    if stack.last() == Some(&b']') {
+                        stack.pop();
+                    }
+                }
+                b'"' => in_quote = true,
+                _ => {}
+            }
+        }
+        i += 1;
+    }
+    stack.is_empty() && !in_quote
+}
+
+fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
+    let mut m = b"bad level \"".to_vec();
+    m.extend_from_slice(spec);
+    m.push(b'"');
+    interp.set_error(&m)
 }
 
 fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) -> Code {
@@ -235,6 +336,31 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn info_level_reports_call_words() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"info level"), b"0"); // global scope
+            run(i, b"proc outer {a b} {inner $a}");
+            run(
+                i,
+                b"proc inner {x} {list [info level] [info level 0] [info level 1]}",
+            );
+            // outer 1 2 → inner 1 ; inside inner: level 2, this call, the outer call.
+            assert_eq!(run(i, b"outer 1 2"), b"2 {inner 1} {outer 1 2}");
+        });
+    }
+
+    #[test]
+    fn info_complete_balances() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"info complete {set x 1}"), b"1");
+            assert_eq!(run(i, b"info complete {set x {a b}}"), b"1");
+            assert_eq!(run(i, b"info complete \"set x {a\""), b"0"); // open brace
+            assert_eq!(run(i, b"info complete {puts [expr 1}"), b"0"); // open bracket
+            assert_eq!(run(i, b"info complete {a \"b}"), b"0"); // open quote
+        });
     }
 
     #[test]

@@ -37,15 +37,23 @@ fn as_str(b: &[u8]) -> &str {
 
 // -- source ----------------------------------------------------------------
 
-/// `source ?-encoding name? fileName` — read and evaluate a file.
+/// `source ?-encoding name? ?-nopkg? fileName` — read and evaluate a file.
+/// We are UTF-8 internally so `-encoding` is accepted and ignored; `-nopkg`
+/// (Tcl 9's "don't register for `package files`") is likewise a no-op here.
 fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // Skip a leading `-encoding enc` (we are UTF-8 internally).
-    let path_obj = match argv.len() {
-        2 => argv[1],
-        4 if obj_bytes(argv[1]).as_slice() == b"-encoding" => argv[3],
-        _ => return wrong_args(interp, b"source ?-encoding encoding? fileName"),
-    };
-    let path = obj_bytes(path_obj);
+    const USAGE: &[u8] = b"source ?-encoding encoding? ?-nopkg? fileName";
+    let mut i = 1;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-encoding" if i + 1 < argv.len() => i += 2,
+            b"-nopkg" => i += 1,
+            _ => break,
+        }
+    }
+    if i != argv.len() - 1 {
+        return wrong_args(interp, USAGE);
+    }
+    let path = obj_bytes(argv[i]);
     match std::fs::read(as_str(&path)) {
         Ok(bytes) => interp.eval_sourced(&bytes, &path),
         Err(e) => {
@@ -69,11 +77,44 @@ fn io_reason(e: &std::io::Error) -> &'static str {
 
 // -- file ------------------------------------------------------------------
 
+/// The `file` ensemble's subcommands (for the unambiguous-prefix resolution Tcl
+/// ensembles do: `file isdir` → `isdirectory`).
+const FILE_SUBCOMMANDS: &[&[u8]] = &[
+    b"dirname",
+    b"tail",
+    b"rootname",
+    b"extension",
+    b"join",
+    b"split",
+    b"normalize",
+    b"separator",
+    b"nativename",
+    b"exists",
+    b"isdirectory",
+    b"isfile",
+    b"readable",
+    b"writable",
+];
+
 fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"file subcommand ?arg ...?");
     }
-    let sub = obj_bytes(argv[1]);
+    let raw = obj_bytes(argv[1]);
+    // Ensemble prefix resolution: an exact name wins; otherwise a unique prefix.
+    let sub: Vec<u8> = if FILE_SUBCOMMANDS.contains(&raw.as_slice()) {
+        raw.clone()
+    } else {
+        let hits: Vec<&&[u8]> = FILE_SUBCOMMANDS
+            .iter()
+            .filter(|s| s.starts_with(raw.as_slice()))
+            .collect();
+        if hits.len() == 1 {
+            hits[0].to_vec()
+        } else {
+            raw.clone() // 0 or ambiguous → fall through to the error arm
+        }
+    };
     let arg = |n: usize| argv.get(n).map(|&a| obj_bytes(a));
     match sub.as_slice() {
         b"dirname" => str_result(interp, &dirname(&arg(2).unwrap_or_default())),

@@ -323,6 +323,21 @@ impl Namespaces {
         Some(fqn)
     }
 
+    /// `namespace origin` — the fully-qualified name of the *original* command
+    /// `name` resolves to, following `import` chains to their source. `None` if
+    /// the command doesn't resolve.
+    pub fn command_origin(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        let mut fqn = self.which_command(current, name)?;
+        // Follow imported commands to their source (bounded against cycles).
+        for _ in 0..64 {
+            match self.resolve(current, &fqn) {
+                Some(Command::Imported { source }) => fqn = source,
+                _ => break,
+            }
+        }
+        Some(fqn)
+    }
+
     /// `namespace export` — append a pattern (deduplicated). `-clear` first is the
     /// caller's job via [`clear_exports`](Self::clear_exports).
     pub fn export(&mut self, ns: NsId, pattern: &[u8]) {

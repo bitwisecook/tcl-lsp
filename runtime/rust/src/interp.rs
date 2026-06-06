@@ -134,6 +134,8 @@ pub struct Interp {
     /// complete with once `-level` boundaries are unwound.
     return_code: Code,
     return_level: usize,
+    /// Variable-trace registry (`trace add|remove|info variable`).
+    pub(crate) traces: crate::cmd_trace::TraceTable,
     result: *mut TclObj,
 }
 
@@ -157,6 +159,7 @@ impl Interp {
             channels: crate::cmd_chan::ChannelTable::default(),
             return_code: Code::Ok,
             return_level: 1,
+            traces: crate::cmd_trace::TraceTable::default(),
             result,
         });
         builtins::install(&mut interp);
@@ -376,9 +379,21 @@ impl Interp {
         let target = self.namespaces.ensure_namespace(self.current_ns, name);
         let saved = self.current_ns;
         self.current_ns = target;
+        // A namespace frame: a new scope whose unqualified vars resolve to the
+        // namespace (so `set`/`variable`/`upvar 0` inside `namespace eval` —
+        // including when nested in a proc — target the namespace, not the
+        // enclosing proc's locals).
+        self.frames.push_namespace(target);
         let code = self.eval_str(body);
+        self.frames.pop();
         self.current_ns = saved;
         code
+    }
+
+    /// Whether the active variable frame is a proc call frame (vs. global /
+    /// `namespace eval` scope).
+    pub(crate) fn in_proc(&self) -> bool {
+        self.frames.in_proc()
     }
 
     // -- variables (the var resolver; `crate::vars`) --------------------------
@@ -400,13 +415,18 @@ impl Interp {
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
-        crate::vars::set(
+        let r = crate::vars::set(
             &mut self.frames,
             &mut self.namespaces,
             self.current_ns,
             name,
             obj,
-        )
+        );
+        if r.is_ok() && !self.traces.traces.is_empty() {
+            let (base, elem) = crate::frame::split_array_ref(name);
+            self.fire_var_trace(&base, elem.as_deref(), b"write");
+        }
+        r
     }
 
     /// `set name(key) value`.
@@ -416,35 +436,104 @@ impl Interp {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        crate::vars::set_elem(
+        let r = crate::vars::set_elem(
             &mut self.frames,
             &mut self.namespaces,
             self.current_ns,
             name,
             key,
             obj,
-        )
+        );
+        if r.is_ok() && !self.traces.traces.is_empty() {
+            self.fire_var_trace(name, Some(key), b"write");
+        }
+        r
+    }
+
+    /// Fire a read trace for `name` before a read (the `&mut` chokepoints that
+    /// resolve `$var` call this).
+    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) {
+        if self.traces.traces.is_empty() {
+            return;
+        }
+        let (base, elem) = crate::frame::split_array_ref(name);
+        let key = key.or(elem.as_deref());
+        self.fire_var_trace(&base, key, b"read");
     }
 
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
-        crate::vars::unset(
+        let existed = crate::vars::unset(
             &mut self.frames,
             &mut self.namespaces,
             self.current_ns,
             name,
-        )
+        );
+        if existed && !self.traces.traces.is_empty() {
+            let (base, elem) = crate::frame::split_array_ref(name);
+            self.fire_var_trace(&base, elem.as_deref(), b"unset");
+        }
+        existed
     }
 
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
-        crate::vars::unset_elem(
+        let existed = crate::vars::unset_elem(
             &mut self.frames,
             &mut self.namespaces,
             self.current_ns,
             name,
             key,
-        )
+        );
+        if existed && !self.traces.traces.is_empty() {
+            self.fire_var_trace(name, Some(key), b"unset");
+        }
+        existed
+    }
+
+    /// Invoke every variable trace matching `(base, elem, op)`, as
+    /// `command base element op`. Re-entrant firing is suppressed (the `firing`
+    /// guard) and callback errors are swallowed; the interp result is preserved
+    /// across the callbacks (the triggering operation owns the result).
+    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) {
+        if self.traces.firing > 0 {
+            return;
+        }
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .traces
+            .iter()
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op))
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return;
+        }
+        // Preserve the result object across the callbacks.
+        let saved = self.result;
+        unsafe { obj::incr_ref_count(saved) };
+
+        self.traces.firing += 1;
+        for cmd in cmds {
+            // Append `base element op` as properly-quoted trailing words.
+            let args = crate::list::new_list_obj(&[
+                new_string(base),
+                new_string(elem.unwrap_or(b"")),
+                new_string(op),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.firing -= 1;
+
+        // Restore the saved result (release the trace's, adopt our held +1).
+        unsafe {
+            obj::decr_ref_count(self.result);
+            self.result = saved;
+        }
     }
 
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
@@ -514,6 +603,15 @@ impl Interp {
     /// `info level` — the current frame level (proc nesting depth).
     pub(crate) fn level(&self) -> usize {
         self.frames.current_level()
+    }
+
+    /// The invoking command words at call `level` (`info level N`), or `None`
+    /// when the level has none.
+    pub(crate) fn level_words(&self, level: usize) -> Option<Vec<Vec<u8>>> {
+        self.frames
+            .words_at(level)
+            .filter(|w| !w.is_empty())
+            .map(<[Vec<u8>]>::to_vec)
     }
 
     /// Variable names visible in the current scope (`info vars`): the active
@@ -799,6 +897,12 @@ impl Interp {
         self.recursion_depth += 1;
 
         self.frames.push(ns);
+        // Record the invocation words for `info level N`: the invoked name plus
+        // the supplied arguments.
+        let mut words = Vec::with_capacity(call_args.len() + 1);
+        words.push(usage_called.to_vec());
+        words.extend(call_args.iter().map(|&a| obj_bytes(a)));
+        self.frames.set_words(words);
         let saved_ns = self.current_ns;
         self.current_ns = ns;
 
@@ -1017,6 +1121,7 @@ impl Interp {
                                 Some(p) => Some(self.subst_index(p)?),
                                 None => None,
                             };
+                            self.fire_read_trace(v.name, index.as_deref());
                             let obj = match index.as_deref() {
                                 Some(key) => self.var_get_elem(v.name, key),
                                 None => self.var_get(v.name),
@@ -1057,6 +1162,7 @@ impl Interp {
                                 Some(parts) => Some(self.subst_index(parts)?),
                                 None => None,
                             };
+                            self.fire_read_trace(v.name, index.as_deref());
                             match self.read_var(v.name, index.as_deref()) {
                                 Some(bytes) => buf.extend_from_slice(&bytes),
                                 None => return Err(self.no_such_variable(v.name, index.as_deref())),
@@ -1076,6 +1182,50 @@ impl Interp {
                 Ok(obj)
             }
         }
+    }
+
+    /// `subst` — substitute variables / commands / backslashes in `src` per
+    /// `flags`, propagating errors (an unset variable or a failing `[...]`).
+    pub(crate) fn do_subst(
+        &mut self,
+        src: &[u8],
+        flags: crate::subst::SubstFlags,
+    ) -> Result<Vec<u8>, Code> {
+        let body = crate::subst::scan(src, flags);
+        match &body {
+            WordBody::Literal(b) => Ok(b.to_vec()),
+            WordBody::Parts(parts) => self.resolve_subst_parts(parts),
+        }
+    }
+
+    /// Resolve substitution `parts` to bytes, propagating any non-OK code (the
+    /// `subst`-command path; cf. `substitute_word`, which builds an object).
+    fn resolve_subst_parts(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+        let mut out = Vec::new();
+        for part in parts {
+            match part {
+                WordPart::Text(b) => out.extend_from_slice(b),
+                WordPart::Variable(v) => {
+                    let index = match &v.index {
+                        Some(p) => Some(self.subst_index(p)?),
+                        None => None,
+                    };
+                    self.fire_read_trace(v.name, index.as_deref());
+                    match self.read_var(v.name, index.as_deref()) {
+                        Some(bytes) => out.extend_from_slice(&bytes),
+                        None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                    }
+                }
+                WordPart::Command(script) => {
+                    let code = self.eval_str(script);
+                    if code != Code::Ok {
+                        return Err(code);
+                    }
+                    out.extend_from_slice(&self.result_bytes());
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Resolve a `$arr(index)` index (itself substituted) to its bytes.

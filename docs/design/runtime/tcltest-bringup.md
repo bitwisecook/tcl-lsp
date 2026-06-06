@@ -92,9 +92,38 @@ test.
   the **unmodified Tcl 9 `init.tcl` loads cleanly**, and `package require tcltest`
   drives the real auto-load chain (finds `tcltest/pkgIndex.tcl`, runs `ifneeded`,
   sources `tcltest.tcl`) — reaching `regsub` (the regex/L3 boundary, M3).
-- **M3 — `package require tcltest`**: the package-unknown → `pkgIndex.tcl` search
-  (needs `glob`+`file`+`source`) → `source tcltest.tcl`. Gate: tcltest's
-  namespace + `test`/`Configure` defined; `test` with a trivial body runs.
+- **M3 — `package require tcltest` — ✅ done.** The package-unknown →
+  `pkgIndex.tcl` search → `source tcltest.tcl` chain now runs to completion:
+  `package require tcltest` returns `2.5.10` and `test`/`cleanupTests` run real
+  test bodies with byte-identical pass/fail reporting vs `tclsh9.0`. The wall was
+  the **regex engine** plus a layer of L1/L3 commands the library assumes; what
+  landed:
+  - **`regexp`/`regsub`** on the **real Tcl 9 Henry-Spencer ARE engine** — the
+    same `regcomp.c`/`regexec.c` (+`#include`d `regc_*.c`/`rege_dfa.c`) `tclsh`
+    uses, compiled to a static archive by `build.rs` (gated `have_regex`, like
+    `have_tommath`) and FFI'd via `src/regex.rs`. The C host hooks (heap, ASCII
+    char-class predicates, `Tcl_UniChar*` case/encode + `Tcl_DString`) live in
+    `regex_shim/` (`regcustom.h`/`tclInt.h`/`regex_shim.c`), adapted from the Zig
+    runtime's `regex_include/` (the oracle) and retargeted from wasm32 to the
+    native host. The Spencer workspace `struct vars` is `_Thread_local` (vs the
+    Zig file-static) so the multi-threaded `cargo test` runner is race-free.
+    `cmd_regex.rs` mirrors `tclCmdMZ.c` (`-all`/`-inline`/`-indices`/`-nocase`/
+    `-line`/`-start`/`--`; `&`/`\N` substitution; UTF-8↔codepoint offset
+    mapping). ASCII-only Unicode classes for now (a mechanical follow-up).
+  - **`try`/`throw`** (TIP 329: `on code`/`trap pattern`/`finally`),
+    **`subst`** (`-no*` flags, error-propagating), **`trace add|remove|info
+    variable`** (read/write/unset firing from the var chokepoints; a re-entrancy
+    guard; matches by name).
+  - `string match`/`map`/`is` (the shared `tcl_syntax::glob` engine);
+    `namespace code`/`origin`; `info level N`/`info complete`/`info
+    sharedlibextension`; `unset -nocomplain`/`--`; `source -nopkg`; `file`
+    ensemble unambiguous-prefix resolution (`file isdir`→`isdirectory`).
+  - **Frame-model fix:** `namespace eval`/`inscope` now push a **namespace
+    frame** (`Frame.is_proc=false`), so unqualified `set`/`variable`/`upvar 0`
+    inside a `namespace eval` nested in a proc target the namespace, not the
+    enclosing proc's locals; and relative `upvar 0` at namespace scope aliases a
+    namespace var/element (tcltest's option/accessor machinery — e.g.
+    `upvar 0 Option(-debug) debug`).
 - **M4 — run a real `*.test` file**: pick a compute-only suite first
   (e.g. `expr.test` / `string.test` slices), add L3 commands (`format`/`scan`/
   `regexp`/`clock`/`encoding`) as the chosen suites demand, gated by the

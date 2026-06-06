@@ -18,10 +18,12 @@ use crate::dict;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
-/// Register `catch` and `error`.
+/// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"catch", catch_cmd);
     interp.register_builtin(b"error", error_cmd);
+    interp.register_builtin(b"try", try_cmd);
+    interp.register_builtin(b"throw", throw_cmd);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -124,6 +126,183 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Error
 }
 
+// -- try / throw -----------------------------------------------------------
+
+/// A `try` handler clause.
+enum Handler {
+    /// `on code varList script` — matches the body's completion code.
+    On {
+        code: Vec<u8>,
+        vars: Vec<u8>,
+        script: Vec<u8>,
+    },
+    /// `trap pattern varList script` — matches an error whose `-errorcode`
+    /// has `pattern` (a list) as a leading sublist.
+    Trap {
+        pattern: Vec<u8>,
+        vars: Vec<u8>,
+        script: Vec<u8>,
+    },
+}
+
+/// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
+/// `continue` or an integer 0–4) to its numeric code.
+fn code_word_to_int(spec: &[u8]) -> Option<i64> {
+    match spec {
+        b"ok" => Some(0),
+        b"error" => Some(1),
+        b"return" => Some(2),
+        b"break" => Some(3),
+        b"continue" => Some(4),
+        _ => core::str::from_utf8(spec).ok()?.trim().parse::<i64>().ok(),
+    }
+}
+
+/// Does `pattern` (a list) match `errorcode` (a list) as a leading sublist?
+/// An empty pattern matches any error (`trap {} ...`).
+fn errorcode_prefix_match(pattern: &[u8], errorcode: &[u8]) -> bool {
+    let pat = match crate::parse::split_list(pattern) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    let ec = crate::parse::split_list(errorcode).unwrap_or_default();
+    pat.len() <= ec.len() && pat.iter().zip(ec.iter()).all(|(a, b)| a == b)
+}
+
+/// `try body ?handler ...? ?finally script?` — structured exception handling
+/// (TIP 329). Handlers are `on code varList script` and `trap pattern varList
+/// script`, tried in order; the first match runs and its completion becomes the
+/// `try` result. `finally` always runs; only an error from it overrides the
+/// result. Modelled on `tclCmdMZ.c` `Tcl_TryObjCmd`.
+fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const USAGE: &[u8] = b"try body ?handler ...? ?finally script?";
+    if argv.len() < 2 {
+        return wrong_args(interp, USAGE);
+    }
+    let body = obj_bytes(argv[1]);
+
+    let mut handlers: Vec<Handler> = Vec::new();
+    let mut finally: Option<Vec<u8>> = None;
+    let mut j = 2;
+    while j < argv.len() {
+        match obj_bytes(argv[j]).as_slice() {
+            b"finally" => {
+                if j + 2 != argv.len() {
+                    return interp.set_error(
+                        b"wrong # args to finally clause: must be \"... finally script\"",
+                    );
+                }
+                finally = Some(obj_bytes(argv[j + 1]));
+                j += 2;
+            }
+            b"on" if j + 4 <= argv.len() => {
+                handlers.push(Handler::On {
+                    code: obj_bytes(argv[j + 1]),
+                    vars: obj_bytes(argv[j + 2]),
+                    script: obj_bytes(argv[j + 3]),
+                });
+                j += 4;
+            }
+            b"trap" if j + 4 <= argv.len() => {
+                handlers.push(Handler::Trap {
+                    pattern: obj_bytes(argv[j + 1]),
+                    vars: obj_bytes(argv[j + 2]),
+                    script: obj_bytes(argv[j + 3]),
+                });
+                j += 4;
+            }
+            _ => {
+                return interp.set_error(
+                    b"bad handler clause: must be \"on code varList script\", \"trap pattern varList script\", or \"finally script\"",
+                );
+            }
+        }
+    }
+
+    // Run the body, snapshotting its completion code, result, and -errorcode.
+    let body_code = interp.eval_str(&body);
+    let body_result = interp.result_bytes();
+    let errorcode = interp
+        .var_get(b"::errorCode")
+        .map(obj_bytes)
+        .unwrap_or_default();
+
+    // Locate the first matching handler.
+    let mut outcome_code = body_code;
+    let mut outcome_result = body_result.clone();
+    for h in &handlers {
+        let (matches, vars, script) = match h {
+            Handler::On { code, vars, script } => (
+                code_word_to_int(code) == Some(body_code.as_int()),
+                vars,
+                script,
+            ),
+            Handler::Trap {
+                pattern,
+                vars,
+                script,
+            } => (
+                body_code == Code::Error && errorcode_prefix_match(pattern, &errorcode),
+                vars,
+                script,
+            ),
+        };
+        if !matches {
+            continue;
+        }
+        // Bind the handler's variables: [resultVar ?optionsVar?].
+        let names = crate::parse::split_list(vars).unwrap_or_default();
+        if let Some(rv) = names.first() {
+            if !rv.is_empty() {
+                let o = new_string(&body_result);
+                if interp.var_set(rv, o).is_err() {
+                    drop_fresh(o);
+                    return cant_set(interp, rv);
+                }
+            }
+        }
+        if let Some(ov) = names.get(1) {
+            let opts = build_options(interp, body_code);
+            if interp.var_set(ov, opts).is_err() {
+                drop_fresh(opts);
+                return cant_set(interp, ov);
+            }
+        }
+        outcome_code = interp.eval_str(script);
+        outcome_result = interp.result_bytes();
+        break;
+    }
+
+    // `finally` always runs; only its error overrides the result.
+    if let Some(fin) = finally {
+        let fc = interp.eval_str(&fin);
+        if fc != Code::Ok {
+            return fc; // finally's result is already the interp result
+        }
+    }
+
+    interp.set_result_bytes(&outcome_result);
+    outcome_code
+}
+
+/// `throw type message` — raise an error with `-errorcode type` (a non-empty
+/// list). Equivalent to `return -code error -errorcode $type $message`.
+fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"throw type message");
+    }
+    let ecode = obj_bytes(argv[1]);
+    match crate::parse::split_list(&ecode) {
+        Ok(parts) if !parts.is_empty() => {}
+        _ => return interp.set_error(b"type must be non-empty list"),
+    }
+    let msg = obj_bytes(argv[2]);
+    set_global(interp, b"::errorInfo", &msg);
+    set_global(interp, b"::errorCode", &ecode);
+    interp.set_result(argv[2]);
+    Code::Error
+}
+
 #[cfg(test)]
 mod tests {
     use crate::counters;
@@ -185,6 +364,52 @@ mod tests {
             assert_eq!(run(i, b"set ::errorInfo"), b"myinfo");
             assert_eq!(run(i, b"set ::errorCode"), b"MYCODE");
             i.eval_str(b"unset ::errorInfo ::errorCode");
+        });
+    }
+
+    #[test]
+    fn try_on_and_trap_and_finally() {
+        leak_free(|i| {
+            // on ok: the body succeeded; handler result becomes try's result.
+            assert_eq!(run(i, b"try {set x 7} on ok {} {set y done}"), b"done");
+            // on error msg: binds the result, runs the handler.
+            assert_eq!(run(i, b"try {error boom} on error msg {set msg}"), b"boom");
+            // trap: matches on the -errorcode leading sublist.
+            assert_eq!(
+                run(
+                    i,
+                    b"try {throw {POSIX EACCES} denied} trap {POSIX EACCES} {} {set r trapped}"
+                ),
+                b"trapped"
+            );
+            // no handler matches → the body's error propagates.
+            assert_eq!(
+                i.eval_str(b"try {error nope} on break {} {set r x}"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"nope");
+            // finally always runs; an OK finally doesn't change the result.
+            assert_eq!(
+                run(
+                    i,
+                    b"set fin 0; set v [try {set z 1} finally {set fin 1}]; list $v $fin"
+                ),
+                b"1 1"
+            );
+            i.eval_str(b"unset -nocomplain x msg r fin v z ::errorInfo ::errorCode");
+        });
+    }
+
+    #[test]
+    fn throw_sets_errorcode() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"catch {throw {MY CODE} boom} m o"), b"1");
+            assert_eq!(run(i, b"set m"), b"boom");
+            assert_eq!(run(i, b"dict get $o -errorcode"), b"MY CODE");
+            // an empty type is rejected.
+            assert_eq!(i.eval_str(b"throw {} msg"), Code::Error);
+            assert_eq!(i.result_bytes(), b"type must be non-empty list");
+            i.eval_str(b"unset -nocomplain m o ::errorInfo ::errorCode");
         });
     }
 

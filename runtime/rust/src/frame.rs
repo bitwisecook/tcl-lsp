@@ -266,6 +266,13 @@ struct Frame {
     #[allow(dead_code)] // used by info level / upvar level translation (procs)
     level: usize,
     ns: NsId,
+    /// The command words that invoked this frame (`info level N`): the proc name
+    /// followed by its arguments. Empty for the global frame.
+    words: Vec<Vec<u8>>,
+    /// Whether this is a *proc* call frame (its own local variables) versus a
+    /// *namespace* frame (`namespace eval`/`inscope` — unqualified names resolve
+    /// to the namespace, not frame-local). The global frame is non-proc.
+    is_proc: bool,
 }
 
 impl Frame {
@@ -274,6 +281,8 @@ impl Frame {
             table: VarTable::default(),
             level,
             ns,
+            words: Vec::new(),
+            is_proc: false,
         }
     }
 }
@@ -310,11 +319,13 @@ impl FrameStack {
         self.active_level
     }
 
-    /// Whether the active frame is a proc call frame (level > 0). Unqualified
-    /// names resolve frame-local only here (at global / namespace-eval scope they
-    /// resolve to the current namespace).
+    /// Whether the active frame is a proc call frame. Unqualified names resolve
+    /// frame-local only here; at global / `namespace eval` scope they resolve to
+    /// the current namespace.
     pub fn in_proc(&self) -> bool {
-        self.active_level > 0
+        self.frames
+            .get(self.active_level)
+            .is_some_and(|f| f.is_proc)
     }
 
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
@@ -327,7 +338,19 @@ impl FrameStack {
     /// and makes it the active frame.
     pub fn push(&mut self, ns: NsId) -> usize {
         let level = self.frames.len();
-        self.frames.push(Frame::new(level, ns));
+        let mut f = Frame::new(level, ns);
+        f.is_proc = true;
+        self.frames.push(f);
+        self.active_level = level;
+        level
+    }
+
+    /// Push a *namespace* frame (`namespace eval`/`inscope`): a new scope whose
+    /// unqualified variables resolve to the namespace (not frame-local). Returns
+    /// its level and makes it active.
+    pub fn push_namespace(&mut self, ns: NsId) -> usize {
+        let level = self.frames.len();
+        self.frames.push(Frame::new(level, ns)); // is_proc = false
         self.active_level = level;
         level
     }
@@ -348,6 +371,19 @@ impl FrameStack {
         let prev = self.active_level;
         self.active_level = level;
         prev
+    }
+
+    /// Record the invoking command words on the top frame (`info level N`).
+    pub(crate) fn set_words(&mut self, words: Vec<Vec<u8>>) {
+        if let Some(f) = self.frames.last_mut() {
+            f.words = words;
+        }
+    }
+
+    /// The command words that invoked frame `level` (`info level N`); empty if
+    /// the level has none (e.g. the global frame).
+    pub(crate) fn words_at(&self, level: usize) -> Option<&[Vec<u8>]> {
+        self.frames.get(level).map(|f| f.words.as_slice())
     }
 
     /// The namespace frame `level` runs in (for `uplevel` ns restoration).

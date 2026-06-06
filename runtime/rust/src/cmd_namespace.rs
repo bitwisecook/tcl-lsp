@@ -46,12 +46,14 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"qualifiers" => ns_qualifiers(interp, argv),
         b"tail" => ns_tail(interp, argv),
         b"which" => ns_which(interp, argv),
+        b"origin" => ns_origin(interp, argv),
         b"export" => ns_export(interp, argv),
         b"import" => ns_import(interp, argv),
         b"forget" => ns_forget(interp, argv),
         b"path" => ns_path(interp, argv),
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
+        b"code" => ns_code(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -472,6 +474,55 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         script.extend_from_slice(&obj_bytes(a));
     }
     interp.ns_eval(&name, &script)
+}
+
+/// `namespace origin command` — the fully-qualified original name of `command`
+/// (following `namespace import` chains to the source).
+fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"namespace origin name");
+    }
+    let name = obj_bytes(argv[2]);
+    let cur = interp.current_ns();
+    match interp.namespaces().command_origin(cur, &name) {
+        Some(fqn) => {
+            interp.set_result_bytes(&fqn);
+            Code::Ok
+        }
+        None => {
+            let mut m = b"invalid command name \"".to_vec();
+            m.extend_from_slice(&name);
+            m.push(b'"');
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `namespace code script` — capture `script` together with the current
+/// namespace so it can be evaluated later in the right context (used by
+/// callbacks). Returns `::namespace inscope <currentNs> <script>`, built as a
+/// proper list so `script` is correctly quoted. A script that is already such a
+/// capture is returned unchanged (`NamespaceCodeCmd`, `tclNamesp.c`).
+fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"namespace code arg");
+    }
+    let script = obj_bytes(argv[2]);
+    // Idempotent for an existing capture (matches C's leading-token check).
+    if script.starts_with(b"::namespace inscope ") || script.starts_with(b"namespace inscope ") {
+        interp.set_result(argv[2]);
+        return Code::Ok;
+    }
+    let cur = interp.current_ns();
+    let ns_name = interp.namespaces().qualified_name(cur);
+    let elems = [
+        crate::interp::new_string(b"::namespace"),
+        crate::interp::new_string(b"inscope"),
+        crate::interp::new_string(&ns_name),
+        crate::interp::new_string(&script),
+    ];
+    interp.set_result(crate::list::new_list_obj(&elems));
+    Code::Ok
 }
 
 // -- ensemble --------------------------------------------------------------

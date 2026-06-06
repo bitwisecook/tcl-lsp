@@ -57,8 +57,12 @@ pub mod cmd_misc;
 pub mod cmd_namespace;
 pub mod cmd_package;
 pub mod cmd_proc;
+// `regexp`/`regsub` — only when `build.rs` links the Tcl regex engine.
+#[cfg(have_regex)]
+pub mod cmd_regex;
 pub mod cmd_string;
 pub mod cmd_switch;
+pub mod cmd_trace;
 pub mod cmd_var;
 pub mod counters;
 pub mod dict;
@@ -71,6 +75,9 @@ pub mod list;
 pub mod namespace;
 pub mod obj;
 pub mod parse;
+// The Tcl regex engine FFI wrapper; only when `build.rs` links the engine.
+#[cfg(have_regex)]
+pub mod regex;
 pub mod subst;
 pub mod vars;
 

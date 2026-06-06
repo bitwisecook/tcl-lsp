@@ -130,6 +130,14 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, usage);
     }
     let target_level = parse_level(&spec, interp.current_level());
+    // A *relative* `upvar 0` at namespace-eval scope (no proc frame) resolves an
+    // unqualified other-var against the current namespace, not the global frame
+    // — e.g. `upvar 0 Option(-debug) debug` inside `namespace eval`. (`#0` is
+    // absolute and always means the global level.)
+    let relative_here = !spec.starts_with(b"#")
+        && !interp.in_proc()
+        && interp.current_ns() != GLOBAL
+        && target_level == Some(interp.current_level());
 
     let mut i = pairs_start;
     while i + 1 < argv.len() {
@@ -155,8 +163,13 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 m.push(b'"');
                 return interp.set_error(&m);
             };
+            let home = if relative_here {
+                VarHome::Namespace(interp.current_ns())
+            } else {
+                VarHome::Frame(level)
+            };
             Link {
-                home: VarHome::Frame(level),
+                home,
                 name: base,
                 elem,
             }
@@ -233,6 +246,33 @@ mod tests {
             // `q` was declared without a value → still unset.
             assert_eq!(i.eval_str(b"set ::a::q"), Code::Error);
             i.eval_str(b"unset ::a::v ::a::m1 ::a::m2");
+        });
+    }
+
+    #[test]
+    fn upvar_relative_zero_in_namespace_eval_aliases_ns_var() {
+        // `upvar 0 Option(-x) alias` inside `namespace eval` links the alias to
+        // the *namespace* array element (not the global frame). tcltest relies
+        // on this for its option/accessor machinery.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval foo { variable Opt; set Opt(-x) 5; upvar 0 Opt(-x) a; set a }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"5");
+            // a write through the alias reaches the array element.
+            i.eval_str(b"namespace eval foo { set a 9 }");
+            assert_eq!(i.eval_str(b"set ::foo::Opt(-x)"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9");
+            // a scalar alias too.
+            assert_eq!(
+                i.eval_str(b"namespace eval bar { variable r 1; upvar 0 r s; set s }"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1");
+            i.eval_str(b"unset -nocomplain ::foo::Opt ::bar::r");
         });
     }
 
