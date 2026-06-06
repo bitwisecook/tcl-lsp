@@ -400,86 +400,19 @@ fn resolve_subject(subject_raw: &str, env: &Env) -> Option<String> {
 /// `mode` and `nocase`. `regexp` mode is rejected at the caller;
 /// this helper handles `exact` and `glob`.
 fn pattern_matches(subject: &str, pattern: &str, mode: SwitchMode, nocase: bool) -> bool {
-    let (s, p): (String, String) = if nocase {
-        (subject.to_ascii_lowercase(), pattern.to_ascii_lowercase())
-    } else {
-        (subject.to_owned(), pattern.to_owned())
-    };
     match mode {
-        SwitchMode::Exact => s == p,
-        SwitchMode::Glob => glob_match(&s, &p),
-        SwitchMode::Regexp => false,
-    }
-}
-
-/// Minimal glob matcher matching Tcl / fnmatch semantics:
-///
-/// - `*` — zero or more characters.
-/// - `?` — exactly one character.
-/// - `[chars]` — character class (no ranges).
-///
-/// Everything else is matched literally. No backslash escapes —
-/// sufficient for the conservative folds this pass performs.
-fn glob_match(text: &str, pattern: &str) -> bool {
-    let t: Vec<char> = text.chars().collect();
-    let p: Vec<char> = pattern.chars().collect();
-    glob_match_inner(&t, 0, &p, 0)
-}
-
-fn glob_match_inner(t: &[char], mut ti: usize, p: &[char], mut pi: usize) -> bool {
-    while pi < p.len() {
-        match p[pi] {
-            '*' => {
-                // Collapse consecutive stars.
-                while pi < p.len() && p[pi] == '*' {
-                    pi += 1;
-                }
-                if pi == p.len() {
-                    return true;
-                }
-                while ti <= t.len() {
-                    if glob_match_inner(t, ti, p, pi) {
-                        return true;
-                    }
-                    if ti == t.len() {
-                        return false;
-                    }
-                    ti += 1;
-                }
-                return false;
-            }
-            '?' => {
-                if ti >= t.len() {
-                    return false;
-                }
-                ti += 1;
-                pi += 1;
-            }
-            '[' => {
-                let mut end = pi + 1;
-                while end < p.len() && p[end] != ']' {
-                    end += 1;
-                }
-                if end == p.len() || ti >= t.len() {
-                    return false;
-                }
-                let class = &p[pi + 1..end];
-                if !class.contains(&t[ti]) {
-                    return false;
-                }
-                ti += 1;
-                pi = end + 1;
-            }
-            c => {
-                if ti >= t.len() || t[ti] != c {
-                    return false;
-                }
-                ti += 1;
-                pi += 1;
+        SwitchMode::Exact => {
+            if nocase {
+                subject.eq_ignore_ascii_case(pattern)
+            } else {
+                subject == pattern
             }
         }
+        // `glob` folds through the shared `string match` dialect
+        // (`tcl_syntax::glob`) so the optimiser and runtime agree.
+        SwitchMode::Glob => tcl_syntax::glob::string_case_match(pattern, subject, nocase),
+        SwitchMode::Regexp => false,
     }
-    ti == t.len()
 }
 
 #[cfg(test)]
@@ -503,21 +436,6 @@ mod tests {
     }
 
     // -- internal helpers ---------------------------------------------------
-
-    #[test]
-    fn glob_matches_star_and_question() {
-        assert!(glob_match("hello", "h*"));
-        assert!(glob_match("hello", "he??o"));
-        assert!(!glob_match("hello", "he?lo?"));
-        assert!(glob_match("hello", "*"));
-        assert!(glob_match("", "*"));
-    }
-
-    #[test]
-    fn glob_character_class() {
-        assert!(glob_match("cat", "[bc]at"));
-        assert!(!glob_match("hat", "[bc]at"));
-    }
 
     #[test]
     fn pattern_matches_exact_nocase_and_glob() {

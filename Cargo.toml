@@ -36,6 +36,7 @@
 resolver = "2"
 members = [
     "rust/tcl-lexer",
+    "rust/tcl-syntax",
     "rust/tcl-registry",
     "rust/tcl-compiler",
     "rust/tcl-lsp-core",
@@ -45,6 +46,14 @@ members = [
 ]
 exclude = [
     "editors/zed",
+    # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
+    # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
+    # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
+    # eventually targets wasm32 as a cdylib. Kept out of `cargo test --workspace`
+    # so the LSP/compiler workstream cannot regress on runtime-port churn.
+    # Gated separately via `make runtime-rust-test`. See
+    # docs/design/runtime/rust-runtime-port.md (T1.1).
+    "runtime/rust",
 ]
 
 [workspace.package]

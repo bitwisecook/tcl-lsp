@@ -17,6 +17,12 @@ pub const DEFAULT_TRIM_CHARS: &str = "\t\n\x0b\x0c\r \
 ///
 /// Handles braces, quotes, and backslash escaping.  Does not validate
 /// syntax strictly — used only for known-good constant arguments.
+///
+/// Deliberately **not** the canonical [`tcl_syntax::list::split_list`]: this
+/// preserves each element's *raw* text (it does **not** backslash-decode), so a
+/// split-then-[`tcl_list_element`] round-trip re-emits the original literal
+/// rather than a decoded value. The shared splitter decodes, which is wrong for
+/// this re-emit use.
 #[must_use]
 pub fn split_list_simple(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
@@ -127,48 +133,15 @@ pub fn tcl_hash_table_order(entries: &[(String, String)]) -> Vec<(String, String
 
 use std::collections::HashMap;
 
-/// Format a string as a canonical Tcl list element (brace quoting).
+/// Format a string as a canonical Tcl list element (`Tcl_ConvertElement`).
+///
+/// Delegates to the shared [`tcl_syntax::list::list_element`] (now also used by
+/// the runtime port and the registry const-folder) — the single Tcl-faithful
+/// quoter, correct on the leading-`#` and control-char cases this local copy
+/// previously mis-quoted.
 #[must_use]
 pub fn tcl_list_element(s: &str) -> String {
-    if s.is_empty() {
-        return "{}".to_owned();
-    }
-
-    let needs_quoting = s.bytes().any(|ch| {
-        matches!(
-            ch,
-            b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}' | b'"' | b'\\' | b';' | b'$' | b'[' | b']'
-        )
-    });
-
-    if !needs_quoting {
-        return s.to_owned();
-    }
-
-    // Prefer brace quoting when the string has balanced braces
-    // and does not end with a backslash.
-    if !s.ends_with('\\')
-        && s.bytes().filter(|&b| b == b'{').count() == s.bytes().filter(|&b| b == b'}').count()
-    {
-        let mut out = String::with_capacity(s.len() + 2);
-        out.push('{');
-        out.push_str(s);
-        out.push('}');
-        return out;
-    }
-
-    // Fall back to backslash quoting.
-    let mut out = String::with_capacity(s.len() * 2);
-    for ch in s.chars() {
-        if matches!(
-            ch,
-            ' ' | '\t' | '\n' | '\r' | '{' | '}' | '"' | '\\' | ';' | '$' | '[' | ']'
-        ) {
-            out.push('\\');
-        }
-        out.push(ch);
-    }
-    out
+    tcl_syntax::list::list_element(s)
 }
 
 /// A part of a parsed substitution template.

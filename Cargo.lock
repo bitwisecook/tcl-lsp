@@ -623,6 +623,7 @@ dependencies = [
  "bitflags 2.11.0",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
  "thiserror",
 ]
 
@@ -679,6 +680,15 @@ name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-syntax"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.11.0",
+ "tcl-lexer",
 ]
 
 [[package]]

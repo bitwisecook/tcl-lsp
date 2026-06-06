@@ -1,0 +1,42 @@
+# Rust port of the Tcl WASM runtime (Track 1 of the rust-runtime-port effort).
+#
+# Standalone crate, deliberately EXCLUDED from the root workspace
+# (`/Cargo.toml`'s `exclude` list), for two reasons:
+#
+#   1. The obj/shared-memory layer is inherently `unsafe` (raw pointers over
+#      one linear memory — see docs/design/runtime/c-extension-abi.md §9). The
+#      root workspace sets `unsafe_code = "forbid"`; this crate must opt out,
+#      so it does not inherit `[workspace.lints]`.
+#   2. It eventually builds for wasm32 as a cdylib exporting `memory` + the
+#      `Tcl_*` / `tcl_*` symbols. Keeping it out of `cargo test --workspace`
+#      (which CI runs) means the Rust LSP/compiler workstream cannot regress
+#      because of runtime-port churn. This mirrors the `editors/zed` exclusion.
+#
+# Gate: `make runtime-rust-test` runs the native `cargo test` here. The leak
+# round-trip test is the T1.1 acceptance (zero residual under the alloc/free
+# counters).
+[package]
+name = "tcl-runtime"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+description = "Rust port of the Tcl WASM runtime support library + interpreter fallback"
+publish = false
+
+[dependencies]
+tcl-lexer = { path = "../../rust/tcl-lexer" }
+tcl-syntax = { path = "../../rust/tcl-syntax" }
+
+[lib]
+name = "tcl_runtime"
+# rlib for `cargo test`; cdylib/staticlib for the eventual whole-program link
+# against compiled user code + C extensions (Track 3).
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[lints.rust]
+# This crate is the one place raw-pointer `unsafe` over the shared linear
+# memory is required and reviewed (§9). It does NOT inherit the workspace
+# `unsafe_code = "forbid"` (it is not a workspace member).
+unsafe_op_in_unsafe_fn = "warn"

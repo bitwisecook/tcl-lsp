@@ -89,36 +89,19 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     Some(out)
 }
 
-/// Field sizes beyond this bail — we never fold a literal into kilobytes of
-/// padding (sound: a missed fold is never wrong).
-const MAX_FIELD: usize = 1000;
+/// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
+/// in the shared `tcl-syntax` crate so the runtime port reuses it; the
+/// version-aware renderers below are this const-folder's own.
+use tcl_syntax::format::{parse_spec, FmtFlags, Spec};
 
-bitflags::bitflags! {
-    /// The printf conversion flags parsed from a `%…` spec.
-    #[derive(Clone, Copy)]
-    struct FmtFlags: u8 {
-        const MINUS = 1 << 0; // `-`  left-justify
-        const PLUS = 1 << 1; // `+`  always show a sign
-        const SPACE = 1 << 2; // ` `  space before a non-negative number
-        const ZERO = 1 << 3; // `0`  zero-pad
-        const HASH = 1 << 4; // `#`  alternate form
-    }
-}
-
-/// A single parsed `%…` conversion (the modelled subset).
+/// A single parsed `%…` conversion — the render input. Mirrors
+/// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`
+/// methods can hang off it (the orphan rule forbids `impl` on the shared type).
 struct Conversion {
     flags: FmtFlags,
     width: Option<usize>,
     precision: Option<usize>,
     verb: u8,
-}
-
-/// The outcome of parsing a width / `.precision` field.
-enum Field {
-    /// No digits were present.
-    Absent,
-    /// A parsed field size.
-    Size(usize),
 }
 
 /// The base / case of a radix conversion (`%x` / `%X` / `%o` / `%b`).
@@ -140,45 +123,15 @@ enum FloatKind {
 }
 
 impl Conversion {
-    /// Parse flags / width / `.precision` / verb, starting just past the `%`
-    /// and advancing `i` past the verb.  Bails on `*` width / precision, an
-    /// over-[`MAX_FIELD`] field, or a missing verb.
+    /// Parse one conversion via the shared [`tcl_syntax::format`] grammar,
+    /// advancing `i` past the verb.
     fn parse(fmt: &[u8], i: &mut usize) -> Option<Self> {
-        let mut flags = FmtFlags::empty();
-        loop {
-            let bit = match fmt.get(*i) {
-                Some(b'-') => FmtFlags::MINUS,
-                Some(b'+') => FmtFlags::PLUS,
-                Some(b' ') => FmtFlags::SPACE,
-                Some(b'0') => FmtFlags::ZERO,
-                Some(b'#') => FmtFlags::HASH,
-                _ => break,
-            };
-            flags |= bit;
-            *i += 1;
-        }
-        if fmt.get(*i) == Some(&b'*') {
-            return None; // arg-driven width — unmodelled
-        }
-        let width = match parse_field(fmt, i)? {
-            Field::Absent => None,
-            Field::Size(n) => Some(n),
-        };
-        let precision = if fmt.get(*i) == Some(&b'.') {
-            *i += 1;
-            if fmt.get(*i) == Some(&b'*') {
-                return None; // arg-driven precision — unmodelled
-            }
-            // a `.` with no digits means precision 0
-            Some(match parse_field(fmt, i)? {
-                Field::Absent => 0,
-                Field::Size(n) => n,
-            })
-        } else {
-            None
-        };
-        let verb = *fmt.get(*i)?;
-        *i += 1;
+        let Spec {
+            flags,
+            width,
+            precision,
+            verb,
+        } = parse_spec(fmt, i)?;
         Some(Self {
             flags,
             width,
@@ -435,29 +388,6 @@ impl Conversion {
     fn int_zero_pad(&self) -> bool {
         self.flags.contains(FmtFlags::ZERO) && self.precision.is_none()
     }
-}
-
-/// Parse an optional run of ASCII decimal digits as a field size, capped at
-/// [`MAX_FIELD`].  Returns [`Field::Absent`] when no digit is present,
-/// [`Field::Size`] for a value, or `None` (bail) on overflow or over-cap.
-fn parse_field(fmt: &[u8], i: &mut usize) -> Option<Field> {
-    let start = *i;
-    let mut n = 0usize;
-    while let Some(&d) = fmt.get(*i) {
-        if !d.is_ascii_digit() {
-            break;
-        }
-        n = n.checked_mul(10)?.checked_add((d - b'0') as usize)?;
-        if n > MAX_FIELD {
-            return None;
-        }
-        *i += 1;
-    }
-    Some(if *i == start {
-        Field::Absent
-    } else {
-        Field::Size(n)
-    })
 }
 
 /// Parse a `%d` / `%i` argument as a **dialect-invariant** decimal integer:

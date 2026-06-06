@@ -355,6 +355,16 @@ decision, both are required before shipping.
 
 ### 13.1 The C-API ownership / error contract
 
+> **Status: contract + gate landed** (impl pending). The contract doc
+> [`c-api-ownership-contract.md`](c-api-ownership-contract.md) annotates all 81
+> shipped C-API functions with an ownership + error-path category (fixing the
+> `fresh_zero` rc=0-on-creation convention), and
+> `scripts/check_c_api_ownership.py` (`make check-c-api-ownership`, in
+> `_prep-pr-checks-noty`) rejects any un-annotated C-API export. Remaining: encode
+> the categories in the `runtime/rust/` impls and extend the gate to the real
+> `#[no_mangle] extern "C"` exports. Tracked as T2.1 in
+> [`rust-runtime-port.md`](rust-runtime-port.md).
+
 **Why.** The spikes leak every `Tcl_Obj` and only return `TCL_OK`, so the
 refcount-ownership and error protocols — the contracts that make extensions
 leak-free and correct — are entirely unspecified in our artifacts. This is the
