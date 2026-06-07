@@ -551,6 +551,11 @@ impl Backend {
     /// definition / references / rename / call-hierarchy until the
     /// server restarts.  Falls back to removing the entry when the
     /// URI isn't a readable file (untitled buffer, deleted file).
+    ///
+    /// Disk IO and analysis deliberately run outside
+    /// `document_analysis_gate`. The final index update rechecks that
+    /// the URI is still closed, so a slow disk read cannot overwrite a
+    /// newly reopened unsaved buffer.
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -567,6 +572,10 @@ impl Backend {
         } else {
             None
         };
+        let _gate = self.document_analysis_gate.lock().await;
+        if self.documents.lock().await.contains_key(uri) {
+            return;
+        }
         let mut index = self.workspace_index.lock().await;
         index.remove_document(uri.as_str());
         if let Some(analysis) = analysed {
@@ -1208,26 +1217,31 @@ impl Backend {
         .await;
         match result {
             Ok((analysis, diags)) => {
-                let _gate = self.document_analysis_gate.lock().await;
-                let is_current = {
-                    let docs = self.documents.lock().await;
-                    docs.get(&uri).is_some_and(|doc| doc.revision == revision)
-                };
-                if !is_current {
-                    return;
-                }
-                // Cache the analysis so the per-method
-                // handlers don't have to re-run it on every
-                // request.
                 {
-                    // Refresh the cross-document workspace index
-                    // for this URI (remove stale entries, then
-                    // re-add the fresh definitions).
-                    let mut index = self.workspace_index.lock().await;
-                    index.remove_document(uri.as_str());
-                    index.add_document(uri.as_str(), &analysis);
+                    let _gate = self.document_analysis_gate.lock().await;
+                    let is_current = {
+                        let docs = self.documents.lock().await;
+                        docs.get(&uri).is_some_and(|doc| doc.revision == revision)
+                    };
+                    if !is_current {
+                        return;
+                    }
+                    // Cache the analysis so the per-method
+                    // handlers don't have to re-run it on every
+                    // request.
+                    {
+                        // Refresh the cross-document workspace index
+                        // for this URI (remove stale entries, then
+                        // re-add the fresh definitions).
+                        let mut index = self.workspace_index.lock().await;
+                        index.remove_document(uri.as_str());
+                        index.add_document(uri.as_str(), &analysis);
+                    }
+                    self.analyses.lock().await.insert(uri.clone(), analysis);
                 }
-                self.analyses.lock().await.insert(uri.clone(), analysis);
+                // The LSP version is attached to normal analyser
+                // diagnostics, so clients can discard this publish if a
+                // newer edit overtakes it after the cache/index update.
                 self.client.publish_diagnostics(uri, diags, version).await;
             }
             Err(err) => {
@@ -1459,21 +1473,28 @@ impl LanguageServer for Backend {
             self.analyses.lock().await.remove(uri);
             self.hover_cache.lock().await.invalidate_uri(uri);
             self.semantic_tokens_cache.lock().await.remove(uri);
-            // Re-index the file from disk rather than dropping it: the
-            // file still exists on disk and was (or would be) part of
-            // the on-disk index, so cross-document definition /
-            // references / rename / call-hierarchy must keep seeing it
-            // after the editor closes the buffer.  `scan_workspace_folders`
-            // only runs at `initialized`, so a plain `remove_document`
-            // here would make the file vanish until restart.
-            self.reindex_index_from_disk(uri).await;
-            // Clear any previously-published diagnostics so the
-            // editor's problem panel doesn't keep showing them
-            // for a closed file.
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            // Clear any previously-published diagnostics before a later
+            // didOpen for the same URI can run. Close publishes do not
+            // carry a reliable document version, so this short publish
+            // stays ordered by the gate.
             self.client
                 .publish_diagnostics(uri.clone(), Vec::new(), None)
                 .await;
         }
+        // Re-index the file from disk rather than dropping it: the
+        // file still exists on disk and was (or would be) part of
+        // the on-disk index, so cross-document definition /
+        // references / rename / call-hierarchy must keep seeing it
+        // after the editor closes the buffer.  `scan_workspace_folders`
+        // only runs at `initialized`, so a plain `remove_document`
+        // here would make the file vanish until restart. The helper
+        // rechecks that this URI is still closed before publishing
+        // the disk-backed index entry.
+        self.reindex_index_from_disk(uri).await;
     }
 
     async fn folding_range(
@@ -4288,6 +4309,44 @@ mod tests {
         assert!(
             index.proc_definitions("fresh", "other").is_empty(),
             "stale buffer-only proc must be gone after reindex from disk",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn reindex_from_disk_does_not_clobber_open_document() {
+        let root = unique_scratch_dir("reindex-open");
+        let on_disk = root.join("buf.tcl");
+        std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let uri = Url::from_file_path(&on_disk).unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+
+        backend.reindex_index_from_disk(&uri).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("fresh", "other").is_empty(),
+            "open-buffer definitions must remain indexed",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "disk reindex must not overwrite a live buffer",
         );
         drop(index);
 
