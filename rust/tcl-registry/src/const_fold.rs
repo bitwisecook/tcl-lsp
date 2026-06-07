@@ -161,9 +161,14 @@ pub(crate) fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, u
 // ── list commands ──────────────────────────────────────────────────
 
 /// `concat ?arg ...?` — trim each arg and space-join the non-empty ones
-/// (a flatten, not a re-quote — matches Tcl's `concat`).
-#[allow(clippy::unnecessary_wraps)]
+/// (a flatten, not a re-quote) for the backslash-free subset. Tcl exposes
+/// some backslashes during concat's list-normalisation step (`b\ ` keeps
+/// its trailing space), so any backslash-bearing argument is declined
+/// rather than folded approximately.
 pub(crate) fn fold_concat(args: &[&str]) -> Option<String> {
+    if args.iter().any(|arg| arg.contains('\\')) {
+        return None;
+    }
     Some(
         args.iter()
             .map(|a| a.trim())
@@ -433,6 +438,7 @@ mod tests {
     fn list_folds_match_tcl() {
         assert_eq!(fold_concat(&["a", " b ", "c"]).as_deref(), Some("a b c"));
         assert_eq!(fold_concat(&["{a b}", "c"]).as_deref(), Some("{a b} c"));
+        assert_eq!(fold_concat(&["a", "b\\ "]), None);
         assert_eq!(fold_list(&["a", "b c"]).as_deref(), Some("a {b c}"));
         assert_eq!(fold_llength(&["a b c"]).as_deref(), Some("3"));
         assert_eq!(fold_llength(&["{a b} c"]).as_deref(), Some("2"));
