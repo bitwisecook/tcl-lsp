@@ -1121,11 +1121,13 @@ impl Backend {
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
-    /// The result is cached per canonical dialect key so each
-    /// session builds at most one registry per requested dialect.
-    /// Unparseable dialect strings collapse to the empty-string
-    /// key so they share a single cached "plain Tcl" registry
-    /// rather than leaking a fresh allocation per typo.
+    /// The result is cached per canonical dialect key. Concurrent
+    /// first-use requests may build the same registry more than once,
+    /// but only one `Arc` is inserted; keeping construction outside the
+    /// mutex avoids blocking unrelated cache hits on spec loading.
+    /// Unparseable dialect strings collapse to the empty-string key so
+    /// they share a single cached "plain Tcl" registry rather than
+    /// leaking a fresh allocation per typo.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
         let parsed = DialectSet::parse(dialect);
         // Canonicalise the cache key: parseable dialects keep
@@ -1146,17 +1148,19 @@ impl Backend {
         key: &str,
         dialect: Option<DialectSet>,
     ) -> Arc<CommandRegistry> {
-        let mut cache = self.dialect_registries.lock().await;
-        if let Some(r) = cache.get(key) {
-            return Arc::clone(r);
+        if let Some(r) = self.dialect_registries.lock().await.get(key).cloned() {
+            return r;
         }
         let mut r = CommandRegistry::build_default();
         if let Some(d) = dialect {
             r.load_dialect(d);
         }
         let arc = Arc::new(r);
-        cache.insert(key.to_owned(), Arc::clone(&arc));
-        arc
+        let mut cache = self.dialect_registries.lock().await;
+        let entry = cache
+            .entry(key.to_owned())
+            .or_insert_with(|| Arc::clone(&arc));
+        Arc::clone(entry)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -4568,6 +4572,18 @@ mod tests {
         assert_eq!(
             backend.dialect_for_open(&doc, "plaintext").await,
             "f5-irules".to_owned(),
+        );
+    }
+
+    #[tokio::test]
+    async fn registry_for_dialect_reuses_cached_arc() {
+        let backend = test_backend();
+        let first = backend.registry_for_dialect("f5-irules").await;
+        let second = backend.registry_for_dialect("f5-irules").await;
+
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "repeated dialect lookups should return the cached registry",
         );
     }
 
