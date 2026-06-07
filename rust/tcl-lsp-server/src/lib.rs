@@ -105,11 +105,38 @@ use tower_lsp::{Client, LanguageServer};
 struct DocumentState {
     text: String,
     dialect: String,
+    /// Monotonic local revision.  Incremented before each
+    /// asynchronous analyser run so stale workers cannot publish
+    /// analysis/cache state for an older edit.
+    revision: u64,
+    /// Last LSP document version reported by the client.  Forwarded
+    /// with published diagnostics so clients can discard obsolete
+    /// diagnostics if messages arrive out of order.
+    version: Option<i32>,
 }
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
-        Self { text, dialect }
+        Self {
+            text,
+            dialect,
+            revision: 0,
+            version: None,
+        }
+    }
+
+    fn with_version(text: String, dialect: String, version: i32) -> Self {
+        Self {
+            text,
+            dialect,
+            revision: 0,
+            version: Some(version),
+        }
+    }
+
+    fn bump_revision(&mut self, version: i32) {
+        self.revision = self.revision.saturating_add(1);
+        self.version = Some(version);
     }
 }
 
@@ -129,6 +156,15 @@ impl DocumentState {
 pub struct Backend {
     client: Client,
     documents: Mutex<HashMap<Url, DocumentState>>,
+    /// Serialises the critical section that couples the live document
+    /// revision to the derived analysis cache, workspace index, hover
+    /// cache, semantic-token cache, and diagnostics publication.
+    ///
+    /// The expensive analyser work still runs outside this lock.  The
+    /// gate only covers revision checks and state publication, so an
+    /// older worker cannot finish late and overwrite state for newer
+    /// text.
+    document_analysis_gate: Mutex<()>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
@@ -303,6 +339,7 @@ impl Backend {
         Self {
             client,
             documents: Mutex::new(HashMap::new()),
+            document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
@@ -1129,7 +1166,14 @@ impl Backend {
     /// event loop stays responsive.  `S-async-diagnostics`
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
-    async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+    async fn publish_analyser_diagnostics(
+        &self,
+        uri: Url,
+        text: String,
+        dialect: String,
+        revision: u64,
+        version: Option<i32>,
+    ) {
         // GAP-C1: the base analyser only surfaces `Analyser::analyse`
         // diagnostics.  The optimiser O-codes, GVN redundancies,
         // shimmer/thunking, taint (W2xx / T1xx), and the iRules
@@ -1160,6 +1204,14 @@ impl Backend {
         .await;
         match result {
             Ok((analysis, diags)) => {
+                let _gate = self.document_analysis_gate.lock().await;
+                let is_current = {
+                    let docs = self.documents.lock().await;
+                    docs.get(&uri).is_some_and(|doc| doc.revision == revision)
+                };
+                if !is_current {
+                    return;
+                }
                 // Cache the analysis so the per-method
                 // handlers don't have to re-run it on every
                 // request.
@@ -1172,7 +1224,7 @@ impl Backend {
                     index.add_document(uri.as_str(), &analysis);
                 }
                 self.analyses.lock().await.insert(uri.clone(), analysis);
-                self.client.publish_diagnostics(uri, diags, None).await;
+                self.client.publish_diagnostics(uri, diags, version).await;
             }
             Err(err) => {
                 self.client
@@ -1287,14 +1339,26 @@ impl LanguageServer for Backend {
             .await;
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
+        let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
-        let mut docs = self.documents.lock().await;
-        docs.insert(
-            params.text_document.uri,
-            DocumentState::new(params.text_document.text, dialect),
-        );
-        drop(docs);
-        self.publish_analyser_diagnostics(uri, text, dialect_for_diags)
+        let (revision, version) = {
+            let _gate = self.document_analysis_gate.lock().await;
+            let mut docs = self.documents.lock().await;
+            docs.insert(
+                uri.clone(),
+                DocumentState::with_version(params.text_document.text, dialect, version),
+            );
+            drop(docs);
+            self.hover_cache.lock().await.invalidate_uri(&uri);
+            self.semantic_tokens_cache.lock().await.remove(&uri);
+            self.analyses.lock().await.remove(&uri);
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            (0, Some(version))
+        };
+        self.publish_analyser_diagnostics(uri, text, dialect_for_diags, revision, version)
             .await;
     }
 
@@ -1308,38 +1372,51 @@ impl LanguageServer for Backend {
         if params.content_changes.is_empty() {
             return;
         }
-        let mut docs = self.documents.lock().await;
         let default_dialect = self.default_dialect.lock().await.clone();
-        let entry = docs
-            .entry(uri.clone())
-            // didChange before didOpen — start from empty text and the
-            // session default dialect (no languageId is available here).
-            .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
-        let mut text = std::mem::take(&mut entry.text);
-        for change in &params.content_changes {
-            text = apply_content_change(&text, change.range, &change.text);
-        }
-        entry.text = text.clone();
-        let dialect = entry.dialect.clone();
-        drop(docs);
-        // `S-hover-sync11`: drop every cached hover response
-        // for this URI so subsequent requests return answers
-        // against the freshly-edited source rather than stale
-        // pre-edit results.
-        self.hover_cache.lock().await.invalidate_uri(&uri);
-        // `S-semantic-tokens-rich` delta: drop the cached
-        // token snapshot so the next `semanticTokens/full/delta`
-        // returns a fresh full result instead of an empty edit
-        // list against an outdated baseline.
-        self.semantic_tokens_cache.lock().await.remove(&uri);
-        // Evict the stale `AnalysisResult` so any request that
-        // arrives before `publish_analyser_diagnostics` finishes
-        // re-running the analyser falls through to a fresh
-        // run via `analysis_for` rather than serving pre-edit
-        // results (PR #454 Codex review P1).  `publish_*` will
-        // reinsert the fresh entry when it completes.
-        self.analyses.lock().await.remove(&uri);
-        self.publish_analyser_diagnostics(uri, text, dialect).await;
+        let change_version = params.text_document.version;
+        let (text, dialect, revision, version) = {
+            let _gate = self.document_analysis_gate.lock().await;
+            let mut docs = self.documents.lock().await;
+            let entry = docs
+                .entry(uri.clone())
+                // didChange before didOpen — start from empty text and the
+                // session default dialect (no languageId is available here).
+                .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
+            let mut text = std::mem::take(&mut entry.text);
+            for change in &params.content_changes {
+                text = apply_content_change(&text, change.range, &change.text);
+            }
+            entry.text = text.clone();
+            entry.bump_revision(change_version);
+            let dialect = entry.dialect.clone();
+            let revision = entry.revision;
+            let version = entry.version;
+            drop(docs);
+            // `S-hover-sync11`: drop every cached hover response
+            // for this URI so subsequent requests return answers
+            // against the freshly-edited source rather than stale
+            // pre-edit results.
+            self.hover_cache.lock().await.invalidate_uri(&uri);
+            // `S-semantic-tokens-rich` delta: drop the cached
+            // token snapshot so the next `semanticTokens/full/delta`
+            // returns a fresh full result instead of an empty edit
+            // list against an outdated baseline.
+            self.semantic_tokens_cache.lock().await.remove(&uri);
+            // Evict the stale `AnalysisResult` so any request that
+            // arrives before `publish_analyser_diagnostics` finishes
+            // re-running the analyser falls through to a fresh
+            // run via `analysis_for` rather than serving pre-edit
+            // results (PR #454 Codex review P1).  `publish_*` will
+            // reinsert the fresh entry when it completes.
+            self.analyses.lock().await.remove(&uri);
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            (text, dialect, revision, version)
+        };
+        self.publish_analyser_diagnostics(uri, text, dialect, revision, version)
+            .await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
@@ -1372,24 +1449,27 @@ impl LanguageServer for Backend {
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = &params.text_document.uri;
-        self.documents.lock().await.remove(uri);
-        self.analyses.lock().await.remove(uri);
-        // Re-index the file from disk rather than dropping it: the
-        // file still exists on disk and was (or would be) part of
-        // the on-disk index, so cross-document definition /
-        // references / rename / call-hierarchy must keep seeing it
-        // after the editor closes the buffer.  `scan_workspace_folders`
-        // only runs at `initialized`, so a plain `remove_document`
-        // here would make the file vanish until restart.
-        self.reindex_index_from_disk(uri).await;
-        self.hover_cache.lock().await.invalidate_uri(uri);
-        self.semantic_tokens_cache.lock().await.remove(uri);
-        // Clear any previously-published diagnostics so the
-        // editor's problem panel doesn't keep showing them
-        // for a closed file.
-        self.client
-            .publish_diagnostics(uri.clone(), Vec::new(), None)
-            .await;
+        {
+            let _gate = self.document_analysis_gate.lock().await;
+            self.documents.lock().await.remove(uri);
+            self.analyses.lock().await.remove(uri);
+            self.hover_cache.lock().await.invalidate_uri(uri);
+            self.semantic_tokens_cache.lock().await.remove(uri);
+            // Re-index the file from disk rather than dropping it: the
+            // file still exists on disk and was (or would be) part of
+            // the on-disk index, so cross-document definition /
+            // references / rename / call-hierarchy must keep seeing it
+            // after the editor closes the buffer.  `scan_workspace_folders`
+            // only runs at `initialized`, so a plain `remove_document`
+            // here would make the file vanish until restart.
+            self.reindex_index_from_disk(uri).await;
+            // Clear any previously-published diagnostics so the
+            // editor's problem panel doesn't keep showing them
+            // for a closed file.
+            self.client
+                .publish_diagnostics(uri.clone(), Vec::new(), None)
+                .await;
+        }
     }
 
     async fn folding_range(
@@ -4019,6 +4099,7 @@ mod tests {
         Backend {
             client: service.inner().client.clone(),
             documents: Mutex::new(HashMap::new()),
+            document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
@@ -4030,6 +4111,64 @@ mod tests {
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
         }
+    }
+
+    #[tokio::test]
+    async fn stale_diagnostics_worker_cannot_overwrite_current_analysis() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///stale.tcl").unwrap();
+        let current_src = "proc current {} {}\n";
+        let stale_src = "proc stale {} {}\n";
+
+        let mut analyser = Analyser::new();
+        let current_analysis = analyser.analyse(current_src, "tcl8.6").clone();
+        {
+            let _gate = backend.document_analysis_gate.lock().await;
+            let mut doc =
+                DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
+            doc.revision = 2;
+            backend.documents.lock().await.insert(uri.clone(), doc);
+            backend
+                .analyses
+                .lock()
+                .await
+                .insert(uri.clone(), current_analysis.clone());
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &current_analysis);
+        }
+
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                stale_src.to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+                Some(1),
+            )
+            .await;
+
+        let analysis = backend
+            .analyses
+            .lock()
+            .await
+            .get(&uri)
+            .cloned()
+            .expect("current analysis remains cached");
+        assert!(analysis.all_procs.contains_key("::current"));
+        assert!(!analysis.all_procs.contains_key("::stale"));
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("current", "other").is_empty(),
+            "current document should remain indexed",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "stale worker must not re-index obsolete text",
+        );
     }
 
     #[tokio::test]
