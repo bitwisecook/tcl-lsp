@@ -207,6 +207,9 @@ fn fold_first(args: &[&str]) -> Option<String> {
     if !needle.is_ascii() || !haystack.is_ascii() {
         return None;
     }
+    if needle.is_empty() {
+        return Some("-1".to_owned());
+    }
     let pos = haystack
         .get(start..)
         .and_then(|tail| tail.find(needle))
@@ -229,6 +232,9 @@ fn fold_last(args: &[&str]) -> Option<String> {
     };
     if !needle.is_ascii() || !haystack.is_ascii() {
         return None;
+    }
+    if needle.is_empty() {
+        return Some("-1".to_owned());
     }
     let end = match end_idx {
         None => haystack.len(),
@@ -1632,8 +1638,12 @@ mod tests {
         );
         assert_eq!(f("first")(&["b", "abcb"]).as_deref(), Some("1"));
         assert_eq!(f("first")(&["b", "abcb", "2"]).as_deref(), Some("3"));
+        assert_eq!(f("first")(&["", "abc"]).as_deref(), Some("-1"));
+        assert_eq!(f("first")(&["", "abc", "1"]).as_deref(), Some("-1"));
         assert_eq!(f("first")(&["z", "abc"]).as_deref(), Some("-1"));
         assert_eq!(f("last")(&["b", "abcb"]).as_deref(), Some("3"));
+        assert_eq!(f("last")(&["", "abc"]).as_deref(), Some("-1"));
+        assert_eq!(f("last")(&["", "abc", "1"]).as_deref(), Some("-1"));
         assert_eq!(f("last")(&["z", "abc"]).as_deref(), Some("-1"));
         assert_eq!(f("compare")(&["abc", "abc"]).as_deref(), Some("0"));
         assert_eq!(f("compare")(&["abc", "abd"]).as_deref(), Some("-1"));
