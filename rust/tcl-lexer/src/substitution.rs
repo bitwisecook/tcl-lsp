@@ -23,17 +23,13 @@ use std::borrow::Cow;
 /// Any other `\X` passes through as the character `X`.
 ///
 /// Returns [`Cow::Borrowed`] when `text` contains no backslash (no
-/// allocation) and [`Cow::Owned`] otherwise. Invalid code points (e.g.
-/// `\UFFFFFFFF`, lone surrogates) map to the Unicode replacement
-/// character U+FFFD, matching what any valid-UTF-8 sink would ultimately
-/// render. The Python reference implementation produces lone-surrogate
-/// `str` objects in those edge cases; Rust `String` cannot, so we pick
-/// the closest valid-UTF-8 approximation.
+/// allocation) and [`Cow::Owned`] otherwise. Surrogate code points map
+/// to the Unicode replacement character U+FFFD, matching what any
+/// valid-UTF-8 sink would ultimately render. The Python reference
+/// implementation produces lone-surrogate `str` objects in those edge
+/// cases; Rust `String` cannot, so we pick the closest valid-UTF-8
+/// approximation.
 ///
-/// `\u`-escaped high-surrogate codepoints (U+D800–U+DBFF) immediately
-/// followed by a `\u`-escaped low surrogate (U+DC00–U+DFFF) combine
-/// into the single supplementary-plane codepoint they encode, matching
-/// Tcl 9 `tclParse.c::TclParseBackslash`.
 #[must_use]
 pub fn backslash_subst(text: &str) -> Cow<'_, str> {
     if !text.contains('\\') {
@@ -67,7 +63,7 @@ pub fn backslash_subst(text: &str) -> Cow<'_, str> {
             '\n' | '\r' => consume_line_continuation(&mut out, escape_ch, &mut chars),
             'x' => scan_hex_escape(&mut out, text, escape_i, 2, &mut chars),
             'u' => scan_unicode_escape(&mut out, text, escape_i, &mut chars),
-            'U' => scan_hex_escape(&mut out, text, escape_i, 8, &mut chars),
+            'U' => scan_wide_unicode_escape(&mut out, &mut chars),
             '0'..='7' => scan_octal_escape(&mut out, text, escape_i, &mut chars),
             _ => {
                 // Unknown escape: pass through the char after the backslash.
@@ -105,11 +101,10 @@ fn consume_line_continuation(out: &mut String, first: char, chars: &mut CharIndi
     out.push(' ');
 }
 
-/// Parse `\uHHHH` (1–4 hex digits) and, when the parsed codepoint is a
-/// high surrogate immediately followed by a `\uLLLL` low surrogate,
-/// combine the pair into the supplementary-plane codepoint they
-/// encode.  Mirrors the Tcl 9 `TclParseBackslash` behaviour the
-/// Python reference implementation gained in PR #426.
+/// Parse `\uHHHH` (1–4 hex digits). C Tcl 9.0 keeps surrogate code
+/// units as independent string elements; Rust `String` cannot store
+/// surrogate scalar values, so they degrade to U+FFFD instead of being
+/// combined with a following `\u` escape.
 fn scan_unicode_escape(out: &mut String, text: &str, escape_i: usize, chars: &mut CharIndices<'_>) {
     let letter = chars.next().expect("caller peeked 'u'").1;
     let digits_start = escape_i + 1;
@@ -121,32 +116,31 @@ fn scan_unicode_escape(out: &mut String, text: &str, escape_i: usize, chars: &mu
     let digits = &text[digits_start..digits_end];
     let value = u32::from_str_radix(digits, 16).expect("hex digits parse");
 
-    // Surrogate-pair combining: if `value` is a high surrogate and the
-    // next six bytes are `\u` + 4 hex digits encoding a low surrogate,
-    // emit the combined supplementary-plane codepoint.  The lookahead
-    // peeks at raw bytes — backslash, `u`, and hex digits are all
-    // ASCII so byte-level slicing is on character boundaries.
-    if (0xD800..=0xDBFF).contains(&value) && text.len() >= digits_end + 6 {
-        let bytes = text.as_bytes();
-        let ok_prefix = bytes[digits_end] == b'\\' && bytes[digits_end + 1] == b'u';
-        let low_digits = &bytes[digits_end + 2..digits_end + 6];
-        let ok_hex = low_digits.iter().all(u8::is_ascii_hexdigit);
-        if ok_prefix && ok_hex {
-            let low_str = &text[digits_end + 2..digits_end + 6];
-            let low = u32::from_str_radix(low_str, 16).expect("hex digits parse");
-            if (0xDC00..=0xDFFF).contains(&low) {
-                let combined = 0x10000 + ((value - 0xD800) << 10) + (low - 0xDC00);
-                out.push(char::from_u32(combined).unwrap_or('\u{FFFD}'));
-                // Advance past the consumed `\uLLLL` (6 ASCII bytes = 6 chars).
-                for _ in 0..6 {
-                    chars.next();
-                }
-                return;
-            }
-        }
-    }
-
     out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
+}
+
+fn scan_wide_unicode_escape(out: &mut String, chars: &mut CharIndices<'_>) {
+    let letter = chars.next().expect("caller peeked 'U'").1;
+    let mut value = 0u32;
+    let mut consumed = 0usize;
+    while consumed < 8 {
+        let Some(&(_, c)) = chars.peek() else { break };
+        let Some(digit) = c.to_digit(16) else { break };
+        let Some(next) = value.checked_mul(16).and_then(|v| v.checked_add(digit)) else {
+            break;
+        };
+        if next > 0x0010_FFFF {
+            break;
+        }
+        chars.next();
+        value = next;
+        consumed += 1;
+    }
+    if consumed == 0 {
+        out.push(letter);
+    } else {
+        out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
+    }
 }
 
 fn scan_hex_escape(
@@ -308,28 +302,38 @@ mod tests {
     #[test]
     fn wide_unicode_escape() {
         assert_eq!(subst(r"\U0001F600"), "\u{1F600}");
+        assert_eq!(subst(r"\U0010FFFF"), "\u{10FFFF}");
     }
 
     #[test]
-    fn surrogate_pair_combines() {
-        // U+1F600 GRINNING FACE = D83D + DE00 (UTF-16 surrogate pair).
+    fn wide_unicode_escape_stops_before_invalid_scalar() {
+        assert_eq!(subst(r"\U00110000"), "\u{11000}0");
+        assert_eq!(subst(r"\UFFFFFFFF"), "\u{FFFFF}FFF");
+        assert_eq!(subst(r"\U10FFFFF"), "\u{10FFFF}F");
+        assert_eq!(subst(r"\U123456"), "\u{12345}6");
+        assert_eq!(subst(r"\U00000041"), "A");
+    }
+
+    #[test]
+    fn surrogate_pair_does_not_combine() {
+        // C Tcl 9.0 keeps the two \u escapes as two surrogate code
+        // units. Rust strings cannot represent those scalar values,
+        // so the closest valid UTF-8 representation is two
+        // replacement characters, not one U+1F600 character.
         let input = "\\u".to_owned() + "D83D" + "\\u" + "DE00";
-        assert_eq!(subst(&input), "\u{1F600}");
-        // U+10000 = D800 + DC00 (smallest supplementary codepoint).
+        assert_eq!(subst(&input), "\u{FFFD}\u{FFFD}");
+
         let input = "\\u".to_owned() + "D800" + "\\u" + "DC00";
-        assert_eq!(subst(&input), "\u{10000}");
-        // U+10FFFF (max valid codepoint) = DBFF + DFFF.
+        assert_eq!(subst(&input), "\u{FFFD}\u{FFFD}");
+
         let input = "\\u".to_owned() + "DBFF" + "\\u" + "DFFF";
-        assert_eq!(subst(&input), "\u{10FFFF}");
+        assert_eq!(subst(&input), "\u{FFFD}\u{FFFD}");
     }
 
     #[test]
-    fn surrogate_pair_with_surrounding_text() {
-        // The combine path needs to advance the iterator past the
-        // consumed low-surrogate escape; verify trailing chars
-        // still appear in the output.
+    fn surrogate_pair_with_surrounding_text_does_not_consume_following_escape() {
         let input = "pre".to_owned() + "\\u" + "D83D" + "\\u" + "DE00" + "post";
-        assert_eq!(subst(&input), format!("pre{}post", '\u{1F600}'));
+        assert_eq!(subst(&input), "pre\u{FFFD}\u{FFFD}post");
     }
 
     #[test]
@@ -358,18 +362,16 @@ mod tests {
 
     #[test]
     fn surrogate_pair_with_short_low_unit_does_not_combine() {
-        // The low-surrogate unit must be exactly 4 hex digits.  Three
-        // digits then 'x' means the second \u parses as \uDE0 (a
-        // 3-digit unicode escape = U+0DE0, not a surrogate), then 'x'
-        // — and the combine condition (exactly 4 trailing hex digits)
-        // fails so the high surrogate also degrades to U+FFFD.
+        // Three digits then 'x' means the second \u parses as \uDE0
+        // (a 3-digit unicode escape = U+0DE0, not a surrogate), then
+        // 'x'. The high surrogate still degrades to U+FFFD.
         let input = "\\u".to_owned() + "D800" + "\\u" + "DE0x";
         assert_eq!(subst(&input), "\u{FFFD}\u{0DE0}x");
     }
 
     #[test]
-    fn wide_unicode_out_of_range_is_replacement() {
-        assert_eq!(subst(r"\UFFFFFFFF"), "\u{FFFD}");
+    fn wide_unicode_escape_no_digits_passes_letter() {
+        assert_eq!(subst(r"\Ug"), "Ug");
     }
 
     #[test]
