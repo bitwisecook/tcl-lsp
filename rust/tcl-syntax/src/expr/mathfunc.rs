@@ -60,6 +60,34 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     }
 }
 
+// `i64::MAX as f64` rounds up to 2^63, so the positive bound is
+// exclusive. The negative 2^63 value is exactly representable and fits.
+const I64_MIN_F64: f64 = -9_223_372_036_854_775_808.0;
+const I64_MAX_PLUS_ONE_F64: f64 = 9_223_372_036_854_775_808.0;
+
+fn finite_trunc_to_i64(f: f64) -> Option<i64> {
+    if !f.is_finite() {
+        return None;
+    }
+    let truncated = f.trunc();
+    if !(I64_MIN_F64..I64_MAX_PLUS_ONE_F64).contains(&truncated) {
+        return None;
+    }
+    Some(truncated as i64)
+}
+
+fn finite_round_to_i64(f: f64) -> Option<i64> {
+    if !f.is_finite() {
+        return None;
+    }
+    let rounded = if f >= 0.0 {
+        (f + 0.5).floor()
+    } else {
+        (f - 0.5).ceil()
+    };
+    finite_trunc_to_i64(rounded)
+}
+
 fn min_max(name: &str, vals: &[Num]) -> Option<Num> {
     if vals.is_empty() {
         return None;
@@ -148,15 +176,13 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         },
         "int" | "entier" | "wide" => match v {
             Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) => f.is_finite().then_some(Num::Int(f as i64)),
+            Num::Float(f) => finite_trunc_to_i64(f).map(Num::Int),
         },
         "double" => Some(Num::Float(v.as_f64())),
         "bool" => Some(Num::Int(i64::from(v.is_truthy()))),
         "round" => match v {
             Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) if !f.is_finite() => None,
-            Num::Float(f) if f >= 0.0 => Some(Num::Int((f + 0.5).floor() as i64)),
-            Num::Float(f) => Some(Num::Int((f - 0.5).ceil() as i64)),
+            Num::Float(f) => finite_round_to_i64(f).map(Num::Int),
         },
         "ceil" => Some(Num::Float(v.as_f64().ceil())),
         "floor" => Some(Num::Float(v.as_f64().floor())),
@@ -210,6 +236,14 @@ mod tests {
         assert_eq!(dispatch("int", &[Num::Float(3.9)]), Some(Num::Int(3)));
         assert_eq!(dispatch("round", &[Num::Float(2.5)]), Some(Num::Int(3))); // ties away from 0
         assert_eq!(dispatch("round", &[Num::Float(-2.5)]), Some(Num::Int(-3)));
+        assert_eq!(
+            dispatch("int", &[Num::Float(I64_MIN_F64)]),
+            Some(Num::Int(i64::MIN))
+        );
+        assert_eq!(dispatch("int", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("entier", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("wide", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("round", &[Num::Float(1.0e20)]), None);
         assert_eq!(dispatch("double", &[Num::Int(5)]), Some(Num::Float(5.0)));
         assert_eq!(
             dispatch("isnan", &[Num::Float(f64::NAN)]),
