@@ -1,6 +1,7 @@
 //! `string` — perform one of several string operations.
 
 use crate::prelude::*;
+use tcl_syntax::number::{parse_whole, Number};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -443,7 +444,7 @@ fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
         // `class_available` above); each decides 1/0/bail for `version`.
         "integer" => return is_integer_class(s, version),
         "wideinteger" => return is_wide_class(s, version),
-        "entier" => return is_entier_class(s),
+        "entier" => return is_entier_class(s, version),
         "dict" => return is_dict_class(s),
         "double" => return string_is_double(s),
         _ => return None, // unknown class
@@ -503,8 +504,14 @@ fn classify_int_form(s: &str) -> IntForm {
     if b.is_empty() {
         return IntForm::NotInteger; // a lone sign
     }
-    if b[0] == b'0' && b.len() >= 2 && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
-        return IntForm::Ambiguous; // hex / octal / binary prefix
+    if b.contains(&b'_') {
+        return IntForm::Ambiguous; // Tcl 9 digit separators
+    }
+    if b[0] == b'0'
+        && b.len() >= 2
+        && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B' | b'd' | b'D')
+    {
+        return IntForm::Ambiguous; // Tcl 9 radix prefixes / Tcl 8.x divergence
     }
     if !b.iter().all(u8::is_ascii_digit) {
         return IntForm::NotInteger; // a non-digit with no recognised prefix
@@ -518,10 +525,31 @@ fn classify_int_form(s: &str) -> IntForm {
     }
 }
 
-/// `string is integer`: a plain decimal of magnitude ≤ `2³²-1` is valid in
-/// every release (→ `1`); a larger one is valid only on 9.0 (unbounded) and
-/// rejected (→ `0`) on 8.x; with no known version the divergent range bails.
+fn tcl9_integer_number(s: &str) -> Option<Number> {
+    if !s.is_ascii() {
+        return None;
+    }
+    parse_whole(s)
+}
+
+/// `string is integer`: known Tcl 9 uses the shared Tcl 9 number parser;
+/// older/unknown dialects stay on the conservative plain-decimal subset.
+/// A plain decimal of magnitude ≤ `2³²-1` is valid in every release
+/// (→ `1`); larger or Tcl-9-only forms bail unless the dialect is known.
 fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
+    if version == Some(TclVersion::V9_0) {
+        return Some(
+            if matches!(
+                tcl9_integer_number(s),
+                Some(Number::Int(_) | Number::Big { .. })
+            ) {
+                "1"
+            } else {
+                "0"
+            }
+            .to_owned(),
+        );
+    }
     match classify_int_form(s) {
         IntForm::Ambiguous => None,
         IntForm::NotInteger => Some("0".to_owned()),
@@ -537,9 +565,20 @@ fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
 }
 
 /// `string is wideinteger` (available 8.5+, gated by [`class_available`]):
-/// 8.5/8.6 accept the unsigned-64-bit range, 9.0 the signed-64-bit range.  A
-/// negative value bails (that signed/unsigned bound differs).
+/// known Tcl 9 uses the shared Tcl 9 number parser and the signed-64-bit
+/// bound. 8.5/8.6 accept the unsigned-64-bit range; negative values bail
+/// there because that signed/unsigned boundary differs by dialect.
 fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
+    if version == Some(TclVersion::V9_0) {
+        return Some(
+            if matches!(tcl9_integer_number(s), Some(Number::Int(_))) {
+                "1"
+            } else {
+                "0"
+            }
+            .to_owned(),
+        );
+    }
     match classify_int_form(s) {
         IntForm::Ambiguous => None,
         IntForm::NotInteger => Some("0".to_owned()),
@@ -565,8 +604,22 @@ fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
 }
 
 /// `string is entier` (available 8.6+, gated by [`class_available`]):
-/// arbitrary precision, so any plain decimal is valid.
-fn is_entier_class(s: &str) -> Option<String> {
+/// known Tcl 9 uses the shared Tcl 9 number parser. Older known dialects
+/// accept the conservative plain-decimal subset at arbitrary precision.
+fn is_entier_class(s: &str, version: Option<TclVersion>) -> Option<String> {
+    if version == Some(TclVersion::V9_0) {
+        return Some(
+            if matches!(
+                tcl9_integer_number(s),
+                Some(Number::Int(_) | Number::Big { .. })
+            ) {
+                "1"
+            } else {
+                "0"
+            }
+            .to_owned(),
+        );
+    }
     match classify_int_form(s) {
         IntForm::Ambiguous => None,
         IntForm::NotInteger => Some("0".to_owned()),
@@ -1414,6 +1467,11 @@ mod tests {
             is("integer", "4294967296", Some(V9_0)).as_deref(),
             Some("1")
         );
+        assert_eq!(is("integer", "1__0", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("integer", "0xff__ff", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("integer", "0d1__0", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("integer", "0x_f", Some(V9_0)).as_deref(), Some("0"));
+        assert_eq!(is("integer", "1__0", None), None, "Tcl 9-only separators");
         assert_eq!(is("integer", "42", Some(V8_4)).as_deref(), Some("1"));
         assert_eq!(is("integer", "abc", Some(V9_0)).as_deref(), Some("0"));
 
@@ -1432,6 +1490,20 @@ mod tests {
             "2^63 overflows signed-64 on 9.0"
         );
         assert_eq!(
+            is("wideinteger", "-9223372036854775808", Some(V9_0)).as_deref(),
+            Some("1"),
+            "i64::MIN fits signed wide on 9.0"
+        );
+        assert_eq!(
+            is("wideinteger", "-9223372036854775809", Some(V9_0)).as_deref(),
+            Some("0"),
+            "below i64::MIN overflows signed wide on 9.0"
+        );
+        assert_eq!(
+            is("wideinteger", "0xff__ff", Some(V9_0)).as_deref(),
+            Some("1")
+        );
+        assert_eq!(
             is("wideinteger", "18446744073709551616", Some(V8_6)).as_deref(),
             Some("0"),
             "2^64 overflows unsigned-64"
@@ -1444,6 +1516,9 @@ mod tests {
             Some("1"),
             "arbitrary precision"
         );
+        assert_eq!(is("entier", "1__0", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("entier", "0xff__ff", Some(V9_0)).as_deref(), Some("1"));
+        assert_eq!(is("entier", "0x_f", Some(V9_0)).as_deref(), Some("0"));
         assert_eq!(is("entier", "abc", Some(V9_0)).as_deref(), Some("0"));
 
         // `dict`: 9.0 only — even-length valid list.
