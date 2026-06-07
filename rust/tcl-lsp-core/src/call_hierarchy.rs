@@ -68,14 +68,14 @@ pub fn prepare(
     };
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return vec![item_for_proc(proc_def, qname, &line_index)];
+            return vec![item_for_proc(source, proc_def, qname, &line_index)];
         }
     }
     // Class-method fallback — cursor inside a class body on a
     // method / classmethod name.
     let cursor_offset = crate::definition::byte_offset_at(source, line, character);
     if let Some((class_def, method)) = enclosing_class_method(analysis, &word, cursor_offset) {
-        return vec![item_for_method(class_def, method, &line_index)];
+        return vec![item_for_method(source, class_def, method, &line_index)];
     }
     Vec::new()
 }
@@ -88,12 +88,13 @@ fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
 
 /// Build a [`CallHierarchyItem`] for a class method.
 fn item_for_method(
+    source: &str,
     class_def: &ClassDef,
     method: &MethodDef,
     line_index: &LineIndex,
 ) -> CallHierarchyItem {
-    let name_range = span_to_range(line_index, method.name_span);
-    let body_range = span_to_range(line_index, method.body_span);
+    let name_range = span_to_range(source, line_index, method.name_span);
+    let body_range = span_to_range(source, line_index, method.body_span);
     let detail = Some(format!(
         "{} of {} ({} params)",
         method.kind,
@@ -203,9 +204,14 @@ fn segment_body_calls(
 }
 
 /// Build a [`CallHierarchyItem`] for a given proc definition.
-fn item_for_proc(proc_def: &ProcDef, qname: &str, line_index: &LineIndex) -> CallHierarchyItem {
-    let name_range = span_to_range(line_index, proc_def.name_span);
-    let body_range = span_to_range(line_index, proc_def.body_span);
+fn item_for_proc(
+    source: &str,
+    proc_def: &ProcDef,
+    qname: &str,
+    line_index: &LineIndex,
+) -> CallHierarchyItem {
+    let name_range = span_to_range(source, line_index, proc_def.name_span);
+    let body_range = span_to_range(source, line_index, proc_def.body_span);
     let detail = if proc_def.params.is_empty() {
         None
     } else {
@@ -352,7 +358,7 @@ pub fn unresolved_outgoing_calls(
             {
                 continue;
             }
-            let range = span_to_range(&line_index, inv.range);
+            let range = span_to_range(source, &line_index, inv.range);
             let entry = by_head
                 .entry(inv.name.clone())
                 .or_insert_with(|| (inv.resolved_qualified_name.clone(), Vec::new()));
@@ -403,7 +409,7 @@ fn unresolved_method_outgoing_calls(
         by_head
             .entry(head)
             .or_default()
-            .push(span_to_range(line_index, span));
+            .push(span_to_range(source, line_index, span));
     }
     by_head
         .into_iter()
@@ -483,7 +489,7 @@ pub fn incoming_calls_for_target(
                 continue;
             }
         }
-        let inv_range = span_to_range(&line_index, inv.range);
+        let inv_range = span_to_range(source, &line_index, inv.range);
         let caller_key = enclosing_proc(analysis, inv.range)
             .map_or_else(|| "<top-level>".to_owned(), |(qn, _)| qn.to_owned());
         let entry = by_caller.entry(caller_key.clone()).or_insert_with(|| {
@@ -506,7 +512,7 @@ pub fn incoming_calls_for_target(
                 }
             } else {
                 let proc = &analysis.all_procs[&caller_key];
-                item_for_proc(proc, &caller_key, &line_index)
+                item_for_proc(source, proc, &caller_key, &line_index)
             };
             (caller_item, Vec::new())
         });
@@ -547,10 +553,13 @@ pub fn outgoing_calls(
         // Find the user-proc this invocation targets, if any.
         for (qname, proc_def) in &analysis.all_procs {
             if invocation_targets(inv, proc_def, qname) {
-                let inv_range = span_to_range(&line_index, inv.range);
-                let entry = by_target
-                    .entry(qname.clone())
-                    .or_insert_with(|| (item_for_proc(proc_def, qname, &line_index), Vec::new()));
+                let inv_range = span_to_range(source, &line_index, inv.range);
+                let entry = by_target.entry(qname.clone()).or_insert_with(|| {
+                    (
+                        item_for_proc(source, proc_def, qname, &line_index),
+                        Vec::new(),
+                    )
+                });
                 entry.1.push(inv_range);
                 break;
             }
@@ -588,10 +597,13 @@ fn method_incoming_calls(
                 continue;
             }
             let key = method_item_name(class_def, caller);
-            let entry = by_caller
-                .entry(key)
-                .or_insert_with(|| (item_for_method(class_def, caller, line_index), Vec::new()));
-            entry.1.push(span_to_range(line_index, span));
+            let entry = by_caller.entry(key).or_insert_with(|| {
+                (
+                    item_for_method(source, class_def, caller, line_index),
+                    Vec::new(),
+                )
+            });
+            entry.1.push(span_to_range(source, line_index, span));
         }
     }
     by_caller
@@ -616,7 +628,7 @@ fn method_outgoing_calls(
     let mut by_target: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        let range = span_to_range(line_index, span);
+        let range = span_to_range(source, line_index, span);
         // Sibling method?
         if let Some(callee) = class_def
             .methods
@@ -626,9 +638,12 @@ fn method_outgoing_calls(
             // Skip self-recursion's own declaration site only;
             // recursive calls are legitimate outgoing edges.
             let key = method_item_name(class_def, callee);
-            let entry = by_target
-                .entry(key)
-                .or_insert_with(|| (item_for_method(class_def, callee, line_index), Vec::new()));
+            let entry = by_target.entry(key).or_insert_with(|| {
+                (
+                    item_for_method(source, class_def, callee, line_index),
+                    Vec::new(),
+                )
+            });
             entry.1.push(range);
             continue;
         }
@@ -638,9 +653,12 @@ fn method_outgoing_calls(
             .iter()
             .find(|(qn, p)| p.name == head || qn.as_str() == head || **qn == format!("::{head}"))
         {
-            let entry = by_target
-                .entry(qname.clone())
-                .or_insert_with(|| (item_for_proc(proc_def, qname, line_index), Vec::new()));
+            let entry = by_target.entry(qname.clone()).or_insert_with(|| {
+                (
+                    item_for_proc(source, proc_def, qname, line_index),
+                    Vec::new(),
+                )
+            });
             entry.1.push(range);
         }
     }
@@ -659,9 +677,9 @@ fn class_methods_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> 
         .chain(class_def.class_methods.values())
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

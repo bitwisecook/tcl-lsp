@@ -57,7 +57,7 @@ pub fn linked_editing_ranges(
     let line_index = LineIndex::new(source);
 
     let mut ranges: Vec<LspRange> = Vec::new();
-    ranges.push(span_to_range(&line_index, proc.name_span));
+    ranges.push(span_to_range(source, &line_index, proc.name_span));
 
     for inv in &analysis.command_invocations {
         let resolved_matches = inv
@@ -74,7 +74,7 @@ pub fn linked_editing_ranges(
         if !span_contains(proc.body_span, inv.range.start()) {
             continue;
         }
-        ranges.push(span_to_range(&line_index, inv.range));
+        ranges.push(span_to_range(source, &line_index, inv.range));
     }
 
     dedup_ranges(&mut ranges);
@@ -123,9 +123,9 @@ fn span_contains(span: Span, offset: u32) -> bool {
     span.start() <= offset && offset < span.end()
 }
 
-fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

@@ -676,8 +676,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(span.start());
-            let end = line_index.position_at(span.end());
+            let start = line_index.position_at_utf16(span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(span.end(), &target_doc.text);
             locations.push(Location {
                 uri: parsed,
                 range: Range {
@@ -816,8 +816,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(intent.span.start());
-            let end = line_index.position_at(intent.span.end());
+            let start = line_index.position_at_utf16(intent.span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(intent.span.end(), &target_doc.text);
             let edit = TextEdit {
                 range: Range {
                     start: Position {
@@ -967,8 +967,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(name_span.start());
-            let end = line_index.position_at(name_span.end());
+            let start = line_index.position_at_utf16(name_span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(name_span.end(), &target_doc.text);
             let name_range = Range {
                 start: Position {
                     line: start.line,
@@ -2730,7 +2730,7 @@ impl LanguageServer for Backend {
             };
             let line_index = tcl_lexer::LineIndex::new(&doc.text);
             by_dep.entry(dep_url).or_default().push(TextEdit {
-                range: lift_span(&line_index, edit.span),
+                range: lift_span(&doc.text, &line_index, edit.span),
                 new_text: edit.new_text,
             });
         }
@@ -2920,24 +2920,15 @@ fn materialise_selection_range(
     wrapped.into_iter().next().flatten()
 }
 
-/// Byte offset of the `(line, col)` cursor in `source`, where `col`
-/// is a character index within the line (matching how
-/// [`core_hover::find_word_span_at_position`] interprets the LSP
-/// position).  `None` when the line is out of range.
+/// Byte offset of the LSP `(line, character)` cursor in `source`.
+/// `character` is a UTF-16 code-unit offset. `None` when the line is
+/// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let mut byte = 0usize;
-    for (i, line_text) in source.split_inclusive('\n').enumerate() {
-        if i == line as usize {
-            let col_bytes: usize = line_text
-                .chars()
-                .take(col as usize)
-                .map(char::len_utf8)
-                .sum();
-            return Some(byte + col_bytes);
-        }
-        byte += line_text.len();
+    let index = tcl_lexer::LineIndex::new(source);
+    if line as usize >= index.line_count() {
+        return None;
     }
-    None
+    Some(index.offset_at_utf16(line, col, source) as usize)
 }
 
 /// Whether the cursor at `pos` sits on a command head (the first
@@ -3077,9 +3068,9 @@ fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> Str
     out
 }
 
-fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     Range {
         start: Position {
             line: start.line,
@@ -3110,7 +3101,7 @@ fn lift_analyser_diagnostics(
         .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
         .map(|d| tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, d.span),
+            range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 tcl_compiler::analyser::Severity::Error => {
                     tower_lsp::lsp_types::DiagnosticSeverity::ERROR
@@ -3243,7 +3234,7 @@ fn lift_compiler_diagnostics(
     .with_interprocedural(registry, dialect_opt);
     for d in run_all_checks(&cu, registry, dialect_opt) {
         out.push(tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, d.span),
+            range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 CheckSeverity::Error => DiagnosticSeverity::ERROR,
                 CheckSeverity::Warning => DiagnosticSeverity::WARNING,
@@ -3264,7 +3255,7 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic; the fix plumbing itself is GAP-C3).
     for o in optimise_with_dialect(text, registry, dialect_opt) {
         out.push(tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, o.span),
+            range: lift_span(text, &line_index, o.span),
             severity: Some(DiagnosticSeverity::HINT),
             code: Some(NumberOrString::String(o.code)),
             code_description: None,
@@ -3832,6 +3823,19 @@ mod tests {
             end: pos(1, 5),
         };
         assert_eq!(apply_content_change(text, Some(r), ""), "set hi\n");
+    }
+
+    #[test]
+    fn lsp_position_helpers_use_utf16_columns() {
+        let text = "é😀x\n";
+        assert_eq!(line_col_to_byte_offset(text, 0, 0), Some(0));
+        assert_eq!(line_col_to_byte_offset(text, 0, 1), Some(2));
+        assert_eq!(line_col_to_byte_offset(text, 0, 3), Some(6));
+
+        let line_index = tcl_lexer::LineIndex::new(text);
+        let range = lift_span(text, &line_index, tcl_lexer::Span::new(6, 7));
+        assert_eq!(range.start, pos(0, 3));
+        assert_eq!(range.end, pos(0, 4));
     }
 
     #[test]

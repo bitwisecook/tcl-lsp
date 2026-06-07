@@ -18,12 +18,9 @@
 //! once analysis is available.
 //!
 //! Range conversion: spans are half-open ``[start, end)`` on the
-//! Rust side; the LSP `Range` is also half-open, so the
-//! conversion is a direct ``position_at(start)`` /
-//! ``position_at(end)``.  Mirrors `to_lsp_range`'s behaviour for
-//! the inclusive-end Python ranges (``end_character + 1``) without
-//! the off-by-one detour.  Columns are byte offsets, matching the
-//! Python LSP server's existing (non-UTF-16) convention.
+//! Rust side, and the emitted LSP `Range` is also half-open.
+//! Columns are UTF-16 code-unit offsets, matching the LSP `Position`
+//! contract.
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
@@ -138,12 +135,12 @@ pub fn document_symbols(source: &str, dialect: &str) -> Vec<DocumentSymbol> {
     let analysis = analyser.analyse(source, dialect);
     let line_index = LineIndex::new(source);
 
-    scope_symbols(&analysis.global_scope, &line_index)
+    scope_symbols(source, &analysis.global_scope, &line_index)
 }
 
-fn span_to_range(line_index: &LineIndex, span: Span) -> LineRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LineRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LineRange {
         start_line: start.line,
         start_character: start.character,
@@ -225,11 +222,15 @@ fn class_detail(class_def: &ClassDef) -> String {
     parts.join(" ")
 }
 
-fn class_member_symbols(class_def: &ClassDef, line_index: &LineIndex) -> Vec<DocumentSymbol> {
+fn class_member_symbols(
+    source: &str,
+    class_def: &ClassDef,
+    line_index: &LineIndex,
+) -> Vec<DocumentSymbol> {
     let mut children: Vec<DocumentSymbol> = Vec::new();
 
     for ctor in &class_def.constructors {
-        let ctor_range = span_to_range(line_index, ctor.body_span);
+        let ctor_range = span_to_range(source, line_index, ctor.body_span);
         children.push(DocumentSymbol {
             name: "constructor".to_string(),
             detail: Some(format_param_list(&ctor.params)),
@@ -241,7 +242,7 @@ fn class_member_symbols(class_def: &ClassDef, line_index: &LineIndex) -> Vec<Doc
     }
 
     if let Some(dtor) = &class_def.destructor {
-        let dtor_range = span_to_range(line_index, dtor.body_span);
+        let dtor_range = span_to_range(source, line_index, dtor.body_span);
         children.push(DocumentSymbol {
             name: "destructor".to_string(),
             detail: None,
@@ -255,20 +256,20 @@ fn class_member_symbols(class_def: &ClassDef, line_index: &LineIndex) -> Vec<Doc
     let mut method_pairs: Vec<(&String, &MethodDef)> = class_def.methods.iter().collect();
     method_pairs.sort_by_key(|(_, md)| md.name_span.start());
     for (_, md) in method_pairs {
-        children.push(method_symbol(md, line_index, false));
+        children.push(method_symbol(source, md, line_index, false));
     }
 
     let mut classmethod_pairs: Vec<(&String, &MethodDef)> =
         class_def.class_methods.iter().collect();
     classmethod_pairs.sort_by_key(|(_, md)| md.name_span.start());
     for (_, md) in classmethod_pairs {
-        children.push(method_symbol(md, line_index, true));
+        children.push(method_symbol(source, md, line_index, true));
     }
 
     let mut property_pairs: Vec<(&String, &PropertyDef)> = class_def.properties.iter().collect();
     property_pairs.sort_by_key(|(_, pd)| pd.name_span.start());
     for (_, pd) in property_pairs {
-        let prop_range = span_to_range(line_index, pd.name_span);
+        let prop_range = span_to_range(source, line_index, pd.name_span);
         children.push(DocumentSymbol {
             name: pd.name.clone(),
             detail: None,
@@ -282,9 +283,14 @@ fn class_member_symbols(class_def: &ClassDef, line_index: &LineIndex) -> Vec<Doc
     children
 }
 
-fn method_symbol(md: &MethodDef, line_index: &LineIndex, classmethod: bool) -> DocumentSymbol {
-    let body_range = span_to_range(line_index, md.body_span);
-    let name_range = span_to_range(line_index, md.name_span);
+fn method_symbol(
+    source: &str,
+    md: &MethodDef,
+    line_index: &LineIndex,
+    classmethod: bool,
+) -> DocumentSymbol {
+    let body_range = span_to_range(source, line_index, md.body_span);
+    let name_range = span_to_range(source, line_index, md.name_span);
     let symbol_range = merge_ranges(name_range, body_range);
     let params = format_param_list(&md.params);
     let detail = if classmethod {
@@ -307,26 +313,26 @@ fn method_symbol(md: &MethodDef, line_index: &LineIndex, classmethod: bool) -> D
 /// Mirrors `_scope_symbols`: classes, then procs, then variables
 /// (global / namespace scopes only), then nested namespace
 /// scopes.
-fn scope_symbols(scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
+fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
     let mut symbols: Vec<DocumentSymbol> = Vec::new();
 
     let mut class_pairs: Vec<(&String, &ClassDef)> = scope.classes.iter().collect();
     class_pairs.sort_by_key(|(_, cd)| cd.name_span.start());
     for (_, class_def) in class_pairs {
-        symbols.push(class_symbol(class_def, line_index));
+        symbols.push(class_symbol(source, class_def, line_index));
     }
 
     let mut proc_pairs: Vec<(&String, &ProcDef)> = scope.procs.iter().collect();
     proc_pairs.sort_by_key(|(_, pd)| pd.name_span.start());
     for (_, proc_def) in proc_pairs {
-        symbols.push(proc_symbol(proc_def, scope, line_index));
+        symbols.push(proc_symbol(source, proc_def, scope, line_index));
     }
 
     if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace) {
         let mut var_pairs: Vec<(&String, &VarDef)> = scope.variables.iter().collect();
         var_pairs.sort_by_key(|(_, vd)| vd.definition_span.start());
         for (_, var_def) in var_pairs {
-            let var_range = span_to_range(line_index, var_def.definition_span);
+            let var_range = span_to_range(source, line_index, var_def.definition_span);
             symbols.push(DocumentSymbol {
                 name: var_def.name.clone(),
                 detail: None,
@@ -341,8 +347,8 @@ fn scope_symbols(scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
     for child in &scope.children {
         if matches!(child.kind, ScopeKind::Namespace) {
             if let Some(span) = child.body_span {
-                let ns_range = span_to_range(line_index, span);
-                let child_syms = scope_symbols(child, line_index);
+                let ns_range = span_to_range(source, line_index, span);
+                let child_syms = scope_symbols(source, child, line_index);
                 symbols.push(DocumentSymbol {
                     name: child.name.clone(),
                     detail: None,
@@ -358,9 +364,9 @@ fn scope_symbols(scope: &Scope, line_index: &LineIndex) -> Vec<DocumentSymbol> {
     symbols
 }
 
-fn class_symbol(class_def: &ClassDef, line_index: &LineIndex) -> DocumentSymbol {
-    let body_range = span_to_range(line_index, class_def.body_span);
-    let name_range = span_to_range(line_index, class_def.name_span);
+fn class_symbol(source: &str, class_def: &ClassDef, line_index: &LineIndex) -> DocumentSymbol {
+    let body_range = span_to_range(source, line_index, class_def.body_span);
+    let name_range = span_to_range(source, line_index, class_def.name_span);
     let symbol_range = merge_ranges(name_range, body_range);
     let detail = class_detail(class_def);
     DocumentSymbol {
@@ -373,11 +379,16 @@ fn class_symbol(class_def: &ClassDef, line_index: &LineIndex) -> DocumentSymbol 
         kind: SymbolKind::Class,
         range: symbol_range,
         selection_range: name_range,
-        children: class_member_symbols(class_def, line_index),
+        children: class_member_symbols(source, class_def, line_index),
     }
 }
 
-fn proc_symbol(proc_def: &ProcDef, scope: &Scope, line_index: &LineIndex) -> DocumentSymbol {
+fn proc_symbol(
+    source: &str,
+    proc_def: &ProcDef,
+    scope: &Scope,
+    line_index: &LineIndex,
+) -> DocumentSymbol {
     // Find the proc's body scope to recurse into for nested
     // definitions.  Mirrors the Python loop that matches by
     // ``child.kind == "proc"`` and ``child.name == proc_def.name``.
@@ -385,11 +396,11 @@ fn proc_symbol(proc_def: &ProcDef, scope: &Scope, line_index: &LineIndex) -> Doc
         .children
         .iter()
         .find(|child| matches!(child.kind, ScopeKind::Proc) && child.name == proc_def.name)
-        .map(|child| scope_symbols(child, line_index))
+        .map(|child| scope_symbols(source, child, line_index))
         .unwrap_or_default();
 
-    let body_range = span_to_range(line_index, proc_def.body_span);
-    let name_range = span_to_range(line_index, proc_def.name_span);
+    let body_range = span_to_range(source, line_index, proc_def.body_span);
+    let name_range = span_to_range(source, line_index, proc_def.name_span);
     let symbol_range = merge_ranges(name_range, body_range);
     DocumentSymbol {
         name: proc_def.name.clone(),

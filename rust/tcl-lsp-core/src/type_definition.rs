@@ -36,7 +36,7 @@ pub fn type_definition(
     if let Some(var_name) = find_var_at_position(source, line, character) {
         if let Some(class_q) = analysis.instance_classes.get(&var_name) {
             if let Some(cd) = find_class(analysis, class_q) {
-                return vec![span_to_range(&line_index, cd.name_span)];
+                return vec![span_to_range(source, &line_index, cd.name_span)];
             }
         }
         return Vec::new();
@@ -50,7 +50,7 @@ pub fn type_definition(
     let cursor = byte_offset_at(source, line, character);
     if let Some(cd) = innermost_class_containing(analysis, cursor) {
         if cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word) {
-            return vec![span_to_range(&line_index, cd.name_span)];
+            return vec![span_to_range(source, &line_index, cd.name_span)];
         }
     }
     Vec::new()

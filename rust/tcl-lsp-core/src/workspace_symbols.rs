@@ -59,7 +59,7 @@ pub fn workspace_symbols(
                 name: proc_def.name.clone(),
                 container_name: namespace_of(qname),
                 kind: WorkspaceSymbolKind::Function,
-                range: span_to_range(&line_index, proc_def.name_span),
+                range: span_to_range(source, &line_index, proc_def.name_span),
             });
         }
     }
@@ -71,7 +71,7 @@ pub fn workspace_symbols(
                 name: class_def.name.clone(),
                 container_name: namespace_of(&class_def.qualified_name),
                 kind: WorkspaceSymbolKind::Class,
-                range: span_to_range(&line_index, class_def.name_span),
+                range: span_to_range(source, &line_index, class_def.name_span),
             });
         }
         // Instance + class methods + constructors — surface each
@@ -86,7 +86,7 @@ pub fn workspace_symbols(
                     name: method.name.clone(),
                     container_name: container.clone(),
                     kind: WorkspaceSymbolKind::Method,
-                    range: span_to_range(&line_index, method.name_span),
+                    range: span_to_range(source, &line_index, method.name_span),
                 });
             }
         }
@@ -96,7 +96,7 @@ pub fn workspace_symbols(
                     name: method.name.clone(),
                     container_name: container.clone(),
                     kind: WorkspaceSymbolKind::Method,
-                    range: span_to_range(&line_index, method.name_span),
+                    range: span_to_range(source, &line_index, method.name_span),
                 });
             }
         }
@@ -106,7 +106,7 @@ pub fn workspace_symbols(
                     name: "constructor".to_string(),
                     container_name: container.clone(),
                     kind: WorkspaceSymbolKind::Constructor,
-                    range: span_to_range(&line_index, ctor.name_span),
+                    range: span_to_range(source, &line_index, ctor.name_span),
                 });
             }
         }
@@ -127,9 +127,9 @@ fn namespace_of(qname: &str) -> Option<String> {
     Some(format!("::{}", &stripped[..last_sep]))
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

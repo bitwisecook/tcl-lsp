@@ -42,7 +42,7 @@
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
-use crate::definition::LspRange;
+use crate::definition::{utf16_col_to_char_col, LspRange};
 
 /// One code-action entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,8 +72,8 @@ pub fn code_actions(
     let mut actions = Vec::new();
 
     for diag in &analysis.diagnostics {
-        let diag_start = line_index.position_at(diag.span.start());
-        let diag_end = line_index.position_at(diag.span.end());
+        let diag_start = line_index.position_at_utf16(diag.span.start(), source);
+        let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
             start_character: diag_start.character,
@@ -123,8 +123,8 @@ pub fn code_actions(
             }
         }
         for fix in &diag.fixes {
-            let fix_start = line_index.position_at(fix.span.start());
-            let fix_end = line_index.position_at(fix.span.end());
+            let fix_start = line_index.position_at_utf16(fix.span.start(), source);
+            let fix_end = line_index.position_at_utf16(fix.span.end(), source);
             let title = if fix.description.is_empty() {
                 // Fall back to the diagnostic's message
                 // (truncated) when the fix didn't carry a
@@ -167,7 +167,7 @@ fn build_unset_nocomplain_action(
         return None;
     }
     let insert_offset = diag.span.start().checked_add(5)?;
-    let pos = line_index.position_at(insert_offset);
+    let pos = line_index.position_at_utf16(insert_offset, source);
     let insertion = LspRange {
         start_line: pos.line,
         start_character: pos.character,
@@ -332,7 +332,7 @@ fn word_at_position(source: &str, line: u32, character: u32) -> String {
     };
     let chars: Vec<char> = line_text.chars().collect();
     let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut start = col;
     while start > 0 && is_word(chars[start - 1]) {
         start -= 1;

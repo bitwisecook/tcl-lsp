@@ -91,7 +91,7 @@ pub fn inlay_hints(
         }
         let cmd_name = &seg.texts[0];
         if let Some(proc_def) = lookup_proc(analysis, cmd_name) {
-            emit_hints_for_call(seg, proc_def, &line_index, range, &mut out);
+            emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
             continue;
         }
         // Built-in command — parse the registry synopsis for
@@ -99,7 +99,7 @@ pub fn inlay_hints(
         // precedence (handled above).
         if let Some(registry) = registry {
             if let Some(spec) = registry.get(cmd_name) {
-                emit_builtin_hints(seg, spec, &line_index, range, &mut out);
+                emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
             }
         }
     }
@@ -113,6 +113,7 @@ pub fn inlay_hints(
 /// first arg names one, the subcommand's synopsis drives the
 /// hints (and the subcommand keyword itself isn't labelled).
 fn emit_builtin_hints(
+    source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     spec: &tcl_registry::CommandSpec,
     line_index: &LineIndex,
@@ -176,7 +177,7 @@ fn emit_builtin_hints(
 
     for (&arg_idx, name) in positional_args.iter().zip(selected.iter()) {
         let arg_tok = &seg.argv[arg_idx];
-        let pos = line_index.position_at(arg_tok.span.start());
+        let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
         if !position_within_range(pos.line, pos.character, range) {
             continue;
         }
@@ -347,6 +348,7 @@ fn lookup_proc<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ProcD
 /// produce hints, mirroring Python's parameter-by-parameter
 /// loop.
 fn emit_hints_for_call(
+    source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &ProcDef,
     line_index: &LineIndex,
@@ -368,7 +370,7 @@ fn emit_hints_for_call(
         if param.name == "args" {
             continue;
         }
-        let pos = line_index.position_at(arg_tok.span.start());
+        let pos = line_index.position_at_utf16(arg_tok.span.start(), source);
         if !position_within_range(pos.line, pos.character, range) {
             continue;
         }

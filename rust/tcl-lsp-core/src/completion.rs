@@ -54,6 +54,8 @@
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
+use crate::definition::utf16_col_to_char_col;
+
 /// LSP completion-item kind for our surface.  Keep narrow —
 /// extend when richer completion lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -305,7 +307,7 @@ fn workspace_proc_detail(proc: &crate::workspace_index::WorkspaceProc) -> String
 fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, String)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
 
     // Run of identifier-continuation chars immediately before
     // the cursor — that is the partial.
@@ -341,7 +343,7 @@ fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
         return String::new();
     };
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut start = col;
     while start > 0
         && (chars[start - 1].is_alphanumeric()
@@ -360,7 +362,7 @@ fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> Strin
         return String::new();
     };
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut start = col;
     while start > 0 && (chars[start - 1].is_alphanumeric() || matches!(chars[start - 1], '_' | '-'))
     {
@@ -416,7 +418,7 @@ fn variable_completions(scope: &Scope, partial: &str, trigger: char) -> Vec<Comp
 fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, usize)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let prefix: String = chars[..col].iter().collect();
 
     // Tokenise on whitespace.  The first token is the command;
@@ -457,7 +459,7 @@ fn switch_partial_at_position(
 ) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let start = col.checked_sub(partial.chars().count())?;
     if start == 0 {
         return None;

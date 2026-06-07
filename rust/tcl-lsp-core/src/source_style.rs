@@ -31,10 +31,8 @@
 //! *last affected character* (Python uses `character = length - 1`),
 //! not one-past-the-end.  This differs from the exclusive-`end`
 //! convention the structural `tcl-lsp-core` providers use, but it
-//! keeps the published diagnostics byte-identical to the live Python
-//! analyser (the verification standard for this port).  Character
-//! columns are codepoint counts, matching `LspRange`'s documented
-//! "minimal port treats as char counts" convention.
+//! preserves the live Python analyser's inclusive diagnostic anchors.
+//! Character columns are UTF-16 code units, matching the LSP convention.
 //!
 //! **Deferred (follow-ups, documented in GAP-C1 strip 2):** the
 //! W112 / W115 quick-fixes are *ported* (carried on
@@ -48,7 +46,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use crate::definition::LspRange;
+use crate::definition::{utf16_len, LspRange};
 
 /// Severity of a source-style diagnostic.  W111 / W115 are
 /// warnings; W112 / W118 are hints (matching Python's
@@ -135,7 +133,7 @@ pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic
         let length = line.chars().count();
         if length > max_length {
             let lineno = u32::try_from(lineno).expect("line index fits u32");
-            let end_char = u32::try_from(length - 1).expect("column fits u32");
+            let end_char = utf16_len(line).saturating_sub(1);
             out.push(StyleDiagnostic {
                 range: LspRange {
                     start_line: lineno,
@@ -163,12 +161,10 @@ pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
     for (lineno, line) in source.split('\n').enumerate() {
         let line_no_cr = line.trim_end_matches('\r');
         let stripped = line_no_cr.trim_end();
-        let stripped_len = stripped.chars().count();
-        let full_len = line_no_cr.chars().count();
-        if stripped_len < full_len {
+        if stripped.len() < line_no_cr.len() {
             let lineno = u32::try_from(lineno).expect("line index fits u32");
-            let ws_start = u32::try_from(stripped_len).expect("column fits u32");
-            let ws_end = u32::try_from(full_len).expect("column fits u32");
+            let ws_start = utf16_len(stripped);
+            let ws_end = utf16_len(line_no_cr);
             let range = LspRange {
                 start_line: lineno,
                 start_character: ws_start,
@@ -338,8 +334,7 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
         // Diagnostic range: from the start of the first line to
         // the last character of the last line.
         let end_line_text = lines[block_end];
-        let end_char = u32::try_from(end_line_text.chars().count().saturating_sub(1))
-            .expect("column fits u32");
+        let end_char = utf16_len(end_line_text).saturating_sub(1);
         let range = LspRange {
             start_line: u32::try_from(block_start).expect("line index fits u32"),
             start_character: 0,
@@ -476,6 +471,18 @@ mod tests {
         assert_eq!(fix.range.start_character, 7);
         assert_eq!(fix.range.end_character, 9);
         assert_eq!(fix.description, "Remove trailing whitespace");
+    }
+
+    #[test]
+    fn w112_range_uses_utf16_columns() {
+        let diags = check_trailing_whitespace("set 😀  \n");
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.range.start_character, 6);
+        assert_eq!(d.range.end_character, 7);
+        let fix = d.fix.as_ref().expect("W112 carries a fix");
+        assert_eq!(fix.range.start_character, 6);
+        assert_eq!(fix.range.end_character, 7);
     }
 
     #[test]
