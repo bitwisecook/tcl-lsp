@@ -18,7 +18,7 @@ use std::borrow::Cow;
 /// - Hex escapes: `\xNN` (1–2 hex digits)
 /// - Unicode escapes: `\uNNNN` (1–4 hex digits)
 /// - Wide unicode escapes: `\UNNNNNNNN` (1–8 hex digits)
-/// - Octal escapes: `\NNN` (1–3 octal digits)
+/// - Octal escapes: `\NNN` (1–3 octal digits, capped to Tcl's byte range)
 ///
 /// Any other `\X` passes through as the character `X`.
 ///
@@ -175,7 +175,14 @@ fn scan_octal_escape(out: &mut String, text: &str, escape_i: usize, chars: &mut 
     // The first octal digit is still in the peek buffer; the helper
     // consumes it.
     let digits_start = escape_i;
-    let digits_end = scan_digits(text, digits_start, 3, chars, |c| matches!(c, '0'..='7'));
+    let max_digits = match chars.peek().map(|(_, c)| *c) {
+        Some('0'..='3') => 3,
+        Some('4'..='7') => 2,
+        _ => unreachable!("caller peeked an octal digit"),
+    };
+    let digits_end = scan_digits(text, digits_start, max_digits, chars, |c| {
+        matches!(c, '0'..='7')
+    });
     let digits = &text[digits_start..digits_end];
     let value = u32::from_str_radix(digits, 8).expect("octal digits parse");
     out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
@@ -370,6 +377,15 @@ mod tests {
         assert_eq!(subst(r"\0"), "\0");
         assert_eq!(subst(r"\101"), "A");
         assert_eq!(subst(r"\7"), "\x07");
+    }
+
+    #[test]
+    fn octal_escape_matches_tcl_byte_ceiling() {
+        assert_eq!(subst(r"\377"), "\u{FF}");
+        assert_eq!(subst(r"\378"), "\u{1F}8");
+        assert_eq!(subst(r"\400"), " 0");
+        assert_eq!(subst(r"\477"), "'7");
+        assert_eq!(subst(r"\777"), "?7");
     }
 
     #[test]
