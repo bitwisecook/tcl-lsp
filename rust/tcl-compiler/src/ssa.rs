@@ -12,7 +12,7 @@
 //! 1. SSA data structures: [`Phi`], [`SsaStatement`], [`SsaBlock`],
 //!    [`SsaFunction`].
 //! 2. **Dominator** computation: [`compute_dominators`] and
-//!    [`compute_idom`] for immediate dominators.
+//!    `compute_idom` for immediate dominators.
 //! 3. **Dominance frontier**: [`compute_dominance_frontier`].
 //! 4. **Phi placement**: [`compute_phi_vars`] using the iterated
 //!    dominance frontier algorithm.

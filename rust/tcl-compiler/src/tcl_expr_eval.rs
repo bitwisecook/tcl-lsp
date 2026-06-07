@@ -1,7 +1,7 @@
 //! Tcl expression evaluator (compile-time constant folding).
 //!
 //! The **tree-walk is shared** with the runtime: [`eval_tcl_expr`] drives the
-//! one [`tcl_syntax::expr::eval`] over the AST and supplies this const-folder's
+//! one [`tcl_syntax::expr::eval()`] over the AST and supplies this const-folder's
 //! value ops via [`FoldOps`] (an `ExprOps` impl) — the same way the lexer/parser
 //! are shared. Only the value-type-specific bits (the `i64`/`f64`/`Str`
 //! [`FoldValue`], the operator helpers below, env-var resolution) live here.
@@ -21,7 +21,7 @@
 //!
 //! Originally ported from `core/compiler/tcl_expr_eval.py` (C22); the iRules
 //! word operators (`contains`/`starts_with`/`matches_glob`/`matches_regex`/
-//! `equals`/`in`/`ni`) fold via [`FoldOps::binary_other`].
+//! `equals`/`in`/`ni`) fold via [`tcl_syntax::expr::ExprOps::binary_other`].
 
 #![allow(
     clippy::cast_precision_loss,
@@ -94,7 +94,7 @@ const MAX_EXPONENT: i64 = (1 << 28) - 1;
 /// Evaluate an expression AST against `env`. Returns `None` when the
 /// expression depends on runtime state or triggers a domain error.
 ///
-/// The tree-walk is the **shared** [`tcl_syntax::expr::eval`] (the same one the
+/// The tree-walk is the **shared** [`tcl_syntax::expr::eval()`] (the same one the
 /// runtime evaluates with); this const-folder supplies only its value ops via
 /// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]

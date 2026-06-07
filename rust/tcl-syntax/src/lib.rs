@@ -15,7 +15,7 @@
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge` (done).
 //! - [`naming`] — variable/command name normalisation (done).
 //! - [`expr`] — the `expr` AST + Pratt parser (done).
-//! - [`format`] — the `format` conversion-specifier grammar (done).
+//! - [`mod@format`] — the `format` conversion-specifier grammar (done).
 //! - [`number`] — the `TclParseNumber` numeric-literal grammar (done).
 //! - [`glob`] — `Tcl_StringCaseMatch` (`string match`) (done).
 //! - `subst` — to follow.

@@ -7,10 +7,11 @@
 //! each consumer (the runtime over libtommath `mp_int`, the compiler's
 //! const-folder over its own value type) — both classify with this one grammar.
 //!
-//! The output is one of the four tower types ([`Number`]): a wide [`Int`] when
-//! the integer fits `i64`, a [`Big`] (sign + radix + cleaned digits, for the
-//! consumer to build a bignum from) when it overflows, a [`Double`] for floats
-//! and `±Inf`, or a [`Nan`]. There is **no** boolean handling here —
+//! The output is one of the four tower types ([`Number`]): a wide
+//! [`Number::Int`] when the integer fits `i64`, a [`Number::Big`] (sign +
+//! radix + cleaned digits, for the consumer to build a bignum from) when it
+//! overflows, a [`Number::Double`] for floats and `±Inf`, or a [`Number::Nan`].
+//! There is **no** boolean handling here —
 //! `true`/`yes`/`on`… are `Tcl_GetBoolean`'s job, not `TclParseNumber`'s.
 //!
 //! ## Tcl 9.0 forms

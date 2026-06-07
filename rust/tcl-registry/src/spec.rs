@@ -382,7 +382,7 @@ impl CommandSpec {
     /// Mirrors `CommandSpec.switch_names` in
     /// `core/commands/registry/models.py`: walks the command's
     /// declared options (both the flat [`Self::options`] list and
-    /// every [`CommandForm`](crate::CommandForm)'s options) and keeps
+    /// every [`CommandForm`]'s options) and keeps
     /// only those whose [`OptionSpec::supports_dialect`] holds for
     /// `dialect`, inheriting the command's own [`Self::dialects`] as
     /// the parent set. `dialect == None` means "no dialect filter"

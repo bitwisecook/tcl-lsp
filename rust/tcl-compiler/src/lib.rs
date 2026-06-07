@@ -62,8 +62,8 @@
 //!
 //! - [`parsing`] — the parsing frontend.  Houses the canonical
 //!   red-green concrete syntax tree under
-//!   [`parsing::syntax`](parsing::syntax); the position-independent
-//!   green layer ([`parsing::syntax::green`](parsing::syntax::green))
+//!   [`parsing::syntax`]; the position-independent
+//!   green layer ([`parsing::syntax::green`])
 //!   is the lossless representation the segmenter / lowering / formatter
 //!   / tooling are meant to share (`CST-PORT` / `SYNC-JUN06`).
 //!

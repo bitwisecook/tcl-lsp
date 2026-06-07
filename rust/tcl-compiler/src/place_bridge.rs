@@ -4,7 +4,7 @@
 //! Resolves each IR statement's *def* and *read* targets to canonical
 //! [`Place`]s on demand, so the dataflow consumers (dead-store / unused /
 //! read-before-set) can switch from name-string equality to the sound
-//! [`overlap`](crate::place::overlap) relation — without re-stamping every
+//! [`overlap`] relation — without re-stamping every
 //! construction site in lowering.  The per-function [`ResolveContext`] is built
 //! once by scanning the CFG for `global` / `variable` / `upvar` / `trace`
 //! declarations (reusing the [`crate::var_scoping`] grammar).
