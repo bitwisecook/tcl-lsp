@@ -1316,8 +1316,29 @@ impl Backend {
         .await
         .unwrap_or_default();
 
+        self.merge_workspace_scan_results(&analysed).await;
+    }
+
+    /// Merge disk-backed workspace scan results into the shared index.
+    ///
+    /// The blocking scan snapshots open documents before it starts, but
+    /// an editor can open a file while the scan is still running. Recheck
+    /// the live document map at publication time so stale on-disk
+    /// analysis cannot overwrite the open-buffer entry.
+    async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
+        let _gate = self.document_analysis_gate.lock().await;
+        let open: HashSet<String> = self
+            .documents
+            .lock()
+            .await
+            .keys()
+            .map(ToString::to_string)
+            .collect();
         let mut index = self.workspace_index.lock().await;
-        for (uri, analysis) in &analysed {
+        for (uri, analysis) in analysed {
+            if open.contains(uri) {
+                continue;
+            }
             index.remove_document(uri);
             index.add_document(uri, analysis);
         }
@@ -4276,6 +4297,40 @@ mod tests {
         drop(index);
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn workspace_scan_merge_does_not_clobber_open_document() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///workspace/live.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+
+        let mut analyser = Analyser::new();
+        let fresh_analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+        backend
+            .workspace_index
+            .lock()
+            .await
+            .add_document(uri.as_str(), &fresh_analysis);
+
+        let mut analyser = Analyser::new();
+        let stale_analysis = analyser.analyse("proc stale {} {}\n", "tcl8.6").clone();
+        let scan_results = vec![(uri.to_string(), stale_analysis)];
+
+        backend.merge_workspace_scan_results(&scan_results).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("fresh", "other").is_empty(),
+            "open-buffer analysis must survive stale workspace scan results",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "workspace scan must not overwrite a live buffer",
+        );
     }
 
     #[tokio::test]
