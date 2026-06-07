@@ -1044,7 +1044,7 @@ mod tests {
         let cfg = build_cfg(&module, false);
         let defs = find_call_defs(&cfg.top_level, "no_upvar")
             .expect("no_upvar call should be in top-level CFG");
-        assert!(defs.is_empty(), "expected no augmented defs, got {defs:?}",);
+        assert!(defs.is_empty(), "expected no augmented defs, got {defs:?}");
     }
 
     #[test]

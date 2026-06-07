@@ -662,7 +662,7 @@ fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
     if edits.is_empty() {
         return source.to_owned();
     }
-    edits.sort_by(|a, b| b.0.cmp(&a.0));
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.0));
     let mut seen: HashSet<(usize, usize)> = HashSet::new();
     let mut result = source.to_owned();
     for (offset, length, new_text) in edits {

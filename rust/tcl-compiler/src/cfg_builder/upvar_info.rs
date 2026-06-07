@@ -252,10 +252,10 @@ fn walk_script(stmts: &[Statement], params: &[String], info: &mut UpvarInfo) {
 
 fn walk_stmt(stmt: &Statement, params: &[String], info: &mut UpvarInfo) {
     match stmt {
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            if command == "upvar" {
-                record_upvar_call(args, params, info);
-            }
+        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }
+            if command == "upvar" =>
+        {
+            record_upvar_call(args, params, info);
         }
         Statement::If {
             clauses, else_body, ..

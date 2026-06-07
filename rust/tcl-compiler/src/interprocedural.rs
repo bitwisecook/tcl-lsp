@@ -1422,18 +1422,18 @@ fn scan_expr_for_calls(
                 .unwrap_or(text.as_str());
             scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
         }
-        ExprNode::String { text, .. } => {
+        ExprNode::String { text, .. }
             // Quoted strings may contain command substitutions
             // (`"[q]"`), so descend through the source text the same
             // way as for `Command`.  Skip braced-string literals
             // since `{…}` doesn't interpret substitutions; the
             // expression parser uses `String` for both forms, so we
             // gate on the actual delimiter.
-            if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
-                let inner = &text[1..text.len() - 1];
-                if inner.contains('[') {
-                    scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
-                }
+            if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 =>
+        {
+            let inner = &text[1..text.len() - 1];
+            if inner.contains('[') {
+                scan_source_for_calls(inner, caller, known, registry, dialect, facts, params);
             }
         }
         ExprNode::Binary { left, right, .. } => {
