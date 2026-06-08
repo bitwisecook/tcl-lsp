@@ -375,16 +375,18 @@ def _scan_script_text(
                 known_procs=known_procs,
                 facts=facts,
             )
-            if word_in_progress is None:
+            if word_in_progress is not None:
+                word_in_progress.is_static = False
+            else:
                 word_in_progress = _WordFragment(text="", is_braced=False, is_static=False)
-            word_in_progress.is_static = False
             continue
         if tok.type is TokenType.VAR:
             # Variable substitution joins the surrounding word but
             # contributes no statically known text.
-            if word_in_progress is None:
+            if word_in_progress is not None:
+                word_in_progress.is_static = False
+            else:
                 word_in_progress = _WordFragment(text="", is_braced=False, is_static=False)
-            word_in_progress.is_static = False
             continue
         if tok.type is TokenType.EXPAND:
             # ``{*}`` argument expansion — we don't model expansion

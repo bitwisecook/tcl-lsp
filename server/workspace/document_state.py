@@ -737,7 +737,7 @@ class DocumentState:
     # so coexisting in-flight versions are cheap.  Never holds a strong ref, so
     # it cannot itself leak old versions.
     _versions: weakref.WeakValueDictionary[int, DocumentBuffer] = field(
-        default_factory=weakref.WeakValueDictionary, repr=False
+        default_factory=lambda: weakref.WeakValueDictionary(), repr=False
     )
 
     def _register_version(self, buf: DocumentBuffer | None) -> None:
