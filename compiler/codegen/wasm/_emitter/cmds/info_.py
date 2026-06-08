@@ -152,6 +152,28 @@ def _emit_info_value(emitter, args: tuple[str, ...]) -> None:
             emitter._emit_obj_literal(resolved)
             emitter._emit_call(gexist_idx)
             return
+        # Existence answered against the authoritative global/frame
+        # table, NOT the compiled WASM-local mirror, for the two scopes
+        # whose mirror goes stale on ``unset``:
+        #   * top-level (script-scope) names — an eval-fallback ``unset``
+        #     nulls the runtime var without clearing the mirror;
+        #   * ``global``-declared names inside a proc — the alias targets
+        #     the global table, which a sibling proc (or ``unset``) can
+        #     mutate behind the mirror's back.
+        # Both mirror the strict read paths in ``_emit_var_read_obj``
+        # (``not self._is_proc`` → ``tcl_global_get_or_error``; ``name in
+        # self._globals`` → ditto).  ``set x 1; unset x; info exists x``
+        # returned 1 because the plain-local path below read the mirror,
+        # which ``set x 1`` left non-null and ``unset`` never
+        # invalidated.  ``tcl_info_exists`` (``var_exists``) follows the
+        # ALIAS_GLOBAL frame bucket / falls through to ``global_exists``,
+        # so both scalar and pure-array globals resolve correctly.
+        if not emitter._is_proc or resolved in emitter._globals:
+            info_exists_idx = emitter._shared_imports.get("tcl_info_exists")
+            if info_exists_idx is not None:
+                emitter._emit_obj_literal(resolved)
+                emitter._emit_call(info_exists_idx)
+                return
         # FRAME-only vars (routed through tcl_local_set by the
         # escape-aware writer) don't land in a WASM local, so the
         # pointer-nullness check below would always say "no".

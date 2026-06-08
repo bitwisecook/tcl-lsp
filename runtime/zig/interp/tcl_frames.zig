@@ -2596,6 +2596,17 @@ pub export fn local_exists(name: i32) i32 {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_exists(name);
             if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
+            // ``unset`` of a proc-local scalar nulls the bucket's value
+            // (``var_set(name, 0)`` in cmds/var.zig::eval_unset) but
+            // leaves the directory bucket in place.  A null OFF_VALUE
+            // therefore means "declared slot, currently unset" — the
+            // variable does NOT exist.  Return 0 directly rather than
+            // falling through to any namespace/global probe: an
+            // unqualified local that was just unset must not resolve to
+            // an unrelated same-named global.  (Live array variables use
+            // a separate element table plus an alias/non-null marker, so
+            // a genuine array never presents a bare null scalar here.)
+            if (v == 0) return obj_new_int(0);
             return obj_new_int(1);
         }
     }
@@ -3038,6 +3049,17 @@ pub export fn var_exists(name: i32) i32 {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_exists(name);
             if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
+            // ``unset`` of a proc-local scalar nulls the bucket's value
+            // (``var_set(name, 0)`` in cmds/var.zig::eval_unset) but
+            // leaves the directory bucket in place.  A null OFF_VALUE
+            // therefore means "declared slot, currently unset" — the
+            // variable does NOT exist.  Return 0 directly rather than
+            // falling through to any namespace/global probe: an
+            // unqualified local that was just unset must not resolve to
+            // an unrelated same-named global.  (Live array variables use
+            // a separate element table plus an alias/non-null marker, so
+            // a genuine array never presents a bare null scalar here.)
+            if (v == 0) return obj_new_int(0);
             return obj_new_int(1);
         }
     }
