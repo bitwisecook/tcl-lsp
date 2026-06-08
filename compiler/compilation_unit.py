@@ -9,12 +9,8 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from compiler.interprocedural import (
-    InterproceduralAnalysis,
-    ProcLocalSummary,
-    analyse_interprocedural_ir,
-)
 from shared.naming import normalise_qualified_name
 
 from .cfg import (
@@ -26,11 +22,14 @@ from .cfg import (
 )
 from .command_trust import command_trust, module_command_trust
 from .connection_scope import ConnectionScope, build_connection_scope
-from .core_analyses import FunctionAnalysis, analyse_function
 from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
 from .ir import IRBarrier, IRBlock, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
 from .ssa import DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
+
+if TYPE_CHECKING:
+    from compiler.interprocedural import InterproceduralAnalysis, ProcLocalSummary
+    from .core_analyses import FunctionAnalysis
 
 _oo_metaclass_cache: frozenset[str] | None = None
 
@@ -449,6 +448,9 @@ def _compile_source_inner(
     stub_fingerprint: int = 0,
     deep_param_traits: bool = False,
 ) -> CompilationUnit:
+    from compiler.interprocedural import analyse_interprocedural_ir  # deferred (cycle)
+    from .core_analyses import analyse_function  # deferred (cycle)
+
     if ir_module is None:
         ir_module = lower_to_ir(source)
 

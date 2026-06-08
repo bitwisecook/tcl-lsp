@@ -1056,7 +1056,7 @@ def optimise_load_forwarding(
       variables read by the inlined expression have unchanged SSA versions
       between the def site and the use site.
     """
-    from ..core_analyses import LatticeKind
+    from ..analysis_types import LatticeKind
     from ..def_use import UseKind
     from ..ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall
     from ..side_effects import classify_side_effects

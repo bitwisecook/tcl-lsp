@@ -33,7 +33,7 @@ from shared.codes import diag
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from ..cfg import CFGBranch, CFGFunction
-from ..core_analyses import LatticeKind, LatticeValue
+from ..analysis_types import LatticeKind, LatticeValue
 from ..expr_ast import (
     BinOp,
     ExprBinary,

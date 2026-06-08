@@ -15,10 +15,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from typing import TYPE_CHECKING
+
+from compiler.analysis_types import LatticeKind, LatticeValue
 from compiler.cfg import CFGFunction, CFGReturn, build_cfg
-from compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
-from compiler.core_analyses import _expr_has_command as _expr_has_command_sub
 from compiler.eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
+
+if TYPE_CHECKING:
+    from compiler.core_analyses import FunctionAnalysis
 from compiler.expr_ast import (
     ExprBinary,
     ExprCall,
@@ -580,6 +584,8 @@ def _scan_local_facts(
     known_procs: set[str],
     facts: _LocalFacts,
 ) -> None:
+    from compiler.core_analyses import _expr_has_command as _expr_has_command_sub  # deferred (cycle)
+
     for stmt in script.statements:
         if isinstance(stmt, IRBarrier):
             facts.has_barrier = True
@@ -1159,6 +1165,8 @@ def analyse_interprocedural_ir(
     facts are reused for unchanged procedures using key
     ``(qualified_name, hash(proc_source_text))``.
     """
+    from compiler.core_analyses import analyse_function  # deferred (cycle)
+
     if not ir_module.procedures and not ir_module.methods:
         return InterproceduralAnalysis(procedures={})
 
@@ -1534,6 +1542,8 @@ def evaluate_proc_with_constants(
 
     Returns the constant return value if determinable, else None.
     """
+    from compiler.core_analyses import analyse_function  # deferred (cycle)
+
     if len(args) != len(params):
         return None
     param_constants = {(p, 0): LatticeValue.const(a) for p, a in zip(params, args)}
