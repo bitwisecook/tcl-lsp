@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-
 from typing import TYPE_CHECKING
 
 from compiler.analysis_types import LatticeKind, LatticeValue
@@ -584,7 +583,9 @@ def _scan_local_facts(
     known_procs: set[str],
     facts: _LocalFacts,
 ) -> None:
-    from compiler.core_analyses import _expr_has_command as _expr_has_command_sub  # deferred (cycle)
+    from compiler.core_analyses import (
+        _expr_has_command as _expr_has_command_sub,  # deferred (cycle)
+    )
 
     for stmt in script.statements:
         if isinstance(stmt, IRBarrier):

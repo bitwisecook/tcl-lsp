@@ -114,8 +114,8 @@ class ExplorerApp(App):
         super().__init__()
 
         from tooling.explorer.cli import (  # deferred (cycle)
-            OPT_VIEWS,
             _VIEW_ORDER,
+            OPT_VIEWS,
             _summary_parts,
             load_source,
             optimised_result,

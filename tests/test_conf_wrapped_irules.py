@@ -8,9 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser.conf_wrapped import (
-    shift_position,
     _shift_range,
     analyse_conf_wrapped,
+    shift_position,
 )
 from analyser.semantic_model import Range
 from compiler.registry.dialect import detect_dialect_from_source

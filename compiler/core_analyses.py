@@ -35,7 +35,6 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from compiler.parsing.command_segmenter import segment_commands
@@ -313,11 +312,11 @@ _COMP_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_:]*)\s*(==|!=|eq|ne|<=|>=|<|>)\
 
 
 from .analysis_types import (
-    LatticeKind,
-    LatticeValue,
+    _MAX_CONSTSET_SIZE,
     OVERDEFINED,
     UNKNOWN,
-    _MAX_CONSTSET_SIZE,
+    LatticeKind,
+    LatticeValue,
     _join,
     _to_set,
 )

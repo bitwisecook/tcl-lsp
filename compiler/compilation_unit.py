@@ -29,6 +29,7 @@ from .ssa import DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity
 
 if TYPE_CHECKING:
     from compiler.interprocedural import InterproceduralAnalysis, ProcLocalSummary
+
     from .core_analyses import FunctionAnalysis
 
 _oo_metaclass_cache: frozenset[str] | None = None
@@ -449,6 +450,7 @@ def _compile_source_inner(
     deep_param_traits: bool = False,
 ) -> CompilationUnit:
     from compiler.interprocedural import analyse_interprocedural_ir  # deferred (cycle)
+
     from .core_analyses import analyse_function  # deferred (cycle)
 
     if ir_module is None:

@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from compiler.cfg import CFGFunction
 from compiler.analysis_types import LatticeKind
+from compiler.cfg import CFGFunction
 from compiler.core_analyses import FunctionAnalysis
 
 from ..semantic_model import Diagnostic, Range, Severity

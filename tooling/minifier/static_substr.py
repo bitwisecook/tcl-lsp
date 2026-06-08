@@ -38,8 +38,8 @@ from shared.tcl_list import tcl_list_quote, tcl_list_split
 from shared.text_edits import apply_edits
 
 if TYPE_CHECKING:
-    from compiler.compilation_unit import FunctionUnit
     from compiler.analysis_types import LatticeValue
+    from compiler.compilation_unit import FunctionUnit
     from compiler.interprocedural import InterproceduralAnalysis
     from compiler.ssa import SSAValueKey
     from compiler.taint import TaintLattice
