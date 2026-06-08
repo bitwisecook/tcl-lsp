@@ -108,10 +108,15 @@ pub struct BracketIndex {
     /// structural `[`, `-1` for a structural `]`. Brackets inside inert
     /// spans are *not* recorded.
     events: Vec<(u32, i32)>,
-    /// Inert byte ranges `[start, end)` where `[` / `]` are literal
-    /// (brace words, `${…}`, escape pairs, command-sub `{…}` interiors).
-    /// Sorted, non-overlapping.
-    inert: Vec<(u32, u32)>,
+    /// Inert byte ranges where `[` / `]` are literal (brace words,
+    /// `${…}`, escape pairs, command-sub `{…}` interiors).  Sorted,
+    /// non-overlapping.  `(start, end, terminated)`: `terminated` is
+    /// `true` when the span is closed by its own delimiter (a `}` for
+    /// brace words, `}` for `${…}`, `]` for cmd-sub brakes).  An
+    /// unterminated span is `(start, EOF, false)` — its end equals
+    /// `self.len` and was never closed, so it conceptually swallows
+    /// past EOF and insertion at the end is still absorbed.
+    inert: Vec<(u32, u32, bool)>,
     /// Source length in bytes.
     len: u32,
 }
@@ -132,11 +137,18 @@ impl BracketIndex {
         // it, so the raw list is not sorted. Sort by start and merge
         // overlaps/adjacencies so `is_inert`'s binary search is valid.
         b.inert.sort_unstable();
-        let mut merged: Vec<(u32, u32)> = Vec::with_capacity(b.inert.len());
-        for (s, e) in b.inert {
+        let mut merged: Vec<(u32, u32, bool)> = Vec::with_capacity(b.inert.len());
+        for (s, e, term) in b.inert {
             match merged.last_mut() {
-                Some(last) if s <= last.1 => last.1 = last.1.max(e),
-                _ => merged.push((s, e)),
+                // Merge overlapping/adjacent spans.  An unterminated
+                // span always reaches EOF; merging into it preserves
+                // its unterminated flag unless the merged span is
+                // terminated beyond EOF (impossible — EOF is max).
+                Some(last) if s <= last.1 => {
+                    last.1 = last.1.max(e);
+                    last.2 = last.2 || term;
+                }
+                _ => merged.push((s, e, term)),
             }
         }
         BracketIndex {
@@ -150,11 +162,11 @@ impl BracketIndex {
     /// end`. Used for membership queries (e.g. "is this byte literal").
     #[must_use]
     pub fn is_inert(&self, off: u32) -> bool {
-        let idx = self.inert.partition_point(|&(s, _)| s <= off);
+        let idx = self.inert.partition_point(|&(s, _, _)| s <= off);
         if idx == 0 {
             return false;
         }
-        let (_, end) = self.inert[idx - 1];
+        let (_, end, _) = self.inert[idx - 1];
         off < end
     }
 
@@ -164,14 +176,30 @@ impl BracketIndex {
     /// inert run (e.g. before a `\` or a `{`), so the closer is
     /// structural there; only insertion between the bytes is absorbed
     /// (e.g. `\` + inserted `]` -> `\]`).
+    ///
+    /// When the inert span is **unterminated** (its end equals
+    /// `self.len` and it was never closed by its own delimiter),
+    /// insertion at EOF is also absorbed — the unterminated span
+    /// conceptually swallows past the source end, so a byte inserted
+    /// there becomes part of the span's content.
     #[must_use]
     fn inert_for_insert(&self, off: u32) -> bool {
-        let idx = self.inert.partition_point(|&(s, _)| s < off);
+        let idx = self.inert.partition_point(|&(s, _, _)| s < off);
         if idx == 0 {
             return false;
         }
-        let (start, end) = self.inert[idx - 1];
-        start < off && off < end
+        let (start, end, terminated) = self.inert[idx - 1];
+        if !terminated && end == self.len {
+            // An unterminated inert span swallows to EOF, so an
+            // insertion anywhere past its start (including at EOF)
+            // is absorbed — the nearer-to-EOF span (e.g.
+            // unterminated brace word) owns every following byte.
+            start < off && off <= end
+        } else {
+            // Terminated spans: insertion is absorbed only at
+            // strictly interior bytes (start < off < end).
+            start < off && off < end
+        }
     }
 
     /// Number of unterminated `[` at EOF — the final clamped bracket
@@ -218,15 +246,16 @@ impl BracketIndex {
 struct Builder<'a> {
     bytes: &'a [u8],
     events: Vec<(u32, i32)>,
-    inert: Vec<(u32, u32)>,
+    inert: Vec<(u32, u32, bool)>,
 }
 
 impl Builder<'_> {
-    fn push_inert(&mut self, start: usize, end: usize) {
+    fn push_inert(&mut self, start: usize, end: usize, terminated: bool) {
         if end > start {
             self.inert.push((
                 u32::try_from(start).expect("offset fits u32"),
                 u32::try_from(end).expect("offset fits u32"),
+                terminated,
             ));
         }
     }
@@ -251,9 +280,11 @@ impl Builder<'_> {
             match self.bytes[i] {
                 b'\\' => {
                     // Escape pair (lone `\` at EOF: 1 byte). Inert for
-                    // brackets.
+                    // brackets.  Escape pairs are always terminated
+                    // (even when truncated at EOF, insertion past them
+                    // is structural).
                     let end = (i + 2).min(n);
-                    self.push_inert(i, end);
+                    self.push_inert(i, end, true);
                     i = end;
                     newword = false;
                 }
@@ -264,8 +295,8 @@ impl Builder<'_> {
                 b'{' if newword && !in_quote => {
                     // Verbatim brace word — the whole `{…}` span is
                     // inert for brackets.  STR keeps `newword` true.
-                    let end = scan_brace_word(self.bytes, i);
-                    self.push_inert(i, end);
+                    let (end, terminated) = scan_brace_word(self.bytes, i);
+                    self.push_inert(i, end, terminated);
                     i = end;
                     newword = true;
                 }
@@ -280,14 +311,15 @@ impl Builder<'_> {
                     newword = false;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let end = scan_dollar_brace(self.bytes, i);
-                    self.push_inert(i, end);
+                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    self.push_inert(i, end, terminated);
                     i = end;
                     newword = false;
                 }
                 b'[' => {
                     self.push_event(i, 1);
-                    i = self.scan_cmd_sub(i + 1);
+                    let (next_i, _) = self.scan_cmd_sub(i + 1);
+                    i = next_i;
                     newword = false;
                 }
                 b']' => {
@@ -308,9 +340,10 @@ impl Builder<'_> {
     /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `]`
     /// closes only at `blevel == 0 && !in_quotes`, nested `[` / `]`
     /// recurse. Records nested structural bracket events and inert spans
-    /// for brace interiors / escapes / `${…}`. Returns the offset just
-    /// past the closing `]`, or EOF if unterminated.
-    fn scan_cmd_sub(&mut self, start: usize) -> usize {
+    /// for brace interiors / escapes / `${…}`. Returns (offset,
+    /// terminated): the offset just past the closing `]` (terminated), or
+    /// EOF (unterminated).
+    fn scan_cmd_sub(&mut self, start: usize) -> (usize, bool) {
         let n = self.bytes.len();
         let mut i = start;
         let mut blevel: u32 = 0;
@@ -326,20 +359,21 @@ impl Builder<'_> {
                 }
                 b'[' if blevel == 0 && !in_quotes => {
                     self.push_event(i, 1);
-                    i = self.scan_cmd_sub(i + 1);
+                    let (next_i, _) = self.scan_cmd_sub(i + 1);
+                    i = next_i;
                 }
                 b']' if blevel == 0 && !in_quotes => {
                     self.push_event(i, -1);
-                    return i + 1;
+                    return (i + 1, true); // terminated
                 }
                 b'\\' => {
                     let end = (i + 2).min(n);
-                    self.push_inert(i, end);
+                    self.push_inert(i, end, true); // escape pair, always terminated
                     i = end;
                 }
                 b'$' if !in_quotes && blevel == 0 && self.bytes.get(i + 1) == Some(&b'{') => {
-                    let end = scan_dollar_brace(self.bytes, i);
-                    self.push_inert(i, end);
+                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    self.push_inert(i, end, terminated);
                     i = end;
                 }
                 b'{' if !in_quotes => {
@@ -356,7 +390,7 @@ impl Builder<'_> {
                         if let Some(s) = brace_run_start.take() {
                             // Mark the closed `{…}` run inert for
                             // brackets (a `]` inside it never counted).
-                            self.push_inert(s, i);
+                            self.push_inert(s, i, true); // terminated
                         }
                     }
                 }
@@ -369,9 +403,9 @@ impl Builder<'_> {
         // is verbatim/inert; the open `[` stays open (its event was
         // pushed by the caller), so an inserted `]` closes it.
         if let Some(s) = brace_run_start {
-            self.push_inert(s, n);
+            self.push_inert(s, n, false); // unterminated
         }
-        n
+        (n, false) // unterminated
     }
 }
 
@@ -379,7 +413,7 @@ impl Builder<'_> {
 /// Counts nested `{` / `}` (a `\}` does not close — the pair is
 /// consumed). Returns the offset just past the matching `}`, or EOF if
 /// unterminated. Mirrors `Lexer::parse_brace`.
-fn scan_brace_word(bytes: &[u8], start: usize) -> usize {
+fn scan_brace_word(bytes: &[u8], start: usize) -> (usize, bool) {
     let n = bytes.len();
     let mut i = start + 1; // skip `{`
     let mut level: u32 = 1;
@@ -396,28 +430,28 @@ fn scan_brace_word(bytes: &[u8], start: usize) -> usize {
                 level -= 1;
                 i += 1;
                 if level == 0 {
-                    return i;
+                    return (i, true); // terminated
                 }
             }
             _ => i += 1,
         }
     }
-    n
+    (n, false) // unterminated
 }
 
 /// Scan a `${…}` variable-name brace starting at the `$` at `start`.
-/// Returns the offset just past the matching `}`, or EOF if
-/// unterminated. The interior is inert for brackets.
-fn scan_dollar_brace(bytes: &[u8], start: usize) -> usize {
+/// Returns (offset just past the matching `}`, true) when terminated,
+/// or (EOF, false) when unterminated. The interior is inert for brackets.
+fn scan_dollar_brace(bytes: &[u8], start: usize) -> (usize, bool) {
     let n = bytes.len();
     let mut i = start + 2; // skip `${`
     while i < n {
         if bytes[i] == b'}' {
-            return i + 1;
+            return (i + 1, true); // terminated
         }
         i += 1;
     }
-    n
+    (n, false) // unterminated
 }
 
 // ===========================================================================
@@ -438,9 +472,11 @@ pub struct BraceIndex {
     /// Structural brace events in ascending offset order: `+1` for a
     /// structural `{`, `-1` for a structural `}`.
     events: Vec<(u32, i32)>,
-    /// Inert byte ranges `[start, end)` where `{` / `}` are literal
-    /// (comments, quoted runs, escape pairs, `${…}`). Sorted, merged.
-    inert: Vec<(u32, u32)>,
+    /// Inert byte ranges where `{` / `}` are literal (comments, quoted
+    /// runs, escape pairs, `${…}`).  `(start, end, terminated)` — see
+    /// [`BracketIndex::inert`] for the unterminated-span semantics.
+    /// Sorted, merged.
+    inert: Vec<(u32, u32, bool)>,
     /// Source length in bytes.
     len: u32,
 }
@@ -457,11 +493,14 @@ impl BraceIndex {
         };
         b.scan_top();
         b.inert.sort_unstable();
-        let mut merged: Vec<(u32, u32)> = Vec::with_capacity(b.inert.len());
-        for (s, e) in b.inert {
+        let mut merged: Vec<(u32, u32, bool)> = Vec::with_capacity(b.inert.len());
+        for (s, e, term) in b.inert {
             match merged.last_mut() {
-                Some(last) if s <= last.1 => last.1 = last.1.max(e),
-                _ => merged.push((s, e)),
+                Some(last) if s <= last.1 => {
+                    last.1 = last.1.max(e);
+                    last.2 = last.2 || term;
+                }
+                _ => merged.push((s, e, term)),
             }
         }
         BraceIndex {
@@ -472,15 +511,20 @@ impl BraceIndex {
     }
 
     /// `true` when inserting a `}` *at* `off` would be absorbed as a
-    /// literal (strictly inside an inert span).
+    /// literal.  Unterminated spans at EOF swallow insertion at EOF
+    /// (same semantics as [`BracketIndex::inert_for_insert`]).
     #[must_use]
     fn inert_for_insert(&self, off: u32) -> bool {
-        let idx = self.inert.partition_point(|&(s, _)| s < off);
+        let idx = self.inert.partition_point(|&(s, _, _)| s < off);
         if idx == 0 {
             return false;
         }
-        let (start, end) = self.inert[idx - 1];
-        start < off && off < end
+        let (start, end, terminated) = self.inert[idx - 1];
+        if !terminated && end == self.len {
+            start < off && off <= end
+        } else {
+            start < off && off < end
+        }
     }
 
     /// Number of unterminated `{` at EOF — the final clamped brace level.
@@ -521,15 +565,16 @@ impl BraceIndex {
 struct BraceBuilder<'a> {
     bytes: &'a [u8],
     events: Vec<(u32, i32)>,
-    inert: Vec<(u32, u32)>,
+    inert: Vec<(u32, u32, bool)>,
 }
 
 impl BraceBuilder<'_> {
-    fn push_inert(&mut self, start: usize, end: usize) {
+    fn push_inert(&mut self, start: usize, end: usize, terminated: bool) {
         if end > start {
             self.inert.push((
                 u32::try_from(start).expect("offset fits u32"),
                 u32::try_from(end).expect("offset fits u32"),
+                terminated,
             ));
         }
     }
@@ -579,7 +624,7 @@ impl BraceBuilder<'_> {
                 match self.bytes[i] {
                     b'\\' => {
                         let end = (i + 2).min(n);
-                        self.push_inert(i, end);
+                        self.push_inert(i, end, true); // escape pair, always terminated
                         i = end;
                     }
                     b'{' => {
@@ -623,12 +668,12 @@ impl BraceBuilder<'_> {
                     while j < n && self.bytes[j] != b'\n' {
                         j += 1;
                     }
-                    self.push_inert(i, j);
+                    self.push_inert(i, j, true); // comment, always terminated
                     i = j;
                 }
                 b'\\' => {
                     let end = (i + 2).min(n);
-                    self.push_inert(i, end);
+                    self.push_inert(i, end, true); // escape pair
                     i = end;
                     newword = false;
                     command_start = false;
@@ -661,11 +706,11 @@ impl BraceBuilder<'_> {
                     just_closed_word = true;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    let end = scan_dollar_brace(self.bytes, i);
-                    if end >= n && self.bytes.get(n - 1) != Some(&b'}') {
+                    let (end, terminated) = scan_dollar_brace(self.bytes, i);
+                    if !terminated {
                         self.push_event(i + 1, 1); // unterminated `${`
                     }
-                    self.push_inert(i, end);
+                    self.push_inert(i, end, terminated);
                     i = end;
                     newword = false;
                     command_start = false;
@@ -717,7 +762,8 @@ impl BraceBuilder<'_> {
                     i = end;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
-                    i = scan_dollar_brace(self.bytes, i);
+                    let (end, _) = scan_dollar_brace(self.bytes, i);
+                    i = end;
                 }
                 _ => i += 1,
             }
@@ -1444,16 +1490,22 @@ mod tests {
 
     #[test]
     fn correction_unterminated_opaque_to_eof() {
-        // `set x {a` — an unterminated brace word swallows to EOF; the
-        // `[` that *precedes* nothing here is absent, but a `[` before
-        // an unterminated brace stays the outermost open and an inserted
-        // `]` closes it (the EOF-inert correction in action).
+        // `[set x {a]b` — the `{` opens an unterminated brace word that
+        // swallows to EOF. The `]` inside the brace word is literal, and
+        // the `[` is unterminated.  Inserting `]` at EOF puts it inside
+        // the unterminated brace word (still no `}`), so it is absorbed
+        // as literal — it does NOT close the `[`.  This is the doc's
+        // "unterminated opaque token reaching EOF makes the tail inert"
+        // correction: a closer inserted after an unterminated span is
+        // absorbed by *it*, not by the outer delimiter.
         let idx = BracketIndex::build("[set x {a]b");
         // The `]` inside the (unterminated) brace word is inert, so the
         // `[` is still unterminated.
         assert_eq!(idx.unterminated_count(), 1);
-        // Inserting `]` at EOF closes the outer `[`.
-        assert!(idx.close_bracket_balances(u32::try_from("[set x {a]b".len()).unwrap()));
+        // Inserting `]` at EOF is inert: absorbed by the unterminated brace.
+        assert!(!idx.close_bracket_balances(u32::try_from("[set x {a]b".len()).unwrap()));
+        // But inserting after the `[` (before the `{`) does close it.
+        assert!(idx.close_bracket_balances(1));
         // Parity with the production lexer.
         assert!(lexer_has_unterminated_bracket("[set x {a]b"));
     }
