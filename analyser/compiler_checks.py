@@ -639,7 +639,9 @@ def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> 
 
         cmd_token_range = range_from_token(ct.argv[0]) if ct and ct.argv else stmt.range
 
-        args = list(stmt.args) if isinstance(stmt, IRCall) else list(getattr(stmt, "args", ()))
+        args: list[str] = (
+            list(stmt.args) if isinstance(stmt, IRCall) else list(getattr(stmt, "args", ()))
+        )
 
         # Extract {*} expansion markers for the argument words (position 0
         # in ``expand_word`` is the command name, 1..n are the arguments).
