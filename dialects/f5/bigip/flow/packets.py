@@ -271,12 +271,6 @@ def _peek_tls_clienthello(payload: bytes) -> tuple[bool, str, str]:
 
 
 # Best-effort: scan an F5 ethernet trailer's LOW/MED TLV data for a printable
-# RST cause string.  Wireshark surfaces these as `f5ethtrailer.rstcause.cause`
-# and `.line`; we don't claim to match the dissector byte-for-byte, just to
-# flag the presence of an RST cause when one is encoded.
-_RST_HINT_RE = re.compile(rb"(?:RST(?:_| )?(?:cause|reason)?[: ]?)?([A-Z][A-Z0-9_/.\- ]{6,80})")
-
-
 def _extract_peer_tuple_from_trailer(
     trailer_bytes: bytes,
 ) -> tuple[str, int, str, int] | None:

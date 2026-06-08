@@ -1051,6 +1051,7 @@ def _simplify_expr_node(
 
         case _:
             return node
+    return node  # unreachable; satisfies static analysis
 
 
 def _render_expr_for_rewrite(
@@ -1120,6 +1121,7 @@ def _render_expr_for_rewrite(
             return text
         case _:
             return str(node)
+    return str(node)  # unreachable; satisfies static analysis
 
 
 def _simplify_to_fixpoint(

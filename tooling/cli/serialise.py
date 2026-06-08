@@ -1085,7 +1085,6 @@ def _serialise_result(result: CompilerExplorerResult, build_cfg, compute_stats) 
             opt_cfg = build_cfg(opt_ir)
         except Exception:
             opt_ir = None
-            opt_cfg = None
         if opt_ir is not None:
             # Optimised asm/wasm/ir/cfg ranges index into the optimised source.
             opt_token = set_highlight_source(result.optimised_source)

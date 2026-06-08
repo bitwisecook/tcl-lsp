@@ -50,10 +50,10 @@ class _AnalyserOOMixin(_Base):
 
         # From _AnalyserBase (also declared here for clarity via inherited _Base)
         # From _AnalyserCommandsMixin
-        def _analyse_body(self, *a: Any, **kw: Any) -> None: ...
-        def _handle_proc_command(self, *a: Any, **kw: Any) -> bool: ...
+        def _analyse_body(self, *a: Any, **kw: Any) -> None: pass
+        def _handle_proc_command(self, *a: Any, **kw: Any) -> bool: pass
         # From _AnalyserScopeMixin
-        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: pass
 
     def _qualify_oo_name(self, name: str, scope: Scope) -> str:
         """Fully-qualified name for an OO/snit class/type definition.

@@ -104,7 +104,6 @@ from .ssa import (
     build_ssa,
     dynamic_target_name_reads,
     expr_substitution_read_names,
-    is_complexity_guarded,  # noqa: F401  (re-exported for diagnostic-pass guards)
     statement_cmd_sub_write_names,
     statement_read_names,
     value_use_blocks,
@@ -1147,18 +1146,19 @@ def _word_mutation_free(text: str) -> bool:
 def _expr_mutation_free(node: ExprNode) -> bool:
     """True when evaluating expression *node* cannot create/modify/remove a local."""
     match node:
-        case ExprCommand(text=text) | ExprRaw(text=text):
-            return _word_mutation_free(text)
-        case ExprBinary(left=left, right=right):
-            return _expr_mutation_free(left) and _expr_mutation_free(right)
-        case ExprUnary(operand=operand):
-            return _expr_mutation_free(operand)
-        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
-            return _expr_mutation_free(cond) and _expr_mutation_free(tb) and _expr_mutation_free(fb)
+        case ExprCommand(text=_text) | ExprRaw(text=_text):
+            return _word_mutation_free(_text)
+        case ExprBinary(left=_left, right=_right):
+            return _expr_mutation_free(_left) and _expr_mutation_free(_right)
+        case ExprUnary(operand=_operand):
+            return _expr_mutation_free(_operand)
+        case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
+            return _expr_mutation_free(_cond) and _expr_mutation_free(_tb) and _expr_mutation_free(_fb)
         case ExprCall(args=args):
             return all(_expr_mutation_free(a) for a in args)
         case _:
             return True
+    return True  # unreachable; satisfies static analysis
 
 
 def _is_existence_transparent(stmt: IRStatement) -> bool:

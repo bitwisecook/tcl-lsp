@@ -390,6 +390,7 @@ def _apply_string_compare(op: BinOp, a: str, b: str) -> int | None:
             return 1 if a >= b else 0
         case _:
             return None
+    return None  # unreachable; satisfies static analysis
 
 
 def _tcl_div(a: TclValue, b: TclValue) -> TclValue | None:

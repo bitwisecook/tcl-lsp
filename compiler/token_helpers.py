@@ -11,9 +11,11 @@ stable.
 from __future__ import annotations
 
 from compiler.parsing.token_scanning import (
-    parse_single_command as parse_command_words,  # noqa: F401
+    parse_single_command as parse_command_words,
 )
-from compiler.parsing.token_scanning import word_piece  # noqa: F401
+from compiler.parsing.token_scanning import word_piece
+
+__all__ = ["parse_command_words", "word_piece"]
 
 from .eval_helpers import DECIMAL_INT_RE
 

@@ -31,9 +31,9 @@ class _AnalyserDiagsMixin(_Base):
 
         def _resolve_interpolated_commands(self, cu: CompilationUnit) -> None: ...
 
-        def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None: ...
+        def _emit_var_command_diagnostics(self, cu: CompilationUnit) -> None: pass
 
-        def _emit_renamed_command_diagnostics(self, cu: CompilationUnit) -> None: ...
+        def _emit_renamed_command_diagnostics(self, cu: CompilationUnit) -> None: pass
 
         def _emit_constant_branch_diagnostics(
             self,
@@ -102,7 +102,7 @@ class _AnalyserDiagsMixin(_Base):
             self,
             ssa: SSAFunction,
             analysis: FunctionAnalysis,
-        ) -> None: ...
+        ) -> None: pass
 
         def _emit_interval_bounds_diagnostics(
             self,

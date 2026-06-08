@@ -36,7 +36,7 @@ def test_spawned_task_is_tracked_then_released(monkeypatch):
         # Held by the module while in flight — not relying on the caller's ref.
         assert task in dp._background_tasks
         release.set()
-        await task
+        _ = await task
         # Done-callback discards it so the set doesn't leak across edits.
         assert task not in dp._background_tasks
         assert not dp._background_tasks
@@ -58,7 +58,7 @@ def test_spawn_forwards_force_reanalyse_and_loop(monkeypatch):
         task = dp.spawn_publish_diagnostics(
             "file:///r.tcl", "set y 2\n", 7, force_reanalyse=True, loop=loop
         )
-        await task
+        _ = await task
 
     asyncio.run(_drive())
     assert calls == [("file:///r.tcl", "set y 2\n", 7, True)]

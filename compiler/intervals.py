@@ -209,6 +209,7 @@ def _eval_expr(expr: ExprNode, env: dict[str, Interval]) -> Interval:
             return TOP
         case _:
             return TOP
+    return TOP  # unreachable; satisfies static analysis
 
 
 def intersect(a: Interval, b: Interval) -> Interval:
@@ -265,6 +266,7 @@ def _guard_interval(op: BinOp, k: int, negate: bool) -> Interval | None:
             return const(k)
         case _:
             return None  # NE and non-comparisons give no single interval
+    return None  # unreachable; satisfies static analysis
 
 
 def _const_operand(expr: ExprNode) -> int | None:

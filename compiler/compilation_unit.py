@@ -30,7 +30,7 @@ from .core_analyses import FunctionAnalysis, analyse_function
 from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
 from .ir import IRBarrier, IRBlock, IRCall, IRModule, IRStatement
 from .lowering import lower_to_ir
-from .ssa import _DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
+from .ssa import DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
 
 _oo_metaclass_cache: frozenset[str] | None = None
 
@@ -545,7 +545,7 @@ def _compile_source_inner(
             # decision in as a skip flag so those passes return trivial results,
             # rather than computing them and discarding via the guard afterwards.
             body_bytes = ir_proc.range.end.offset - ir_proc.range.start.offset
-            byte_guarded = body_bytes > _DEEP_ANALYSIS_BODY_BYTES
+            byte_guarded = body_bytes > DEEP_ANALYSIS_BODY_BYTES
 
             cfg = build_cfg_function(
                 qname,
@@ -623,7 +623,7 @@ def _compile_source_inner(
             m_range = ir_method.range
             m_byte_guarded = bool(
                 m_range is not None
-                and (m_range.end.offset - m_range.start.offset) > _DEEP_ANALYSIS_BODY_BYTES
+                and (m_range.end.offset - m_range.start.offset) > DEEP_ANALYSIS_BODY_BYTES
             )
             m_cfg = build_cfg_function(
                 mqname,

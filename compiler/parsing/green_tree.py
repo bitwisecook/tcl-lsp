@@ -49,8 +49,6 @@ from typing import TYPE_CHECKING
 from shared.ranges import closer_present_in_region
 from shared.tokens import SourcePosition, TokenType
 
-from .lexer import TclLexer
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -189,6 +187,8 @@ def _lex(
     virtual_insertions: dict[int, str] | None,
     line_starts: list[int] | None = None,
 ) -> tuple[list[Token], list[tuple[SourcePosition, str]]]:
+    from .lexer import TclLexer  # deferred — avoids green_tree ↔ lexer ↔ token_scanning cycle
+
     lexer = TclLexer(
         text,
         base_offset=base_offset,

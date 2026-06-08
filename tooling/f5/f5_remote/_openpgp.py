@@ -35,7 +35,6 @@ _BLOCK = 16
 
 # OpenPGP symmetric-cipher algorithm IDs we can handle → AES key length.
 _CIPHER_KEYLEN = {7: 16, 8: 24, 9: 32}
-_CIPHER_NAME = {7: "AES-128", 8: "AES-192", 9: "AES-256"}
 
 # OpenPGP hash algorithm IDs → hashlib constructor names.
 _HASH_NAME = {
