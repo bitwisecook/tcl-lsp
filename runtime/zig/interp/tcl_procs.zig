@@ -179,6 +179,26 @@ pub const CMD_BUILTIN_MASKED: u32 = 0x1000;
 /// hands control to the ensemble subcommand resolver.
 pub const CMD_ENSEMBLE: u32 = 0x2000;
 
+/// Set on a Command's ``OFF_FLAGS`` when it is destroyed (``rename foo
+/// {}`` / command delete).  The Command struct is not freed immediately
+/// — a captured ``bucket`` pointer (e.g. the execution-trace dispatcher
+/// holding the traced command across its enter→body→leave window) stays
+/// valid — so consumers that must distinguish "still live" from "gone"
+/// test this bit.  Mirrors C Tcl's ``CMD_DYING``: ``TEOV_RunLeaveTraces``
+/// skips ``leave``/``leavestep`` callbacks for a command deleted during
+/// its own ``enter`` trace or a nested step (trace-25.8..25.11).  A reused
+/// slot is reset to flags=0 by ``proc_register``, so the bit never
+/// survives into a freshly (re)defined command.
+pub const CMD_DELETED: u32 = 0x4000;
+
+/// True iff *cmd* (a Command bucket address) has been destroyed.  Safe to
+/// call on 0 (returns false).
+pub fn cmd_is_deleted(cmd: u32) bool {
+    if (cmd == 0) return false;
+    const flags: u32 = @bitCast(read_i32(cmd + OFF_FLAGS));
+    return (flags & CMD_DELETED) != 0;
+}
+
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
 // dependency.  Pin the shadow to the canonical values here so any

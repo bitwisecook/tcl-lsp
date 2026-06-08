@@ -1488,10 +1488,21 @@ fn eval_command_traced(words: []const i32) i32 {
     if (has_step) et.pop_step();
 
     // Capture the completion code for leave / leavestep.
-    if ((ops & et.OP_LEAVE) != 0 or step_active) {
+    //
+    // A command deleted during its own ``enter`` trace, or during a
+    // nested step trace fired while its body ran (``rename foo {}`` from
+    // a traceDelete callback), must NOT fire its ``leave`` trace — C Tcl
+    // gates ``TEOV_RunLeaveTraces`` on ``!(cmdPtr->flags & CMD_DYING)``.
+    // Without this, the leave callback re-runs ``rename foo {}`` on the
+    // now-gone command and the resulting ``can't delete "foo": command
+    // doesn't exist`` error clobbers the real result (the body's value,
+    // or the ``invalid command name "foo"`` raised when the deleted
+    // command failed to dispatch) — trace-25.8..25.11.
+    const cmd_deleted = procs.cmd_is_deleted(bucket);
+    if (((ops & et.OP_LEAVE) != 0 and !cmd_deleted) or step_active) {
         const snap = result_mod.snapshot(result);
         const code_obj = obj_mod.obj_new_int(@intFromEnum(snap.code));
-        if ((ops & et.OP_LEAVE) != 0) et.fire(bucket, et.OP_LEAVE, cmd_str, code_obj, result);
+        if ((ops & et.OP_LEAVE) != 0 and !cmd_deleted) et.fire(bucket, et.OP_LEAVE, cmd_str, code_obj, result);
         if (step_active) et.fire_step(et.OP_LEAVESTEP, cmd_str, code_obj, result);
         obj_mod.tcl_obj_release(code_obj);
     }

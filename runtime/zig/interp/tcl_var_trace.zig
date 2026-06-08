@@ -317,6 +317,63 @@ pub fn remove_all(name_ptr: u32, name_len: u32) void {
     }
 }
 
+/// Remove every trace registered on an *element* of array ``arr`` — any
+/// directory key of the form ``arr(...)``.  Tcl's ``TclDeleteVars`` drops
+/// traces on an array AND on every element when the array is unset; our
+/// ``remove_all`` only matches the exact key, so without this an element
+/// write/read trace survived ``unset arr`` and re-fired on the next
+/// ``set arr(k)`` (trace-12.3 accumulation across tests).  Leading ``::``
+/// is normalised on both sides so an ``::arr(k)`` key matches an ``arr``
+/// unset and vice-versa.  Safe to call when no fire walks the chain.
+pub fn remove_all_array_elements(arr_ptr: u32, arr_len: u32) void {
+    if (arr_ptr == 0 or arr_len == 0 or dir_buf == 0) return;
+    // Normalise the target: strip a leading ``::``.
+    var ap: u32 = arr_ptr;
+    var al: u32 = arr_len;
+    {
+        const p: [*]const u8 = @ptrFromInt(ap);
+        if (al >= 2 and p[0] == ':' and p[1] == ':') {
+            ap += 2;
+            al -= 2;
+        }
+    }
+    if (al == 0) return;
+    const tgt: [*]const u8 = @ptrFromInt(ap);
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const ep: u32 = @bitCast(read_i32(bucket));
+        if (ep == 0) continue;
+        if (read_i32(bucket + 12) == 0) continue; // no live head
+        var kp: u32 = ep;
+        var kl: u32 = @bitCast(read_i32(bucket + 4));
+        // Normalise the key's leading ``::`` too.
+        {
+            const p: [*]const u8 = @ptrFromInt(kp);
+            if (kl >= 2 and p[0] == ':' and p[1] == ':') {
+                kp += 2;
+                kl -= 2;
+            }
+        }
+        // Must be ``<arr>(...)``: longer than ``arr(``, prefix == arr,
+        // char at arr_len == '(', last char == ')'.
+        if (kl < al + 2) continue;
+        const np: [*]const u8 = @ptrFromInt(kp);
+        if (np[al] != '(' or np[kl - 1] != ')') continue;
+        var match = true;
+        for (0..al) |k| {
+            if (np[k] != tgt[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (!match) continue;
+        // Tear down this element's chain via the canonical path (handles
+        // the active-fire guard).  Use the bucket's own stored key.
+        remove_all(ep, @bitCast(read_i32(bucket + 4)));
+    }
+}
+
 /// Return a Tcl list of ``{ops cmd}`` pairs for every trace on
 /// ``name``, or empty list if none.
 pub fn info(name: i32) i32 {
