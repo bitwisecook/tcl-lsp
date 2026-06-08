@@ -52,6 +52,15 @@ from shared.naming import normalise_var_name as _normalise_var_name
 from shared.naming import split_array_name
 from shared.tokens import TokenType
 
+from .analysis_types import (
+    LatticeKind,
+    LatticeValue,
+    OVERDEFINED,
+    UNKNOWN,
+    _MAX_CONSTSET_SIZE,
+    _join,
+    _to_set,
+)
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
 from .command_trust import builtin_is_trusted
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
@@ -309,17 +318,6 @@ def _expr_has_command(node: ExprNode) -> bool:
 # m = regex Match object, r = Range, p = predecessor block (str).
 
 _COMP_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_:]*)\s*(==|!=|eq|ne|<=|>=|<|>)\s*(.+?)\s*$")
-
-
-from .analysis_types import (
-    _MAX_CONSTSET_SIZE,
-    OVERDEFINED,
-    UNKNOWN,
-    LatticeKind,
-    LatticeValue,
-    _join,
-    _to_set,
-)
 
 
 @dataclass(frozen=True, slots=True)
