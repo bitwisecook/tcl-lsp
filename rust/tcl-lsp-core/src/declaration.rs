@@ -81,7 +81,7 @@ pub fn declaration(
     spans.sort_by_key(|s| s.start());
     spans
         .into_iter()
-        .map(|s| span_to_range(&line_index, s))
+        .map(|s| span_to_range(source, &line_index, s))
         .collect()
 }
 

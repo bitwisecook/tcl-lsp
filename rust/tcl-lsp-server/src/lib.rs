@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
@@ -105,11 +105,38 @@ use tower_lsp::{Client, LanguageServer};
 struct DocumentState {
     text: String,
     dialect: String,
+    /// Monotonic local revision.  Incremented before each
+    /// asynchronous analyser run so stale workers cannot publish
+    /// analysis/cache state for an older edit.
+    revision: u64,
+    /// Last LSP document version reported by the client.  Forwarded
+    /// with published diagnostics so clients can discard obsolete
+    /// diagnostics if messages arrive out of order.
+    version: Option<i32>,
 }
 
 impl DocumentState {
     fn new(text: String, dialect: String) -> Self {
-        Self { text, dialect }
+        Self {
+            text,
+            dialect,
+            revision: 0,
+            version: None,
+        }
+    }
+
+    fn with_version(text: String, dialect: String, version: i32) -> Self {
+        Self {
+            text,
+            dialect,
+            revision: 0,
+            version: Some(version),
+        }
+    }
+
+    fn bump_revision(&mut self, version: i32) {
+        self.revision = self.revision.saturating_add(1);
+        self.version = Some(version);
     }
 }
 
@@ -129,6 +156,15 @@ impl DocumentState {
 pub struct Backend {
     client: Client,
     documents: Mutex<HashMap<Url, DocumentState>>,
+    /// Serialises the critical section that couples the live document
+    /// revision to the derived analysis cache, workspace index, hover
+    /// cache, semantic-token cache, and diagnostics publication.
+    ///
+    /// The expensive analyser work still runs outside this lock.  The
+    /// gate only covers revision checks and state publication, so an
+    /// older worker cannot finish late and overwrite state for newer
+    /// text.
+    document_analysis_gate: Mutex<()>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
@@ -154,6 +190,15 @@ pub struct Backend {
     /// longest-prefix folder's dialect when a document is
     /// opened.
     folder_dialects: Mutex<Vec<(Url, String)>>,
+    /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
+    /// [`NonAsciiMode::Default`] until an editor configures it via
+    /// `initializationOptions` or `workspace/didChangeConfiguration`.
+    /// Threaded into every `Analyser` the diagnostics path builds.
+    non_ascii_mode: Mutex<NonAsciiMode>,
+    /// Diagnostic codes the user has disabled (`tclLsp.diagnostics.<CODE>
+    /// = false`). Threaded into every analyser build so the disabled
+    /// codes are filtered, and consulted by the source-style pass.
+    disabled_diagnostics: Mutex<HashSet<String>>,
     /// Cached `AnalysisResult` per document, populated by
     /// `did_open` / `did_change` and consumed by request
     /// handlers that previously re-analysed on every call.
@@ -294,10 +339,13 @@ impl Backend {
         Self {
             client,
             documents: Mutex::new(HashMap::new()),
+            document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            non_ascii_mode: Mutex::new(NonAsciiMode::Default),
+            disabled_diagnostics: Mutex::new(HashSet::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
@@ -328,8 +376,9 @@ impl Backend {
         if let Some(cached) = self.cached_analysis(uri).await {
             return cached;
         }
+        let (disabled, na_mode) = self.analyser_config().await;
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
+            let mut analyser = Self::configured_analyser(disabled, na_mode);
             analyser.analyse(&text, &dialect).clone()
         })
         .await
@@ -374,27 +423,36 @@ impl Backend {
         let Some(opts) = &params.initialization_options else {
             return;
         };
-        let Some(entries) = opts
+        // `folderDialects` map (per-folder dialect overrides).
+        if let Some(entries) = opts
             .as_object()
             .and_then(|m| m.get("folderDialects"))
             .and_then(serde_json::Value::as_object)
-        else {
-            return;
-        };
-        let mut parsed: Vec<(Url, String)> = Vec::new();
-        for (folder_url, dialect_val) in entries {
-            let Ok(url) = Url::parse(folder_url) else {
-                continue;
-            };
-            let Some(dialect) = dialect_val.as_str() else {
-                continue;
-            };
-            if DialectSet::parse(dialect).is_none() {
-                continue;
+        {
+            let mut parsed: Vec<(Url, String)> = Vec::new();
+            for (folder_url, dialect_val) in entries {
+                let Ok(url) = Url::parse(folder_url) else {
+                    continue;
+                };
+                let Some(dialect) = dialect_val.as_str() else {
+                    continue;
+                };
+                if DialectSet::parse(dialect).is_none() {
+                    continue;
+                }
+                parsed.push((url, dialect.to_owned()));
             }
-            parsed.push((url, dialect.to_owned()));
+            *self.folder_dialects.lock().await = parsed;
         }
-        *self.folder_dialects.lock().await = parsed;
+        // Diagnostic settings (`tclLsp.style.nonAscii` /
+        // `tclLsp.diagnostics.<CODE>`), accepted in either the nested or
+        // flat-dotted shape.
+        if let Some(mode) = settings_non_ascii_mode(opts) {
+            *self.non_ascii_mode.lock().await = mode;
+        }
+        if let Some(disabled) = settings_disabled_diagnostics(opts) {
+            *self.disabled_diagnostics.lock().await = disabled;
+        }
     }
 
     /// Resolve the dialect string a freshly opened document should
@@ -493,6 +551,11 @@ impl Backend {
     /// definition / references / rename / call-hierarchy until the
     /// server restarts.  Falls back to removing the entry when the
     /// URI isn't a readable file (untitled buffer, deleted file).
+    ///
+    /// Disk IO and analysis deliberately run outside
+    /// `document_analysis_gate`. The final index update rechecks that
+    /// the URI is still closed, so a slow disk read cannot overwrite a
+    /// newly reopened unsaved buffer.
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -509,6 +572,10 @@ impl Backend {
         } else {
             None
         };
+        let _gate = self.document_analysis_gate.lock().await;
+        if self.documents.lock().await.contains_key(uri) {
+            return;
+        }
         let mut index = self.workspace_index.lock().await;
         index.remove_document(uri.as_str());
         if let Some(analysis) = analysed {
@@ -618,8 +685,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(span.start());
-            let end = line_index.position_at(span.end());
+            let start = line_index.position_at_utf16(span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(span.end(), &target_doc.text);
             locations.push(Location {
                 uri: parsed,
                 range: Range {
@@ -758,8 +825,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(intent.span.start());
-            let end = line_index.position_at(intent.span.end());
+            let start = line_index.position_at_utf16(intent.span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(intent.span.end(), &target_doc.text);
             let edit = TextEdit {
                 range: Range {
                     start: Position {
@@ -909,8 +976,8 @@ impl Backend {
                 continue;
             };
             let line_index = tcl_lexer::LineIndex::new(&target_doc.text);
-            let start = line_index.position_at(name_span.start());
-            let end = line_index.position_at(name_span.end());
+            let start = line_index.position_at_utf16(name_span.start(), &target_doc.text);
+            let end = line_index.position_at_utf16(name_span.end(), &target_doc.text);
             let name_range = Range {
                 start: Position {
                     line: start.line,
@@ -1045,14 +1112,31 @@ impl Backend {
         }))
     }
 
+    /// Snapshot the user-configured analyser settings (disabled
+    /// diagnostic codes + W108 non-ASCII mode) so a blocking analysis
+    /// worker can build its `Analyser` without holding any async mutex.
+    async fn analyser_config(&self) -> (HashSet<String>, NonAsciiMode) {
+        let disabled = self.disabled_diagnostics.lock().await.clone();
+        let mode = *self.non_ascii_mode.lock().await;
+        (disabled, mode)
+    }
+
+    /// Build an `Analyser` carrying the configured disabled-diagnostics
+    /// set and W108 mode.
+    fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
+        Analyser::with_disabled_diagnostics(disabled).with_non_ascii_mode(mode)
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
-    /// The result is cached per canonical dialect key so each
-    /// session builds at most one registry per requested dialect.
-    /// Unparseable dialect strings collapse to the empty-string
-    /// key so they share a single cached "plain Tcl" registry
-    /// rather than leaking a fresh allocation per typo.
+    /// The result is cached per canonical dialect key. Concurrent
+    /// first-use requests may build the same registry more than once,
+    /// but only one `Arc` is inserted; keeping construction outside the
+    /// mutex avoids blocking unrelated cache hits on spec loading.
+    /// Unparseable dialect strings collapse to the empty-string key so
+    /// they share a single cached "plain Tcl" registry rather than
+    /// leaking a fresh allocation per typo.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
         let parsed = DialectSet::parse(dialect);
         // Canonicalise the cache key: parseable dialects keep
@@ -1073,17 +1157,19 @@ impl Backend {
         key: &str,
         dialect: Option<DialectSet>,
     ) -> Arc<CommandRegistry> {
-        let mut cache = self.dialect_registries.lock().await;
-        if let Some(r) = cache.get(key) {
-            return Arc::clone(r);
+        if let Some(r) = self.dialect_registries.lock().await.get(key).cloned() {
+            return r;
         }
         let mut r = CommandRegistry::build_default();
         if let Some(d) = dialect {
             r.load_dialect(d);
         }
         let arc = Arc::new(r);
-        cache.insert(key.to_owned(), Arc::clone(&arc));
-        arc
+        let mut cache = self.dialect_registries.lock().await;
+        let entry = cache
+            .entry(key.to_owned())
+            .or_insert_with(|| Arc::clone(&arc));
+        Arc::clone(entry)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -1093,7 +1179,14 @@ impl Backend {
     /// event loop stays responsive.  `S-async-diagnostics`
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
-    async fn publish_analyser_diagnostics(&self, uri: Url, text: String, dialect: String) {
+    async fn publish_analyser_diagnostics(
+        &self,
+        uri: Url,
+        text: String,
+        dialect: String,
+        revision: u64,
+        version: Option<i32>,
+    ) {
         // GAP-C1: the base analyser only surfaces `Analyser::analyse`
         // diagnostics.  The optimiser O-codes, GVN redundancies,
         // shimmer/thunking, taint (W2xx / T1xx), and the iRules
@@ -1105,29 +1198,51 @@ impl Backend {
         // the dialect-aware registry, so resolve it before the
         // blocking hop and move an `Arc` clone in.
         let registry = self.registry_for_dialect(&dialect).await;
+        let (disabled, na_mode) = self.analyser_config().await;
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Analyser::new();
+            let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
             let analysis = analyser.analyse(&text, &dialect).clone();
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
+            // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
+            // / W118), suppression-filtered via the analyser's
+            // `suppressed_lines` and the user's disabled-diagnostics set.
+            diagnostics.extend(lift_source_style_diagnostics(
+                &text,
+                &analysis.suppressed_lines,
+                &disabled,
+            ));
             (analysis, diagnostics)
         })
         .await;
         match result {
             Ok((analysis, diags)) => {
-                // Cache the analysis so the per-method
-                // handlers don't have to re-run it on every
-                // request.
                 {
-                    // Refresh the cross-document workspace index
-                    // for this URI (remove stale entries, then
-                    // re-add the fresh definitions).
-                    let mut index = self.workspace_index.lock().await;
-                    index.remove_document(uri.as_str());
-                    index.add_document(uri.as_str(), &analysis);
+                    let _gate = self.document_analysis_gate.lock().await;
+                    let is_current = {
+                        let docs = self.documents.lock().await;
+                        docs.get(&uri).is_some_and(|doc| doc.revision == revision)
+                    };
+                    if !is_current {
+                        return;
+                    }
+                    // Cache the analysis so the per-method
+                    // handlers don't have to re-run it on every
+                    // request.
+                    {
+                        // Refresh the cross-document workspace index
+                        // for this URI (remove stale entries, then
+                        // re-add the fresh definitions).
+                        let mut index = self.workspace_index.lock().await;
+                        index.remove_document(uri.as_str());
+                        index.add_document(uri.as_str(), &analysis);
+                    }
+                    self.analyses.lock().await.insert(uri.clone(), analysis);
                 }
-                self.analyses.lock().await.insert(uri.clone(), analysis);
-                self.client.publish_diagnostics(uri, diags, None).await;
+                // The LSP version is attached to normal analyser
+                // diagnostics, so clients can discard this publish if a
+                // newer edit overtakes it after the cache/index update.
+                self.client.publish_diagnostics(uri, diags, version).await;
             }
             Err(err) => {
                 self.client
@@ -1201,8 +1316,29 @@ impl Backend {
         .await
         .unwrap_or_default();
 
+        self.merge_workspace_scan_results(&analysed).await;
+    }
+
+    /// Merge disk-backed workspace scan results into the shared index.
+    ///
+    /// The blocking scan snapshots open documents before it starts, but
+    /// an editor can open a file while the scan is still running. Recheck
+    /// the live document map at publication time so stale on-disk
+    /// analysis cannot overwrite the open-buffer entry.
+    async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
+        let _gate = self.document_analysis_gate.lock().await;
+        let open: HashSet<String> = self
+            .documents
+            .lock()
+            .await
+            .keys()
+            .map(ToString::to_string)
+            .collect();
         let mut index = self.workspace_index.lock().await;
-        for (uri, analysis) in &analysed {
+        for (uri, analysis) in analysed {
+            if open.contains(uri) {
+                continue;
+            }
             index.remove_document(uri);
             index.add_document(uri, analysis);
         }
@@ -1242,59 +1378,84 @@ impl LanguageServer for Backend {
             .await;
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text.clone();
+        let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
-        let mut docs = self.documents.lock().await;
-        docs.insert(
-            params.text_document.uri,
-            DocumentState::new(params.text_document.text, dialect),
-        );
-        drop(docs);
-        self.publish_analyser_diagnostics(uri, text, dialect_for_diags)
+        let (revision, version) = {
+            let _gate = self.document_analysis_gate.lock().await;
+            let mut docs = self.documents.lock().await;
+            docs.insert(
+                uri.clone(),
+                DocumentState::with_version(params.text_document.text, dialect, version),
+            );
+            drop(docs);
+            self.hover_cache.lock().await.invalidate_uri(&uri);
+            self.semantic_tokens_cache.lock().await.remove(&uri);
+            self.analyses.lock().await.remove(&uri);
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            (0, Some(version))
+        };
+        self.publish_analyser_diagnostics(uri, text, dialect_for_diags, revision, version)
             .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        // FULL sync — the last content-change carries the entire
-        // document. INCREMENTAL sync is a follow-up chunk.
-        let Some(change) = params.content_changes.into_iter().last() else {
-            return;
-        };
+        // INCREMENTAL sync: each content change is either a full-document
+        // replacement (`range == None`) or a ranged edit applied to the
+        // current text. Apply them in order. (The re-analysis below is
+        // still whole-document; bounding it to `reparse_window` is a
+        // documented follow-up — the primitives exist in `tcl-lexer`.)
         let uri = params.text_document.uri.clone();
-        let mut docs = self.documents.lock().await;
-        let (text, dialect) = if let Some(doc) = docs.get_mut(&uri) {
-            // Preserve the document's dialect across edits; only the
-            // text content changes here.
-            doc.text.clone_from(&change.text);
-            (change.text, doc.dialect.clone())
-        } else {
-            // didChange before didOpen — fall back to the session
-            // default dialect; the languageId is not available here.
-            let dialect = self.default_dialect.lock().await.clone();
-            docs.insert(
-                uri.clone(),
-                DocumentState::new(change.text.clone(), dialect.clone()),
-            );
-            (change.text, dialect)
+        if params.content_changes.is_empty() {
+            return;
+        }
+        let default_dialect = self.default_dialect.lock().await.clone();
+        let change_version = params.text_document.version;
+        let (text, dialect, revision, version) = {
+            let _gate = self.document_analysis_gate.lock().await;
+            let mut docs = self.documents.lock().await;
+            let entry = docs
+                .entry(uri.clone())
+                // didChange before didOpen — start from empty text and the
+                // session default dialect (no languageId is available here).
+                .or_insert_with(|| DocumentState::new(String::new(), default_dialect));
+            let mut text = std::mem::take(&mut entry.text);
+            for change in &params.content_changes {
+                text = apply_content_change(&text, change.range, &change.text);
+            }
+            entry.text = text.clone();
+            entry.bump_revision(change_version);
+            let dialect = entry.dialect.clone();
+            let revision = entry.revision;
+            let version = entry.version;
+            drop(docs);
+            // `S-hover-sync11`: drop every cached hover response
+            // for this URI so subsequent requests return answers
+            // against the freshly-edited source rather than stale
+            // pre-edit results.
+            self.hover_cache.lock().await.invalidate_uri(&uri);
+            // `S-semantic-tokens-rich` delta: drop the cached
+            // token snapshot so the next `semanticTokens/full/delta`
+            // returns a fresh full result instead of an empty edit
+            // list against an outdated baseline.
+            self.semantic_tokens_cache.lock().await.remove(&uri);
+            // Evict the stale `AnalysisResult` so any request that
+            // arrives before `publish_analyser_diagnostics` finishes
+            // re-running the analyser falls through to a fresh
+            // run via `analysis_for` rather than serving pre-edit
+            // results (PR #454 Codex review P1).  `publish_*` will
+            // reinsert the fresh entry when it completes.
+            self.analyses.lock().await.remove(&uri);
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            (text, dialect, revision, version)
         };
-        drop(docs);
-        // `S-hover-sync11`: drop every cached hover response
-        // for this URI so subsequent requests return answers
-        // against the freshly-edited source rather than stale
-        // pre-edit results.
-        self.hover_cache.lock().await.invalidate_uri(&uri);
-        // `S-semantic-tokens-rich` delta: drop the cached
-        // token snapshot so the next `semanticTokens/full/delta`
-        // returns a fresh full result instead of an empty edit
-        // list against an outdated baseline.
-        self.semantic_tokens_cache.lock().await.remove(&uri);
-        // Evict the stale `AnalysisResult` so any request that
-        // arrives before `publish_analyser_diagnostics` finishes
-        // re-running the analyser falls through to a fresh
-        // run via `analysis_for` rather than serving pre-edit
-        // results (PR #454 Codex review P1).  `publish_*` will
-        // reinsert the fresh entry when it completes.
-        self.analyses.lock().await.remove(&uri);
-        self.publish_analyser_diagnostics(uri, text, dialect).await;
+        self.publish_analyser_diagnostics(uri, text, dialect, revision, version)
+            .await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
@@ -1314,28 +1475,47 @@ impl LanguageServer for Backend {
         if let Some(d) = dialect {
             *self.default_dialect.lock().await = d;
         }
+        // W108 mode + disabled-diagnostics reconfiguration. Existing
+        // documents pick the change up on their next analyse (the
+        // analyses cache is keyed per URI and refreshed on edit).
+        if let Some(mode) = settings_non_ascii_mode(&params.settings) {
+            *self.non_ascii_mode.lock().await = mode;
+        }
+        if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
+            *self.disabled_diagnostics.lock().await = disabled;
+        }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = &params.text_document.uri;
-        self.documents.lock().await.remove(uri);
-        self.analyses.lock().await.remove(uri);
+        {
+            let _gate = self.document_analysis_gate.lock().await;
+            self.documents.lock().await.remove(uri);
+            self.analyses.lock().await.remove(uri);
+            self.hover_cache.lock().await.invalidate_uri(uri);
+            self.semantic_tokens_cache.lock().await.remove(uri);
+            self.workspace_index
+                .lock()
+                .await
+                .remove_document(uri.as_str());
+            // Clear any previously-published diagnostics before a later
+            // didOpen for the same URI can run. Close publishes do not
+            // carry a reliable document version, so this short publish
+            // stays ordered by the gate.
+            self.client
+                .publish_diagnostics(uri.clone(), Vec::new(), None)
+                .await;
+        }
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
         // the on-disk index, so cross-document definition /
         // references / rename / call-hierarchy must keep seeing it
         // after the editor closes the buffer.  `scan_workspace_folders`
         // only runs at `initialized`, so a plain `remove_document`
-        // here would make the file vanish until restart.
+        // here would make the file vanish until restart. The helper
+        // rechecks that this URI is still closed before publishing
+        // the disk-backed index entry.
         self.reindex_index_from_disk(uri).await;
-        self.hover_cache.lock().await.invalidate_uri(uri);
-        self.semantic_tokens_cache.lock().await.remove(uri);
-        // Clear any previously-published diagnostics so the
-        // editor's problem panel doesn't keep showing them
-        // for a closed file.
-        self.client
-            .publish_diagnostics(uri.clone(), Vec::new(), None)
-            .await;
     }
 
     async fn folding_range(
@@ -1396,6 +1576,7 @@ impl LanguageServer for Backend {
                 &analysis,
                 Some(&registry),
                 Some(&workspace),
+                &doc.dialect,
             )
         })
         .await
@@ -2591,7 +2772,7 @@ impl LanguageServer for Backend {
             };
             let line_index = tcl_lexer::LineIndex::new(&doc.text);
             by_dep.entry(dep_url).or_default().push(TextEdit {
-                range: lift_span(&line_index, edit.span),
+                range: lift_span(&doc.text, &line_index, edit.span),
                 new_text: edit.new_text,
             });
         }
@@ -2781,24 +2962,15 @@ fn materialise_selection_range(
     wrapped.into_iter().next().flatten()
 }
 
-/// Byte offset of the `(line, col)` cursor in `source`, where `col`
-/// is a character index within the line (matching how
-/// [`core_hover::find_word_span_at_position`] interprets the LSP
-/// position).  `None` when the line is out of range.
+/// Byte offset of the LSP `(line, character)` cursor in `source`.
+/// `character` is a UTF-16 code-unit offset. `None` when the line is
+/// out of range.
 fn line_col_to_byte_offset(source: &str, line: u32, col: u32) -> Option<usize> {
-    let mut byte = 0usize;
-    for (i, line_text) in source.split_inclusive('\n').enumerate() {
-        if i == line as usize {
-            let col_bytes: usize = line_text
-                .chars()
-                .take(col as usize)
-                .map(char::len_utf8)
-                .sum();
-            return Some(byte + col_bytes);
-        }
-        byte += line_text.len();
+    let index = tcl_lexer::LineIndex::new(source);
+    if line as usize >= index.line_count() {
+        return None;
     }
-    None
+    Some(index.offset_at_utf16(line, col, source) as usize)
 }
 
 /// Whether the cursor at `pos` sits on a command head (the first
@@ -2854,9 +3026,93 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// Shared by every `lift_*_diagnostics` helper so the offset →
 /// (line, character) mapping is identical for analyser, compiler-
 /// check, and optimiser diagnostics.
-fn lift_span(line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+/// Map a `tclLsp.style.nonAscii` setting string to a [`NonAsciiMode`].
+/// An unknown / absent value resolves to [`NonAsciiMode::Default`] (the
+/// per-dialect auto behaviour).
+fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
+    match s {
+        "off" => NonAsciiMode::Off,
+        "strict" => NonAsciiMode::Strict,
+        "confusables" => NonAsciiMode::Confusables,
+        "common" => NonAsciiMode::Common,
+        _ => NonAsciiMode::Default,
+    }
+}
+
+/// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
+/// both the nested (`{"tclLsp":{"style":{"nonAscii":"…"}}}`) and the
+/// flat-dotted (`{"tclLsp.style.nonAscii":"…"}`) shapes editors send.
+fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode> {
+    let nested = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("style"))
+        .and_then(|v| v.get("nonAscii"));
+    nested
+        .or_else(|| settings.get("tclLsp.style.nonAscii"))
+        .and_then(serde_json::Value::as_str)
+        .map(parse_non_ascii_mode)
+}
+
+/// Extract the disabled diagnostic codes from a settings payload — the
+/// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
+/// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
+/// the flat-dotted (`{"tclLsp.diagnostics.W001":false}`) shapes. Returns
+/// `None` when no diagnostics config is present (so the caller leaves the
+/// current set untouched).
+fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet<String>> {
+    if let Some(map) = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("diagnostics"))
+        .and_then(serde_json::Value::as_object)
+    {
+        return Some(
+            map.iter()
+                .filter(|(_, v)| v.as_bool() == Some(false))
+                .map(|(k, _)| k.clone())
+                .collect(),
+        );
+    }
+    let obj = settings.as_object()?;
+    let mut set = HashSet::new();
+    let mut found = false;
+    for (k, v) in obj {
+        if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
+            found = true;
+            if v.as_bool() == Some(false) {
+                set.insert(code.to_owned());
+            }
+        }
+    }
+    found.then_some(set)
+}
+
+/// Apply one LSP content change to `text` (incremental document sync).
+///
+/// A `None` range is a full-document replacement; a `Some` range is a
+/// ranged edit whose `(line, character)` UTF-16 positions are resolved to
+/// byte offsets via [`tcl_lexer::LineIndex::offset_at_utf16`] and spliced.
+/// Offsets are clamped and ordered so the splice indices are always valid
+/// char boundaries within `text`.
+fn apply_content_change(text: &str, range: Option<Range>, new_text: &str) -> String {
+    let Some(range) = range else {
+        return new_text.to_owned();
+    };
+    let index = tcl_lexer::LineIndex::new(text);
+    let a = index.offset_at_utf16(range.start.line, range.start.character, text) as usize;
+    let b = index.offset_at_utf16(range.end.line, range.end.character, text) as usize;
+    let len = text.len();
+    let start = a.min(b).min(len);
+    let end = a.max(b).min(len);
+    let mut out = String::with_capacity(len - (end - start) + new_text.len());
+    out.push_str(&text[..start]);
+    out.push_str(new_text);
+    out.push_str(&text[end..]);
+    out
+}
+
+fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::Span) -> Range {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     Range {
         start: Position {
             line: start.line,
@@ -2887,7 +3143,7 @@ fn lift_analyser_diagnostics(
         .filter(|d| !DEFAULT_OFF_CODES.contains(&d.code.as_str()))
         .cloned()
         .map(|d| tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, d.span),
+            range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 tcl_compiler::analyser::Severity::Error => {
                     tower_lsp::lsp_types::DiagnosticSeverity::ERROR
@@ -2909,6 +3165,72 @@ fn lift_analyser_diagnostics(
             data: None,
         })
         .collect()
+}
+
+/// GAP-C1 strip 2: lift the source-style pass (W111 line length,
+/// W112 trailing whitespace, W115 comment continuation, W118 line
+/// endings) into LSP diagnostics.  These are pure source-text
+/// checks (no analyser / compiler unit needed); see
+/// `tcl_lsp_core::source_style`.
+///
+/// `suppressed` is the analyser's `suppressed_lines` map — it
+/// carries both inline `# noqa` line suppressions and the
+/// file-level (`-1`) `# tcl-lsp: disable=…` directive set, so the
+/// style pass honours the same suppression the analyser diagnostics
+/// do.  The checks run with the Python defaults (line length 120,
+/// expected line ending `\n`); a per-check feature-config surface is
+/// a documented GAP-C1 strip-2 follow-up.
+fn lift_source_style_diagnostics(
+    text: &str,
+    suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
+    user_disabled: &std::collections::HashSet<String>,
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    use tcl_lsp_core::source_style::{
+        style_diagnostics, StyleSeverity, DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH,
+    };
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+
+    // The file-level (`-1`) directive bucket doubles as a per-code
+    // disabled set (mirrors how the Rust analyser folds a
+    // `# tcl-lsp: disable=…` directive into both `suppressed_lines`
+    // and its internal `disabled_diagnostics`); union it with the
+    // user's `tclLsp.diagnostics.<CODE> = false` settings so W111 /
+    // W112 / W115 / W118 can be turned off from the editor.
+    let mut disabled = suppressed.get(&-1).cloned().unwrap_or_default();
+    disabled.extend(user_disabled.iter().cloned());
+
+    style_diagnostics(
+        text,
+        DEFAULT_LINE_LENGTH,
+        DEFAULT_LINE_ENDING,
+        &disabled,
+        suppressed,
+    )
+    .into_iter()
+    .map(|d| tower_lsp::lsp_types::Diagnostic {
+        range: Range {
+            start: Position {
+                line: d.range.start_line,
+                character: d.range.start_character,
+            },
+            end: Position {
+                line: d.range.end_line,
+                character: d.range.end_character,
+            },
+        },
+        severity: Some(match d.severity {
+            StyleSeverity::Warning => DiagnosticSeverity::WARNING,
+            StyleSeverity::Hint => DiagnosticSeverity::HINT,
+        }),
+        code: Some(NumberOrString::String(d.code.to_string())),
+        code_description: None,
+        source: Some("tcl-lsp".to_string()),
+        message: d.message,
+        related_information: None,
+        tags: None,
+        data: None,
+    })
+    .collect()
 }
 
 /// GAP-C1: lift the compiler-checks pipeline (GVN redundancies,
@@ -2954,7 +3276,7 @@ fn lift_compiler_diagnostics(
     .with_interprocedural(registry, dialect_opt);
     for d in run_all_checks(&cu, registry, dialect_opt) {
         out.push(tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, d.span),
+            range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
                 CheckSeverity::Error => DiagnosticSeverity::ERROR,
                 CheckSeverity::Warning => DiagnosticSeverity::WARNING,
@@ -2975,7 +3297,7 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic; the fix plumbing itself is GAP-C3).
     for o in optimise_with_dialect(text, registry, dialect_opt) {
         out.push(tower_lsp::lsp_types::Diagnostic {
-            range: lift_span(&line_index, o.span),
+            range: lift_span(text, &line_index, o.span),
             severity: Some(DiagnosticSeverity::HINT),
             code: Some(NumberOrString::String(o.code)),
             code_description: None,
@@ -3125,7 +3447,9 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// literal lives here rather than inside the trait method.
 fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::INCREMENTAL,
+        )),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -3450,6 +3774,197 @@ mod tests {
         );
     }
 
+    fn pos(line: u32, character: u32) -> Position {
+        Position { line, character }
+    }
+
+    #[test]
+    fn parse_non_ascii_mode_maps_settings() {
+        assert_eq!(parse_non_ascii_mode("off"), NonAsciiMode::Off);
+        assert_eq!(parse_non_ascii_mode("strict"), NonAsciiMode::Strict);
+        assert_eq!(
+            parse_non_ascii_mode("confusables"),
+            NonAsciiMode::Confusables
+        );
+        assert_eq!(parse_non_ascii_mode("common"), NonAsciiMode::Common);
+        assert_eq!(parse_non_ascii_mode("bogus"), NonAsciiMode::Default);
+    }
+
+    #[test]
+    fn settings_non_ascii_mode_nested_and_flat() {
+        let nested = serde_json::json!({"tclLsp": {"style": {"nonAscii": "common"}}});
+        assert_eq!(settings_non_ascii_mode(&nested), Some(NonAsciiMode::Common));
+        let flat = serde_json::json!({"tclLsp.style.nonAscii": "off"});
+        assert_eq!(settings_non_ascii_mode(&flat), Some(NonAsciiMode::Off));
+        let none = serde_json::json!({"tclLsp": {"dialect": "tcl9.0"}});
+        assert_eq!(settings_non_ascii_mode(&none), None);
+    }
+
+    #[test]
+    fn settings_disabled_diagnostics_nested_and_flat() {
+        let nested = serde_json::json!({
+            "tclLsp": {"diagnostics": {"W001": true, "W108": false, "W111": false}}
+        });
+        let got = settings_disabled_diagnostics(&nested).unwrap();
+        assert!(got.contains("W108") && got.contains("W111") && !got.contains("W001"));
+        let flat = serde_json::json!({
+            "tclLsp.diagnostics.W210": false, "tclLsp.diagnostics.W211": true
+        });
+        let got = settings_disabled_diagnostics(&flat).unwrap();
+        assert!(got.contains("W210") && !got.contains("W211"));
+        // No diagnostics config -> None (leave current set untouched).
+        assert!(settings_disabled_diagnostics(&serde_json::json!({"x": 1})).is_none());
+    }
+
+    #[test]
+    fn configured_analyser_threads_mode_and_disabled() {
+        // `Off` mode suppresses W108 entirely.
+        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
+        let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+        // A disabled code is filtered from the analyser's output.
+        let mut disabled = HashSet::new();
+        disabled.insert("W108".to_string());
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict);
+        let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W108"));
+    }
+
+    #[test]
+    fn apply_content_change_full_replacement() {
+        // A `None` range replaces the whole document.
+        assert_eq!(apply_content_change("old text", None, "new"), "new");
+    }
+
+    #[test]
+    fn apply_content_change_ranged_edits() {
+        // Replace "hi" with "bye" on line 1.
+        let text = "set x 1\nputs hi\n";
+        let r = Range {
+            start: pos(1, 5),
+            end: pos(1, 7),
+        };
+        assert_eq!(
+            apply_content_change(text, Some(r), "bye"),
+            "set x 1\nputs bye\n"
+        );
+
+        // Pure insertion (empty range) at the start of line 1.
+        let r = Range {
+            start: pos(1, 0),
+            end: pos(1, 0),
+        };
+        assert_eq!(
+            apply_content_change(text, Some(r), "# "),
+            "set x 1\n# puts hi\n",
+        );
+
+        // Multi-line deletion: drop from mid-line-0 through mid-line-1.
+        let r = Range {
+            start: pos(0, 4),
+            end: pos(1, 5),
+        };
+        assert_eq!(apply_content_change(text, Some(r), ""), "set hi\n");
+    }
+
+    #[test]
+    fn lsp_position_helpers_use_utf16_columns() {
+        let text = "é😀x\n";
+        assert_eq!(line_col_to_byte_offset(text, 0, 0), Some(0));
+        assert_eq!(line_col_to_byte_offset(text, 0, 1), Some(2));
+        assert_eq!(line_col_to_byte_offset(text, 0, 3), Some(6));
+
+        let line_index = tcl_lexer::LineIndex::new(text);
+        let range = lift_span(text, &line_index, tcl_lexer::Span::new(6, 7));
+        assert_eq!(range.start, pos(0, 3));
+        assert_eq!(range.end, pos(0, 4));
+    }
+
+    #[test]
+    fn apply_content_change_sequence_matches_full_text() {
+        // Applying a sequence of ranged edits (as INCREMENTAL sync
+        // delivers them) reproduces the intended final document.
+        let mut text = "abc\ndef\n".to_string();
+        // Edit 1: insert "X" at (0,1) -> "aXbc".
+        text = apply_content_change(
+            &text,
+            Some(Range {
+                start: pos(0, 1),
+                end: pos(0, 1),
+            }),
+            "X",
+        );
+        assert_eq!(text, "aXbc\ndef\n");
+        // Edit 2: replace "def" with "ghij".
+        text = apply_content_change(
+            &text,
+            Some(Range {
+                start: pos(1, 0),
+                end: pos(1, 3),
+            }),
+            "ghij",
+        );
+        assert_eq!(text, "aXbc\nghij\n");
+    }
+
+    /// GAP-C1 strip 2: the source-style pass must reach the
+    /// published set.  A long line + trailing whitespace + CRLF
+    /// endings exercise W111 / W112 / W118 — none of which the
+    /// analyser or compiler-check pipelines emit — so a non-empty
+    /// result with those codes proves `lift_source_style_diagnostics`
+    /// is wired in.
+    #[test]
+    fn lift_source_style_diagnostics_surfaces_style_codes() {
+        let long = "x".repeat(130);
+        let src = format!("{long}  \r\nputs ok\r\n");
+        let diags = lift_source_style_diagnostics(
+            &src,
+            &std::collections::HashMap::new(),
+            &std::collections::HashSet::new(),
+        );
+        let codes: Vec<String> = diags
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        for want in ["W111", "W112", "W118"] {
+            assert!(
+                codes.iter().any(|c| c == want),
+                "expected {want}, got: {codes:?}",
+            );
+        }
+        assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    /// A file-level `# tcl-lsp: disable=W111` directive (recorded by
+    /// the analyser against the `-1` suppression bucket) must drop
+    /// W111 from the lifted style set while leaving the other style
+    /// codes intact.
+    #[test]
+    fn lift_source_style_diagnostics_honours_file_suppression() {
+        let long = "y".repeat(130);
+        let src = format!("{long}  \n");
+        let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
+        let diags =
+            lift_source_style_diagnostics(&src, &suppressed, &std::collections::HashSet::new());
+        let codes: Vec<String> = diags
+            .iter()
+            .filter_map(|d| match &d.code {
+                Some(tower_lsp::lsp_types::NumberOrString::String(c)) => Some(c.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !codes.iter().any(|c| c == "W111"),
+            "W111 should be suppressed"
+        );
+        assert!(codes.iter().any(|c| c == "W112"), "W112 should remain");
+    }
+
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
@@ -3634,15 +4149,76 @@ mod tests {
         Backend {
             client: service.inner().client.clone(),
             documents: Mutex::new(HashMap::new()),
+            document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            non_ascii_mode: Mutex::new(NonAsciiMode::Default),
+            disabled_diagnostics: Mutex::new(HashSet::new()),
             analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
         }
+    }
+
+    #[tokio::test]
+    async fn stale_diagnostics_worker_cannot_overwrite_current_analysis() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///stale.tcl").unwrap();
+        let current_src = "proc current {} {}\n";
+        let stale_src = "proc stale {} {}\n";
+
+        let mut analyser = Analyser::new();
+        let current_analysis = analyser.analyse(current_src, "tcl8.6").clone();
+        {
+            let _gate = backend.document_analysis_gate.lock().await;
+            let mut doc =
+                DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
+            doc.revision = 2;
+            backend.documents.lock().await.insert(uri.clone(), doc);
+            backend
+                .analyses
+                .lock()
+                .await
+                .insert(uri.clone(), current_analysis.clone());
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &current_analysis);
+        }
+
+        backend
+            .publish_analyser_diagnostics(
+                uri.clone(),
+                stale_src.to_owned(),
+                "tcl8.6".to_owned(),
+                1,
+                Some(1),
+            )
+            .await;
+
+        let analysis = backend
+            .analyses
+            .lock()
+            .await
+            .get(&uri)
+            .cloned()
+            .expect("current analysis remains cached");
+        assert!(analysis.all_procs.contains_key("::current"));
+        assert!(!analysis.all_procs.contains_key("::stale"));
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("current", "other").is_empty(),
+            "current document should remain indexed",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "stale worker must not re-index obsolete text",
+        );
     }
 
     #[tokio::test]
@@ -3724,6 +4300,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn workspace_scan_merge_does_not_clobber_open_document() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///workspace/live.tcl").unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+
+        let mut analyser = Analyser::new();
+        let fresh_analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+        backend
+            .workspace_index
+            .lock()
+            .await
+            .add_document(uri.as_str(), &fresh_analysis);
+
+        let mut analyser = Analyser::new();
+        let stale_analysis = analyser.analyse("proc stale {} {}\n", "tcl8.6").clone();
+        let scan_results = vec![(uri.to_string(), stale_analysis)];
+
+        backend.merge_workspace_scan_results(&scan_results).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("fresh", "other").is_empty(),
+            "open-buffer analysis must survive stale workspace scan results",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "workspace scan must not overwrite a live buffer",
+        );
+    }
+
+    #[tokio::test]
     async fn reindex_from_disk_refreshes_index_rather_than_dropping() {
         let root = unique_scratch_dir("reindex");
         let on_disk = root.join("lib.tcl");
@@ -3754,6 +4364,44 @@ mod tests {
         assert!(
             index.proc_definitions("fresh", "other").is_empty(),
             "stale buffer-only proc must be gone after reindex from disk",
+        );
+        drop(index);
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn reindex_from_disk_does_not_clobber_open_document() {
+        let root = unique_scratch_dir("reindex-open");
+        let on_disk = root.join("buf.tcl");
+        std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
+
+        let backend = test_backend();
+        let uri = Url::from_file_path(&on_disk).unwrap();
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse("proc fresh {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+
+        backend.reindex_index_from_disk(&uri).await;
+
+        let index = backend.workspace_index.lock().await;
+        assert!(
+            !index.proc_definitions("fresh", "other").is_empty(),
+            "open-buffer definitions must remain indexed",
+        );
+        assert!(
+            index.proc_definitions("stale", "other").is_empty(),
+            "disk reindex must not overwrite a live buffer",
         );
         drop(index);
 
@@ -4042,6 +4690,18 @@ mod tests {
         assert_eq!(
             backend.dialect_for_open(&doc, "plaintext").await,
             "f5-irules".to_owned(),
+        );
+    }
+
+    #[tokio::test]
+    async fn registry_for_dialect_reuses_cached_arc() {
+        let backend = test_backend();
+        let first = backend.registry_for_dialect("f5-irules").await;
+        let second = backend.registry_for_dialect("f5-irules").await;
+
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "repeated dialect lookups should return the cached registry",
         );
     }
 

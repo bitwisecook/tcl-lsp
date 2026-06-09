@@ -7,10 +7,11 @@
 //! each consumer (the runtime over libtommath `mp_int`, the compiler's
 //! const-folder over its own value type) — both classify with this one grammar.
 //!
-//! The output is one of the four tower types ([`Number`]): a wide [`Int`] when
-//! the integer fits `i64`, a [`Big`] (sign + radix + cleaned digits, for the
-//! consumer to build a bignum from) when it overflows, a [`Double`] for floats
-//! and `±Inf`, or a [`Nan`]. There is **no** boolean handling here —
+//! The output is one of the four tower types ([`Number`]): a wide
+//! [`Number::Int`] when the integer fits `i64`, a [`Number::Big`] (sign +
+//! radix + cleaned digits, for the consumer to build a bignum from) when it
+//! overflows, a [`Number::Double`] for floats and `±Inf`, or a [`Number::Nan`].
+//! There is **no** boolean handling here —
 //! `true`/`yes`/`on`… are `Tcl_GetBoolean`'s job, not `TclParseNumber`'s.
 //!
 //! ## Tcl 9.0 forms
@@ -19,7 +20,7 @@
 //! - Radix prefixes `0x`/`0X`, `0o`/`0O`, `0b`/`0B`, `0d`/`0D` (case-insensitive,
 //!   each needs ≥1 following digit). **A bare leading `0` is decimal** (`0755`
 //!   == 755 — the 8.x octal-by-leading-zero rule is gone in 9.0).
-//! - `_` digit separators between two same-base digits (`1_000`, `0xff_ff`),
+//! - `_` digit separators between same-base digits (`1__000`, `0xff__ff`),
 //!   unless [`ParseFlags::no_underscore`]. Not leading/trailing a digit run.
 //! - Decimal floats: `1.5`, `.5`, `1.`, `1e9`, `1.5E-3` (no hex/oct/bin floats).
 //! - `Inf`/`Infinity` and `NaN`/`NaN(hexpayload)` — case-insensitive.
@@ -270,12 +271,18 @@ fn scan_digits(b: &[u8], start: usize, radix: u32, no_underscore: bool) -> IntSc
         } else if !no_underscore
             && b[i] == b'_'
             && i > start
-            && i + 1 < len
-            && digit_val(b[i + 1], radix).is_some()
             && digit_val(b[i - 1], radix).is_some()
         {
-            saw_underscore = true;
-            i += 1;
+            let mut j = i + 1;
+            while j < len && b[j] == b'_' {
+                j += 1;
+            }
+            if j < len && digit_val(b[j], radix).is_some() {
+                saw_underscore = true;
+                i = j;
+            } else {
+                break;
+            }
         } else {
             break;
         }
@@ -309,15 +316,19 @@ fn parse_decimal_float(
 
     let scan_run = |b: &[u8], mut i: usize| -> usize {
         while i < len {
-            let is_digit = b[i].is_ascii_digit();
-            let is_sep = !flags.no_underscore
-                && b[i] == b'_'
-                && i > start
-                && i + 1 < len
-                && b[i + 1].is_ascii_digit()
-                && b[i - 1].is_ascii_digit();
-            if is_digit || is_sep {
+            if b[i].is_ascii_digit() {
                 i += 1;
+            } else if !flags.no_underscore && b[i] == b'_' && i > start && b[i - 1].is_ascii_digit()
+            {
+                let mut j = i + 1;
+                while j < len && b[j] == b'_' {
+                    j += 1;
+                }
+                if j < len && b[j].is_ascii_digit() {
+                    i = j;
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
@@ -457,12 +468,17 @@ mod tests {
     #[test]
     fn underscores() {
         assert_eq!(n("1_000_000"), Some(Number::Int(1_000_000)));
+        assert_eq!(n("1__000___000"), Some(Number::Int(1_000_000)));
         assert_eq!(n("0xff_ff"), Some(Number::Int(0xffff)));
+        assert_eq!(n("0xff__ff"), Some(Number::Int(0xffff)));
+        assert_eq!(n("0b1__0"), Some(Number::Int(2)));
+        assert_eq!(n("0o7__7"), Some(Number::Int(63)));
         assert_eq!(n("1_0"), Some(Number::Int(10)));
         // misplaced underscores → not a whole number
         assert_eq!(n("_1"), None);
         assert_eq!(n("1_"), None);
-        assert_eq!(n("1__0"), None);
+        assert_eq!(n("1__"), None);
+        assert_eq!(n("0x_f"), None);
     }
 
     #[test]
@@ -506,6 +522,10 @@ mod tests {
         assert_eq!(n("-2.5e3"), Some(Number::Double(-2500.0)));
         assert_eq!(n("1E-3"), Some(Number::Double(0.001)));
         assert_eq!(n("1_0.5"), Some(Number::Double(10.5)));
+        assert_eq!(n("1__0.5"), Some(Number::Double(10.5)));
+        assert_eq!(n("1.0__2"), Some(Number::Double(1.02)));
+        assert_eq!(n("1_.0"), None);
+        assert_eq!(n("1._0"), None);
     }
 
     #[test]

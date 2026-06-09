@@ -4649,9 +4649,32 @@ multi-line braced bodies skipped, the command word not scanned (matching
 Python).  Verified against the live Python analyser (smart quotes / NBSP
 / em-dash fire with fixes; `é` is silent under confusables but flagged
 under iRules strict; a Cyrillic command word is not scanned); 3 unit
-tests.  **Remaining:** the **common** mode (needs Unicode
-general-category data Rust std lacks — a `unicode-general-category` crate
-or generated table) and a `non_ascii_mode` config knob — follow-ups.
+tests.  **LANDED (common mode + `non_ascii_mode` knob, 2026-06-09).**  All
+four modes now ship: `NonAsciiMode::{Default, Off, Strict, Confusables,
+Common}` on `Analyser` (`with_non_ascii_mode`), resolved per-dialect at
+emit time (`Default` → strict for `f5-irules`/`f5-iapps`, confusables
+otherwise — mirrors `_non_ascii_mode` + the iRules override).  **common**
+mode allows intentional Unicode (letters / numbers / marks / symbols /
+punctuation in any script) and flags only confusables, auto-fix
+artifacts, and non-benign characters (control / format / separator /
+surrogate / private-use / unassigned) via `is_benign_unicode` — a faithful
+port of `_is_benign_unicode` using the `unicode-general-category` crate
+(pure-Rust, pyo3-free), cross-checked against the live Python predicate (é
+/ ° / 中 / − benign; ZWSP / NBSP / bell / RLO non-benign).  5 unit tests
+(off / explicit-strict / common-allows / common-flags-non-benign /
+benign-reference).  **Server config plumbing LANDED (2026-06-09).**  The
+server now threads analyser config end-to-end: `Backend` holds
+`non_ascii_mode` + `disabled_diagnostics`, populated from
+`initializationOptions` and `workspace/didChangeConfiguration` (both the
+nested `{"tclLsp":{"style":{"nonAscii":…},"diagnostics":{"W…":false}}}`
+and flat-dotted `{"tclLsp.style.nonAscii":…,"tclLsp.diagnostics.W…":false}`
+shapes), and `analysis_for` / `publish_analyser_diagnostics` build their
+`Analyser` via `configured_analyser(disabled, mode)`.  The disabled set is
+also unioned into the source-style pass so `tclLsp.diagnostics.W111/112/
+115/118 = false` take effect.  (Index-builder analyses — cross-doc
+references / call-hierarchy / workspace scan — keep the default config:
+their diagnostics are discarded, only proc/ref data is consumed.)  4
+server tests pin the parse helpers + the `configured_analyser` threading.
 
 **GAP-A4 — `core/analysis/checks/_bounds.py` (961 LOC) — absent +
 mistracked.**  Index-bounds + loop-termination checks: **W230/W231/W232**
@@ -4902,9 +4925,10 @@ new path from disk).  `build_server_capabilities` now advertises
 `**/*.{tcl,tm,itcl,irule,irul}` glob (`file` scheme), matching the Python
 `_RENAME_FILE_OPERATION_OPTIONS`.  4 core unit tests + 3 server handler
 tests (relative + absolute rewrite, no-dependent → `None`, didRename
-reindex).  **Remaining GAP-A9:** the iRules event snippet templates, the
-`package_suggestions` fuzzy catalogue (registry-gated), and the
-`irules_context` enrichment (folds into GAP-C5).
+reindex).  **GAP-A9 update:** the iRules event snippet templates, the
+`package_suggestions` fuzzy catalogue, and the snippet-completion half of
+the `irules_context` enrichment have since landed (see the LANDED notes
+below); GAP-A9's remainder folds into GAP-C5.
 
 **LANDED (completion provenance detail — `required_package`, 2026-06-09).**
 Now the merged registry populates `required_package` (369 specs) and
@@ -4925,6 +4949,58 @@ also drives W120).  Gated on the dialect supporting `package require` at
 all (`registry.get("package").is_some()` — iRules has no package system).
 Mirrors `hover.py:1032-1038`.  3 unit tests (hint shown when missing,
 suppressed once imported, never for a core built-in).
+
+**LANDED (iRules event snippet templates — GAP-A9 tail, 2026-06-06).**
+`tcl-lsp-core/src/snippets.rs` now ports the five `f5-irules` event
+templates from `snippet_templates.py:209-304` (`irule-rule-init`,
+`irule-http-request`, `irule-redirect-https`, `irule-collect-release`,
+`irule-class-lookup`) alongside the 11 Tcl-core ones.  `SnippetContext`
+gained `current_event: Option<&str>` and `file_events: &[String]`, and
+`Template` gained `requires_top_level`; generators decline by returning
+`""` (the port of Python's `str | None`) — each `when`-event template
+drops out when its event is already declared in the file
+(`HTTP_REQUEST` / `RULE_INIT` / `HTTP_REQUEST_DATA`), and
+`collect-release` emits only the half whose event is missing.  The
+top-level guard (`requires_top_level && current_event.is_some()`)
+suppresses event templates inside an enclosing `when` block.
+`completion::completions` now takes a `dialect: &str` (threaded from the
+document's dialect by the server) so iRules templates surface only in
+`f5-irules`.  6 snippet unit tests (dialect gating, decline-on-declared,
+top-level guard, collect/release split).
+
+**LANDED (iRules `when`-context for snippet completion — GAP-A9, 2026-06-06).**
+The `current_event` / `file_events` that the snippet templates above
+consumed as v1 stubs (`None` / `&[]`) are now real, supplied by a new
+`tcl-lsp-core/src/irules_context.rs` — a port of
+`irules_context.py::find_enclosing_when_event` +
+`namespace_data.py::scan_file_events`.  `find_enclosing_when_event(source,
+line, dialect)` segments the source and descends only into `when` bodies
+(mirroring Python's `_scan_when_context`) to return the innermost
+enclosing `when EVENT` whose braced body's line range contains the cursor
+(uppercased; the body word is the first `Str` arg token, barewords being
+`Esc`).  `scan_file_events(source, dialect)` walks the segmenter into
+*every* braced word — collecting all `when EVENT` at any nesting (sorted,
+deduped).  `completions` now calls both (only for the `f5-irules` dialect,
+so plain Tcl skips the extra segmentation) and feeds the result to the
+snippet context, so the top-level guard and duplicate-event decline fire
+on the real document.  **Two documented divergences:** the conf-wrapped
+`embedded_rules` mode isn't modelled (Rust analyses the raw iRule body);
+and `scan_file_events` is segmenter-driven rather than Python's
+`\bwhen\s+…` regex (the project never parses Tcl with regex) — both find
+`when` at any brace nesting, differing only on the literal text `when X`
+in a non-command position, which the parse-accurate walk correctly skips.
+8 `irules_context` unit tests + 4 end-to-end completion tests (surface at
+top level, decline declared event, suppress inside `when` body, hidden in
+plain Tcl).  This is the completion half of the `irules_context`
+enrichment; the **hover** "Valid events" / event-ordering list and the
+event-aware command *ranking* (`_event_bucket`) remain under GAP-C5.
+
+**GAP-A9 status:** the `package_suggestions` fuzzy `package require`
+catalogue is **already landed** (`code_actions.rs::package_require_actions`
++ `rank_package_suggestions` + `package_catalogue`, wired into the
+server's `code_action` handler) — the earlier "remaining" note was stale.
+What is left of GAP-A9 folds entirely into GAP-C5 (hover event enrichment
++ event-aware completion ranking).
 
 ### B. Algorithmic divergences (ported but degraded / mislabelled)
 
@@ -5312,7 +5388,14 @@ enumeration (`completion.py:223,263`) is acknowledged-deferred in Rust
 return-value — a registry-data richness loss across the brief-constructed
 spec corpus.  **Fix:** port the event-list / ordering hover, the RULE_INIT
 enumeration, and populate the `brief()`-dropped fields where the spec
-carries them.
+carries them.  **Partially landed (2026-06-06):** the `irules_context`
+`when`-context detection (`find_enclosing_when_event` / `scan_file_events`)
+now exists in `tcl-lsp-core/src/irules_context.rs` and drives the
+snippet-completion `current_event` / `file_events` (see the GAP-A9 LANDED
+note).  Still open here: the **hover** "Valid events" / event-ordering list,
+the cross-file RULE_INIT / `static::` enumeration, the event-aware command
+*ranking* (`_event_bucket` / `commands_for_event`), and the `brief()`
+field loss.
 
 ### D. Registry data-model gaps (`CommandSpec` fields with no Rust field)
 

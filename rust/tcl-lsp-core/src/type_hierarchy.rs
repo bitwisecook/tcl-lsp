@@ -45,8 +45,8 @@ pub fn prepare(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
-            let name_range = span_to_range(&line_index, class_def.name_span);
-            let body_range = span_to_range(&line_index, class_def.body_span);
+            let name_range = span_to_range(source, &line_index, class_def.name_span);
+            let body_range = span_to_range(source, &line_index, class_def.body_span);
             let full_range = LspRange {
                 start_line: name_range.start_line,
                 start_character: name_range.start_character,
@@ -64,9 +64,9 @@ pub fn prepare(
     Vec::new()
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

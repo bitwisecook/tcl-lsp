@@ -81,15 +81,35 @@ impl Analyser {
                 continue;
             }
             if cmd_ref.is_partial {
-                // **C41e5.** Stolen-close-brace detection ⇒ E103;
-                // otherwise the generic E200 fires so the user
-                // still sees a parse-error diagnostic.
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // **C41e5.** Stolen-close-brace detection ⇒ E103 (brace
+                // partials only); otherwise the generic E200 fires so the
+                // user still sees a parse-error diagnostic.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
+                if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
                 continue;
             }
+            // GAP-A6 follow-up: run the E100 (stray `]`) / E102
+            // (stray `}`) token checks on every analysed body, not
+            // just the top level — mirrors Python's
+            // ``_UNIVERSAL_CHECKS`` (`check_unmatched_close_bracket`
+            // / `check_unmatched_close_brace`) running on every
+            // command.  Run on the *original* token stream before
+            // ``recover_stray_close_bracket`` repairs the clone,
+            // matching the top-level loop's ordering.  Token spans
+            // are absolute into the full document, so the full
+            // ``self.source`` is the right slice base.
+            let stray = super::syntax_checks::stray_closer_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(stray);
             let mut cmd = cmd_ref.clone();
             // **C41e4.** Repair stray ``]`` (missing ``[``) so
             // downstream handlers see the intended argv shape

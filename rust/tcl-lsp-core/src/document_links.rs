@@ -144,8 +144,8 @@ pub fn document_links_with_home(
         };
         let arg_tok = seg.argv.get(idx);
         let Some(arg_tok) = arg_tok else { continue };
-        let start = line_index.position_at(arg_tok.span.start());
-        let end = line_index.position_at(arg_tok.span.end());
+        let start = line_index.position_at_utf16(arg_tok.span.start(), source);
+        let end = line_index.position_at_utf16(arg_tok.span.end(), source);
         links.push(DocumentLink {
             start_line: start.line,
             start_character: start.character,

@@ -37,7 +37,7 @@
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
 
-use crate::definition::{byte_offset_at, LspRange};
+use crate::definition::{byte_offset_at, utf16_col_to_char_col, utf16_len, LspRange};
 use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
@@ -93,7 +93,7 @@ pub fn selection_range(
     }
 
     let line_range = source.split('\n').nth(line as usize).map(|line_text| {
-        let line_len = u32::try_from(line_text.chars().count()).unwrap_or(u32::MAX);
+        let line_len = utf16_len(line_text);
         LspRange {
             start_line: line,
             start_character: 0,
@@ -136,7 +136,7 @@ pub fn selection_range(
         let line_index = LineIndex::new(source);
         let cursor_offset = byte_offset_at(source, line, character);
         for span in enclosing_body_spans(analysis, cursor_offset) {
-            ranges.push(span_to_range(&line_index, span));
+            ranges.push(span_to_range(source, &line_index, span));
         }
     }
 
@@ -144,7 +144,7 @@ pub fn selection_range(
     if total_lines > 0 {
         let last_line_idx = u32::try_from(total_lines.saturating_sub(1)).unwrap_or(0);
         let last_line = source.split('\n').next_back().unwrap_or("");
-        let last_line_len = u32::try_from(last_line.chars().count()).unwrap_or(u32::MAX);
+        let last_line_len = utf16_len(last_line);
         ranges.push(LspRange {
             start_line: 0,
             start_character: 0,
@@ -212,9 +212,9 @@ fn enclosing_body_spans(analysis: &AnalysisResult, cursor_offset: u32) -> Vec<Sp
     spans
 }
 
-fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,
@@ -237,7 +237,7 @@ fn span_to_range(line_index: &LineIndex, span: Span) -> LspRange {
 /// cases this is sufficient.
 fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)> {
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
 
     let mut start: usize = 0;
     for i in (0..col).rev() {
@@ -264,8 +264,10 @@ fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)
     if start >= end {
         return None;
     }
-    let start_u32 = u32::try_from(start).ok()?;
-    let end_u32 = u32::try_from(end).ok()?;
+    let prefix: String = chars[..start].iter().collect();
+    let segment: String = chars[start..end].iter().collect();
+    let start_u32 = utf16_len(&prefix);
+    let end_u32 = start_u32.saturating_add(utf16_len(&segment));
     Some((start_u32, end_u32))
 }
 

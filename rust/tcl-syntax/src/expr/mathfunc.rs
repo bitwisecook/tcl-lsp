@@ -60,8 +60,41 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     }
 }
 
+// `i64::MAX as f64` rounds up to 2^63, so the positive bound is
+// exclusive. The negative 2^63 value is exactly representable and fits.
+const I64_MIN_F64: f64 = -9_223_372_036_854_775_808.0;
+const I64_MAX_PLUS_ONE_F64: f64 = 9_223_372_036_854_775_808.0;
+
+fn finite_trunc_to_i64(f: f64) -> Option<i64> {
+    if !f.is_finite() {
+        return None;
+    }
+    let truncated = f.trunc();
+    if !(I64_MIN_F64..I64_MAX_PLUS_ONE_F64).contains(&truncated) {
+        return None;
+    }
+    Some(truncated as i64)
+}
+
+fn finite_round_to_i64(f: f64) -> Option<i64> {
+    if !f.is_finite() {
+        return None;
+    }
+    let rounded = if f >= 0.0 {
+        (f + 0.5).floor()
+    } else {
+        (f - 0.5).ceil()
+    };
+    finite_trunc_to_i64(rounded)
+}
+
+fn has_nan(vals: &[Num]) -> bool {
+    vals.iter()
+        .any(|v| matches!(v, Num::Float(f) if f.is_nan()))
+}
+
 fn min_max(name: &str, vals: &[Num]) -> Option<Num> {
-    if vals.is_empty() {
+    if vals.is_empty() || has_nan(vals) {
         return None;
     }
     if vals.iter().all(|v| matches!(v, Num::Int(_))) {
@@ -108,9 +141,12 @@ fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
         _ => return None,
     };
     let arg = vals[0].as_f64();
+    if arg.is_nan() {
+        return None;
+    }
     let r = f(arg);
     // A NaN result from a non-NaN argument is a domain error (e.g. `sqrt(-1)`).
-    if r.is_nan() && !arg.is_nan() {
+    if r.is_nan() {
         None
     } else {
         Some(Num::Float(r))
@@ -119,6 +155,9 @@ fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
 
 fn binary_float(name: &str, vals: &[Num]) -> Option<Num> {
     if vals.len() != 2 {
+        return None;
+    }
+    if has_nan(vals) {
         return None;
     }
     let f: fn(f64, f64) -> f64 = match name {
@@ -142,28 +181,6 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
     }
     let v = vals[0];
     match name {
-        "abs" => match v {
-            Num::Int(i) => i.checked_abs().map(Num::Int),
-            Num::Float(f) => Some(Num::Float(f.abs())),
-        },
-        "int" | "entier" | "wide" => match v {
-            Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) => f.is_finite().then_some(Num::Int(f as i64)),
-        },
-        "double" => Some(Num::Float(v.as_f64())),
-        "bool" => Some(Num::Int(i64::from(v.is_truthy()))),
-        "round" => match v {
-            Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) if !f.is_finite() => None,
-            Num::Float(f) if f >= 0.0 => Some(Num::Int((f + 0.5).floor() as i64)),
-            Num::Float(f) => Some(Num::Int((f - 0.5).ceil() as i64)),
-        },
-        "ceil" => Some(Num::Float(v.as_f64().ceil())),
-        "floor" => Some(Num::Float(v.as_f64().floor())),
-        "isqrt" => match v {
-            Num::Int(i) if i >= 0 => Some(Num::Int((i as f64).sqrt() as i64)),
-            _ => None,
-        },
         "isinf" => Some(Num::Int(i64::from(
             matches!(v, Num::Float(f) if f.is_infinite()),
         ))),
@@ -173,6 +190,27 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
         "isfinite" => match v {
             Num::Int(_) => Some(Num::Int(1)),
             Num::Float(f) => Some(Num::Int(i64::from(f.is_finite()))),
+        },
+        _ if matches!(v, Num::Float(f) if f.is_nan()) => None,
+        "abs" => match v {
+            Num::Int(i) => i.checked_abs().map(Num::Int),
+            Num::Float(f) => Some(Num::Float(f.abs())),
+        },
+        "int" | "entier" | "wide" => match v {
+            Num::Int(i) => Some(Num::Int(i)),
+            Num::Float(f) => finite_trunc_to_i64(f).map(Num::Int),
+        },
+        "double" => Some(Num::Float(v.as_f64())),
+        "bool" => Some(Num::Int(i64::from(v.is_truthy()))),
+        "round" => match v {
+            Num::Int(i) => Some(Num::Int(i)),
+            Num::Float(f) => finite_round_to_i64(f).map(Num::Int),
+        },
+        "ceil" => Some(Num::Float(v.as_f64().ceil())),
+        "floor" => Some(Num::Float(v.as_f64().floor())),
+        "isqrt" => match v {
+            Num::Int(i) if i >= 0 => Some(Num::Int((i as f64).sqrt() as i64)),
+            _ => None,
         },
         _ => None,
     }
@@ -186,6 +224,11 @@ mod tests {
     fn float_functions() {
         assert_eq!(dispatch("sqrt", &[Num::Int(4)]), Some(Num::Float(2.0)));
         assert!(dispatch("sqrt", &[Num::Int(-1)]).is_none()); // domain error
+        assert_eq!(dispatch("sqrt", &[Num::Float(f64::NAN)]), None);
+        assert_eq!(
+            dispatch("atan2", &[Num::Float(f64::NAN), Num::Int(1)]),
+            None
+        );
         assert_eq!(
             dispatch("pow", &[Num::Int(2), Num::Int(10)]),
             Some(Num::Float(1024.0))
@@ -202,6 +245,8 @@ mod tests {
             dispatch("min", &[Num::Int(5), Num::Float(2.5)]),
             Some(Num::Float(2.5))
         );
+        assert_eq!(dispatch("max", &[Num::Int(5), Num::Float(f64::NAN)]), None);
+        assert_eq!(dispatch("min", &[Num::Float(f64::NAN), Num::Int(5)]), None);
     }
 
     #[test]
@@ -210,10 +255,30 @@ mod tests {
         assert_eq!(dispatch("int", &[Num::Float(3.9)]), Some(Num::Int(3)));
         assert_eq!(dispatch("round", &[Num::Float(2.5)]), Some(Num::Int(3))); // ties away from 0
         assert_eq!(dispatch("round", &[Num::Float(-2.5)]), Some(Num::Int(-3)));
+        assert_eq!(
+            dispatch("int", &[Num::Float(I64_MIN_F64)]),
+            Some(Num::Int(i64::MIN))
+        );
+        assert_eq!(dispatch("int", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("entier", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("wide", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("round", &[Num::Float(1.0e20)]), None);
+        assert_eq!(dispatch("abs", &[Num::Float(f64::NAN)]), None);
+        assert_eq!(dispatch("double", &[Num::Float(f64::NAN)]), None);
+        assert_eq!(dispatch("bool", &[Num::Float(f64::NAN)]), None);
+        assert_eq!(dispatch("ceil", &[Num::Float(f64::NAN)]), None);
         assert_eq!(dispatch("double", &[Num::Int(5)]), Some(Num::Float(5.0)));
         assert_eq!(
             dispatch("isnan", &[Num::Float(f64::NAN)]),
             Some(Num::Int(1))
+        );
+        assert_eq!(
+            dispatch("isfinite", &[Num::Float(f64::NAN)]),
+            Some(Num::Int(0))
+        );
+        assert_eq!(
+            dispatch("isinf", &[Num::Float(f64::NAN)]),
+            Some(Num::Int(0))
         );
     }
 

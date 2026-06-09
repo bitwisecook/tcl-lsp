@@ -43,6 +43,8 @@ use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
 use tcl_registry::CommandRegistry;
 
+use crate::definition::utf16_col_to_char_col;
+
 /// LSP markup-content kind for a hover body.
 ///
 /// We only emit Markdown today (matches Python's
@@ -438,7 +440,7 @@ fn subcommand_hover_text(
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let prefix: String = chars[..col].iter().collect();
     let tokens: Vec<&str> = prefix.split_whitespace().collect();
     if tokens.is_empty() {
@@ -695,7 +697,7 @@ fn sprintf_format_string_at_position(source: &str, line: u32, character: u32) ->
 /// `sprintf_format_string_at_position`.
 fn string_literal_with_percent_at(line_text: &str, character: u32) -> Option<String> {
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut i = 0;
     while i < chars.len() {
         let opener = chars[i];
@@ -1261,7 +1263,7 @@ fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option
     // Python uses; precise arg-position resolution is deferred
     // to the same multi-line-aware machinery.
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut i = 0;
     while i < chars.len() {
         let opener = chars[i];
@@ -1296,7 +1298,7 @@ fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option
 /// literal contains `%`.
 fn string_literal_at(line_text: &str, character: u32) -> Option<String> {
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let mut i = 0;
     while i < chars.len() {
         let opener = chars[i];
@@ -1789,7 +1791,7 @@ pub fn find_word_span_at_position(
 ) -> Option<(String, u32, u32)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = character as usize;
+    let col = utf16_col_to_char_col(line_text, character);
     if col >= chars.len() {
         return None;
     }
@@ -1806,8 +1808,9 @@ pub fn find_word_span_at_position(
         return None;
     }
     let word: String = chars[start..end].iter().collect();
-    let start_u32 = u32::try_from(start).ok()?;
-    let end_u32 = u32::try_from(end).ok()?;
+    let prefix: String = chars[..start].iter().collect();
+    let start_u32 = crate::definition::utf16_len(&prefix);
+    let end_u32 = start_u32.saturating_add(crate::definition::utf16_len(&word));
     Some((word, start_u32, end_u32))
 }
 
@@ -1821,7 +1824,7 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
 
-    let cursor = (character as usize).min(chars.len());
+    let cursor = utf16_col_to_char_col(line_text, character).min(chars.len());
 
     // `${name}` braced form first: scan left looking for the
     // most recent `${` whose matching `}` lies at or to the
@@ -2353,7 +2356,7 @@ fn class_member_hover_text(
         }
         if word == "constructor" && !class_def.constructors.is_empty() {
             let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
-            return Some(format!("**constructor** of `{qname}` ({nparam} param(s))",));
+            return Some(format!("**constructor** of `{qname}` ({nparam} param(s))"));
         }
         if word == "destructor" && class_def.destructor.is_some() {
             return Some(format!("**destructor** of `{qname}`"));

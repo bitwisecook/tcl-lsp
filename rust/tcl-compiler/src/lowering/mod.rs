@@ -2023,21 +2023,20 @@ fn walk_for_trace(script: &Script, module: &mut Module) {
     use crate::ir::Statement;
     for stmt in &script.statements {
         match stmt {
-            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }
                 if command == "trace"
                     && args.len() >= 4
                     && args[0] == "add"
-                    && args[1] == "execution"
-                {
-                    let target = &args[2];
-                    if is_literal_trace_target(target) {
-                        let canonical = target.trim_start_matches("::").to_string();
-                        if !canonical.is_empty() {
-                            module.traced_commands.insert(canonical);
-                        }
-                    } else {
-                        module.has_dynamic_trace = true;
+                    && args[1] == "execution" =>
+            {
+                let target = &args[2];
+                if is_literal_trace_target(target) {
+                    let canonical = target.trim_start_matches("::").to_string();
+                    if !canonical.is_empty() {
+                        module.traced_commands.insert(canonical);
                     }
+                } else {
+                    module.has_dynamic_trace = true;
                 }
             }
             Statement::If {

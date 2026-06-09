@@ -107,6 +107,7 @@ fn command_segment(
         single_token_word: single,
         all_tokens,
         is_partial: false,
+        partial_delimiter: None,
         expand_word: if has_expand { Some(expand) } else { None },
         preceding_comment: cmd.green().preceding_comment.clone(),
     }

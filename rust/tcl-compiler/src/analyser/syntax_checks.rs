@@ -87,15 +87,38 @@ fn detect_e201(
     bracket_off: u32,
     registry: Option<&CommandRegistry>,
 ) -> Diagnostic {
-    if let Some(d) = e201_at_comment(content, content_start, bracket_off) {
+    // GAP-A1 + recovery-rust-port: the heuristics *propose* an insertion
+    // offset (semantic); the structural index *validates* it
+    // (syntactic). A proposed `]` that lands inside an inert span — a
+    // brace word, an escape pair, a `${…}`, or a command-sub brace
+    // interior — would be a literal, not a real closer, so the re-lex
+    // would split a brace word (`[foo {bar\nputs baz}` must close after
+    // `}`, not after `bar`). Veto such a fix and fall through to the next
+    // heuristic / the fix-less fallback. `is_inert` is the *sound*
+    // signal (it never marks a structural position inert), so this can
+    // only remove wrong fixes, never good ones. The index is built over
+    // the bracket interior (`content`), so offsets are content-relative.
+    let index = tcl_lexer::BracketIndex::build(content);
+    let accept = |d: Diagnostic| -> Option<Diagnostic> {
+        if let Some(fix) = d.fixes.first() {
+            let rel = fix.span.start().saturating_sub(content_start);
+            if index.is_inert(rel) {
+                return None;
+            }
+        }
+        Some(d)
+    };
+    if let Some(d) = e201_at_comment(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
     if let Some(reg) = registry {
-        if let Some(d) = e201_at_command(content, content_start, bracket_off, reg) {
+        if let Some(d) =
+            e201_at_command(content, content_start, bracket_off, reg, &index).and_then(&accept)
+        {
             return d;
         }
     }
-    if let Some(d) = e201_at_brace(content, content_start, bracket_off) {
+    if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
     // Fallback: highlight just the opening `[`, no fix.
@@ -167,6 +190,7 @@ fn e201_at_command(
     content_start: u32,
     bracket_off: u32,
     registry: &CommandRegistry,
+    index: &tcl_lexer::BracketIndex,
 ) -> Option<Diagnostic> {
     let lines: Vec<&str> = content.split('\n').collect();
     if lines.len() < 2 {
@@ -180,9 +204,17 @@ fn e201_at_command(
         if stripped.is_empty() {
             continue;
         }
+        let insert_idx = prev_line_content_end(&lines, i);
+        // recovery-rust-port "syntactic validates": if this boundary
+        // sits inside an inert span (a brace word / quoted run that
+        // swallowed the line, e.g. `puts baz` inside `{bar\nputs baz}`),
+        // the candidate `]` would be a literal — keep scanning for the
+        // next real command past the inert span rather than giving up.
+        if index.is_inert(u32::try_from(insert_idx).unwrap_or(0)) {
+            continue;
+        }
         let first_word = extract_first_word(stripped);
         if registry.get(first_word).is_some() {
-            let insert_idx = prev_line_content_end(&lines, i);
             return Some(e201_with_insert(
                 content_start,
                 bracket_off,
@@ -234,7 +266,7 @@ pub(crate) fn unterminated_delimiter_diagnostics(
         if is_suspicious_quote(tok, cmd, source) {
             out.push(detect_e202(tok, source, registry));
         } else if is_suspicious_str(tok, source) {
-            out.push(detect_e203(tok, source, registry));
+            out.push(detect_e203(tok, cmd, source, registry));
         }
     }
     out
@@ -358,12 +390,26 @@ fn detect_e202(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
 /// known-command heuristic (insert `}` at the newline before that line)
 /// or the fix-less fallback.  Mirrors `_detect_missing_brace_at_command`
 /// / `_detect_missing_brace_no_heuristic`.
-fn detect_e203(tok: &Token, source: &str, registry: Option<&CommandRegistry>) -> Diagnostic {
+fn detect_e203(
+    tok: &Token,
+    cmd: &SegmentedCommand,
+    source: &str,
+    registry: Option<&CommandRegistry>,
+) -> Diagnostic {
     let brace_off = tok.span.start();
     let diag_span = Span::new(brace_off, brace_off);
     let content_start = brace_off + u32::from(tok.content_offset);
     if let Some(reg) = registry {
-        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg) {
+        // recovery-rust-port `ArgRole` router: when the unterminated `{`
+        // is an **expression** argument (`if {…`, `while {…`, `expr {…`,
+        // `for`'s condition, …) a following line that starts with a known
+        // command is a strong forgotten-close signal *even without a
+        // de-indent* — so EXPR braces recover with the aggressive
+        // command-break, unlike BODY / data which keep the conservative
+        // de-indent heuristic. (Never *suppress* recovery on role — the
+        // doc's reverted-change caveat.)
+        let expr_role = unterminated_arg_is_expr(tok, cmd, reg);
+        if let Some(fix) = e203_brace_fix(tok, source, content_start, reg, expr_role) {
             return Diagnostic {
                 code: "E203".to_string(),
                 span: diag_span,
@@ -382,26 +428,62 @@ fn detect_e203(tok: &Token, source: &str, registry: Option<&CommandRegistry>) ->
     }
 }
 
-/// Locate the `}`-insertion fix for E203: scan the brace body for a
-/// de-indented line starting with a known command whose preceding brace
-/// content is balanced, and insert `}` at the newline before it.
+/// `true` when the unterminated brace-word token `tok` sits in an
+/// expression-role argument of its command (`if`/`while`/`for` condition,
+/// `expr`, …). Resolves the token's argv index, then queries the registry
+/// for the command's `ArgRole::Expr` argument indices.
+fn unterminated_arg_is_expr(
+    tok: &Token,
+    cmd: &SegmentedCommand,
+    registry: &CommandRegistry,
+) -> bool {
+    // Find the argv word whose representative token is this brace word.
+    let Some(word_idx) = cmd
+        .argv
+        .iter()
+        .position(|w| w.span.start() == tok.span.start())
+    else {
+        return false;
+    };
+    if word_idx == 0 || cmd.texts.is_empty() {
+        return false; // the command name itself is never an expr arg
+    }
+    let name = cmd.texts[0].as_str();
+    let args: Vec<&str> = cmd.texts[1..].iter().map(String::as_str).collect();
+    // `arg_indices_for_role` indexes into `args` (argv[1..]); the token's
+    // arg index is therefore `word_idx - 1`.
+    registry
+        .arg_indices_for_role(name, &args, tcl_registry::arg_role::ArgRole::Expr)
+        .contains(&(word_idx - 1))
+}
+
+/// Locate the `}`-insertion fix for E203: scan the brace body for a line
+/// starting with a known command whose preceding brace content is
+/// balanced, and insert `}` at the newline before it. For BODY / data
+/// braces the line must be **de-indented** (the conservative heuristic);
+/// for `expr_role` braces any following known-command line qualifies (the
+/// aggressive command-break — recovery-rust-port `ArgRole` routing).
 /// Mirrors the scan in `_detect_missing_brace_at_command`.
 fn e203_brace_fix(
     tok: &Token,
     source: &str,
     content_start: u32,
     registry: &CommandRegistry,
+    expr_role: bool,
 ) -> Option<CodeFix> {
     let text = token_inner(source, tok)?;
     let lines: Vec<&str> = text.split('\n').collect();
-    if lines.len() < 3 {
+    // The de-indent heuristic needs a line *after* the first content
+    // line; the aggressive expr heuristic only needs a following line.
+    if lines.len() < if expr_role { 2 } else { 3 } {
         return None;
     }
-    // Indentation of the first content line.
+    // Indentation of the first content line (only the de-indent path
+    // consults it; default to 0 so the expr path is unaffected).
     let first_indent = lines[1..]
         .iter()
         .find(|l| !l.trim_start().is_empty())
-        .map(|l| l.len() - l.trim_start().len())?;
+        .map_or(0, |l| l.len() - l.trim_start().len());
 
     let mut cumulative: usize = 0;
     for (i, line) in lines.iter().enumerate() {
@@ -415,7 +497,9 @@ fn e203_brace_fix(
             continue;
         }
         let indent = line.len() - stripped.len();
-        if indent < first_indent && registry.get(extract_first_word(stripped)).is_some() {
+        if (expr_role || indent < first_indent)
+            && registry.get(extract_first_word(stripped)).is_some()
+        {
             // The brace content before this line must be balanced —
             // otherwise a single `}` can't recover it.  (The token is
             // already known to contain no `}`, so balance reduces to
@@ -732,6 +816,69 @@ mod tests {
             .collect()
     }
 
+    /// Absolute byte offsets of every E201 `]`-insertion fix.
+    fn e201_fix_offsets(src: &str) -> Vec<u32> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E201")
+            .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
+            .collect()
+    }
+
+    #[test]
+    fn e201_fix_vetoed_inside_brace_word() {
+        // `[foo {bar\nputs baz}` — the `[` is unterminated, but `puts baz`
+        // is *inside* a balanced brace word, not a real command. The
+        // command heuristic would propose inserting `]` after `bar`
+        // (inside the brace); the structural-index veto rejects that
+        // (the `]` would be a literal there), so no wrong fix is offered.
+        //
+        // Intentional divergence from the Python analyser, which emits
+        // the after-`bar` fix — C Tcl 9.0.3 confirms it is wrong
+        // (`info complete {set x [foo {bar]}` == 0, incomplete), whereas
+        // the end-insert is complete. The veto does the correct
+        // full-fidelity thing.
+        let src = "set x [foo {bar\nputs baz}\n";
+        // E201 still fires — there genuinely is an unterminated `[`.
+        assert_eq!(e201(src).len(), 1, "expected one E201: {:?}", e201(src));
+        // ...but no fix lands inside the brace word `{bar\nputs baz}`
+        // (bytes 11..=24).
+        for o in e201_fix_offsets(src) {
+            assert!(
+                !(11..25).contains(&o),
+                "E201 fix at {o} lands inside the brace word",
+            );
+        }
+    }
+
+    #[test]
+    fn e201_recovers_real_command_past_brace_word() {
+        // `[foo {bar\nputs baz}\nputs done` — `puts baz` is inside the
+        // brace word; `puts done` is the real swallowed command. The
+        // index-aware command heuristic skips the inert boundary inside
+        // the brace word and inserts `]` after `}` (offset 25, before
+        // `puts done`), recovering `puts done` as its own command.
+        let src = "set x [foo {bar\nputs baz}\nputs done\n";
+        let offs = e201_fix_offsets(src);
+        assert_eq!(
+            offs,
+            vec![25],
+            "expected the close-bracket after the brace word: {offs:?}"
+        );
+    }
+
+    #[test]
+    fn e201_fix_still_offered_for_plain_text_recovery() {
+        // The veto must not suppress legitimate recoveries: a plain
+        // unterminated `[` followed by a known command still gets its
+        // `]`-insertion fix (the offset is not inert).
+        let src = "set x [foo bar\nputs done\n";
+        let diags = e201(src);
+        assert_eq!(diags, vec![("missing close-bracket".to_string(), 1)]);
+    }
+
     fn lexer_recovery_codes(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
         a.analyse(src, "tcl8.6")
@@ -895,5 +1042,106 @@ mod tests {
         let off = fix.span.start() as usize;
         assert_eq!(&src[..off], "set x {\n    aaa\n    bbb");
         assert_eq!(fix.new_text, "}");
+    }
+
+    fn e203_fix_offsets(src: &str) -> Vec<u32> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E203")
+            .flat_map(|d| d.fixes.iter().map(|f| f.span.start()))
+            .collect()
+    }
+
+    #[test]
+    fn e203_expr_brace_recovers_without_deindent() {
+        // recovery-rust-port `ArgRole` router: an unterminated `if`
+        // *condition* (EXPR role) recovers on the next known-command line
+        // even though it is not de-indented — the aggressive command
+        // break. The `}` lands right after `$x == 1` (offset 11), so
+        // `puts hi` is recovered as its own command.
+        let src = "if {$x == 1\nputs hi\n";
+        assert_eq!(
+            e203_fix_offsets(src),
+            vec![11],
+            "{:?}",
+            e203_fix_offsets(src)
+        );
+        // The repaired source parses `puts hi` as a separate command.
+        let repaired = format!("{}}}{}", &src[..11], &src[11..]);
+        assert_eq!(repaired, "if {$x == 1}\nputs hi\n");
+    }
+
+    #[test]
+    fn e203_data_brace_keeps_conservative_deindent() {
+        // A non-EXPR (data) brace must NOT recover aggressively: a
+        // *non-de-indented* following known command does not trigger a
+        // fix (only the conservative de-indent heuristic applies), so the
+        // recovery behaviour is unchanged for data braces.
+        // `set x {` — arg 1 of `set` is data, not expr.
+        let src = "set x {\nputs hi\n";
+        assert!(
+            e203_fix_offsets(src).is_empty(),
+            "data brace should not aggressively recover: {:?}",
+            e203_fix_offsets(src),
+        );
+        // But a *de-indented* known command still recovers (unchanged).
+        let deindented = "set x {\n    aaa\nputs done\n";
+        assert_eq!(e203_fix_offsets(deindented).len(), 1);
+    }
+
+    #[test]
+    fn stray_close_bracket_fires_inside_proc_body() {
+        // GAP-A6 follow-up: the E100 stray-`]` check runs on every
+        // analysed body, not just the top level.  The live Python
+        // analyser fires E100 at the `puts foo]` line inside the
+        // proc body (`check_unmatched_close_bracket` is a
+        // `_UNIVERSAL_CHECKS` member, run on every command).
+        let mut a = Analyser::new();
+        let r = a.analyse("proc p {} {\n  puts foo]\n}\n", "tcl8.6");
+        let e100: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E100").collect();
+        assert_eq!(
+            e100.len(),
+            1,
+            "expected one E100 in the body, got {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.clone(), d.span))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn body_check_does_not_false_positive_on_literals() {
+        // Quoted `]` / `}` and balanced `[…]` inside a body are
+        // literals / well-formed substitutions — none fires, matching
+        // the live Python analyser.
+        let mut a = Analyser::new();
+        for src in [
+            "proc p {} {\n  puts \"a ]\"\n}\n",
+            "proc p {} {\n  set x [llength $l]\n}\n",
+            "proc p {} {\n  puts \"a }\"\n}\n",
+        ] {
+            let r = a.analyse(src, "tcl8.6");
+            let n = r
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "E100" | "E102"))
+                .count();
+            assert_eq!(n, 0, "unexpected stray-closer diag for {src:?}");
+        }
+    }
+
+    #[test]
+    fn stray_close_brace_fires_inside_nested_body() {
+        // A bare `}` line inside a nested (control-flow) body must
+        // also surface E102, matching the per-body universal check.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc p {} {\n  if {1} {\n    set x 1\n  }\n  puts foo]\n}\n",
+            "tcl8.6",
+        );
+        assert_eq!(r.diagnostics.iter().filter(|d| d.code == "E100").count(), 1,);
     }
 }

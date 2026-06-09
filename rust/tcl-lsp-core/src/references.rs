@@ -87,10 +87,10 @@ pub fn references(
         };
         let mut out = Vec::new();
         if include_declaration {
-            out.push(span_to_range(&line_index, var_def.definition_span));
+            out.push(span_to_range(source, &line_index, var_def.definition_span));
         }
         for r in &var_def.references {
-            out.push(span_to_range(&line_index, *r));
+            out.push(span_to_range(source, &line_index, *r));
         }
         return out;
     }
@@ -108,11 +108,11 @@ pub fn references(
         {
             let mut out = Vec::new();
             if include_declaration {
-                out.push(span_to_range(&line_index, class_def.name_span));
+                out.push(span_to_range(source, &line_index, class_def.name_span));
             }
             for inv in &analysis.command_invocations {
                 if inv.name == class_def.name || inv.name == class_def.qualified_name {
-                    out.push(span_to_range(&line_index, inv.range));
+                    out.push(span_to_range(source, &line_index, inv.range));
                 }
             }
             dedup_ranges(&mut out);
@@ -125,7 +125,7 @@ pub fn references(
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
             let mut out = Vec::new();
             if include_declaration {
-                out.push(span_to_range(&line_index, proc_def.name_span));
+                out.push(span_to_range(source, &line_index, proc_def.name_span));
             }
             let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
             for inv in &analysis.command_invocations {
@@ -137,7 +137,7 @@ pub fn references(
                         .as_deref()
                         .is_some_and(|r| r == proc_def.qualified_name)
                 {
-                    out.push(span_to_range(&line_index, inv.range));
+                    out.push(span_to_range(source, &line_index, inv.range));
                 }
             }
             dedup_ranges(&mut out);
@@ -158,10 +158,10 @@ pub fn references(
             {
                 let mut out = Vec::new();
                 if include_declaration {
-                    out.push(span_to_range(&line_index, decl_span));
+                    out.push(span_to_range(source, &line_index, decl_span));
                 }
                 for s in call_spans {
-                    out.push(span_to_range(&line_index, s));
+                    out.push(span_to_range(source, &line_index, s));
                 }
                 dedup_ranges(&mut out);
                 return out;
@@ -182,10 +182,10 @@ pub fn references(
         let (decl_span, call_spans) = spans;
         let mut out = Vec::new();
         if include_declaration {
-            out.push(span_to_range(&line_index, decl_span));
+            out.push(span_to_range(source, &line_index, decl_span));
         }
         for s in call_spans {
-            out.push(span_to_range(&line_index, s));
+            out.push(span_to_range(source, &line_index, s));
         }
         dedup_ranges(&mut out);
         return out;
@@ -631,11 +631,11 @@ pub fn document_highlights(
         };
         let mut out = Vec::with_capacity(1 + var_def.references.len());
         out.push((
-            span_to_range(&line_index, var_def.definition_span),
+            span_to_range(source, &line_index, var_def.definition_span),
             HighlightKind::Write,
         ));
         for r in &var_def.references {
-            out.push((span_to_range(&line_index, *r), HighlightKind::Read));
+            out.push((span_to_range(source, &line_index, *r), HighlightKind::Read));
         }
         return dedup_kinded(out);
     }
@@ -651,12 +651,15 @@ pub fn document_highlights(
         {
             let mut out = Vec::new();
             out.push((
-                span_to_range(&line_index, class_def.name_span),
+                span_to_range(source, &line_index, class_def.name_span),
                 HighlightKind::Write,
             ));
             for inv in &analysis.command_invocations {
                 if inv.name == class_def.name || inv.name == class_def.qualified_name {
-                    out.push((span_to_range(&line_index, inv.range), HighlightKind::Text));
+                    out.push((
+                        span_to_range(source, &line_index, inv.range),
+                        HighlightKind::Text,
+                    ));
                 }
             }
             return dedup_kinded(out);
@@ -667,7 +670,7 @@ pub fn document_highlights(
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
             let mut out = Vec::new();
             out.push((
-                span_to_range(&line_index, proc_def.name_span),
+                span_to_range(source, &line_index, proc_def.name_span),
                 HighlightKind::Write,
             ));
             let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
@@ -680,7 +683,10 @@ pub fn document_highlights(
                         .as_deref()
                         .is_some_and(|r| r == proc_def.qualified_name)
                 {
-                    out.push((span_to_range(&line_index, inv.range), HighlightKind::Text));
+                    out.push((
+                        span_to_range(source, &line_index, inv.range),
+                        HighlightKind::Text,
+                    ));
                 }
             }
             return dedup_kinded(out);
@@ -695,9 +701,12 @@ pub fn document_highlights(
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
         let mut out = Vec::new();
-        out.push((span_to_range(&line_index, decl_span), HighlightKind::Write));
+        out.push((
+            span_to_range(source, &line_index, decl_span),
+            HighlightKind::Write,
+        ));
         for s in call_spans {
-            out.push((span_to_range(&line_index, s), HighlightKind::Text));
+            out.push((span_to_range(source, &line_index, s), HighlightKind::Text));
         }
         return dedup_kinded(out);
     }
@@ -756,9 +765,9 @@ fn priority(kind: HighlightKind) -> u8 {
     }
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

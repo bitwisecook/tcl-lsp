@@ -62,6 +62,8 @@
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
+
+use crate::definition::utf16_len;
 use tcl_registry::CommandRegistry;
 
 /// Encoded semantic-tokens response.  The `data` array is
@@ -338,11 +340,17 @@ fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
     source.get(cstart..cend).map(|inner| (cstart, inner))
 }
 
+#[derive(Clone, Copy)]
+struct TokenPositionContext<'a> {
+    source: &'a str,
+    line_index: &'a LineIndex,
+}
+
 /// Emit the literal run `inner[run..end]` (absolute start `cstart + run`)
 /// as `kind`, when non-empty.  The inter-construct filler for the
 /// sub-language scanners.
 fn flush_run(
-    line_index: &LineIndex,
+    pos: TokenPositionContext<'_>,
     cstart: usize,
     inner: &str,
     run: usize,
@@ -351,7 +359,14 @@ fn flush_run(
     entries: &mut Vec<Entry>,
 ) {
     if end > run {
-        push_subtoken(line_index, cstart + run, &inner[run..end], kind, entries);
+        push_subtoken(
+            pos.source,
+            pos.line_index,
+            cstart + run,
+            &inner[run..end],
+            kind,
+            entries,
+        );
     }
 }
 
@@ -369,28 +384,28 @@ fn push_regsub_subtokens(
         return false;
     };
     let bytes = inner.as_bytes();
+    let pos = TokenPositionContext { source, line_index };
     let mut emitted = false;
     let mut run = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
         let next = bytes.get(i + 1).copied();
         if bytes[i] == b'\\' && next.is_some_and(|b| b.is_ascii_digit() || b == b'&') {
-            flush_run(
-                line_index,
-                cstart,
-                inner,
-                run,
-                i,
-                TokenKind::String,
-                entries,
-            );
+            flush_run(pos, cstart, inner, run, i, TokenKind::String, entries);
             // `\&` → operator (whole match); `\0`-`\9` → number (capture).
             let kind = if next == Some(b'&') {
                 TokenKind::Operator
             } else {
                 TokenKind::Number
             };
-            push_subtoken(line_index, cstart + i, &inner[i..i + 2], kind, entries);
+            push_subtoken(
+                source,
+                line_index,
+                cstart + i,
+                &inner[i..i + 2],
+                kind,
+                entries,
+            );
             emitted = true;
             i += 2;
             run = i;
@@ -402,7 +417,7 @@ fn push_regsub_subtokens(
         return false;
     }
     flush_run(
-        line_index,
+        pos,
         cstart,
         inner,
         run,
@@ -551,6 +566,7 @@ fn push_binary_subtokens(
         }
         if i > count_start {
             push_subtoken(
+                source,
                 line_index,
                 cstart + count_start,
                 &inner[count_start..i],
@@ -568,6 +584,7 @@ fn push_binary_subtokens(
             continue;
         }
         push_subtoken(
+            source,
             line_index,
             cstart + i,
             &inner[i..=i],
@@ -583,6 +600,7 @@ fn push_binary_subtokens(
             && allow_mod
         {
             push_subtoken(
+                source,
                 line_index,
                 cstart + i,
                 &inner[i..=i],
@@ -593,7 +611,14 @@ fn push_binary_subtokens(
             i += 1;
         }
         if i < bytes.len() && bytes[i] == b'*' {
-            push_subtoken(line_index, cstart + i, "*", TokenKind::BinaryFlag, entries);
+            push_subtoken(
+                source,
+                line_index,
+                cstart + i,
+                "*",
+                TokenKind::BinaryFlag,
+                entries,
+            );
             emitted = true;
             i += 1;
         }
@@ -616,6 +641,7 @@ fn push_clock_subtokens(
         return false;
     };
     let bytes = inner.as_bytes();
+    let pos = TokenPositionContext { source, line_index };
     let mut emitted = false;
     let mut run = 0usize;
     let mut i = 0usize;
@@ -633,16 +659,9 @@ fn push_clock_subtokens(
                 m
             });
             if bytes.get(spec).copied().is_some_and(is_clock_spec) {
-                flush_run(
-                    line_index,
-                    cstart,
-                    inner,
-                    run,
-                    i,
-                    TokenKind::String,
-                    entries,
-                );
+                flush_run(pos, cstart, inner, run, i, TokenKind::String, entries);
                 push_subtoken(
+                    source,
                     line_index,
                     cstart + i,
                     "%",
@@ -651,6 +670,7 @@ fn push_clock_subtokens(
                 );
                 if let Some(m) = modifier {
                     push_subtoken(
+                        source,
                         line_index,
                         cstart + m,
                         &inner[m..=m],
@@ -659,6 +679,7 @@ fn push_clock_subtokens(
                     );
                 }
                 push_subtoken(
+                    source,
                     line_index,
                     cstart + spec,
                     &inner[spec..=spec],
@@ -677,7 +698,7 @@ fn push_clock_subtokens(
         return false;
     }
     flush_run(
-        line_index,
+        pos,
         cstart,
         inner,
         run,
@@ -751,24 +772,17 @@ fn push_sprintf_subtokens(
         return false;
     };
     let bytes = inner.as_bytes();
+    let pos_ctx = TokenPositionContext { source, line_index };
     let mut emitted = false;
     let mut run = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
         if bytes[i] == b'%' {
             if let Some(cuts) = parse_sprintf_cuts(bytes, i) {
-                flush_run(
-                    line_index,
-                    cstart,
-                    inner,
-                    run,
-                    i,
-                    TokenKind::String,
-                    entries,
-                );
+                flush_run(pos_ctx, cstart, inner, run, i, TokenKind::String, entries);
                 let mut pos = i;
                 for (end, kind) in cuts {
-                    emit_part(line_index, cstart, inner, &mut pos, end, kind, entries);
+                    emit_part(pos_ctx, cstart, inner, &mut pos, end, kind, entries);
                 }
                 emitted = true;
                 i = pos;
@@ -782,7 +796,7 @@ fn push_sprintf_subtokens(
         return false;
     }
     flush_run(
-        line_index,
+        pos_ctx,
         cstart,
         inner,
         run,
@@ -922,7 +936,7 @@ fn digit_or_flag(first: u8) -> TokenKind {
 /// and advance `*pos`, when non-empty.  The sub-token cursor helper for
 /// [`push_sprintf_subtokens`].
 fn emit_part(
-    line_index: &LineIndex,
+    pos_ctx: TokenPositionContext<'_>,
     cstart: usize,
     inner: &str,
     pos: &mut usize,
@@ -931,7 +945,14 @@ fn emit_part(
     entries: &mut Vec<Entry>,
 ) {
     if end > *pos {
-        push_subtoken(line_index, cstart + *pos, &inner[*pos..end], kind, entries);
+        push_subtoken(
+            pos_ctx.source,
+            pos_ctx.line_index,
+            cstart + *pos,
+            &inner[*pos..end],
+            kind,
+            entries,
+        );
         *pos = end;
     }
 }
@@ -953,22 +974,22 @@ fn push_regex_subtokens(
         return false;
     };
     let bytes = inner.as_bytes();
+    let pos_ctx = TokenPositionContext { source, line_index };
     let mut matched_any = false;
     let mut pos = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
         if let Some(end) = scan_are_token(bytes, i) {
-            flush_run(
+            flush_run(pos_ctx, cstart, inner, pos, i, TokenKind::Regexp, entries);
+            let kind = classify_regex_component(&inner[i..end]);
+            push_subtoken(
+                source,
                 line_index,
-                cstart,
-                inner,
-                pos,
-                i,
-                TokenKind::Regexp,
+                cstart + i,
+                &inner[i..end],
+                kind,
                 entries,
             );
-            let kind = classify_regex_component(&inner[i..end]);
-            push_subtoken(line_index, cstart + i, &inner[i..end], kind, entries);
             matched_any = true;
             i = end;
             pos = i;
@@ -981,6 +1002,7 @@ fn push_regex_subtokens(
     }
     if pos < inner.len() {
         push_subtoken(
+            source,
             line_index,
             cstart + pos,
             &inner[pos..],
@@ -1173,6 +1195,7 @@ fn classify_regex_component(matched: &str) -> TokenKind {
 /// Push one regex sub-token at absolute byte offset `abs_off` covering
 /// `text`.  Skips empty / multi-line runs.
 fn push_subtoken(
+    source: &str,
     line_index: &LineIndex,
     abs_off: usize,
     text: &str,
@@ -1182,9 +1205,9 @@ fn push_subtoken(
     if text.is_empty() || text.contains('\n') {
         return;
     }
-    let pos = line_index.position_at(u32::try_from(abs_off).unwrap_or(0));
-    let len_chars = u32::try_from(text.chars().count()).unwrap_or(0);
-    entries.push((pos.line, pos.character, len_chars, kind, 0));
+    let pos = line_index.position_at_utf16(u32::try_from(abs_off).unwrap_or(0), source);
+    let len_utf16 = utf16_len(text);
+    entries.push((pos.line, pos.character, len_utf16, kind, 0));
 }
 
 /// Walk the segmenter + comment scan and return raw
@@ -1306,7 +1329,7 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
     // main walk, so refs inside them surface cleanly.
     if dialect == "f5-irules" {
         for span in crate::irules_object_refs::object_ref_spans(source, registry) {
-            push_object_token(&line_index, span, &mut entries);
+            push_object_token(source, &line_index, span, &mut entries);
         }
     }
 
@@ -1318,9 +1341,14 @@ fn collect_entries(source: &str, dialect: &str, registry: &CommandRegistry) -> V
 /// Push a BIG-IP `object` token for `span`, unless an existing entry on
 /// the same line already overlaps its column range (keeps the stream
 /// overlap-free).
-fn push_object_token(line_index: &LineIndex, span: tcl_lexer::Span, entries: &mut Vec<Entry>) {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn push_object_token(
+    source: &str,
+    line_index: &LineIndex,
+    span: tcl_lexer::Span,
+    entries: &mut Vec<Entry>,
+) {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     if start.line != end.line {
         return;
     }
@@ -1428,14 +1456,9 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
                 p += 1;
             }
             let comment_end = p;
-            let pos = line_index.position_at(comment_start);
-            let len_chars = u32::try_from(
-                source[comment_start as usize..comment_end as usize]
-                    .chars()
-                    .count(),
-            )
-            .unwrap_or(0);
-            entries.push((pos.line, pos.character, len_chars, TokenKind::Comment, 0));
+            let pos = line_index.position_at_utf16(comment_start, source);
+            let len_utf16 = utf16_len(&source[comment_start as usize..comment_end as usize]);
+            entries.push((pos.line, pos.character, len_utf16, TokenKind::Comment, 0));
             // Skip past the comment line.
             byte_pos = comment_end;
             line_start = false;
@@ -1461,7 +1484,7 @@ fn push_token(
     if len_bytes == 0 {
         return;
     }
-    let pos = line_index.position_at(span.start());
+    let pos = line_index.position_at_utf16(span.start(), source);
     let text = source
         .get(span.start() as usize..span.end() as usize)
         .unwrap_or("");
@@ -1471,8 +1494,8 @@ fn push_token(
     if text.contains('\n') {
         return;
     }
-    let len_chars = u32::try_from(text.chars().count()).unwrap_or(0);
-    entries.push((pos.line, pos.character, len_chars, kind, modifiers));
+    let len_utf16 = utf16_len(text);
+    entries.push((pos.line, pos.character, len_utf16, kind, modifiers));
 }
 
 /// Encode entries into the LSP packed integer stream:
@@ -1990,6 +2013,16 @@ mod tests {
     #[test]
     fn empty_source_returns_empty_data() {
         assert!(full("", "tcl", &reg()).data.is_empty());
+    }
+
+    #[test]
+    fn semantic_token_lengths_use_utf16_code_units() {
+        let data = full("# 😀x\n", "tcl", &reg()).data;
+        assert_eq!(
+            &data[..5],
+            &[0, 0, 5, TokenKind::Comment as u32, 0],
+            "comment token length must count the emoji as two UTF-16 code units",
+        );
     }
 
     #[test]

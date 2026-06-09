@@ -53,7 +53,7 @@ pub fn formatting(source: &str, registry: &CommandRegistry) -> Vec<TextEdit> {
         return Vec::new();
     }
     let line_index = LineIndex::new(source);
-    let end_pos = line_index.position_at(u32::try_from(source.len()).unwrap_or(0));
+    let end_pos = line_index.position_at_utf16(u32::try_from(source.len()).unwrap_or(0), source);
     vec![TextEdit {
         range: LspRange {
             start_line: 0,
@@ -153,7 +153,8 @@ pub fn range_formatting(
         // range is correct for non-ASCII text rather than counting
         // raw `char`s.
         let line_index = LineIndex::new(source);
-        let end_pos = line_index.position_at(u32::try_from(source.len()).unwrap_or(u32::MAX));
+        let end_pos =
+            line_index.position_at_utf16(u32::try_from(source.len()).unwrap_or(u32::MAX), source);
         LspRange {
             start_line,
             start_character: 0,

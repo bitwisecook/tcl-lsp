@@ -203,6 +203,33 @@ pub struct Analyser {
     /// Mirrors Python's `_arity_checks` over the fully-resolved IR
     /// (#475) rather than checking inline during the walk.
     pub pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
+    /// [`NonAsciiMode::Default`] resolves per dialect at emit time
+    /// (strict for F5 iRules/iApps, confusables otherwise), matching
+    /// Python's `_non_ascii_mode` + the iRules override.
+    pub non_ascii_mode: NonAsciiMode,
+}
+
+/// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
+/// setting (`core/analysis/checks/_style.py`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NonAsciiMode {
+    /// No explicit setting: resolve per dialect at emit time — `Strict`
+    /// for F5 iRules/iApps (ASCII-only environments), `Confusables`
+    /// otherwise.
+    #[default]
+    Default,
+    /// Disable W108 entirely.
+    Off,
+    /// Flag every non-ASCII character.
+    Strict,
+    /// Flag Unicode confusables + known copy-paste artifacts only.
+    Confusables,
+    /// Allow intentional Unicode (letters / numbers / marks / symbols /
+    /// punctuation in any script); flag only confusables, artifacts, and
+    /// non-benign characters (control / format / separators / surrogates
+    /// / private-use / unassigned).
+    Common,
 }
 
 impl Analyser {
@@ -261,7 +288,16 @@ impl Analyser {
             stub_overlay: None,
             line_offsets: None,
             pending_arity: Vec::new(),
+            non_ascii_mode: NonAsciiMode::Default,
         }
+    }
+
+    /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
+    /// returning `self` for builder-style configuration.
+    #[must_use]
+    pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
+        self.non_ascii_mode = mode;
+        self
     }
 
     /// Analyse a Tcl source for the given dialect, returning a
@@ -402,8 +438,16 @@ impl Analyser {
                 // (with a closing-delimiter fix) instead of the generic
                 // E200; only fall through to E103 / E200 when no
                 // delimiter-recovery diagnostic applies.
-                if !self.emit_unterminated_delimiter_diagnostics(cmd_ref)
-                    && !self.detect_stolen_close_brace(cmd_ref)
+                // Stolen-close-brace detection (E103) only applies to a
+                // *brace* partial — Python gates it on `partial_delimiter
+                // is BRACE`; a bracket / quote partial goes straight to
+                // E200.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
+                if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref)
+                    || brace_partial && self.detect_stolen_close_brace(cmd_ref))
                 {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
@@ -777,6 +821,11 @@ impl Analyser {
             self.emit_missing_package_require_diagnostics(&diag_registry);
             self.emit_variable_usage_diagnostics();
             self.emit_cfg_ssa_diagnostics(source);
+            // Parity with `analyse`: surface the lexer's extra-chars /
+            // var-brace warnings (E204 / E205 / E206). Previously absent
+            // here, so `analyse_commands` / `analyse_chunked` (and the
+            // incremental path) under-reported them.
+            self.emit_lexer_warning_diagnostics();
             self.apply_disabled_diagnostics();
             self.dedupe_diagnostics();
         }
@@ -784,6 +833,40 @@ impl Analyser {
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
         result
+    }
+
+    /// Incrementally analyse `new_text` given the previous document text
+    /// and its top-level segmentation (`prev_commands` from
+    /// [`crate::segmenter::segment_commands`]). Reuses the unchanged
+    /// command prefix via [`crate::segmenter::segment_commands_incremental`]
+    /// — avoiding a re-lex of everything before the edit — then runs the
+    /// full analysis over the spliced command stream via
+    /// [`Self::analyse_commands`].
+    ///
+    /// **Correctness-first.** The result is identical to a full
+    /// [`Self::analyse`] of `new_text` (pinned by a differential fuzz
+    /// oracle). The incremental path uses the plain segmenter and the
+    /// pre-segmented `analyse_commands` entry, which match the full
+    /// `analyse` only when `new_text` needs no error recovery and carries
+    /// no inline stub directives; those cases fall back to a full
+    /// re-analysis. The fast path is the common well-formed edit.
+    pub fn analyse_incremental(
+        &mut self,
+        prev_text: &str,
+        prev_commands: &[crate::segmenter::SegmentedCommand],
+        new_text: &str,
+        dialect: &str,
+    ) -> AnalysisResult {
+        // Error recovery (ghost-token re-lex, stray-closer repair) and
+        // inline `# tcl-lsp: stub` overlays are only applied on the full
+        // `analyse` path; when either could be in play, re-analyse fully
+        // so the incremental result can never diverge.
+        if !tcl_lexer::script_is_complete(new_text) || new_text.contains("tcl-lsp: stub") {
+            return self.analyse(new_text, dialect);
+        }
+        let cmds =
+            crate::segmenter::segment_commands_incremental(prev_text, prev_commands, new_text);
+        self.analyse_commands(new_text, &cmds, dialect, true)
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
@@ -811,13 +894,30 @@ impl Analyser {
                 // **C41e5** parity — partial commands surface
                 // E103 / E200 in the chunked path too so the
                 // LSP shows parse errors during incremental
-                // analysis.
-                if !self.detect_stolen_close_brace(cmd_ref) {
+                // analysis.  Stolen-close-brace (E103) is brace-only.
+                let brace_partial = matches!(
+                    cmd_ref.partial_delimiter,
+                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                );
+                if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
                     self.emit_partial_command_diagnostic(cmd_ref);
                 }
                 cmd_idx += 1;
                 continue;
             }
+            // GAP-A6 follow-up: the E100 (stray `]`) / E102 (stray
+            // `}`) token checks run on the incremental / chunked
+            // path too, mirroring the top-level loop and
+            // ``analyse_body``.  Run on the original token stream
+            // before ``recover_stray_close_bracket`` repairs the
+            // clone.  (Nested bodies dispatched below are covered by
+            // ``analyse_body``'s own per-body check.)
+            let stray = super::syntax_checks::stray_closer_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(stray);
             // **C41e4 + C41e5.** Repair stray ``]`` and missing
             // ``{`` in a clone of the segmented command before
             // dispatch — chunked analysis keeps the original
@@ -1237,6 +1337,26 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse_commands(source, &commands, "tcl", true);
         assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_commands_fires_stray_close_bracket() {
+        // GAP-A6 follow-up: the incremental / chunked path runs the
+        // E100 stray-`]` check too, matching `analyse`.
+        use crate::segmenter::segment_commands;
+        let source = "puts foo]";
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        let r = a.analyse_commands(source, &commands, "tcl", true);
+        assert_eq!(
+            r.diagnostics.iter().filter(|d| d.code == "E100").count(),
+            1,
+            "expected one E100; got {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| d.code.clone())
+                .collect::<Vec<_>>(),
+        );
     }
 
     #[test]
@@ -2959,5 +3079,126 @@ mod tests {
         let codes = r.suppressed_lines.get(&-1).expect("-1 sentinel");
         assert!(codes.contains("W210"));
         assert!(codes.contains("W211"));
+    }
+
+    // ---- Incremental analysis differential oracle ------------------
+
+    /// A projection of `AnalysisResult` capturing the observable
+    /// identity an incremental analysis must preserve.
+    #[allow(clippy::type_complexity)]
+    fn project_result(
+        r: &AnalysisResult,
+    ) -> (
+        Vec<(String, u32, u32)>,
+        Vec<String>,
+        Vec<String>,
+        Vec<(String, u32)>,
+    ) {
+        let mut diags: Vec<_> = r
+            .diagnostics
+            .iter()
+            .map(|d| (d.code.clone(), d.span.start(), d.span.end()))
+            .collect();
+        diags.sort();
+        let mut procs: Vec<_> = r.all_procs.keys().cloned().collect();
+        procs.sort();
+        let mut vars: Vec<_> = r.global_scope.variables.keys().cloned().collect();
+        vars.sort();
+        let mut invs: Vec<_> = r
+            .command_invocations
+            .iter()
+            .map(|i| (i.name.clone(), i.range.start()))
+            .collect();
+        invs.sort();
+        (diags, procs, vars, invs)
+    }
+
+    struct IncrLcg(u64);
+    impl IncrLcg {
+        fn next_u32(&mut self) -> u32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            (self.0 >> 33) as u32
+        }
+    }
+
+    #[test]
+    fn analyse_incremental_matches_full_under_fuzz() {
+        // The acceptance gate: a random edit applied to a base document,
+        // then `analyse_incremental` must produce a result observably
+        // identical to a full `analyse` of the edited text — diagnostics,
+        // procs, globals, and recorded command invocations all match.
+        let bases = [
+            "set x 1\nputs hi\nproc p {} { return 1 }\np\nset y 2\n",
+            "namespace eval n {\n  variable v 1\n  proc q {} { return $v }\n}\nn::q\n",
+            "if {$a} {\n  puts a\n} else {\n  puts b\n}\nset z 3\nfoo $undef\n",
+            "proc add {a b} { return [expr {$a + $b}] }\nputs [add 1 2]\nset s {x y z}\n",
+            "set i 0\nwhile {$i < 10} { incr i }\nputs done\n# trailing comment\n",
+        ];
+        let inserts = [
+            "",
+            "z",
+            "puts Z\n",
+            "set q 9\n",
+            " ",
+            "\n",
+            "x",
+            "proc r {} {}\n",
+            "incr i\n",
+            "1",
+        ];
+        let mut rng = IncrLcg(0xD1FF_ACE5_1234_9876);
+        let mut checked = 0usize;
+        for base in bases {
+            let prev_cmds = crate::segmenter::segment_commands(base);
+            let blen = base.len();
+            for _ in 0..70 {
+                let mut s = (rng.next_u32() as usize) % (blen + 1);
+                while !base.is_char_boundary(s) {
+                    s -= 1;
+                }
+                let mut e = s + (rng.next_u32() as usize) % (blen + 1 - s);
+                while !base.is_char_boundary(e) {
+                    e += 1;
+                }
+                let ins = inserts[(rng.next_u32() as usize) % inserts.len()];
+                let new = format!("{}{}{}", &base[..s], ins, &base[e..]);
+
+                let mut af = Analyser::new();
+                let full = af.analyse(&new, "tcl8.6");
+                let mut ai = Analyser::new();
+                let inc = ai.analyse_incremental(base, &prev_cmds, &new, "tcl8.6");
+                assert_eq!(
+                    project_result(&inc),
+                    project_result(&full),
+                    "incremental != full for base {base:?} edit [{s},{e}) ins {ins:?} -> {new:?}",
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 300, "fuzz corpus too small: {checked}");
+    }
+
+    #[test]
+    fn analyse_incremental_falls_back_on_incomplete_and_stubs() {
+        let base = "set x 1\nputs hi\n";
+        let prev = crate::segmenter::segment_commands(base);
+        // Incomplete (unterminated brace) -> full-analyse fallback, still
+        // identical to a direct full analyse.
+        let incomplete = "set x 1\nproc p {} {\n";
+        let mut ai = Analyser::new();
+        let inc = ai.analyse_incremental(base, &prev, incomplete, "tcl8.6");
+        let mut af = Analyser::new();
+        let full = af.analyse(incomplete, "tcl8.6");
+        assert_eq!(project_result(&inc), project_result(&full));
+        // Stub directive -> fallback path.
+        let stubbed = "# tcl-lsp: stub mycmd\nmycmd a b\n";
+        let mut ai2 = Analyser::new();
+        let inc2 = ai2.analyse_incremental(base, &prev, stubbed, "tcl8.6");
+        let mut af2 = Analyser::new();
+        let full2 = af2.analyse(stubbed, "tcl8.6");
+        assert_eq!(project_result(&inc2), project_result(&full2));
     }
 }

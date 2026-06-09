@@ -60,7 +60,7 @@ pub fn implementation(
                 spans.insert((cd.name_span.start(), cd.name_span.end()));
             }
         }
-        return finish(&line_index, spans);
+        return finish(source, &line_index, spans);
     }
 
     // ---- Case 2/3: the word names a method ----------------------------
@@ -95,15 +95,15 @@ pub fn implementation(
         }
     }
 
-    finish(&line_index, spans)
+    finish(source, &line_index, spans)
 }
 
 /// Materialise the collected `(start, end)` byte spans into
 /// `LspRange`s, in start-offset order.
-fn finish(line_index: &LineIndex, spans: BTreeSet<(u32, u32)>) -> Vec<LspRange> {
+fn finish(source: &str, line_index: &LineIndex, spans: BTreeSet<(u32, u32)>) -> Vec<LspRange> {
     spans
         .into_iter()
-        .map(|(s, e)| span_to_range(line_index, Span::new(s, e)))
+        .map(|(s, e)| span_to_range(source, line_index, Span::new(s, e)))
         .collect()
 }
 

@@ -82,8 +82,8 @@ pub fn code_lenses(
                 .len();
         }
         let title = reference_count_title(count);
-        let start = line_index.position_at(proc_def.name_span.start());
-        let end = line_index.position_at(proc_def.name_span.end());
+        let start = line_index.position_at_utf16(proc_def.name_span.start(), source);
+        let end = line_index.position_at_utf16(proc_def.name_span.end(), source);
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,
@@ -114,8 +114,8 @@ pub fn code_lenses(
                 .len();
         }
         let title = reference_count_title(count);
-        let start = line_index.position_at(class_def.name_span.start());
-        let end = line_index.position_at(class_def.name_span.end());
+        let start = line_index.position_at_utf16(class_def.name_span.start(), source);
+        let end = line_index.position_at_utf16(class_def.name_span.end(), source);
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,
@@ -163,8 +163,8 @@ fn emit_class_member_lenses(
         count
     };
     let push_lens = |name_span: tcl_lexer::Span, title: String, lenses: &mut Vec<CodeLens>| {
-        let start = line_index.position_at(name_span.start());
-        let end = line_index.position_at(name_span.end());
+        let start = line_index.position_at_utf16(name_span.start(), source);
+        let end = line_index.position_at_utf16(name_span.end(), source);
         lenses.push(CodeLens {
             range: LspRange {
                 start_line: start.line,

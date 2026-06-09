@@ -127,10 +127,7 @@ pub fn parse_noqa_line_suppressions(
             std::iter::once("*".to_string()).collect()
         };
         let next_line = i32::try_from(idx).unwrap_or(i32::MAX).saturating_add(1);
-        result
-            .entry(next_line)
-            .or_default()
-            .extend(codes.into_iter());
+        result.entry(next_line).or_default().extend(codes);
     }
     result
 }

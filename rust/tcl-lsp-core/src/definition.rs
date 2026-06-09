@@ -58,20 +58,33 @@ use tcl_lexer::LineIndex;
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 
-/// LSP `Range` analogue — line/character pairs (UTF-16 code
-/// units per the LSP spec; the minimal port treats them as
-/// char counts, matching the Python implementation).
+/// LSP `Range` analogue — line/character pairs in UTF-16 code
+/// units per the LSP spec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LspRange {
     /// Start position (0-based inclusive).
     pub start_line: u32,
-    /// Start character (0-based UTF-16 code units; minimal
-    /// port treats as char counts).
+    /// Start character (0-based UTF-16 code units).
     pub start_character: u32,
     /// End position (0-based exclusive).
     pub end_line: u32,
     /// End character (0-based, exclusive).
     pub end_character: u32,
+}
+
+pub(crate) fn utf16_col_to_char_col(line_text: &str, character: u32) -> usize {
+    let mut utf16 = 0u32;
+    for (idx, ch) in line_text.chars().enumerate() {
+        if utf16 >= character {
+            return idx;
+        }
+        utf16 = utf16.saturating_add(u32::try_from(ch.len_utf16()).expect("len_utf16 fits u32"));
+    }
+    line_text.chars().count()
+}
+
+pub(crate) fn utf16_len(text: &str) -> u32 {
+    u32::try_from(text.encode_utf16().count()).expect("UTF-16 length fits u32")
 }
 
 /// Compute "go-to-definition" locations for the symbol at the
@@ -99,7 +112,7 @@ pub fn definition(
         if let Some(var_def) =
             lookup_var_in_scope_chain(&analysis.global_scope, cursor_offset, &var_name)
         {
-            return vec![span_to_range(&line_index, var_def.definition_span)];
+            return vec![span_to_range(source, &line_index, var_def.definition_span)];
         }
         return Vec::new();
     }
@@ -117,13 +130,13 @@ pub fn definition(
     if let Some((inst, method)) = instance_method_at_cursor(source, line, character) {
         if let Some(class_q) = analysis.instance_classes.get(&inst) {
             if let Some(span) = lookup_method_in_class(analysis, class_q, &method) {
-                return vec![span_to_range(&line_index, span)];
+                return vec![span_to_range(source, &line_index, span)];
             }
         }
     }
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            return vec![span_to_range(&line_index, proc_def.name_span)];
+            return vec![span_to_range(source, &line_index, proc_def.name_span)];
         }
     }
     for class_def in analysis.all_classes.values() {
@@ -131,7 +144,7 @@ pub fn definition(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
-            return vec![span_to_range(&line_index, class_def.name_span)];
+            return vec![span_to_range(source, &line_index, class_def.name_span)];
         }
     }
     // Class-member lookup — when the cursor sits inside a
@@ -141,7 +154,7 @@ pub fn definition(
     // references.
     let cursor_offset = byte_offset_at(source, line, character);
     if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
-        return vec![span_to_range(&line_index, span)];
+        return vec![span_to_range(source, &line_index, span)];
     }
     // Alias resolution — when the cursor's word matches an
     // `interp alias {} ALIAS {} TARGET` recorded in
@@ -153,7 +166,7 @@ pub fn definition(
                 || qname == &alias.target
                 || qname == &format!("::{}", alias.target)
             {
-                return vec![span_to_range(&line_index, proc_def.name_span)];
+                return vec![span_to_range(source, &line_index, proc_def.name_span)];
             }
         }
     }
@@ -246,7 +259,7 @@ pub(crate) fn instance_method_at_cursor(
 ) -> Option<(String, String)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
-    let col = (character as usize).min(chars.len());
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
     let is_ident = |c: char| c.is_alphanumeric() || c == '_' || c == ':';
 
     // Method-name word bounds around the cursor.
@@ -308,32 +321,10 @@ fn lookup_alias<'a>(
         .or_else(|| analysis.command_aliases.get(name))
 }
 
-/// Compute the byte offset of a 0-based `(line, character)`
-/// pair in `source`.  Character indices count chars (matching
-/// Python's behaviour); supplementary-plane code points may
-/// drift by one column under strict UTF-16 semantics —
-/// acceptable for the minimal port.
+/// Compute the byte offset of a 0-based LSP `(line, character)`
+/// pair in `source`. `character` is a UTF-16 code-unit offset.
 pub(crate) fn byte_offset_at(source: &str, line: u32, character: u32) -> u32 {
-    let mut current_line: u32 = 0;
-    let mut current_char_in_line: u32 = 0;
-    let mut byte_offset: u32 = 0;
-    for c in source.chars() {
-        if current_line == line && current_char_in_line == character {
-            return byte_offset;
-        }
-        let len = u32::try_from(c.len_utf8()).unwrap_or(1);
-        if c == '\n' {
-            if current_line == line {
-                return byte_offset;
-            }
-            current_line += 1;
-            current_char_in_line = 0;
-        } else {
-            current_char_in_line += 1;
-        }
-        byte_offset += len;
-    }
-    byte_offset
+    LineIndex::new(source).offset_at_utf16(line, character, source)
 }
 
 /// Walk the scope tree to find the variable definition that
@@ -404,9 +395,13 @@ pub(crate) fn scope_body_spans_at(
         .collect()
 }
 
-pub(crate) fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+pub(crate) fn span_to_range(
+    source: &str,
+    line_index: &LineIndex,
+    span: tcl_lexer::Span,
+) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,
@@ -536,16 +531,36 @@ mod tests {
     }
 
     #[test]
+    fn byte_offset_at_uses_lsp_utf16_columns() {
+        let src = "a😀b";
+        assert_eq!(byte_offset_at(src, 0, 0), 0);
+        assert_eq!(byte_offset_at(src, 0, 1), 1);
+        assert_eq!(byte_offset_at(src, 0, 3), 5);
+        assert_eq!(byte_offset_at(src, 0, 4), 6);
+    }
+
+    #[test]
     fn span_to_range_translates_offsets() {
         let src = "abc\ndef\n";
         let line_index = LineIndex::new(src);
         // Span covering `def` (offsets 4..7).
         let span = tcl_lexer::Span::new(4, 7);
-        let range = span_to_range(&line_index, span);
+        let range = span_to_range(src, &line_index, span);
         assert_eq!(range.start_line, 1);
         assert_eq!(range.start_character, 0);
         assert_eq!(range.end_line, 1);
         assert_eq!(range.end_character, 3);
+    }
+
+    #[test]
+    fn span_to_range_uses_lsp_utf16_columns() {
+        let src = "é😀x\n";
+        let line_index = LineIndex::new(src);
+        let range = span_to_range(src, &line_index, tcl_lexer::Span::new(6, 7));
+        assert_eq!(range.start_line, 0);
+        assert_eq!(range.start_character, 3);
+        assert_eq!(range.end_line, 0);
+        assert_eq!(range.end_character, 4);
     }
 
     // -- S-definition-rich: class-member lookup ---------------------

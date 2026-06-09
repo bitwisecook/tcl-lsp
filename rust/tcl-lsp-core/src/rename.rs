@@ -150,7 +150,7 @@ pub fn prepare_rename(
             &var_name,
         ) {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, var_def.definition_span),
+                range: span_to_range(source, &line_index, var_def.definition_span),
                 placeholder: var_def.name.clone(),
             });
         }
@@ -160,7 +160,7 @@ pub fn prepare_rename(
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, proc_def.name_span),
+                range: span_to_range(source, &line_index, proc_def.name_span),
                 placeholder: proc_def.name.clone(),
             });
         }
@@ -169,7 +169,7 @@ pub fn prepare_rename(
     for (qname, class_def) in &analysis.all_classes {
         if class_def.name == word || qname == &word || qname == &format!("::{word}") {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, class_def.name_span),
+                range: span_to_range(source, &line_index, class_def.name_span),
                 placeholder: class_def.name.clone(),
             });
         }
@@ -183,19 +183,19 @@ pub fn prepare_rename(
         }
         if let Some(m) = class_def.methods.get(&word) {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, m.name_span),
+                range: span_to_range(source, &line_index, m.name_span),
                 placeholder: m.name.clone(),
             });
         }
         if let Some(m) = class_def.class_methods.get(&word) {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, m.name_span),
+                range: span_to_range(source, &line_index, m.name_span),
                 placeholder: m.name.clone(),
             });
         }
         if let Some(p) = class_def.properties.get(&word) {
             return Some(PrepareRename {
-                range: span_to_range(&line_index, p.name_span),
+                range: span_to_range(source, &line_index, p.name_span),
                 placeholder: p.name.clone(),
             });
         }
@@ -269,10 +269,10 @@ pub fn rename(
         return Vec::new();
     };
 
-    if let Some(edits) = rename_proc(&word, new_name, analysis, registry, &line_index) {
+    if let Some(edits) = rename_proc(source, &word, new_name, analysis, registry, &line_index) {
         return edits;
     }
-    if let Some(edits) = rename_class(&word, new_name, analysis, registry, &line_index) {
+    if let Some(edits) = rename_class(source, &word, new_name, analysis, registry, &line_index) {
         return edits;
     }
     // `$obj method` external call site — when the cursor sits
@@ -333,12 +333,12 @@ fn rename_method_in_class(
     let (decl_span, call_spans) =
         crate::references::method_references_for_class(source, dialect, analysis, class_q, method)?;
     let mut edits = vec![TextEdit {
-        range: span_to_range(line_index, decl_span),
+        range: span_to_range(source, line_index, decl_span),
         new_text: new_name.to_owned(),
     }];
     for span in call_spans {
         edits.push(TextEdit {
-            range: span_to_range(line_index, span),
+            range: span_to_range(source, line_index, span),
             new_text: new_name.to_owned(),
         });
     }
@@ -367,7 +367,7 @@ fn rename_var(
     };
     let mut edits = Vec::with_capacity(1 + var_def.references.len());
     edits.push(TextEdit {
-        range: span_to_range(line_index, var_def.definition_span),
+        range: span_to_range(source, line_index, var_def.definition_span),
         new_text: new_name.to_owned(),
     });
     for r in &var_def.references {
@@ -375,7 +375,7 @@ fn rename_var(
         // [`build_var_ref_replacement`].
         let replacement = build_var_ref_replacement(source, *r, new_name);
         edits.push(TextEdit {
-            range: span_to_range(line_index, *r),
+            range: span_to_range(source, line_index, *r),
             new_text: replacement,
         });
     }
@@ -389,6 +389,7 @@ fn rename_var(
 /// a proc matched `word` (even if the edit set ended up empty
 /// from a safety gate); `None` when no proc matched.
 fn rename_proc(
+    source: &str,
     word: &str,
     new_name: &str,
     analysis: &AnalysisResult,
@@ -406,7 +407,7 @@ fn rename_proc(
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
     let mut edits = vec![TextEdit {
-        range: span_to_range(line_index, proc_def.name_span),
+        range: span_to_range(source, line_index, proc_def.name_span),
         new_text: new_decl_text,
     }];
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
@@ -424,7 +425,7 @@ fn rename_proc(
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(TextEdit {
-            range: span_to_range(line_index, inv.range),
+            range: span_to_range(source, line_index, inv.range),
             new_text: replacement,
         });
     }
@@ -438,6 +439,7 @@ fn rename_proc(
 /// minus the resolved-qualified-name matching (the analyser
 /// doesn't populate that for class invocations today).
 fn rename_class(
+    source: &str,
     word: &str,
     new_name: &str,
     analysis: &AnalysisResult,
@@ -456,7 +458,7 @@ fn rename_class(
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);
     let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
     let mut edits = vec![TextEdit {
-        range: span_to_range(line_index, class_def.name_span),
+        range: span_to_range(source, line_index, class_def.name_span),
         new_text: new_decl_text,
     }];
     for inv in &analysis.command_invocations {
@@ -477,7 +479,7 @@ fn rename_class(
         let replacement =
             invocation_replacement(namespace_prefix, &new_qualified, new_name, &inv.name);
         edits.push(TextEdit {
-            range: span_to_range(line_index, inv.range),
+            range: span_to_range(source, line_index, inv.range),
             new_text: replacement,
         });
     }
@@ -525,7 +527,7 @@ fn rename_method(
             .or_else(|| class_def.properties.get(word).map(|p| p.name_span));
         let name_span = member_name_span?;
         let mut edits = vec![TextEdit {
-            range: span_to_range(line_index, name_span),
+            range: span_to_range(source, line_index, name_span),
             new_text: new_name.to_owned(),
         }];
         // Scan every method / classmethod / constructor /
@@ -559,7 +561,7 @@ fn rename_method(
                 word,
             ) {
                 edits.push(TextEdit {
-                    range: span_to_range(line_index, span),
+                    range: span_to_range(source, line_index, span),
                     new_text: new_name.to_owned(),
                 });
             }
@@ -636,7 +638,7 @@ fn scan_body_for_method_calls(
             continue;
         }
         edits.push(TextEdit {
-            range: span_to_range(line_index, head_span),
+            range: span_to_range(source, line_index, head_span),
             new_text: new_name.to_owned(),
         });
     }
@@ -820,9 +822,9 @@ fn namespace_prefix_of(qualified: &str) -> &str {
     }
 }
 
-fn span_to_range(line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
-    let start = line_index.position_at(span.start());
-    let end = line_index.position_at(span.end());
+fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
+    let start = line_index.position_at_utf16(span.start(), source);
+    let end = line_index.position_at_utf16(span.end(), source);
     LspRange {
         start_line: start.line,
         start_character: start.character,

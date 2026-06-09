@@ -215,7 +215,9 @@ pub struct PassContext<'a> {
     /// builtin-fold trust gate.  Set by the `optimise*` entry points; the
     /// bare [`PassContext::new`] test path leaves it at its `Default`
     /// (trust everything), so existing tests are unaffected.  The O129
-    /// builtin const-fold consults [`ModuleCommandMutations::trusts`] so a
+    /// builtin const-fold consults
+    /// [`ModuleCommandMutations::trusts`](crate::command_binding::ModuleCommandMutations::trusts)
+    /// so a
     /// command rebound anywhere in the module is never folded with its
     /// original semantics.
     pub command_mutations: crate::command_binding::ModuleCommandMutations,

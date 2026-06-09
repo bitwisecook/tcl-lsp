@@ -169,11 +169,7 @@ fn collect_command_refs(full: &str, cmd: &SegmentedCommand, out: &mut Vec<Span>)
         }
     };
     match name.as_str() {
-        "pool" => {
-            if !POOL_NON_REFERENCE_KEYWORDS.contains(&head.as_str()) {
-                push(0, out);
-            }
-        }
+        "pool" if !POOL_NON_REFERENCE_KEYWORDS.contains(&head.as_str()) => push(0, out),
         "active_members" | "members" | "snatpool" | "virtual" | "node" => push(0, out),
         "clone" => {
             push(0, out);
@@ -182,27 +178,19 @@ fn collect_command_refs(full: &str, cmd: &SegmentedCommand, out: &mut Vec<Span>)
             }
         }
         // `snat pool NAME` / `LB::status pool NAME` — pool-name at arg 1.
-        "snat" | "lb::status" => {
-            if args.len() >= 2 && head == "pool" {
-                push(1, out);
-            }
-        }
-        "persist" => {
-            if !PERSIST_NON_REFERENCE_KEYWORDS.contains(&head.as_str()) || args[0].starts_with('/')
-            {
-                push(0, out);
-            }
+        "snat" | "lb::status" if args.len() >= 2 && head == "pool" => push(1, out),
+        "persist"
+            if !PERSIST_NON_REFERENCE_KEYWORDS.contains(&head.as_str())
+                || args[0].starts_with('/') =>
+        {
+            push(0, out);
         }
         "class" => collect_class_refs(full, cmd, out),
-        "matchclass" => {
-            if args.len() >= 2 {
-                push(args.len() - 1, out);
-            }
-        }
-        "lb::reselect" => {
-            if args.len() >= 2 && matches!(head.as_str(), "pool" | "snatpool" | "virtual") {
-                push(1, out);
-            }
+        "matchclass" if args.len() >= 2 => push(args.len() - 1, out),
+        "lb::reselect"
+            if args.len() >= 2 && matches!(head.as_str(), "pool" | "snatpool" | "virtual") =>
+        {
+            push(1, out);
         }
         _ => {}
     }
@@ -251,11 +239,7 @@ fn collect_class_refs(full: &str, cmd: &SegmentedCommand, out: &mut Vec<Span>) {
                 push(idx, out);
             }
         }
-        "exists" | "size" | "type" | "get" | "startsearch" => {
-            if args.len() >= 2 {
-                push(1, out);
-            }
-        }
+        "exists" | "size" | "type" | "get" | "startsearch" if args.len() >= 2 => push(1, out),
         _ => {}
     }
 }
