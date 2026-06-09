@@ -319,6 +319,11 @@ def _publish_diagnostics_sync(
 
     cfg = _state.config_for_uri(uri)
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
+    # BIG-IP configuration files have their own diagnostics pipeline
+    # (bigip parser → bigip validator).  The general Tcl analyser
+    # must never be run on their top-level text.
+    if dialect == "f5-bigip":
+        return
     with (
         dialect_scope(dialect=dialect, extra_commands=extras),
         non_ascii_mode_scope(cfg.non_ascii_mode),
@@ -428,6 +433,12 @@ async def _publish_diagnostics_inner(
     *,
     force_reanalyse: bool = False,
 ) -> None:
+    # BIG-IP configuration files have their own diagnostics pipeline
+    # (bigip parser → bigip validator).  The general Tcl analyser must
+    # never be run on their top-level text.
+    if _is_bigip_conf(uri):
+        return
+
     t_start = time.perf_counter()
 
     await asyncio.sleep(0)

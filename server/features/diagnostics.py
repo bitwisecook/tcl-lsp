@@ -723,6 +723,14 @@ def get_basic_diagnostics(
     When *cached_style_diagnostics* is provided, W111/W112/W115 style
     checks are skipped and the cached diagnostics are used instead.
     """
+    # BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are not Tcl
+    # source — they are key-value config stanzas.  The general Tcl analyser
+    # must never be run on their top-level text; doing so misinterprets BIG-IP
+    # encrypted-string markers ($M$…$) as Tcl variable references.  Return an
+    # empty result so downstream callers see zero Tcl diagnostics.
+    if active_dialect() == "f5-bigip":
+        return [], AnalysisResult(), {}
+
     cu = ensure_compilation_unit(source, cu, logger=log, context="diagnostics")
 
     result = analysis if analysis is not None else analyse(source, cu=cu)

@@ -223,6 +223,15 @@ def infer_document_dialect(uri: str, source: str, language_id: str = "") -> str 
     if basename.endswith(_EXPECT_EXTENSIONS):
         return "expect"
 
+    # BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are
+    # not Tcl source — they are key-value config stanzas.  Resolve
+    # their dialect to ``"f5-bigip"`` so the general Tcl analysis
+    # pipeline knows to skip them.
+    from server.workspace.scanner import _BIGIP_CONF_NAMES
+
+    if basename in _BIGIP_CONF_NAMES:
+        return "f5-bigip"
+
     return detect_dialect_from_source(source)
 
 
@@ -258,6 +267,30 @@ def _analyse_document_fresh(
     ContextVar (dialect, extra_commands, W108 non-ASCII mode) must be
     forwarded explicitly and re-applied here.  See issue #407.
     """
+    # BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are
+    # not Tcl source — they are key-value config stanzas that may
+    # embed Tcl fragments (tmsh, iApp APL, iRules).  The general Tcl
+    # analyser must never be run on their top-level text; doing so
+    # misinterprets BIG-IP encrypted-string markers ($M$…$) as Tcl
+    # variable references.  Diagnostics and semantic features for
+    # these files are handled by the bigip-specific parser and
+    # validator in
+    # ``server.diagnostics_pipeline._publish_bigip_diagnostics``.
+    if dialect == "f5-bigip":
+        return {
+            "analysis": None,
+            "compilation_unit": None,
+            "chunks": [],
+            "has_partial": False,
+            "chunk_caches": [],
+            "file_profiles": frozenset(),
+            "buffer": DocumentBuffer.from_source(source, version),
+            "basic_diags": [],
+            "suppressed": {},
+            "conf_wrapped": False,
+            "embedded_rules": [],
+        }
+
     # Ensure diagnostic codes are registered in the subprocess.
     import server._codes_init  # noqa: F401
     from compiler.registry.runtime import configure_signatures
@@ -1489,6 +1522,30 @@ class DocumentState:
         Builds all new state into local variables and swaps a new
         ``_StateSnapshot`` atomically at the end.
         """
+        # BIG-IP configuration files are not Tcl source — skip the
+        # general Tcl analyser entirely.  Their dialect hint is
+        # resolved to ``"f5-bigip"`` by `infer_document_dialect`.
+        if self.dialect_hint == "f5-bigip":
+            t0 = time.perf_counter()
+            self._swap_snapshot(
+                _StateSnapshot(
+                    source=source,
+                    version=version,
+                    analysis=None,
+                    compilation_unit=None,
+                    chunks=new_chunks,
+                    has_partial_commands=has_partial,
+                    file_profiles=frozenset(),
+                    chunk_caches=[],
+                    buffer=self._carry_or_build_buffer(source, version),
+                )
+            )
+            log.info(
+                "[timing] _update_incremental %.0fms (bigip config — skipped Tcl analysis)",
+                (time.perf_counter() - t0) * 1000,
+            )
+            return
+
         t0 = time.perf_counter()
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
@@ -1745,6 +1802,30 @@ class DocumentState:
         Builds all state into local variables and swaps a new
         ``_StateSnapshot`` atomically at the end.
         """
+        # BIG-IP configuration files are not Tcl source — skip the
+        # general Tcl analyser entirely.  Their dialect hint is
+        # resolved to ``"f5-bigip"`` by `infer_document_dialect`.
+        if self.dialect_hint == "f5-bigip":
+            t0 = time.perf_counter()
+            self._swap_snapshot(
+                _StateSnapshot(
+                    source=source,
+                    version=version,
+                    analysis=None,
+                    compilation_unit=None,
+                    chunks=new_chunks,
+                    has_partial_commands=has_partial,
+                    file_profiles=frozenset(),
+                    chunk_caches=[],
+                    buffer=self._carry_or_build_buffer(source, version),
+                )
+            )
+            log.info(
+                "[timing] _update_full %.0fms (bigip config — skipped Tcl analysis)",
+                (time.perf_counter() - t0) * 1000,
+            )
+            return
+
         t0 = time.perf_counter()
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()

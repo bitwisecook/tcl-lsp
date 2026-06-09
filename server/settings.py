@@ -754,6 +754,12 @@ def _apply_merged_settings_now() -> None:
         doc_force_reanalyse = signatures_changed or (
             pre_apply_doc_resolution.get(uri) != new_resolution
         )
+        # BIG-IP configuration files have their own diagnostics
+        # pipeline (bigip parser → bigip validator).  The general
+        # Tcl analyser must never be run on them, so skip the Tcl
+        # re-analysis / re-publish paths.
+        if doc_state.dialect_hint == "f5-bigip":
+            continue
         if doc_force_reanalyse and loop is not None:
             spawn_publish_diagnostics(
                 uri,

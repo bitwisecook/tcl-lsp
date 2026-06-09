@@ -222,9 +222,10 @@ def resolve_dialect_for_uri(
     1. ``detect_dialect_from_source(source)`` — in-source hints (shebang,
        ``# tcl-dialect:`` directive, ``package require Tcl X.Y``, conf-wrapped
        iRules).
-    2. The folder-scoped ``FeatureConfig`` (longest workspace-folder prefix
+    2. BIG-IP configuration file detection (by basename → ``"f5-bigip"``).
+    3. The folder-scoped ``FeatureConfig`` (longest workspace-folder prefix
        match) — its ``dialect`` / ``extra_commands`` fields when set.
-    3. The workspace-fallback ``FeatureConfig`` — same fields.
+    4. The workspace-fallback ``FeatureConfig`` — same fields.
 
     Each component may independently be ``None`` (meaning "inherit the
     process default that ``configure_signatures`` set at server startup /
@@ -241,6 +242,17 @@ def resolve_dialect_for_uri(
         detected = detect_dialect_from_source(source)
         if detected is not None:
             dialect = detected
+
+    # BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are
+    # not Tcl source — they are key-value config stanzas.  Resolve
+    # their dialect to ``"f5-bigip"`` so the general Tcl analysis
+    # pipeline knows to skip them.
+    if dialect is None and doc_uri is not None:
+        from server.workspace.scanner import _BIGIP_CONF_NAMES
+
+        basename = doc_uri.rsplit("/", 1)[-1].lower() if "/" in doc_uri else doc_uri.lower()
+        if basename in _BIGIP_CONF_NAMES:
+            dialect = "f5-bigip"
 
     cfg = config_for_uri(doc_uri)
     if dialect is None and cfg.dialect is not None:
