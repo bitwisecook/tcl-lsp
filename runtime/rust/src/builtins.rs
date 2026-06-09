@@ -19,14 +19,40 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"incr", incr);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
+    interp.register_builtin(b"subst", subst_cmd);
+    crate::cmd_scan::install(interp);
+    crate::cmd_format::install(interp);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
     interp.register_builtin(b"expr", expr_cmd);
+    // `::tcl::mathfunc::*` are real commands `expr`'s function path resolves
+    // through (overridable); they need the tower too.
+    #[cfg(have_tommath)]
+    crate::cmd_mathfunc::install(interp);
+    // `::tcl::mathop::*` — the operators as real commands (tower-gated).
+    #[cfg(have_tommath)]
+    crate::cmd_mathop::install(interp);
     crate::cmd_list::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
     crate::cmd_alias::install(interp);
     crate::cmd_namespace::install(interp);
+    crate::cmd_var::install(interp);
+    crate::cmd_control::install(interp);
+    crate::cmd_proc::install(interp);
+    crate::cmd_error::install(interp);
+    crate::cmd_eval::install(interp);
+    crate::cmd_info::install(interp);
+    crate::cmd_array::install(interp);
+    crate::cmd_switch::install(interp);
+    crate::cmd_package::install(interp);
+    crate::cmd_fs::install(interp);
+    crate::cmd_misc::install(interp);
+    crate::cmd_chan::install(interp);
+    crate::cmd_trace::install(interp);
+    // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
+    #[cfg(have_regex)]
+    crate::cmd_regex::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
@@ -36,10 +62,11 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&msg)
 }
 
-fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
+        VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -56,8 +83,8 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let name = obj_bytes(argv[1]);
             let (base, elem) = split_array_ref(&name);
             let val = match &elem {
-                Some(k) => interp.frames.get_elem(&base, k),
-                None => interp.frames.get(&base),
+                Some(k) => interp.var_get_elem(&base, k),
+                None => interp.var_get(&base),
             };
             match val {
                 Some(o) => {
@@ -70,7 +97,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     // reports — matches `var_error(IsArray)`).
                     let mut msg = b"can't read \"".to_vec();
                     msg.extend_from_slice(&name);
-                    if elem.is_none() && interp.frames.is_array(&base) {
+                    if elem.is_none() && interp.var_is_array(&base) {
                         msg.extend_from_slice(b"\": variable is array");
                     } else {
                         msg.extend_from_slice(b"\": no such variable");
@@ -84,8 +111,8 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let (base, elem) = split_array_ref(&name);
             let value = argv[2];
             let stored = match &elem {
-                Some(k) => interp.frames.set_elem(&base, k, value),
-                None => interp.frames.set(&base, value),
+                Some(k) => interp.var_set_elem(&base, k, value),
+                None => interp.var_set(&base, value),
             };
             match stored {
                 Ok(()) => {
@@ -117,8 +144,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Current cell value (borrowed) or a fresh 0 for an unset variable; the
     // fresh-0 is `rc 0` and freed below whether or not it's used.
     let existing = match &elem {
-        Some(k) => interp.frames.get_elem(&base, k),
-        None => interp.frames.get(&base),
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
     };
     let zero = obj::new_wide_int_obj(0);
     let cur = existing.unwrap_or(zero);
@@ -152,8 +179,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     drop_fresh(one); // `amount` no longer needed
 
     let stored = match &elem {
-        Some(k) => interp.frames.set_elem(&base, k, sum),
-        None => interp.frames.set(&base, sum),
+        Some(k) => interp.var_set_elem(&base, k, sum),
+        None => interp.var_set(&base, sum),
     };
     match stored {
         Ok(()) => {
@@ -199,8 +226,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let obj = obj::new_wide_int_obj(sum); // rc 0
     let stored = match &elem {
-        Some(k) => interp.frames.set_elem(&base, k, obj),
-        None => interp.frames.set(&base, obj),
+        Some(k) => interp.var_set_elem(&base, k, obj),
+        None => interp.var_set(&base, obj),
     };
     match stored {
         Ok(()) => {
@@ -217,8 +244,8 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(have_tommath))]
 fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
     let obj = match elem {
-        Some(k) => interp.frames.get_elem(base, k),
-        None => interp.frames.get(base),
+        Some(k) => interp.var_get_elem(base, k),
+        None => interp.var_get(base),
     }?;
     Some(obj_bytes(obj))
 }
@@ -232,32 +259,139 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
 
 // -- return ----------------------------------------------------------------
 
-/// `return ?value?` — set the result and complete with [`Code::Return`].
-/// (The `-code`/`-options` forms arrive with full `return` support in T1.5.)
+/// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or 0–4) to a
+/// [`Code`]; `None` for an unrecognised spelling.
+fn parse_code(b: &[u8]) -> Option<Code> {
+    match b {
+        b"ok" | b"0" => Some(Code::Ok),
+        b"error" | b"1" => Some(Code::Error),
+        b"return" | b"2" => Some(Code::Return),
+        b"break" | b"3" => Some(Code::Break),
+        b"continue" | b"4" => Some(Code::Continue),
+        _ => None,
+    }
+}
+
+/// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
+/// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
+/// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
+/// by `catch`) seeds the options; explicit flags override it.
 fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() >= 2 {
-        interp.set_result(argv[1]);
+    let mut code = Code::Ok;
+    let mut level: usize = 1;
+    let mut errorcode: Option<Vec<u8>> = None;
+    let mut errorinfo: Option<Vec<u8>> = None;
+
+    let mut i = 1;
+    while i + 1 < argv.len() {
+        let opt = obj_bytes(argv[i]);
+        match opt.as_slice() {
+            b"-code" => match parse_code(&obj_bytes(argv[i + 1])) {
+                Some(c) => code = c,
+                None => {
+                    let mut m = b"bad completion code \"".to_vec();
+                    m.extend_from_slice(&obj_bytes(argv[i + 1]));
+                    m.extend_from_slice(
+                        b"\": must be ok, error, return, break, continue, or an integer",
+                    );
+                    return interp.set_error(&m);
+                }
+            },
+            b"-level" => match core::str::from_utf8(&obj_bytes(argv[i + 1]))
+                .ok()
+                .and_then(|s| s.trim().parse::<usize>().ok())
+            {
+                Some(l) => level = l,
+                None => return interp.set_error(b"bad -level value"),
+            },
+            b"-errorcode" => errorcode = Some(obj_bytes(argv[i + 1])),
+            b"-errorinfo" => errorinfo = Some(obj_bytes(argv[i + 1])),
+            b"-options" => {
+                // Seed code/level/errorcode/errorinfo from the options dict.
+                let opts = obj_bytes(argv[i + 1]);
+                if let Ok(d) = crate::parse::split_list(&opts) {
+                    let mut j = 0;
+                    while j + 1 < d.len() {
+                        match d[j].as_slice() {
+                            b"-code" => code = parse_code(&d[j + 1]).unwrap_or(code),
+                            b"-level" => {
+                                level = core::str::from_utf8(&d[j + 1])
+                                    .ok()
+                                    .and_then(|s| s.trim().parse().ok())
+                                    .unwrap_or(level);
+                            }
+                            b"-errorcode" => errorcode = Some(d[j + 1].clone()),
+                            b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
+                            _ => {}
+                        }
+                        j += 2;
+                    }
+                }
+            }
+            _ => break, // not an option → the result word
+        }
+        i += 2;
+    }
+    // The optional trailing result word.
+    if i < argv.len() {
+        interp.set_result(argv[i]);
     } else {
         interp.set_result_bytes(b"");
     }
-    Code::Return
+    // On an error completion, stamp the error globals (like `error`).
+    if code == Code::Error {
+        let info = errorinfo.unwrap_or_else(|| obj_bytes(interp.get_obj_result()));
+        let ecode = errorcode.unwrap_or_else(|| b"NONE".to_vec());
+        set_global(interp, b"::errorInfo", &info);
+        set_global(interp, b"::errorCode", &ecode);
+    }
+    if level == 0 {
+        // No unwinding: complete with `code` right here.
+        code
+    } else {
+        interp.set_return_state(level, code);
+        Code::Return
+    }
+}
+
+/// Set a global (`::name`) to `bytes` (for the error globals).
+fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
+    let o = obj::new_string_bytes(bytes);
+    if interp.var_set(name, o).is_err() {
+        drop_fresh(o);
+    }
 }
 
 // -- unset -----------------------------------------------------------------
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return wrong_args(interp, b"unset ?varName ...?");
+    // `unset ?-nocomplain? ?--? ?name name ...?`. `-nocomplain` suppresses the
+    // no-such-variable error; `--` ends option parsing (so a var literally named
+    // `-nocomplain` can still be unset).
+    let mut i = 1;
+    let mut nocomplain = false;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-nocomplain" => {
+                nocomplain = true;
+                i += 1;
+            }
+            b"--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
+        }
     }
-    for &a in &argv[1..] {
+    for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
         let existed = match &elem {
-            Some(k) => interp.frames.unset_elem(&base, k),
-            None => interp.frames.unset(&base),
+            Some(k) => interp.var_unset_elem(&base, k),
+            None => interp.var_unset(&base),
         };
-        if !existed {
+        if !existed && !nocomplain {
             let mut msg = b"can't unset \"".to_vec();
             msg.extend_from_slice(&name);
             msg.extend_from_slice(b"\": no such variable");
@@ -266,6 +400,35 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+/// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform the
+/// requested substitutions on `string` (default: all three). Errors from an
+/// unset variable or a failing command substitution propagate.
+fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
+    let mut flags = crate::subst::SubstFlags::default();
+    let mut i = 1;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-nobackslashes" => flags.backslashes = false,
+            b"-nocommands" => flags.cmds = false,
+            b"-novariables" => flags.vars = false,
+            _ => break,
+        }
+        i += 1;
+    }
+    if i != argv.len() - 1 {
+        return wrong_args(interp, USAGE);
+    }
+    let src = obj_bytes(argv[i]);
+    match interp.do_subst(&src, flags) {
+        Ok(bytes) => {
+            interp.set_result_bytes(&bytes);
+            Code::Ok
+        }
+        Err(code) => code, // the failing sub already set the result
+    }
 }
 
 // -- helpers ---------------------------------------------------------------
@@ -326,9 +489,27 @@ struct InterpExprCtx<'a> {
 impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     fn read_var(&mut self, name: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         let (base, elem) = split_array_ref(name.as_bytes());
+        // `expr {$arr($i)}`: the array index is itself substituted (Tcl parses
+        // `$name(index)` with `$`/`[`/`\` substitution in the index).
+        let elem = match elem {
+            Some(k) if k.iter().any(|&c| matches!(c, b'$' | b'[' | b'\\')) => {
+                match self
+                    .interp
+                    .do_subst(&k, crate::subst::SubstFlags::default())
+                {
+                    Ok(v) => Some(v),
+                    Err(_) => {
+                        return Err(crate::expr::ExprError(obj_bytes(
+                            self.interp.get_obj_result(),
+                        )))
+                    }
+                }
+            }
+            other => other,
+        };
         let obj = match &elem {
-            Some(k) => self.interp.frames.get_elem(&base, k),
-            None => self.interp.frames.get(&base),
+            Some(k) => self.interp.var_get_elem(&base, k),
+            None => self.interp.var_get(&base),
         };
         match obj {
             Some(o) => Ok(crate::expr::Owned::retain(o)),
@@ -343,6 +524,23 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
 
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         if self.interp.eval_str(script.as_bytes()) == Code::Error {
+            return Err(crate::expr::ExprError(obj_bytes(
+                self.interp.get_obj_result(),
+            )));
+        }
+        Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+    }
+
+    fn call_function(
+        &mut self,
+        name: &str,
+        args: &[crate::expr::Owned],
+    ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        // Route through the command table so an overridden/renamed
+        // `::tcl::mathfunc::NAME` wins (A3); the default builtins forward to the
+        // shared dispatch. Args are passed as live objects (object-preserving).
+        let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
+        if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
             return Err(crate::expr::ExprError(obj_bytes(
                 self.interp.get_obj_result(),
             )));
@@ -383,5 +581,90 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Err(e) => interp.set_error(&e.0),
+    }
+}
+
+/// Evaluate `src` as a Tcl expression and coerce the result to a boolean — the
+/// condition evaluator `if`/`while`/`for` share. `Err(code)` carries the
+/// completion code (with the interp result already set to the error message).
+#[cfg(have_tommath)]
+pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Code> {
+    let Ok(s) = core::str::from_utf8(src) else {
+        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let node = tcl_syntax::expr::parse_expr(s, None);
+    let result = {
+        let mut ctx = InterpExprCtx {
+            interp: &mut *interp,
+        };
+        crate::expr::eval_expr(&node, &mut ctx)
+    };
+    match result {
+        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
+        Err(e) => Err(interp.set_error(&e.0)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::counters;
+    use crate::interp::{Code, Interp};
+
+    fn leak_free(body: impl FnOnce(&mut Interp)) {
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            body(&mut interp);
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        assert_eq!(
+            i.eval_str(src),
+            Code::Ok,
+            "eval {:?} → {:?}",
+            String::from_utf8_lossy(src),
+            String::from_utf8_lossy(&i.result_bytes())
+        );
+        i.result_bytes()
+    }
+
+    #[test]
+    fn subst_variables_commands_backslashes() {
+        leak_free(|i| {
+            ok(i, b"set x hello");
+            assert_eq!(ok(i, b"subst {$x world}"), b"hello world");
+            assert_eq!(ok(i, b"subst {[set x] world}"), b"hello world");
+            // -nocommands leaves [ ] literal but still substitutes $x.
+            assert_eq!(ok(i, b"subst -nocommands {$x [foo]}"), b"hello [foo]");
+            // -novariables leaves $x literal.
+            assert_eq!(ok(i, b"subst -novariables {$x}"), b"$x");
+            // an unset variable is an error.
+            assert_eq!(i.eval_str(b"subst {$nope}"), Code::Error);
+            i.eval_str(b"unset -nocomplain x");
+        });
+    }
+
+    #[test]
+    fn unset_nocomplain_and_dashdash() {
+        leak_free(|i| {
+            // -nocomplain suppresses the no-such-variable error.
+            assert_eq!(i.eval_str(b"unset -nocomplain nope"), Code::Ok);
+            // without it, unsetting a missing var errors.
+            assert_eq!(i.eval_str(b"unset alsonope"), Code::Error);
+            // `--` ends options, so a var literally named -nocomplain is unset.
+            ok(i, b"set -nocomplain 1");
+            assert_eq!(i.eval_str(b"unset -- -nocomplain"), Code::Ok);
+            assert_eq!(i.eval_str(b"info exists -nocomplain"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+        });
     }
 }

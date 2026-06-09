@@ -15,6 +15,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use crate::ensemble::{EnsembleConfig, EnsembleMap};
 use crate::interp::{obj_bytes, Code, Command, Interp};
 use crate::list;
 use crate::namespace::NsId;
@@ -45,14 +46,18 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"qualifiers" => ns_qualifiers(interp, argv),
         b"tail" => ns_tail(interp, argv),
         b"which" => ns_which(interp, argv),
+        b"origin" => ns_origin(interp, argv),
         b"export" => ns_export(interp, argv),
         b"import" => ns_import(interp, argv),
         b"forget" => ns_forget(interp, argv),
         b"path" => ns_path(interp, argv),
+        b"ensemble" => ns_ensemble(interp, argv),
+        b"inscope" => ns_inscope(interp, argv),
+        b"code" => ns_code(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, current, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
+            m.extend_from_slice(b"\": must be children, current, ensemble, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
             interp.set_error(&m)
         }
     }
@@ -454,6 +459,183 @@ fn drop_fresh(obj: *mut TclObj) {
     }
 }
 
+/// `namespace inscope ns cmd ?arg ...?` — evaluate `cmd` (with the extra args
+/// appended) in namespace `ns`. Like `namespace eval` but used by
+/// `namespace code` scripts. (The extra args are space-appended — the
+/// list-element-quoting refinement matters only for the multi-arg form.)
+fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"namespace inscope name arg ?arg...?");
+    }
+    let name = obj_bytes(argv[2]);
+    let mut script = obj_bytes(argv[3]);
+    for &a in &argv[4..] {
+        script.push(b' ');
+        script.extend_from_slice(&obj_bytes(a));
+    }
+    interp.ns_eval(&name, &script)
+}
+
+/// `namespace origin command` — the fully-qualified original name of `command`
+/// (following `namespace import` chains to the source).
+fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"namespace origin name");
+    }
+    let name = obj_bytes(argv[2]);
+    let cur = interp.current_ns();
+    match interp.namespaces().command_origin(cur, &name) {
+        Some(fqn) => {
+            interp.set_result_bytes(&fqn);
+            Code::Ok
+        }
+        None => {
+            let mut m = b"invalid command name \"".to_vec();
+            m.extend_from_slice(&name);
+            m.push(b'"');
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `namespace code script` — capture `script` together with the current
+/// namespace so it can be evaluated later in the right context (used by
+/// callbacks). Returns `::namespace inscope <currentNs> <script>`, built as a
+/// proper list so `script` is correctly quoted. A script that is already such a
+/// capture is returned unchanged (`NamespaceCodeCmd`, `tclNamesp.c`).
+fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"namespace code arg");
+    }
+    let script = obj_bytes(argv[2]);
+    // Idempotent for an existing capture (matches C's leading-token check).
+    if script.starts_with(b"::namespace inscope ") || script.starts_with(b"namespace inscope ") {
+        interp.set_result(argv[2]);
+        return Code::Ok;
+    }
+    let cur = interp.current_ns();
+    let ns_name = interp.namespaces().qualified_name(cur);
+    let elems = [
+        crate::interp::new_string(b"::namespace"),
+        crate::interp::new_string(b"inscope"),
+        crate::interp::new_string(&ns_name),
+        crate::interp::new_string(&script),
+    ];
+    interp.set_result(crate::list::new_list_obj(&elems));
+    Code::Ok
+}
+
+// -- ensemble --------------------------------------------------------------
+
+/// `namespace ensemble create|exists ...` — the canonical `ens sub`→target
+/// redirect (the generalised `dict for`→`::tcl::dict::for` mechanism).
+fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return wrong_args(interp, b"namespace ensemble subcommand ?arg ...?");
+    }
+    match obj_bytes(argv[2]).as_slice() {
+        b"create" => ens_create(interp, argv),
+        b"exists" => ens_exists(interp, argv),
+        other => {
+            // `configure` is a follow-up; only create/exists are modelled.
+            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            m.extend_from_slice(other);
+            m.extend_from_slice(b"\": must be create, or exists");
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `namespace ensemble create ?-command name? ?-map dict? ?-subcommands list?
+/// ?-prefixes bool?` — register an ensemble over the current namespace.
+fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let ns = interp.current_ns();
+    // Default ensemble command is the namespace's own FQN.
+    let mut command = interp.namespaces().qualified_name(ns);
+    let mut map: Option<EnsembleMap> = None;
+    let mut subcommands: Option<Vec<Vec<u8>>> = None;
+    let mut prefixes = true;
+
+    let opts = &argv[3..];
+    if opts.len() % 2 != 0 {
+        return interp.set_error(b"missing value for option");
+    }
+    for pair in opts.chunks_exact(2) {
+        let (opt, val) = (obj_bytes(pair[0]), pair[1]);
+        match opt.as_slice() {
+            b"-command" => command = obj_bytes(val),
+            b"-subcommands" => match crate::parse::split_list(&obj_bytes(val)) {
+                Ok(list) => subcommands = Some(list),
+                Err(e) => return interp.set_error(e.message()),
+            },
+            b"-map" => match parse_map(&obj_bytes(val)) {
+                Ok(m) => map = Some(m),
+                Err(e) => return interp.set_error(&e),
+            },
+            b"-prefixes" => match parse_bool(&obj_bytes(val)) {
+                Some(b) => prefixes = b,
+                None => {
+                    let mut m = b"expected boolean value but got \"".to_vec();
+                    m.extend_from_slice(&obj_bytes(val));
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            },
+            _ => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(&opt);
+                m.extend_from_slice(b"\": should be -command, -map, -prefixes, or -subcommands");
+                return interp.set_error(&m);
+            }
+        }
+    }
+
+    interp.create_ensemble(
+        &command,
+        EnsembleConfig {
+            ns,
+            map,
+            subcommands,
+            prefixes,
+        },
+    );
+    interp.set_result_bytes(&command);
+    Code::Ok
+}
+
+/// `namespace ensemble exists command` — 1 if it resolves to an ensemble.
+fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"namespace ensemble exists cmd");
+    }
+    let exists = interp.is_ensemble(&obj_bytes(argv[3]));
+    interp.set_result_bytes(if exists { b"1" } else { b"0" });
+    Code::Ok
+}
+
+/// Parse a `-map` dict (`sub {target prefix} …`) into (subcommand, prefix-words).
+fn parse_map(bytes: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
+    let kvs = crate::parse::split_list(bytes).map_err(|e| e.message().to_vec())?;
+    if kvs.len() % 2 != 0 {
+        return Err(b"missing value to go with key".to_vec());
+    }
+    let mut map = Vec::with_capacity(kvs.len() / 2);
+    for pair in kvs.chunks_exact(2) {
+        let prefix = crate::parse::split_list(&pair[1]).map_err(|e| e.message().to_vec())?;
+        map.push((pair[0].clone(), prefix));
+    }
+    Ok(map)
+}
+
+/// Tcl boolean literal (`Tcl_GetBoolean`) for `-prefixes`.
+fn parse_bool(bytes: &[u8]) -> Option<bool> {
+    match bytes.to_ascii_lowercase().as_slice() {
+        b"1" | b"true" | b"yes" | b"on" => Some(true),
+        b"0" | b"false" | b"no" | b"off" => Some(false),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::counters;
@@ -550,11 +732,16 @@ mod tests {
                 i.eval_str(b"namespace eval app { namespace path ::lib }"),
                 Code::Ok
             );
-            // Now from ::app, bare `ping` resolves through the path.
+            // Now from ::app, bare `ping` resolves through the path. Its body
+            // `set pinged` runs with the current namespace = ::app, so the
+            // variable lands in ::app's table (NOT global — the T1.5 var-namespace
+            // fix; before it, every unqualified `set` leaked to the global frame).
             assert_eq!(i.eval_str(b"namespace eval app { ping yes }"), Code::Ok);
             assert_eq!(i.result_bytes(), b"yes");
-            assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::app::pinged"), Code::Ok);
             assert_eq!(i.result_bytes(), b"yes");
+            // …and it is NOT visible as a bare global.
+            assert_eq!(i.eval_str(b"set pinged"), Code::Error);
         });
     }
 
@@ -570,7 +757,8 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.eval_str(b"namespace eval app { greet hi }"), Code::Ok);
-            assert_eq!(i.eval_str(b"set greeted"), Code::Ok);
+            // `set greeted` ran in ::app (the call's current namespace).
+            assert_eq!(i.eval_str(b"set ::app::greeted"), Code::Ok);
             assert_eq!(i.result_bytes(), b"hi");
             // Forget removes the redirect.
             assert_eq!(
@@ -616,6 +804,104 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.result_bytes(), b"::lib");
+        });
+    }
+
+    // -- ensembles (targets are aliases, since procs aren't available yet) -----
+
+    #[test]
+    fn ensemble_default_dispatches_to_namespace_commands() {
+        leak_free(|i| {
+            // ::foo::{bar,baz} as alias→set; export + ensemble over ::foo.
+            i.eval_str(b"interp alias {} ::foo::bar {} set");
+            i.eval_str(b"interp alias {} ::foo::baz {} set");
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval foo { namespace export bar baz; namespace ensemble create }"
+                ),
+                Code::Ok
+            );
+            // `foo bar v 42` → ::foo::bar v 42 → set v 42.
+            assert_eq!(i.eval_str(b"foo bar v 42"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            assert_eq!(i.eval_str(b"set v"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            i.eval_str(b"unset v");
+        });
+    }
+
+    #[test]
+    fn ensemble_prefix_match_and_ambiguity() {
+        leak_free(|i| {
+            i.eval_str(b"interp alias {} ::foo::bar {} set");
+            i.eval_str(b"interp alias {} ::foo::baz {} set");
+            i.eval_str(
+                b"namespace eval foo { namespace export bar baz; namespace ensemble create }",
+            );
+            // `ba`/`b` are ambiguous between bar and baz.
+            assert_eq!(i.eval_str(b"foo ba v 1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"ba\": must be bar, or baz"
+            );
+            assert_eq!(i.eval_str(b"foo nope v 1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"nope\": must be bar, or baz"
+            );
+            i.eval_str(b"unset v"); // bar/baz never ran; v is unset → ignore result
+        });
+    }
+
+    #[test]
+    fn ensemble_map_and_subcommands() {
+        leak_free(|i| {
+            // -map a subcommand to a concrete (builtin) target.
+            assert_eq!(
+                i.eval_str(b"namespace eval m { namespace ensemble create -map {go ::set} }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"m go v 7"), Code::Ok); // → ::set v 7
+            assert_eq!(i.result_bytes(), b"7");
+            // a non-mapped subcommand is unknown (the map keys are the set).
+            assert_eq!(i.eval_str(b"m set v 7"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"set\": must be go"
+            );
+            i.eval_str(b"unset v");
+        });
+    }
+
+    #[test]
+    fn ensemble_command_option_and_prefixes_off() {
+        leak_free(|i| {
+            // -command names the ensemble cmd; -prefixes 0 disables prefix match.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval q { namespace ensemble create -command ::top -subcommands longname -map {longname ::set} -prefixes 0 }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"top longname v 9"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9");
+            assert_eq!(i.eval_str(b"top long v 9"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown subcommand \"long\": must be longname"
+            );
+            i.eval_str(b"unset v");
+        });
+    }
+
+    #[test]
+    fn ensemble_exists() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval foo { namespace ensemble create }");
+            assert_eq!(i.eval_str(b"namespace ensemble exists foo"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"namespace ensemble exists ::nope"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
         });
     }
 }

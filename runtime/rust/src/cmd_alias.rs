@@ -77,6 +77,11 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match obj_bytes(argv[1]).as_slice() {
         b"alias" => interp_alias(interp, argv),
         b"aliases" => interp_aliases(interp, argv),
+        // Single-interp runtime: `issafe`/`exists ""` describe the one interp.
+        b"issafe" => {
+            interp.set_result_bytes(b"0");
+            Code::Ok
+        }
         other => {
             let mut m = b"interp subcommand \"".to_vec();
             m.extend_from_slice(other);

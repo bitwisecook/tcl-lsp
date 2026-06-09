@@ -141,9 +141,11 @@ extern "C" fn dict_update_string(obj: *mut TclObj) {
             if i > 0 {
                 buf.push(b' ');
             }
-            crate::list::append_list_element(&mut buf, &obj::bytes_of(*k));
+            // Only the very first element of the flattened list quotes a
+            // leading `#` (the comment-safety rule applies to list position 0).
+            crate::list::append_list_element(&mut buf, &obj::bytes_of(*k), i == 0);
             buf.push(b' ');
-            crate::list::append_list_element(&mut buf, &obj::bytes_of(*v));
+            crate::list::append_list_element(&mut buf, &obj::bytes_of(*v), false);
         }
         obj::set_string_rep(obj, &buf);
     }

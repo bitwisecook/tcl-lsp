@@ -28,7 +28,7 @@ impl ExprError {
     }
 }
 
-fn arith_err(e: ArithError) -> ExprError {
+pub(crate) fn arith_err(e: ArithError) -> ExprError {
     ExprError::msg(match e {
         ArithError::NonNumeric => b"can't use non-numeric string as operand of arithmetic",
         ArithError::NonInteger => b"can't use floating-point value as operand of bitwise op",
@@ -97,6 +97,34 @@ pub trait ExprCtx {
     fn read_var(&mut self, name: &str) -> Result<Owned, ExprError>;
     /// Evaluate a `[script]` (brackets stripped) to an owned result.
     fn eval_command(&mut self, script: &str) -> Result<Owned, ExprError>;
+    /// Evaluate a `func(args…)` math-function call. The interp routes this
+    /// through the command table (`::tcl::mathfunc::func`, so user overrides
+    /// win — the A3 contract); the standalone evaluator falls back to the shared
+    /// [`dispatch_shared`] built-in dispatch.
+    fn call_function(&mut self, name: &str, args: &[Owned]) -> Result<Owned, ExprError>;
+}
+
+/// The shared built-in math-function dispatch over the tower
+/// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
+/// overridable command. `args` are the already-evaluated operands.
+pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
+    use tcl_syntax::expr::mathfunc::{dispatch, Num};
+    let nums: Option<Vec<Num>> = args
+        .iter()
+        .map(|o| crate::bignum::as_math_num(o.ptr()))
+        .collect();
+    let nums =
+        nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
+    match dispatch(&name.to_ascii_lowercase(), &nums) {
+        Some(Num::Int(i)) => Ok(Owned::fresh(obj::new_wide_int_obj(i))),
+        Some(Num::Float(f)) => Ok(Owned::fresh(obj::new_double_obj(f))),
+        None => {
+            let mut m = b"unknown math function \"".to_vec();
+            m.extend_from_slice(name.as_bytes());
+            m.push(b'"');
+            Err(ExprError(m))
+        }
+    }
 }
 
 /// The tower [`ExprOps`] over an [`ExprCtx`].
@@ -121,29 +149,10 @@ impl ExprOps for TowerOps<'_> {
         self.ctx.eval_command(script)
     }
     fn call(&mut self, function: &str, args: Vec<Owned>) -> Result<Owned, ExprError> {
-        use tcl_syntax::expr::mathfunc::{dispatch, Num};
-        // Math functions are the shared `tcl_syntax::expr::mathfunc` dispatch
-        // (the same one the compiler const-folds with). When namespaces land
-        // (T1.5), a user-defined `::tcl::mathfunc::NAME` is resolved through the
-        // command table first; `rand`/`srand` (RNG state) come with that too.
-        let name = function.to_ascii_lowercase();
-        let nums: Option<Vec<Num>> = args
-            .iter()
-            .map(|o| crate::bignum::as_math_num(o.ptr()))
-            .collect();
-        let nums = nums.ok_or_else(|| {
-            ExprError::msg(b"argument to math function didn't have numeric value")
-        })?;
-        match dispatch(&name, &nums) {
-            Some(Num::Int(i)) => Ok(Owned::fresh(obj::new_wide_int_obj(i))),
-            Some(Num::Float(f)) => Ok(Owned::fresh(obj::new_double_obj(f))),
-            None => {
-                let mut m = b"unknown math function \"".to_vec();
-                m.extend_from_slice(function.as_bytes());
-                m.push(b'"');
-                Err(ExprError(m))
-            }
-        }
+        // Resolve `func(…)` through the context: the interp routes it to the
+        // command table (`::tcl::mathfunc::func`, so overrides/renames win — A3),
+        // falling back to the shared built-in dispatch for the standalone case.
+        self.ctx.call_function(function, &args)
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
@@ -218,7 +227,7 @@ pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprEr
 // ---- value helpers ---------------------------------------------------------
 
 /// Tcl boolean coercion (`Tcl_GetBoolean`): the keywords or any non-zero number.
-fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
+pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let bytes = obj::bytes_of(o);
     let s = core::str::from_utf8(&bytes).unwrap_or("");
     match s.trim().to_ascii_lowercase().as_str() {
@@ -283,6 +292,10 @@ mod tests {
         }
         fn eval_command(&mut self, _script: &str) -> Result<Owned, ExprError> {
             Err(ExprError::msg(b"no commands"))
+        }
+        fn call_function(&mut self, name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
+            // No command table in the mock — use the shared built-in dispatch.
+            dispatch_shared(name, args)
         }
     }
 

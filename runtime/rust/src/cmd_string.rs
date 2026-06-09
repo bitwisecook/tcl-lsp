@@ -34,7 +34,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     if values.is_empty() {
         // `append x` with no values just reads the variable.
-        return match interp.frames.get(&name) {
+        return match interp.var_get(&name) {
             Some(o) => {
                 interp.set_result(o);
                 Code::Ok
@@ -45,7 +45,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Pick the target: in place if it's an unshared plain string; else a fresh
     // plain string seeded from the current value (or empty).
-    let (target, is_new) = match interp.frames.get(&name) {
+    let (target, is_new) = match interp.var_get(&name) {
         Some(o) if obj::is_plain_string(o) && !obj::is_shared(o) => (o, false),
         Some(o) => (obj::new_string_bytes(&obj_bytes(o)), true), // typed/shared → copy
         None => (obj::new_string_bytes(b""), true),
@@ -56,7 +56,7 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         obj::string_append_inplace(target, &bytes);
     }
 
-    if is_new && interp.frames.set(&name, target).is_err() {
+    if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
@@ -87,6 +87,9 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"trimright" => str_trim(interp, argv, false, true),
         b"first" => str_first_last(interp, argv, true),
         b"last" => str_first_last(interp, argv, false),
+        b"match" => str_match(interp, argv),
+        b"map" => str_map(interp, argv),
+        b"is" => str_is(interp, argv),
         _ => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(&sub);
@@ -333,6 +336,268 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
     Code::Ok
 }
 
+/// `string match ?-nocase? pattern string` — glob match (the shared
+/// `tcl_syntax::glob` engine, so the dialect never drifts from the compiler /
+/// `switch -glob` / `lsearch -glob`).
+fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let mut rest = &argv[2..];
+    let mut nocase = false;
+    if !rest.is_empty() && obj_bytes(rest[0]) == b"-nocase" {
+        nocase = true;
+        rest = &rest[1..];
+    }
+    if rest.len() != 2 {
+        return wrong_args(interp, b"string match ?-nocase? pattern string");
+    }
+    let pat = obj_bytes(rest[0]);
+    let s = obj_bytes(rest[1]);
+    let m = tcl_syntax::glob::string_case_match(
+        &String::from_utf8_lossy(&pat),
+        &String::from_utf8_lossy(&s),
+        nocase,
+    );
+    interp.set_result_bytes(if m { b"1" } else { b"0" });
+    Code::Ok
+}
+
+/// `string map ?-nocase? mapping string` — apply key→value replacements,
+/// scanning left to right and trying the keys in list order (first match wins,
+/// then skip past the replacement), per `tclCmdMZ.c` `StringMapCmd`.
+fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let mut rest = &argv[2..];
+    let mut nocase = false;
+    if !rest.is_empty() && obj_bytes(rest[0]) == b"-nocase" {
+        nocase = true;
+        rest = &rest[1..];
+    }
+    if rest.len() != 2 {
+        return wrong_args(interp, b"string map ?-nocase? charMap string");
+    }
+    let mapping = obj_bytes(rest[0]);
+    let s = obj_bytes(rest[1]);
+    let pairs = match crate::parse::split_list(&mapping) {
+        Ok(p) => p,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    if pairs.len() % 2 != 0 {
+        return interp.set_error(b"char map list unbalanced");
+    }
+
+    let mut out = Vec::with_capacity(s.len());
+    let mut i = 0;
+    'scan: while i < s.len() {
+        let mut k = 0;
+        while k < pairs.len() {
+            let key = &pairs[k];
+            if !key.is_empty() && i + key.len() <= s.len() {
+                let region = &s[i..i + key.len()];
+                let hit = if nocase {
+                    region.eq_ignore_ascii_case(key)
+                } else {
+                    region == key.as_slice()
+                };
+                if hit {
+                    out.extend_from_slice(&pairs[k + 1]);
+                    i += key.len();
+                    continue 'scan;
+                }
+            }
+            k += 2;
+        }
+        // No key matched here: copy one whole UTF-8 character verbatim.
+        let cl = utf8_len(s[i]).min(s.len() - i);
+        out.extend_from_slice(&s[i..i + cl]);
+        i += cl;
+    }
+    interp.set_result_bytes(&out);
+    Code::Ok
+}
+
+/// The recognised `string is` classes, for the bad-class diagnostic and to
+/// reject unknown classes before scanning.
+const IS_CLASSES: &[&[u8]] = &[
+    b"alnum",
+    b"alpha",
+    b"ascii",
+    b"boolean",
+    b"control",
+    b"digit",
+    b"double",
+    b"entier",
+    b"false",
+    b"graph",
+    b"integer",
+    b"list",
+    b"lower",
+    b"print",
+    b"punct",
+    b"space",
+    b"true",
+    b"upper",
+    b"wideinteger",
+    b"wordchar",
+    b"xdigit",
+];
+
+/// `string is class ?-strict? ?-failindex var? string`. Returns 1/0; with
+/// `-failindex`, stores the first failing character index (or -1) in `var`.
+/// Empty input is a class member unless `-strict`.
+fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
+    if argv.len() < 4 {
+        return wrong_args(interp, USAGE);
+    }
+    let class = obj_bytes(argv[2]);
+    if !IS_CLASSES.contains(&class.as_slice()) {
+        let mut m = b"bad class \"".to_vec();
+        m.extend_from_slice(&class);
+        m.extend_from_slice(b"\": must be alnum, alpha, ascii, boolean, control, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit");
+        return interp.set_error(&m);
+    }
+
+    let last = argv.len() - 1;
+    let mut strict = false;
+    let mut failvar: Option<Vec<u8>> = None;
+    let mut k = 3;
+    while k < last {
+        match obj_bytes(argv[k]).as_slice() {
+            b"-strict" => k += 1,
+            b"-failindex" if k + 1 < last => {
+                failvar = Some(obj_bytes(argv[k + 1]));
+                k += 2;
+            }
+            _ => return wrong_args(interp, USAGE),
+        }
+    }
+    // `-strict` may appear after `-failindex`; rescan for it (order-free).
+    for &a in &argv[3..last] {
+        if obj_bytes(a) == b"-strict" {
+            strict = true;
+        }
+    }
+
+    let s = obj_bytes(argv[last]);
+    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
+
+    let (ok, fail_index): (bool, i64) = if chars.is_empty() {
+        (!strict, -1)
+    } else {
+        match class.as_slice() {
+            b"integer" | b"wideinteger" | b"entier" => whole(is_tcl_integer(&chars), &chars),
+            b"double" => whole(is_tcl_double(&chars), &chars),
+            b"boolean" | b"true" | b"false" => whole(is_tcl_boolean(&chars, &class), &chars),
+            b"list" => whole(crate::parse::split_list(&s).is_ok(), &chars),
+            _ => {
+                // Per-character class: first failing char index.
+                match chars.iter().position(|&c| !char_class_ok(&class, c)) {
+                    Some(i) => (false, i as i64),
+                    None => (true, -1),
+                }
+            }
+        }
+    };
+
+    if let Some(var) = failvar {
+        let o = obj::new_wide_int_obj(if ok { -1 } else { fail_index });
+        if interp.var_set(&var, o).is_err() {
+            drop_fresh(o);
+            return cant_set(interp, &var);
+        }
+    }
+    interp.set_result_bytes(if ok { b"1" } else { b"0" });
+    Code::Ok
+}
+
+/// A whole-string class result: on failure the fail index is the length (no
+/// single offending char to point at), matching Tcl's behaviour closely enough
+/// for the classes the library exercises.
+fn whole(ok: bool, chars: &[char]) -> (bool, i64) {
+    if ok {
+        (true, -1)
+    } else {
+        (false, chars.len() as i64)
+    }
+}
+
+/// Per-character `string is` class membership.
+fn char_class_ok(class: &[u8], c: char) -> bool {
+    match class {
+        b"alnum" => c.is_alphanumeric(),
+        b"alpha" => c.is_alphabetic(),
+        b"ascii" => (c as u32) < 0x80,
+        b"control" => c.is_control(),
+        b"digit" => c.is_numeric(),
+        b"graph" => !c.is_whitespace() && !c.is_control() && (c as u32) != 0x20,
+        b"lower" => c.is_lowercase(),
+        b"print" => !c.is_control(),
+        b"punct" => c.is_ascii_punctuation(),
+        b"space" => c.is_whitespace(),
+        b"upper" => c.is_uppercase(),
+        b"wordchar" => c.is_alphanumeric() || c == '_',
+        b"xdigit" => c.is_ascii_hexdigit(),
+        _ => false,
+    }
+}
+
+/// Tcl integer literal: optional sign, then decimal, or `0x`/`0o`/`0b` radix
+/// prefixes. No surrounding whitespace (`string is` is stricter than `expr`).
+fn is_tcl_integer(chars: &[char]) -> bool {
+    let mut i = 0;
+    if matches!(chars.first(), Some('+' | '-')) {
+        i = 1;
+    }
+    let rest = &chars[i..];
+    if rest.is_empty() {
+        return false;
+    }
+    if rest.len() >= 2 && rest[0] == '0' {
+        let (radix_ok, digits): (bool, &[char]) = match rest[1].to_ascii_lowercase() {
+            'x' => (true, &rest[2..]),
+            'o' => (true, &rest[2..]),
+            'b' => (true, &rest[2..]),
+            _ => (false, rest),
+        };
+        if radix_ok {
+            return !digits.is_empty()
+                && digits.iter().all(|&c| match rest[1].to_ascii_lowercase() {
+                    'x' => c.is_ascii_hexdigit(),
+                    'o' => ('0'..='7').contains(&c),
+                    _ => c == '0' || c == '1',
+                });
+        }
+    }
+    rest.iter().all(|c| c.is_ascii_digit())
+}
+
+/// Tcl double literal (accepts integers too).
+fn is_tcl_double(chars: &[char]) -> bool {
+    let s: String = chars.iter().collect();
+    let t = s.trim();
+    if t.is_empty() {
+        return false;
+    }
+    // Reject the leading/trailing whitespace `parse` would otherwise tolerate.
+    if t.len() != s.len() {
+        return false;
+    }
+    t.parse::<f64>().is_ok() || is_tcl_integer(chars)
+}
+
+/// Tcl boolean / true / false class.
+fn is_tcl_boolean(chars: &[char], class: &[u8]) -> bool {
+    let s: String = chars.iter().collect();
+    let l = s.to_ascii_lowercase();
+    let trues = ["1", "true", "yes", "on"];
+    let falses = ["0", "false", "no", "off"];
+    let is_t = trues.iter().any(|w| w.starts_with(&l) && !l.is_empty());
+    let is_f = falses.iter().any(|w| w.starts_with(&l) && !l.is_empty());
+    match class {
+        b"true" => is_t,
+        b"false" => is_f,
+        _ => is_t || is_f,
+    }
+}
+
 // -- char helpers (ASCII fast path) ----------------------------------------
 
 #[inline]
@@ -483,6 +748,27 @@ mod tests {
         let (c, b) = run(src);
         assert_eq!(c, Code::Ok, "result={:?}", String::from_utf8_lossy(&b));
         b
+    }
+
+    #[test]
+    fn string_match_map_is() {
+        // match (glob, -nocase)
+        assert_eq!(ok(b"string match {a*c} abxc"), b"1");
+        assert_eq!(ok(b"string match {[a-z]*} Hello"), b"0");
+        assert_eq!(ok(b"string match -nocase {A*C} abxc"), b"1");
+        // map (ordered, -nocase)
+        assert_eq!(ok(b"string map {a 1 b 2} abcab"), b"12c12");
+        assert_eq!(ok(b"string map -nocase {AB X} aBcAb"), b"XcX");
+        // is
+        assert_eq!(ok(b"string is integer 123"), b"1");
+        assert_eq!(ok(b"string is integer 12x"), b"0");
+        assert_eq!(ok(b"string is integer {}"), b"1"); // empty is a member
+        assert_eq!(ok(b"string is integer 0xff"), b"1");
+        assert_eq!(ok(b"string is alpha abZ"), b"1");
+        assert_eq!(ok(b"string is alpha ab2"), b"0");
+        assert_eq!(ok(b"string is double 1.5"), b"1");
+        // -failindex reports the first failing character index.
+        assert_eq!(ok(b"string is alpha -failindex pos ab2c; set pos"), b"2");
     }
 
     #[test]

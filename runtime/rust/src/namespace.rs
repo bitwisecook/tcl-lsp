@@ -18,6 +18,11 @@
 
 use std::collections::BTreeMap;
 
+use tcl_syntax::naming::{
+    is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
+};
+
+use crate::frame::VarTable;
 use crate::interp::Command;
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
@@ -50,6 +55,10 @@ struct Namespace {
     /// `namespace export` patterns — gate what `import` may pull (matched with
     /// `string match` glob via the shared [`tcl_syntax::glob`]).
     exports: Vec<Vec<u8>>,
+    /// Per-namespace variable table (`Namespace.varTable`). The global
+    /// namespace's holds the global variables; the variable resolver
+    /// ([`crate::vars`]) routes qualified / global / namespace-eval names here.
+    vars: VarTable,
 }
 
 impl Namespace {
@@ -61,6 +70,7 @@ impl Namespace {
             commands: BTreeMap::new(),
             path: Vec::new(),
             exports: Vec::new(),
+            vars: VarTable::default(),
         }
     }
 }
@@ -188,6 +198,22 @@ impl Namespaces {
         self.arena[ns].path = path;
     }
 
+    /// The namespace a (possibly qualified) **command** `name` lives in, creating
+    /// any intermediate namespaces — i.e. everything before the simple tail
+    /// (`::a::b::foo` → `::a::b`; `foo` → `current`). For `proc`/`define_proc`,
+    /// which needs the proc's home ns id (its run-time current namespace).
+    pub(crate) fn command_home_ns(&mut self, current: NsId, name: &[u8]) -> NsId {
+        let absolute = name.starts_with(b"::");
+        let segments = split_qualifier(name);
+        let mut ns = if absolute { GLOBAL } else { current };
+        if let Some((_tail, ns_parts)) = segments.split_last() {
+            for part in ns_parts {
+                ns = self.ensure_child(ns, part);
+            }
+        }
+        ns
+    }
+
     /// Find (creating if needed) the namespace named `qualified`, rooted at
     /// `current` (absolute if it leads with `::`). For `namespace eval`.
     pub fn ensure_namespace(&mut self, current: NsId, qualified: &[u8]) -> NsId {
@@ -208,6 +234,58 @@ impl Namespaces {
             ns = *self.arena[ns].children.get(part)?;
         }
         Some(ns)
+    }
+
+    // -- per-namespace variable tables (the variable resolver's storage) ------
+
+    /// For a **qualified** variable name, the `(namespace, simple tail)` it
+    /// addresses, or `None` if that namespace doesn't exist. Absolute when
+    /// `::`-led, else relative to `current`. The variable parallel of command
+    /// `resolve_qualified` (`tclVar.c` / `namespace-tree.md` §5.3). Callers
+    /// guard with `is_qualified` first, so `None` means *namespace missing*.
+    #[must_use]
+    pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
+        let absolute = name.starts_with(b"::");
+        let segments = split_qualifier(name);
+        let (simple, ns_parts) = segments.split_last()?;
+        let mut ns = if absolute { GLOBAL } else { current };
+        for part in ns_parts {
+            ns = *self.arena[ns].children.get(*part)?;
+        }
+        Some((ns, (*simple).to_vec()))
+    }
+
+    /// Sorted variable names in namespace `ns` (`info vars`/`globals`).
+    #[must_use]
+    pub(crate) fn var_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .vars
+            .names()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect()
+    }
+
+    /// Sorted names of the commands in `ns` that are procs (`info procs`).
+    #[must_use]
+    pub(crate) fn proc_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .commands
+            .iter()
+            .filter(|(_, c)| matches!(c, Command::Proc(_)))
+            .map(|(k, _)| k.clone())
+            .collect()
+    }
+
+    /// Namespace `ns`'s variable table (read).
+    #[must_use]
+    pub(crate) fn var_table(&self, ns: NsId) -> &VarTable {
+        &self.arena[ns].vars
+    }
+
+    /// Namespace `ns`'s variable table (mutable).
+    pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable {
+        &mut self.arena[ns].vars
     }
 
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).
@@ -245,6 +323,21 @@ impl Namespaces {
         Some(fqn)
     }
 
+    /// `namespace origin` — the fully-qualified name of the *original* command
+    /// `name` resolves to, following `import` chains to their source. `None` if
+    /// the command doesn't resolve.
+    pub fn command_origin(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        let mut fqn = self.which_command(current, name)?;
+        // Follow imported commands to their source (bounded against cycles).
+        for _ in 0..64 {
+            match self.resolve(current, &fqn) {
+                Some(Command::Imported { source }) => fqn = source,
+                _ => break,
+            }
+        }
+        Some(fqn)
+    }
+
     /// `namespace export` — append a pattern (deduplicated). `-clear` first is the
     /// caller's job via [`clear_exports`](Self::clear_exports).
     pub fn export(&mut self, ns: NsId, pattern: &[u8]) {
@@ -262,6 +355,18 @@ impl Namespaces {
     #[must_use]
     pub fn exports(&self, ns: NsId) -> &[Vec<u8>] {
         &self.arena[ns].exports
+    }
+
+    /// The sorted command names in `ns` that match its export patterns — the
+    /// default subcommand set of an ensemble over `ns` (`namespace ensemble`).
+    #[must_use]
+    pub fn exported_commands(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .commands
+            .keys()
+            .filter(|k| self.is_exported(ns, k))
+            .cloned()
+            .collect()
     }
 
     /// Does `name` match any of `ns`'s export patterns (`string match` glob)?
@@ -372,34 +477,6 @@ impl Namespaces {
     }
 }
 
-/// Does `name` contain a `::` namespace separator?
-fn contains_qualifier(name: &[u8]) -> bool {
-    name.windows(2).any(|w| w == b"::")
-}
-
-/// Split a (possibly qualified) name on `::`, dropping empty segments — so
-/// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
-fn split_qualifier(name: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
-    let mut seg_start = 0;
-    let mut i = 0;
-    while i < name.len() {
-        if i + 1 < name.len() && name[i] == b':' && name[i + 1] == b':' {
-            if i > seg_start {
-                out.push(&name[seg_start..i]);
-            }
-            i += 2;
-            seg_start = i;
-        } else {
-            i += 1;
-        }
-    }
-    if seg_start < name.len() {
-        out.push(&name[seg_start..]);
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,18 +490,6 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
-    }
-
-    #[test]
-    fn split_qualifier_cases() {
-        assert_eq!(
-            split_qualifier(b"::a::b::cmd"),
-            vec![&b"a"[..], b"b", b"cmd"]
-        );
-        assert_eq!(split_qualifier(b"::cmd"), vec![&b"cmd"[..]]);
-        assert_eq!(split_qualifier(b"cmd"), vec![&b"cmd"[..]]);
-        assert_eq!(split_qualifier(b"a::b"), vec![&b"a"[..], b"b"]);
-        assert!(split_qualifier(b"::").is_empty());
     }
 
     #[test]

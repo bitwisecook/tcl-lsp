@@ -39,12 +39,36 @@ pub mod bignum;
 pub mod builtins;
 pub mod capi;
 pub mod cmd_alias;
+pub mod cmd_array;
+pub mod cmd_chan;
+pub mod cmd_control;
 pub mod cmd_dict;
+pub mod cmd_error;
+pub mod cmd_eval;
+pub mod cmd_format;
+pub mod cmd_fs;
+pub mod cmd_info;
 pub mod cmd_list;
+// `::tcl::mathfunc::*` / `::tcl::mathop::*` commands; need the numeric tower.
+#[cfg(have_tommath)]
+pub mod cmd_mathfunc;
+#[cfg(have_tommath)]
+pub mod cmd_mathop;
+pub mod cmd_misc;
 pub mod cmd_namespace;
+pub mod cmd_package;
+pub mod cmd_proc;
+pub mod cmd_scan;
+// `regexp`/`regsub` — only when `build.rs` links the Tcl regex engine.
+#[cfg(have_regex)]
+pub mod cmd_regex;
 pub mod cmd_string;
+pub mod cmd_switch;
+pub mod cmd_trace;
+pub mod cmd_var;
 pub mod counters;
 pub mod dict;
+pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
 pub mod frame;
@@ -53,7 +77,11 @@ pub mod list;
 pub mod namespace;
 pub mod obj;
 pub mod parse;
+// The Tcl regex engine FFI wrapper; only when `build.rs` links the engine.
+#[cfg(have_regex)]
+pub mod regex;
 pub mod subst;
+pub mod vars;
 
 #[cfg(test)]
 mod tests {

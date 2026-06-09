@@ -383,11 +383,12 @@ and namespace command/var resolution is the same problem one level up.
   refcounted and **may be an alias** (points at another cell); **traces hang off
   cells**; every var op goes through it; non-aliased hot locals are optimised
   later behind a guard. → **partial**: `frame.rs` has `Var::Scalar|Array|Link`
-  (the alias) with path resolution (T1.3). **Gaps to design in**: independent
-  *cell* refcounting (Tcl `VarInHash`), the **trace** hook on cells +
-  re-entrancy/ordering model, and the single documented resolution order
-  (local → upvar link → namespace → global). These are designed before traces
-  and namespaces land, **not appended**.
+  (the alias) with path resolution (T1.3); the single resolution order
+  (qualified → frame-local-in-proc → current/global namespace, then link walk)
+  is **done** as one classification + cross-table walk over a `VarHome`
+  (`vars.rs`, T1.5). **Gaps to design in**: independent *cell* refcounting (Tcl
+  `VarInHash`) and the **trace** hook on cells + re-entrancy/ordering model.
+  These are designed before traces land, **not appended**.
 - **Namespaces**: hierarchical `::a::b` with own var+command tables, `namespace
   path`, `import`/`rename`, `which`/`origin`, **ensembles**, `namespace
   eval/code/inscope` (capture/restore current-ns). Command resolution =
@@ -532,14 +533,21 @@ with only the value type differing. Landed:
   `tcl_syntax::number::format_double` is the one canonical double→string
   (integer-valued → `.0`, `Inf`/`NaN`), used by the runtime's `double` rep **and**
   the compiler's `format_tcl_value`.
-- **Remaining (with T1.5 namespaces, registry-backed):** register
-  `::tcl::mathfunc::*` / `::tcl::mathop::*` as real commands (the `tcl::mathop`
-  spec is already in `tcl-registry`; the operator impls are the tower ops,
-  already single-sourced) so user overrides resolve through the command table
-  first (the [A3 contract](#command-binding--aliasing--the-command-layer-parallel)),
-  with `expr`'s `call`/`arith` falling back to the shared dispatch; plus `rand`/
-  `srand` (RNG state). The lexer's `math_functions()` name set stays the lexable
-  list (it is a lower crate than `tcl-syntax`).
+- **✅ `::tcl::mathfunc::*` / `::tcl::mathop::*` as real commands** (T1.5,
+  registry-backed). `cmd_mathfunc.rs` registers one builtin per function name
+  (each forwarding to the shared `tcl_syntax::expr::mathfunc::dispatch`);
+  `expr`'s function-call path resolves `::tcl::mathfunc::NAME` through the
+  command table first (absolutely anchored), so a user override / `rename`
+  wins (the [A3 contract](#command-binding--aliasing--the-command-layer-parallel):
+  "model that one hook") — `expr`'s `call` hook now goes through
+  `ExprCtx::call_function`, falling back to the shared dispatch only in the
+  standalone evaluator. `cmd_mathop.rs` registers every operator
+  (`~ ! + - * / % ** & | ^ << >> == != < <= > >= eq ne in ni`) with the
+  variadic-fold / identity / chained-comparison / arity semantics over the same
+  tower ops; per A3 these are **commands only** — `expr`'s inline operator
+  dispatch (`arith`) is unchanged. Both tower-gated. **Remaining:** `rand`/
+  `srand` (need interp RNG state). The lexer's `math_functions()` name set stays
+  the lexable list (it is a lower crate than `tcl-syntax`).
 
 ### Deep survey (four sweeps) + the `tcl-syntax` decision
 
@@ -1086,7 +1094,8 @@ Implementation order: ✅ (1) the shared **`tcl_syntax::number`** grammar;
 demote-when-fits) via `build.rs`; ✅ (3) the tower arithmetic (`+ - * / % **`
 floor-div, bit-ops, shifts, comparison — `bignum.rs`) **and** the `expr`
 evaluator over the **shared** `tcl_syntax::expr::eval<ExprOps>` walk (`expr.rs`).
-Remaining: `mathfunc` dispatch (with T1.5 namespaces), the C-extension boundary
+Remaining: `rand`/`srand` (interp RNG state — `mathfunc` dispatch otherwise lands
+as overridable `::tcl::mathfunc::*` commands, done), the C-extension boundary
 (`Tcl_GetBignumFromObj` + the `TclBN_*` stubs table, Track 2/3), wiring `expr`/
 `tcl::mathop`/`incr` builtins to the eval loop, and the compiler-side
 `tcl_expr_eval`→`ExprOps` convergence.
@@ -1144,16 +1153,16 @@ any row.
 | `valtypes/` value types | 20 (9211) | list, dict, string, array, arith, format, encoding, hash_table, bs, chars, regex, arena, parse_cache | `runtime/rust/` valtypes | **partial** (obj typed-rep machinery + **list** + **dict** + **string** capacity/char-ops, T1.6) | `make runtime-rust-test` — list + dict (ordered-`Vec`+FNV-index, EXP-DICT) + string (capacity-backed append + ASCII-fast char ops, EXP-STRING) leak-checked; array/etc. follow, each **+ a representation-decision note** (see [Choosing algorithms & data structures](#choosing-algorithms--data-structures-the-porting-method)) |
 | `parse/` | 3 (956) | `tcl_parse`, `tcl_subst` | `runtime/rust/` parse | **partial** (T1.2) | `make runtime-rust-test` — parse/subst unit parity (`parse`/`subst`/`bs` modules); evaluation of `$var`/`[cmd]` segments wired with the eval loop (T1.3/T1.4) |
 | `interp/tcl_interp.zig` | 1 (2065) | eval loop, interp object | `runtime/rust/` interp | **partial** (T1.4) | `make runtime-rust-test` — eval loop: parse→subst→dispatch, `{*}`, completion codes; control-flow/proc follow |
-| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + resolver**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); procs/catch + ns-variables follow |
+| `interp/` frames/ns/procs | 8 (6348) | frames, namespaces, procs, catch, caps, trace, interp_registry | `runtime/rust/` interp | **partial** (T1.3 frames + var store; T1.5 **namespace tree + command *and* variable resolvers**) | `make runtime-rust-test` — frame/var round-trips (scalar/array/upvar/global); `namespace.rs` arena tree + the one `resolve(currentNs, name)`; `rename`/`interp alias` (`Alias` redirect) + the `namespace` command (`Imported` redirect); **`vars.rs` variable resolver** (per-namespace var tables, `VarHome` links, `global`/`variable`/`upvar`); procs/catch follow |
 | `dispatch/` | 5 (746) | cmd registry, cmd table, dispatch, diag, stub_fallback | `runtime/rust/` dispatch | **partial** (T1.4/T1.5) | `make runtime-rust-test` — dispatch resolves through the **namespace tree** (`Builtin`/`Alias`/`Imported` handles), no flat table; `make check-wasm-parity` once the builtin surface fills in |
-| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset` + `expr` (shared `tcl_syntax::expr`) + list cmds + `dict` ensemble + `append` + `string` ensemble + `rename`/`interp alias`/`namespace`; per-command parity + tcltest sweep as more land |
+| `cmds/` builtins | 34 (8367) | all builtin commands | `runtime/rust/` cmds | **partial** (T1.4/T1.5/T1.6 + M1–M4) | `make runtime-rust-test` — `set`/`incr`(tower)/`return`/`unset`(`-nocomplain`) + `expr` + `subst` + list cmds (`lindex` index-path) + `dict` ensemble (full: get-path/replace/remove/filter/map/update/with) + `append` + `string` ensemble (incl. `match`/`map`/`is`) + `scan`/`format` + `rename`/`interp alias`/`namespace` (+ `ensemble`/`code`/`origin`) + `global`/`variable`/`upvar` + `::tcl::mathfunc/mathop::*` + `proc`/control-flow/`puts` + `catch`/`error`/`try`/`throw` + `info`(incl. `level N`/`complete`) + `array`/`switch`/`package` + `source`/`file`/`glob`/channels + `trace` (variable) + **`regexp`/`regsub`** (real Tcl ARE engine, `have_regex`); **drives the unmodified Tcl 9 library to `package require tcltest` 2.5.10** (M3) and **runs real compute `*.test` files** — `list.test` 78/78, `split.test` 18/18, `linsert` 28/28, `dict.test` 272/373, `lrange` 1759/1766 (M4); per-command parity + tcltest sweep as more land |
 | `io/tcl_chan.zig` | 1 (1858) | channel subsystem | `runtime/rust/` io | not-started | chan/chanio/io/ioCmd tcltest suites (Memchan needs this) |
 | `io/tcl_clock.zig` + `tcl_tz.zig` | 2 (3560) | clock + tz (+ `data/tzdata.bin`) | `runtime/rust/` io | not-started | clock tcltest slice (`run_clock_tcltest.py`) |
 | `io/tcl_fs.zig` | 1 (1186) | filesystem (tclvfs needs `Tcl_FSRegister`) | `runtime/rust/` io | not-started | fs tcltest + tclvfs tier-1 gate |
 | `sched/` | 7 (1660) | scheduler, coro, timer, vwait, fileevent, ready, asyncify | `runtime/rust/` sched | not-started | coroutine/after/vwait tcltest |
 | `stubs/` | 6 (609) | env/fmt/fs/io/time stub surfaces | `runtime/rust/` stubs | not-started | covered by dependent command parity |
 | `tcl_runtime.zig` (root) | 1 | export-aggregation root | `runtime/rust/` lib root | not-started | runtime builds + exports the `tcl_*`/`obj_*` symbol set codegen imports |
-| `regex_include/` (C) | — | Henry Spencer ARE engine (C, vendored) | **C at start → port to Rust near the end** (see note) | not-started | start: ARE-fidelity corpus passes via the C engine; end: same corpus passes against the Rust port, zero diff |
+| `regex_include/` (C) | — | Henry Spencer ARE engine (C, vendored) | **C at start → port to Rust near the end** (see note) | **partial — C engine linked** (M3): `build.rs` compiles `regcomp.c`/`regexec.c`/`regfree.c`/`regerror.c` to a static archive (`have_regex`); `regex_shim/` provides the host hooks; `src/regex.rs` is the FFI wrapper; `regexp`/`regsub` run on it (`cmd_regex.rs`). Rust port of the algorithm is the end-stage swap. | start: ARE-fidelity corpus passes via the C engine; end: same corpus passes against the Rust port, zero diff |
 
 `data/tzdata.bin` is a data asset consumed by the clock/tz port, not code.
 
@@ -1338,12 +1347,51 @@ the Zig rep.
     `matches_glob` const-fold (`tcl_expr_eval.rs`) and the `switch -glob` fold
     (`structure_elimination.rs`) — and the runtime's `namespace export`/`import`/
     `forget` use it. (`string match`/`lsearch -glob`/`array names` land on it next.)
-  - **Remaining:** ensembles (the `dict for`→`::tcl::dict::for` rewrite is the
-    canonical ensemble alias — generalise it), registering
-    `::tcl::mathfunc::*`/`::tcl::mathop::*` as overridable commands, the
-    variable-namespace side (`set ::ns::x` / `variable` / `global` resolving
-    through ns var tables), `namespace delete`, and per-frame `current_ns` (a proc
-    runs in its defining namespace) — gated on the proc chunk.
+  - **Variable-namespace side — ✅ done** (`vars.rs` + `cmd_var.rs`, the
+    variable parallel of the command resolver; `tclVar.c:TclLookupSimpleVar` +
+    `namespace-tree.md` §5.3). Variables live in **per-namespace var tables**
+    (`Namespace.vars`; the global ns holds globals) instead of a flat per-frame
+    map. A `VarTable` (name→`Var` cell + scalar/array/element ops + the refcount
+    discipline + release-on-`Drop`) is shared by both a call `Frame` and a
+    `Namespace`. `Var::Link` generalised to a **`VarHome`** (frame level **or**
+    namespace id), so `global`/`variable`/`upvar` all produce one link shape
+    (level-0 frame ⇒ global ns, since they share a table). One classification
+    (qualified → namespace; else in-proc → frame-local, at global/`namespace
+    eval` scope → current ns) + one cross-table link walk; `set ::ns::x`,
+    `$::ns::x`, `unset ::ns::x` resolve through the tree, and `::pinged` ≡
+    `pinged` at top level (the headline fix — before, `::pinged` was a literal
+    frame key). `global`/`variable` (`cmd_var.rs`) link the tail to a namespace
+    var (no-op at namespace scope; `variable name value` still initialises);
+    `upvar ?#N|N? other local` links to a caller frame or, qualified, a
+    namespace var. `set`-into-a-missing-namespace raises `parent namespace
+    doesn't exist` (reads/unsets just miss) — verified vs tclsh 9.0. The
+    `::`-qualifier split is the shared `tcl_syntax::naming::qualifier_segments`.
+    Gate: `make runtime-rust-test` (142 tower / 117 reduced) + `-lint` green.
+  - **`::tcl::mathfunc::*` / `::tcl::mathop::*` as overridable commands — ✅ done**
+    (`cmd_mathfunc.rs` / `cmd_mathop.rs`, tower-gated; the A3 contract).
+    `::tcl::mathfunc::NAME` is one builtin per function forwarding to the shared
+    `tcl_syntax::expr::mathfunc::dispatch`; `expr`'s function-call path resolves
+    it through the command table first (absolutely anchored, so overrides /
+    `rename` win — `expr`'s `call` hook now goes through `ExprCtx::call_function`,
+    falling back to the shared dispatch only standalone). A missing function gives
+    C's `invalid command name "tcl::mathfunc::NAME"`. `::tcl::mathop::OP` registers
+    every operator with variadic-fold / identity / chained-comparison / arity
+    semantics over the same tower ops; per A3 these are **commands only** —
+    `expr`'s inline `arith` is unchanged. All verified vs tclsh 9.0.
+  - **Ensembles — ✅ done** (`ensemble.rs` + `cmd_namespace.rs` + the
+    `Command::Ensemble` trampoline in `interp.rs`). The canonical `ens sub`→
+    target redirect (the generalised `dict for`→`::tcl::dict::for` rewrite, A3):
+    `namespace ensemble create ?-command? ?-map? ?-subcommands? ?-prefixes?` +
+    `exists`. Dispatch picks the subcommand set (explicit `-subcommands`, else
+    `-map` keys, else the namespace's exported commands), resolves it (exact then
+    unambiguous prefix unless `-prefixes 0`), maps to the target (`-map` entry or
+    `<ns>::<sub>`), and re-dispatches; `unknown [or ambiguous] subcommand` errors
+    match tclsh. Same build/dispatch split as `interp alias`. (`namespace
+    ensemble configure` is a follow-up.)
+  - **Remaining:** `rand`/`srand` (interp RNG state), `namespace delete`,
+    `namespace ensemble configure`, and per-frame `current_ns` + the proc-local
+    var branch (wired in `vars.rs` but inert — a proc runs in its defining
+    namespace) — gated on the proc chunk (which pushes the proc frames).
 - **T1.6 — builtins.** Port `cmds/*.zig` incrementally (string/list/dict/expr/
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
@@ -1740,7 +1788,7 @@ close against them:
 
 | Contract | Rust port alignment | Gaps to close |
 |---|---|---|
-| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3) | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar cycle must *error*** (today a 1000-hop guard silently stops — fix); independent **cell refcount**; **traces on cells** + re-entrancy/ordering; **qualified `::a::b::x`** + the "unqualified ≠ namespace var" rule (with namespaces, T1.5) |
+| variable-frame-model | frame → name → `Var` cell (`Var::Scalar/Array/Link`), array-element + scalar resolution, upvar/global aliasing (T1.3); **per-namespace var tables + one classification/link-walk over a `VarHome` (frame ∣ namespace), qualified `::a::b::x`, `global`/`variable`/`upvar` (T1.5, `vars.rs`)** | path-resolved links (vs the contract's `link → *Cell`) — deliberate (memory-safety); **upvar/global/variable-link cycle must *error*** (today the shared 1000-hop `LINK_LIMIT` silently stops — fix with the proc-chunk recursion bound); independent **cell refcount**; **traces on cells** + re-entrancy/ordering. The **proc-local branch** of the classifier is now **live** (procs push frames): `set` in a body is frame-local and the "unqualified ≠ namespace var inside a proc" rule holds; proc-call recursion is bounded (1000), though the var-link `LINK_LIMIT` still silently stops rather than erroring (separate fix) |
 | parser-and-aot-interpret-boundary | the **LSP/compiler `tcl-lexer` is now the canonical scanner** for command/word parsing (`parse.rs` lowers its tokens → the eval `Command`/`WordPart` model); object-passthrough; spans from byte 0 | converge `subst`/`Tcl_SplitList` onto `tcl-lexer` too (step 3, co-evolving a subst + list mode); the compiled≡interpreted identity gate; `source`/`package` VFS+loader; the AOT side lowering from the same component model (T1.7) |
 | numeric-tower-and-expr | `i64` int + `double` types; ASCII fast-path strings | the **tower** (small→wide→**bignum**→double, one promote/normalise/compare; canonicalise-on-every-op; no per-command int parse — `incr` overflow now errors instead of wrapping); `expr` as its own lexer/parser/evaluator; `mathfunc` via the command table |
 
@@ -1789,11 +1837,12 @@ the rest are deferred with the reviewer's concurrence):
   `tcl_syntax` message (the `…FollowedByJunk` byte-exact `"<frag>" instead of
   space` suffix still needs the offending fragment surfaced from the splitter —
   minor follow-up).
-- ⏳ **Recursion / alias-cycle bound** (`interp.rs`) — `dispatch_alias`→`invoke`
-  chains and unbounded `eval`/`[...]` nesting trap on a wasm stack overflow
-  instead of raising a catchable Tcl error. Add a depth counter on `Interp`
-  (C Tcl's `interp recursionlimit`, default 1000) **with the proc chunk**, where
-  the call-frame depth lives.
+- ◐ **Recursion / alias-cycle bound** (`interp.rs`) — **partly done with the
+  proc chunk:** `Interp.recursion_depth` bounds **proc-call** nesting at C's
+  default 1000, so infinite proc recursion raises the catchable `too many nested
+  evaluations (infinite loop?)` instead of a stack overflow. **Remaining:**
+  extend the same counter to unbounded `eval`/`[...]`/`dispatch_alias` nesting
+  (land with PC-3's `eval`), and make `interp recursionlimit` configurable.
 - ⏳ **NaN ordering in `bignum::compare`** — a NaN operand maps to
   `Ordering::Greater`, so `x > NaN` is spuriously true. Tcl makes every ordered
   comparison with NaN false (and in `expr` a NaN-producing op is itself a domain
@@ -1874,23 +1923,58 @@ compiler/LSP or the Zig runtime.
    **`namespace` command** (`current`/`eval`/`exists`/`parent`/`children`/
    `qualifiers`/`tail`/`which`/`export`/`import`/`forget`/`path`, with the
    `Imported` redirect); the **shared `string match` glob** (`tcl_syntax::glob`,
-   converging two compiler copies). **Next in T1.5:** ensembles (generalise the
-   `dict for`→`::tcl::dict::for` rewrite), `::tcl::mathfunc`/`mathop` as
-   overridable commands, the **variable-namespace side** (`set ::ns::x`,
-   `variable`/`global` through ns var tables), `namespace delete`, and per-frame
-   `current_ns` (gated on the proc chunk).
-10. **Procs** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
-    + control flow — the call protocol (CallFrame + CmdFrame), return-options,
-    stack traces, AOT↔interp interop; carries per-frame `current_ns`.
-11. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
+   converging two compiler copies); and the **variable-namespace side** — the
+   variable parallel of the command resolver: per-namespace var tables
+   (`Namespace.vars`; the global ns holds globals), one classification + link
+   walk (`vars.rs`) over a `VarHome` (frame level **or** namespace id), so
+   `set ::ns::x` / `$::ns::x` / `unset ::ns::x` resolve through the tree and
+   `::pinged` ≡ `pinged` at top level; plus **`global`/`variable`/`upvar`**
+   (`cmd_var.rs`) installing the links, and `set`-into-a-missing-namespace
+   raising `parent namespace doesn't exist`. The `::`-qualifier split is shared
+   with the compiler (`tcl_syntax::naming::qualifier_segments`); and
+   **`::tcl::mathfunc::*` / `::tcl::mathop::*` as overridable commands** —
+   `expr`'s function-call path resolves `::tcl::mathfunc::NAME` through the
+   command table (overrides/`rename` win; A3), and every operator is a real
+   `::tcl::mathop::` command over the shared tower; and **ensembles** — the
+   canonical `ens sub`→target redirect (`namespace ensemble create`/`exists`
+   with `-map`/`-subcommands`/`-prefixes`/`-command`, dispatching to `-map` or
+   `<ns>::<sub>`), the generalisation of the `dict for`→`::tcl::dict::for`
+   rewrite. **Next in T1.5:** `rand`/`srand` (interp RNG state), `namespace
+   delete`, `namespace ensemble configure`. (Per-frame `current_ns` + the
+   proc-local var branch are now **live** — see #10.)
+10. ◐ **Procs + control flow** (per [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md))
+    — **done (PC-2, conservative):** `Command::Proc(Rc<ProcDef>)` + `call_proc`
+    (arity/`wrong # args`, push a frame in the proc's defining namespace, bind
+    params/defaults/`args`, eval body, `return`→Ok, pop) — this **activates the
+    proc-local var branch + per-frame current namespace** (`set` in a body is
+    frame-local; `variable`/`global` hit the proc's ns); a **recursion bound**
+    (C's default 1000) makes infinite recursion a catchable error; **control
+    flow** `if`/`while`/`for`/`foreach` + `break`/`continue`; **`puts`**; and an
+    `examples/run_script.rs` that runs a fib/for/namespace/foreach script end to
+    end. A body-level `break`/`continue` that escapes a proc now errors
+    (`invoked "break" outside of a loop` — Zig-oracle fix). **Next:** PC-1
+    `CmdFrame` source/line stack; PC-3 `uplevel` + `eval` + generalised `upvar`;
+    PC-4 exceptions (`error`/`catch`/`return -options` + `errorInfo`); PC-5
+    `info level`/`info frame`/`source`; PC-6 AOT interop.
+11. **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
+    [`tcltest-bringup.md`](tcltest-bringup.md)). Run the **unmodified** pure-Tcl
+    `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
+    command surface** (not re-porting the library): L1 eval/exception/
+    introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return
+    -options`/`switch`/`info`/`array`/`package` + list ops — this is PC-3/PC-4),
+    then L2 VFS + channels (`source`/`file`/`glob`/`open`/…), then L3 host
+    (`clock`/`encoding`/`format`/`scan`/`regexp`/`exec`/…). Reason over the
+    library code, reference C Tcl + the Zig oracle (the discoveries appendix in
+    the bring-up doc), empirical loop (source → wall → port → repeat).
+12. **T3.0** — backend-agnostic emit protocol/trait + command-emission registry
     bound to the editor command registry; `NoEmitImpl` error for unimplemented
     commands (the codegen-side single-source-of-truth that all later AOT work
     builds on).
-12. **T2.3** (de-risk against Zig first) — production loader, validated on
+13. **T2.3** (de-risk against Zig first) — production loader, validated on
     Tier 0 dltest, separating loader risk from port risk.
-13. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
+14. **T3.1** — `wasm_link.py` extension linking + AOT-coverage measurement
     harness (seeds the scoreboard).
-14. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
+15. **S7 spec** — `wasm-aot-staircase-s7.md` (metaprogramming heuristics).
 
 ---
 

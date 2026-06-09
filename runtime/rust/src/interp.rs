@@ -19,9 +19,10 @@
 //! + retain-into-result is the whole discipline.
 
 use core::ffi::c_char;
+use std::rc::Rc;
 
 use crate::builtins;
-use crate::frame::FrameStack;
+use crate::frame::{FrameStack, Link, VarError};
 use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
@@ -34,6 +35,21 @@ pub enum Code {
     Return,
     Break,
     Continue,
+}
+
+impl Code {
+    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4) — what
+    /// `catch` returns and `return -code` / the `-code` options-dict entry use.
+    #[must_use]
+    pub(crate) fn as_int(self) -> i64 {
+        match self {
+            Code::Ok => 0,
+            Code::Error => 1,
+            Code::Return => 2,
+            Code::Break => 3,
+            Code::Continue => 4,
+        }
+    }
 }
 
 /// A built-in command handler. Receives the full argv (`argv[0]` is the command
@@ -68,6 +84,29 @@ pub enum Command {
     /// unchanged. The importing-ns binding is transparent to callers; `namespace
     /// forget` removes redirects by matching `source`.
     Imported { source: Vec<u8> },
+    /// A `namespace ensemble`: dispatch maps `argv[1]` (a subcommand) to a target
+    /// command prefix (`-map`, else `<ns>::<sub>`) and forwards `argv[2..]` — the
+    /// generalised `dict for`→`::tcl::dict::for` redirect. See [`crate::ensemble`].
+    Ensemble(crate::ensemble::EnsembleConfig),
+    /// A user procedure (`proc`). Dispatch pushes a call frame, binds the args to
+    /// the params (defaults + an `args` catch-all), runs the body in the proc's
+    /// defining namespace, and maps a body-level `return` to `Ok`. Behind an `Rc`
+    /// so the dispatch-time clone of the command handle is O(1), not a body copy.
+    Proc(Rc<ProcDef>),
+}
+
+/// One formal parameter of a [`ProcDef`]: a name and an optional default value.
+pub struct Param {
+    pub name: Vec<u8>,
+    pub default: Option<Vec<u8>>,
+}
+
+/// A compiled `proc` definition: its parameters, body script, and the namespace
+/// it was defined in (which becomes the current namespace while it runs).
+pub struct ProcDef {
+    pub params: Vec<Param>,
+    pub body: Vec<u8>,
+    pub ns: NsId,
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -81,8 +120,27 @@ pub struct Interp {
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: NsId,
+    /// Active proc-call nesting depth — C Tcl's `interp recursionlimit`. Bounds
+    /// recursion so an infinite proc loop raises a catchable error instead of
+    /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
+    recursion_depth: usize,
+    /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
+    pub(crate) packages: crate::cmd_package::PackageState,
+    /// The `source` script stack (`info script` — the file being sourced).
+    script_stack: Vec<Vec<u8>>,
+    /// Open channels (`open`/`read`/`gets`/`puts`/`close`).
+    pub(crate) channels: crate::cmd_chan::ChannelTable,
+    /// Pending `return -code`/`-level` state (`TclUpdateReturnInfo`): the code to
+    /// complete with once `-level` boundaries are unwound.
+    return_code: Code,
+    return_level: usize,
+    /// Variable-trace registry (`trace add|remove|info variable`).
+    pub(crate) traces: crate::cmd_trace::TraceTable,
     result: *mut TclObj,
 }
+
+/// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
+const RECURSION_LIMIT: usize = 1000;
 
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
@@ -95,6 +153,13 @@ impl Interp {
             frames: FrameStack::new(),
             namespaces: Namespaces::new(),
             current_ns: GLOBAL,
+            recursion_depth: 0,
+            packages: crate::cmd_package::PackageState::with_core(),
+            script_stack: Vec::new(),
+            channels: crate::cmd_chan::ChannelTable::default(),
+            return_code: Code::Ok,
+            return_level: 1,
+            traces: crate::cmd_trace::TraceTable::default(),
             result,
         });
         builtins::install(&mut interp);
@@ -142,6 +207,36 @@ impl Interp {
         self.namespaces.delete(self.current_ns, name)
     }
 
+    /// Register an ensemble command (`namespace ensemble create`); `name` is the
+    /// ensemble command (possibly qualified — rooted at global like any builtin).
+    pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
+        self.namespaces.register(name, Command::Ensemble(cfg));
+    }
+
+    /// Define a user proc (`proc name params body`). The proc's defining
+    /// namespace (where its body runs, and where it is bound) is the namespace
+    /// `name` lands in — **relative to the current namespace** (so `proc next`
+    /// inside `namespace eval counter` binds `::counter::next`, not a global).
+    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body: Vec<u8>) {
+        let ns = self.namespaces.command_home_ns(self.current_ns, name);
+        let tail = tcl_syntax::naming::qualifier_segments(name)
+            .last()
+            .copied()
+            .unwrap_or(name)
+            .to_vec();
+        let def = Rc::new(ProcDef { params, body, ns });
+        self.namespaces.bind(ns, &tail, Command::Proc(def));
+    }
+
+    /// Whether `name` resolves to an ensemble command (`namespace ensemble
+    /// exists`).
+    pub(crate) fn is_ensemble(&self, name: &[u8]) -> bool {
+        matches!(
+            self.namespaces.resolve(self.current_ns, name),
+            Some(Command::Ensemble(_))
+        )
+    }
+
     /// Every alias command's name across the whole tree (`interp aliases`).
     pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.alias_names()
@@ -163,6 +258,119 @@ impl Interp {
         &mut self.namespaces
     }
 
+    /// Bootstrap the standard library like C's `Tcl_Init`: set the startup
+    /// globals (`tcl_library` from `$TCL_LIBRARY`, version/platform/env/argv,
+    /// `auto_path`), then `source $tcl_library/init.tcl`. After this the
+    /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
+    /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
+    pub fn init_library(&mut self) -> Code {
+        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
+            let o = new_string(val);
+            if i.var_set(name, o).is_err() {
+                drop_fresh(o);
+            }
+        };
+        set(self, b"::tcl_library", lib.as_bytes());
+        set(self, b"::tcl_version", b"9.0");
+        set(self, b"::tcl_patchLevel", b"9.0.3");
+        set(self, b"::tcl_interactive", b"0");
+        set(self, b"::argv", b"");
+        set(self, b"::argv0", b"");
+        set(self, b"::argc", b"0");
+        set(self, b"::auto_path", b"");
+        // tcl_platform array (the fields init.tcl + tcltest read).
+        for (k, v) in [
+            (&b"platform"[..], &b"unix"[..]),
+            (b"os", b"Linux"),
+            (b"osVersion", b"0"),
+            (b"byteOrder", b"littleEndian"),
+            (b"wordSize", b"8"),
+            (b"pointerSize", b"8"),
+            (b"engine", b"Tcl"),
+            (b"threaded", b"0"),
+            (b"pathSeparator", b":"),
+        ] {
+            let o = new_string(v);
+            if self.var_set_elem(b"tcl_platform", k, o).is_err() {
+                drop_fresh(o);
+            }
+        }
+        // env array from the host environment (no quoting hazards via var_set_elem).
+        for (k, v) in std::env::vars() {
+            let o = new_string(v.as_bytes());
+            if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
+                drop_fresh(o);
+            }
+        }
+        // Source init.tcl, which sets up unknown/auto-load/package + appends
+        // tcl_library (and its parent) to auto_path.
+        let init_path = format!("{lib}/init.tcl");
+        match std::fs::read(&init_path) {
+            Ok(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
+            Err(_) => {
+                let mut m = b"can't find ".to_vec();
+                m.extend_from_slice(init_path.as_bytes());
+                m.extend_from_slice(b" (set TCL_LIBRARY)");
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Record `return -level L -code C` state (set by the `return` command).
+    pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
+        self.return_level = level;
+        self.return_code = code;
+    }
+
+    /// Apply a procedure/source **return boundary** to a body completion code
+    /// (`TclUpdateReturnInfo`): a `Code::Return` decrements the pending
+    /// `-level`; when it reaches 0 the boundary completes with the pending
+    /// `-code` (so `return` → Ok, `return -code error` → Error). Other codes
+    /// pass through.
+    fn settle_return(&mut self, code: Code) -> Code {
+        if code != Code::Return {
+            return code;
+        }
+        self.return_level = self.return_level.saturating_sub(1);
+        if self.return_level == 0 {
+            let c = self.return_code;
+            self.return_code = Code::Ok;
+            c
+        } else {
+            Code::Return
+        }
+    }
+
+    /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
+    /// the script stack (`info script`). A top-level `return` ends the file (the
+    /// return boundary maps `return` → Ok); other codes propagate.
+    pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+        self.script_stack.push(name.to_vec());
+        let code = self.eval_str(script);
+        self.script_stack.pop();
+        self.settle_return(code)
+    }
+
+    /// `info script` — the file currently being sourced (empty at top level).
+    pub(crate) fn current_script(&self) -> Vec<u8> {
+        self.script_stack.last().cloned().unwrap_or_default()
+    }
+
+    /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
+    /// frame `target_level` (the Zig oracle's "restore caller ns + frame depth
+    /// together" discovery), then restore. Transparent — the body's completion
+    /// code (incl. `return`) propagates unchanged.
+    pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
+        let prev_level = self.frames.set_active_level(target_level);
+        let prev_ns = self.current_ns;
+        self.current_ns = self.frames.frame_ns(target_level);
+        let code = self.eval_str(script);
+        self.frames.set_active_level(prev_level);
+        self.current_ns = prev_ns;
+        code
+    }
+
     /// `namespace eval name body`: switch the current namespace to `name`
     /// (creating it, relative to the current ns unless `::`-anchored), evaluate
     /// `body` there, then restore. The current-ns switch is what makes commands
@@ -171,9 +379,311 @@ impl Interp {
         let target = self.namespaces.ensure_namespace(self.current_ns, name);
         let saved = self.current_ns;
         self.current_ns = target;
+        // A namespace frame: a new scope whose unqualified vars resolve to the
+        // namespace (so `set`/`variable`/`upvar 0` inside `namespace eval` —
+        // including when nested in a proc — target the namespace, not the
+        // enclosing proc's locals).
+        self.frames.push_namespace(target);
         let code = self.eval_str(body);
+        self.frames.pop();
         self.current_ns = saved;
         code
+    }
+
+    /// Whether the active variable frame is a proc call frame (vs. global /
+    /// `namespace eval` scope).
+    pub(crate) fn in_proc(&self) -> bool {
+        self.frames.in_proc()
+    }
+
+    // -- variables (the var resolver; `crate::vars`) --------------------------
+    //
+    // Every variable op routes through the one classification + link walk
+    // (frame-local vs namespace, qualified vs not), instead of the old flat
+    // per-frame table. The `name` here is the array *base* (callers split
+    // `a(k)` via `split_array_ref` first), so `::ns::base` qualifies correctly.
+
+    /// `set name` — borrowed value (the table keeps its +1), or `None`.
+    pub(crate) fn var_get(&self, name: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::get(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// `set name(key)` — borrowed.
+    pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::get_elem(&self.frames, &self.namespaces, self.current_ns, name, key)
+    }
+
+    /// `set name value` — the cell takes a **+1** on `obj`.
+    pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        let r = crate::vars::set(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            obj,
+        );
+        if r.is_ok() && !self.traces.traces.is_empty() {
+            let (base, elem) = crate::frame::split_array_ref(name);
+            self.fire_var_trace(&base, elem.as_deref(), b"write");
+        }
+        r
+    }
+
+    /// `set name(key) value`.
+    pub(crate) fn var_set_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let r = crate::vars::set_elem(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            key,
+            obj,
+        );
+        if r.is_ok() && !self.traces.traces.is_empty() {
+            self.fire_var_trace(name, Some(key), b"write");
+        }
+        r
+    }
+
+    /// Fire a read trace for `name` before a read (the `&mut` chokepoints that
+    /// resolve `$var` call this).
+    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) {
+        if self.traces.traces.is_empty() {
+            return;
+        }
+        let (base, elem) = crate::frame::split_array_ref(name);
+        let key = key.or(elem.as_deref());
+        self.fire_var_trace(&base, key, b"read");
+    }
+
+    /// `unset name` — returns whether it existed.
+    pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
+        let existed = crate::vars::unset(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+        );
+        if existed && !self.traces.traces.is_empty() {
+            let (base, elem) = crate::frame::split_array_ref(name);
+            self.fire_var_trace(&base, elem.as_deref(), b"unset");
+        }
+        existed
+    }
+
+    /// `unset name(key)` — returns whether it existed.
+    pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        let existed = crate::vars::unset_elem(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            name,
+            key,
+        );
+        if existed && !self.traces.traces.is_empty() {
+            self.fire_var_trace(name, Some(key), b"unset");
+        }
+        existed
+    }
+
+    /// Invoke every variable trace matching `(base, elem, op)`, as
+    /// `command base element op`. Re-entrant firing is suppressed (the `firing`
+    /// guard) and callback errors are swallowed; the interp result is preserved
+    /// across the callbacks (the triggering operation owns the result).
+    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) {
+        if self.traces.firing > 0 {
+            return;
+        }
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .traces
+            .iter()
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op))
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return;
+        }
+        // Preserve the result object across the callbacks.
+        let saved = self.result;
+        unsafe { obj::incr_ref_count(saved) };
+
+        self.traces.firing += 1;
+        for cmd in cmds {
+            // Append `base element op` as properly-quoted trailing words.
+            let args = crate::list::new_list_obj(&[
+                new_string(base),
+                new_string(elem.unwrap_or(b"")),
+                new_string(op),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.firing -= 1;
+
+        // Restore the saved result (release the trace's, adopt our held +1).
+        unsafe {
+            obj::decr_ref_count(self.result);
+            self.result = saved;
+        }
+    }
+
+    /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
+    /// diagnostic, `array exists`).
+    pub(crate) fn var_is_array(&self, name: &[u8]) -> bool {
+        crate::vars::is_array(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// Resolve a `global`/`variable`/`upvar` name argument to its
+    /// `(target namespace, simple tail)`, in the given `context_ns` (global for
+    /// `global`, the current ns for `variable`). `None` if the name is qualified
+    /// into a namespace that doesn't exist.
+    pub(crate) fn resolve_var_target(
+        &self,
+        context_ns: NsId,
+        name: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        if tcl_syntax::naming::is_qualified(name) {
+            self.namespaces.var_home(context_ns, name)
+        } else {
+            Some((context_ns, name.to_vec()))
+        }
+    }
+
+    /// The current call-frame level (`upvar` relative-level arithmetic).
+    pub(crate) fn current_level(&self) -> usize {
+        self.frames.current_level()
+    }
+
+    /// `variable tail` / `global tail` — link `tail` in the current frame to
+    /// `target_ns::tail` (a no-op when the current context already is that var).
+    pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
+        crate::vars::make_variable(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            target_ns,
+            tail,
+        );
+    }
+
+    /// Resolve (creating if needed) a namespace by name, relative to the current
+    /// namespace — for `apply`'s optional namespace term.
+    pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
+        self.namespaces.ensure_namespace(self.current_ns, name)
+    }
+
+    // -- introspection (`info` / `array`) -------------------------------------
+
+    /// `info exists name` — whether a scalar/array/element variable is set
+    /// (splitting `arr(key)`, the Zig discovery).
+    pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
+        let (base, elem) = crate::frame::split_array_ref(name);
+        match elem {
+            Some(k) => {
+                crate::vars::exists_elem(&self.frames, &self.namespaces, self.current_ns, &base, &k)
+            }
+            None => crate::vars::exists(&self.frames, &self.namespaces, self.current_ns, &base),
+        }
+    }
+
+    /// The element names of array `name` (`array names`/`get`), or `None`.
+    pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+        crate::vars::array_names(&self.frames, &self.namespaces, self.current_ns, name)
+    }
+
+    /// `info level` — the current frame level (proc nesting depth).
+    pub(crate) fn level(&self) -> usize {
+        self.frames.current_level()
+    }
+
+    /// The invoking command words at call `level` (`info level N`), or `None`
+    /// when the level has none.
+    pub(crate) fn level_words(&self, level: usize) -> Option<Vec<Vec<u8>>> {
+        self.frames
+            .words_at(level)
+            .filter(|w| !w.is_empty())
+            .map(<[Vec<u8>]>::to_vec)
+    }
+
+    /// Variable names visible in the current scope (`info vars`): the active
+    /// frame's locals in a proc, else the current namespace's variables.
+    pub(crate) fn visible_var_names(&self) -> Vec<Vec<u8>> {
+        if self.frames.in_proc() {
+            self.frames.local_names()
+        } else {
+            self.namespaces.var_names(self.current_ns)
+        }
+    }
+
+    /// `info locals` — the active frame's local variable names.
+    pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
+        self.frames.local_names()
+    }
+
+    /// `info globals` — the global namespace's variable names.
+    pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
+        self.namespaces.var_names(GLOBAL)
+    }
+
+    /// Command names visible from the current namespace (`info commands`):
+    /// current ns ∪ global, sorted/deduped.
+    pub(crate) fn visible_command_names(&self) -> Vec<Vec<u8>> {
+        self.visible(self.namespaces.command_names(self.current_ns), |ns| {
+            ns.command_names(GLOBAL)
+        })
+    }
+
+    /// Proc names visible from the current namespace (`info procs`).
+    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
+        let mut v = self.namespaces.proc_names(self.current_ns);
+        if self.current_ns != GLOBAL {
+            v.extend(self.namespaces.proc_names(GLOBAL));
+        }
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    fn visible(
+        &self,
+        local: Vec<&[u8]>,
+        global: impl Fn(&Namespaces) -> Vec<&[u8]>,
+    ) -> Vec<Vec<u8>> {
+        let mut v: Vec<Vec<u8>> = local.iter().map(|s| s.to_vec()).collect();
+        if self.current_ns != GLOBAL {
+            v.extend(global(&self.namespaces).iter().map(|s| s.to_vec()));
+        }
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    /// The proc definition bound to `name` (for `info body`/`args`/`default`).
+    pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
+        match self.namespaces.resolve(self.current_ns, name) {
+            Some(Command::Proc(def)) => Some(def),
+            _ => None,
+        }
+    }
+
+    /// `upvar` — link `local` in the current frame to the resolved `target`.
+    pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
+        crate::vars::make_upvar(
+            &mut self.frames,
+            &mut self.namespaces,
+            self.current_ns,
+            target,
+            local,
+        );
     }
 
     // -- result ---------------------------------------------------------------
@@ -227,6 +737,26 @@ impl Interp {
     /// Set an error result and return [`Code::Error`].
     fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
+        // Every error stamps `::errorInfo` (the message — the incremental
+        // source-trace is deferred) and `::errorCode` (`NONE` for a generic
+        // error). `error`/`throw` set richer values on their own paths and do
+        // not route through here, so they aren't clobbered. (Zig oracle: errors
+        // stamp the globals in and out of `catch`.)
+        let ei = new_string(msg);
+        if self.var_set(b"::errorInfo", ei).is_err() {
+            drop_fresh(ei);
+        }
+        // The common error codes Tcl stamps (the full `-errorcode` taxonomy is a
+        // follow-up): `wrong # args` ⇒ `TCL WRONGARGS`, else `NONE`.
+        let code: &[u8] = if msg.starts_with(b"wrong # args:") {
+            b"TCL WRONGARGS"
+        } else {
+            b"NONE"
+        };
+        let ec = new_string(code);
+        if self.var_set(b"::errorCode", ec).is_err() {
+            drop_fresh(ec);
+        }
         Code::Error
     }
 
@@ -291,13 +821,33 @@ impl Interp {
         code
     }
 
-    /// Look up `argv[0]` and invoke it.
+    /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler
+    /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
+    /// matching C's `TclEvalObjvInternal`.
     fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
-        match self.namespaces.resolve(self.current_ns, &name) {
-            Some(cmd) => self.invoke(cmd, argv),
-            None => self.invalid_command(&name),
+        if let Some(cmd) = self.namespaces.resolve(self.current_ns, &name) {
+            return self.invoke(cmd, argv);
         }
+        // Command miss: dispatch through `unknown <name> <args…>` if it exists
+        // (and we're not already resolving `unknown` itself).
+        if name != b"unknown" {
+            if let Some(unk) = self.namespaces.resolve(GLOBAL, b"unknown") {
+                let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
+                let head = new_string(b"unknown");
+                // SAFETY: fresh + live argv elements; take the owning +1.
+                unsafe { obj::incr_ref_count(head) };
+                new_argv.push(head);
+                for &a in argv {
+                    unsafe { obj::incr_ref_count(a) };
+                    new_argv.push(a);
+                }
+                let code = self.invoke(unk, &new_argv);
+                release_all(&new_argv);
+                return code;
+            }
+        }
+        self.invalid_command(&name)
     }
 
     /// Invoke an already-resolved command handle with `argv`.
@@ -310,7 +860,224 @@ impl Interp {
                 Some(cmd) => self.invoke(cmd, argv),
                 None => self.invalid_command(&source),
             },
+            Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
+            Command::Proc(def) => self.call_proc(&def, argv),
         }
+    }
+
+    /// Call a user proc (`TclObjInterpProc`): a thin wrapper over [`run_proc`]
+    /// with the proc's `(params, body, ns)` and the call args (`argv[1..]`).
+    ///
+    /// [`run_proc`]: Interp::run_proc
+    fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
+        self.run_proc(
+            &def.params,
+            &def.body,
+            def.ns,
+            &argv[1..],
+            &obj_bytes(argv[0]),
+        )
+    }
+
+    /// The shared proc-call protocol (`TclObjInterpProc`), used by both `proc`
+    /// dispatch and `apply`: arity-check `call_args` against `params`, push a call
+    /// frame in namespace `ns`, bind the params (defaults; an `args` catch-all
+    /// collects the rest), run `body`, then pop. A body-level `return` becomes
+    /// `Ok`; an escaping `break`/`continue` is an error. `usage_called` is the
+    /// prefix of the `wrong # args` message (`name` for a proc, `apply
+    /// lambdaExpr` for `apply`). Conservative-first per
+    /// `proc-call-and-stack-traces.md` PC-2 (the CmdFrame/stack-trace +
+    /// `info level`/`info frame` bookkeeping land with PC-1/PC-4/PC-5).
+    pub(crate) fn run_proc(
+        &mut self,
+        params: &[Param],
+        body: &[u8],
+        ns: NsId,
+        call_args: &[*mut TclObj],
+        usage_called: &[u8],
+    ) -> Code {
+        let has_args = params.last().is_some_and(|p| p.name == b"args");
+        let positional = if has_args {
+            &params[..params.len() - 1]
+        } else {
+            params
+        };
+        // Arity (defaults assumed trailing — the common shape): supplied must
+        // cover the no-default params, and not exceed the positionals unless an
+        // `args` catch-all soaks up the rest.
+        let supplied = call_args.len();
+        let required = positional.iter().filter(|p| p.default.is_none()).count();
+        if supplied < required || (!has_args && supplied > positional.len()) {
+            return self.error(&proc_usage(usage_called, params));
+        }
+        // Recursion bound (catchable, not a stack overflow).
+        if self.recursion_depth >= RECURSION_LIMIT {
+            return self.error(b"too many nested evaluations (infinite loop?)");
+        }
+        self.recursion_depth += 1;
+
+        self.frames.push(ns);
+        // Record the invocation words for `info level N`: the invoked name plus
+        // the supplied arguments.
+        let mut words = Vec::with_capacity(call_args.len() + 1);
+        words.push(usage_called.to_vec());
+        words.extend(call_args.iter().map(|&a| obj_bytes(a)));
+        self.frames.set_words(words);
+        let saved_ns = self.current_ns;
+        self.current_ns = ns;
+
+        // Bind positionals: the supplied arg, else the default.
+        for (i, p) in positional.iter().enumerate() {
+            let stored = if i < call_args.len() {
+                self.var_set(&p.name, call_args[i])
+            } else {
+                // SAFETY-balance: a fresh rc-0 default; `var_set` retains it, so
+                // on the (here-unreachable) error path it must be dropped.
+                let o = new_string(p.default.as_ref().expect("arity guaranteed default"));
+                match self.var_set(&p.name, o) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        drop_fresh(o);
+                        Err(e)
+                    }
+                }
+            };
+            if stored.is_err() {
+                self.frames.pop();
+                self.current_ns = saved_ns;
+                self.recursion_depth -= 1;
+                return self.error(b"proc parameter binding failed");
+            }
+        }
+        // The `args` catch-all: a list of the remaining args.
+        if has_args {
+            let rest = &call_args[positional.len()..];
+            let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
+            if self.var_set(b"args", list).is_err() {
+                drop_fresh(list);
+            }
+        }
+
+        let code = self.eval_str(body);
+        self.frames.pop();
+        self.current_ns = saved_ns;
+        self.recursion_depth -= 1;
+        // Apply the return boundary (`return`/`return -code -level`), then a
+        // bare `break`/`continue` that escaped the body (no enclosing loop) is an
+        // error (C Tcl: `invoked "break" outside of a loop`).
+        match self.settle_return(code) {
+            Code::Break => self.error(b"invoked \"break\" outside of a loop"),
+            Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
+            other => other,
+        }
+    }
+
+    /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
+    /// (exact, then unambiguous prefix unless `-prefixes 0`), map it to a target
+    /// command prefix (`-map`, else `<ns>::<sub>`), and re-dispatch
+    /// `[target… , argv[2..]…]`. Mirrors C Tcl's `tclEnsemble.c` (the A3 contract).
+    fn dispatch_ensemble(
+        &mut self,
+        cfg: &crate::ensemble::EnsembleConfig,
+        argv: &[*mut TclObj],
+    ) -> Code {
+        if argv.len() < 2 {
+            let mut m = b"wrong # args: should be \"".to_vec();
+            m.extend_from_slice(&obj_bytes(argv[0]));
+            m.extend_from_slice(b" subcommand ?arg ...?\"");
+            return self.error(&m);
+        }
+        // The valid subcommand set (sorted): explicit `-subcommands`, else the
+        // `-map` keys, else the namespace's exported commands.
+        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
+            (Some(list), _) => list.clone(),
+            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
+            (None, None) => self.namespaces.exported_commands(cfg.ns),
+        };
+        subs.sort();
+        subs.dedup();
+
+        let sub = obj_bytes(argv[1]);
+        let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) else {
+            // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
+            let mut m = if cfg.prefixes {
+                b"unknown or ambiguous subcommand \"".to_vec()
+            } else {
+                b"unknown subcommand \"".to_vec()
+            };
+            m.extend_from_slice(&sub);
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&crate::ensemble::must_be(&subs));
+            return self.error(&m);
+        };
+        let resolved = &subs[idx];
+
+        // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
+        let prefix: Vec<Vec<u8>> = cfg
+            .map
+            .as_ref()
+            .and_then(|m| {
+                m.iter()
+                    .find(|(k, _)| k == resolved)
+                    .map(|(_, p)| p.clone())
+            })
+            .unwrap_or_else(|| {
+                let mut t = self.namespaces.qualified_name(cfg.ns);
+                if cfg.ns != GLOBAL {
+                    t.extend_from_slice(b"::");
+                }
+                t.extend_from_slice(resolved);
+                vec![t]
+            });
+
+        // Build [target…, argv[2..]…], each owned (+1), and re-dispatch.
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 2);
+        for w in &prefix {
+            let o = new_string(w);
+            // SAFETY: fresh obj; take the owning +1 the new argv holds.
+            unsafe { obj::incr_ref_count(o) };
+            new_argv.push(o);
+        }
+        for &a in &argv[2..] {
+            // SAFETY: live arg; take an owning +1.
+            unsafe { obj::incr_ref_count(a) };
+            new_argv.push(a);
+        }
+        let code = self.dispatch(&new_argv);
+        release_all(&new_argv);
+        code
+    }
+
+    /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works
+    /// from any current namespace) with `args` as `objv` — the hook `expr`'s
+    /// function-call path uses so a user-defined / overridden / renamed
+    /// `::tcl::mathfunc::NAME` wins (the A3 contract). Leaves the result in the
+    /// interp result; a missing command reports C's `invalid command name
+    /// "tcl::mathfunc::NAME"` (no leading `::`, matching tclsh).
+    #[cfg(have_tommath)]
+    pub(crate) fn eval_math_call(&mut self, fname: &[u8], args: &[*mut TclObj]) -> Code {
+        let mut full = b"::tcl::mathfunc::".to_vec();
+        full.extend_from_slice(fname);
+        let Some(cmd) = self.namespaces.resolve(GLOBAL, &full) else {
+            let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
+            m.extend_from_slice(fname);
+            m.push(b'"');
+            return self.error(&m);
+        };
+        // Build [name, args…], each owned (+1), and invoke the resolved command
+        // directly (no re-resolution through current_ns).
+        let mut argv: Vec<*mut TclObj> = Vec::with_capacity(args.len() + 1);
+        let name_obj = new_string(&full);
+        // SAFETY: name_obj is fresh; args are live; take the owning +1 the argv holds.
+        unsafe { obj::incr_ref_count(name_obj) };
+        argv.push(name_obj);
+        for &a in args {
+            unsafe { obj::incr_ref_count(a) };
+            argv.push(a);
+        }
+        let code = self.invoke(cmd, &argv);
+        release_all(&argv);
+        code
     }
 
     /// The alias trampoline (`docs/design/runtime/rename-alias.md` §4.2): resolve
@@ -374,9 +1141,10 @@ impl Interp {
                                 Some(p) => Some(self.subst_index(p)?),
                                 None => None,
                             };
+                            self.fire_read_trace(v.name, index.as_deref());
                             let obj = match index.as_deref() {
-                                Some(key) => self.frames.get_elem(v.name, key),
-                                None => self.frames.get(v.name),
+                                Some(key) => self.var_get_elem(v.name, key),
+                                None => self.var_get(v.name),
                             };
                             return match obj {
                                 Some(o) => {
@@ -414,6 +1182,7 @@ impl Interp {
                                 Some(parts) => Some(self.subst_index(parts)?),
                                 None => None,
                             };
+                            self.fire_read_trace(v.name, index.as_deref());
                             match self.read_var(v.name, index.as_deref()) {
                                 Some(bytes) => buf.extend_from_slice(&bytes),
                                 None => return Err(self.no_such_variable(v.name, index.as_deref())),
@@ -433,6 +1202,50 @@ impl Interp {
                 Ok(obj)
             }
         }
+    }
+
+    /// `subst` — substitute variables / commands / backslashes in `src` per
+    /// `flags`, propagating errors (an unset variable or a failing `[...]`).
+    pub(crate) fn do_subst(
+        &mut self,
+        src: &[u8],
+        flags: crate::subst::SubstFlags,
+    ) -> Result<Vec<u8>, Code> {
+        let body = crate::subst::scan(src, flags);
+        match &body {
+            WordBody::Literal(b) => Ok(b.to_vec()),
+            WordBody::Parts(parts) => self.resolve_subst_parts(parts),
+        }
+    }
+
+    /// Resolve substitution `parts` to bytes, propagating any non-OK code (the
+    /// `subst`-command path; cf. `substitute_word`, which builds an object).
+    fn resolve_subst_parts(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+        let mut out = Vec::new();
+        for part in parts {
+            match part {
+                WordPart::Text(b) => out.extend_from_slice(b),
+                WordPart::Variable(v) => {
+                    let index = match &v.index {
+                        Some(p) => Some(self.subst_index(p)?),
+                        None => None,
+                    };
+                    self.fire_read_trace(v.name, index.as_deref());
+                    match self.read_var(v.name, index.as_deref()) {
+                        Some(bytes) => out.extend_from_slice(&bytes),
+                        None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                    }
+                }
+                WordPart::Command(script) => {
+                    let code = self.eval_str(script);
+                    if code != Code::Ok {
+                        return Err(code);
+                    }
+                    out.extend_from_slice(&self.result_bytes());
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Resolve a `$arr(index)` index (itself substituted) to its bytes.
@@ -463,9 +1276,9 @@ impl Interp {
         Ok(buf)
     }
 
-    /// Read a variable's value bytes via the frame store.
+    /// Read a variable's value bytes via the variable resolver.
     fn read_var(&self, name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
-        self.frames.resolve_var_bytes(name, index)
+        crate::vars::resolve_var_bytes(&self.frames, &self.namespaces, self.current_ns, name, index)
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
@@ -484,6 +1297,29 @@ impl Interp {
     pub(crate) fn set_error(&mut self, msg: &[u8]) -> Code {
         self.error(msg)
     }
+}
+
+/// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc
+/// call — required params bare, defaulted params `?p?`, the `args` catch-all
+/// `?arg ...?` (mirrors C's `Tcl_WrongNumArgs` for procs).
+fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    m.extend_from_slice(called);
+    let n = params.len();
+    for (i, p) in params.iter().enumerate() {
+        m.push(b' ');
+        if i + 1 == n && p.name == b"args" {
+            m.extend_from_slice(b"?arg ...?");
+        } else if p.default.is_some() {
+            m.push(b'?');
+            m.extend_from_slice(&p.name);
+            m.push(b'?');
+        } else {
+            m.extend_from_slice(&p.name);
+        }
+    }
+    m.push(b'"');
+    m
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
@@ -665,6 +1501,67 @@ mod tests {
             assert_eq!(i.eval_str(b"set f 1.5"), Code::Ok);
             assert_eq!(i.eval_str(b"incr f"), Code::Error);
             assert_eq!(i.result_bytes(), b"expected integer but got \"1.5\"");
+        });
+    }
+
+    #[test]
+    fn qualified_global_aliases_plain_at_top_level() {
+        // The headline T1.5 fix: `::pinged` and `pinged` are the SAME global
+        // (before, `::pinged` was a literal frame key distinct from `pinged`).
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set ::pinged 1"), Code::Ok);
+            assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"set pinged 2"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::pinged"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2");
+            assert_eq!(i.eval_str(b"unset ::pinged"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn qualified_var_resolves_through_namespace_table() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval a {}"), Code::Ok);
+            // qualified write lands in ::a's var table …
+            assert_eq!(i.eval_str(b"set ::a::x 5"), Code::Ok);
+            // … visible as the unqualified `x` from inside ::a …
+            assert_eq!(i.eval_str(b"namespace eval a { set x }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            // … and through `$::a::x` substitution.
+            assert_eq!(i.eval_str(b"set y $::a::x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            assert_eq!(i.eval_str(b"unset ::a::x"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn qualified_set_into_missing_namespace_errors() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set ::nosuch::x 1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't set \"::nosuch::x\": parent namespace doesn't exist"
+            );
+            // a read of the same name reports the ordinary no-such-variable.
+            assert_eq!(i.eval_str(b"set ::nosuch::x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't read \"::nosuch::x\": no such variable"
+            );
+        });
+    }
+
+    #[test]
+    fn namespace_eval_body_set_is_a_namespace_var() {
+        // `set x` inside `namespace eval` (a non-proc context) creates a ns var,
+        // not a global.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval b { set v 10 }"), Code::Ok);
+            assert_eq!(i.eval_str(b"set ::b::v"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"10");
+            assert_eq!(i.eval_str(b"set v"), Code::Error); // not a global
+            assert_eq!(i.eval_str(b"unset ::b::v"), Code::Ok);
         });
     }
 

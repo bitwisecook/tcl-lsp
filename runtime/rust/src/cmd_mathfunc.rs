@@ -1,0 +1,162 @@
+//! `::tcl::mathfunc::*` — the math functions as **real, overridable commands**
+//! (T1.5, the registry-backed convergence).
+//!
+//! In C Tcl 9 (`tclBasic.c`) `expr`'s function calls dispatch as commands in the
+//! `::tcl::mathfunc` namespace, so they are overridable/renamable. This registers
+//! one builtin per function name; each forwards to the **shared**
+//! [`tcl_syntax::expr::mathfunc::dispatch`] (the same dispatch the compiler
+//! const-folds with, and `expr`'s fallback). `expr`'s function-call path
+//! (`interp.eval_math_call`) resolves `::tcl::mathfunc::NAME` through the command
+//! table first, so a user `proc ::tcl::mathfunc::foo` or a `rename` is honoured —
+//! verified against tclsh 9.0.
+//!
+//! Needs the numeric tower (`as_math_num`), so it tracks the `have_tommath` cfg
+//! like `expr` itself. `rand`/`srand` (RNG state on the interp) are a follow-up.
+
+use tcl_syntax::expr::mathfunc::{dispatch, Num};
+use tcl_syntax::naming::qualifier_segments;
+
+use crate::interp::{obj_bytes, Code, Interp};
+use crate::obj::{self, TclObj};
+
+/// Every function name [`dispatch`] understands — registered as
+/// `::tcl::mathfunc::<name>`. (`rand`/`srand` need interp RNG state; deferred.)
+const MATHFUNCS: &[&str] = &[
+    "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
+    "exp", "floor", "fmod", "hypot", "int", "isqrt", "isfinite", "isinf", "isnan", "log", "log10",
+    "max", "min", "pow", "round", "sin", "sinh", "sqrt", "tan", "tanh", "wide",
+];
+
+/// Register `::tcl::mathfunc::*`.
+pub fn install(interp: &mut Interp) {
+    for name in MATHFUNCS {
+        let mut full = b"::tcl::mathfunc::".to_vec();
+        full.extend_from_slice(name.as_bytes());
+        interp.register_builtin(&full, mathfunc);
+    }
+}
+
+/// The shared implementation behind every `::tcl::mathfunc::NAME`. The function
+/// is `argv[0]`'s simple tail (so one builtin serves all names); operands are
+/// read off the tower as [`Num`] and dispatched.
+fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let name0 = obj_bytes(argv[0]);
+    let tail = qualifier_segments(&name0)
+        .last()
+        .copied()
+        .unwrap_or(&name0[..]);
+    let Ok(fname) = core::str::from_utf8(tail) else {
+        return interp.set_error(b"unknown math function");
+    };
+
+    // Operands → Num (object-preserving: a bignum/double keeps its rep).
+    let nums: Option<Vec<Num>> = argv[1..]
+        .iter()
+        .map(|&o| crate::bignum::as_math_num(o))
+        .collect();
+    let Some(nums) = nums else {
+        return interp.set_error(b"argument to math function didn't have numeric value");
+    };
+
+    // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
+    match dispatch(&fname.to_ascii_lowercase(), &nums) {
+        Some(Num::Int(i)) => {
+            interp.set_result(obj::new_wide_int_obj(i));
+            Code::Ok
+        }
+        Some(Num::Float(f)) => {
+            interp.set_result(obj::new_double_obj(f));
+            Code::Ok
+        }
+        // A *registered* name reaching `None` is a domain / arg-count error
+        // (unknown names never resolve to this builtin — they miss the table).
+        None => interp.set_error(b"domain error: argument not in valid range"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::counters;
+    use crate::interp::{Code, Interp};
+
+    fn leak_free(body: impl FnOnce(&mut Interp)) {
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            body(&mut interp);
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn mathfunc_callable_as_command() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::sqrt 4"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::abs -7"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"7");
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::max 1 9 3"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9");
+        });
+    }
+
+    #[test]
+    fn expr_routes_through_the_command_table() {
+        leak_free(|i| {
+            // `expr` still works (the builtin forwards to the shared dispatch) …
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+            // … and resolves the function *through the command table*: renaming
+            // the command away breaks `expr` with C's invalid-command error.
+            assert_eq!(i.eval_str(b"rename ::tcl::mathfunc::sqrt {}"), Code::Ok);
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::sqrt\""
+            );
+        });
+    }
+
+    #[test]
+    fn override_via_alias_wins_in_expr() {
+        // A redirect of `::tcl::mathfunc::sqrt` → `::tcl::mathfunc::abs` is honoured
+        // by `expr` (proves the override hook without needing procs).
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"interp alias {} ::tcl::mathfunc::sqrt {} ::tcl::mathfunc::abs"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"expr {sqrt(-4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"4"); // abs(-4), not sqrt
+        });
+    }
+
+    #[test]
+    fn unknown_function_reports_invalid_command() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"expr {frobnicate(1)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::frobnicate\""
+            );
+        });
+    }
+
+    #[test]
+    fn domain_error_surfaces() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::sqrt -1"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"domain error: argument not in valid range"
+            );
+        });
+    }
+}
