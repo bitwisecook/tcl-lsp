@@ -270,7 +270,6 @@ def _peek_tls_clienthello(payload: bytes) -> tuple[bool, str, str]:
         return True, "", ""
 
 
-# Best-effort: scan an F5 ethernet trailer's LOW/MED TLV data for a printable
 def _extract_peer_tuple_from_trailer(
     trailer_bytes: bytes,
 ) -> tuple[str, int, str, int] | None:

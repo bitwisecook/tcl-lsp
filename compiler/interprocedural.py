@@ -19,9 +19,6 @@ from typing import TYPE_CHECKING
 from compiler.analysis_types import LatticeKind, LatticeValue
 from compiler.cfg import CFGFunction, CFGReturn, build_cfg
 from compiler.eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
-
-if TYPE_CHECKING:
-    from compiler.core_analyses import FunctionAnalysis
 from compiler.expr_ast import (
     ExprBinary,
     ExprCall,
@@ -77,6 +74,9 @@ from shared.naming import (
 )
 from shared.proc_traits import ProcArgTrait
 from shared.tokens import TokenType
+
+if TYPE_CHECKING:
+    from compiler.core_analyses import FunctionAnalysis
 
 log = logging.getLogger(__name__)
 

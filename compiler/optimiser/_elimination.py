@@ -177,16 +177,16 @@ def _expr_has_observable_side_effect(
             return _expr_has_observable_side_effect(
                 _operand, interproc_pure, interproc_pure_methods, enclosing_class
             )
-        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+        case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
             return (
                 _expr_has_observable_side_effect(
-                    cond, interproc_pure, interproc_pure_methods, enclosing_class
+                    _cond, interproc_pure, interproc_pure_methods, enclosing_class
                 )
                 or _expr_has_observable_side_effect(
-                    tb, interproc_pure, interproc_pure_methods, enclosing_class
+                    _tb, interproc_pure, interproc_pure_methods, enclosing_class
                 )
                 or _expr_has_observable_side_effect(
-                    fb, interproc_pure, interproc_pure_methods, enclosing_class
+                    _fb, interproc_pure, interproc_pure_methods, enclosing_class
                 )
             )
         case ExprCall(args=args):
