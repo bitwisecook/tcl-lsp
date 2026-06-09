@@ -120,6 +120,7 @@ class ExplorerApp(App):
             load_source,
             optimised_result,
         )
+
         self._OPT_VIEWS = OPT_VIEWS
         self._VIEW_ORDER = _VIEW_ORDER
         self._summary_parts = _summary_parts
@@ -178,7 +179,9 @@ class ExplorerApp(App):
         # 'on', and any view's 'diff') — needed for every non-"off" mode, not
         # just diff.  Tree views get optimised data from the serialised payload.
         self._opt = (
-            self._optimised_result(self._result, self._args.dialect) if self._opt_mode != "off" else None
+            self._optimised_result(self._result, self._args.dialect)
+            if self._opt_mode != "off"
+            else None
         )
         self._update_subtitle()
         self.query_one("#summary", Label).update(

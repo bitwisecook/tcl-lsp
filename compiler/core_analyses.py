@@ -53,11 +53,11 @@ from shared.naming import split_array_name
 from shared.tokens import TokenType
 
 from .analysis_types import (
-    LatticeKind,
-    LatticeValue,
+    _MAX_CONSTSET_SIZE,
     OVERDEFINED,
     UNKNOWN,
-    _MAX_CONSTSET_SIZE,
+    LatticeKind,
+    LatticeValue,
     _join,
     _to_set,
 )
@@ -1083,7 +1083,9 @@ def _expr_mutation_free(node: ExprNode) -> bool:
         case ExprUnary(operand=_operand):
             return _expr_mutation_free(_operand)
         case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
-            return _expr_mutation_free(_cond) and _expr_mutation_free(_tb) and _expr_mutation_free(_fb)
+            return (
+                _expr_mutation_free(_cond) and _expr_mutation_free(_tb) and _expr_mutation_free(_fb)
+            )
         case ExprCall(args=args):
             return all(_expr_mutation_free(a) for a in args)
         case _:

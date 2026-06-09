@@ -176,6 +176,7 @@ _DEEP_RMW_VAR_REF_SCANNER = VarReferenceScanner(
     )
 )
 
+
 # EXPR-only deep scanner: descends ``[expr {...}]`` (and other EXPR-role)
 # arguments but NOT BODY scripts, so reads inside command-substituted exprs
 # are captured without attributing deferred/nested-script reads to the

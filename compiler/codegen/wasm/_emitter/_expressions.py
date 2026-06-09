@@ -79,11 +79,19 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
-        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: pass
-        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: pass
+        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any:
+            pass
+
+        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any:
+            pass
+
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
-        def _resolve_proc(self, *a: Any, **kw: Any) -> Any: pass
-        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: pass
+        def _resolve_proc(self, *a: Any, **kw: Any) -> Any:
+            pass
+
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any:
+            pass
+
         # From _WasmEmitterCtrlMixin
         def _emit_catch_from_args(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCmdMixin

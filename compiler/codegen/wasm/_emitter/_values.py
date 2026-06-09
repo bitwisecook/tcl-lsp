@@ -381,11 +381,19 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
-        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: pass
-        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any: pass
+        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any:
+            pass
+
+        def _emit_distrust_proc_subst(self, *a: Any, **kw: Any) -> Any:
+            pass
+
         def _resolve_proc_qname(self, *a: Any, **kw: Any) -> Any: ...
-        def _resolve_proc(self, *a: Any, **kw: Any) -> Any: pass
-        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: pass
+        def _resolve_proc(self, *a: Any, **kw: Any) -> Any:
+            pass
+
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any:
+            pass
+
         # From _WasmEmitterExprMixin
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_expr_obj(self, *a: Any, **kw: Any) -> Any: ...

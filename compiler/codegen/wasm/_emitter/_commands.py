@@ -72,8 +72,12 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
-        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: pass
-        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any: pass
+        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any:
+            pass
+
+        def _proc_arity_exceeded(self, *a: Any, **kw: Any) -> Any:
+            pass
+
         def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_diag_site(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
