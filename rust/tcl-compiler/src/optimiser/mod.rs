@@ -44,7 +44,9 @@ pub mod structure_elimination;
 pub mod tail_call;
 pub mod unused_procs;
 
-pub use manager::{optimise, optimise_raw, optimise_with_dialect};
+pub use manager::{
+    apply_optimisations, optimise, optimise_raw, optimise_source_multipass, optimise_with_dialect,
+};
 
 use std::collections::{HashMap, HashSet};
 

@@ -1089,6 +1089,79 @@ impl Backend {
         Ok(Some(value))
     }
 
+    /// Handle the `tcl-lsp.optimiseDocument` workspace command.
+    ///
+    /// Arguments: `[uri, profile?]`.  Runs the optimiser over the document
+    /// (multi-pass for the `"full"` profile, single-pass otherwise),
+    /// applies the rewrites, and returns `{source, optimisations}` — the
+    /// optimised text plus the list of applied optimisation suggestions.
+    /// Mirrors the Python `tcl-lsp.optimiseDocument` command.
+    async fn optimise_document_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        // The `"full"` profile iterates to a fixpoint; anything else is a
+        // single pass.  Default to `"full"`.
+        let profile = args
+            .get(1)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("full")
+            .to_owned();
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            let dialect_opt = Some(dialect.as_str());
+            let (source, opts) = if profile == "full" {
+                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
+            } else {
+                let opts =
+                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
+                let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
+                (applied, opts)
+            };
+            let line_index = tcl_lexer::LineIndex::new(&text);
+            let items: Vec<serde_json::Value> = opts
+                .iter()
+                .map(|o| {
+                    let start = line_index.position_at_utf16(o.span.start(), &text);
+                    let end = line_index.position_at_utf16(o.span.end(), &text);
+                    serde_json::json!({
+                        "code": o.code,
+                        "message": o.message,
+                        "startLine": start.line,
+                        "startCharacter": start.character,
+                        "endLine": end.line,
+                        "endCharacter": end.character,
+                        "replacement": o.replacement,
+                        "group": o.group,
+                        "hintOnly": o.hint_only,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "source": source,
+                "optimisations": items,
+            })
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("optimise worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(Some(value))
+    }
+
     /// Handle the `tcl-lsp.unminifyError` workspace command.
     ///
     /// Arguments: `[errorMessage, symbolMapText, minifiedSource?,
@@ -2830,6 +2903,7 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         match params.command.as_str() {
             "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
+            "tcl-lsp.optimiseDocument" => self.optimise_document_command(&params.arguments).await,
             "tcl-lsp.unminifyError" => Ok(Self::unminify_error_command(&params.arguments)),
             "tcl-lsp.describeIruleEvent" => {
                 self.describe_irule_event_command(&params.arguments).await
@@ -3857,6 +3931,7 @@ fn build_server_capabilities() -> ServerCapabilities {
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: vec![
                 "tcl-lsp.minifyDocument".to_owned(),
+                "tcl-lsp.optimiseDocument".to_owned(),
                 "tcl-lsp.unminifyError".to_owned(),
                 "tcl-lsp.describeIruleEvent".to_owned(),
                 "tcl-lsp.describeIruleCommand".to_owned(),

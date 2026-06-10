@@ -92,6 +92,73 @@ pub fn optimise_raw(
     ctx.optimisations
 }
 
+/// Apply the non-hint-only optimisation rewrites to `source`, returning the
+/// rewritten text.  Edits are applied in reverse-offset order (so earlier
+/// offsets stay valid) and deduplicated by `(offset, length)`.  Spans are
+/// half-open `[start, end)`, so the byte range is `span.start()..span.end()`.
+/// Mirrors `_manager.py::apply_optimisations`.
+#[must_use]
+pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> String {
+    let mut edits: Vec<(usize, usize, &str)> = optimisations
+        .iter()
+        .filter(|o| !o.hint_only)
+        .filter_map(|o| {
+            let start = o.span.start() as usize;
+            let end = o.span.end() as usize;
+            (start <= end && end <= source.len()).then_some((
+                start,
+                end - start,
+                o.replacement.as_str(),
+            ))
+        })
+        .collect();
+    if edits.is_empty() {
+        return source.to_owned();
+    }
+    edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+    let mut seen: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+    let mut result = source.to_owned();
+    for (offset, length, text) in edits {
+        if !seen.insert((offset, length)) {
+            continue;
+        }
+        if offset + length <= result.len() {
+            result.replace_range(offset..offset + length, text);
+        }
+    }
+    result
+}
+
+/// Iteratively optimise `source` until a fixpoint or `max_iterations` is
+/// reached: each pass recompiles the rewritten source so optimisations
+/// exposed by an earlier pass (constant folding enabling further folding /
+/// dead-store removal) are discovered.  Returns `(final_source,
+/// all_optimisations_applied)`.  Mirrors
+/// `_manager.py::optimise_source_multipass`.
+#[must_use]
+pub fn optimise_source_multipass(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    max_iterations: usize,
+) -> (String, Vec<Optimisation>) {
+    let mut current = source.to_owned();
+    let mut all: Vec<Optimisation> = Vec::new();
+    for _ in 0..max_iterations {
+        let opts = optimise_with_dialect(&current, registry, dialect);
+        if opts.is_empty() {
+            break;
+        }
+        let next = apply_optimisations(&current, &opts);
+        all.extend(opts);
+        if next == current {
+            break;
+        }
+        current = next;
+    }
+    (current, all)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
