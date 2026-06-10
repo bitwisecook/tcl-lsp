@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from compiler.side_effects import StorageType
 
 from compiler.types import TclType
-from shared.tokens import Token
+from shared.ranges import word_closer_offset
+from shared.tokens import Token, TokenType
 
 from .command_registry import REGISTRY
 from .models import CommandSpec, PatternType, ValidationSpec
@@ -449,16 +450,21 @@ _EDA_TCL_BASE: dict[str, str] = {
 
 import contextvars  # noqa: E402
 
-from .dialects import KNOWN_DIALECTS as _KNOWN_DIALECTS  # noqa: E402
-
 # Per-request scope variables.  Each LSP request handler is expected to wrap
 # its work in ``dialect_scope(dialect, extra_commands=...)`` so that
 # ``active_dialect()``, ``SIGNATURES``, and the lexer flags return values
 # scoped to the current document's folder rather than a process-wide
 # singleton.  See issue #407.
-_dialect_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "tcl_lsp_dialect", default="tcl8.6"
-)
+#
+# ``_dialect_var`` lives in the dependency-free ``compiler.dialect_context``
+# leaf so the lexer can read the active dialect without importing this module
+# (which would form a lexer ↔ green_tree ↔ registry.runtime cycle); imported
+# here for this module's own ``_dialect_var.get()`` call sites.
+from compiler.dialect_context import _dialect_var  # noqa: E402
+from compiler.parsing.green_tree import tokenise  # noqa: E402
+
+from .dialects import KNOWN_DIALECTS as _KNOWN_DIALECTS  # noqa: E402
+
 _extra_commands_var: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
     "tcl_lsp_extra_commands", default=()
 )
@@ -1067,9 +1073,6 @@ def iter_switch_case_list(
     list (i.e. the ``Token.text`` of the STR token, not including the
     surrounding ``{`` ``}``).
     """
-    from compiler.parsing.green_tree import tokenise
-    from shared.ranges import word_closer_offset
-    from shared.tokens import TokenType
 
     lex_tokens, _ = tokenise(
         case_list_text,

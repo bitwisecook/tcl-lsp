@@ -30,6 +30,15 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Label, ListItem, ListView, Static, Tree
 
 from tooling.cli.serialise import serialise_result
+from tooling.explorer._render import (
+    _VIEW_ORDER,
+    OPT_VIEWS,
+    LineIndex,
+    _summary_parts,
+    load_source,
+    optimised_result,
+    render_view_opt,
+)
 from tooling.explorer.pipeline import CompilerExplorerResult, run_pipeline
 from tooling.explorer.tui_views import TREE_VIEWS, ViewNode, build_view
 
@@ -67,8 +76,6 @@ def _render_view_ansi(
     opt: tuple[CompilerExplorerResult, str] | None = None,
 ) -> Text:
     """Capture ``render_view_opt``'s ANSI output for *view* and parse it for Rich."""
-    from tooling.explorer.cli import LineIndex, render_view_opt  # deferred (cycle)
-
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         try:
@@ -112,14 +119,6 @@ class ExplorerApp(App):
 
     def __init__(self, source: str, args: argparse.Namespace) -> None:
         super().__init__()
-
-        from tooling.explorer.cli import (  # deferred (cycle)
-            _VIEW_ORDER,
-            OPT_VIEWS,
-            _summary_parts,
-            load_source,
-            optimised_result,
-        )
 
         self._OPT_VIEWS = OPT_VIEWS
         self._VIEW_ORDER = _VIEW_ORDER

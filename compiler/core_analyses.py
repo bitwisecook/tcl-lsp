@@ -62,6 +62,7 @@ from .analysis_types import (
     _to_set,
 )
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from .class_names import extract_class_names
 from .command_trust import builtin_is_trusted
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import (
@@ -4151,7 +4152,5 @@ def analyse_source(source: str) -> ModuleAnalysis:
     the heuristic; now it requires the explicit class set.
     """
     ir_module = lower_to_ir(source)
-    from compiler.compilation_unit import _extract_class_names
-
-    known_classes = _extract_class_names(ir_module)
+    known_classes = extract_class_names(ir_module)
     return analyse_ir_module(ir_module, known_classes=known_classes)

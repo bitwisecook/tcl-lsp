@@ -1087,8 +1087,8 @@ def get_diagnostics(
 ) -> list[types.Diagnostic]:
     """Analyse source and return all LSP diagnostics (basic + deep).
 
-    This is the synchronous entry point kept for backward compatibility
-    and for callers that need all diagnostics in a single list (e.g. tests).
+    The synchronous entry point for callers that want every diagnostic in a
+    single list rather than the split basic/deep pipeline (e.g. tests).
     """
     cu = ensure_compilation_unit(source, cu, logger=log, context="diagnostics")
 

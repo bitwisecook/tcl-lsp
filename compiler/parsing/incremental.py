@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
+from functools import partial
 from typing import TYPE_CHECKING
 
 from shared.diagnostic import Range, SourcePosition
@@ -443,7 +444,7 @@ def incremental_top_level_chunks(
     to_pos = (
         offset_to_position
         if offset_to_position is not None
-        else (lambda o: _offset_to_position(new_source, o))
+        else partial(_offset_to_position, new_source)
     )
     pos_ws = to_pos(ws)
     pos_end = to_pos(val_end_new)

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from compiler.parsing import token_scanning as ts
-from compiler.parsing.lexer import is_simple_scalar_var_word
+from compiler.parsing.token_scanning import is_simple_scalar_var_word
 from shared.tokens import TokenType
 
 

@@ -3,8 +3,8 @@
 After the CST landed (#533), ``word_piece`` carries the braced-vs-bare
 distinction by *natural spelling* (no ``$={}`` marker).  It was still
 triplicated across ``token_helpers`` (natural-spelling), ``command_segmenter``
-(substituted-bare-array stays bare, literal normalises), and ``command_shapes``
-(verbatim bare).  This pins that the one two-flag function reproduces each of
+(substituted-bare-array stays bare, literal normalises), and the verbatim-bare
+shape matcher.  This pins that the one two-flag function reproduces each of
 those three behaviours exactly, so a future change to the shared helper can't
 silently shift any consumer.
 """
@@ -109,7 +109,7 @@ def test_word_piece_segmenter_form_matches_command_segmenter():
         assert word_piece(tok, bare_arrays_split=False) == _old_segmenter(tok), src
 
 
-def test_word_piece_verbatim_matches_command_shapes():
+def test_word_piece_verbatim_matches_shape_matcher():
     for src, tok in _tokens():
         assert word_piece(tok, normalise_var_braces=False) == _old_shapes(tok), src
 

@@ -22,16 +22,10 @@ from typing import TYPE_CHECKING
 
 from shared.tokens import Token, TokenType
 
+from .green_tree import tokenise
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-
-
-def _tokenise(text: str, base_offset: int, base_line: int, base_col: int):
-    """Deferred wrapper for ``green_tree.tokenise`` — avoids the green_tree ↔ lexer
-    import cycle by deferring the import until first use."""
-    from .green_tree import tokenise
-
-    return tokenise(text, base_offset, base_line, base_col)
 
 
 def word_piece(
@@ -104,7 +98,7 @@ def extract_scalar_var_name(text: str) -> str | None:
     token-based replacement for the simple-var-word regexes — stricter than the
     regex on malformed input, identical on valid input.
     """
-    tokens, _ = _tokenise(text, 0, 0, 0)
+    tokens, _ = tokenise(text, 0, 0, 0)
     tok = tokens[0] if tokens else None
     if tok is None or tok.type is not TokenType.VAR or tok.start.offset != 0:
         return None
@@ -116,6 +110,18 @@ def extract_scalar_var_name(text: str) -> str | None:
     if not all(ch.isalnum() or ch in "_:" for ch in name):
         return None
     return name
+
+
+def is_simple_scalar_var_word(text: str) -> bool:
+    """Return ``True`` when *text* is exactly one ``$var`` / ``${var}`` scalar
+    variable reference (no array index), named with the conventional shape.
+
+    Token-based replacement for the simple-var-word regexes: it follows
+    Tcl's real variable-name rules (only ``::`` is a namespace separator, a
+    lone ``:`` ends the name), so it is stricter than the old regex on
+    malformed input and identical on valid input.
+    """
+    return extract_scalar_var_name(text) is not None
 
 
 def scan_command_substitutions(
@@ -131,7 +137,7 @@ def scan_command_substitutions(
     anchoring, so callers that recurse into a nested word pass that word's
     content base.
     """
-    tokens, _ = _tokenise(text, base_offset, base_line, base_col)
+    tokens, _ = tokenise(text, base_offset, base_line, base_col)
     return [t for t in tokens if t.type is TokenType.CMD]
 
 
@@ -142,7 +148,7 @@ def single_command_substitution(text: str) -> Token | None:
     (i.e. ``text`` is a single bare command substitution, not a braced literal
     that merely contains brackets).  Returns ``None`` otherwise.
     """
-    tokens, _ = _tokenise(text, 0, 0, 0)
+    tokens, _ = tokenise(text, 0, 0, 0)
     if not tokens or tokens[0].type is not TokenType.CMD:
         return None
     for tok in tokens[1:]:
@@ -169,7 +175,7 @@ def parse_single_command(
     *base_line* / *base_col* anchor the lexer so each returned token carries
     absolute positions (pass the content base when *text* is a region substring).
     """
-    tokens, _ = _tokenise(text, base_offset, base_line, base_col)
+    tokens, _ = tokenise(text, base_offset, base_line, base_col)
     commands: list[tuple[list[str], list[Token], list[bool]]] = []
     argv_texts: list[str] = []
     argv_tokens: list[Token] = []
@@ -240,7 +246,7 @@ def extract_single_expr_argument(
     discard the second command.  Words round-trip *verbatim* (no normalisation)
     so the extracted argument is exactly what the user typed.
     """
-    tokens, _ = _tokenise(cmd_text, 0, 0, 0)
+    tokens, _ = tokenise(cmd_text, 0, 0, 0)
     argv_texts: list[str] = []
     argv_single: list[bool] = []
     prev_type = TokenType.EOL
@@ -289,7 +295,7 @@ def iter_region_words(
     ``is_word_start`` is ``True`` for the first word after a separator.  Backs the
     switch-body / case-list element splitters that hand-rolled this loop.
     """
-    tokens, _ = _tokenise(text, base_offset, base_line, base_col)
+    tokens, _ = tokenise(text, base_offset, base_line, base_col)
     prev_type = TokenType.EOL
     first_tok: Token | None = None
     word = ""

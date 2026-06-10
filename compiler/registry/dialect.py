@@ -7,9 +7,10 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
+from compiler.dialect_context import _dialect_var
+
 from .runtime import (
     _canonical_dialect,
-    _dialect_var,
     _extra_commands_var,
     active_signature_profile,
 )
