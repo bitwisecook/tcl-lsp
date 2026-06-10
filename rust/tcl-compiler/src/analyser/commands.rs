@@ -174,6 +174,7 @@ impl Analyser {
     /// [`Self::emit_arity_diagnostics`] (SYNC-MAY21-3); the
     /// candidates are flushed post-walk by
     /// [`Self::flush_arity_diagnostics`].
+    #[allow(clippy::too_many_lines)]
     pub fn process_command(
         &mut self,
         argv_texts: &[String],
