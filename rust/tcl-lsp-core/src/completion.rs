@@ -776,16 +776,30 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     names.sort_unstable();
     names
         .into_iter()
-        .map(|name| CompletionItem {
-            label: name.to_owned(),
-            insert_text: name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: Some("F5 iRules event".to_string()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .map(|name| {
+            // Describe the event from its registry props (sides / transport /
+            // implied profiles) so the item carries documentation.
+            let doc = reg.get_props(name).map(|p| {
+                let mut parts = vec![format!("F5 iRules event `{name}`")];
+                if !p.implied_profiles.is_empty() {
+                    parts.push(format!("Profiles: {}", p.implied_profiles.join(", ")));
+                }
+                if p.deprecated {
+                    parts.push("Deprecated".to_string());
+                }
+                parts.join("\n\n")
+            });
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: Some("F5 iRules event".to_string()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: doc.or_else(|| Some(format!("F5 iRules event `{name}`"))),
+            }
         })
         .collect()
 }
