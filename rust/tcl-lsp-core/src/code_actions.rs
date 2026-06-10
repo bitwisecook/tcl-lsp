@@ -793,6 +793,133 @@ fn extract_inline_actions(
 }
 
 // ---------------------------------------------------------------------------
+// iRules `# Profiles:` header source action.
+// ---------------------------------------------------------------------------
+
+/// Transport / TLS-shared profiles implied by the stack rather than selected
+/// by the operator — filtered out of the `# Profiles:` header.  Mirrors the
+/// `transport` / `tls_shared` layers of `_PROFILE_LAYERS`.
+const INFRA_PROFILES: &[&str] = &["TCP", "UDP", "FASTL4", "SCTP", "SSL_PERSISTENCE", "PERSIST"];
+
+/// Compute the sorted required virtual-server profiles from the file's events
+/// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
+/// Mirrors `_compute_required_profiles`.
+fn compute_required_profiles(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<String> {
+    use std::collections::BTreeSet;
+    let mut profiles: BTreeSet<String> = BTreeSet::new();
+    let events = tcl_registry::events::EventRegistry::build();
+    for ev in crate::irules_context::scan_file_events(source, "f5-irules") {
+        if let Some(props) = events.get_props(&ev) {
+            for p in props.implied_profiles {
+                profiles.insert((*p).to_string());
+            }
+        }
+    }
+    for inv in &analysis.command_invocations {
+        if let Some(spec) = registry.get(&inv.name) {
+            if let Some(req) = spec.event_requires.as_ref() {
+                for p in req.profiles {
+                    profiles.insert((*p).to_string());
+                }
+            }
+        }
+    }
+    // FASTHTTP is an alternative to HTTP; keep only HTTP when both appear.
+    if profiles.contains("HTTP") {
+        profiles.remove("FASTHTTP");
+    }
+    profiles.retain(|p| !INFRA_PROFILES.contains(&p.as_str()));
+    profiles.into_iter().collect()
+}
+
+/// Scan leading comment lines for a `# Profiles: HTTP, CLIENTSSL` directive,
+/// returning `(uppercased profile set, line index)`.
+fn scan_profile_directive(source: &str) -> Option<(std::collections::BTreeSet<String>, u32)> {
+    for (i, line) in source.split('\n').enumerate() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if !t.starts_with('#') {
+            break; // first non-comment content — stop scanning
+        }
+        let body = t.trim_start_matches('#').trim();
+        let lower = body.to_ascii_lowercase();
+        if lower.starts_with("profile") {
+            if let Some(colon) = body.find(':') {
+                let set: std::collections::BTreeSet<String> = body[colon + 1..]
+                    .split(|c: char| c == ',' || c.is_whitespace())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_ascii_uppercase)
+                    .collect();
+                return Some((set, u32::try_from(i).unwrap_or(0)));
+            }
+        }
+    }
+    None
+}
+
+/// Build the `# Profiles:` source action (insert or update) for an iRules
+/// document.  Returns `None` when no profiles are required or the existing
+/// directive already matches.  The caller gates on the iRules dialect.
+#[must_use]
+pub fn profiles_action(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<CodeAction> {
+    let required = compute_required_profiles(source, analysis, registry);
+    if required.is_empty() {
+        return None;
+    }
+    let new_text = format!("# Profiles: {}\n", required.join(", "));
+    if let Some((existing, line_no)) = scan_profile_directive(source) {
+        let required_set: std::collections::BTreeSet<String> = required.iter().cloned().collect();
+        if existing == required_set {
+            return None;
+        }
+        return Some(CodeAction {
+            title: format!(
+                "Update profile requirements \u{2192} {}",
+                required.join(", ")
+            ),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: line_no,
+                    start_character: 0,
+                    end_line: line_no + 1,
+                    end_character: 0,
+                },
+                new_text,
+            }],
+            kind: ActionKind::Source,
+            command: None,
+        });
+    }
+    Some(CodeAction {
+        title: format!(
+            "Generate profile requirements header ({})",
+            required.join(", ")
+        ),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 0,
+            },
+            new_text,
+        }],
+        kind: ActionKind::Source,
+        command: None,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // iRules taint quick-fixes — driven by the *context* diagnostics the editor
 // sends (the analyser may not have re-emitted them), so they take a separate
 // entry point.

@@ -2646,6 +2646,7 @@ impl LanguageServer for Backend {
                 })
             })
             .collect();
+        let dialect = doc.dialect.clone();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
@@ -2655,6 +2656,14 @@ impl LanguageServer for Backend {
                 &doc.text,
                 &context_diags,
             ));
+            // iRules-only: the `# Profiles:` header source action.
+            if dialect == "f5-irules" {
+                if let Some(a) =
+                    core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+                {
+                    actions.push(a);
+                }
+            }
             actions
         })
         .await
