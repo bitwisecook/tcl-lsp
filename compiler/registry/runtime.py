@@ -23,7 +23,7 @@ from shared.ranges import word_closer_offset
 from shared.tokens import Token, TokenType
 
 from .command_registry import REGISTRY
-from .models import CommandSpec, PatternType, ValidationSpec
+from .models import CommandSpec, PatternType, SubCommand, ValidationSpec
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
@@ -592,6 +592,7 @@ def _with_roles(name: str, sig: CommandSig | SubcommandSig) -> CommandSig | Subc
                 arity=sub_sig.arity,
                 arg_roles=dict(sub_hint.arg_roles),
                 arg_role_resolver=sub_hint.arg_role_resolver or sub_sig.arg_role_resolver,
+                leading_options=sub_hint.leading_options or sub_sig.leading_options,
             )
         else:
             merged_subs[sub_name] = sub_sig
@@ -606,6 +607,25 @@ def _signature_from_validation(validation: ValidationSpec | None) -> CommandSig:
     if validation is None:
         return CommandSig()
     return CommandSig(arity=validation.arity)
+
+
+def _subcommand_switch_names(
+    spec: "CommandSpec", sub: "SubCommand", dialect: str | None = None
+) -> frozenset[str]:
+    """Declared option flags for a subcommand, filtered by *dialect*.
+
+    Per-subcommand options (e.g. ``-symbolic`` / ``-hard`` on ``file
+    link``) flow into the subcommand's :class:`CommandSig.leading_options`
+    so the arity checker skips them before counting positionals — without
+    this ``file link -symbolic $dst $src`` is mis-flagged as too many
+    arguments.  An option's dialect membership inherits from the
+    subcommand's ``dialects`` (falling back to the parent command's) when
+    the option itself does not pin a dialect.
+    """
+    parent_dialects = sub.dialects if sub.dialects is not None else spec.dialects
+    return frozenset(
+        opt.name for opt in sub.options if opt.supports_dialect(dialect, parent_dialects)
+    )
 
 
 def _signature_from_spec(
@@ -631,6 +651,7 @@ def _signature_from_spec(
                     arity=sub.arity,
                     arg_roles=dict(sub.arg_roles) if sub.arg_roles else {},
                     arg_role_resolver=sub.arg_role_resolver,
+                    leading_options=_subcommand_switch_names(spec, sub, dialect),
                 )
                 for sub_name, sub in spec.subcommands.items()
             },
