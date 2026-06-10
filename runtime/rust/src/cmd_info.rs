@@ -4,9 +4,10 @@
 //! Reads **live** runtime state (the T-INFO contract: never compile-time-folded).
 //! The implemented subset covers what the library leans on: `exists`,
 //! `commands`/`procs`/`vars`/`globals`/`locals` (glob-filtered), `level`
-//! (current depth), `tclversion`/`patchlevel`, and proc introspection
-//! `body`/`args`/`default`. The rest (`script`, `frame`, `level N`,
-//! `nameofexecutable`, …) land with the source/`CmdFrame` work (L2/PC-5).
+//! (current depth + `level N`), `frame` (the source-location stack, PC-5),
+//! `script`, `tclversion`/`patchlevel`, `nameofexecutable`, and proc
+//! introspection `body`/`args`/`default`. `info errorstack` (TIP 348) is the
+//! remaining `CmdFrame`-adjacent item.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -31,7 +32,45 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"info subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    // `info` is an ensemble: resolve an exact name, else an unambiguous prefix
+    // (so `info command` → `commands`, matching tclsh).
+    const SUBS: &[&[u8]] = &[
+        b"args",
+        b"body",
+        b"class",
+        b"commands",
+        b"complete",
+        b"default",
+        b"exists",
+        b"frame",
+        b"globals",
+        b"level",
+        b"library",
+        b"locals",
+        b"nameofexecutable",
+        b"object",
+        b"patchlevel",
+        b"procs",
+        b"script",
+        b"sharedlibextension",
+        b"tclversion",
+        b"vars",
+    ];
+    let raw = obj_bytes(argv[1]);
+    let sub: &[u8] = if SUBS.contains(&raw.as_slice()) {
+        &raw
+    } else {
+        let hits: Vec<&&[u8]> = SUBS
+            .iter()
+            .filter(|s| s.starts_with(raw.as_slice()))
+            .collect();
+        if hits.len() == 1 {
+            hits[0]
+        } else {
+            &raw // 0 or ambiguous → the error arm
+        }
+    };
+    match sub {
         b"exists" => info_exists(interp, argv),
         b"commands" => set_list(interp, argv, Interp::visible_command_names),
         b"procs" => set_list(interp, argv, Interp::visible_proc_names),
@@ -39,6 +78,9 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"globals" => set_list(interp, argv, Interp::global_var_names),
         b"locals" => set_list(interp, argv, Interp::local_var_names),
         b"level" => info_level(interp, argv),
+        b"frame" => info_frame(interp, argv),
+        b"object" => crate::cmd_oo::info_object(interp, argv),
+        b"class" => crate::cmd_oo::info_class(interp, argv),
         b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),
         b"patchlevel" => fixed(interp, argv, b"info patchlevel", b"9.0.3"),
         // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
@@ -80,7 +122,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be args, body, commands, complete, default, exists, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
+                b"\": must be args, body, commands, complete, default, exists, frame, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
             );
             interp.set_error(&m)
         }
@@ -159,6 +201,46 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// `info frame ?number?` — the source-location stack (PC-5). No arg: the stack
+/// depth. With a number: a dict describing that frame (`type`/`line`/`cmd`,
+/// `proc`/`file` where applicable, and `level`). C ref `tclCmdIL.c`
+/// `InfoFrameCmd`; numbering matches `info level` (N>0 absolute, N<=0 relative).
+fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    match argv.len() {
+        2 => {
+            interp.set_result_bytes(interp.cmd_frame_depth().to_string().as_bytes());
+            Code::Ok
+        }
+        3 => {
+            let spec = obj_bytes(argv[2]);
+            let n = match core::str::from_utf8(&spec)
+                .ok()
+                .and_then(|s| s.trim().parse::<i64>().ok())
+            {
+                Some(n) => n,
+                None => {
+                    let mut m = b"expected integer but got \"".to_vec();
+                    m.extend_from_slice(&spec);
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            };
+            match interp.cmd_frame_info(n) {
+                Some(pairs) => {
+                    let kv: Vec<(*mut TclObj, *mut TclObj)> = pairs
+                        .iter()
+                        .map(|(k, v)| (new_string(k), new_string(v)))
+                        .collect();
+                    interp.set_result(crate::dict::new_dict_obj(&kv));
+                    Code::Ok
+                }
+                None => bad_level(interp, &spec),
+            }
+        }
+        _ => wrong_args(interp, b"info frame ?number?"),
+    }
+}
+
 /// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
 /// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
 /// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
@@ -190,10 +272,8 @@ fn command_complete(s: &[u8]) -> bool {
             match c {
                 b'"' => in_quote = false,
                 b'[' => stack.push(b']'),
-                b']' => {
-                    if stack.last() == Some(&b']') {
-                        stack.pop();
-                    }
+                b']' if stack.last() == Some(&b']') => {
+                    stack.pop();
                 }
                 _ => {}
             }
@@ -349,6 +429,54 @@ mod tests {
             );
             // outer 1 2 → inner 1 ; inside inner: level 2, this call, the outer call.
             assert_eq!(run(i, b"outer 1 2"), b"2 {inner 1} {outer 1 2}");
+        });
+    }
+
+    #[test]
+    fn info_frame_stack() {
+        // Eval mode (the runtime's tests): `type proc`/`eval` with body-relative
+        // lines — verified against tclsh 9.0 (via stdin). A `[info frame]` reports
+        // the substituted command but the enclosing line.
+        leak_free(|i| {
+            // Depth: 1 at top level, 2 inside a proc.
+            assert_eq!(run(i, b"info frame"), b"1");
+            run(i, b"proc p {} { return [info frame] }");
+            assert_eq!(run(i, b"p"), b"2");
+            // `info frame 0` inside a proc: type proc, the FQN, level 0, and the
+            // substituted command at its (body-relative) line.
+            run(i, b"proc q {} {\n    return [info frame 0]\n}");
+            assert_eq!(
+                run(i, b"q"),
+                b"type proc line 2 cmd {info frame 0} proc ::q level 0"
+            );
+            // Absolute index 1 = the root (top-level) frame: type eval.
+            run(i, b"proc r {} { return [info frame 1] }");
+            let out = run(i, b"r");
+            assert!(
+                out.starts_with(b"type eval line ") && out.ends_with(b"cmd r level 1"),
+                "got {:?}",
+                String::from_utf8_lossy(&out)
+            );
+            // Relative -1 from a callee names the caller proc.
+            run(i, b"proc a {} { b }");
+            run(i, b"proc b {} { return [info frame -1] }");
+            assert_eq!(run(i, b"a"), b"type proc line 1 cmd {b } proc ::a level 1");
+            // Out of range → bad level.
+            assert_eq!(i.eval_str(b"info frame 99"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn info_frame_uplevel_is_eval_typed_without_level() {
+        // An `uplevel` body is `type eval` (a fresh dynamically-evaluated body),
+        // keeps the *invoking* proc's name, and omits the `level` key (its scope
+        // is redirected). Byte-verified vs tclsh 9.0.
+        leak_free(|i| {
+            run(i, b"proc h {} { uplevel 1 { return [info frame 0] } }");
+            assert_eq!(
+                run(i, b"h"),
+                b"type eval line 1 cmd {info frame 0} proc ::h"
+            );
         });
     }
 

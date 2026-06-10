@@ -20,7 +20,10 @@ fn main() {
     if init {
         args.remove(1);
     }
-    let src = if let Some(path) = args.get(1) {
+    // A file path is *sourced* (like `tclsh script.tcl`: `info script` is set and
+    // `info frame` reports `type source`); stdin is evaluated as a script.
+    let path = args.get(1).cloned();
+    let src = if let Some(path) = &path {
         std::fs::read(path).unwrap_or_else(|e| {
             eprintln!("run_script: cannot read {path}: {e}");
             std::process::exit(2);
@@ -39,7 +42,10 @@ fn main() {
         );
         std::process::exit(1);
     }
-    let code = interp.eval_str(&src);
+    let code = match &path {
+        Some(p) => interp.eval_sourced(&src, p.as_bytes()),
+        None => interp.eval_str(&src),
+    };
     let result = interp.result_bytes();
     if code == Code::Error {
         eprintln!("error: {}", String::from_utf8_lossy(&result));

@@ -78,7 +78,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
-fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"variable ?name value ...? name ?value?");
     }

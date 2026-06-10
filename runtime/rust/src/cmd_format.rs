@@ -22,6 +22,11 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
     interp.set_error(msg)
 }
 
+/// The largest field width `format` will allocate; beyond it the result would
+/// exceed the maximum size of a Tcl value (`INT_MAX`, matching tclsh 9.0 — a
+/// width of 2e9 formats, 4.29e9 errors).
+const MAX_FORMAT_SIZE: usize = i32::MAX as usize;
+
 struct Spec {
     minus: bool,
     plus: bool,
@@ -129,6 +134,13 @@ fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 spec.width = w;
                 spec.has_width = true;
             }
+        }
+        // A width that would make the result exceed Tcl's value-size limit is an
+        // error, not an enormous allocation (which would overflow `Vec`'s
+        // capacity and panic). Mirrors C's `format` overflow check
+        // (`tclStringObj.c`); verified vs tclsh 9.0 (`format-19.4.x`).
+        if spec.has_width && spec.width > MAX_FORMAT_SIZE {
+            return err(interp, b"max size for a Tcl value exceeded");
         }
 
         // Precision.
@@ -395,12 +407,15 @@ fn to_radix(mut v: u128, radix: u32, upper: bool) -> Vec<u8> {
 
 /// Read a run of ASCII digits as a `usize`; reports whether any were read.
 fn read_uint(f: &[u8], i: &mut usize) -> (usize, bool) {
-    let mut n = 0;
+    let mut n: usize = 0;
     let mut got = false;
     while let Some(&c) = f.get(*i) {
         if c.is_ascii_digit() {
             got = true;
-            n = n * 10 + (c - b'0') as usize;
+            // Saturate rather than wrap: an over-large width must still compare
+            // greater than the value-size limit (see `MAX_FORMAT_SIZE`), not
+            // wrap around to a small number.
+            n = n.saturating_mul(10).saturating_add((c - b'0') as usize);
             *i += 1;
         } else {
             break;
@@ -483,6 +498,24 @@ mod tests {
             // positional specifiers.
             assert_eq!(ok(i, b"format {%2$s %1$s} a b"), b"b a");
             assert_eq!(ok(i, b"format {%+d % d %o} 5 5 8"), b"+5  5 10");
+        });
+    }
+
+    #[test]
+    fn format_overflow_width_errors_not_panics() {
+        // A width past the value-size limit is a clean error, not a `Vec`
+        // capacity-overflow panic / a multi-GB allocation (bug d498578df4,
+        // `format-19.4.x`). Verified vs tclsh 9.0.
+        leak_free(|i| {
+            for w in [b"4294967294".as_slice(), b"18446744073709551614"] {
+                let mut src = b"format %".to_vec();
+                src.extend_from_slice(w);
+                src.extend_from_slice(b"g 0");
+                assert_eq!(i.eval_str(&src), Code::Error);
+                assert_eq!(i.result_bytes(), b"max size for a Tcl value exceeded");
+            }
+            // A merely-large-but-valid width still formats.
+            assert_eq!(ok(i, b"format %5s hi"), b"   hi");
         });
     }
 }

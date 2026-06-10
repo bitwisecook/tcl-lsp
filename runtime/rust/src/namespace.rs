@@ -404,6 +404,39 @@ impl Namespaces {
         self.arena[ns].children.values().copied().collect()
     }
 
+    /// `namespace delete name` — delete the namespace `qualified` resolves to
+    /// (relative to `current`), with its child namespaces, commands, and
+    /// variables. Returns `false` if it does not exist. The arena slot is
+    /// tombstoned (contents cleared, unlinked from its parent) rather than
+    /// removed, so the `NsId` indices of other namespaces stay valid.
+    pub fn delete_namespace(&mut self, current: NsId, qualified: &[u8]) -> bool {
+        let Some(ns) = self.find_namespace(current, qualified) else {
+            return false;
+        };
+        self.delete_subtree(ns);
+        // Unlink from the parent so the name no longer resolves.
+        if let Some(parent) = self.arena[ns].parent {
+            let name = std::mem::take(&mut self.arena[ns].name);
+            self.arena[parent].children.remove(&name);
+        }
+        true
+    }
+
+    /// Recursively clear a namespace and its descendants: dropping the `VarTable`
+    /// releases the variables' object references (`TclFreeVar`); commands and
+    /// child links are dropped.
+    fn delete_subtree(&mut self, ns: NsId) {
+        for child in self.children(ns) {
+            self.delete_subtree(child);
+        }
+        let n = &mut self.arena[ns];
+        n.children.clear();
+        n.commands.clear();
+        n.path.clear();
+        n.exports.clear();
+        n.vars = VarTable::default(); // drop → release variable refcounts
+    }
+
     /// The `(simple_name, source_fqn)` of every imported redirect in `ns`
     /// (`namespace forget` walks these).
     #[must_use]
@@ -469,10 +502,22 @@ impl Namespaces {
         let absolute = name.starts_with(b"::");
         let segments = split_qualifier(name);
         let (simple, ns_parts) = segments.split_last()?;
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = *self.arena[ns].children.get(*part)?;
-        }
+        // Walk the qualifier path from `start`, following child links.
+        let walk = |start: NsId| -> Option<NsId> {
+            let mut ns = start;
+            for part in ns_parts {
+                ns = *self.arena[ns].children.get(*part)?;
+            }
+            Some(ns)
+        };
+        // A relative qualifier resolves against the current namespace, falling
+        // back to the global namespace (C's `TclGetNamespaceForQualName`), so
+        // `tcl::build-info` from inside `::a::b` still finds `::tcl::build-info`.
+        let ns = if absolute {
+            walk(GLOBAL)?
+        } else {
+            walk(current).or_else(|| walk(GLOBAL))?
+        };
         Some((ns, simple))
     }
 }

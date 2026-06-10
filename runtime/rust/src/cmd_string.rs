@@ -80,8 +80,9 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"cat" => str_cat(interp, argv),
         b"repeat" => str_repeat(interp, argv),
         b"reverse" => str_reverse(interp, argv),
-        b"toupper" => str_case(interp, argv, true),
-        b"tolower" => str_case(interp, argv, false),
+        b"toupper" => str_case(interp, argv, CaseMode::Upper),
+        b"tolower" => str_case(interp, argv, CaseMode::Lower),
+        b"totitle" => str_case(interp, argv, CaseMode::Title),
         b"trim" => str_trim(interp, argv, true, true),
         b"trimleft" => str_trim(interp, argv, true, false),
         b"trimright" => str_trim(interp, argv, false, true),
@@ -233,24 +234,72 @@ fn str_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-fn str_case(interp: &mut Interp, argv: &[*mut TclObj], upper: bool) -> Code {
-    if argv.len() != 3 {
-        return wrong_args(
-            interp,
-            if upper {
-                b"string toupper string"
-            } else {
-                b"string tolower string"
-            },
-        );
+/// `string toupper`/`tolower`/`totitle`: the case mapping to apply.
+#[derive(Clone, Copy)]
+enum CaseMode {
+    Upper,
+    Lower,
+    /// First char of the range → upper, the rest → lower.
+    Title,
+}
+
+/// `string toupper|tolower|totitle string ?first? ?last?` — case-map a character
+/// range (the whole string by default). ASCII case only for now (non-ASCII
+/// bytes pass through unchanged — Unicode case mapping is deferred); the range
+/// uses character indices via the shared `index_spec`/`char_to_byte` helpers.
+fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
+    let usage: &[u8] = match mode {
+        CaseMode::Upper => b"string toupper string ?first? ?last?",
+        CaseMode::Lower => b"string tolower string ?first? ?last?",
+        CaseMode::Title => b"string totitle string ?first? ?last?",
+    };
+    if argv.len() < 3 || argv.len() > 5 {
+        return wrong_args(interp, usage);
     }
-    // ASCII case only for now (Unicode case mapping is deferred).
     let mut s = obj_bytes(argv[2]);
-    for b in &mut s {
-        *b = if upper {
-            b.to_ascii_uppercase()
+    let n = char_count(&s);
+    if n == 0 {
+        interp.set_result_bytes(&s);
+        return Code::Ok;
+    }
+    // Default range is the whole string; `?first?`/`?last?` narrow it.
+    let lo = match argv.get(3) {
+        Some(&a) => match index_spec(&obj_bytes(a), n) {
+            Some(i) => i.max(0) as usize,
+            None => return bad_index(interp, &obj_bytes(a)),
+        },
+        None => 0,
+    };
+    let hi = match argv.get(4) {
+        Some(&a) => match index_spec(&obj_bytes(a), n) {
+            Some(i) => i,
+            None => return bad_index(interp, &obj_bytes(a)),
+        },
+        None => n as isize - 1,
+    };
+    if hi < 0 || lo >= n || (hi as usize) < lo {
+        interp.set_result_bytes(&s); // empty range ⇒ unchanged
+        return Code::Ok;
+    }
+    let hi = (hi as usize).min(n - 1);
+    let b0 = char_to_byte(&s, lo);
+    let b1 = char_to_byte(&s, hi + 1);
+    // For `totitle`, only the first character of the range is upper-cased.
+    let title_first_end = if matches!(mode, CaseMode::Title) {
+        char_to_byte(&s, lo + 1)
+    } else {
+        b0
+    };
+    for (off, byte) in s[b0..b1].iter_mut().enumerate() {
+        let upper = match mode {
+            CaseMode::Upper => true,
+            CaseMode::Lower => false,
+            CaseMode::Title => b0 + off < title_first_end,
+        };
+        *byte = if upper {
+            byte.to_ascii_uppercase()
         } else {
-            b.to_ascii_lowercase()
+            byte.to_ascii_lowercase()
         };
     }
     interp.set_result_bytes(&s);
@@ -666,20 +715,9 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 }
 
 /// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
-fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
-    let len = len as isize;
-    if spec == b"end" {
-        return Some(len - 1);
-    }
-    if let Some(rest) = spec.strip_prefix(b"end") {
-        match rest.first() {
-            Some(b'-') => return parse_isize(&rest[1..]).map(|n| len - 1 - n),
-            Some(b'+') => return parse_isize(&rest[1..]).map(|n| len - 1 + n),
-            _ => return None,
-        }
-    }
-    parse_isize(spec)
-}
+// Index specs (`end`, `int±int`, `end±int`, …) share the full
+// `TclGetIntForIndex` grammar with the list commands — reuse one parser.
+use crate::cmd_list::index_spec;
 
 // -- error helpers ---------------------------------------------------------
 
@@ -792,6 +830,14 @@ mod tests {
         assert_eq!(ok(b"string index hello 9"), b"");
         assert_eq!(ok(b"string range hello 1 3"), b"ell");
         assert_eq!(ok(b"string range hello 2 end"), b"llo");
+        // `integer±integer` arithmetic in an index spec (Tcl 9 / safe-base):
+        // `string range $s 0 $last-1` with last=5 → indices 0..4.
+        assert_eq!(ok(b"string range abcdefghij 0 5-1"), b"abcde");
+        assert_eq!(
+            ok(b"set last 5; string range abcdefghij 0 $last-1"),
+            b"abcde"
+        );
+        assert_eq!(ok(b"string index abcdef 2+1"), b"d");
     }
 
     #[test]
@@ -809,6 +855,14 @@ mod tests {
     fn string_case_trim_first_last() {
         assert_eq!(ok(b"string toupper Hello"), b"HELLO");
         assert_eq!(ok(b"string tolower Hello"), b"hello");
+        // `totitle`: first char up, rest down (verified vs tclsh 9.0).
+        assert_eq!(ok(b"string totitle hello"), b"Hello");
+        assert_eq!(ok(b"string totitle {hello world}"), b"Hello world");
+        assert_eq!(ok(b"string totitle ABC"), b"Abc");
+        // `?first? ?last?` range form (Tcl 9): only the range is case-mapped.
+        assert_eq!(ok(b"string totitle abcdef 2 3"), b"abCdef");
+        assert_eq!(ok(b"string toupper abcdef 2 3"), b"abCDef");
+        assert_eq!(ok(b"string tolower ABCDEF 0 1"), b"abCDEF");
         assert_eq!(ok(b"string trim {  hi  }"), b"hi");
         assert_eq!(ok(b"string trimleft xxhi x"), b"hi");
         assert_eq!(ok(b"string trimright hixx x"), b"hi");

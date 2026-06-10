@@ -1396,13 +1396,29 @@ the Zig rep.
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
   [representation-decision note](#choosing-algorithms--data-structures-the-porting-method).
-  **Procs are gated on a design**, not started blind:
+  Procs followed a design, not started blind:
   [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) fixes the
   call protocol (the CallFrame + CmdFrame stacks), the exception/return-options
   model, stack-trace construction, and AOT↔interp interop — built on the
   conservative-first principle and "get the dynamic cross-scope core
   (`uplevel`/`upvar`/`namespace`/`eval`) correct, then optimise". The proc
   chunk follows that doc's PC-1..PC-7 plan.
+  - **Status (ahead of the prose above):** the bulk of T1.6 has landed —
+    string/list/dict/array/control-flow/info/scan/format/chan/trace/package
+    builtins, plus the **proc chunk PC-2/PC-3** (`proc`/`apply`, `uplevel`/
+    `upvar`/`global`/`variable`, `info level`, `catch`/`error`/`try`/`throw`)
+    **PC-1/PC-4 — faithful `::errorInfo` stack traces** (the incremental
+    `while executing` / `invoked from within` / `(procedure "x" line N)`
+    unwinder, byte-verified vs tclsh 9.0), and **PC-5 — `info frame` + `source`
+    frames** (the persistent `CmdFrame` stack: `type`/`line`/`cmd`/`proc`/
+    `file`/`level`, byte-verified vs tclsh 9.0 — including file-absolute lines
+    for source-defined procs and the `uplevel`/`eval`-body cases). Remaining
+    proc-chunk items: `return -options` errorinfo restore, and the
+    expr/`foreach`/`eval`-body **bytecode-boundary** trace approximations noted
+    in `proc-call-and-stack-traces.md` §8. `info errorstack` (TIP 348) is
+    **out of scope** — its `INNER` element exposes tclvm bytecode opcodes a
+    WASM-targeting runtime cannot reproduce (the bytecode/disassembly exclusion
+    class).
 - **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
   `tcl_*`/`obj_*` primitives; the Rust runtime must export the same names/sigs
   so the parity check and the compiled-script harness stay green. Also the wasm
@@ -1662,15 +1678,117 @@ gated PR. Status: **not-started.**
 
 ## Tcl 9 test-suite scoreboard (gold standard)
 
-`tmp/tcl9.0.3/tests/*.test` (168 files), run via
-`scripts/run_tcl9_tcltest_sweep.py`. **In scope: behaviour.** No file passing on
-the Zig baseline may regress. Per-file pass/partial/excluded is captured against
-the Zig baseline; seeded empty here — the first sweep establishes the baseline
-column.
+`tmp/tcl9.0.3/tests/*.test` (168 files). The **Zig/WASM** backend is swept by
+`scripts/dev/run_tcl9_tcltest_sweep.py`; the **Rust interpreter** is swept by
+`scripts/dev/rust_tcltest_sweep.py`, which sources each file through the
+`run_script` example (real `tcltest` loads via `--init`/`init.tcl`) and parses
+tcltest's own `Total/Passed/Skipped/Failed` summary. **In scope: behaviour.**
 
-| `.test` file | Zig baseline (pass/total) | Rust (pass/total) | Status |
+### Rust runtime baseline — 2026-06-10 (first sweep)
+
+The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
+2.5.10). First measured baseline, then the same day's two unblocking fixes
+(idempotent `namespace import` re-import + `tcl::build-info`):
+
+| Sweep | Files run-to-summary | Errored before summary | Tests passed |
 |---|---|---|---|
-| _seed — captured by first `run_tcl9_tcltest_sweep.py` run_ | — | — | not-started |
+| Initial baseline | 86 / 168 | 81 | 5572 / 11022 |
+| + reimport / build-info | 94 / 168 | 73 | 6139 / 12299 |
+| + totitle / nsdelete / file / pkg-require-global | 105 / 168 | 62 | 6830 / 14079 |
+| + panic fixes / qualified-name fallback | 110 / 168 | 57 | 7214 / 15345 |
+| + `binary format`/`scan` | 116 / 168 | 51 | 8325 / 17673 |
+| + child interpreters | 118 / 168 | 49 | 8406 / 17855 |
+| + TclOO core | 120 / 168 | 47 | 8415 / 18298 |
+| + TclOO expand / info prefix / hidden+safe | 122 / 168 | 45 | 8529 / 18775 |
+| + cross-interp aliases | 122 / 168 | 45 | 8546 / 18775 |
+| + auto-load fixes + re-entrant Safe Base | **124 / 168** | 43 (+1 timeout) | **8654 / 18939** |
+
+Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
+**81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
+matters more than the ~47% rate — the denominator grows as more files run their
+full test sets). The unblocking fixes:
+
+- idempotent `namespace import` re-import (same source ⇒ no-op);
+- `tcl::build-info` (the tcltest constraint source);
+- `string totitle` + the `?first? ?last?` range form for `toupper`/`tolower`;
+- `namespace delete` (arena tombstoning of the subtree);
+- `file delete`/`mkdir`/`size`/`type`/`pathtype`/`executable`;
+- `package require` evaluates its load script at global scope (C's `uplevel
+  #0`), so a package's `namespace eval foo` creates `::foo` even when required
+  from inside a namespace;
+- three panics → clean errors: `format` width overflow (`max size for a Tcl
+  value exceeded`), `proc` `args`-split with all-defaulted positionals, and a
+  required parameter after a defaulted one (`wrong # args`);
+- relative qualified command names fall back to the global namespace (so
+  `tcl::build-info` resolves from inside a namespace);
+- `binary format`/`binary scan` (the core type codes — see `cmd_binary`);
+- basic child interpreters (`interp create`/`eval`/`exists`/`children`/`delete`
+  + the child as a command), each a full `Interp` with startup globals;
+- **TclOO** (`cmd_oo`): `oo::class`/`oo::object`/`oo::define`/`oo::objdefine`/
+  `oo::copy`, methods + `forward`, constructor/destructor, single/multiple
+  inheritance + `mixin` over a linearised dispatch chain, `export`/`unexport`,
+  `self`/`my`/`next`, per-object methods/mixins/instance-variables, and `info
+  object`/`info class` introspection (oo.test 9 → 31). `package require
+  tcl::oo`/`TclOO` succeed.
+- `info` is an ensemble (unambiguous-prefix subcommands) — `info command` →
+  `commands` (unblocks interp.test, 48/354).
+- hidden commands (`interp hide`/`expose`/`invokehidden`/`hidden`, + the
+  `$child` forms) and `interp create -safe` (hides the host-touching commands
+  the runtime has);
+- **cross-interp aliases** — a child alias delegating to a parent command
+  (`interp alias child name {} target …`, `$child alias name target …`).
+  interp.test 79 → 94.
+- **library auto-loading fixes** — five conformance bugs that blocked the Safe
+  Base's pure-Tcl libraries (tm.tcl, safe.tcl, opt) from auto-loading on demand:
+  `namespace ensemble create -command NAME` now qualifies a relative `NAME`
+  against the current namespace (so `tcl::tm::path` binds at the right FQN and
+  `auto_load`'s `namespace which` check passes); `lappend a(k)` addresses array
+  elements; index specs accept the full `integer±integer` grammar (`string range
+  $s 0 $last-1`); `namespace upvar` is implemented; `glob -types` filters by
+  file-kind/permission.
+- **re-entrant Safe Base (idiomatic, sound, lock-free)** — the cross-interp eval
+  engine supports genuine parent⇄child recursion (a child's aliased `source`
+  calls back into the parent, which calls `interp invokehidden $child …` back
+  into the *same* child while its outer eval is on the stack — exactly C's nested
+  `Tcl_Eval`). This is sound **by construction**, not by a bounded raw-pointer
+  hack: `Interp` is a cheap `Rc<InterpState>` handle and **every field of
+  `InterpState` is interior-mutable** (`RefCell`/`Cell`), borrowed only for the
+  span of a single operation — never across a sub-eval (the command resolver
+  already returns *cloned* `Command` handles so dispatch holds no table borrow).
+  Re-entry into an interp clones its handle (an `Rc` bump) and reaches the shared
+  state through `Rc` + `RefCell`, so there is **no aliased `&mut`** — a discipline
+  slip is a clean panic, never UB (Miri-clean for the interp layer). Children are
+  `RefCell<BTreeMap<…, Interp>>`; the parent link is a `Weak<InterpState>` (no
+  ownership cycle). Single-threaded throughout — `Rc`/`RefCell`/`Cell`, no locks.
+  `CROSS_INTERP_DEPTH` survives only as a native-stack bound. A child deleted
+  *during* its own eval (the self-deleting `exit`→`interp delete` alias) has its
+  teardown **deferred** (`eval_active`/`pending_delete`) until the eval unwinds
+  (C's deferred `Tcl_DeleteInterp`). `safe::interpCreate`/`interpDelete` and the
+  full Safe Base lifecycle work (safe.test: 0 run → **51 passed** of 155, no
+  crashes; interp.test 94 → 104). `interp issafe`/`aliases` (+`$child` forms)
+  added. The whole-runtime conversion (`&mut self` field access → interior
+  mutability) is behavior-preserving: the sweep is byte-identical before/after
+  (8654/18939), and all 237 lib tests + clippy/fmt stay green.
+
+Biggest remaining error-before-summary blockers, by file count:
+
+| Blocker | Files | Notes |
+|---|---|---|
+| TclOO meta-protocol | 3 | `oo`/`ooNext2`/`ooUtil`: classes-as-objects, filters, private methods (8.7+), full C3 mixin linearisation, the rarer `info object`/`class` subcommands |
+| `zipfs` | 3 | zip virtual filesystem |
+| `tcl::test` package | 2 | the C-tier test commands |
+| `auto_load` in children | 2 | child interps lack the full `init.tcl` |
+
+**Deferred:** the full Safe Base (`safe.tcl` — `source`/`load`/`file`
+re-aliasing that `safe*.test` needs) builds on cross-interp aliases (now
+present) plus auto-loading in children and *deep* cross-interp re-entrancy
+(parent alias → back into the same child). The latter is what the depth guard
+currently rejects; lifting it needs the parent threaded through the child eval
+(or a flat interp registry replacing the ownership tree) so re-entrant
+`&mut Interp` access is provably non-overlapping.
+
+> Per-file detail is in the sweep's `--json` (`scripts/dev/rust_tcltest_sweep.py
+> --json`). Drive these down toward the Zig baseline.
 
 ### Out-of-scope exclusions (by design)
 

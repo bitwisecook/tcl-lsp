@@ -39,6 +39,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     match obj_bytes(argv[1]).as_slice() {
         b"current" => ns_current(interp, argv),
+        b"delete" => ns_delete(interp, argv),
         b"eval" => ns_eval(interp, argv),
         b"exists" => ns_exists(interp, argv),
         b"parent" => ns_parent(interp, argv),
@@ -54,10 +55,11 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
+        b"upvar" => ns_upvar(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, current, ensemble, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
+            m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
             interp.set_error(&m)
         }
     }
@@ -73,6 +75,24 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cur = interp.current_ns();
     let name = interp.namespaces().qualified_name(cur);
     interp.set_result_bytes(&name);
+    Code::Ok
+}
+
+/// `namespace delete ?name name ...?` — delete each named namespace (with its
+/// children, commands, and variables). A missing namespace is an error; with no
+/// names it is a no-op. Mirrors C's `NamespaceDeleteCmd` (`tclNamesp.c`).
+fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let cur = interp.current_ns();
+    for &a in &argv[2..] {
+        let name = obj_bytes(a);
+        if !interp.namespaces_mut().delete_namespace(cur, &name) {
+            let mut m = b"unknown namespace \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\" in namespace delete command");
+            return interp.set_error(&m);
+        }
+    }
+    interp.set_result_bytes(b"");
     Code::Ok
 }
 
@@ -271,25 +291,29 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         for simple in to_import {
-            // Reject clobbering an existing command unless -force.
-            if !force && interp.namespaces().which_command(dest, &simple).is_some() {
-                // Only a conflict if it would resolve in the dest ns itself.
-                if interp
-                    .namespaces()
-                    .imported_in(dest)
-                    .iter()
-                    .any(|(k, _)| k == &simple)
-                    || dest_has_own(interp, dest, &simple)
-                {
-                    let mut m = b"can't import command \"".to_vec();
-                    m.extend_from_slice(&simple);
-                    m.extend_from_slice(b"\": already exists");
-                    return interp.set_error(&m);
-                }
-            }
             let mut source = src_fqn.clone();
             source.extend_from_slice(b"::");
             source.extend_from_slice(&simple);
+            // Re-importing the *same* command from the *same* source is a silent
+            // no-op (C's `TclGetOriginalCommand` reimport check, tclNamesp.c) —
+            // common when a file and its sourced helper both `namespace import
+            // ::tcltest::*`. Only a clobber of a different command is a conflict.
+            let existing_import = interp
+                .namespaces()
+                .imported_in(dest)
+                .into_iter()
+                .find(|(k, _)| k == &simple)
+                .map(|(_, s)| s);
+            if existing_import.as_deref() == Some(source.as_slice()) {
+                continue;
+            }
+            // Reject clobbering an existing (different) command unless -force.
+            if !force && (existing_import.is_some() || dest_has_own(interp, dest, &simple)) {
+                let mut m = b"can't import command \"".to_vec();
+                m.extend_from_slice(&simple);
+                m.extend_from_slice(b"\": already exists");
+                return interp.set_error(&m);
+            }
             interp
                 .namespaces_mut()
                 .bind(dest, &simple, Command::Imported { source });
@@ -381,7 +405,8 @@ fn resolve_arg_ns(
         None => Ok(current),
         Some(a) => {
             let name = obj_bytes(a);
-            match interp.namespaces().find_namespace(current, &name) {
+            let found = interp.namespaces().find_namespace(current, &name);
+            match found {
                 Some(ns) => Ok(ns),
                 None => {
                     let mut m = b"namespace \"".to_vec();
@@ -484,7 +509,8 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let cur = interp.current_ns();
-    match interp.namespaces().command_origin(cur, &name) {
+    let origin = interp.namespaces().command_origin(cur, &name);
+    match origin {
         Some(fqn) => {
             interp.set_result_bytes(&fqn);
             Code::Ok
@@ -522,6 +548,51 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         crate::interp::new_string(&script),
     ];
     interp.set_result(crate::list::new_list_obj(&elems));
+    Code::Ok
+}
+
+/// `namespace upvar ns ?otherVar myVar ...?` — link each `myVar` in the current
+/// frame to `otherVar`, a variable resolved in namespace `ns` (mirrors C's
+/// `NamespaceUpvarCmd`: the other-var is looked up with the var frame's
+/// namespace temporarily set to `ns`).
+fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // objc<2 || objc&1 in C (argv[0] is "namespace"): need ns + even #pairs.
+    if argv.len() < 3 || argv.len() % 2 == 0 {
+        return wrong_args(interp, b"namespace upvar ns ?otherVar myVar ...?");
+    }
+    let ns_name = obj_bytes(argv[2]);
+    let Some(ns) = interp
+        .namespaces()
+        .find_namespace(interp.current_ns(), &ns_name)
+    else {
+        let mut m = b"namespace \"".to_vec();
+        m.extend_from_slice(&ns_name);
+        m.extend_from_slice(b"\" not found");
+        return interp.set_error(&m);
+    };
+
+    let mut i = 3;
+    while i + 1 < argv.len() {
+        let other = obj_bytes(argv[i]);
+        let local = obj_bytes(argv[i + 1]);
+        let (base, elem) = crate::frame::split_array_ref(&other);
+        // The other-var resolves in `ns` (a qualified `base` resolves relative to
+        // it, an unqualified one names a var of `ns` directly).
+        let Some((home_ns, simple)) = interp.resolve_var_target(ns, &base) else {
+            let mut m = b"can't access \"".to_vec();
+            m.extend_from_slice(&other);
+            m.extend_from_slice(b"\": parent namespace doesn't exist");
+            return interp.set_error(&m);
+        };
+        let link = crate::frame::Link {
+            home: crate::frame::VarHome::Namespace(home_ns),
+            name: simple,
+            elem,
+        };
+        interp.make_upvar(link, &local);
+        i += 2;
+    }
+    interp.set_result_bytes(b"");
     Code::Ok
 }
 
@@ -770,6 +841,91 @@ mod tests {
     }
 
     #[test]
+    fn reimport_same_source_is_idempotent() {
+        // Re-importing the *same* command from the *same* source is a silent
+        // no-op (C's reimport check) — the common case where a file and its
+        // sourced helper both `namespace import ::lib::*` (e.g. tcltest). Only a
+        // clobber of a *different* command is a conflict (without -force).
+        leak_free(|i| {
+            i.eval_str(b"namespace eval lib { proc g {} {return G} ; namespace export g }");
+            assert_eq!(i.eval_str(b"namespace import ::lib::*"), Code::Ok);
+            // Second import of the same command from the same source: no error.
+            assert_eq!(i.eval_str(b"namespace import ::lib::*"), Code::Ok);
+            assert_eq!(i.eval_str(b"namespace import ::lib::g"), Code::Ok);
+            // A different command of the same simple name does conflict.
+            i.eval_str(b"namespace eval other { proc g {} {return O} ; namespace export g }");
+            assert_eq!(i.eval_str(b"namespace import ::other::*"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't import command \"g\": already exists"
+            );
+            // -force overrides the clobber.
+            assert_eq!(i.eval_str(b"namespace import -force ::other::*"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn qualified_command_falls_back_to_global() {
+        // A relative qualified command name resolves against the current
+        // namespace, then the global one (C's `TclGetNamespaceForQualName`): so
+        // `foo::bar` from inside `::a::b` finds `::foo::bar` when `::a::b::foo`
+        // doesn't exist. (The bug: `tcl::build-info` failing inside a namespace.)
+        leak_free(|i| {
+            i.eval_str(b"namespace eval foo { proc bar {} {return BAR} }");
+            assert_eq!(
+                i.eval_str(b"namespace eval ::a::b { set ::r [foo::bar] }"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"BAR");
+            // A relative qualifier that *does* exist locally still wins.
+            i.eval_str(b"namespace eval x::foo { proc bar {} {return LOCAL} }");
+            assert_eq!(i.eval_str(b"namespace eval x { foo::bar }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"LOCAL");
+            i.eval_str(b"unset -nocomplain ::r");
+        });
+    }
+
+    #[test]
+    fn namespace_delete_removes_subtree() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval foo { proc p {} {return P} ; namespace eval bar {} }");
+            assert_eq!(i.eval_str(b"namespace exists ::foo::bar"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"namespace delete ::foo"), Code::Ok);
+            // The namespace, its child, and its commands are gone.
+            assert_eq!(i.eval_str(b"namespace exists ::foo"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"namespace exists ::foo::bar"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"::foo::p"), Code::Error);
+            // Deleting a missing namespace errors (tclsh message).
+            assert_eq!(i.eval_str(b"namespace delete ::nope"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown namespace \"::nope\" in namespace delete command"
+            );
+        });
+    }
+
+    #[test]
+    fn build_info_queries() {
+        // `tcl::build-info` (the tcltest constraint source): version/patchlevel
+        // parse the build string; feature flags we don't set report 0.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"tcl::build-info version"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0");
+            assert_eq!(i.eval_str(b"tcl::build-info patchlevel"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0.3");
+            for feat in [&b"debug"[..], b"purify", b"memdebug", b"no-deprecate"] {
+                let mut cmd = b"tcl::build-info ".to_vec();
+                cmd.extend_from_slice(feat);
+                assert_eq!(i.eval_str(&cmd), Code::Ok);
+                assert_eq!(i.result_bytes(), b"0", "feature {feat:?} should be absent");
+            }
+        });
+    }
+
+    #[test]
     fn import_only_takes_exported_commands() {
         leak_free(|i| {
             i.eval_str(b"interp alias {} ::lib::secret {} set s");
@@ -902,6 +1058,53 @@ mod tests {
             assert_eq!(i.result_bytes(), b"1");
             assert_eq!(i.eval_str(b"namespace ensemble exists ::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0");
+        });
+    }
+
+    #[test]
+    fn namespace_upvar_links_local_to_ns_var() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval a { variable x 42 }");
+            // `namespace upvar a x lx` links a frame-local `lx` to `::a::x`.
+            assert_eq!(
+                i.eval_str(
+                    b"proc p {} { namespace upvar a x lx; set lx [expr {$lx+1}]; return $lx }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"p"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"43");
+            // The write went through to the namespace variable.
+            assert_eq!(i.eval_str(b"set ::a::x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"43");
+            // A missing namespace is an error.
+            assert_eq!(i.eval_str(b"namespace upvar nope v lv"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn ensemble_command_is_qualified_relative_to_current_ns() {
+        leak_free(|i| {
+            // A relative `-command` binds in the current namespace, not global
+            // (the `tcl::tm::path` / safe-base case): `-command path` inside
+            // `::a::b` creates `::a::b::path`, resolvable by its FQN.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval a::b { namespace export path; namespace ensemble create -command path -map {list ::set} }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"namespace which -command ::a::b::path"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::a::b::path");
+            // No bare `::path` leaked into the global namespace.
+            assert_eq!(i.eval_str(b"namespace which -command ::path"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            assert_eq!(i.eval_str(b"::a::b::path list v 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            i.eval_str(b"unset v");
         });
     }
 }

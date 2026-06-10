@@ -96,6 +96,16 @@ pub struct Command<'s> {
     pub words: Vec<Word<'s>>,
     /// Offset to resume at for the following command (past the terminator).
     pub next: usize,
+    /// Byte offset of the command's first word in `src` — C's `commandStart`
+    /// (after leading whitespace). The 1-based source line of the command is
+    /// `1 + count('\n' in src[0..start])` (`TclLogCommandInfo`, the errorInfo
+    /// stack-trace line).
+    pub start: usize,
+    /// Byte offset of the command's terminator (`\n`/`;`) or end-of-script — the
+    /// command source slice is `src[start..end]`, which **keeps trailing
+    /// whitespace but excludes the terminator** (matches C's logged command
+    /// string: `"error boom   "` but not the trailing newline).
+    pub end: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -327,21 +337,39 @@ pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
     let mut words: Vec<Word> = Vec::new();
     let mut word_toks: Vec<Token> = Vec::new();
     let mut expand = false;
+    // The command's first-word offset (`commandStart`), set at the first
+    // non-whitespace token of each command; `None` between commands.
+    let mut cmd_start: Option<usize> = None;
     for t in toks {
         match t.kind {
             TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand),
             TokenType::Comment => {} // a comment is an empty command
-            TokenType::Expand => expand = true, // the next word is expanded
+            TokenType::Expand => {
+                expand = true; // the next word is expanded
+                cmd_start.get_or_insert(t.span.start() as usize);
+            }
             TokenType::Eol | TokenType::Eof => {
                 flush_word(&sm, src, &mut words, &mut word_toks, &mut expand);
                 if !words.is_empty() {
                     cmds.push(Command {
                         words: core::mem::take(&mut words),
                         next: t.span.end() as usize,
+                        start: cmd_start.take().unwrap_or(t.span.start() as usize),
+                        // The terminator (`\n`/`;`) or EOF position — its span
+                        // start is the first byte past the command's content, so
+                        // `src[start..end]` keeps trailing whitespace but drops
+                        // the terminator.
+                        end: t.span.start() as usize,
                     });
+                } else {
+                    cmd_start = None;
                 }
             }
-            _ => word_toks.push(t), // Esc / Str / Cmd / Var → part of the word
+            // Esc / Str / Cmd / Var → part of the word.
+            _ => {
+                cmd_start.get_or_insert(t.span.start() as usize);
+                word_toks.push(t);
+            }
         }
     }
     cmds
@@ -355,10 +383,15 @@ pub fn parse_command(src: &[u8], pos: usize) -> Command<'_> {
         return Command {
             words: Vec::new(),
             next: src.len(),
+            start: src.len(),
+            end: src.len(),
         };
     }
     let mut c = cmds.remove(0);
-    c.next += pos; // make the resume offset absolute
+    // Make the offsets absolute (they were computed against `src[pos..]`).
+    c.next += pos;
+    c.start += pos;
+    c.end += pos;
     c
 }
 
@@ -609,6 +642,43 @@ mod tests {
     fn comment_is_empty_command() {
         let c = parse_command(b"# this is a comment\n", 0);
         assert!(c.words.is_empty());
+    }
+
+    #[test]
+    fn command_source_slice_matches_c() {
+        // `src[start..end]` is the command string C logs in `::errorInfo`:
+        // leading whitespace dropped, trailing whitespace kept, terminator
+        // (`\n`/`;`) excluded. Verified byte-for-byte against tclsh 9.0.
+        fn slice(src: &[u8]) -> (usize, Vec<u8>) {
+            let cmds = parse_script(src);
+            let c = &cmds[0];
+            (c.start, src[c.start..c.end].to_vec())
+        }
+        // end-of-script: trailing space kept (the `[error deep ]` / `p ` cases).
+        assert_eq!(slice(b" error deep "), (1, b"error deep ".to_vec()));
+        // newline terminator excluded, no trailing space.
+        assert_eq!(slice(b"error boom\n    "), (0, b"error boom".to_vec()));
+        // trailing spaces before a newline terminator are kept.
+        assert_eq!(slice(b"error boom   \n"), (0, b"error boom   ".to_vec()));
+        // semicolon terminator excluded.
+        assert_eq!(slice(b"a b ; c d"), (0, b"a b ".to_vec()));
+        // a braced word: commandStart is at the `{`.
+        assert_eq!(
+            slice(b"  {} { error fromLambda }"),
+            (2, b"{} { error fromLambda }".to_vec())
+        );
+    }
+
+    #[test]
+    fn command_line_numbers_are_body_relative() {
+        // The 1-based line of a command = 1 + count('\n' in src[0..start]) —
+        // the `(procedure "p" line N)` line. A proc body starts right after the
+        // `{`, so this leading "\n" makes `error boom` land on line 3.
+        let body = b"\n    set x 1\n    error boom\n";
+        let cmds = parse_script(body);
+        let line = |start: usize| 1 + body[..start].iter().filter(|&&b| b == b'\n').count();
+        assert_eq!(line(cmds[0].start), 2); // `set x 1`
+        assert_eq!(line(cmds[1].start), 3); // `error boom`
     }
 
     #[test]

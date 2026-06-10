@@ -76,7 +76,7 @@ fn parse_int_prefix(s: &[u8]) -> Option<(isize, &[u8])> {
 /// full `TclGetIntForIndex` grammar: an integer, `end`, and a base (`end` or an
 /// integer) with an optional `±integer` offset (`end-2`, `0-1`, `-2+1`, …).
 /// Returns a (possibly out-of-range) signed index; callers clamp/range-check.
-fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
+pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     let len = len as isize;
     let s = {
         let t = core::str::from_utf8(spec).ok()?.trim();
@@ -193,9 +193,17 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
+    // `lappend a(k) ...` must address the array element, not a scalar literally
+    // named `a(k)` — split the array ref like `set`/`incr` do.
+    let (base, elem) = crate::frame::split_array_ref(&name);
+
+    let cur = match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
 
     // Determine the target list object (in-place if unshared, else a copy/new).
-    let (target, is_new) = match interp.var_get(&name) {
+    let (target, is_new) = match cur {
         None => (list::new_list_obj(&[]), true), // fresh empty list (rc 0)
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true), // COW copy (rc 0)
         Some(o) => (o, false),                   // mutate in place (frame owns it)
@@ -214,7 +222,11 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if is_new {
         // `target` is rc 0; `set` retains it into the variable (and releases the
         // prior value for the COW/overwrite case).
-        if interp.var_set(&name, target).is_err() {
+        let stored = match &elem {
+            Some(k) => interp.var_set_elem(&base, k, target),
+            None => interp.var_set(&base, target),
+        };
+        if stored.is_err() {
             drop_fresh(target);
             let mut m = b"can't set \"".to_vec();
             m.extend_from_slice(&name);
@@ -802,6 +814,14 @@ mod tests {
         );
         // lappend onto a string var shimmers it to a list
         assert_eq!(ok(b"set s {1 2}; lappend s 3"), b"1 2 3");
+        // lappend addresses array elements (not a scalar literally named `a(k)`),
+        // including fully-qualified element keys (the safe-base / opt case).
+        assert_eq!(ok(b"lappend a(k) 1 2; lappend a(k) 3"), b"1 2 3");
+        assert_eq!(ok(b"lappend a(k) 1 2; set a(k)"), b"1 2");
+        assert_eq!(
+            ok(b"namespace eval n { variable arr; lappend arr(::x::y) a b }; set ::n::arr(::x::y)"),
+            b"a b"
+        );
     }
 
     #[test]

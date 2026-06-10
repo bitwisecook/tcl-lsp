@@ -120,7 +120,7 @@ fn trace_add(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let command = obj_bytes(argv[5]);
     let (base, elem) = split_array_ref(&name);
-    interp.traces.traces.push(VarTrace {
+    interp.traces.borrow_mut().traces.push(VarTrace {
         name,
         base,
         elem,
@@ -142,13 +142,14 @@ fn trace_remove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(c) => return c,
     };
     let command = obj_bytes(argv[5]);
-    if let Some(i) = interp
+    let pos = interp
         .traces
+        .borrow()
         .traces
         .iter()
-        .position(|t| t.name == name && t.ops == ops && t.command == command)
-    {
-        interp.traces.traces.remove(i);
+        .position(|t| t.name == name && t.ops == ops && t.command == command);
+    if let Some(i) = pos {
+        interp.traces.borrow_mut().traces.remove(i);
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -162,7 +163,7 @@ fn trace_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[3]);
     let mut entries: Vec<*mut TclObj> = Vec::new();
-    for t in interp.traces.traces.iter().rev() {
+    for t in interp.traces.borrow().traces.iter().rev() {
         if t.name != name {
             continue;
         }

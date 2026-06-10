@@ -9,7 +9,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{obj_bytes, Code, Interp, Param};
+use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
 use crate::parse::split_list;
 
@@ -45,7 +45,7 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Parse a proc parameter spec (a Tcl list of names / `{name default}` pairs).
-fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
+pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
     let elems = split_list(spec).map_err(|e| e.message().to_vec())?;
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
@@ -100,7 +100,20 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         crate::namespace::GLOBAL
     };
-    interp.run_proc(&params, &parts[1], ns, &argv[2..], b"apply lambdaExpr")
+    interp.run_proc(
+        &params,
+        &parts[1],
+        ns,
+        &argv[2..],
+        b"apply lambdaExpr",
+        CallMeta {
+            err: ProcFrame::Lambda(&lambda),
+            fqn: None,
+            source: None,
+            body_line_base: 0,
+            link_vars: &[],
+        },
+    )
 }
 
 // `puts` lives in `cmd_chan` (it is a channel write — stdout/stderr/file).
@@ -155,6 +168,26 @@ mod tests {
             assert_eq!(run(i, b"uselocal"), b"99");
             assert_eq!(run(i, b"set v"), b"outer");
             i.eval_str(b"unset v");
+        });
+    }
+
+    #[test]
+    fn proc_default_arity_edges_dont_panic() {
+        // Regression: defaulted positionals must not panic when fewer args than
+        // positionals are supplied (the `args` split) or when a *required*
+        // parameter follows a defaulted one (non-trailing default). Matches
+        // tclsh 9.0.
+        leak_free(|i| {
+            // All-defaulted positionals + args, called with none.
+            run(i, b"proc q {{a 1} {b 2} args} {list $a $b $args}");
+            assert_eq!(run(i, b"q"), b"1 2 {}");
+            assert_eq!(run(i, b"q 5"), b"5 2 {}");
+            assert_eq!(run(i, b"q 5 6 7 8"), b"5 6 {7 8}");
+            // Non-trailing default: a required param after a defaulted one.
+            run(i, b"proc p {a {b 2} c} {list $a $b $c}");
+            assert_eq!(run(i, b"p 1 2 3"), b"1 2 3");
+            assert_eq!(i.eval_str(b"p 1 2"), Code::Error);
+            assert_eq!(i.result_bytes(), b"wrong # args: should be \"p a ?b? c\"");
         });
     }
 

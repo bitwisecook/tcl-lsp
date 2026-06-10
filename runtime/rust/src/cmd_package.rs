@@ -35,6 +35,9 @@ impl PackageState {
         let mut p = PackageState::default();
         p.provided.insert(b"tcl".to_vec(), b"9.0.3".to_vec());
         p.provided.insert(b"Tcl".to_vec(), b"9.0.3".to_vec());
+        // TclOO is built in (the `oo::*` commands are always present).
+        p.provided.insert(b"tcl::oo".to_vec(), b"1.3.1".to_vec());
+        p.provided.insert(b"TclOO".to_vec(), b"1.3.1".to_vec());
         p
     }
 }
@@ -79,28 +82,29 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match argv.len() {
         3 => {
             let name = obj_bytes(argv[2]);
-            interp.set_result_bytes(
-                &interp
-                    .packages
-                    .provided
-                    .get(&name)
-                    .cloned()
-                    .unwrap_or_default(),
-            );
+            let v = interp
+                .packages
+                .borrow()
+                .provided
+                .get(&name)
+                .cloned()
+                .unwrap_or_default();
+            interp.set_result_bytes(&v);
             Code::Ok
         }
         4 => {
             let name = obj_bytes(argv[2]);
             let version = obj_bytes(argv[3]);
-            if let Some(existing) = interp.packages.provided.get(&name) {
-                if *existing != version {
+            let existing = interp.packages.borrow().provided.get(&name).cloned();
+            if let Some(existing) = existing {
+                if existing != version {
                     let mut m = b"conflicting versions provided for package \"".to_vec();
                     m.extend_from_slice(&name);
                     m.extend_from_slice(b"\"");
                     return interp.set_error(&m);
                 }
             }
-            interp.packages.provided.insert(name, version);
+            interp.packages.borrow_mut().provided.insert(name, version);
             interp.set_result_bytes(b"");
             Code::Ok
         }
@@ -140,8 +144,11 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     //    run the `unknown` handler (auto-loader / pkgIndex search) and retry.
     for attempt in 0..2 {
         if let Some(ver) = best_ifneeded(interp, &name, exact, &reqs) {
-            let script = interp.packages.ifneeded[&(name.clone(), ver)].clone();
-            if interp.eval_str(&script) == Code::Error {
+            let script = interp.packages.borrow().ifneeded[&(name.clone(), ver)].clone();
+            // Package load scripts run at the global scope (C's `uplevel #0`),
+            // so a package's `namespace eval foo` creates `::foo` even when
+            // `package require` is called from inside another namespace.
+            if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
             if let Some(Ok(v)) = check_provided(interp, &name, exact, &reqs) {
@@ -150,7 +157,7 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         if attempt == 0 {
-            let handler = interp.packages.unknown.clone();
+            let handler = interp.packages.borrow().unknown.clone();
             if handler.is_empty() {
                 break;
             }
@@ -159,7 +166,8 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 script.push(b' ');
                 script.extend_from_slice(w);
             }
-            if interp.eval_str(&script) == Code::Error {
+            // The `package unknown` handler (pkgIndex search) also runs globally.
+            if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
         }
@@ -173,7 +181,7 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `-exact`, an exact match), or `None`.
 fn best_ifneeded(interp: &Interp, name: &[u8], exact: bool, reqs: &[Vec<u8>]) -> Option<Vec<u8>> {
     let mut best: Option<Vec<u8>> = None;
-    for (n, v) in interp.packages.ifneeded.keys() {
+    for (n, v) in interp.packages.borrow().ifneeded.keys() {
         if n != name {
             continue;
         }
@@ -201,7 +209,7 @@ fn check_provided(
     exact: bool,
     reqs: &[Vec<u8>],
 ) -> Option<Result<Vec<u8>, Code>> {
-    let v = interp.packages.provided.get(name)?.clone();
+    let v = interp.packages.borrow().provided.get(name)?.clone();
     let ok = if exact {
         reqs.first().map_or(true, |r| r == &v)
     } else {
@@ -257,11 +265,16 @@ fn ifneeded(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let key = (obj_bytes(argv[2]), obj_bytes(argv[3]));
     if argv.len() == 5 {
-        interp.packages.ifneeded.insert(key, obj_bytes(argv[4]));
+        interp
+            .packages
+            .borrow_mut()
+            .ifneeded
+            .insert(key, obj_bytes(argv[4]));
         interp.set_result_bytes(b"");
     } else {
         let script = interp
             .packages
+            .borrow()
             .ifneeded
             .get(&key)
             .cloned()
@@ -275,11 +288,12 @@ fn ifneeded(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match argv.len() {
         2 => {
-            interp.set_result_bytes(&interp.packages.unknown.clone());
+            let u = interp.packages.borrow().unknown.clone();
+            interp.set_result_bytes(&u);
             Code::Ok
         }
         3 => {
-            interp.packages.unknown = obj_bytes(argv[2]);
+            interp.packages.borrow_mut().unknown = obj_bytes(argv[2]);
             interp.set_result_bytes(b"");
             Code::Ok
         }
@@ -293,8 +307,8 @@ fn names(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"package names");
     }
     let mut set: std::collections::BTreeSet<Vec<u8>> =
-        interp.packages.provided.keys().cloned().collect();
-    for (n, _) in interp.packages.ifneeded.keys() {
+        interp.packages.borrow().provided.keys().cloned().collect();
+    for (n, _) in interp.packages.borrow().ifneeded.keys() {
         set.insert(n.clone());
     }
     let objs: Vec<*mut TclObj> = set.iter().map(|n| crate::interp::new_string(n)).collect();
@@ -310,6 +324,7 @@ fn versions(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name = obj_bytes(argv[2]);
     let vers: Vec<*mut TclObj> = interp
         .packages
+        .borrow()
         .ifneeded
         .keys()
         .filter(|(n, _)| *n == name)

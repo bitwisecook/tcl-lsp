@@ -19,7 +19,8 @@
 //! + retain-into-result is the whole discipline.
 
 use core::ffi::c_char;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::rc::{Rc, Weak};
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -57,6 +58,152 @@ impl Code {
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
 pub type BuiltinFn = fn(&mut Interp, &[*mut TclObj]) -> Code;
 
+/// The kind of body-frame a proc-style caller appends to the error trace when
+/// its body throws (`MakeProcError` / `MakeLambdaError`, `tclProc.c`). Both
+/// truncate the name to 60 bytes (`...` on overflow) and cite the body-relative
+/// `error_line` left by the innermost logged command.
+pub(crate) enum ProcFrame<'a> {
+    /// `(procedure "NAME" line N)` — a named `proc`. `NAME` is the invoked name.
+    Proc(&'a [u8]),
+    /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
+    /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
+    Lambda(&'a [u8]),
+}
+
+/// What a proc/lambda call contributes to the diagnostic stacks: the errorInfo
+/// frame (PC-4) plus the `info frame` proc FQN and defining-source (PC-5).
+pub(crate) struct CallMeta<'a> {
+    /// The errorInfo `(procedure/lambda ...)` frame.
+    pub err: ProcFrame<'a>,
+    /// The proc's FQN — the `info frame` `proc` key (`None` for a lambda).
+    pub fqn: Option<&'a [u8]>,
+    /// The file the body was defined in (`source`d) — makes its `info frame`
+    /// `type source` with this `file`.
+    pub source: Option<Rc<[u8]>>,
+    /// The body's `info frame` line base (file-absolute for a source-defined
+    /// proc, 0 otherwise).
+    pub body_line_base: u32,
+    /// Variable names to pre-link into the call frame from its namespace (a
+    /// TclOO method's declared instance variables); empty for procs/lambdas.
+    pub link_vars: &'a [Vec<u8>],
+}
+
+/// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
+/// state `info frame` reports. One is pushed per script-evaluation level Tcl
+/// tracks: the top-level script, a proc call, an `eval`/`uplevel` body, and a
+/// `source`d file — but **not** a `[cmd]` substitution or an inline
+/// `if`/`while`/`for`/`foreach` body (those run in the enclosing frame). The
+/// `cmd`/`line` are updated to the currently-executing command of the
+/// frame-owning script as the eval loop steps through it.
+struct CmdFrame {
+    /// The frame's location `type` (`eval`/`proc`/`source`). Explicit rather than
+    /// derived: an `uplevel` body is `type eval` yet still names the invoking
+    /// proc, and an `eval` body inherits the enclosing kind.
+    kind: FrameKind,
+    /// The file this script came from (`source`d / a proc defined in one) — the
+    /// `file` key (present for `source` frames).
+    file: Option<Rc<[u8]>>,
+    /// The proc FQN this frame runs in (a proc call; `eval`/`uplevel` bodies
+    /// inherit the enclosing proc) — the `proc` key. `None` at the global level.
+    proc: Option<Vec<u8>>,
+    /// The proc (call) level this frame runs in; the `level` key is the distance
+    /// from the current level (`current_level - this`).
+    level: usize,
+    /// Omit the `level` key — C drops it when the frame's CallFrame is not on the
+    /// current var-scope chain, which is the `uplevel` case (its body runs in a
+    /// redirected scope).
+    omit_level: bool,
+    /// Added to a body-relative line to get the reported `line`. `0` for
+    /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
+    /// for a proc defined in a `source`d file it is the file line where the body
+    /// began minus one, so its commands report file-absolute lines.
+    line_base: u32,
+    /// The currently-executing command at this level (the `cmd` key) and its
+    /// reported source line (the `line` key).
+    cmd: Vec<u8>,
+    line: u32,
+}
+
+/// A `CmdFrame`'s location type (`info frame`'s `type` key).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FrameKind {
+    /// Top level / an `eval` or `uplevel` body (`type eval`).
+    Eval,
+    /// A proc body (`type proc`).
+    Proc,
+    /// A `source`d file, or a proc defined in one (`type source`).
+    Source,
+}
+
+impl FrameKind {
+    fn as_bytes(self) -> &'static [u8] {
+        match self {
+            FrameKind::Eval => b"eval",
+            FrameKind::Proc => b"proc",
+            FrameKind::Source => b"source",
+        }
+    }
+}
+
+impl CmdFrame {
+    /// The top-level script frame (`type eval`, global level).
+    fn root() -> Self {
+        CmdFrame {
+            kind: FrameKind::Eval,
+            file: None,
+            proc: None,
+            level: 0,
+            omit_level: false,
+            line_base: 0,
+            cmd: Vec::new(),
+            line: 1,
+        }
+    }
+}
+
+/// Join argument objects with single spaces (the `eval`/`interp eval` body form).
+fn join_words(args: &[*mut TclObj]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, &a) in args.iter().enumerate() {
+        if i > 0 {
+            out.push(b' ');
+        }
+        out.extend_from_slice(&obj_bytes(a));
+    }
+    out
+}
+
+/// The 1-based source line of byte `offset` in `src` — `1 + count('\n' in
+/// src[0..offset])`, C's exact `TclLogCommandInfo` loop (encoding-agnostic).
+fn line_of(src: &[u8], offset: usize) -> u32 {
+    1 + src[..offset.min(src.len())]
+        .iter()
+        .filter(|&&b| b == b'\n')
+        .count() as u32
+}
+
+/// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
+/// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
+/// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
+/// `MakeProcError`, `proc-call-and-stack-traces.md` §1.5), not at the throw, and
+/// published to the `::errorInfo`/`::errorCode` globals when the error is caught
+/// or reaches the outermost eval.
+#[derive(Default)]
+struct ExceptionState {
+    /// The accumulating `errorInfo`. `None` until the first frame is appended
+    /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
+    /// from within` and seeds the buffer from the result message.
+    info: Option<Vec<u8>>,
+    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published).
+    code: Vec<u8>,
+    /// 1-based source line of the innermost logged command, within its own
+    /// script (`errorLine`); read by `MakeProcError`'s `line N`.
+    line: u32,
+    /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
+    /// in the same script, so its enclosing command must not re-log it.
+    already_logged: bool,
+}
+
 /// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
 /// params, body }` (user procs, T1.5) and `External { table_index, client_data }`
 /// (extension commands via `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the
@@ -93,9 +240,44 @@ pub enum Command {
     /// defining namespace, and maps a body-level `return` to `Ok`. Behind an `Rc`
     /// so the dispatch-time clone of the command handle is O(1), not a body copy.
     Proc(Rc<ProcDef>),
+    /// A child interpreter, addressable as a command (`$child eval …`). The
+    /// `Vec<u8>` is the child's name; dispatch routes the subcommand to the child
+    /// `Interp` stored in [`Interp::children`].
+    ChildInterp(Vec<u8>),
+    /// A TclOO object or class, addressable as a command (`$obj method …`,
+    /// `Class new`). The `Vec<u8>` is the FQN; dispatch routes to
+    /// [`crate::cmd_oo`] via the [`OoState`](crate::cmd_oo::OoState) registry.
+    OoObject(Vec<u8>),
+    /// A cross-interp alias installed in a *child* interp that delegates to a
+    /// command in the *parent* (`interp alias child name {} parentCmd …`). When
+    /// invoked, it runs `target` (+ `prefix` + the call args) in the parent.
+    ParentAlias {
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    },
 }
 
+thread_local! {
+    /// Depth of active cross-interp (`ParentAlias`) calls. The Safe Base requires
+    /// genuine re-entrant recursion across the parent/child boundary (a child's
+    /// aliased `source` calls back into the parent, which calls `interp
+    /// invokehidden $child …` back into the *same* child while its outer eval is
+    /// still on the stack — exactly as C's nested `Tcl_Eval` does). The recursion
+    /// is sound by construction: each interp is an `Rc<InterpState>` reached
+    /// through a cloned handle, and its state is per-field interior-mutable, so a
+    /// re-entry shares the state via `Rc` + `RefCell` rather than aliasing a
+    /// `&mut`. This counter only **bounds** the nesting to cap native-stack growth
+    /// (each cross-interp hop adds real frames).
+    static CROSS_INTERP_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Maximum nested cross-interp call depth (the native-stack bound for the
+/// re-entrant parent⇄child recursion the Safe Base needs). Generous enough for
+/// safe-base setup (a handful of hops) while still catching runaway recursion.
+const MAX_CROSS_INTERP_DEPTH: u32 = 80;
+
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
+#[derive(Clone)]
 pub struct Param {
     pub name: Vec<u8>,
     pub default: Option<Vec<u8>>,
@@ -107,36 +289,117 @@ pub struct ProcDef {
     pub params: Vec<Param>,
     pub body: Vec<u8>,
     pub ns: NsId,
+    /// The proc's fully-qualified name (`::ns::name`) — the `info frame` `proc`
+    /// key, fixed at definition time.
+    pub fqn: Vec<u8>,
+    /// The file the proc was defined in (`source`d), if any — makes its body
+    /// frame `type source` with this `file` (`info frame`).
+    pub source: Option<Rc<[u8]>>,
+    /// The line base for the body's `info frame` lines: `0` (body-relative) for
+    /// an eval-defined proc, or the defining file line minus one for one defined
+    /// in a `source`d file (so its commands report file-absolute lines).
+    pub body_line_base: u32,
 }
 
-/// `Tcl_Interp`. Owns the frame stack, the command table, and the current
-/// result object (a `+1` it holds; never null after `new`).
-#[repr(C)]
-pub struct Interp {
-    pub(crate) frames: FrameStack,
+/// A `Tcl_Interp` handle. Cheap to clone (an `Rc` bump); all clones share one
+/// [`InterpState`].
+///
+/// **Re-entrant cross-interp recursion** — the Safe Base's child→parent→child
+/// `source`/`invokehidden` cycle, i.e. C's nested `Tcl_Eval` — works by *cloning
+/// the handle* of the interp to re-enter and calling through that clone. The
+/// shared state is reached via the `Rc` (a shared `&InterpState`) plus per-field
+/// interior mutability, so there is never an aliased `&mut`, and a borrow
+/// discipline slip is a clean panic rather than UB. Single-threaded throughout:
+/// `Rc` + `RefCell`/`Cell`, no locks.
+#[derive(Clone)]
+pub struct Interp(Rc<InterpState>);
+
+impl core::ops::Deref for Interp {
+    type Target = InterpState;
+    fn deref(&self) -> &InterpState {
+        &self.0
+    }
+}
+
+/// The shared, interior-mutable state behind an [`Interp`] handle. Owns the frame
+/// stack, the command table, and the current result object (a `+1` it holds;
+/// never null after `new`).
+///
+/// Each field is borrowed only for the span of a single operation — **never
+/// across a sub-eval** — so re-entrancy (proc recursion, cross-interp calls)
+/// re-borrows freshly instead of aliasing. The command resolver returns *cloned*
+/// `Command` handles precisely so dispatch holds no table borrow.
+pub struct InterpState {
+    pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver (T1.5).
-    namespaces: Namespaces,
+    namespaces: RefCell<Namespaces>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
-    current_ns: NsId,
+    current_ns: Cell<NsId>,
     /// Active proc-call nesting depth — C Tcl's `interp recursionlimit`. Bounds
     /// recursion so an infinite proc loop raises a catchable error instead of
     /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
-    recursion_depth: usize,
+    recursion_depth: Cell<usize>,
     /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
-    pub(crate) packages: crate::cmd_package::PackageState,
+    pub(crate) packages: RefCell<crate::cmd_package::PackageState>,
     /// The `source` script stack (`info script` — the file being sourced).
-    script_stack: Vec<Vec<u8>>,
+    script_stack: RefCell<Vec<Vec<u8>>>,
     /// Open channels (`open`/`read`/`gets`/`puts`/`close`).
-    pub(crate) channels: crate::cmd_chan::ChannelTable,
+    pub(crate) channels: RefCell<crate::cmd_chan::ChannelTable>,
     /// Pending `return -code`/`-level` state (`TclUpdateReturnInfo`): the code to
     /// complete with once `-level` boundaries are unwound.
-    return_code: Code,
-    return_level: usize,
+    return_code: Cell<Code>,
+    return_level: Cell<usize>,
     /// Variable-trace registry (`trace add|remove|info variable`).
-    pub(crate) traces: crate::cmd_trace::TraceTable,
-    result: *mut TclObj,
+    pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
+    /// The error stack-trace accumulator (PC-4).
+    exc: RefCell<ExceptionState>,
+    /// Child interpreters (`interp create`), each a shared [`Interp`] handle keyed
+    /// by name. The name is also a command in this interp
+    /// (`Command::ChildInterp`).
+    children: RefCell<std::collections::BTreeMap<Vec<u8>, Interp>>,
+    /// Counter for auto-generated child names (`interp0`, `interp1`, …).
+    interp_counter: Cell<usize>,
+    /// Hidden commands (`interp hide`): removed from the command table but
+    /// invocable via `interp invokehidden`. A safe interp hides the dangerous
+    /// commands here.
+    hidden: RefCell<std::collections::BTreeMap<Vec<u8>, Command>>,
+    /// While this interp runs as a child (`$parent eval`/`$child eval`), a `Weak`
+    /// handle to its parent — for cross-interp aliases that delegate to a parent
+    /// command. `Weak` (not `Rc`) so the parent→child ownership has no cycle;
+    /// upgraded for the call's duration. Set on entry to a child eval
+    /// ([`eval_in_child`]/[`with_child`]) and restored after.
+    ///
+    /// [`eval_in_child`]: Interp::eval_in_child
+    /// [`with_child`]: Interp::with_child
+    parent: RefCell<Weak<InterpState>>,
+    /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
+    is_safe: Cell<bool>,
+    /// How many of *this* interp's evals are currently on the stack (as a child:
+    /// [`eval_in_child`]/[`with_child`] bump it). A child may be deleted *during*
+    /// its own eval — e.g. its aliased `exit` calls `interp delete` on itself —
+    /// so a non-zero count means teardown must be deferred (`pending_delete`)
+    /// until the last eval unwinds, or a re-entry still on the stack would see a
+    /// half-torn-down interp.
+    ///
+    /// [`eval_in_child`]: Interp::eval_in_child
+    /// [`with_child`]: Interp::with_child
+    eval_active: Cell<usize>,
+    /// Set when a delete was requested while [`eval_active`](Self::eval_active)
+    /// was non-zero; the actual removal from the parent's table is deferred until
+    /// the last eval unwinds (C's deferred `Tcl_DeleteInterp`).
+    pending_delete: Cell<bool>,
+    /// TclOO object system state (classes, objects, the method-call stack).
+    pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
+    /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
+    cmd_frames: RefCell<Vec<CmdFrame>>,
+    /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
+    /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
+    /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
+    /// accumulate.
+    eval_depth: Cell<usize>,
+    result: Cell<*mut TclObj>,
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -145,23 +408,34 @@ const RECURSION_LIMIT: usize = 1000;
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
     /// result.
-    pub fn new() -> Box<Interp> {
+    pub fn new() -> Interp {
         let result = obj::new_obj();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
-        let mut interp = Box::new(Interp {
-            frames: FrameStack::new(),
-            namespaces: Namespaces::new(),
-            current_ns: GLOBAL,
-            recursion_depth: 0,
-            packages: crate::cmd_package::PackageState::with_core(),
-            script_stack: Vec::new(),
-            channels: crate::cmd_chan::ChannelTable::default(),
-            return_code: Code::Ok,
-            return_level: 1,
-            traces: crate::cmd_trace::TraceTable::default(),
-            result,
-        });
+        let mut interp = Interp(Rc::new(InterpState {
+            frames: RefCell::new(FrameStack::new()),
+            namespaces: RefCell::new(Namespaces::new()),
+            current_ns: Cell::new(GLOBAL),
+            recursion_depth: Cell::new(0),
+            packages: RefCell::new(crate::cmd_package::PackageState::with_core()),
+            script_stack: RefCell::new(Vec::new()),
+            channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
+            return_code: Cell::new(Code::Ok),
+            return_level: Cell::new(1),
+            traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
+            exc: RefCell::new(ExceptionState::default()),
+            children: RefCell::new(std::collections::BTreeMap::new()),
+            interp_counter: Cell::new(0),
+            hidden: RefCell::new(std::collections::BTreeMap::new()),
+            parent: RefCell::new(Weak::new()),
+            is_safe: Cell::new(false),
+            eval_active: Cell::new(0),
+            pending_delete: Cell::new(false),
+            oo: RefCell::new(crate::cmd_oo::OoState::default()),
+            cmd_frames: RefCell::new(Vec::new()),
+            eval_depth: Cell::new(0),
+            result: Cell::new(result),
+        }));
         builtins::install(&mut interp);
         interp
     }
@@ -171,31 +445,61 @@ impl Interp {
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
-        self.namespaces.register(name, Command::Builtin(f));
+        self.namespaces
+            .borrow_mut()
+            .register(name, Command::Builtin(f));
     }
 
     /// Command names in the current namespace, sorted (`info commands`).
     #[must_use]
-    pub fn command_names(&self) -> Vec<&[u8]> {
-        self.namespaces.command_names(self.current_ns)
+    pub fn command_names(&self) -> Vec<Vec<u8>> {
+        self.namespaces
+            .borrow()
+            .command_names(self.current_ns.get())
+            .iter()
+            .map(|s| s.to_vec())
+            .collect()
     }
 
     /// `rename old new` (or `rename old ""` to delete), relative to the current
     /// namespace. Drives the one command table; see [`Namespaces::rename`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        self.namespaces.rename(self.current_ns, old, new)
+        self.namespaces
+            .borrow_mut()
+            .rename(self.current_ns.get(), old, new)
     }
 
     /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
     pub(crate) fn install_alias(&mut self, name: &[u8], target: Vec<u8>, prefix: Vec<Vec<u8>>) {
         self.namespaces
+            .borrow_mut()
             .register(name, Command::Alias { target, prefix });
+    }
+
+    /// Install a cross-interp alias in child `child`: `name` (in the child)
+    /// delegates to `target ?prefix...?` run in this (the parent) interp.
+    /// Returns whether the child exists.
+    pub(crate) fn install_parent_alias(
+        &mut self,
+        child: &[u8],
+        name: &[u8],
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    ) -> bool {
+        self.with_child(child, |c| {
+            c.ns_register(name, Command::ParentAlias { target, prefix });
+        })
+        .is_some()
     }
 
     /// The `(target, prefix)` of the alias bound to `name` (the query form), or
     /// `None` if `name` resolves to something that isn't an alias.
     pub(crate) fn alias_info(&self, name: &[u8]) -> Option<(Vec<u8>, Vec<Vec<u8>>)> {
-        match self.namespaces.resolve(self.current_ns, name) {
+        match self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+        {
             Some(Command::Alias { target, prefix }) => Some((target, prefix)),
             _ => None,
         }
@@ -204,13 +508,31 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
-        self.namespaces.delete(self.current_ns, name)
+        self.namespaces
+            .borrow_mut()
+            .delete(self.current_ns.get(), name)
     }
 
     /// Register an ensemble command (`namespace ensemble create`); `name` is the
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
-        self.namespaces.register(name, Command::Ensemble(cfg));
+        // The `-command` name resolves relative to the current namespace, like a
+        // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
+        // `NamespaceEnsembleCmd`). `namespace ensemble create -command path`
+        // inside `namespace eval ::tcl::tm` therefore binds `::tcl::tm::path`,
+        // not a bare `::path` at global scope.
+        let ns = self
+            .namespaces
+            .borrow_mut()
+            .command_home_ns(self.current_ns.get(), name);
+        let tail = tcl_syntax::naming::qualifier_segments(name)
+            .last()
+            .copied()
+            .unwrap_or(name)
+            .to_vec();
+        self.namespaces
+            .borrow_mut()
+            .bind(ns, &tail, Command::Ensemble(cfg));
     }
 
     /// Define a user proc (`proc name params body`). The proc's defining
@@ -218,44 +540,89 @@ impl Interp {
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
     pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body: Vec<u8>) {
-        let ns = self.namespaces.command_home_ns(self.current_ns, name);
+        let ns = self
+            .namespaces
+            .borrow_mut()
+            .command_home_ns(self.current_ns.get(), name);
         let tail = tcl_syntax::naming::qualifier_segments(name)
             .last()
             .copied()
             .unwrap_or(name)
             .to_vec();
-        let def = Rc::new(ProcDef { params, body, ns });
-        self.namespaces.bind(ns, &tail, Command::Proc(def));
+        // The proc's FQN (`info frame` `proc` key): `<ns>::<tail>`, the global ns
+        // contributing just the leading `::`.
+        let qn = self.namespaces.borrow().qualified_name(ns);
+        let mut fqn = qn.clone();
+        if qn != b"::" {
+            fqn.extend_from_slice(b"::");
+        }
+        fqn.extend_from_slice(&tail);
+        // A proc defined while a file is being sourced records that file, so its
+        // body frame reports `type source`. Its body lines are then file-absolute
+        // (C's literal line table): the base is the file line of the `proc`
+        // command minus one (the body opens on that line). Eval-defined procs
+        // keep body-relative lines (base 0).
+        let source = self
+            .script_stack
+            .borrow()
+            .last()
+            .map(|f| Rc::from(f.as_slice()));
+        let body_line_base = if source.is_some() {
+            self.current_cmd_line().saturating_sub(1)
+        } else {
+            0
+        };
+        let def = Rc::new(ProcDef {
+            params,
+            body,
+            ns,
+            fqn,
+            source,
+            body_line_base,
+        });
+        self.namespaces
+            .borrow_mut()
+            .bind(ns, &tail, Command::Proc(def));
+    }
+
+    /// The reported `line` of the command currently executing at the top of the
+    /// `info frame` stack (for fixing a source-defined proc's body line base).
+    fn current_cmd_line(&self) -> u32 {
+        self.cmd_frames.borrow().last().map_or(1, |f| f.line)
     }
 
     /// Whether `name` resolves to an ensemble command (`namespace ensemble
     /// exists`).
     pub(crate) fn is_ensemble(&self, name: &[u8]) -> bool {
         matches!(
-            self.namespaces.resolve(self.current_ns, name),
+            self.namespaces
+                .borrow()
+                .resolve(self.current_ns.get(), name),
             Some(Command::Ensemble(_))
         )
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
     pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.alias_names()
+        self.namespaces.borrow().alias_names()
     }
 
     /// The current namespace (the eval context) — for the `namespace` builtin.
     pub(crate) fn current_ns(&self) -> NsId {
-        self.current_ns
+        self.current_ns.get()
     }
 
-    /// The namespace tree (read) — for the `namespace` builtin's queries.
-    pub(crate) fn namespaces(&self) -> &Namespaces {
-        &self.namespaces
+    /// The namespace tree (read) — for the `namespace` builtin's queries. The
+    /// returned `Ref` must not be held across a call that mutably borrows the
+    /// namespaces (it would panic); callers use it for a single query.
+    pub(crate) fn namespaces(&self) -> std::cell::Ref<'_, Namespaces> {
+        self.namespaces.borrow()
     }
 
     /// The namespace tree (mutable) — for the `namespace` builtin's mutations
     /// (`export`/`import`/`forget`/`path`).
-    pub(crate) fn namespaces_mut(&mut self) -> &mut Namespaces {
-        &mut self.namespaces
+    pub(crate) fn namespaces_mut(&self) -> std::cell::RefMut<'_, Namespaces> {
+        self.namespaces.borrow_mut()
     }
 
     /// Bootstrap the standard library like C's `Tcl_Init`: set the startup
@@ -263,7 +630,10 @@ impl Interp {
     /// `auto_path`), then `source $tcl_library/init.tcl`. After this the
     /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
     /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
-    pub fn init_library(&mut self) -> Code {
+    /// Set the predefined startup globals (`tcl_version`/`tcl_platform`/`env`/
+    /// `argv`/…) — the cheap half of `Tcl_Init`, shared by the main interp's
+    /// `init_library` and each child interpreter (`interp create`).
+    pub(crate) fn set_startup_globals(&mut self) {
         let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
@@ -303,6 +673,11 @@ impl Interp {
                 drop_fresh(o);
             }
         }
+    }
+
+    pub fn init_library(&mut self) -> Code {
+        self.set_startup_globals();
+        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
         let init_path = format!("{lib}/init.tcl");
@@ -319,8 +694,8 @@ impl Interp {
 
     /// Record `return -level L -code C` state (set by the `return` command).
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
-        self.return_level = level;
-        self.return_code = code;
+        self.return_level.set(level);
+        self.return_code.set(code);
     }
 
     /// Apply a procedure/source **return boundary** to a body completion code
@@ -332,10 +707,11 @@ impl Interp {
         if code != Code::Return {
             return code;
         }
-        self.return_level = self.return_level.saturating_sub(1);
-        if self.return_level == 0 {
-            let c = self.return_code;
-            self.return_code = Code::Ok;
+        self.return_level
+            .set(self.return_level.get().saturating_sub(1));
+        if self.return_level.get() == 0 {
+            let c = self.return_code.get();
+            self.return_code.set(Code::Ok);
             c
         } else {
             Code::Return
@@ -345,16 +721,27 @@ impl Interp {
     /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
     /// the script stack (`info script`). A top-level `return` ends the file (the
     /// return boundary maps `return` → Ok); other codes propagate.
-    pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
-        self.script_stack.push(name.to_vec());
-        let code = self.eval_str(script);
-        self.script_stack.pop();
+    pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+        self.script_stack.borrow_mut().push(name.to_vec());
+        // A `source`d file is its own `info frame` level: `type source` + the
+        // file path, inheriting the enclosing proc/level. Its commands are
+        // numbered by the file's own lines (base 0, the file *is* the script).
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Source;
+        frame.file = Some(Rc::from(name));
+        frame.line_base = 0;
+        let code = self.eval_framed(script, frame);
+        self.script_stack.borrow_mut().pop();
         self.settle_return(code)
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
     pub(crate) fn current_script(&self) -> Vec<u8> {
-        self.script_stack.last().cloned().unwrap_or_default()
+        self.script_stack
+            .borrow()
+            .last()
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
@@ -362,12 +749,24 @@ impl Interp {
     /// together" discovery), then restore. Transparent — the body's completion
     /// code (incl. `return`) propagates unchanged.
     pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
-        let prev_level = self.frames.set_active_level(target_level);
-        let prev_ns = self.current_ns;
-        self.current_ns = self.frames.frame_ns(target_level);
-        let code = self.eval_str(script);
-        self.frames.set_active_level(prev_level);
-        self.current_ns = prev_ns;
+        let prev_level = self.frames.borrow_mut().set_active_level(target_level);
+        let prev_ns = self.current_ns.get();
+        self.current_ns
+            .set(self.frames.borrow().frame_ns(target_level));
+        // The `uplevel` body is a fresh dynamically-evaluated script: `type
+        // eval`, **no** file, body-relative lines (base 0) — but it keeps the
+        // invoking proc's name and runs at the target call level (with no
+        // `level` key, the redirected scope). Matches tclsh, where `uplevel`'s
+        // body is not inlined into the proc bytecode.
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Eval;
+        frame.file = None;
+        frame.line_base = 0;
+        frame.level = target_level;
+        frame.omit_level = true;
+        let code = self.eval_framed(script, frame);
+        self.frames.borrow_mut().set_active_level(prev_level);
+        self.current_ns.set(prev_ns);
         code
     }
 
@@ -376,24 +775,27 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
-        let target = self.namespaces.ensure_namespace(self.current_ns, name);
-        let saved = self.current_ns;
-        self.current_ns = target;
+        let target = self
+            .namespaces
+            .borrow_mut()
+            .ensure_namespace(self.current_ns.get(), name);
+        let saved = self.current_ns.get();
+        self.current_ns.set(target);
         // A namespace frame: a new scope whose unqualified vars resolve to the
         // namespace (so `set`/`variable`/`upvar 0` inside `namespace eval` —
         // including when nested in a proc — target the namespace, not the
         // enclosing proc's locals).
-        self.frames.push_namespace(target);
+        self.frames.borrow_mut().push_namespace(target);
         let code = self.eval_str(body);
-        self.frames.pop();
-        self.current_ns = saved;
+        self.frames.borrow_mut().pop();
+        self.current_ns.set(saved);
         code
     }
 
     /// Whether the active variable frame is a proc call frame (vs. global /
     /// `namespace eval` scope).
     pub(crate) fn in_proc(&self) -> bool {
-        self.frames.in_proc()
+        self.frames.borrow().in_proc()
     }
 
     // -- variables (the var resolver; `crate::vars`) --------------------------
@@ -405,24 +807,35 @@ impl Interp {
 
     /// `set name` — borrowed value (the table keeps its +1), or `None`.
     pub(crate) fn var_get(&self, name: &[u8]) -> Option<*mut TclObj> {
-        crate::vars::get(&self.frames, &self.namespaces, self.current_ns, name)
+        crate::vars::get(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
     }
 
     /// `set name(key)` — borrowed.
     pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
-        crate::vars::get_elem(&self.frames, &self.namespaces, self.current_ns, name, key)
+        crate::vars::get_elem(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+            key,
+        )
     }
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
         let r = crate::vars::set(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             name,
             obj,
         );
-        if r.is_ok() && !self.traces.traces.is_empty() {
+        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
             self.fire_var_trace(&base, elem.as_deref(), b"write");
         }
@@ -437,14 +850,14 @@ impl Interp {
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
         let r = crate::vars::set_elem(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             name,
             key,
             obj,
         );
-        if r.is_ok() && !self.traces.traces.is_empty() {
+        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
             self.fire_var_trace(name, Some(key), b"write");
         }
         r
@@ -453,7 +866,7 @@ impl Interp {
     /// Fire a read trace for `name` before a read (the `&mut` chokepoints that
     /// resolve `$var` call this).
     pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) {
-        if self.traces.traces.is_empty() {
+        if self.traces.borrow().traces.is_empty() {
             return;
         }
         let (base, elem) = crate::frame::split_array_ref(name);
@@ -464,12 +877,12 @@ impl Interp {
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
         let existed = crate::vars::unset(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             name,
         );
-        if existed && !self.traces.traces.is_empty() {
+        if existed && !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
             self.fire_var_trace(&base, elem.as_deref(), b"unset");
         }
@@ -479,13 +892,13 @@ impl Interp {
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         let existed = crate::vars::unset_elem(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             name,
             key,
         );
-        if existed && !self.traces.traces.is_empty() {
+        if existed && !self.traces.borrow().traces.is_empty() {
             self.fire_var_trace(name, Some(key), b"unset");
         }
         existed
@@ -496,11 +909,12 @@ impl Interp {
     /// guard) and callback errors are swallowed; the interp result is preserved
     /// across the callbacks (the triggering operation owns the result).
     fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) {
-        if self.traces.firing > 0 {
+        if self.traces.borrow().firing > 0 {
             return;
         }
         let cmds: Vec<Vec<u8>> = self
             .traces
+            .borrow()
             .traces
             .iter()
             .filter(|t| crate::cmd_trace::matches(t, base, elem, op))
@@ -510,10 +924,10 @@ impl Interp {
             return;
         }
         // Preserve the result object across the callbacks.
-        let saved = self.result;
+        let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
-        self.traces.firing += 1;
+        self.traces.borrow_mut().firing += 1;
         for cmd in cmds {
             // Append `base element op` as properly-quoted trailing words.
             let args = crate::list::new_list_obj(&[
@@ -527,19 +941,24 @@ impl Interp {
             drop_fresh(args);
             let _ = self.eval_str(&line);
         }
-        self.traces.firing -= 1;
+        self.traces.borrow_mut().firing -= 1;
 
         // Restore the saved result (release the trace's, adopt our held +1).
         unsafe {
-            obj::decr_ref_count(self.result);
-            self.result = saved;
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
         }
     }
 
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
     /// diagnostic, `array exists`).
     pub(crate) fn var_is_array(&self, name: &[u8]) -> bool {
-        crate::vars::is_array(&self.frames, &self.namespaces, self.current_ns, name)
+        crate::vars::is_array(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
     }
 
     /// Resolve a `global`/`variable`/`upvar` name argument to its
@@ -552,7 +971,7 @@ impl Interp {
         name: &[u8],
     ) -> Option<(NsId, Vec<u8>)> {
         if tcl_syntax::naming::is_qualified(name) {
-            self.namespaces.var_home(context_ns, name)
+            self.namespaces.borrow().var_home(context_ns, name)
         } else {
             Some((context_ns, name.to_vec()))
         }
@@ -560,16 +979,16 @@ impl Interp {
 
     /// The current call-frame level (`upvar` relative-level arithmetic).
     pub(crate) fn current_level(&self) -> usize {
-        self.frames.current_level()
+        self.frames.borrow().current_level()
     }
 
     /// `variable tail` / `global tail` — link `tail` in the current frame to
     /// `target_ns::tail` (a no-op when the current context already is that var).
     pub(crate) fn make_variable(&mut self, target_ns: NsId, tail: &[u8]) {
         crate::vars::make_variable(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             target_ns,
             tail,
         );
@@ -578,7 +997,9 @@ impl Interp {
     /// Resolve (creating if needed) a namespace by name, relative to the current
     /// namespace — for `apply`'s optional namespace term.
     pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
-        self.namespaces.ensure_namespace(self.current_ns, name)
+        self.namespaces
+            .borrow_mut()
+            .ensure_namespace(self.current_ns.get(), name)
     }
 
     // -- introspection (`info` / `array`) -------------------------------------
@@ -588,27 +1009,42 @@ impl Interp {
     pub(crate) fn var_exists(&self, name: &[u8]) -> bool {
         let (base, elem) = crate::frame::split_array_ref(name);
         match elem {
-            Some(k) => {
-                crate::vars::exists_elem(&self.frames, &self.namespaces, self.current_ns, &base, &k)
-            }
-            None => crate::vars::exists(&self.frames, &self.namespaces, self.current_ns, &base),
+            Some(k) => crate::vars::exists_elem(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                self.current_ns.get(),
+                &base,
+                &k,
+            ),
+            None => crate::vars::exists(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                self.current_ns.get(),
+                &base,
+            ),
         }
     }
 
     /// The element names of array `name` (`array names`/`get`), or `None`.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
-        crate::vars::array_names(&self.frames, &self.namespaces, self.current_ns, name)
+        crate::vars::array_names(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
     }
 
     /// `info level` — the current frame level (proc nesting depth).
     pub(crate) fn level(&self) -> usize {
-        self.frames.current_level()
+        self.frames.borrow().current_level()
     }
 
     /// The invoking command words at call `level` (`info level N`), or `None`
     /// when the level has none.
     pub(crate) fn level_words(&self, level: usize) -> Option<Vec<Vec<u8>>> {
         self.frames
+            .borrow()
             .words_at(level)
             .filter(|w| !w.is_empty())
             .map(<[Vec<u8>]>::to_vec)
@@ -617,50 +1053,44 @@ impl Interp {
     /// Variable names visible in the current scope (`info vars`): the active
     /// frame's locals in a proc, else the current namespace's variables.
     pub(crate) fn visible_var_names(&self) -> Vec<Vec<u8>> {
-        if self.frames.in_proc() {
-            self.frames.local_names()
+        if self.frames.borrow().in_proc() {
+            self.frames.borrow().local_names()
         } else {
-            self.namespaces.var_names(self.current_ns)
+            self.namespaces.borrow().var_names(self.current_ns.get())
         }
     }
 
     /// `info locals` — the active frame's local variable names.
     pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
-        self.frames.local_names()
+        self.frames.borrow().local_names()
     }
 
     /// `info globals` — the global namespace's variable names.
     pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.var_names(GLOBAL)
+        self.namespaces.borrow().var_names(GLOBAL)
     }
 
     /// Command names visible from the current namespace (`info commands`):
     /// current ns ∪ global, sorted/deduped.
     pub(crate) fn visible_command_names(&self) -> Vec<Vec<u8>> {
-        self.visible(self.namespaces.command_names(self.current_ns), |ns| {
-            ns.command_names(GLOBAL)
-        })
-    }
-
-    /// Proc names visible from the current namespace (`info procs`).
-    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
-        let mut v = self.namespaces.proc_names(self.current_ns);
-        if self.current_ns != GLOBAL {
-            v.extend(self.namespaces.proc_names(GLOBAL));
+        let ns = self.namespaces.borrow();
+        let cur = self.current_ns.get();
+        let mut v: Vec<Vec<u8>> = ns.command_names(cur).iter().map(|s| s.to_vec()).collect();
+        if cur != GLOBAL {
+            v.extend(ns.command_names(GLOBAL).iter().map(|s| s.to_vec()));
         }
         v.sort();
         v.dedup();
         v
     }
 
-    fn visible(
-        &self,
-        local: Vec<&[u8]>,
-        global: impl Fn(&Namespaces) -> Vec<&[u8]>,
-    ) -> Vec<Vec<u8>> {
-        let mut v: Vec<Vec<u8>> = local.iter().map(|s| s.to_vec()).collect();
-        if self.current_ns != GLOBAL {
-            v.extend(global(&self.namespaces).iter().map(|s| s.to_vec()));
+    /// Proc names visible from the current namespace (`info procs`).
+    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let cur = self.current_ns.get();
+        let mut v = ns.proc_names(cur);
+        if cur != GLOBAL {
+            v.extend(ns.proc_names(GLOBAL));
         }
         v.sort();
         v.dedup();
@@ -669,7 +1099,11 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        match self.namespaces.resolve(self.current_ns, name) {
+        match self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+        {
             Some(Command::Proc(def)) => Some(def),
             _ => None,
         }
@@ -678,9 +1112,9 @@ impl Interp {
     /// `upvar` — link `local` in the current frame to the resolved `target`.
     pub(crate) fn make_upvar(&mut self, target: Link, local: &[u8]) {
         crate::vars::make_upvar(
-            &mut self.frames,
-            &mut self.namespaces,
-            self.current_ns,
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
             target,
             local,
         );
@@ -693,11 +1127,11 @@ impl Interp {
     /// # Safety
     /// `obj` must be a live `TclObj`.
     pub unsafe fn set_obj_result(&mut self, obj: *mut TclObj) {
-        let old = self.result;
+        let old = self.result.get();
         // SAFETY: `obj` live (caller); `old` is the interp's owned result.
         unsafe {
             obj::incr_ref_count(obj);
-            self.result = obj;
+            self.result.set(obj);
             obj::decr_ref_count(old);
         }
     }
@@ -726,59 +1160,367 @@ impl Interp {
 
     /// `Tcl_GetObjResult` — borrowed (interp keeps its +1).
     pub fn get_obj_result(&self) -> *mut TclObj {
-        self.result
+        self.result.get()
     }
 
     /// The current result's string bytes (copied).
     pub fn result_bytes(&self) -> Vec<u8> {
-        obj_bytes(self.result)
+        obj_bytes(self.result.get())
     }
 
-    /// Set an error result and return [`Code::Error`].
-    fn error(&mut self, msg: &[u8]) -> Code {
+    /// Raise an error with result `msg` and return [`Code::Error`] — the generic
+    /// throw. Resets the [`ExceptionState`] to a fresh error: the source trace
+    /// (`::errorInfo`) is then built up **as the error unwinds**
+    /// ([`log_command_info`](Self::log_command_info) /
+    /// [`make_proc_error`](Self::make_proc_error)) and published to the globals at
+    /// the catch / outermost-eval boundary — not stamped here.
+    ///
+    /// The `-errorcode` taxonomy is conservative for now: `wrong # args` ⇒ `TCL
+    /// WRONGARGS`, else `NONE` (the full taxonomy is a follow-up). `error`/`throw`
+    /// set a richer code on their own paths.
+    pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
-        // Every error stamps `::errorInfo` (the message — the incremental
-        // source-trace is deferred) and `::errorCode` (`NONE` for a generic
-        // error). `error`/`throw` set richer values on their own paths and do
-        // not route through here, so they aren't clobbered. (Zig oracle: errors
-        // stamp the globals in and out of `catch`.)
-        let ei = new_string(msg);
-        if self.var_set(b"::errorInfo", ei).is_err() {
-            drop_fresh(ei);
-        }
-        // The common error codes Tcl stamps (the full `-errorcode` taxonomy is a
-        // follow-up): `wrong # args` ⇒ `TCL WRONGARGS`, else `NONE`.
         let code: &[u8] = if msg.starts_with(b"wrong # args:") {
             b"TCL WRONGARGS"
         } else {
             b"NONE"
         };
-        let ec = new_string(code);
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
+    /// Pre-seed the error trace for `error msg info ?code?` / `throw`: the result
+    /// is `msg`, the trace starts at `info` (so the throwing command is **not**
+    /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
+    /// [`Code::Error`].
+    pub(crate) fn raise_with_info(&mut self, msg: &[u8], info: &[u8], code: &[u8]) -> Code {
+        self.set_result_bytes(msg);
+        *self.exc.borrow_mut() = ExceptionState {
+            info: Some(info.to_vec()),
+            code: code.to_vec(),
+            line: 1,
+            already_logged: true,
+        };
+        Code::Error
+    }
+
+    /// Begin a fresh error whose result the caller has already set, with
+    /// `-errorcode` `code` and an empty trace (it accumulates as the error
+    /// unwinds). Used by `error msg`/`throw`. Returns [`Code::Error`].
+    pub(crate) fn set_error_state(&mut self, code: &[u8]) -> Code {
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
+    /// Append one `while executing` / `invoked from within` frame for the command
+    /// `src[cmd.start..cmd.end]` as an error unwinds through it — the
+    /// `TclLogCommandInfo` mirror (`tclNamesp.c`). A no-op (consuming the flag)
+    /// when the command was already logged deeper in the same script; otherwise
+    /// it computes the 1-based source line, seeds `errorInfo` from the result on
+    /// the first frame, truncates the command to 150 bytes (`...` on overflow),
+    /// and sets `already_logged`.
+    fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+        // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
+        // or an inline `if`/`while` body): the enclosing command is the same C
+        // bytecode frame, so it is *not* re-logged. The flag stays set and is
+        // cleared only at a real frame boundary (`make_proc_error` /
+        // `append_body_frame`), which is what lets the proc-*call* command log.
+        if self.exc.borrow().already_logged {
+            return;
+        }
+        // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
+        let line = line_of(src, cmd.start);
+        let started = self.exc.borrow().info.is_some();
+        if !started {
+            // First frame: errorInfo is seeded from the error message (the result).
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        let verb: &[u8] = if started {
+            b"invoked from within"
+        } else {
+            b"while executing"
+        };
+        let cmd_bytes = &src[cmd.start..cmd.end];
+        let overflow = cmd_bytes.len() > 150;
+        let slice = if overflow {
+            &cmd_bytes[..150]
+        } else {
+            cmd_bytes
+        };
+        let mut exc = self.exc.borrow_mut();
+        exc.line = line;
+        let buf = exc.info.as_mut().expect("seeded above");
+        buf.extend_from_slice(b"\n    ");
+        buf.extend_from_slice(verb);
+        buf.extend_from_slice(b"\n\"");
+        buf.extend_from_slice(slice);
+        if overflow {
+            buf.extend_from_slice(b"...");
+        }
+        buf.push(b'"');
+        exc.already_logged = true;
+    }
+
+    /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
+    /// frame when a proc/lambda body unwinds with an error (`MakeProcError` /
+    /// `MakeLambdaError`, `tclProc.c`), then clear `already_logged` so the
+    /// proc-call command itself is logged by its enclosing eval. The line is the
+    /// body-relative `error_line` the innermost body command recorded.
+    fn make_proc_error(&mut self, frame: ProcFrame) {
+        // `(procedure "NAME" line N)` / `(lambda term "NAME" line N)` — the name
+        // quoted, truncated to 60 bytes (`...` on overflow).
+        let (kind, name): (&[u8], &[u8]) = match frame {
+            ProcFrame::Proc(n) => (b"procedure", n),
+            ProcFrame::Lambda(n) => (b"lambda term", n),
+        };
+        let overflow = name.len() > 60;
+        let trunc = if overflow { &name[..60] } else { name };
+        let mut inner = Vec::with_capacity(kind.len() + trunc.len() + 8);
+        inner.extend_from_slice(kind);
+        inner.extend_from_slice(b" \"");
+        inner.extend_from_slice(trunc);
+        if overflow {
+            inner.extend_from_slice(b"...");
+        }
+        inner.push(b'"');
+        self.append_frame_line(&inner);
+        self.exc.borrow_mut().already_logged = false;
+    }
+
+    /// Append a `("LABEL" body line N)` frame (the `eval`/`uplevel`/`foreach`
+    /// body trace, e.g. `("eval" body line 1)`), then clear `already_logged` so
+    /// the enclosing command logs. C emits these for script bodies that evaluate
+    /// through a fresh `CmdFrame` (`eval`/`uplevel`/`foreach`), unlike the
+    /// inline-compiled `if`/`while`/`for`/`switch`.
+    pub(crate) fn append_body_frame(&mut self, label: &[u8]) {
+        // The `"label" body` shape: `("eval" body line N)`.
+        let mut inner = Vec::with_capacity(label.len() + 8);
+        inner.push(b'"');
+        inner.extend_from_slice(label);
+        inner.extend_from_slice(b"\" body");
+        self.append_frame_line(&inner);
+        self.exc.borrow_mut().already_logged = false;
+    }
+
+    /// Shared tail of the `(... line N)` frames: append `"\n    (<inner> line
+    /// <N>)"` to `errorInfo` (seeding it from the result message if no frame has
+    /// been logged yet), where `inner` is the caller-built body — e.g.
+    /// `procedure "p"`, `lambda term "..."`, or `"eval" body`.
+    fn append_frame_line(&mut self, inner: &[u8]) {
+        let line = self.exc.borrow().line;
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        let mut exc = self.exc.borrow_mut();
+        let buf = exc.info.as_mut().expect("seeded above");
+        buf.extend_from_slice(b"\n    (");
+        buf.extend_from_slice(inner);
+        buf.extend_from_slice(b" line ");
+        buf.extend_from_slice(line.to_string().as_bytes());
+        buf.push(b')');
+    }
+
+    /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
+    /// trace if any frame was logged, else the bare error message.
+    pub(crate) fn error_info(&self) -> Vec<u8> {
+        let info = self.exc.borrow().info.clone();
+        info.unwrap_or_else(|| self.result_bytes())
+    }
+
+    /// `info frame` (no arg): the depth of the source-location stack.
+    pub(crate) fn cmd_frame_depth(&self) -> usize {
+        self.cmd_frames.borrow().len()
+    }
+
+    /// The `info frame N` description for stack position `n` (C's level
+    /// arithmetic: `n > 0` is absolute, 1-based from the root; `n <= 0` is
+    /// relative to the current top, `0` = current). Returns the dict's
+    /// (key, value) pairs in C's key order (`type line [file] cmd [proc]
+    /// level`), or `None` if out of range.
+    pub(crate) fn cmd_frame_info(&self, n: i64) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
+        let cmd_frames = self.cmd_frames.borrow();
+        let depth = cmd_frames.len() as i64;
+        let pos = if n > 0 { n } else { depth + n };
+        if pos < 1 || pos > depth {
+            return None;
+        }
+        let f = &cmd_frames[(pos - 1) as usize];
+        let mut pairs = vec![
+            (b"type".to_vec(), f.kind.as_bytes().to_vec()),
+            (b"line".to_vec(), f.line.to_string().into_bytes()),
+        ];
+        if let Some(file) = &f.file {
+            pairs.push((b"file".to_vec(), file.to_vec()));
+        }
+        pairs.push((b"cmd".to_vec(), f.cmd.clone()));
+        if let Some(p) = &f.proc {
+            pairs.push((b"proc".to_vec(), p.clone()));
+        }
+        // `level` is the distance from the current call level (omitted for a
+        // redirected `uplevel` scope, matching C's reachability check).
+        if !f.omit_level {
+            let level = self.frames.borrow().current_level().saturating_sub(f.level);
+            pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+        }
+        Some(pairs)
+    }
+
+    /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
+    /// or `NONE`.
+    pub(crate) fn error_code(&self) -> Vec<u8> {
+        let exc = self.exc.borrow();
+        if exc.code.is_empty() {
+            b"NONE".to_vec()
+        } else {
+            exc.code.clone()
+        }
+    }
+
+    /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
+    /// and reset the accumulator for the next error. Called when the error is
+    /// caught (`catch`) or reaches the outermost eval.
+    fn publish_error(&mut self) {
+        let info = self.error_info();
+        let code = self.error_code();
+        let ei = new_string(&info);
+        if self.var_set(b"::errorInfo", ei).is_err() {
+            drop_fresh(ei);
+        }
+        let ec = new_string(&code);
         if self.var_set(b"::errorCode", ec).is_err() {
             drop_fresh(ec);
         }
-        Code::Error
+        *self.exc.borrow_mut() = ExceptionState::default();
+    }
+
+    /// Publish + reset, for `catch`/`try` once they have captured the options.
+    pub(crate) fn publish_and_reset_error(&mut self) {
+        self.publish_error();
     }
 
     // -- eval -----------------------------------------------------------------
 
     /// Evaluate a whole script; the result is left in the interp result. Returns
     /// the completion code of the last command (or `Ok` for an empty script).
+    ///
+    /// At the true top level (no `info frame` stack yet) this owns the root
+    /// `CmdFrame`; nested calls (command substitution `[cmd]`) run in the
+    /// enclosing frame and add none — matching C, where `[cmd]` is the same
+    /// `cmdFramePtr` level. A proc body / `eval` / `source` body gets its own
+    /// frame via [`eval_framed`](Self::eval_framed).
     pub fn eval_str(&mut self, src: &[u8]) -> Code {
+        let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
+        self.eval_script(src, owned)
+    }
+
+    /// Evaluate `src` as the body of its own `info frame` level (`frame` is
+    /// pushed for the duration). Used by proc calls, `eval`/`uplevel`, and
+    /// `source`.
+    fn eval_framed(&mut self, src: &[u8], frame: CmdFrame) -> Code {
+        self.eval_script(src, Some(frame))
+    }
+
+    /// The shared command loop. If `owned` is `Some`, it is pushed as this
+    /// script's `CmdFrame` and updated to each command as the loop steps through
+    /// it (so `info frame` sees the live command/line); an unframed call (`None`,
+    /// i.e. command substitution) leaves the enclosing frame untouched.
+    fn eval_script(&mut self, src: &[u8], owned: Option<CmdFrame>) -> Code {
+        self.eval_depth.set(self.eval_depth.get() + 1);
+        let owns_frame = owned.is_some();
+        if let Some(f) = owned {
+            self.cmd_frames.borrow_mut().push(f);
+        }
         let mut last = Code::Ok;
         let commands = parse::parse_script(src);
         for cmd in &commands {
-            last = self.eval_command(&cmd.words);
+            last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
                 break; // error/return/break/continue propagate up
             }
         }
+        if owns_frame {
+            self.cmd_frames.borrow_mut().pop();
+        }
+        self.eval_depth.set(self.eval_depth.get() - 1);
+        // The outermost eval publishes the accumulated trace to the globals so
+        // an uncaught error leaves `::errorInfo`/`::errorCode` set, exactly as a
+        // `catch` would (`catch` publishes earlier, at depth > 0).
+        if self.eval_depth.get() == 0 && last == Code::Error {
+            self.publish_error();
+        }
         last
     }
 
-    /// Evaluate one already-parsed command: substitute each word (with `{*}`
-    /// expansion), then dispatch.
-    fn eval_command(&mut self, words: &[parse::Word]) -> Code {
+    /// A `CmdFrame` for an `eval` body, inheriting the current frame's
+    /// kind/proc/level/file context (the body runs in the enclosing CallFrame).
+    /// `line_base` is the line of the `eval` command minus one — the body opens
+    /// on that line, so in a sourced context its commands stay file-absolute
+    /// (e.g. `eval` at file line 5 → its body at line 5). `uplevel`/`source`
+    /// override fields ([`eval_uplevel`](Self::eval_uplevel)/
+    /// [`eval_sourced`](Self::eval_sourced)).
+    fn inherited_cmd_frame(&self) -> CmdFrame {
+        let line_base = self.current_cmd_line().saturating_sub(1);
+        let cmd_frames = self.cmd_frames.borrow();
+        let top = cmd_frames.last();
+        CmdFrame {
+            kind: top.map_or(FrameKind::Eval, |f| f.kind),
+            file: top.and_then(|f| f.file.clone()),
+            proc: top.and_then(|f| f.proc.clone()),
+            level: top.map_or(0, |f| f.level),
+            omit_level: false,
+            line_base,
+            cmd: Vec::new(),
+            line: 1,
+        }
+    }
+
+    /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
+    /// inherits the enclosing proc/level). The errorInfo `("eval" body line N)`
+    /// frame is appended separately by the caller.
+    pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
+        let frame = self.inherited_cmd_frame();
+        self.eval_framed(script, frame)
+    }
+
+    /// Evaluate one parsed command, then — if it errored — append its
+    /// `while executing` / `invoked from within` frame to the error trace
+    /// (`TclLogCommandInfo`), using the command's source slice and line.
+    fn eval_command(&mut self, src: &[u8], cmd: &parse::Command, owns_frame: bool) -> Code {
+        // Update the current `info frame` level to this command — the innermost
+        // command executing at this level. A `[cmd]` substitution (and an inline
+        // control body) shares the enclosing frame and adds no level, so it
+        // updates the `cmd` but keeps the **enclosing** command's `line` (the
+        // line the substitution appears on); only the frame-owning script
+        // advances the line as it steps through its own commands.
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            if owns_frame {
+                // `line_base` shifts a source-defined proc's body lines to be
+                // file-absolute; it is 0 elsewhere (body-relative).
+                top.line = top.line_base + line_of(src, cmd.start);
+            }
+            top.cmd = src[cmd.start..cmd.end].to_vec();
+        }
+        let code = self.eval_words(&cmd.words);
+        if code == Code::Error {
+            self.log_command_info(src, cmd);
+        }
+        code
+    }
+
+    /// Substitute each word of a command (with `{*}` expansion), then dispatch.
+    fn eval_words(&mut self, words: &[parse::Word]) -> Code {
         let mut argv: Vec<*mut TclObj> = Vec::new();
         for w in words {
             let obj = match self.substitute_word(&w.body) {
@@ -824,15 +1566,20 @@ impl Interp {
     /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
-    fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+    pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
-        if let Some(cmd) = self.namespaces.resolve(self.current_ns, &name) {
+        let resolved = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), &name);
+        if let Some(cmd) = resolved {
             return self.invoke(cmd, argv);
         }
         // Command miss: dispatch through `unknown <name> <args…>` if it exists
         // (and we're not already resolving `unknown` itself).
         if name != b"unknown" {
-            if let Some(unk) = self.namespaces.resolve(GLOBAL, b"unknown") {
+            let unk = self.namespaces.borrow().resolve(GLOBAL, b"unknown");
+            if let Some(unk) = unk {
                 let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
                 let head = new_string(b"unknown");
                 // SAFETY: fresh + live argv elements; take the owning +1.
@@ -855,14 +1602,381 @@ impl Interp {
         match cmd {
             Command::Builtin(f) => f(self, argv),
             Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
-            Command::Imported { source } => match self.namespaces.resolve(GLOBAL, &source) {
-                // Transparent redirect: forward argv unchanged to the source.
-                Some(cmd) => self.invoke(cmd, argv),
-                None => self.invalid_command(&source),
-            },
+            Command::Imported { source } => {
+                let resolved = self.namespaces.borrow().resolve(GLOBAL, &source);
+                match resolved {
+                    // Transparent redirect: forward argv unchanged to the source.
+                    Some(cmd) => self.invoke(cmd, argv),
+                    None => self.invalid_command(&source),
+                }
+            }
             Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
             Command::Proc(def) => self.call_proc(&def, argv),
+            Command::ChildInterp(name) => self.dispatch_child(&name, argv),
+            Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
+            Command::ParentAlias { target, prefix } => {
+                self.dispatch_parent_alias(&target, &prefix, argv)
+            }
         }
+    }
+
+    /// Register `cmd` under the (possibly qualified) name `name` — for the OO
+    /// object/class commands.
+    pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
+        self.namespaces.borrow_mut().register(name, cmd);
+    }
+
+    /// The fully-qualified name a (relative or absolute) command/object name
+    /// resolves to, relative to the current namespace — used to name OO
+    /// objects/classes consistently.
+    pub(crate) fn fqn_for(&self, name: &[u8]) -> Vec<u8> {
+        if name.starts_with(b"::") {
+            return name.to_vec();
+        }
+        let qn = self
+            .namespaces
+            .borrow()
+            .qualified_name(self.current_ns.get());
+        let mut fqn = qn.clone();
+        if qn != b"::" {
+            fqn.extend_from_slice(b"::");
+        }
+        fqn.extend_from_slice(name);
+        fqn
+    }
+
+    /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
+    /// child is addressable like the `interp` ensemble restricted to it.
+    fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+        if argv.len() < 2 {
+            return self.error(b"wrong # args: should be \"interp cmd ?arg ...?\"");
+        }
+        match obj_bytes(argv[1]).as_slice() {
+            b"eval" => {
+                let script = join_words(&argv[2..]);
+                self.eval_in_child(name, &script)
+            }
+            b"issafe" => {
+                let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
+                self.set_result_bytes(if safe { b"1" } else { b"0" });
+                Code::Ok
+            }
+            b"delete" => {
+                self.delete_child(name);
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            b"hide" | b"expose" if argv.len() == 3 => {
+                let hide = obj_bytes(argv[1]) == b"hide";
+                let cmd = obj_bytes(argv[2]);
+                self.with_child(name, |c| {
+                    if hide {
+                        c.hide_command(&cmd)
+                    } else {
+                        c.expose_command(&cmd)
+                    }
+                });
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            b"invokehidden" if argv.len() >= 3 => {
+                let cmd = obj_bytes(argv[2]);
+                let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
+                for &a in &hidden_argv {
+                    unsafe { obj::incr_ref_count(a) };
+                }
+                let out = self.with_child(name, |c| {
+                    (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
+                });
+                for &a in &hidden_argv {
+                    unsafe { obj::decr_ref_count(a) };
+                }
+                match out {
+                    Some((code, res)) => {
+                        self.set_result_bytes(&res);
+                        code
+                    }
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            b"hidden" => {
+                let names = self
+                    .with_child(name, |c| c.hidden_names())
+                    .unwrap_or_default();
+                let elems: Vec<*mut TclObj> =
+                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
+                self.set_result(crate::list::new_list_obj(&elems));
+                Code::Ok
+            }
+            b"aliases" => {
+                let names = self
+                    .with_child(name, |c| c.alias_names())
+                    .unwrap_or_default();
+                let elems: Vec<*mut TclObj> =
+                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
+                self.set_result(crate::list::new_list_obj(&elems));
+                Code::Ok
+            }
+            // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
+            // the child delegating to `targetCmd` in this (parent) interp. (The
+            // target is implicitly the parent, so there is no target-path arg.)
+            b"alias" if argv.len() >= 4 => {
+                let alias = obj_bytes(argv[2]);
+                let target = obj_bytes(argv[3]);
+                let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
+                self.install_parent_alias(name, &alias, target, prefix);
+                self.set_result(obj::new_string_bytes(&alias));
+                Code::Ok
+            }
+            other => {
+                let mut m = b"interp subcommand \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\" is not supported in this runtime");
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Create a child interpreter named `name` (auto-generated when empty),
+    /// registering it as a command in this interp. Returns the name.
+    pub(crate) fn create_child(&mut self, name: Option<Vec<u8>>) -> Vec<u8> {
+        let name = name.unwrap_or_else(|| {
+            let n = format!("interp{}", self.interp_counter.get());
+            self.interp_counter.set(self.interp_counter.get() + 1);
+            n.into_bytes()
+        });
+        let mut child = Interp::new();
+        // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
+        // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
+        child.set_startup_globals();
+        self.children.borrow_mut().insert(name.clone(), child);
+        self.namespaces
+            .borrow_mut()
+            .register(&name, Command::ChildInterp(name.clone()));
+        name
+    }
+
+    /// Whether a child interpreter `name` exists.
+    pub(crate) fn child_exists(&self, name: &[u8]) -> bool {
+        self.children.borrow().contains_key(name)
+    }
+
+    /// Run `f` on the child interpreter `name` (or `None` if it doesn't exist) —
+    /// the mutable-access path for `interp <sub> childPath …`.
+    ///
+    /// The child's handle is **cloned out** of the table (an `Rc` bump) so the
+    /// `children` borrow is released before `f` runs. `f` may therefore re-enter
+    /// `self` — a child's aliased `source`/`invokehidden` calling back to the
+    /// parent — and even re-enter the same child through a fresh handle: the
+    /// shared `InterpState` is reached via the `Rc` plus per-field interior
+    /// mutability, never an aliased `&mut`. The child's `parent` `Weak` is set for
+    /// the call so re-entrancy can reach up, and restored after.
+    ///
+    /// The child is marked active for the call ([`eval_active`](InterpState)), so
+    /// a delete requested *during* `f` (the self-deleting `exit` alias) is
+    /// deferred to here and applied once no eval of it remains on the stack.
+    pub(crate) fn with_child<R>(
+        &mut self,
+        name: &[u8],
+        f: impl FnOnce(&mut Interp) -> R,
+    ) -> Option<R> {
+        let mut child = self.children.borrow().get(name)?.clone();
+        let saved_parent = child.parent.replace(Rc::downgrade(&self.0));
+        child.eval_active.set(child.eval_active.get() + 1);
+        let r = f(&mut child);
+        child.eval_active.set(child.eval_active.get() - 1);
+        *child.parent.borrow_mut() = saved_parent;
+        let teardown = child.pending_delete.get() && child.eval_active.get() == 0;
+        drop(child); // release our handle clone before freeing the table's
+        if teardown {
+            self.children.borrow_mut().remove(name);
+            self.namespaces.borrow_mut().delete(GLOBAL, name);
+        }
+        Some(r)
+    }
+
+    /// `interp hide name`: move command `name` out of the command table into the
+    /// hidden table. Returns whether it existed.
+    pub(crate) fn hide_command(&mut self, name: &[u8]) -> bool {
+        let resolved = self.namespaces.borrow().resolve(GLOBAL, name);
+        match resolved {
+            Some(cmd) => {
+                self.namespaces.borrow_mut().delete(GLOBAL, name);
+                self.hidden.borrow_mut().insert(name.to_vec(), cmd);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// `interp expose name`: move a hidden command back into the command table.
+    pub(crate) fn expose_command(&mut self, name: &[u8]) -> bool {
+        let cmd = self.hidden.borrow_mut().remove(name);
+        match cmd {
+            Some(cmd) => {
+                self.namespaces.borrow_mut().register(name, cmd);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
+    pub(crate) fn invoke_hidden(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+        let cmd = self.hidden.borrow().get(name).cloned();
+        match cmd {
+            Some(cmd) => self.invoke(cmd, argv),
+            None => {
+                let mut m = b"invalid hidden command name \"".to_vec();
+                m.extend_from_slice(name);
+                m.push(b'"');
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Sorted names of the hidden commands (`interp hidden`).
+    pub(crate) fn hidden_names(&self) -> Vec<Vec<u8>> {
+        self.hidden.borrow().keys().cloned().collect()
+    }
+
+    /// Make this interp "safe": hide the commands that touch the host
+    /// (filesystem, processes, sockets, the interpreter itself) — the core of
+    /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
+    /// `file` is a follow-up (needs cross-interp aliases).
+    pub(crate) fn make_safe(&mut self) {
+        const UNSAFE: &[&[u8]] = &[
+            b"exec",
+            b"exit",
+            b"cd",
+            b"pwd",
+            b"glob",
+            b"open",
+            b"socket",
+            b"source",
+            b"load",
+            b"file",
+            b"fconfigure",
+            b"encoding",
+            b"after",
+            b"vwait",
+        ];
+        for &c in UNSAFE {
+            self.hide_command(c);
+        }
+        self.is_safe.set(true);
+    }
+
+    /// Whether this interp is safe (`interp issafe`).
+    pub(crate) fn is_safe(&self) -> bool {
+        self.is_safe.get()
+    }
+
+    /// The names of this interp's direct child interpreters (sorted).
+    pub(crate) fn child_names(&self) -> Vec<Vec<u8>> {
+        self.children.borrow().keys().cloned().collect()
+    }
+
+    /// Delete a child interpreter (and its command). Returns whether it existed.
+    ///
+    /// If the child is currently executing (a self-deleting `exit`/`interp
+    /// delete` from inside its own eval), the actual teardown is **deferred**:
+    /// the command binding is removed now so the name stops dispatching, but the
+    /// interp handle is freed only when its last eval unwinds
+    /// ([`with_child`]/[`eval_in_child`]) — never while a re-entrant eval of it is
+    /// still on the stack. Mirrors C's deferred `Tcl_DeleteInterp`.
+    ///
+    /// [`with_child`]: Interp::with_child
+    /// [`eval_in_child`]: Interp::eval_in_child
+    pub(crate) fn delete_child(&mut self, name: &[u8]) -> bool {
+        // Classify under a short `children` borrow, then act (re-borrowing) so we
+        // never hold `children` across the `namespaces` mutation.
+        let disposition = {
+            let children = self.children.borrow();
+            match children.get(name) {
+                Some(child) if child.eval_active.get() > 0 => {
+                    child.pending_delete.set(true);
+                    Some(false) // busy: defer the removal
+                }
+                Some(_) => Some(true), // idle: remove now
+                None => None,
+            }
+        };
+        match disposition {
+            None => false,
+            Some(remove_now) => {
+                if remove_now {
+                    self.children.borrow_mut().remove(name);
+                }
+                self.namespaces.borrow_mut().delete(GLOBAL, name);
+                true
+            }
+        }
+    }
+
+    /// Evaluate `script` in child interpreter `name`, copying its result/code
+    /// back. `None`-returning if the child doesn't exist (caller raises).
+    ///
+    /// Runs through [`with_child`](Self::with_child), so a parent command invoked
+    /// *during* this eval — via a child→parent alias — can re-enter the same child
+    /// (`interp invokehidden $child …`), which the Safe Base relies on.
+    pub(crate) fn eval_in_child(&mut self, name: &[u8], script: &[u8]) -> Code {
+        match self.with_child(name, |c| (c.eval_str(script), c.result_bytes())) {
+            Some((code, result)) => {
+                self.set_result_bytes(&result);
+                code
+            }
+            None => {
+                let mut m = b"could not find interpreter \"".to_vec();
+                m.extend_from_slice(name);
+                m.push(b'"');
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Run a cross-interp alias (`ParentAlias`): invoke `target` (+ `prefix` +
+    /// the call args) in this interp's *parent*, copying the parent's result
+    /// back. The parent is reached by upgrading the `parent` `Weak` to an owned
+    /// `Interp` handle and dispatching through it — re-entrancy (the parent
+    /// calling `interp invokehidden $child …` back into this child) works via the
+    /// shared interior-mutable state and is only **bounded** by
+    /// `MAX_CROSS_INTERP_DEPTH` to cap native-stack growth.
+    fn dispatch_parent_alias(
+        &mut self,
+        target: &[u8],
+        prefix: &[Vec<u8>],
+        argv: &[*mut TclObj],
+    ) -> Code {
+        let Some(parent_state) = self.parent.borrow().upgrade() else {
+            return self.error(b"cannot invoke a parent alias from the root interpreter");
+        };
+        if CROSS_INTERP_DEPTH.with(|d| d.get()) >= MAX_CROSS_INTERP_DEPTH {
+            return self.error(b"too many nested cross-interpreter calls");
+        }
+        // Build [target, *prefix, *argv[1..]] — each element owned (+1).
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
+        let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
+            unsafe { obj::incr_ref_count(o) };
+            v.push(o);
+        };
+        push_owned(&mut new_argv, new_string(target));
+        for p in prefix {
+            push_owned(&mut new_argv, new_string(p));
+        }
+        for &a in &argv[1..] {
+            push_owned(&mut new_argv, a);
+        }
+        CROSS_INTERP_DEPTH.with(|d| d.set(d.get() + 1));
+        // `parent` is an owned handle sharing the parent's `InterpState`; the
+        // dispatch mutates it through interior mutability (no aliased `&mut`).
+        let mut parent = Interp(parent_state);
+        let code = parent.dispatch(&new_argv);
+        let res = parent.result_bytes();
+        CROSS_INTERP_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
+        release_all(&new_argv);
+        self.set_result_bytes(&res);
+        code
     }
 
     /// Call a user proc (`TclObjInterpProc`): a thin wrapper over [`run_proc`]
@@ -870,12 +1984,20 @@ impl Interp {
     ///
     /// [`run_proc`]: Interp::run_proc
     fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
+        let name = obj_bytes(argv[0]);
         self.run_proc(
             &def.params,
             &def.body,
             def.ns,
             &argv[1..],
-            &obj_bytes(argv[0]),
+            &name,
+            CallMeta {
+                err: ProcFrame::Proc(&name),
+                fqn: Some(&def.fqn),
+                source: def.source.clone(),
+                body_line_base: def.body_line_base,
+                link_vars: &[],
+            },
         )
     }
 
@@ -895,6 +2017,7 @@ impl Interp {
         ns: NsId,
         call_args: &[*mut TclObj],
         usage_called: &[u8],
+        meta: CallMeta,
     ) -> Code {
         let has_args = params.last().is_some_and(|p| p.name == b"args");
         let positional = if has_args {
@@ -911,29 +2034,40 @@ impl Interp {
             return self.error(&proc_usage(usage_called, params));
         }
         // Recursion bound (catchable, not a stack overflow).
-        if self.recursion_depth >= RECURSION_LIMIT {
+        if self.recursion_depth.get() >= RECURSION_LIMIT {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
-        self.recursion_depth += 1;
+        self.recursion_depth.set(self.recursion_depth.get() + 1);
 
-        self.frames.push(ns);
+        self.frames.borrow_mut().push(ns);
         // Record the invocation words for `info level N`: the invoked name plus
         // the supplied arguments.
         let mut words = Vec::with_capacity(call_args.len() + 1);
         words.push(usage_called.to_vec());
         words.extend(call_args.iter().map(|&a| obj_bytes(a)));
-        self.frames.set_words(words);
-        let saved_ns = self.current_ns;
-        self.current_ns = ns;
+        self.frames.borrow_mut().set_words(words);
+        let saved_ns = self.current_ns.get();
+        self.current_ns.set(ns);
 
-        // Bind positionals: the supplied arg, else the default.
+        // Pre-link a TclOO method's declared instance variables: each name in
+        // the frame becomes a link to the object's namespace variable (`ns`), so
+        // the method sees instance state without an explicit `variable`.
+        for v in meta.link_vars {
+            self.make_variable(ns, v);
+        }
+
+        // Bind positionals left-to-right: the supplied arg, else the default.
+        // Binding is purely positional — a defaulted parameter does *not* yield
+        // its slot to a later one, so a required parameter reached with no
+        // supplied arg (a non-trailing default, e.g. `proc p {a {b 2} c}` called
+        // with 2 args) is a `wrong # args` error, matching tclsh 9.0.
         for (i, p) in positional.iter().enumerate() {
             let stored = if i < call_args.len() {
                 self.var_set(&p.name, call_args[i])
-            } else {
-                // SAFETY-balance: a fresh rc-0 default; `var_set` retains it, so
-                // on the (here-unreachable) error path it must be dropped.
-                let o = new_string(p.default.as_ref().expect("arity guaranteed default"));
+            } else if let Some(def) = &p.default {
+                // A fresh rc-0 default; `var_set` retains it, so on the error
+                // path it must be dropped.
+                let o = new_string(def);
                 match self.var_set(&p.name, o) {
                     Ok(()) => Ok(()),
                     Err(e) => {
@@ -941,35 +2075,65 @@ impl Interp {
                         Err(e)
                     }
                 }
+            } else {
+                self.frames.borrow_mut().pop();
+                self.current_ns.set(saved_ns);
+                self.recursion_depth.set(self.recursion_depth.get() - 1);
+                return self.error(&proc_usage(usage_called, params));
             };
             if stored.is_err() {
-                self.frames.pop();
-                self.current_ns = saved_ns;
-                self.recursion_depth -= 1;
+                self.frames.borrow_mut().pop();
+                self.current_ns.set(saved_ns);
+                self.recursion_depth.set(self.recursion_depth.get() - 1);
                 return self.error(b"proc parameter binding failed");
             }
         }
-        // The `args` catch-all: a list of the remaining args.
+        // The `args` catch-all: a list of the remaining args. Clamp the split
+        // point — when trailing positionals took their defaults, fewer args were
+        // supplied than there are positionals, so `args` is simply empty.
         if has_args {
-            let rest = &call_args[positional.len()..];
+            let rest = &call_args[positional.len().min(call_args.len())..];
             let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
             if self.var_set(b"args", list).is_err() {
                 drop_fresh(list);
             }
         }
 
-        let code = self.eval_str(body);
-        self.frames.pop();
-        self.current_ns = saved_ns;
-        self.recursion_depth -= 1;
+        // The proc body runs as its own `info frame` level: `type proc` (or
+        // `source` if defined in a sourced file), the proc FQN, and the new call
+        // level (set after `frames.push`, so `current_level` is the proc's).
+        let proc_frame = CmdFrame {
+            kind: if meta.source.is_some() {
+                FrameKind::Source
+            } else {
+                FrameKind::Proc
+            },
+            file: meta.source,
+            proc: meta.fqn.map(<[u8]>::to_vec),
+            level: self.frames.borrow().current_level(),
+            omit_level: false,
+            line_base: meta.body_line_base,
+            cmd: Vec::new(),
+            line: 1,
+        };
+        let code = self.eval_framed(body, proc_frame);
+        self.frames.borrow_mut().pop();
+        self.current_ns.set(saved_ns);
+        self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
-        match self.settle_return(code) {
+        let settled = match self.settle_return(code) {
             Code::Break => self.error(b"invoked \"break\" outside of a loop"),
             Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
             other => other,
+        };
+        // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
+        // frame and clear `already_logged` so the proc-call command logs next.
+        if settled == Code::Error {
+            self.make_proc_error(meta.err);
         }
+        settled
     }
 
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
@@ -992,7 +2156,7 @@ impl Interp {
         let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
             (Some(list), _) => list.clone(),
             (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
-            (None, None) => self.namespaces.exported_commands(cfg.ns),
+            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
         };
         subs.sort();
         subs.dedup();
@@ -1022,7 +2186,7 @@ impl Interp {
                     .map(|(_, p)| p.clone())
             })
             .unwrap_or_else(|| {
-                let mut t = self.namespaces.qualified_name(cfg.ns);
+                let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
                 if cfg.ns != GLOBAL {
                     t.extend_from_slice(b"::");
                 }
@@ -1058,7 +2222,8 @@ impl Interp {
     pub(crate) fn eval_math_call(&mut self, fname: &[u8], args: &[*mut TclObj]) -> Code {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(fname);
-        let Some(cmd) = self.namespaces.resolve(GLOBAL, &full) else {
+        let cmd = self.namespaces.borrow().resolve(GLOBAL, &full);
+        let Some(cmd) = cmd else {
             let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
             m.extend_from_slice(fname);
             m.push(b'"');
@@ -1087,7 +2252,8 @@ impl Interp {
     /// `[target, *prefix, *caller_tail]`, and invoke. Alias-of-alias chains fall
     /// out naturally (the resolved target may itself be an `Alias`).
     fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
-        let Some(target_cmd) = self.namespaces.resolve(GLOBAL, target) else {
+        let target_cmd = self.namespaces.borrow().resolve(GLOBAL, target);
+        let Some(target_cmd) = target_cmd else {
             // Lazily bound: the target was deleted (or never existed).
             return self.invalid_command(target);
         };
@@ -1111,7 +2277,7 @@ impl Interp {
     }
 
     /// The `invalid command name "X"` error (the resolver miss; `unknown` later).
-    fn invalid_command(&mut self, name: &[u8]) -> Code {
+    pub(crate) fn invalid_command(&mut self, name: &[u8]) -> Code {
         let mut msg = b"invalid command name \"".to_vec();
         msg.extend_from_slice(name);
         msg.push(b'"');
@@ -1164,7 +2330,7 @@ impl Interp {
                             if code != Code::Ok {
                                 return Err(code);
                             }
-                            let r = self.result;
+                            let r = self.result.get();
                             // SAFETY: the interp result is live; take an owning +1.
                             unsafe { obj::incr_ref_count(r) };
                             return Ok(r);
@@ -1278,7 +2444,13 @@ impl Interp {
 
     /// Read a variable's value bytes via the variable resolver.
     fn read_var(&self, name: &[u8], index: Option<&[u8]>) -> Option<Vec<u8>> {
-        crate::vars::resolve_var_bytes(&self.frames, &self.namespaces, self.current_ns, name, index)
+        crate::vars::resolve_var_bytes(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+            index,
+        )
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
@@ -1333,13 +2505,22 @@ pub(crate) fn drop_fresh(obj: *mut TclObj) {
     }
 }
 
-impl Drop for Interp {
+impl Default for Interp {
+    fn default() -> Self {
+        Interp::new()
+    }
+}
+
+impl Drop for InterpState {
     fn drop(&mut self) {
-        // Release the result; the FrameStack field drops afterwards, releasing
-        // all variable refs. The command table holds no object refs.
+        // Runs when the last `Interp` handle to this state is dropped. Release
+        // the result; the `FrameStack` field drops afterwards, releasing all
+        // variable refs. The command table holds no object refs. Children are
+        // `Interp` handles (their own `Rc`s); the parent link is `Weak`, so the
+        // tree has no reference cycle to leak.
         // SAFETY: `result` is the interp's owned reference, dropped once.
-        unsafe { obj::decr_ref_count(self.result) };
-        self.result = core::ptr::null_mut();
+        unsafe { obj::decr_ref_count(self.result.get()) };
+        self.result.set(core::ptr::null_mut());
     }
 }
 

@@ -94,6 +94,12 @@ const FILE_SUBCOMMANDS: &[&[u8]] = &[
     b"isfile",
     b"readable",
     b"writable",
+    b"executable",
+    b"pathtype",
+    b"delete",
+    b"mkdir",
+    b"size",
+    b"type",
 ];
 
 fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -146,19 +152,137 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp,
             Path::new(as_str(&arg(2).unwrap_or_default())).is_file(),
         ),
-        b"readable" | b"writable" => {
+        b"readable" | b"writable" | b"executable" => {
             // Approximate: existence (fine-grained perms are deferred).
             bool_result(
                 interp,
                 Path::new(as_str(&arg(2).unwrap_or_default())).exists(),
             )
         }
+        // `file pathtype name` — pure-syntax classification.
+        b"pathtype" => {
+            let p = arg(2).unwrap_or_default();
+            str_result(
+                interp,
+                if p.first() == Some(&b'/') {
+                    b"absolute"
+                } else {
+                    b"relative"
+                },
+            )
+        }
+        b"delete" => file_delete(interp, argv),
+        b"mkdir" => {
+            for &a in &argv[2..] {
+                let p = obj_bytes(a);
+                if p.is_empty() {
+                    continue;
+                }
+                if let Err(e) = std::fs::create_dir_all(as_str(&p)) {
+                    return fs_error(interp, b"can't create directory", &p, &e);
+                }
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        b"size" => {
+            let p = arg(2).unwrap_or_default();
+            match std::fs::metadata(as_str(&p)) {
+                Ok(m) => {
+                    interp.set_result(crate::obj::new_wide_int_obj(m.len() as i64));
+                    Code::Ok
+                }
+                Err(e) => fs_error(interp, b"could not read", &p, &e),
+            }
+        }
+        b"type" => {
+            let p = arg(2).unwrap_or_default();
+            match std::fs::symlink_metadata(as_str(&p)) {
+                Ok(m) => {
+                    let t = m.file_type();
+                    str_result(
+                        interp,
+                        if t.is_symlink() {
+                            b"link"
+                        } else if t.is_dir() {
+                            b"directory"
+                        } else {
+                            b"file"
+                        },
+                    )
+                }
+                Err(e) => fs_error(interp, b"could not read", &p, &e),
+            }
+        }
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be dirname, exists, extension, isdirectory, isfile, join, nativename, normalize, readable, rootname, separator, split, tail, or writable");
+            m.extend_from_slice(b"\": must be delete, dirname, executable, exists, extension, isdirectory, isfile, join, mkdir, nativename, normalize, pathtype, readable, rootname, separator, size, split, tail, type, or writable");
             interp.set_error(&m)
         }
+    }
+}
+
+/// `file delete ?-force? ?--? ?pathname ...?` — delete files / directories.
+/// A non-existent path is silently ignored; `-force` removes non-empty
+/// directories recursively. Returns the empty string.
+fn file_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let mut force = false;
+    let mut i = 2;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-force" => force = true,
+            b"--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
+        }
+        i += 1;
+    }
+    for &a in &argv[i..] {
+        let p = obj_bytes(a);
+        let path = Path::new(as_str(&p));
+        let meta = match std::fs::symlink_metadata(path) {
+            Ok(m) => m,
+            Err(_) => continue, // not there ⇒ nothing to delete (no error)
+        };
+        let res = if meta.is_dir() && !meta.file_type().is_symlink() {
+            if force {
+                std::fs::remove_dir_all(path)
+            } else {
+                std::fs::remove_dir(path)
+            }
+        } else {
+            std::fs::remove_file(path)
+        };
+        if let Err(e) = res {
+            return fs_error(interp, b"error deleting", &p, &e);
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// A `file` I/O error in Tcl's shape: `<prefix> "<path>": <reason>` (the prefix
+/// is operation-specific, e.g. `could not read` / `can't create directory`).
+fn fs_error(interp: &mut Interp, prefix: &[u8], path: &[u8], e: &std::io::Error) -> Code {
+    let mut m = prefix.to_vec();
+    m.extend_from_slice(b" \"");
+    m.extend_from_slice(path);
+    m.extend_from_slice(b"\": ");
+    m.extend_from_slice(io_error_reason(e).as_bytes());
+    interp.set_error(&m)
+}
+
+/// The POSIX-style message Tcl uses for an `errno` (the common cases).
+fn io_error_reason(e: &std::io::Error) -> &'static str {
+    use std::io::ErrorKind::*;
+    match e.kind() {
+        NotFound => "no such file or directory",
+        PermissionDenied => "permission denied",
+        AlreadyExists => "file already exists",
+        _ => "i/o error",
     }
 }
 
@@ -322,6 +446,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut tails = false;
     let mut join_mode = false;
     let mut directory: Option<Vec<u8>> = None;
+    let mut types: Vec<u8> = Vec::new();
     let mut i = 1;
     while i < argv.len() {
         match obj_bytes(argv[i]).as_slice() {
@@ -332,6 +457,18 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 i += 1;
                 directory = argv.get(i).map(|&a| obj_bytes(a));
             }
+            b"-type" | b"-types" => {
+                i += 1;
+                // The value is a list of type specifiers (`d`, `f`, `r`, …); a
+                // name must satisfy every requested test (`tclFileName.c`).
+                if let Some(&a) = argv.get(i) {
+                    types = crate::parse::split_list(&obj_bytes(a))
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter_map(|s| (s.len() == 1).then_some(s[0]))
+                        .collect();
+                }
+            }
             b"--" => {
                 i += 1;
                 break;
@@ -339,7 +476,9 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             opt if opt.starts_with(b"-") => {
                 let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(opt);
-                m.extend_from_slice(b"\": must be -directory, -join, -nocomplain, -tails, or --");
+                m.extend_from_slice(
+                    b"\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --",
+                );
                 return interp.set_error(&m);
             }
             _ => break,
@@ -353,7 +492,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let base = directory.clone();
     let mut hits: Vec<Vec<u8>> = Vec::new();
     for pat in &patterns {
-        glob_one(base.as_deref(), pat, tails, &mut hits);
+        glob_one(base.as_deref(), pat, tails, &types, &mut hits);
     }
     hits.sort();
     hits.dedup();
@@ -375,7 +514,13 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Match one glob pattern against the filesystem, pushing results (full paths,
 /// or just the tail when `tails`) onto `hits`.
-fn glob_one(directory: Option<&[u8]>, pattern: &[u8], tails: bool, hits: &mut Vec<Vec<u8>>) {
+fn glob_one(
+    directory: Option<&[u8]>,
+    pattern: &[u8],
+    tails: bool,
+    types: &[u8],
+    hits: &mut Vec<Vec<u8>>,
+) {
     // Starting directory + whether results are absolute.
     let (start, abs_prefix): (Vec<u8>, Vec<u8>) = if pattern.starts_with(b"/") {
         (b"/".to_vec(), b"/".to_vec())
@@ -388,12 +533,19 @@ fn glob_one(directory: Option<&[u8]>, pattern: &[u8], tails: bool, hits: &mut Ve
         .split(|&c| c == b'/')
         .filter(|s| !s.is_empty())
         .collect();
-    walk(&start, &abs_prefix, &segs, 0, hits);
+    walk(&start, &abs_prefix, &segs, 0, types, hits);
 }
 
 /// Recursively match path segments `segs[idx..]` under `dir`, accumulating the
 /// display path (`prefix`).
-fn walk(dir: &[u8], prefix: &[u8], segs: &[&[u8]], idx: usize, hits: &mut Vec<Vec<u8>>) {
+fn walk(
+    dir: &[u8],
+    prefix: &[u8],
+    segs: &[&[u8]],
+    idx: usize,
+    types: &[u8],
+    hits: &mut Vec<Vec<u8>>,
+) {
     if idx >= segs.len() {
         if !prefix.is_empty() {
             hits.push(prefix.to_vec());
@@ -418,14 +570,68 @@ fn walk(dir: &[u8], prefix: &[u8], segs: &[&[u8]], idx: usize, hits: &mut Vec<Ve
         }
         child_prefix.extend_from_slice(name_b);
         if last {
+            // `-types`: keep only entries that satisfy every requested test.
+            if !entry_matches_types(&entry, types) {
+                continue;
+            }
             hits.push(child_prefix);
         } else {
             let mut child_dir = dir.to_vec();
             child_dir.push(b'/');
             child_dir.extend_from_slice(name_b);
-            walk(&child_dir, &child_prefix, segs, idx + 1, hits);
+            walk(&child_dir, &child_prefix, segs, idx + 1, types, hits);
         }
     }
+}
+
+/// Whether a directory entry satisfies every `-types` specifier. An empty list
+/// matches everything. Recognised: file-kind `d f l p s b c` and permission
+/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`; the rarely-used
+/// `{macintosh …}` forms are not modelled). A name passes only if it matches
+/// every requested test — both any file-kind tests and the permission tests.
+fn entry_matches_types(entry: &std::fs::DirEntry, types: &[u8]) -> bool {
+    if types.is_empty() {
+        return true;
+    }
+    // `symlink_metadata` so `l` (and the kind tests) see the link itself, like C.
+    let Ok(meta) = entry.path().symlink_metadata() else {
+        return false;
+    };
+    let ft = meta.file_type();
+    for &t in types {
+        let ok = match t {
+            b'd' => ft.is_dir(),
+            b'f' => ft.is_file(),
+            b'l' => ft.is_symlink(),
+            b'r' | b'w' => true, // permission probes — best-effort (assume yes)
+            b'x' => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    meta.permissions().mode() & 0o111 != 0
+                }
+                #[cfg(not(unix))]
+                {
+                    true
+                }
+            }
+            #[cfg(unix)]
+            b'p' | b's' | b'b' | b'c' => {
+                use std::os::unix::fs::FileTypeExt;
+                match t {
+                    b'p' => ft.is_fifo(),
+                    b's' => ft.is_socket(),
+                    b'b' => ft.is_block_device(),
+                    _ => ft.is_char_device(),
+                }
+            }
+            _ => true, // unknown specifier: don't exclude
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
 }
 
 /// Whether a single path segment matches a glob segment. A literal segment (no
@@ -454,6 +660,32 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn file_mkdir_size_type_delete() {
+        let mut i = Interp::new();
+        let d = format!("/tmp/rtfs_{}", std::process::id());
+        ok(&mut i, format!("file delete -force {d}").as_bytes());
+        ok(&mut i, format!("file mkdir {d}/sub").as_bytes());
+        assert_eq!(
+            ok(&mut i, format!("file isdirectory {d}/sub").as_bytes()),
+            b"1"
+        );
+        assert_eq!(
+            ok(&mut i, format!("file type {d}").as_bytes()),
+            b"directory"
+        );
+        assert_eq!(ok(&mut i, b"file pathtype /x"), b"absolute");
+        assert_eq!(ok(&mut i, b"file pathtype rel"), b"relative");
+        // Deleting a missing path is a silent no-op; size of a missing path errors.
+        ok(&mut i, format!("file delete {d}/nope").as_bytes());
+        assert_eq!(
+            i.eval_str(format!("file size {d}/nope").as_bytes()),
+            Code::Error
+        );
+        ok(&mut i, format!("file delete -force {d}").as_bytes());
+        assert_eq!(ok(&mut i, format!("file exists {d}").as_bytes()), b"0");
     }
 
     #[test]
