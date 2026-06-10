@@ -1739,7 +1739,10 @@ impl LanguageServer for Backend {
             message: format!("completion worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted: Vec<CompletionItem> = items.into_iter().map(lift_completion_item).collect();
+        let lifted: Vec<CompletionItem> = items
+            .into_iter()
+            .map(|item| lift_completion_item(item, pos.line))
+            .collect();
         Ok(Some(CompletionResponse::Array(lifted)))
     }
 
@@ -3081,12 +3084,27 @@ fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
     }
 }
 
-fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
+fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
+    // An explicit single-line replacement edit (var / switch / array) — the
+    // editor applies it verbatim so the `$`/`-` prefix isn't dropped/duplicated.
+    let text_edit = item.text_edit.map(|e| {
+        tower_lsp::lsp_types::CompletionTextEdit::Edit(tower_lsp::lsp_types::TextEdit {
+            range: tower_lsp::lsp_types::Range {
+                start: tower_lsp::lsp_types::Position::new(line, e.start_char),
+                end: tower_lsp::lsp_types::Position::new(line, e.end_char),
+            },
+            new_text: e.new_text,
+        })
+    });
+    let documentation = item.documentation.map(|d| {
+        tower_lsp::lsp_types::Documentation::String(d)
+    });
     CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
         detail: item.detail,
+        documentation,
         sort_text: item.sort_text,
         // GAP-A9: snippet items carry VS Code tabstop syntax and
         // filter on their `tcl-…` prefix.
@@ -3094,6 +3112,7 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
             .is_snippet
             .then_some(tower_lsp::lsp_types::InsertTextFormat::SNIPPET),
         filter_text: item.filter_text,
+        text_edit,
         ..CompletionItem::default()
     }
 }

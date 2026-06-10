@@ -78,6 +78,8 @@ pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
             sort_text: Some(format!("Z0_{}", tmpl.prefix)),
             is_snippet: true,
             filter_text: Some(tmpl.prefix.to_string()),
+            text_edit: None,
+            documentation: None,
         });
     }
     out

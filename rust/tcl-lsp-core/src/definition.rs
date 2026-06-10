@@ -373,6 +373,26 @@ pub(crate) fn var_name_at_definition_offset(
     None
 }
 
+/// Collect every variable name visible at `byte_offset` — the union
+/// of `variables` across the scope chain (innermost first, then
+/// enclosing scopes up to the global root).  Used by variable
+/// completion so a `$`-trigger inside a proc / namespace body offers
+/// that scope's locals + params alongside the globals.
+pub(crate) fn visible_variable_names(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
+        for k in sc.variables.keys() {
+            if !names.iter().any(|n| n == k) {
+                names.push(k.clone());
+            }
+        }
+    }
+    names
+}
+
 /// Return the chain of scopes from `root` down to the
 /// innermost child whose `body_span` contains `byte_offset`.
 /// The chain is ordered outermost (`root`) to innermost.
