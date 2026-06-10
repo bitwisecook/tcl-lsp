@@ -59,6 +59,24 @@ _BIGIP_CONF_NAMES = frozenset(
 )
 
 
+def is_editor_lock_symlink(file_path: str) -> bool:
+    """Return ``True`` for an Emacs lock file — a symlink named ``.#name``.
+
+    Emacs creates ``.#name.tcl`` next to the document being edited as a
+    **symlink** whose target (``user@host.pid:boot``) is not a real file, so
+    reading it raises ``FileNotFoundError``.  It shares the document's
+    extension, so the extension filter alone lets it through.  Detecting it
+    needs *both* the ``.#`` name and the symlink nature, so we never skip a
+    real source file that merely starts with ``.#``.  Skipping it keeps
+    ``didChangeWatchedFiles`` churn from spamming the log with read failures
+    (issue #579 log noise).
+    """
+    basename = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
+    if not basename.startswith(".#"):
+        return False
+    return os.path.islink(file_path)
+
+
 def is_bigip_conf_name(uri: str) -> bool:
     """Return ``True`` if *uri*'s basename is a canonical BIG-IP config name.
 
@@ -166,6 +184,10 @@ class BackgroundScanner:
                     fname_lower = fname.lower()
                     # Skip tclIndex itself — it is metadata, not Tcl code.
                     if fname_lower == "tclindex":
+                        continue
+                    # Skip Emacs lock files (``.#name.tcl`` dangling symlinks)
+                    # that share a real source extension.
+                    if fname.startswith(".#") and is_editor_lock_symlink(os.path.join(root, fname)):
                         continue
                     # BIG-IP config discovery — canonical basenames
                     # always; ``.scf`` always; ``.conf`` opportunistic
@@ -351,6 +373,8 @@ class BackgroundScanner:
 
     def rescan_file(self, file_path: str) -> ScanResult | None:
         """Re-scan a single file (e.g. after a filesystem change)."""
+        if is_editor_lock_symlink(file_path):
+            return None
         ext = os.path.splitext(file_path)[1].lower()
         return self._analyse_file(file_path, ext)
 
@@ -510,6 +534,12 @@ class BackgroundScanner:
                 bigip_configs[uri] = config
             log.debug("Scanner: parsed bigip config %s", full_path)
             return config
+        except OSError as exc:
+            # File vanished or is unreadable (e.g. a transient editor file
+            # deleted between the watch event and the read) — not worth a
+            # stack trace.
+            log.debug("Scanner: could not read bigip config %s: %s", full_path, exc)
+            return None
         except Exception:
             log.debug("Scanner: failed to parse bigip config %s", full_path, exc_info=True)
             return None
@@ -539,6 +569,12 @@ class BackgroundScanner:
                 dialect_hint=dialect,
                 rule_init_exports=rule_init_exports,
             )
+        except OSError as exc:
+            # File vanished or is unreadable (e.g. a transient editor file
+            # deleted between the watch event and the read) — not worth a
+            # stack trace.
+            log.debug("Scanner: could not read %s: %s", full_path, exc)
+            return None
         except Exception:
             log.debug("Scanner: failed to analyse %s", full_path, exc_info=True)
             return None
