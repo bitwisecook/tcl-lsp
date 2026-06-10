@@ -2966,6 +2966,28 @@
             "description": "Path to the tcl-lsp server directory. If empty, uses the bundled server.",
             "order": 1
           },
+          "tclLsp.serverKind": {
+            "scope": "machine-overridable",
+            "type": "string",
+            "default": "python",
+            "enum": [
+              "python",
+              "rust"
+            ],
+            "enumDescriptions": [
+              "The packaged Python LSP server (default).",
+              "The native Rust tcl-lsp-server binary (experimental; build with `cargo build -p tcl-lsp-server`)."
+            ],
+            "description": "Which LSP backend to launch: the Python server or the native Rust server.",
+            "order": 2
+          },
+          "tclLsp.rustServerPath": {
+            "scope": "machine-overridable",
+            "type": "string",
+            "default": "",
+            "description": "Path to the native Rust tcl-lsp-server binary (used when serverKind is 'rust'). If empty, probes target/{release,debug}/ under the project root.",
+            "order": 3
+          },
           "tclLsp.dialect": {
             "scope": "language-overridable",
             "type": "string",

@@ -35,6 +35,51 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_INFO = ROOT / "shared" / "_build_info.py"
 
+# -- server selection (Python pyz vs native Rust binary) -------------------
+#
+# The same JSON-RPC battery can drive either backend.  ``TCL_LSP_SERVER_KIND``
+# selects which:
+#   * ``python`` (default) — the packaged ``tcl-lsp-server-<v>.pyz`` run under
+#     the current interpreter (the shipped Python LSP server).
+#   * ``rust``             — the native ``tcl-lsp-server`` binary from the Rust
+#     workspace, run directly over stdio.
+#
+# In ``rust`` mode the binary is located via ``TCL_LSP_SERVER_BIN`` (explicit
+# path) or discovered at ``target/{release,debug}/tcl-lsp-server`` under the
+# repo root (build it with ``make rust-server`` / ``cargo build -p
+# tcl-lsp-server``).
+
+
+def server_kind() -> str:
+    """Return the selected LSP backend: ``"python"`` (default) or ``"rust"``."""
+    kind = os.environ.get("TCL_LSP_SERVER_KIND", "python").strip().lower()
+    return "rust" if kind in {"rust", "native"} else "python"
+
+
+def native_server_bin() -> Path | None:
+    """Resolve the native Rust ``tcl-lsp-server`` binary for ``rust`` mode.
+
+    Honours ``TCL_LSP_SERVER_BIN`` first, then a release/debug build under the
+    repo's ``target/``.  Returns ``None`` when nothing is built yet.
+    """
+    explicit = os.environ.get("TCL_LSP_SERVER_BIN")
+    if explicit:
+        return Path(explicit).resolve()
+    for profile in ("release", "debug"):
+        candidate = ROOT / "target" / profile / "tcl-lsp-server"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def server_launch_argv(server: Path) -> list[str]:
+    """Build the subprocess argv for *server*: a native binary runs directly;
+    a ``.pyz`` runs under the current interpreter."""
+    import sys
+
+    return [str(server)] if server_kind() == "rust" else [sys.executable, str(server)]
+
+
 # Used only when no build-info file has been generated yet (bare checkout /
 # before ``make build-info``); a value that is unmistakably not the "dev"
 # fallback so the version assertion stays meaningful.
