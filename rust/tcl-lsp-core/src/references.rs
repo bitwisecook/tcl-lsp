@@ -135,29 +135,57 @@ pub fn references(
         }
     }
 
-    // Proc references.
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            let mut out = Vec::new();
-            if include_declaration {
-                out.push(span_to_range(source, &line_index, proc_def.name_span));
-            }
-            let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
-            for inv in &analysis.command_invocations {
-                if inv.name == proc_def.name
-                    || inv.name == proc_def.qualified_name
-                    || inv.name == qname_no_prefix
-                    || inv
-                        .resolved_qualified_name
-                        .as_deref()
-                        .is_some_and(|r| r == proc_def.qualified_name)
-                {
-                    out.push(span_to_range(source, &line_index, inv.range));
-                }
-            }
-            dedup_ranges(&mut out);
-            return out;
+    // Proc references.  Prefer the proc whose declaration the cursor sits on
+    // (so `helper` at the `a::helper` decl resolves to *that* namespace's
+    // proc, not a same-named one in another namespace); else the first proc
+    // matching the word.
+    let cursor_off = crate::definition::byte_offset_at(source, line, character);
+    let proc_match = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+        .or_else(|| {
+            analysis
+                .all_procs
+                .iter()
+                .find(|(qn, p)| p.name == word || *qn == &word || *qn == &format!("::{word}"))
+        });
+    if let Some((qname, proc_def)) = proc_match {
+        let mut out = Vec::new();
+        if include_declaration {
+            out.push(span_to_range(source, &line_index, proc_def.name_span));
         }
+        let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
+        let target_q = proc_def.qualified_name.trim_start_matches("::");
+        // The proc's own namespace (`a::helper` → `a`; top-level → ``).
+        let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
+        for inv in &analysis.command_invocations {
+            let resolved_norm = inv
+                .resolved_qualified_name
+                .as_deref()
+                .map(|r| r.trim_start_matches("::"));
+            // An *unqualified* call counts when it resolves to this proc, or —
+            // since the analyser resolves a namespace-internal call to the
+            // global guess (`::helper`) — when it sits in this proc's own
+            // namespace.  Keeps `helper` inside `namespace eval b` from
+            // referencing `a::helper`.  Comparisons ignore the leading `::`.
+            let call_ns = crate::definition::innermost_namespace_at(
+                &analysis.global_scope,
+                inv.range.start(),
+            );
+            let simple_ok = inv.name == proc_def.name
+                && resolved_norm.map_or(true, |r| r == target_q || r == proc_def.name)
+                && call_ns == target_ns;
+            if simple_ok
+                || inv.name == proc_def.qualified_name
+                || inv.name == qname_no_prefix
+                || resolved_norm == Some(target_q)
+            {
+                out.push(span_to_range(source, &line_index, inv.range));
+            }
+        }
+        dedup_ranges(&mut out);
+        return out;
     }
 
     // `$obj method` external call site — when the cursor sits
@@ -805,14 +833,6 @@ fn dedup_ranges(ranges: &mut Vec<LspRange>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tcl_compiler::analyser::Analyser;
-
-    fn analyse(source: &str) -> AnalysisResult {
-        let mut a = Analyser::new();
-        a.analyse(source, "tcl8.6").clone()
-    }
-
     #[test]
     fn references_to_proc_include_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\ngreet\n";

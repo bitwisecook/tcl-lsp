@@ -410,6 +410,24 @@ pub(crate) fn lexical_namespace_chain(
     chain
 }
 
+/// Name of the innermost `namespace eval` scope whose body contains
+/// `byte_offset` (without the leading `::`), or `""` at global scope.  Used to
+/// attribute an unqualified call to the proc in its own namespace when the
+/// analyser's resolution falls back to the global guess.
+pub(crate) fn innermost_namespace_at(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> String {
+    use tcl_compiler::analyser::ScopeKind;
+    let mut ns = String::new();
+    for sc in scope_chain_at(scope, byte_offset) {
+        if sc.kind == ScopeKind::Namespace {
+            ns = sc.name.trim_start_matches("::").to_string();
+        }
+    }
+    ns
+}
+
 /// Fully-qualified `::ns::var` form for a var stored in a namespace / global
 /// scope.  Mirrors `_qualified_var_name`.
 fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
