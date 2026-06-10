@@ -378,12 +378,26 @@ pub(crate) fn var_name_at_definition_offset(
 /// enclosing scopes up to the global root).  Used by variable
 /// completion so a `$`-trigger inside a proc / namespace body offers
 /// that scope's locals + params alongside the globals.
+///
+/// Inside an `uplevel #0 { … }` body the script runs in the global
+/// frame, so the enclosing proc's locals are *not* visible — only the
+/// global / namespace frame's variables plus the uplevel body's own
+/// locals.  When the chain contains an [`ScopeKind::Uplevel`] scope,
+/// proc-scope variables are dropped from the visible set.
 pub(crate) fn visible_variable_names(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
 ) -> Vec<String> {
+    use tcl_compiler::analyser::ScopeKind;
+    let chain = scope_chain_at(scope, byte_offset);
+    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
     let mut names: Vec<String> = Vec::new();
-    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
+    for sc in chain.iter().rev() {
+        // In a global frame (`uplevel #0`), skip the enclosing proc's
+        // locals — they are not reachable from the global frame.
+        if in_uplevel && sc.kind == ScopeKind::Proc {
+            continue;
+        }
         for k in sc.variables.keys() {
             if !names.iter().any(|n| n == k) {
                 names.push(k.clone());

@@ -67,6 +67,11 @@ pub enum ScopeKind {
     Namespace,
     /// A ``proc`` body scope.
     Proc,
+    /// An ``uplevel #0 { … }`` body scope.  The script runs in the
+    /// global frame, so this scope's locals belong to a global-rooted
+    /// frame rather than the enclosing proc — completion / definition
+    /// see globals + this scope's locals, not the proc's locals.
+    Uplevel,
 }
 
 impl ScopeKind {
@@ -79,6 +84,7 @@ impl ScopeKind {
             Self::Global => "global",
             Self::Namespace => "namespace",
             Self::Proc => "proc",
+            Self::Uplevel => "uplevel",
         }
     }
 }

@@ -477,6 +477,58 @@ impl Analyser {
         true
     }
 
+    /// Handle `uplevel #0 { body }`: the script runs in the global
+    /// frame, so the body's locals belong to a global-rooted scope
+    /// rather than the enclosing proc.  Open an [`ScopeKind::Uplevel`]
+    /// child scope (nested under the current scope, but tagged so
+    /// completion / definition treat it as a global frame and ignore the
+    /// proc's locals) and analyse the body there.
+    ///
+    /// Returns `true` only for the `#0` (global-frame) form; every other
+    /// `uplevel` form (numeric level, level-relative, or no explicit
+    /// level) falls through to the generic body recursion, which keeps
+    /// the enclosing proc scope.  Mirrors the Python analyser's
+    /// `uplevel #0` frame handling.
+    pub fn handle_uplevel_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        // `uplevel #0 SCRIPT` — exactly the global-frame, single-braced
+        // body form.  `uplevel #0` with multiple concatenated script
+        // words is left to the generic recursion (the W301 injection
+        // check already flags that shape).
+        if cmd_name != "uplevel" || args.len() != 2 || args[0] != "#0" {
+            return false;
+        }
+        let Some(body_tok) = arg_tokens.get(1).copied() else {
+            return false;
+        };
+        if body_tok.kind != TokenType::Str {
+            return false;
+        }
+        let body_text = args[1].clone();
+
+        let path = scope_path.to_vec();
+        let child_idx = {
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+            else {
+                return false;
+            };
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Uplevel, String::new());
+            child.body_span = Some(body_tok.span);
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = path;
+        child_path.push(child_idx);
+        self.analyse_body(&body_text, body_tok, &child_path);
+        true
+    }
+
     /// Handle `namespace ensemble create` — record the namespace as
     /// an ensemble so its tail names become valid commands.
     ///

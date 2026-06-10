@@ -320,6 +320,14 @@ impl Analyser {
             return;
         }
 
+        // uplevel #0 { body } — opens a global-frame child scope so the
+        // body's locals don't leak into the enclosing proc's variable
+        // set.  Only the `#0` form is handled here; other levels fall
+        // through to the generic body recursion below.
+        if self.handle_uplevel_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // foreach / for / switch / catch / try — entry shims;
         // body recursion lands in C41f1.
         if self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path) {

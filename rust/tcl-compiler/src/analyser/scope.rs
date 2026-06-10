@@ -369,6 +369,9 @@ impl Analyser {
                     };
                 }
                 ScopeKind::Global => {}
+                // `uplevel #0` runs in the global frame, so command
+                // resolution from inside its body is global-rooted.
+                ScopeKind::Uplevel => ns = "::".to_string(),
             }
             cursor = child;
         }
