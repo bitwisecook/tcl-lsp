@@ -1407,11 +1407,13 @@ the Zig rep.
     string/list/dict/array/control-flow/info/scan/format/chan/trace/package
     builtins, plus the **proc chunk PC-2/PC-3** (`proc`/`apply`, `uplevel`/
     `upvar`/`global`/`variable`, `info level`, `catch`/`error`/`try`/`throw`)
-    and **PC-1/PC-4 — faithful `::errorInfo` stack traces** (the incremental
+    **PC-1/PC-4 — faithful `::errorInfo` stack traces** (the incremental
     `while executing` / `invoked from within` / `(procedure "x" line N)`
-    unwinder, byte-verified vs tclsh 9.0). Remaining proc-chunk items:
-    **PC-5** (`info frame`/`info errorstack` + `source` frames — needs the
-    persistent `CmdFrame` stack), `return -options` errorinfo restore, and the
+    unwinder, byte-verified vs tclsh 9.0), and **PC-5 — `info frame` + `source`
+    frames** (the persistent `CmdFrame` stack: `type`/`line`/`cmd`/`proc`/
+    `file`/`level`, byte-verified vs tclsh 9.0). Remaining proc-chunk items:
+    `info errorstack` (TIP 348), `return -options` errorinfo restore,
+    file-absolute `info frame` lines for source-defined procs, and the
     expr/`foreach` bytecode-boundary trace approximations noted in
     `proc-call-and-stack-traces.md` §8.
 - **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of

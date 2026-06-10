@@ -380,11 +380,22 @@ above); speed is recovered only afterwards.**
      `while executing` where tclsh's TEBC seeds the inner context to show
      `invoked from within`; var-not-found / domain errors / propagated
      `[cmd]`-substitution traces all match.
-5. **PC-5 — `info frame`/`info errorstack` + `source` frames. ⏳ next.** Needs
-   the **persistent `CmdFrame` stack** (`Eval`/`Source`/`Proc` kinds) pushed/
-   popped per command so `info frame ?N?` can read it at runtime, the `Source`
-   frame kind for `source file`, and the TIP-348 `errorStack` (`UP`/`CALL`
-   list). `info level` already landed (PC-2/PC-3).
+5. **PC-5 — `info frame` + `source` frames. ✅ landed** (`info errorstack`
+   remaining). A persistent `CmdFrame` stack (`{file, proc(FQN), level, cmd,
+   line}`) is pushed per script-eval level Tcl tracks — the root script, a proc
+   call, an `eval`/`uplevel` body, and a `source`d file — but **not** a `[cmd]`
+   substitution or an inline `if`/`while`/`for`/`foreach` body (verified vs
+   tclsh). The eval loop unifies on `eval_script(src, owned)`; each command
+   updates the current frame's `cmd`/`line` (a substitution reports the
+   substituted command at the enclosing line). `ProcDef` records its FQN +
+   defining-source so a proc frame is `type proc` (eval-defined) or `type
+   source`+`file` (source-defined). `info frame` (depth) and `info frame N`
+   (N>0 absolute, N≤0 relative) return the `type line [file] cmd [proc] level`
+   dict, byte-verified vs tclsh 9.0. `info level` landed earlier (PC-2/PC-3).
+   - **Remaining / approximations:** proc-body lines are body-relative where
+     tclsh reports file-absolute for source-defined procs (a literal line-base);
+     `uplevel` inherits the current proc context rather than the target frame's;
+     `info errorstack` (TIP 348 — the `UP`/`CALL` list) is the next sub-item.
 6. **PC-6 — AOT emit path** carries the same bookkeeping (conservative), and the
    AOT compiler keeps a **real frame + interpreter fallback** wherever any
    PC-3 dynamic construct is reachable; the AOT↔interp interop gate (a compiled
