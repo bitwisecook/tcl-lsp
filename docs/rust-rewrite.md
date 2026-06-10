@@ -4424,11 +4424,45 @@ parity work below).  Both run clean — no collection abort, no indefinite hang:
 worklist):** completion 34, irules 24, code_actions 17, semantic_tokens 14,
 hover 10, rename 9, commands (executeCommand) 8, signature_help 5, references 4,
 recovery 3, navigation_extras 3, editor_features 3, document_highlight 1.
-Spot-check root causes already triaged: semantic_tokens drops bareword argument
-words (`classify_arg_token` returns `None` for a non-quoted/non-number/non-`::`
-`Esc` token — needs the registry arg-role classification Python uses, not a
-blanket `String`); the VS Code `code_actions` reds are refactor-action poll
-timeouts (the missing refactor-action families, `code_actions.rs`).
+
+### SYNC-JUN10-phase1 — provider parity increments (lsp_e2e 220→245 passing)
+
+Worst-first provider fixes against the above baseline (each landed with crate
+unit tests + clippy/fmt clean, no regressions):
+
+- **semantic_tokens 14→7.** Bareword argument words now classify as `string`
+  (`classify_arg_token` ESC fallback, mirroring Python `_classify_token`).
+  **Recursive tokenisation** ported (`collect_script` / `collect_expr`):
+  `ArgRole::Body` braced bodies are re-segmented, `ArgRole::Expr` braced
+  exprs go through the expression sub-lexer (variable/number/operator/
+  function/bool, math fns carry `defaultLibrary`), and `[…]` command
+  substitutions recurse — driven by the registry's `arg_indices_for_role`
+  (incl. the dynamic `if`/`dict`/`foreach` resolvers). BigIP object-ref
+  overlay now wins over the generic bareword `string`. Operator command
+  heads (`+ 3 4`) classify as `operator`. *Remaining (7): `oo::` namespace
+  split, `::cmd` global-qualifier over-emit, `-opt` decorator kind,
+  subcommand `defaultLibrary` modifier, `switch -regexp` arm patterns,
+  bareword backslash-escape sub-tokens.*
+- **rename 9→2.** Variable rename now resolves from the *definition* site
+  (`set x`, no `$`) via `var_name_at_definition_offset`; collision gates for
+  variable-into-existing-var and proc-into-existing-proc; namespace qualifier
+  preserved on the declaration token. *Remaining (2): namespaced-proc decl
+  short-form; one shared-server flaky.*
+- **executeCommand 8→2.** Wired `describeIruleEvent` / `describeIruleCommand`
+  / `listIruleEvents` / `diagramData` / `getEffectiveConfig`. *Remaining (2):
+  `fixAllSafeIssues`, `optimiseDocument` (larger — code-action fix-all +
+  optimiser-applied source).*
+- **navigation_extras 3→0.** Call-hierarchy items use the short proc display
+  name (`helper`, not `::helper`); lookups match short-or-qualified.
+- **document_highlight 1→0.** Proc/class/method highlights use `Text` kind
+  (only variables carry Write/Read).
+- **server identity:** `serverInfo.name` corrected to `tcl-lsp`.
+
+**Current native-server e2e: 245 passed / 110 failed / 1 skipped.** Largest
+remaining buckets: completion 34 (the `textEdit` range-computation
+architecture — variable/switch/array completion all need it — plus scope-
+binding features), irules 24 (domain features), code_actions 17 (refactor-
+action families), hover 10, semantic_tokens 7, signature_help 5.
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
