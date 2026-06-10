@@ -2485,7 +2485,7 @@ impl LanguageServer for Backend {
                     },
                 },
                 target: Url::parse(&l.target).ok(),
-                tooltip: None,
+                tooltip: l.tooltip,
                 data: None,
             })
             .collect();
@@ -2588,12 +2588,12 @@ impl LanguageServer for Backend {
             .into_iter()
             .map(|l| CodeLens {
                 range: lift_lsp_range(l.range),
+                data: (!l.qname.is_empty()).then(|| serde_json::json!({ "qname": l.qname })),
                 command: Some(tower_lsp::lsp_types::Command {
                     title: l.command_title,
                     command: l.command,
                     arguments: None,
                 }),
-                data: None,
             })
             .collect();
         Ok(Some(lifted))
@@ -3096,9 +3096,9 @@ fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
             new_text: e.new_text,
         })
     });
-    let documentation = item.documentation.map(|d| {
-        tower_lsp::lsp_types::Documentation::String(d)
-    });
+    let documentation = item
+        .documentation
+        .map(tower_lsp::lsp_types::Documentation::String);
     CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
