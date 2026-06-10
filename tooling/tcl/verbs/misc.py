@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from analyser import analyse
 from compiler.registry.runtime import configure_signatures
@@ -13,7 +14,8 @@ from tooling.cli._utils import (
     _read_input_documents,
     _write_text_output,
 )
-from tooling.explorer.cli import main as explorer_main
+from tooling.explorer.pipeline import resolve_views
+from tooling.explorer.report import ExploreOptions, run_text_report
 
 from ._registry import verb
 
@@ -144,24 +146,26 @@ def _run_explore(args: argparse.Namespace) -> int:
     )
     source = _combine_sources(documents)
 
-    explorer_args = [
-        "--source",
-        source,
-        "--show",
-        args.show,
-        "--dialect",
-        args.dialect,
-        "--max-annotations",
-        str(args.max_annotations),
-    ]
-    if args.show_optimised_source:
-        explorer_args.append("--show-optimised-source")
-    if args.no_source_callouts:
-        explorer_args.append("--no-source-callouts")
-    if args.no_colour:
-        explorer_args.append("--no-colour")
+    # Drive the explorer's library layer directly rather than re-entering its
+    # argparse CLI: keeps `tcl` free of the explorer's CLI/Textual-TUI import
+    # surface (the `tcl` zipapp deliberately ships no rich/textual).  This is
+    # the flat-text surface; the interactive TUI lives in the standalone
+    # explorer CLI.
+    try:
+        views = resolve_views(args.show)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
-    return explorer_main(explorer_args)
+    options = ExploreOptions(
+        views=views,
+        dialect=args.dialect,
+        show_optimised_source=args.show_optimised_source,
+        no_source_callouts=args.no_source_callouts,
+        max_annotations=args.max_annotations,
+    )
+    use_colour = (not args.no_colour) and sys.stdout.isatty()
+    return run_text_report(source, options, use_colour=use_colour)
 
 
 def _run_find_legacy(args: argparse.Namespace) -> int:
