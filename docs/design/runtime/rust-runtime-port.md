@@ -1697,10 +1697,11 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + totitle / nsdelete / file / pkg-require-global | 105 / 168 | 62 | 6830 / 14079 |
 | + panic fixes / qualified-name fallback | 110 / 168 | 57 | 7214 / 15345 |
 | + `binary format`/`scan` | 116 / 168 | 51 | 8325 / 17673 |
-| + child interpreters | **118 / 168** | 49 | **8406 / 17855** |
+| + child interpreters | 118 / 168 | 49 | 8406 / 17855 |
+| + TclOO core | **120 / 168** | 47 | **8415 / 18298** |
 
-Cumulative: **+32 files** now run to a tcltest summary, errored-before-summary
-**81 → 49**, **+2834 tests pass**, and **zero panics** (the passed *count*
+Cumulative: **+34 files** now run to a tcltest summary, errored-before-summary
+**81 → 47**, **+2843 tests pass**, and **zero panics** (the passed *count*
 matters more than the ~47% rate — the denominator grows as more files run their
 full test sets). The unblocking fixes:
 
@@ -1719,13 +1720,17 @@ full test sets). The unblocking fixes:
   `tcl::build-info` resolves from inside a namespace);
 - `binary format`/`binary scan` (the core type codes — see `cmd_binary`);
 - basic child interpreters (`interp create`/`eval`/`exists`/`children`/`delete`
-  + the child as a command), each a full `Interp` with startup globals.
+  + the child as a command), each a full `Interp` with startup globals;
+- **TclOO core** (`cmd_oo`): `oo::class`/`oo::object`/`oo::define`, methods,
+  constructor/destructor, single/multiple inheritance with a linearised MRO,
+  `self`/`my`/`next`, and per-object instance variables (auto-linked from the
+  class's `variable` declarations). `package require tcl::oo`/`TclOO` succeed.
 
 Biggest remaining error-before-summary blockers, by file count:
 
 | Blocker | Files | Notes |
 |---|---|---|
-| `tcl::oo` package (TclOO) | 4 | classes/methods/inheritance — own chunk |
+| TclOO meta-object protocol | 3 | `oo`/`ooNext2`/`ooUtil`: classes-as-objects, `info object`/`class`, mixins/filters/forwards, `oo::copy`, `oo::objdefine` |
 | `zipfs` | 3 | zip virtual filesystem |
 | `tcl::test` package | 2 | the C-tier test commands |
 | `auto_load` in children | 2 | child interps lack the full `init.tcl` |
