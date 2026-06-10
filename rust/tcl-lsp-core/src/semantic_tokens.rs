@@ -133,6 +133,8 @@ enum TokenKind {
     Object = 27,
     /// A recognised `-option` switch on a command (`regexp -nocase`).
     Decorator = 28,
+    /// A backslash escape sequence inside a string/bareword (`\n`, `\t`, …).
+    Escape = 29,
 }
 
 /// `binary format`/`scan` specifier letters.  Mirrors
@@ -177,6 +179,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "operator",
         "object",
         "decorator",
+        "escape",
     ]
 }
 
@@ -1538,7 +1541,15 @@ fn collect_script(
                             }
                         }
                     } else if let Some(kind) = classify_arg_token(*tok, full_source) {
-                        push_token(line_index, full_source, *tok, kind, 0, entries);
+                        // String / bareword args with backslash escapes split
+                        // into literal `String` runs + `Escape` sub-tokens.
+                        if kind == TokenKind::String
+                            && push_escape_subtokens(line_index, full_source, *tok, entries)
+                        {
+                            // emitted as sub-tokens
+                        } else {
+                            push_token(line_index, full_source, *tok, kind, 0, entries);
+                        }
                     }
                 }
             }
@@ -1738,6 +1749,69 @@ fn push_object_token(
     if !other_overlap {
         entries.push((start.line, start.character, len, TokenKind::Object, 0));
     }
+}
+
+/// Sub-tokenise a string / bareword token's backslash escapes (`\n`, `\t`,
+/// `\\`, …): literal runs become `String`, each `\X` becomes `Escape`.
+/// Returns `false` (emitting nothing) when the token carries no backslash, so
+/// the caller falls back to a single `String` token.  Multi-line tokens are
+/// left to the caller.
+fn push_escape_subtokens(
+    line_index: &LineIndex,
+    source: &str,
+    tok: Token,
+    entries: &mut Vec<Entry>,
+) -> bool {
+    let Some((cstart, text)) = subspec_content(source, tok) else {
+        return false;
+    };
+    if !text.contains('\\') || text.contains('\n') {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    let mut run_start = 0;
+    let mut emitted = false;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            if i > run_start {
+                push_subtoken(
+                    source,
+                    line_index,
+                    cstart + run_start,
+                    &text[run_start..i],
+                    TokenKind::String,
+                    entries,
+                );
+            }
+            // Minimal `\X` (two chars); richer `\uHHHH` widths are a follow-up.
+            let esc = &text[i..(i + 2).min(text.len())];
+            push_subtoken(
+                source,
+                line_index,
+                cstart + i,
+                esc,
+                TokenKind::Escape,
+                entries,
+            );
+            emitted = true;
+            i += 2;
+            run_start = i;
+        } else {
+            i += 1;
+        }
+    }
+    if emitted && run_start < bytes.len() {
+        push_subtoken(
+            source,
+            line_index,
+            cstart + run_start,
+            &text[run_start..],
+            TokenKind::String,
+            entries,
+        );
+    }
+    emitted
 }
 
 /// Classify a non-head token by its lexer-assigned kind.
