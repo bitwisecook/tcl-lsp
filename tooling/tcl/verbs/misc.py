@@ -14,8 +14,7 @@ from tooling.cli._utils import (
     _read_input_documents,
     _write_text_output,
 )
-from tooling.explorer.pipeline import resolve_views
-from tooling.explorer.report import ExploreOptions, run_text_report
+from tooling.explorer.report import ExploreOptions, resolve_views, run_text_report
 
 from ._registry import verb
 
@@ -163,9 +162,9 @@ def _run_explore(args: argparse.Namespace) -> int:
         show_optimised_source=args.show_optimised_source,
         no_source_callouts=args.no_source_callouts,
         max_annotations=args.max_annotations,
+        no_colour=args.no_colour,
     )
-    use_colour = (not args.no_colour) and sys.stdout.isatty()
-    return run_text_report(source, options, use_colour=use_colour)
+    return run_text_report(source, options)
 
 
 def _run_find_legacy(args: argparse.Namespace) -> int:

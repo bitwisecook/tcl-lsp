@@ -1,15 +1,19 @@
-"""CLI-agnostic flat-text report for the compiler explorer.
+"""Shared flat-text surface for the compiler explorer.
 
-Shared by the explorer's own argparse CLI (:mod:`tooling.explorer.cli`) and
-the unified ``tcl explore`` verb (:mod:`tooling.tcl.verbs.misc`).  Centralising
-view selection + rendering here means ``tcl`` depends only on the explorer's
-*library* layer (this module + :mod:`tooling.explorer.pipeline`), never its
-argparse entry point — which would drag in the optional Textual/rich TUI
-dependencies that the ``tcl`` zipapp deliberately does not bundle.
+This is the one library both flat-text consumers import from — the explorer's
+own argparse CLI (:mod:`tooling.explorer.cli`) and the unified ``tcl explore``
+verb (:mod:`tooling.tcl.verbs.misc`).  It owns exactly the parts those two
+share: view selection (:func:`resolve_views`), the render options
+(:class:`ExploreOptions`), and the compile-and-print entry point
+(:func:`run_text_report`) — including the colour/TTY policy, so neither caller
+re-derives it.
 
-This is the ``--text`` surface only.  The ``--tui`` (Textual) and ``--json``
+By depending only on the pipeline + render *libraries* (never argparse or the
+Textual TUI), this keeps the ``tcl`` command free of the explorer's CLI import
+surface — which is what let the optional rich/textual TUI deps (absent from the
+``tcl`` zipapp) leak in before.  The ``--tui`` (Textual) and ``--json``
 surfaces stay in the CLI adapter, since the TUI is CLI-only and JSON
-serialisation already lives next to the pipeline.
+serialisation already lives beside the pipeline.
 """
 
 from __future__ import annotations
@@ -26,13 +30,45 @@ from tooling.explorer._render import (
     render_view_opt,
     style,
 )
-from tooling.explorer.pipeline import CompilerExplorerResult, run_pipeline
+from tooling.explorer.pipeline import (
+    ALL_VIEWS,
+    VIEW_GROUPS,
+    CompilerExplorerResult,
+    run_pipeline,
+)
 
 try:
     from shared._build_info import BUILD_TIMESTAMP, FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""
+
+
+def resolve_views(raw: str) -> frozenset[str]:
+    """Expand a comma-separated ``--show`` value into a set of view names.
+
+    Raises :class:`ValueError` (not ``argparse``) for an unknown view, so both
+    the explorer's argparse CLI and the ``tcl explore`` verb share view
+    selection without coupling either to argparse.  Tokens may name an
+    individual view (see :data:`~tooling.explorer.pipeline.ALL_VIEWS`) or a
+    group (see :data:`~tooling.explorer.pipeline.VIEW_GROUPS`); empty tokens are
+    ignored.
+    """
+    views: set[str] = set()
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token in VIEW_GROUPS:
+            views |= VIEW_GROUPS[token]
+        elif token in ALL_VIEWS:
+            views.add(token)
+        else:
+            raise ValueError(
+                f"unknown view {token!r}; choose from: "
+                f"{', '.join(sorted(ALL_VIEWS | set(VIEW_GROUPS)))}"
+            )
+    return frozenset(views)
 
 
 @dataclass(frozen=True)
@@ -42,7 +78,9 @@ class ExploreOptions:
     Built either from the explorer CLI's argparse namespace or directly by the
     ``tcl explore`` verb, so neither path re-implements view selection or
     rendering.  ``opt`` is the optimisation lens (``"off"`` / ``"on"`` /
-    ``"diff"``) honoured by the IR/CFG/SSA/ASM/WASM views.
+    ``"diff"``) honoured by the IR/CFG/SSA/ASM/WASM views.  ``no_colour``
+    requests plain output; the actual colour decision also depends on whether
+    stdout is a TTY (see :func:`run_text_report`).
     """
 
     views: frozenset[str]
@@ -51,6 +89,7 @@ class ExploreOptions:
     show_optimised_source: bool = False
     no_source_callouts: bool = False
     max_annotations: int = 80
+    no_colour: bool = False
 
 
 def render_text_report(
@@ -89,13 +128,13 @@ def render_text_report(
         print()
 
 
-def run_text_report(
-    source: str,
-    options: ExploreOptions,
-    *,
-    use_colour: bool,
-) -> int:
-    """Compile *source* and print its flat-text report; return an exit code."""
+def run_text_report(source: str, options: ExploreOptions) -> int:
+    """Compile *source* and print its flat-text report; return an exit code.
+
+    Colour is enabled only when not suppressed *and* stdout is a TTY — the
+    single home for that policy, shared by every flat-text caller.
+    """
+    use_colour = (not options.no_colour) and sys.stdout.isatty()
     try:
         result = run_pipeline(source, dialect=options.dialect)
     except Exception as exc:

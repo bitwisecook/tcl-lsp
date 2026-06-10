@@ -104,32 +104,6 @@ VIEW_GROUPS: dict[str, frozenset[str]] = {
 AVAILABLE_DIALECTS = tuple(sorted(available_dialects()))
 
 
-def resolve_views(raw: str) -> frozenset[str]:
-    """Expand a comma-separated ``--show`` value into a set of view names.
-
-    CLI-agnostic: raises :class:`ValueError` (not ``argparse``) for an unknown
-    view so both the explorer's own argparse CLI and the unified ``tcl explore``
-    verb can share view selection without coupling ``tcl`` to argparse.  Tokens
-    may name an individual view (see :data:`ALL_VIEWS`) or a group (see
-    :data:`VIEW_GROUPS`); empty tokens are ignored.
-    """
-    views: set[str] = set()
-    for token in raw.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if token in VIEW_GROUPS:
-            views |= VIEW_GROUPS[token]
-        elif token in ALL_VIEWS:
-            views.add(token)
-        else:
-            raise ValueError(
-                f"unknown view {token!r}; choose from: "
-                f"{', '.join(sorted(ALL_VIEWS | set(VIEW_GROUPS)))}"
-            )
-    return frozenset(views)
-
-
 # Pipeline helpers
 
 

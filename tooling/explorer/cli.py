@@ -16,8 +16,8 @@ import sys
 
 from tooling.cli.formatters import LineIndex
 from tooling.explorer._render import Ansi, load_source, style
-from tooling.explorer.pipeline import AVAILABLE_DIALECTS, resolve_views, run_pipeline
-from tooling.explorer.report import ExploreOptions, run_text_report
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS, run_pipeline
+from tooling.explorer.report import ExploreOptions, resolve_views, run_text_report
 
 # Re-exported for the test-suite and the explorer's ``__main__`` shim, which
 # reach these helpers through the CLI module rather than their canonical homes.
@@ -37,9 +37,10 @@ def expand_show(raw: str) -> frozenset[str]:
     """Expand a comma-separated ``--show`` value into a set of view names.
 
     Thin argparse adapter over
-    :func:`tooling.explorer.pipeline.resolve_views`: it translates the
+    :func:`tooling.explorer.report.resolve_views`: it translates the
     library's :class:`ValueError` for an unknown view into an
-    :class:`argparse.ArgumentTypeError`, keeping the pipeline argparse-free.
+    :class:`argparse.ArgumentTypeError`, keeping the shared library
+    argparse-free.
     """
     try:
         return resolve_views(raw)
@@ -185,7 +186,6 @@ def main(argv: list[str] | None = None) -> int:
         return run_tui(source, args)
 
     # text
-    use_colour = (not args.no_colour) and sys.stdout.isatty()
     options = ExploreOptions(
         views=args.views,
         dialect=args.dialect,
@@ -193,8 +193,9 @@ def main(argv: list[str] | None = None) -> int:
         show_optimised_source=args.show_optimised_source,
         no_source_callouts=args.no_source_callouts,
         max_annotations=args.max_annotations,
+        no_colour=args.no_colour,
     )
-    return run_text_report(source, options, use_colour=use_colour)
+    return run_text_report(source, options)
 
 
 def _textual_available() -> bool:
