@@ -1694,11 +1694,13 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 |---|---|---|---|
 | Initial baseline | 86 / 168 | 81 | 5572 / 11022 |
 | + reimport / build-info | 94 / 168 | 73 | 6139 / 12299 |
-| + totitle / nsdelete / file / pkg-require-global | **105 / 168** | 62 | **6830 / 14079** |
+| + totitle / nsdelete / file / pkg-require-global | 105 / 168 | 62 | 6830 / 14079 |
+| + panic fixes / qualified-name fallback | **110 / 168** | 57 | **7214 / 15345** |
 
-Cumulative: **+19 files** now run to a tcltest summary and **+1258 tests pass**
-(the passed *count* matters more than the ~50% rate — the denominator grows as
-more files run their full test sets). The unblocking fixes:
+Cumulative: **+24 files** now run to a tcltest summary, errored-before-summary
+**81 → 57**, **+1642 tests pass**, and **zero panics** (the passed *count*
+matters more than the ~47% rate — the denominator grows as more files run their
+full test sets). The unblocking fixes:
 
 - idempotent `namespace import` re-import (same source ⇒ no-op);
 - `tcl::build-info` (the tcltest constraint source);
@@ -1707,17 +1709,21 @@ more files run their full test sets). The unblocking fixes:
 - `file delete`/`mkdir`/`size`/`type`/`pathtype`/`executable`;
 - `package require` evaluates its load script at global scope (C's `uplevel
   #0`), so a package's `namespace eval foo` creates `::foo` even when required
-  from inside a namespace.
+  from inside a namespace;
+- three panics → clean errors: `format` width overflow (`max size for a Tcl
+  value exceeded`), `proc` `args`-split with all-defaulted positionals, and a
+  required parameter after a defaulted one (`wrong # args`);
+- relative qualified command names fall back to the global namespace (so
+  `tcl::build-info` resolves from inside a namespace).
 
 Biggest remaining error-before-summary blockers, by file count:
 
 | Blocker | Files | Notes |
 |---|---|---|
 | `binary` command | 8 | `binary format`/`scan` (own chunk) |
-| `interp command`/`children` | 4+4 | child-interp introspection |
+| `interp` `command`/`children` | 4+4 | child-interp support/introspection |
 | `tcl::oo` package | 4 | TclOO (own chunk) |
-| `tcl::build-info` from a namespace | 3 | qualified-name resolution edge |
-| panics | 3 | a real bug — investigate (RUST_BACKTRACE in the sweep) |
+| `tcl::test` package | 2 | the C-tier test commands |
 
 > Per-file detail is in the sweep's `--json` (`scripts/dev/rust_tcltest_sweep.py
 > --json`). Drive these down toward the Zig baseline.
