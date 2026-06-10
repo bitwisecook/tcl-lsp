@@ -44,6 +44,48 @@ use tcl_lexer::LineIndex;
 
 use crate::definition::{utf16_col_to_char_col, LspRange};
 
+/// LSP code-action kind.  Maps to the dotted strings the editor / e2e
+/// `only` filter use (`quickfix`, `refactor.extract`, …).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionKind {
+    /// `quickfix` — a diagnostic fix.
+    QuickFix,
+    /// `refactor.extract` — extract proc.
+    RefactorExtract,
+    /// `refactor.inline` — inline proc.
+    RefactorInline,
+    /// `refactor.rewrite` — expression rewrites (De Morgan, invert).
+    RefactorRewrite,
+    /// `refactor` — generic refactor (IP conversion).
+    Refactor,
+    /// `source` — source action (generate docstring).
+    Source,
+}
+
+impl ActionKind {
+    /// The dotted LSP kind string.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::QuickFix => "quickfix",
+            Self::RefactorExtract => "refactor.extract",
+            Self::RefactorInline => "refactor.inline",
+            Self::RefactorRewrite => "refactor.rewrite",
+            Self::Refactor => "refactor",
+            Self::Source => "source",
+        }
+    }
+}
+
+/// A command attached to a code action (e.g. the post-extract rename).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionCommand {
+    /// Command identifier (e.g. `tclLsp.renameSymbolAtPosition`).
+    pub command: String,
+    /// Integer arguments (line / start / end for the rename command).
+    pub args: Vec<u32>,
+}
+
 /// One code-action entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeAction {
@@ -51,6 +93,10 @@ pub struct CodeAction {
     pub title: String,
     /// Edits the action would apply.
     pub edits: Vec<crate::rename::TextEdit>,
+    /// LSP kind (drives the editor's `only` filter).
+    pub kind: ActionKind,
+    /// Optional command run after the edit (e.g. trigger a rename).
+    pub command: Option<ActionCommand>,
 }
 
 /// Compute code actions for `range` in `source`.
@@ -108,6 +154,8 @@ pub fn code_actions(
                         range: insertion,
                         new_text: suffix.to_string(),
                     }],
+                    kind: ActionKind::QuickFix,
+                    command: None,
                 });
             }
         }
@@ -145,9 +193,23 @@ pub fn code_actions(
                     },
                     new_text: fix.new_text.clone(),
                 }],
+                kind: ActionKind::QuickFix,
+                command: None,
             });
         }
     }
+
+    // Range-based refactors / source actions that don't depend on a diagnostic.
+    actions.extend(continuation_comment_actions(
+        source,
+        range,
+        analysis,
+        &line_index,
+    ));
+    actions.extend(ip_conversion_actions(source, range, &line_index));
+    actions.extend(expr_rewrite_actions(source, range, &line_index));
+    actions.extend(docstring_actions(source, range, analysis, &line_index));
+    actions.extend(extract_inline_actions(source, range, analysis, &line_index));
 
     actions
 }
@@ -180,6 +242,8 @@ fn build_unset_nocomplain_action(
             range: insertion,
             new_text: " -nocomplain".to_string(),
         }],
+        kind: ActionKind::QuickFix,
+        command: None,
     })
 }
 
@@ -232,6 +296,8 @@ pub fn package_require_actions(
                 },
                 new_text: format!("package require {pkg}\n"),
             }],
+            kind: ActionKind::QuickFix,
+            command: None,
         })
         .collect()
 }
@@ -342,6 +408,386 @@ fn word_at_position(source: &str, line: u32, character: u32) -> String {
         end += 1;
     }
     chars[start..end].iter().collect()
+}
+
+// ---------------------------------------------------------------------------
+// W115 — convert a backslash-continued comment to per-line comments.
+// ---------------------------------------------------------------------------
+
+fn continuation_comment_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    _line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    // Only offer when a W115 diagnostic overlaps the range OR the start line is
+    // a backslash-continued comment (the editor may drive this with a
+    // fabricated W115 it computed client-side, so detect the shape directly).
+    let lines: Vec<&str> = source.split('\n').collect();
+    let start_line = range.start_line as usize;
+    if start_line >= lines.len() {
+        return Vec::new();
+    }
+    let first = lines[start_line];
+    let trimmed = first.trim_start();
+    if !trimmed.starts_with('#') || !first.trim_end().ends_with('\\') {
+        // Not a continued comment at the range start — also bail if no W115.
+        let has_w115 = analysis.diagnostics.iter().any(|d| d.code == "W115");
+        if !has_w115 {
+            return Vec::new();
+        }
+    }
+    // Gather the continuation run starting at `start_line`.
+    let mut idx = start_line;
+    let mut block: Vec<String> = Vec::new();
+    loop {
+        if idx >= lines.len() {
+            break;
+        }
+        let line = lines[idx];
+        let stripped = line.trim_end();
+        let continues = stripped.ends_with('\\');
+        // Strip the trailing backslash; preserve leading indentation.
+        let body = if continues {
+            stripped[..stripped.len() - 1].trim_end()
+        } else {
+            line.trim_end()
+        };
+        let indent: String = line
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .collect();
+        let content = body.trim_start();
+        if content.starts_with('#') {
+            block.push(format!("{indent}{content}"));
+        } else if content.is_empty() {
+            block.push(indent);
+        } else {
+            block.push(format!("{indent}# {content}"));
+        }
+        if !continues {
+            break;
+        }
+        idx += 1;
+    }
+    if idx <= start_line {
+        return Vec::new();
+    }
+    let new_text = block.join("\n");
+    vec![CodeAction {
+        title: "Convert to per-line comments".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: range.start_line,
+                start_character: 0,
+                end_line: u32::try_from(idx).unwrap_or(range.start_line),
+                end_character: u32::try_from(lines[idx].chars().count()).unwrap_or(0),
+            },
+            new_text,
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+    }]
+}
+
+// ---------------------------------------------------------------------------
+// IPv4 ↔ IPv6-mapped conversion.
+// ---------------------------------------------------------------------------
+
+/// `true` when `s` is a dotted-quad IPv4 literal (each octet 0-255).
+fn is_ipv4(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('.').collect();
+    parts.len() == 4
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 3 && p.parse::<u8>().is_ok())
+}
+
+fn ip_conversion_actions(
+    source: &str,
+    range: LspRange,
+    _line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, range.start_character).min(chars.len());
+    // IP-literal characters include hex, `.`, `:`, and `/` for the CIDR suffix.
+    let is_ip_char = |c: char| c.is_ascii_hexdigit() || matches!(c, '.' | ':' | '/');
+    let mut start = col;
+    while start > 0 && is_ip_char(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_ip_char(chars[end]) {
+        end += 1;
+    }
+    if start >= end {
+        return Vec::new();
+    }
+    let word: String = chars[start..end].iter().collect();
+    let (addr, suffix) = match word.split_once('/') {
+        Some((a, s)) => (a.to_string(), format!("/{s}")),
+        None => (word.clone(), String::new()),
+    };
+    let edit_range = LspRange {
+        start_line: range.start_line,
+        start_character: char_col_to_utf16_local(line_text, start),
+        end_line: range.start_line,
+        end_character: char_col_to_utf16_local(line_text, end),
+    };
+    let make = |title: String, new_addr: String| CodeAction {
+        title,
+        edits: vec![crate::rename::TextEdit {
+            range: edit_range,
+            new_text: format!("{new_addr}{suffix}"),
+        }],
+        kind: ActionKind::Refactor,
+        command: None,
+    };
+    if is_ipv4(&addr) {
+        return vec![make(
+            "Convert to IPv6-mapped address".to_string(),
+            format!("::ffff:{addr}"),
+        )];
+    }
+    if let Some(rest) = addr
+        .strip_prefix("::ffff:")
+        .or_else(|| addr.strip_prefix("::FFFF:"))
+    {
+        if is_ipv4(rest) {
+            return vec![make(
+                "Convert to IPv4 address".to_string(),
+                rest.to_string(),
+            )];
+        }
+    }
+    Vec::new()
+}
+
+/// Codepoint column → UTF-16 column on `line_text`.
+fn char_col_to_utf16_local(line_text: &str, char_col: usize) -> u32 {
+    line_text
+        .chars()
+        .take(char_col)
+        .map(|c| u32::try_from(c.len_utf16()).unwrap_or(1))
+        .sum()
+}
+
+// ---------------------------------------------------------------------------
+// Expression rewrites: De Morgan + invert comparison.
+// ---------------------------------------------------------------------------
+
+fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) -> Vec<CodeAction> {
+    // Single-line, non-empty selection only.
+    if range.start_line != range.end_line || range.start_character >= range.end_character {
+        return Vec::new();
+    }
+    let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let s = utf16_col_to_char_col(line_text, range.start_character).min(chars.len());
+    let e = utf16_col_to_char_col(line_text, range.end_character).min(chars.len());
+    if s >= e {
+        return Vec::new();
+    }
+    let sel: String = chars[s..e].iter().collect();
+    let mut out = Vec::new();
+    let edit_range = LspRange {
+        start_line: range.start_line,
+        start_character: range.start_character,
+        end_line: range.end_line,
+        end_character: range.end_character,
+    };
+    if let Some(rewritten) = demorgan_transform(&sel) {
+        out.push(CodeAction {
+            title: "Apply De Morgan's law".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: edit_range,
+                new_text: rewritten,
+            }],
+            kind: ActionKind::RefactorRewrite,
+            command: None,
+        });
+    }
+    if let Some(rewritten) = invert_comparison(&sel) {
+        out.push(CodeAction {
+            title: "Invert comparison".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: edit_range,
+                new_text: rewritten,
+            }],
+            kind: ActionKind::RefactorRewrite,
+            command: None,
+        });
+    }
+    out
+}
+
+/// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y`.
+fn demorgan_transform(sel: &str) -> Option<String> {
+    let t = sel.trim();
+    // Forward: `!( X <op> Y )`.
+    if let Some(inner) = t.strip_prefix("!(").and_then(|s| s.strip_suffix(')')) {
+        if let Some((l, r)) = split_top_logical(inner, "&&") {
+            return Some(format!("{} || {}", negate(l.trim()), negate(r.trim())));
+        }
+        if let Some((l, r)) = split_top_logical(inner, "||") {
+            return Some(format!("{} && {}", negate(l.trim()), negate(r.trim())));
+        }
+        return None;
+    }
+    // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)`.
+    if let Some((l, r)) = split_top_logical(t, "||") {
+        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
+            return Some(format!("!({} && {})", li.trim(), ri.trim()));
+        }
+    }
+    if let Some((l, r)) = split_top_logical(t, "&&") {
+        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
+            return Some(format!("!({} || {})", li.trim(), ri.trim()));
+        }
+    }
+    None
+}
+
+/// Negate an operand: `$a` → `!$a`, `!$a` → `$a`, `($a && $b)` → `!($a && $b)`.
+fn negate(operand: &str) -> String {
+    let o = operand.trim();
+    if let Some(rest) = o.strip_prefix('!') {
+        rest.trim().to_string()
+    } else {
+        format!("!{o}")
+    }
+}
+
+/// Split `expr` on the top-level (brace/paren-depth 0) occurrence of `op`.
+fn split_top_logical<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
+    let bytes = expr.as_bytes();
+    let opb = op.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i + opb.len() <= bytes.len() {
+        match bytes[i] {
+            b'(' | b'{' | b'[' => depth += 1,
+            b')' | b'}' | b']' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && &bytes[i..i + opb.len()] == opb {
+            return Some((&expr[..i], &expr[i + opb.len()..]));
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Invert the (single) top-level comparison operator in `sel`.
+fn invert_comparison(sel: &str) -> Option<String> {
+    // Operator inversions, longest-first so `==` wins over `=`.
+    const OPS: &[(&str, &str)] = &[
+        ("==", "!="),
+        ("!=", "=="),
+        ("<=", ">"),
+        (">=", "<"),
+        ("eq", "ne"),
+        ("ne", "eq"),
+        ("ni", "in"),
+        ("in", "ni"),
+        ("<", ">="),
+        (">", "<="),
+    ];
+    let t = sel.trim();
+    for (from, to) in OPS {
+        // Require the operator to be surrounded by spaces so `$a == $b` matches
+        // but a bare `<` inside a name doesn't; word ops need word boundaries.
+        let needle = format!(" {from} ");
+        if let Some(pos) = find_top_level(t, &needle) {
+            let mut result = String::with_capacity(t.len());
+            result.push_str(&t[..pos]);
+            result.push(' ');
+            result.push_str(to);
+            result.push(' ');
+            result.push_str(&t[pos + needle.len()..]);
+            return Some(result);
+        }
+    }
+    None
+}
+
+/// Find ` needle ` at brace/paren depth 0.
+fn find_top_level(expr: &str, needle: &str) -> Option<usize> {
+    let bytes = expr.as_bytes();
+    let nb = needle.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i + nb.len() <= bytes.len() {
+        match bytes[i] {
+            b'(' | b'{' | b'[' => depth += 1,
+            b')' | b'}' | b']' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && &bytes[i..i + nb.len()] == nb {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Generate docstring (source action).
+// ---------------------------------------------------------------------------
+
+fn docstring_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let mut out = Vec::new();
+    for proc_def in analysis.all_procs.values() {
+        let decl = line_index.position_at_utf16(proc_def.name_span.start(), source);
+        if decl.line != range.start_line {
+            continue;
+        }
+        // Skip procs that already carry a doc-comment.
+        if !proc_def.doc.is_empty() {
+            continue;
+        }
+        let mut doc = String::from("# \n");
+        for p in &proc_def.params {
+            doc.push_str("# @param ");
+            doc.push_str(&p.name);
+            doc.push('\n');
+        }
+        out.push(CodeAction {
+            title: format!("Generate docstring for '{}'", proc_def.name),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: decl.line,
+                    start_character: 0,
+                    end_line: decl.line,
+                    end_character: 0,
+                },
+                new_text: doc,
+            }],
+            kind: ActionKind::Source,
+            command: None,
+        });
+    }
+    out
+}
+
+// extract / inline proc — deferred to a follow-up (LARGE refactor port).
+fn extract_inline_actions(
+    _source: &str,
+    _range: LspRange,
+    _analysis: &AnalysisResult,
+    _line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    Vec::new()
 }
 
 #[cfg(test)]

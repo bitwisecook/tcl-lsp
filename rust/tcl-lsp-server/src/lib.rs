@@ -2637,12 +2637,27 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
-        let lifted = actions
+        // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
+        // action is kept when its kind prefix-matches a requested kind in
+        // either direction (`refactor` matches `refactor.extract` and vice
+        // versa).
+        let only: Option<Vec<String>> = params.context.only.as_ref().map(|kinds| {
+            kinds
+                .iter()
+                .map(|k| k.as_str().to_owned())
+                .collect::<Vec<_>>()
+        });
+        let lifted: Vec<CodeActionOrCommand> = actions
             .into_iter()
+            .filter(|a| {
+                only.as_ref().map_or(true, |wanted| {
+                    let k = a.kind.as_str();
+                    wanted.iter().any(|w| {
+                        k == w || k.starts_with(&format!("{w}.")) || w.starts_with(&format!("{k}."))
+                    })
+                })
+            })
             .map(|a| {
-                // Build a WorkspaceEdit from the action's
-                // edits so accepting the action actually
-                // applies the fix.
                 let mut changes = std::collections::HashMap::new();
                 let lifted_edits: Vec<TextEdit> = a
                     .edits
@@ -2653,22 +2668,30 @@ impl LanguageServer for Backend {
                     })
                     .collect();
                 changes.insert(uri.clone(), lifted_edits);
+                let command = a.command.map(|c| tower_lsp::lsp_types::Command {
+                    title: a.title.clone(),
+                    command: c.command,
+                    arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
+                });
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
-                    kind: Some(tower_lsp::lsp_types::CodeActionKind::QUICKFIX),
+                    kind: Some(tower_lsp::lsp_types::CodeActionKind::new(a.kind.as_str())),
                     diagnostics: None,
                     edit: Some(WorkspaceEdit {
                         changes: Some(changes),
                         document_changes: None,
                         change_annotations: None,
                     }),
-                    command: None,
+                    command,
                     is_preferred: None,
                     disabled: None,
                     data: None,
                 })
             })
             .collect();
+        if lifted.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(lifted))
     }
 
