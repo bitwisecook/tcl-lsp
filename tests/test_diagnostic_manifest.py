@@ -288,6 +288,7 @@ _HAS_PROJECT_TSC = _TSC is not None
 @pytest.mark.skipif(not _HAS_PROJECT_TSC, reason="no tsc found (project npm install or global tsc)")
 def test_typescript_catalog_compiles():
     """Generated diagnosticCatalog.ts compiles with tsc (if available)."""
+    assert _TSC is not None  # guaranteed by the skipif above
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
     assert ts_path.exists(), f"Missing {ts_path}"
 
@@ -319,6 +320,7 @@ def test_typescript_catalog_compiles():
 )
 def test_typescript_catalog_importable_by_node():
     """Generated diagnosticCatalog.ts can be transpiled and loaded by Node."""
+    assert _TSC is not None  # guaranteed by the skipif above
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
     assert ts_path.exists(), f"Missing {ts_path}"
 
