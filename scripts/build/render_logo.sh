@@ -61,6 +61,30 @@ rasterise() {  # rasterise <svg> <width> <out.png>
     fi
 }
 
+optimise() {  # optimise <png> — squeeze a rendered PNG as small as is reasonable.
+    local png="$1"
+    if [ "$HAVE_PNGQUANT" -eq 1 ]; then
+        # RGBA -> 8-bit palette (the big win).  --force overwrite in place;
+        # --strip drops metadata; tolerate exit 98/99 ("could not reduce" /
+        # "skipped, larger") by keeping the RGBA original.
+        pngquant --force --strip --output "$png" 256 -- "$png" || true
+    fi
+    if [ "$HAVE_ZOPFLI" -eq 1 ]; then
+        # -m: more iterations; --lossy_transparent: drop colour behind fully
+        # transparent pixels (no visual change); --filters=0me: try a few
+        # filter strategies and keep the smallest.  Slow but these are small
+        # one-off assets.
+        zopflipng -y -m --lossy_transparent --filters=0me "$png" "$png" >/dev/null 2>&1 \
+            || zopflipng -y "$png" "$png" >/dev/null 2>&1 || true
+    fi
+}
+
+report() {  # report <png> — dimensions + bytes, without depending on ImageMagick.
+    local png="$1" info
+    info="$(file -b "$png" 2>/dev/null | grep -oE '[0-9]+ x [0-9]+' | head -1 || true)"
+    printf '  %-44s %s (%s bytes)\n' "$png" "${info:-png}" "$(wc -c <"$png" | tr -d ' ')"
+}
+
 for entry in "${TARGETS[@]}"; do
     svg="${entry%%|*}"
     pattern="${entry#*|}"
@@ -71,18 +95,32 @@ for entry in "${TARGETS[@]}"; do
     for size in "${SIZES[@]}"; do
         out="${pattern/\{size\}/$size}.png"
         rasterise "$svg" "$size" "$out"
-        if [ "$HAVE_PNGQUANT" -eq 1 ]; then
-            # --force overwrite in place; tolerate exit 98/99 ("could not
-            # reduce" / "skipped, larger") by keeping the RGBA original.
-            pngquant --force --strip --output "$out" 256 -- "$out" || true
-        fi
-        if [ "$HAVE_ZOPFLI" -eq 1 ]; then
-            zopflipng -y "$out" "$out" >/dev/null 2>&1 || true
-        fi
-        # Report dimensions + size without depending on ImageMagick.
-        info="$(file -b "$out" 2>/dev/null | grep -oE '[0-9]+ x [0-9]+' | head -1 || true)"
-        printf '  %-44s %s (%s bytes)\n' "$out" "${info:-png}" "$(wc -c <"$out" | tr -d ' ')"
+        optimise "$out"
+        report "$out"
     done
 done
 
-echo "logo: rendered ${#SIZES[@]} sizes × ${#TARGETS[@]} variants from docs/*.svg"
+# --- downstream integration ------------------------------------------------
+# Keep docs/tcl-lsp-logo*.svg the single source of truth, then propagate
+# copies + raster favicons to the places that consume a logo directly:
+#   * the Sphinx docs theme (furo light/dark logo + favicon)
+#   * the compiler-explorer web GUI (browser-tab favicon)
+SPHINX_STATIC="docs/sphinx/_static"
+EXPLORER_STATIC="tooling/explorer/static"
+
+if [ -d "docs/sphinx" ]; then
+    mkdir -p "$SPHINX_STATIC"
+    cp docs/tcl-lsp-logo.svg docs/tcl-lsp-logo-dark.svg "$SPHINX_STATIC/"
+    rasterise docs/tcl-lsp-logo.svg 64 "$SPHINX_STATIC/favicon.png"
+    optimise "$SPHINX_STATIC/favicon.png"
+    report "$SPHINX_STATIC/favicon.png"
+fi
+
+if [ -d "$EXPLORER_STATIC" ]; then
+    cp docs/tcl-lsp-logo.svg "$EXPLORER_STATIC/tcl-lsp-logo.svg"
+    rasterise docs/tcl-lsp-logo.svg 48 "$EXPLORER_STATIC/favicon.png"
+    optimise "$EXPLORER_STATIC/favicon.png"
+    report "$EXPLORER_STATIC/favicon.png"
+fi
+
+echo "logo: rendered ${#SIZES[@]} sizes × ${#TARGETS[@]} variants from docs/*.svg (+ docs/explorer assets)"

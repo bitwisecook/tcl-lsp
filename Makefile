@@ -236,7 +236,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	$(PYTHON) $(ROOT)scripts/install/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
-	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
+	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
 	@# Bundle the SVG logos so the README's <picture> resolves on the Marketplace.
 	cp "$(ROOT)docs/tcl-lsp-logo.svg" "$(ROOT)docs/tcl-lsp-logo-dark.svg" $(STAGE_DIR)/docs/
 	@echo "==> Packaging .vsix (stripped, not obfuscated)"
