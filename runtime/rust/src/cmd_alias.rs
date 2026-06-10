@@ -77,6 +77,40 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match obj_bytes(argv[1]).as_slice() {
         b"alias" => interp_alias(interp, argv),
         b"aliases" => interp_aliases(interp, argv),
+        b"create" => interp_create(interp, argv),
+        b"eval" => interp_eval(interp, argv),
+        b"delete" => interp_delete(interp, argv),
+        b"exists" => {
+            // `interp exists ?path?`: the current interp ("") always exists; a
+            // named one exists iff it's a child.
+            let exists = match argv.get(2) {
+                None => true,
+                Some(&a) => {
+                    let p = obj_bytes(a);
+                    p.is_empty() || interp.child_exists(&p)
+                }
+            };
+            interp.set_result_bytes(if exists { b"1" } else { b"0" });
+            Code::Ok
+        }
+        b"children" | b"slaves" => {
+            // Children of the current interp (a named sub-path is single-level).
+            let names = if argv
+                .get(2)
+                .map(|&a| obj_bytes(a))
+                .is_some_and(|p| !p.is_empty())
+            {
+                Vec::new()
+            } else {
+                interp.child_names()
+            };
+            let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
+            interp.set_result(list::new_list_obj(&elems));
+            for e in elems {
+                drop_fresh(e);
+            }
+            Code::Ok
+        }
         // Single-interp runtime: `issafe`/`exists ""` describe the one interp.
         b"issafe" => {
             interp.set_result_bytes(b"0");
@@ -89,6 +123,76 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_error(&m)
         }
     }
+}
+
+/// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
+/// its name (auto-generated `interpN` when omitted). `-safe` is accepted but the
+/// sandbox is not yet enforced (a follow-up).
+fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let mut name: Option<Vec<u8>> = None;
+    let mut i = 2;
+    while i < argv.len() {
+        let a = obj_bytes(argv[i]);
+        match a.as_slice() {
+            b"-safe" => {}
+            b"--" => {
+                i += 1;
+                break;
+            }
+            _ => break,
+        }
+        i += 1;
+    }
+    if i < argv.len() {
+        let p = obj_bytes(argv[i]);
+        // Only single-level (simple) names are supported; a path list is not.
+        if interp.child_exists(&p) {
+            let mut m = b"interpreter named \"".to_vec();
+            m.extend_from_slice(&p);
+            m.extend_from_slice(b"\" already exists, cannot create");
+            return interp.set_error(&m);
+        }
+        name = Some(p);
+    }
+    let created = interp.create_child(name);
+    interp.set_result(obj::new_string_bytes(&created));
+    Code::Ok
+}
+
+/// `interp eval path arg ?arg ...?` — evaluate a script in a child interpreter.
+fn interp_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"interp eval path arg ?arg ...?");
+    }
+    let path = obj_bytes(argv[2]);
+    let mut script = Vec::new();
+    for (k, &a) in argv[3..].iter().enumerate() {
+        if k > 0 {
+            script.push(b' ');
+        }
+        script.extend_from_slice(&obj_bytes(a));
+    }
+    // `interp eval {} script` runs in the current interp; else in the child.
+    if path.is_empty() {
+        interp.eval_str(&script)
+    } else {
+        interp.eval_in_child(&path, &script)
+    }
+}
+
+/// `interp delete ?path ...?` — delete each named child interpreter.
+fn interp_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    for &a in &argv[2..] {
+        let path = obj_bytes(a);
+        if path.is_empty() || !interp.delete_child(&path) {
+            let mut m = b"could not find interpreter \"".to_vec();
+            m.extend_from_slice(&path);
+            m.push(b'"');
+            return interp.set_error(&m);
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
 /// `interp alias {} aliasName ?{} target ?arg ...??` — create / query / delete.
@@ -202,6 +306,41 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn child_interpreters() {
+        // `interp create`/`eval`/`exists`/`children`/`delete` + the child as a
+        // command (`$child eval …`). Verified vs tclsh 9.0.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp create kid"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"kid");
+            assert_eq!(i.eval_str(b"interp exists kid"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // The child is isolated and addressable as a command.
+            i.eval_str(b"kid eval {set x 42; proc dbl n {expr {$n*2}}}");
+            assert_eq!(i.eval_str(b"kid eval {dbl $x}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"84");
+            // ... and via `interp eval`.
+            assert_eq!(i.eval_str(b"interp eval kid {set x}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            // The parent doesn't see the child's variable.
+            assert_eq!(i.eval_str(b"info exists x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"interp children"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"kid");
+            // Children get the predefined globals.
+            assert_eq!(
+                i.eval_str(b"kid eval {set ::tcl_platform(platform)}"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"unix");
+            // Delete removes the child and its command.
+            assert_eq!(i.eval_str(b"interp delete kid"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp exists kid"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"kid eval {set x}"), Code::Error);
+        });
     }
 
     #[test]

@@ -157,6 +157,18 @@ impl CmdFrame {
     }
 }
 
+/// Join argument objects with single spaces (the `eval`/`interp eval` body form).
+fn join_words(args: &[*mut TclObj]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, &a) in args.iter().enumerate() {
+        if i > 0 {
+            out.push(b' ');
+        }
+        out.extend_from_slice(&obj_bytes(a));
+    }
+    out
+}
+
 /// The 1-based source line of byte `offset` in `src` — `1 + count('\n' in
 /// src[0..offset])`, C's exact `TclLogCommandInfo` loop (encoding-agnostic).
 fn line_of(src: &[u8], offset: usize) -> u32 {
@@ -224,6 +236,10 @@ pub enum Command {
     /// defining namespace, and maps a body-level `return` to `Ok`. Behind an `Rc`
     /// so the dispatch-time clone of the command handle is O(1), not a body copy.
     Proc(Rc<ProcDef>),
+    /// A child interpreter, addressable as a command (`$child eval …`). The
+    /// `Vec<u8>` is the child's name; dispatch routes the subcommand to the child
+    /// `Interp` stored in [`Interp::children`].
+    ChildInterp(Vec<u8>),
 }
 
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
@@ -279,6 +295,11 @@ pub struct Interp {
     pub(crate) traces: crate::cmd_trace::TraceTable,
     /// The error stack-trace accumulator (PC-4).
     exc: ExceptionState,
+    /// Child interpreters (`interp create`), each a full `Interp`, keyed by name.
+    /// The name is also a command in this interp (`Command::ChildInterp`).
+    children: std::collections::BTreeMap<Vec<u8>, Box<Interp>>,
+    /// Counter for auto-generated child names (`interp0`, `interp1`, …).
+    interp_counter: usize,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
     cmd_frames: Vec<CmdFrame>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
@@ -311,6 +332,8 @@ impl Interp {
             return_level: 1,
             traces: crate::cmd_trace::TraceTable::default(),
             exc: ExceptionState::default(),
+            children: std::collections::BTreeMap::new(),
+            interp_counter: 0,
             cmd_frames: Vec::new(),
             eval_depth: 0,
             result,
@@ -448,7 +471,10 @@ impl Interp {
     /// `auto_path`), then `source $tcl_library/init.tcl`. After this the
     /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
     /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
-    pub fn init_library(&mut self) -> Code {
+    /// Set the predefined startup globals (`tcl_version`/`tcl_platform`/`env`/
+    /// `argv`/…) — the cheap half of `Tcl_Init`, shared by the main interp's
+    /// `init_library` and each child interpreter (`interp create`).
+    pub(crate) fn set_startup_globals(&mut self) {
         let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
@@ -488,6 +514,11 @@ impl Interp {
                 drop_fresh(o);
             }
         }
+    }
+
+    pub fn init_library(&mut self) -> Code {
+        self.set_startup_globals();
+        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
         let init_path = format!("{lib}/init.tcl");
@@ -1365,7 +1396,89 @@ impl Interp {
             },
             Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
             Command::Proc(def) => self.call_proc(&def, argv),
+            Command::ChildInterp(name) => self.dispatch_child(&name, argv),
         }
+    }
+
+    /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
+    /// child is addressable like the `interp` ensemble restricted to it.
+    fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+        if argv.len() < 2 {
+            return self.error(b"wrong # args: should be \"interp cmd ?arg ...?\"");
+        }
+        match obj_bytes(argv[1]).as_slice() {
+            b"eval" => {
+                let script = join_words(&argv[2..]);
+                self.eval_in_child(name, &script)
+            }
+            b"issafe" => {
+                self.set_result_bytes(b"0");
+                Code::Ok
+            }
+            b"delete" => {
+                self.delete_child(name);
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            other => {
+                let mut m = b"interp subcommand \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\" is not supported in this runtime");
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Create a child interpreter named `name` (auto-generated when empty),
+    /// registering it as a command in this interp. Returns the name.
+    pub(crate) fn create_child(&mut self, name: Option<Vec<u8>>) -> Vec<u8> {
+        let name = name.unwrap_or_else(|| {
+            let n = format!("interp{}", self.interp_counter);
+            self.interp_counter += 1;
+            n.into_bytes()
+        });
+        let mut child = Interp::new();
+        // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
+        // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
+        child.set_startup_globals();
+        self.children.insert(name.clone(), child);
+        self.namespaces
+            .register(&name, Command::ChildInterp(name.clone()));
+        name
+    }
+
+    /// Whether a child interpreter `name` exists.
+    pub(crate) fn child_exists(&self, name: &[u8]) -> bool {
+        self.children.contains_key(name)
+    }
+
+    /// The names of this interp's direct child interpreters (sorted).
+    pub(crate) fn child_names(&self) -> Vec<Vec<u8>> {
+        self.children.keys().cloned().collect()
+    }
+
+    /// Delete a child interpreter (and its command). Returns whether it existed.
+    pub(crate) fn delete_child(&mut self, name: &[u8]) -> bool {
+        let existed = self.children.remove(name).is_some();
+        if existed {
+            self.namespaces.delete(GLOBAL, name);
+        }
+        existed
+    }
+
+    /// Evaluate `script` in child interpreter `name`, copying its result/code
+    /// back. `None`-returning if the child doesn't exist (caller raises).
+    pub(crate) fn eval_in_child(&mut self, name: &[u8], script: &[u8]) -> Code {
+        let Some(child) = self.children.get_mut(name) else {
+            let mut m = b"could not find interpreter \"".to_vec();
+            m.extend_from_slice(name);
+            m.push(b'"');
+            return self.error(&m);
+        };
+        let code = child.eval_str(script);
+        let result = child.result_bytes();
+        self.set_result_bytes(&result);
+        code
     }
 
     /// Call a user proc (`TclObjInterpProc`): a thin wrapper over [`run_proc`]
