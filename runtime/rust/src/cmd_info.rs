@@ -190,10 +190,8 @@ fn command_complete(s: &[u8]) -> bool {
             match c {
                 b'"' => in_quote = false,
                 b'[' => stack.push(b']'),
-                b']' => {
-                    if stack.last() == Some(&b']') {
-                        stack.pop();
-                    }
+                b']' if stack.last() == Some(&b']') => {
+                    stack.pop();
                 }
                 _ => {}
             }

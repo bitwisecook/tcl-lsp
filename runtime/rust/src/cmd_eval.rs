@@ -50,7 +50,12 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"eval arg ?arg ...?");
     }
     let script = join_body(&argv[1..]);
-    interp.eval_str(&script)
+    let code = interp.eval_str(&script);
+    if code == Code::Error {
+        // `("eval" body line N)` — a body evaluated through a fresh frame.
+        interp.append_body_frame(b"eval");
+    }
+    code
 }
 
 /// `uplevel ?level? arg ?arg ...?` — evaluate in an enclosing frame's scope.
@@ -78,7 +83,12 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, usage);
     }
     let script = join_body(&argv[body_start..]);
-    interp.eval_uplevel(target, &script)
+    let code = interp.eval_uplevel(target, &script);
+    if code == Code::Error {
+        // `("uplevel" body line N)`.
+        interp.append_body_frame(b"uplevel");
+    }
+    code
 }
 
 /// Whether `s` is level-shaped: `#` + digits, or all digits.

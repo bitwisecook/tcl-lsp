@@ -57,6 +57,40 @@ impl Code {
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
 pub type BuiltinFn = fn(&mut Interp, &[*mut TclObj]) -> Code;
 
+/// The kind of body-frame a proc-style caller appends to the error trace when
+/// its body throws (`MakeProcError` / `MakeLambdaError`, `tclProc.c`). Both
+/// truncate the name to 60 bytes (`...` on overflow) and cite the body-relative
+/// `error_line` left by the innermost logged command.
+pub(crate) enum ProcFrame<'a> {
+    /// `(procedure "NAME" line N)` — a named `proc`. `NAME` is the invoked name.
+    Proc(&'a [u8]),
+    /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
+    /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
+    Lambda(&'a [u8]),
+}
+
+/// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
+/// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
+/// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
+/// `MakeProcError`, `proc-call-and-stack-traces.md` §1.5), not at the throw, and
+/// published to the `::errorInfo`/`::errorCode` globals when the error is caught
+/// or reaches the outermost eval.
+#[derive(Default)]
+struct ExceptionState {
+    /// The accumulating `errorInfo`. `None` until the first frame is appended
+    /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
+    /// from within` and seeds the buffer from the result message.
+    info: Option<Vec<u8>>,
+    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published).
+    code: Vec<u8>,
+    /// 1-based source line of the innermost logged command, within its own
+    /// script (`errorLine`); read by `MakeProcError`'s `line N`.
+    line: u32,
+    /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
+    /// in the same script, so its enclosing command must not re-log it.
+    already_logged: bool,
+}
+
 /// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
 /// params, body }` (user procs, T1.5) and `External { table_index, client_data }`
 /// (extension commands via `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the
@@ -136,6 +170,13 @@ pub struct Interp {
     return_level: usize,
     /// Variable-trace registry (`trace add|remove|info variable`).
     pub(crate) traces: crate::cmd_trace::TraceTable,
+    /// The error stack-trace accumulator (PC-4).
+    exc: ExceptionState,
+    /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
+    /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
+    /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
+    /// accumulate.
+    eval_depth: usize,
     result: *mut TclObj,
 }
 
@@ -160,6 +201,8 @@ impl Interp {
             return_code: Code::Ok,
             return_level: 1,
             traces: crate::cmd_trace::TraceTable::default(),
+            exc: ExceptionState::default(),
+            eval_depth: 0,
             result,
         });
         builtins::install(&mut interp);
@@ -734,30 +777,204 @@ impl Interp {
         obj_bytes(self.result)
     }
 
-    /// Set an error result and return [`Code::Error`].
+    /// Raise an error with result `msg` and return [`Code::Error`] — the generic
+    /// throw. Resets the [`ExceptionState`] to a fresh error: the source trace
+    /// (`::errorInfo`) is then built up **as the error unwinds**
+    /// ([`log_command_info`](Self::log_command_info) /
+    /// [`make_proc_error`](Self::make_proc_error)) and published to the globals at
+    /// the catch / outermost-eval boundary — not stamped here.
+    ///
+    /// The `-errorcode` taxonomy is conservative for now: `wrong # args` ⇒ `TCL
+    /// WRONGARGS`, else `NONE` (the full taxonomy is a follow-up). `error`/`throw`
+    /// set a richer code on their own paths.
     fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
-        // Every error stamps `::errorInfo` (the message — the incremental
-        // source-trace is deferred) and `::errorCode` (`NONE` for a generic
-        // error). `error`/`throw` set richer values on their own paths and do
-        // not route through here, so they aren't clobbered. (Zig oracle: errors
-        // stamp the globals in and out of `catch`.)
-        let ei = new_string(msg);
-        if self.var_set(b"::errorInfo", ei).is_err() {
-            drop_fresh(ei);
-        }
-        // The common error codes Tcl stamps (the full `-errorcode` taxonomy is a
-        // follow-up): `wrong # args` ⇒ `TCL WRONGARGS`, else `NONE`.
         let code: &[u8] = if msg.starts_with(b"wrong # args:") {
             b"TCL WRONGARGS"
         } else {
             b"NONE"
         };
-        let ec = new_string(code);
+        self.exc = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
+    /// Pre-seed the error trace for `error msg info ?code?` / `throw`: the result
+    /// is `msg`, the trace starts at `info` (so the throwing command is **not**
+    /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
+    /// [`Code::Error`].
+    pub(crate) fn raise_with_info(&mut self, msg: &[u8], info: &[u8], code: &[u8]) -> Code {
+        self.set_result_bytes(msg);
+        self.exc = ExceptionState {
+            info: Some(info.to_vec()),
+            code: code.to_vec(),
+            line: 1,
+            already_logged: true,
+        };
+        Code::Error
+    }
+
+    /// Begin a fresh error whose result the caller has already set, with
+    /// `-errorcode` `code` and an empty trace (it accumulates as the error
+    /// unwinds). Used by `error msg`/`throw`. Returns [`Code::Error`].
+    pub(crate) fn set_error_state(&mut self, code: &[u8]) -> Code {
+        self.exc = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
+    /// Append one `while executing` / `invoked from within` frame for the command
+    /// `src[cmd.start..cmd.end]` as an error unwinds through it — the
+    /// `TclLogCommandInfo` mirror (`tclNamesp.c`). A no-op (consuming the flag)
+    /// when the command was already logged deeper in the same script; otherwise
+    /// it computes the 1-based source line, seeds `errorInfo` from the result on
+    /// the first frame, truncates the command to 150 bytes (`...` on overflow),
+    /// and sets `already_logged`.
+    fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+        // Already logged deeper in the same script (e.g. an inner `[cmd]` subst,
+        // or an inline `if`/`while` body): the enclosing command is the same C
+        // bytecode frame, so it is *not* re-logged. The flag stays set and is
+        // cleared only at a real frame boundary (`make_proc_error` /
+        // `append_body_frame`), which is what lets the proc-*call* command log.
+        if self.exc.already_logged {
+            return;
+        }
+        // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
+        let line = 1 + src[..cmd.start].iter().filter(|&&b| b == b'\n').count() as u32;
+        self.exc.line = line;
+        let started = self.exc.info.is_some();
+        if !started {
+            // First frame: errorInfo is seeded from the error message (the result).
+            let msg = self.result_bytes();
+            self.exc.info = Some(msg);
+        }
+        let verb: &[u8] = if started {
+            b"invoked from within"
+        } else {
+            b"while executing"
+        };
+        let cmd_bytes = &src[cmd.start..cmd.end];
+        let overflow = cmd_bytes.len() > 150;
+        let slice = if overflow {
+            &cmd_bytes[..150]
+        } else {
+            cmd_bytes
+        };
+        let buf = self.exc.info.as_mut().expect("seeded above");
+        buf.extend_from_slice(b"\n    ");
+        buf.extend_from_slice(verb);
+        buf.extend_from_slice(b"\n\"");
+        buf.extend_from_slice(slice);
+        if overflow {
+            buf.extend_from_slice(b"...");
+        }
+        buf.push(b'"');
+        self.exc.already_logged = true;
+    }
+
+    /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
+    /// frame when a proc/lambda body unwinds with an error (`MakeProcError` /
+    /// `MakeLambdaError`, `tclProc.c`), then clear `already_logged` so the
+    /// proc-call command itself is logged by its enclosing eval. The line is the
+    /// body-relative `error_line` the innermost body command recorded.
+    fn make_proc_error(&mut self, frame: ProcFrame) {
+        // `(procedure "NAME" line N)` / `(lambda term "NAME" line N)` — the name
+        // quoted, truncated to 60 bytes (`...` on overflow).
+        let (kind, name): (&[u8], &[u8]) = match frame {
+            ProcFrame::Proc(n) => (b"procedure", n),
+            ProcFrame::Lambda(n) => (b"lambda term", n),
+        };
+        let overflow = name.len() > 60;
+        let trunc = if overflow { &name[..60] } else { name };
+        let mut inner = Vec::with_capacity(kind.len() + trunc.len() + 8);
+        inner.extend_from_slice(kind);
+        inner.extend_from_slice(b" \"");
+        inner.extend_from_slice(trunc);
+        if overflow {
+            inner.extend_from_slice(b"...");
+        }
+        inner.push(b'"');
+        self.append_frame_line(&inner);
+        self.exc.already_logged = false;
+    }
+
+    /// Append a `("LABEL" body line N)` frame (the `eval`/`uplevel`/`foreach`
+    /// body trace, e.g. `("eval" body line 1)`), then clear `already_logged` so
+    /// the enclosing command logs. C emits these for script bodies that evaluate
+    /// through a fresh `CmdFrame` (`eval`/`uplevel`/`foreach`), unlike the
+    /// inline-compiled `if`/`while`/`for`/`switch`.
+    pub(crate) fn append_body_frame(&mut self, label: &[u8]) {
+        // The `"label" body` shape: `("eval" body line N)`.
+        let mut inner = Vec::with_capacity(label.len() + 8);
+        inner.push(b'"');
+        inner.extend_from_slice(label);
+        inner.extend_from_slice(b"\" body");
+        self.append_frame_line(&inner);
+        self.exc.already_logged = false;
+    }
+
+    /// Shared tail of the `(... line N)` frames: append `"\n    (<inner> line
+    /// <N>)"` to `errorInfo` (seeding it from the result message if no frame has
+    /// been logged yet), where `inner` is the caller-built body — e.g.
+    /// `procedure "p"`, `lambda term "..."`, or `"eval" body`.
+    fn append_frame_line(&mut self, inner: &[u8]) {
+        let line = self.exc.line;
+        if self.exc.info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.info = Some(msg);
+        }
+        let buf = self.exc.info.as_mut().expect("seeded above");
+        buf.extend_from_slice(b"\n    (");
+        buf.extend_from_slice(inner);
+        buf.extend_from_slice(b" line ");
+        buf.extend_from_slice(line.to_string().as_bytes());
+        buf.push(b')');
+    }
+
+    /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
+    /// trace if any frame was logged, else the bare error message.
+    pub(crate) fn error_info(&self) -> Vec<u8> {
+        self.exc.info.clone().unwrap_or_else(|| self.result_bytes())
+    }
+
+    /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
+    /// or `NONE`.
+    pub(crate) fn error_code(&self) -> Vec<u8> {
+        if self.exc.code.is_empty() {
+            b"NONE".to_vec()
+        } else {
+            self.exc.code.clone()
+        }
+    }
+
+    /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
+    /// and reset the accumulator for the next error. Called when the error is
+    /// caught (`catch`) or reaches the outermost eval.
+    fn publish_error(&mut self) {
+        let info = self.error_info();
+        let code = self.error_code();
+        let ei = new_string(&info);
+        if self.var_set(b"::errorInfo", ei).is_err() {
+            drop_fresh(ei);
+        }
+        let ec = new_string(&code);
         if self.var_set(b"::errorCode", ec).is_err() {
             drop_fresh(ec);
         }
-        Code::Error
+        self.exc = ExceptionState::default();
+    }
+
+    /// Publish + reset, for `catch`/`try` once they have captured the options.
+    pub(crate) fn publish_and_reset_error(&mut self) {
+        self.publish_error();
     }
 
     // -- eval -----------------------------------------------------------------
@@ -765,20 +982,38 @@ impl Interp {
     /// Evaluate a whole script; the result is left in the interp result. Returns
     /// the completion code of the last command (or `Ok` for an empty script).
     pub fn eval_str(&mut self, src: &[u8]) -> Code {
+        self.eval_depth += 1;
         let mut last = Code::Ok;
         let commands = parse::parse_script(src);
         for cmd in &commands {
-            last = self.eval_command(&cmd.words);
+            last = self.eval_command(src, cmd);
             if last != Code::Ok {
                 break; // error/return/break/continue propagate up
             }
         }
+        self.eval_depth -= 1;
+        // The outermost eval publishes the accumulated trace to the globals so
+        // an uncaught error leaves `::errorInfo`/`::errorCode` set, exactly as a
+        // `catch` would (`catch` publishes earlier, at depth > 0).
+        if self.eval_depth == 0 && last == Code::Error {
+            self.publish_error();
+        }
         last
     }
 
-    /// Evaluate one already-parsed command: substitute each word (with `{*}`
-    /// expansion), then dispatch.
-    fn eval_command(&mut self, words: &[parse::Word]) -> Code {
+    /// Evaluate one parsed command, then — if it errored — append its
+    /// `while executing` / `invoked from within` frame to the error trace
+    /// (`TclLogCommandInfo`), using the command's source slice and line.
+    fn eval_command(&mut self, src: &[u8], cmd: &parse::Command) -> Code {
+        let code = self.eval_words(&cmd.words);
+        if code == Code::Error {
+            self.log_command_info(src, cmd);
+        }
+        code
+    }
+
+    /// Substitute each word of a command (with `{*}` expansion), then dispatch.
+    fn eval_words(&mut self, words: &[parse::Word]) -> Code {
         let mut argv: Vec<*mut TclObj> = Vec::new();
         for w in words {
             let obj = match self.substitute_word(&w.body) {
@@ -870,12 +1105,14 @@ impl Interp {
     ///
     /// [`run_proc`]: Interp::run_proc
     fn call_proc(&mut self, def: &ProcDef, argv: &[*mut TclObj]) -> Code {
+        let name = obj_bytes(argv[0]);
         self.run_proc(
             &def.params,
             &def.body,
             def.ns,
             &argv[1..],
-            &obj_bytes(argv[0]),
+            &name,
+            ProcFrame::Proc(&name),
         )
     }
 
@@ -895,6 +1132,7 @@ impl Interp {
         ns: NsId,
         call_args: &[*mut TclObj],
         usage_called: &[u8],
+        frame: ProcFrame,
     ) -> Code {
         let has_args = params.last().is_some_and(|p| p.name == b"args");
         let positional = if has_args {
@@ -965,11 +1203,17 @@ impl Interp {
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
-        match self.settle_return(code) {
+        let settled = match self.settle_return(code) {
             Code::Break => self.error(b"invoked \"break\" outside of a loop"),
             Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
             other => other,
+        };
+        // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
+        // frame and clear `already_logged` so the proc-call command logs next.
+        if settled == Code::Error {
+            self.make_proc_error(frame);
         }
+        settled
     }
 
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set

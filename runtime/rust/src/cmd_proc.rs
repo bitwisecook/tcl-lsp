@@ -9,7 +9,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{obj_bytes, Code, Interp, Param};
+use crate::interp::{obj_bytes, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
 use crate::parse::split_list;
 
@@ -100,7 +100,14 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         crate::namespace::GLOBAL
     };
-    interp.run_proc(&params, &parts[1], ns, &argv[2..], b"apply lambdaExpr")
+    interp.run_proc(
+        &params,
+        &parts[1],
+        ns,
+        &argv[2..],
+        b"apply lambdaExpr",
+        ProcFrame::Lambda(&lambda),
+    )
 }
 
 // `puts` lives in `cmd_chan` (it is a channel write — stdout/stderr/file).

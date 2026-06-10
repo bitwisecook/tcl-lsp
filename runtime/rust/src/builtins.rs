@@ -483,6 +483,12 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
 #[cfg(have_tommath)]
 struct InterpExprCtx<'a> {
     interp: &'a mut Interp,
+    /// Set when an error propagated out of a sub-evaluation (`[cmd]`, a math
+    /// function, or a `$arr(idx)` index subst) rather than originating in `expr`
+    /// itself. In that case the inner command already built the `::errorInfo`
+    /// trace, so `expr` must preserve it (and add no frame of its own) — matching
+    /// C, where such an error is logged at the inner command, not at `expr`.
+    propagated: bool,
 }
 
 #[cfg(have_tommath)]
@@ -499,9 +505,10 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
                 {
                     Ok(v) => Some(v),
                     Err(_) => {
+                        self.propagated = true;
                         return Err(crate::expr::ExprError(obj_bytes(
                             self.interp.get_obj_result(),
-                        )))
+                        )));
                     }
                 }
             }
@@ -524,6 +531,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
 
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         if self.interp.eval_str(script.as_bytes()) == Code::Error {
+            self.propagated = true;
             return Err(crate::expr::ExprError(obj_bytes(
                 self.interp.get_obj_result(),
             )));
@@ -541,6 +549,9 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         // shared dispatch. Args are passed as live objects (object-preserving).
         let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
         if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
+            // A math-function error (e.g. `sqrt(-1)` domain error) is logged at
+            // the `expr` command, not as an inner frame — so it is *not*
+            // propagated; `expr` raises it as its own (`while executing`).
             return Err(crate::expr::ExprError(obj_bytes(
                 self.interp.get_obj_result(),
             )));
@@ -568,18 +579,21 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"expr operand is not valid UTF-8");
     };
     let node = tcl_syntax::expr::parse_expr(src, None);
-    let result = {
-        let mut ctx = InterpExprCtx {
-            interp: &mut *interp,
-        };
-        crate::expr::eval_expr(&node, &mut ctx)
+    let mut ctx = InterpExprCtx {
+        interp: &mut *interp,
+        propagated: false,
     };
+    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let propagated = ctx.propagated;
     match result {
         Ok(r) => {
             // `set_result` takes its own `+1`; `r` drops its reference after.
             interp.set_result(r.as_ptr());
             Code::Ok
         }
+        // A propagated sub-eval error already set the result + `::errorInfo`
+        // trace at the inner command — preserve it (no `expr` frame).
+        Err(_) if propagated => Code::Error,
         Err(e) => interp.set_error(&e.0),
     }
 }
@@ -593,14 +607,16 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Co
         return Err(interp.set_error(b"expr operand is not valid UTF-8"));
     };
     let node = tcl_syntax::expr::parse_expr(s, None);
-    let result = {
-        let mut ctx = InterpExprCtx {
-            interp: &mut *interp,
-        };
-        crate::expr::eval_expr(&node, &mut ctx)
+    let mut ctx = InterpExprCtx {
+        interp: &mut *interp,
+        propagated: false,
     };
+    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let propagated = ctx.propagated;
     match result {
         Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
+        // Preserve a propagated sub-eval error's trace (no condition `expr` frame).
+        Err(_) if propagated => Err(Code::Error),
         Err(e) => Err(interp.set_error(&e.0)),
     }
 }

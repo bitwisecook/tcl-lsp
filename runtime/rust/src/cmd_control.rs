@@ -219,6 +219,19 @@ fn foreach(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_str(&body) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
+            Code::Error => {
+                // `("foreach" body line N)` — only at top level. Tcl inlines
+                // `foreach` when it compiles the enclosing script (a proc body),
+                // so no body-frame appears there; an uncompiled top-level
+                // `foreach` runs its command form, which does add the frame.
+                // (`if`/`while`/`for` are always inlined → never a frame.) A
+                // tree-walker has no bytecode, so `!in_proc()` approximates the
+                // compilation boundary — matches tclsh 9.0 for both cases.
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"foreach");
+                }
+                return Code::Error;
+            }
             other => return other,
         }
     }

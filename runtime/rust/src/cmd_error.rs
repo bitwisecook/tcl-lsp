@@ -33,14 +33,6 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-/// Set a global variable (`::name`) to `bytes` (for `::errorInfo`/`::errorCode`).
-fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
-    let o = new_string(bytes);
-    if interp.var_set(name, o).is_err() {
-        drop_fresh(o);
-    }
-}
-
 // -- catch -----------------------------------------------------------------
 
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
@@ -70,6 +62,12 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return cant_set(interp, &name);
         }
     }
+    // The error is now caught: publish the accumulated trace to the
+    // `::errorInfo`/`::errorCode` globals (so a later `set ::errorInfo` reads it)
+    // and reset the accumulator for the next error.
+    if code == Code::Error {
+        interp.publish_and_reset_error();
+    }
     interp.set_result_bytes(code.as_int().to_string().as_bytes());
     Code::Ok
 }
@@ -82,7 +80,8 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
 }
 
 /// Build `catch`'s `-options` dict: `-code N -level 0` (+ `-errorcode`/
-/// `-errorinfo` from the globals on an error). Returns a fresh (`rc 0`) dict.
+/// `-errorinfo` from the live error accumulator on an error). Returns a fresh
+/// (`rc 0`) dict.
 fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
     let code_str = code.as_int().to_string();
     let mut pairs: Vec<(*mut TclObj, *mut TclObj)> = vec![
@@ -90,40 +89,42 @@ fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
         (new_string(b"-level"), new_string(b"0")),
     ];
     if code == Code::Error {
-        if let Some(ec) = interp.var_get(b"::errorCode") {
-            pairs.push((new_string(b"-errorcode"), ec));
-        }
-        if let Some(ei) = interp.var_get(b"::errorInfo") {
-            pairs.push((new_string(b"-errorinfo"), ei));
-        }
+        // The full accumulated trace + code, not the (deferred) globals.
+        pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
+        pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
     }
     dict::new_dict_obj(&pairs)
 }
 
 // -- error -----------------------------------------------------------------
 
-/// `error message ?errorInfo? ?errorCode?` — raise an error, stamping
-/// `::errorInfo` (explicit info, else the message) and `::errorCode` (else
-/// `NONE`).
+/// `error message ?errorInfo? ?errorCode?` — raise an error. With an explicit
+/// non-empty `errorInfo`, the trace is pre-seeded with it and the `error`
+/// command itself is **not** re-logged (`ERR_ALREADY_LOGGED`); otherwise the
+/// `while executing` / `invoked from within` trace accumulates as the error
+/// unwinds. `errorCode` defaults to `NONE`. (`tclProc.c` `Tcl_ErrorObjCmd`.)
 fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return wrong_args(interp, b"error message ?errorInfo? ?errorCode?");
     }
-    let info = if argv.len() >= 3 {
-        obj_bytes(argv[2])
-    } else {
-        obj_bytes(argv[1])
-    };
     let ecode = if argv.len() == 4 {
         obj_bytes(argv[3])
     } else {
         b"NONE".to_vec()
     };
-    set_global(interp, b"::errorInfo", &info);
-    set_global(interp, b"::errorCode", &ecode);
-    // The result is the message.
-    interp.set_result(argv[1]);
-    Code::Error
+    // An empty explicit info is treated as absent (C: zero-length info arg).
+    let info = if argv.len() >= 3 {
+        obj_bytes(argv[2])
+    } else {
+        Vec::new()
+    };
+    let msg = obj_bytes(argv[1]);
+    if info.is_empty() {
+        interp.set_result(argv[1]);
+        interp.set_error_state(&ecode)
+    } else {
+        interp.raise_with_info(&msg, &info, &ecode)
+    }
 }
 
 // -- try / throw -----------------------------------------------------------
@@ -222,10 +223,11 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Run the body, snapshotting its completion code, result, and -errorcode.
     let body_code = interp.eval_str(&body);
     let body_result = interp.result_bytes();
-    let errorcode = interp
-        .var_get(b"::errorCode")
-        .map(obj_bytes)
-        .unwrap_or_default();
+    let errorcode = if body_code == Code::Error {
+        interp.error_code()
+    } else {
+        Vec::new()
+    };
 
     // Locate the first matching handler.
     let mut outcome_code = body_code;
@@ -268,6 +270,11 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return cant_set(interp, ov);
             }
         }
+        // The body's error is now handled: publish + reset before the handler
+        // runs (which starts its own error state if it throws).
+        if body_code == Code::Error {
+            interp.publish_and_reset_error();
+        }
         outcome_code = interp.eval_str(script);
         outcome_result = interp.result_bytes();
         break;
@@ -296,11 +303,10 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(parts) if !parts.is_empty() => {}
         _ => return interp.set_error(b"type must be non-empty list"),
     }
-    let msg = obj_bytes(argv[2]);
-    set_global(interp, b"::errorInfo", &msg);
-    set_global(interp, b"::errorCode", &ecode);
     interp.set_result(argv[2]);
-    Code::Error
+    // Like `return -code error -errorcode $type $msg`: set the code, let the
+    // `while executing`/`invoked from within` trace accumulate as it unwinds.
+    interp.set_error_state(&ecode)
 }
 
 #[cfg(test)]
@@ -356,14 +362,95 @@ mod tests {
     #[test]
     fn error_stamps_globals() {
         leak_free(|i| {
+            // A bare `error` with no info accumulates the source trace as it
+            // unwinds (verified byte-for-byte vs tclsh 9.0).
             assert_eq!(run(i, b"catch {error oops}"), b"1");
             assert_eq!(run(i, b"set ::errorCode"), b"NONE");
-            assert_eq!(run(i, b"set ::errorInfo"), b"oops");
-            // explicit info + code.
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"oops\n    while executing\n\"error oops\""
+            );
+            // explicit info + code: the info is the trace verbatim (the `error`
+            // command itself is not re-logged — ERR_ALREADY_LOGGED).
             assert_eq!(run(i, b"catch {error msg myinfo MYCODE}"), b"1");
             assert_eq!(run(i, b"set ::errorInfo"), b"myinfo");
             assert_eq!(run(i, b"set ::errorCode"), b"MYCODE");
             i.eval_str(b"unset ::errorInfo ::errorCode");
+        });
+    }
+
+    /// The incremental `::errorInfo` stack trace (`while executing` / `invoked
+    /// from within` / `(procedure "x" line N)` …), every expected string
+    /// captured from real tclsh 9.0. See `proc-call-and-stack-traces.md` PC-4.
+    #[test]
+    fn error_info_stack_traces() {
+        leak_free(|i| {
+            // The worked example: proc body error → proc frame → call frame.
+            run(i, b"proc p {} { error foo }");
+            assert_eq!(i.eval_str(b"p"), Code::Error);
+            assert_eq!(
+                i.var_get(b"::errorInfo").map(crate::interp::obj_bytes),
+                Some(
+                    b"foo\n    while executing\n\"error foo \"\n    (procedure \"p\" line 1)\n    invoked from within\n\"p\""
+                        .to_vec()
+                )
+            );
+            // Multi-line body: the proc frame cites the body-relative line (3).
+            run(i, b"proc q {} {\n    set x 1\n    error boom\n}");
+            i.eval_str(b"catch q");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"boom\n    while executing\n\"error boom\"\n    (procedure \"q\" line 3)\n    invoked from within\n\"q\""
+            );
+            // Nested command substitution: the `[inner]` subst is logged, the
+            // enclosing `set y [inner]` is suppressed.
+            run(i, b"proc inner {} { error deep }");
+            run(i, b"proc outer {} { set y [inner] }");
+            i.eval_str(b"catch outer");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"deep\n    while executing\n\"error deep \"\n    (procedure \"inner\" line 1)\n    invoked from within\n\"inner\"\n    (procedure \"outer\" line 1)\n    invoked from within\n\"outer\""
+            );
+            // apply → a `(lambda term "..." line N)` frame.
+            i.eval_str(b"catch { apply {{} { error fromLambda }} }");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"fromLambda\n    while executing\n\"error fromLambda \"\n    (lambda term \"{} { error fromLambda }\" line 1)\n    invoked from within\n\"apply {{} { error fromLambda }} \""
+            );
+            i.eval_str(b"unset -nocomplain ::errorInfo ::errorCode x y");
+        });
+    }
+
+    /// `eval`/`uplevel`/`foreach` add a `("<cmd>" body line N)` frame; inline
+    /// `if`/`while`/`for`/`switch` do not (tclsh 9.0).
+    #[test]
+    fn body_frame_commands() {
+        leak_free(|i| {
+            i.eval_str(b"catch { eval { error e } }");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"e\n    while executing\n\"error e \"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval { error e } \""
+            );
+            i.eval_str(b"catch { foreach z {1} { error f } }");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"f\n    while executing\n\"error f \"\n    (\"foreach\" body line 1)\n    invoked from within\n\"foreach z {1} { error f } \""
+            );
+            // inline `if`: only the body command, no `if` frame.
+            i.eval_str(b"catch { if {1} { error x } }");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"x\n    while executing\n\"error x \""
+            );
+            // `foreach` inside a proc is inlined (no foreach frame) — only the
+            // proc frame; the top-level foreach above did show a frame.
+            run(i, b"proc fe {} { foreach x {1} { error e } }");
+            i.eval_str(b"catch fe");
+            assert_eq!(
+                run(i, b"set ::errorInfo"),
+                b"e\n    while executing\n\"error e \"\n    (procedure \"fe\" line 1)\n    invoked from within\n\"fe\""
+            );
+            i.eval_str(b"unset -nocomplain ::errorInfo ::errorCode");
         });
     }
 
