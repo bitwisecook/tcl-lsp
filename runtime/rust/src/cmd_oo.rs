@@ -117,9 +117,10 @@ pub fn install(interp: &mut Interp) {
     // builtin command — only the registry entry is added).
     interp
         .oo
+        .borrow_mut()
         .classes
         .insert(b"::oo::object".to_vec(), Class::default());
-    interp.oo.classes.insert(
+    interp.oo.borrow_mut().classes.insert(
         b"::oo::class".to_vec(),
         Class {
             supers: vec![b"::oo::object".to_vec()],
@@ -159,8 +160,8 @@ fn oo_class_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Some(b"new") => {
             // Anonymous class.
-            let n = interp.oo.counter;
-            interp.oo.counter += 1;
+            let n = interp.oo.borrow().counter;
+            interp.oo.borrow_mut().counter += 1;
             let fqn = format!("::oo::Obj{n}").into_bytes();
             interp.oo_make_class(&fqn, argv.get(2).map(|&a| obj_bytes(a)).as_deref())
         }
@@ -186,7 +187,7 @@ fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"oo::define target ?arg ...?");
     }
     let fqn = interp.fqn_for(&obj_bytes(argv[1]));
-    if !interp.oo.classes.contains_key(&fqn) {
+    if !interp.oo.borrow().classes.contains_key(&fqn) {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[1]));
         m.extend_from_slice(b"\" does not refer to a class");
@@ -201,7 +202,7 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"oo::objdefine target ?arg ...?");
     }
     let fqn = interp.fqn_for(&obj_bytes(argv[1]));
-    if !interp.oo.objects.contains_key(&fqn) {
+    if !interp.oo.borrow().objects.contains_key(&fqn) {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[1]));
         m.extend_from_slice(b"\" does not refer to an object");
@@ -217,7 +218,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"oo::copy sourceName ?targetName?");
     }
     let src = interp.fqn_for(&obj_bytes(argv[1]));
-    let Some(src_obj) = interp.oo.objects.get(&src).cloned() else {
+    let Some(src_obj) = interp.oo.borrow().objects.get(&src).cloned() else {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[1]));
         m.extend_from_slice(b"\" does not refer to an object");
@@ -226,13 +227,13 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let dst = match argv.get(2) {
         Some(&a) => interp.fqn_for(&obj_bytes(a)),
         None => {
-            let n = interp.oo.counter;
-            interp.oo.counter += 1;
+            let n = interp.oo.borrow().counter;
+            interp.oo.borrow_mut().counter += 1;
             format!("::oo::Obj{n}").into_bytes()
         }
     };
     let var_ns = interp.ensure_namespace(&dst);
-    interp.oo.objects.insert(
+    interp.oo.borrow_mut().objects.insert(
         dst.clone(),
         Object {
             class: src_obj.class,
@@ -251,8 +252,9 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// The current definition target, or an error if outside a definition body.
 fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
-    match interp.oo.def_stack.last() {
-        Some(t) => Ok(t.clone()),
+    let target = interp.oo.borrow().def_stack.last().cloned();
+    match target {
+        Some(t) => Ok(t),
         None => Err(interp
             .set_error(b"this command can only be called from within the body of a definition")),
     }
@@ -264,6 +266,7 @@ fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
         Ok(DefTarget::Class(c)) => {
             interp
                 .oo
+                .borrow_mut()
                 .classes
                 .get_mut(&c)
                 .unwrap()
@@ -273,6 +276,7 @@ fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
         Ok(DefTarget::Object(o)) => {
             interp
                 .oo
+                .borrow_mut()
                 .objects
                 .get_mut(&o)
                 .unwrap()
@@ -325,7 +329,13 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return err(interp, &e),
     };
-    interp.oo.classes.get_mut(&class).unwrap().constructor = Some(Method::Body {
+    interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(&class)
+        .unwrap()
+        .constructor = Some(Method::Body {
         params,
         body: obj_bytes(argv[2]),
     });
@@ -342,7 +352,13 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(DefTarget::Object(_)) => return err(interp, b"destructors are only for classes"),
         Err(code) => return code,
     };
-    interp.oo.classes.get_mut(&class).unwrap().destructor = Some(obj_bytes(argv[1]));
+    interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(&class)
+        .unwrap()
+        .destructor = Some(obj_bytes(argv[1]));
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -358,14 +374,20 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .map(|&a| interp.fqn_for(&obj_bytes(a)))
         .collect();
     for s in &supers {
-        if !interp.oo.classes.contains_key(s) {
+        if !interp.oo.borrow().classes.contains_key(s) {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(s);
             m.extend_from_slice(b"\" does not refer to a class");
             return err(interp, &m);
         }
     }
-    interp.oo.classes.get_mut(&class).unwrap().supers = if supers.is_empty() {
+    interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(&class)
+        .unwrap()
+        .supers = if supers.is_empty() {
         vec![b"::oo::object".to_vec()]
     } else {
         supers
@@ -381,7 +403,7 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .map(|&a| interp.fqn_for(&obj_bytes(a)))
         .collect();
     for mx in &mixins {
-        if !interp.oo.classes.contains_key(mx) {
+        if !interp.oo.borrow().classes.contains_key(mx) {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(mx);
             m.extend_from_slice(b"\" does not refer to a class");
@@ -389,8 +411,12 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     match def_target(interp) {
-        Ok(DefTarget::Class(c)) => interp.oo.classes.get_mut(&c).unwrap().mixins = mixins,
-        Ok(DefTarget::Object(o)) => interp.oo.objects.get_mut(&o).unwrap().mixins = mixins,
+        Ok(DefTarget::Class(c)) => {
+            interp.oo.borrow_mut().classes.get_mut(&c).unwrap().mixins = mixins
+        }
+        Ok(DefTarget::Object(o)) => {
+            interp.oo.borrow_mut().objects.get_mut(&o).unwrap().mixins = mixins
+        }
         Err(code) => return code,
     }
     interp.set_result_bytes(b"");
@@ -399,13 +425,14 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Outside a definition body, this is the ordinary `variable` command.
-    if interp.oo.def_stack.is_empty() {
+    if interp.oo.borrow().def_stack.is_empty() {
         return crate::cmd_var::variable(interp, argv);
     }
     let names: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     match def_target(interp) {
         Ok(DefTarget::Class(c)) => {
-            let cl = interp.oo.classes.get_mut(&c).unwrap();
+            let mut oo = interp.oo.borrow_mut();
+            let cl = oo.classes.get_mut(&c).unwrap();
             for n in names {
                 if !cl.variables.contains(&n) {
                     cl.variables.push(n);
@@ -434,8 +461,20 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
         }
     };
     match def_target(interp) {
-        Ok(DefTarget::Class(c)) => set(&mut interp.oo.classes.get_mut(&c).unwrap().unexported),
-        Ok(DefTarget::Object(o)) => set(&mut interp.oo.objects.get_mut(&o).unwrap().unexported),
+        Ok(DefTarget::Class(c)) => set(&mut interp
+            .oo
+            .borrow_mut()
+            .classes
+            .get_mut(&c)
+            .unwrap()
+            .unexported),
+        Ok(DefTarget::Object(o)) => set(&mut interp
+            .oo
+            .borrow_mut()
+            .objects
+            .get_mut(&o)
+            .unwrap()
+            .unexported),
         Err(code) => return code,
     }
     interp.set_result_bytes(b"");
@@ -445,18 +484,22 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
 // -- method context: self / my / next ---------------------------------------
 
 fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let Some(frame) = interp.oo.call_stack.last() else {
+    let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
+        (
+            frame.object.clone(),
+            frame.chain.get(frame.index).cloned().unwrap_or_default(),
+            frame.method.clone(),
+        )
+    });
+    let Some((object, class, method)) = ctx else {
         return err(interp, b"self may only be called from inside a method");
     };
-    let object = frame.object.clone();
-    let class = frame.chain.get(frame.index).cloned().unwrap_or_default();
-    let method = frame.method.clone();
     match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
         None | Some(b"object") => interp.set_result(obj::new_string_bytes(&object)),
         Some(b"class") => interp.set_result(obj::new_string_bytes(&class)),
         Some(b"method") => interp.set_result(obj::new_string_bytes(&method)),
         Some(b"namespace") => {
-            let ns = interp.oo.objects.get(&object).map(|o| o.var_ns);
+            let ns = interp.oo.borrow().objects.get(&object).map(|o| o.var_ns);
             let name = ns
                 .map(|n| interp.namespaces().qualified_name(n))
                 .unwrap_or_default();
@@ -476,7 +519,13 @@ fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"my methodName ?arg ...?");
     }
-    let Some(object) = interp.oo.call_stack.last().map(|f| f.object.clone()) else {
+    let Some(object) = interp
+        .oo
+        .borrow()
+        .call_stack
+        .last()
+        .map(|f| f.object.clone())
+    else {
         return err(interp, b"my may only be called from inside a method");
     };
     let method = obj_bytes(argv[1]);
@@ -484,15 +533,17 @@ fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let Some(frame) = interp.oo.call_stack.last() else {
+    let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
+        (
+            frame.object.clone(),
+            frame.chain.clone(),
+            frame.index,
+            frame.method.clone(),
+        )
+    });
+    let Some((object, chain, index, method)) = ctx else {
         return err(interp, b"next may only be called from inside a method");
     };
-    let (object, chain, index, method) = (
-        frame.object.clone(),
-        frame.chain.clone(),
-        frame.index,
-        frame.method.clone(),
-    );
     let is_ctor = method.is_empty();
     let next =
         (index + 1..chain.len()).find(|&j| interp.oo_has_method(&chain[j], &method, is_ctor));
@@ -517,10 +568,16 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let obj = interp.fqn_for(&obj_bytes(argv[3]));
     match sub.as_slice() {
         b"class" => {
-            let Some(o) = interp.oo.objects.get(&obj) else {
+            let class = interp
+                .oo
+                .borrow()
+                .objects
+                .get(&obj)
+                .map(|o| o.class.clone());
+            let Some(class) = class else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
-            interp.set_result(obj::new_string_bytes(&o.class.clone()));
+            interp.set_result(obj::new_string_bytes(&class));
             Code::Ok
         }
         b"isa" => {
@@ -528,12 +585,13 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let cat = obj_bytes(argv[3]);
             let target = interp.fqn_for(&obj_bytes(argv[4]));
             let yes = match cat.as_slice() {
-                b"object" => interp.oo.objects.contains_key(&target),
-                b"class" => interp.oo.classes.contains_key(&target),
+                b"object" => interp.oo.borrow().objects.contains_key(&target),
+                b"class" => interp.oo.borrow().classes.contains_key(&target),
                 b"typeof" => {
                     let want = interp.fqn_for(&obj_bytes(argv[5]));
                     interp
                         .oo
+                        .borrow()
                         .objects
                         .get(&target)
                         .map(|o| o.class.clone())
@@ -545,29 +603,35 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"vars" | b"variables" => {
-            let Some(o) = interp.oo.objects.get(&obj) else {
+            let ns = interp.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
+            let Some(ns) = ns else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
-            let ns = o.var_ns;
             let mut names = interp.namespaces().var_names(ns);
             names.sort();
             set_list(interp, &names);
             Code::Ok
         }
         b"methods" => {
-            let Some(o) = interp.oo.objects.get(&obj) else {
+            let names: Option<Vec<Vec<u8>>> = interp
+                .oo
+                .borrow()
+                .objects
+                .get(&obj)
+                .map(|o| o.methods.keys().cloned().collect());
+            let Some(mut names) = names else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
-            let mut names: Vec<Vec<u8>> = o.methods.keys().cloned().collect();
             names.sort();
             set_list(interp, &names);
             Code::Ok
         }
         b"namespace" => {
-            let Some(o) = interp.oo.objects.get(&obj) else {
+            let ns = interp.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
+            let Some(ns) = ns else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
-            let name = interp.namespaces().qualified_name(o.var_ns);
+            let name = interp.namespaces().qualified_name(ns);
             interp.set_result(obj::new_string_bytes(&name));
             Code::Ok
         }
@@ -587,7 +651,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let sub = obj_bytes(argv[2]);
     let cls = interp.fqn_for(&obj_bytes(argv[3]));
-    if !interp.oo.classes.contains_key(&cls) {
+    if !interp.oo.borrow().classes.contains_key(&cls) {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[3]));
         m.extend_from_slice(b"\" is not a class");
@@ -595,13 +659,14 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     match sub.as_slice() {
         b"superclasses" => {
-            let s = interp.oo.classes[&cls].supers.clone();
+            let s = interp.oo.borrow().classes[&cls].supers.clone();
             set_list(interp, &s);
             Code::Ok
         }
         b"instances" => {
             let mut insts: Vec<Vec<u8>> = interp
                 .oo
+                .borrow()
                 .objects
                 .iter()
                 .filter(|(_, o)| o.class == cls)
@@ -614,6 +679,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"subclasses" => {
             let mut subs: Vec<Vec<u8>> = interp
                 .oo
+                .borrow()
                 .classes
                 .iter()
                 .filter(|(k, c)| **k != cls && c.supers.contains(&cls))
@@ -633,7 +699,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 vec![cls.clone()]
             };
             for c in &chain {
-                if let Some(cl) = interp.oo.classes.get(c) {
+                if let Some(cl) = interp.oo.borrow().classes.get(c) {
                     for n in cl.methods.keys() {
                         if (private || !cl.unexported.contains(n)) && !names.contains(n) {
                             names.push(n.clone());
@@ -646,7 +712,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"constructor" => {
-            let body = match &interp.oo.classes[&cls].constructor {
+            let body = match &interp.oo.borrow().classes[&cls].constructor {
                 Some(Method::Body { params, body }) => list_params_body(params, body),
                 _ => Vec::new(),
             };
@@ -654,7 +720,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"destructor" => {
-            let body = interp.oo.classes[&cls]
+            let body = interp.oo.borrow().classes[&cls]
                 .destructor
                 .clone()
                 .unwrap_or_default();
@@ -705,13 +771,14 @@ fn set_list(interp: &mut Interp, names: &[Vec<u8>]) {
 impl Interp {
     /// Create class `fqn` (running its optional definition script).
     fn oo_make_class(&mut self, fqn: &[u8], script: Option<&[u8]>) -> Code {
-        if self.oo.classes.contains_key(fqn) || self.oo.objects.contains_key(fqn) {
+        if self.oo.borrow().classes.contains_key(fqn) || self.oo.borrow().objects.contains_key(fqn)
+        {
             let mut m = b"can't create class \"".to_vec();
             m.extend_from_slice(fqn);
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
-        self.oo.classes.insert(
+        self.oo.borrow_mut().classes.insert(
             fqn.to_vec(),
             Class {
                 supers: vec![b"::oo::object".to_vec()],
@@ -720,9 +787,12 @@ impl Interp {
         );
         self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         if let Some(script) = script {
-            self.oo.def_stack.push(DefTarget::Class(fqn.to_vec()));
+            self.oo
+                .borrow_mut()
+                .def_stack
+                .push(DefTarget::Class(fqn.to_vec()));
             let code = self.eval_str(script);
-            self.oo.def_stack.pop();
+            self.oo.borrow_mut().def_stack.pop();
             if code != Code::Ok {
                 return code;
             }
@@ -733,19 +803,19 @@ impl Interp {
 
     /// Run an `oo::define`/`oo::objdefine` body or single subcommand on `target`.
     fn oo_run_def(&mut self, target: DefTarget, argv: &[*mut TclObj]) -> Code {
-        self.oo.def_stack.push(target);
+        self.oo.borrow_mut().def_stack.push(target);
         let code = if argv.len() == 3 {
             self.eval_str(&obj_bytes(argv[2]))
         } else {
             self.dispatch(&argv[2..])
         };
-        self.oo.def_stack.pop();
+        self.oo.borrow_mut().def_stack.pop();
         code
     }
 
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
     pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
-        if self.oo.classes.contains_key(fqn) {
+        if self.oo.borrow().classes.contains_key(fqn) {
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
                 Some(b"new") => self.oo_new(fqn, None, &argv[2..]),
                 Some(b"create") if argv.len() >= 3 => {
@@ -760,7 +830,7 @@ impl Interp {
                 Some(other) => unknown_method(self, other),
                 None => self.error(b"wrong # args: should be \"class method ?arg ...?\""),
             }
-        } else if self.oo.objects.contains_key(fqn) {
+        } else if self.oo.borrow().objects.contains_key(fqn) {
             match argv.get(1).map(|&a| obj_bytes(a)) {
                 Some(m) if m == b"destroy" => {
                     self.oo_destroy(fqn);
@@ -777,18 +847,20 @@ impl Interp {
 
     fn oo_new(&mut self, class: &[u8], name: Option<Vec<u8>>, args: &[*mut TclObj]) -> Code {
         let fqn = name.unwrap_or_else(|| {
-            let n = format!("::oo::Obj{}", self.oo.counter);
-            self.oo.counter += 1;
+            let n = format!("::oo::Obj{}", self.oo.borrow().counter);
+            self.oo.borrow_mut().counter += 1;
             n.into_bytes()
         });
-        if self.oo.objects.contains_key(&fqn) || self.oo.classes.contains_key(&fqn) {
+        if self.oo.borrow().objects.contains_key(&fqn)
+            || self.oo.borrow().classes.contains_key(&fqn)
+        {
             let mut m = b"can't create object \"".to_vec();
             m.extend_from_slice(&fqn);
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
         let var_ns = self.ensure_namespace(&fqn);
-        self.oo.objects.insert(
+        self.oo.borrow_mut().objects.insert(
             fqn.clone(),
             Object {
                 class: class.to_vec(),
@@ -801,6 +873,7 @@ impl Interp {
         let mro = self.mro(class);
         if let Some(j) = mro.iter().position(|c| {
             self.oo
+                .borrow()
                 .classes
                 .get(c)
                 .is_some_and(|c| c.constructor.is_some())
@@ -810,7 +883,7 @@ impl Interp {
             let chain = mro;
             let code = self.oo_call(&fqn, chain, j, b"", args);
             if code == Code::Error {
-                self.oo.objects.remove(&fqn);
+                self.oo.borrow_mut().objects.remove(&fqn);
                 self.delete_command(&fqn);
                 return Code::Error;
             }
@@ -829,7 +902,7 @@ impl Interp {
         args: &[*mut TclObj],
         external: bool,
     ) -> Code {
-        if !self.oo.objects.contains_key(obj) {
+        if !self.oo.borrow().objects.contains_key(obj) {
             return self.invalid_command(obj);
         }
         let chain = self.method_chain(obj);
@@ -851,14 +924,14 @@ impl Interp {
                 chain.push(c.to_vec());
             }
         };
-        if let Some(o) = self.oo.objects.get(obj) {
+        if let Some(o) = self.oo.borrow().objects.get(obj) {
             for mx in &o.mixins {
                 for c in self.mro(mx) {
                     push(&c, &mut chain);
                 }
             }
             let cls = o.class.clone();
-            if let Some(cl) = self.oo.classes.get(&cls) {
+            if let Some(cl) = self.oo.borrow().classes.get(&cls) {
                 for mx in &cl.mixins {
                     for c in self.mro(mx) {
                         push(&c, &mut chain);
@@ -878,14 +951,16 @@ impl Interp {
         if ctor {
             return self
                 .oo
+                .borrow()
                 .classes
                 .get(prov)
                 .is_some_and(|c| c.constructor.is_some());
         }
-        if let Some(o) = self.oo.objects.get(prov) {
+        if let Some(o) = self.oo.borrow().objects.get(prov) {
             o.methods.contains_key(method)
         } else {
             self.oo
+                .borrow()
                 .classes
                 .get(prov)
                 .is_some_and(|c| c.methods.contains_key(method))
@@ -893,10 +968,11 @@ impl Interp {
     }
 
     fn method_unexported(&self, prov: &[u8], method: &[u8]) -> bool {
-        if let Some(o) = self.oo.objects.get(prov) {
+        if let Some(o) = self.oo.borrow().objects.get(prov) {
             o.unexported.contains(method)
         } else {
             self.oo
+                .borrow()
                 .classes
                 .get(prov)
                 .is_some_and(|c| c.unexported.contains(method))
@@ -916,13 +992,15 @@ impl Interp {
         let prov = chain[index].clone();
         let m = if method.is_empty() {
             self.oo
+                .borrow()
                 .classes
                 .get(&prov)
                 .and_then(|c| c.constructor.clone())
-        } else if let Some(o) = self.oo.objects.get(&prov) {
+        } else if let Some(o) = self.oo.borrow().objects.get(&prov) {
             o.methods.get(method).cloned()
         } else {
             self.oo
+                .borrow()
                 .classes
                 .get(&prov)
                 .and_then(|c| c.methods.get(method).cloned())
@@ -945,14 +1023,14 @@ impl Interp {
                 unsafe { obj::incr_ref_count(a) };
                 new_argv.push(a);
             }
-            self.oo.call_stack.push(OoFrame {
+            self.oo.borrow_mut().call_stack.push(OoFrame {
                 object: obj.to_vec(),
                 chain,
                 index,
                 method: method.to_vec(),
             });
             let code = self.dispatch(&new_argv);
-            self.oo.call_stack.pop();
+            self.oo.borrow_mut().call_stack.pop();
             for a in new_argv {
                 unsafe { obj::decr_ref_count(a) };
             }
@@ -962,12 +1040,12 @@ impl Interp {
         let Method::Body { params, body } = m else {
             unreachable!("forward handled above");
         };
-        let var_ns = self.oo.objects[obj].var_ns;
+        let var_ns = self.oo.borrow().objects[obj].var_ns;
         // The declared instance variables visible to the method: union over the
         // chain's classes.
         let mut vars: Vec<Vec<u8>> = Vec::new();
         for c in &chain {
-            if let Some(cl) = self.oo.classes.get(c) {
+            if let Some(cl) = self.oo.borrow().classes.get(c) {
                 for v in &cl.variables {
                     if !vars.contains(v) {
                         vars.push(v.clone());
@@ -980,7 +1058,7 @@ impl Interp {
         } else {
             method.to_vec()
         };
-        self.oo.call_stack.push(OoFrame {
+        self.oo.borrow_mut().call_stack.push(OoFrame {
             object: obj.to_vec(),
             chain,
             index,
@@ -1000,18 +1078,24 @@ impl Interp {
                 link_vars: &vars,
             },
         );
-        self.oo.call_stack.pop();
+        self.oo.borrow_mut().call_stack.pop();
         code
     }
 
     fn oo_destroy(&mut self, obj: &[u8]) {
-        let class = self.oo.objects.get(obj).map(|o| o.class.clone());
+        let class = self.oo.borrow().objects.get(obj).map(|o| o.class.clone());
         if let Some(class) = class {
             let mro = self.mro(&class);
             for c in &mro {
-                if let Some(body) = self.oo.classes.get(c).and_then(|c| c.destructor.clone()) {
-                    let var_ns = self.oo.objects[obj].var_ns;
-                    self.oo.call_stack.push(OoFrame {
+                let dtor = self
+                    .oo
+                    .borrow()
+                    .classes
+                    .get(c)
+                    .and_then(|c| c.destructor.clone());
+                if let Some(body) = dtor {
+                    let var_ns = self.oo.borrow().objects[obj].var_ns;
+                    self.oo.borrow_mut().call_stack.push(OoFrame {
                         object: obj.to_vec(),
                         chain: mro.clone(),
                         index: 0,
@@ -1031,12 +1115,12 @@ impl Interp {
                             link_vars: &[],
                         },
                     );
-                    self.oo.call_stack.pop();
+                    self.oo.borrow_mut().call_stack.pop();
                     break;
                 }
             }
         }
-        self.oo.objects.remove(obj);
+        self.oo.borrow_mut().objects.remove(obj);
         self.delete_command(obj);
     }
 
@@ -1044,6 +1128,7 @@ impl Interp {
         // Destroy the class's instances first (TclOO cascades).
         let insts: Vec<Vec<u8>> = self
             .oo
+            .borrow()
             .objects
             .iter()
             .filter(|(_, o)| o.class == class)
@@ -1052,7 +1137,7 @@ impl Interp {
         for o in insts {
             self.oo_destroy(&o);
         }
-        self.oo.classes.remove(class);
+        self.oo.borrow_mut().classes.remove(class);
         self.delete_command(class);
     }
 
@@ -1069,7 +1154,7 @@ impl Interp {
             return;
         }
         out.push(class.to_vec());
-        if let Some(c) = self.oo.classes.get(class) {
+        if let Some(c) = self.oo.borrow().classes.get(class) {
             let supers = c.supers.clone();
             for s in &supers {
                 self.mro_visit(s, out);

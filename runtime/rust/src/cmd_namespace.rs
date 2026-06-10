@@ -405,7 +405,8 @@ fn resolve_arg_ns(
         None => Ok(current),
         Some(a) => {
             let name = obj_bytes(a);
-            match interp.namespaces().find_namespace(current, &name) {
+            let found = interp.namespaces().find_namespace(current, &name);
+            match found {
                 Some(ns) => Ok(ns),
                 None => {
                     let mut m = b"namespace \"".to_vec();
@@ -508,7 +509,8 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let cur = interp.current_ns();
-    match interp.namespaces().command_origin(cur, &name) {
+    let origin = interp.namespaces().command_origin(cur, &name);
+    match origin {
         Some(fqn) => {
             interp.set_result_bytes(&fqn);
             Code::Ok

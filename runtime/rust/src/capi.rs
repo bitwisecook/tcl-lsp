@@ -132,7 +132,9 @@ pub unsafe extern "C" fn Tcl_GetString(objPtr: *mut TclObj) -> *mut c_char {
 /// to [`tcl_runtime_delete_interp`].
 #[no_mangle]
 pub extern "C" fn tcl_runtime_create_interp() -> *mut Interp {
-    Box::into_raw(Interp::new())
+    // `Interp` is now a cheap `Rc` handle; box it so the C side has a stable
+    // owning raw pointer to hand back to `tcl_runtime_delete_interp`.
+    Box::into_raw(Box::new(Interp::new()))
 }
 
 /// Destroy a runtime interp previously returned by [`tcl_runtime_create_interp`].

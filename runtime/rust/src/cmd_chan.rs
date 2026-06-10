@@ -96,6 +96,31 @@ fn no_channel(interp: &mut Interp, id: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
+/// A channel operation's outcome, produced *inside* the `channels` borrow scope
+/// and translated to a result/error *after* the borrow drops — the `RefMut`
+/// guard holds a shared borrow of `interp`, so its methods can't be called while
+/// the channel state is borrowed.
+enum ChanOp {
+    Bytes(Vec<u8>),
+    NoChannel,
+    WriteOnly,
+    Io(std::io::Error),
+}
+
+/// Translate a [`ChanOp`] into a completion code (the channel was addressed by
+/// `id`), after the `channels` borrow has been released.
+fn finish_chan(interp: &mut Interp, id: &[u8], op: ChanOp) -> Code {
+    match op {
+        ChanOp::Bytes(b) => {
+            interp.set_result_bytes(&b);
+            Code::Ok
+        }
+        ChanOp::NoChannel => no_channel(interp, id),
+        ChanOp::WriteOnly => interp.set_error(b"channel is write only"),
+        ChanOp::Io(e) => io_error(interp, &e),
+    }
+}
+
 fn io_error(interp: &mut Interp, e: &std::io::Error) -> Code {
     use std::io::ErrorKind;
     interp.set_error(match e.kind() {
@@ -117,7 +142,8 @@ fn open_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(path_s) = core::str::from_utf8(&path) else {
         return interp.set_error(b"invalid file name");
     };
-    match interp.channels.open(path_s, &mode) {
+    let opened = interp.channels.borrow_mut().open(path_s, &mode);
+    match opened {
         Ok(id) => {
             interp.set_result_bytes(&id);
             Code::Ok
@@ -139,7 +165,8 @@ fn close_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"close channelId");
     }
     let id = obj_bytes(argv[1]);
-    if let Some(mut st) = interp.channels.map.remove(&id) {
+    let removed = interp.channels.borrow_mut().map.remove(&id);
+    if let Some(mut st) = removed {
         if let Some(w) = st.writer.as_mut() {
             let _ = w.flush();
         }
@@ -167,29 +194,33 @@ fn read_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .ok()
             .and_then(|s| s.trim().parse::<usize>().ok())
     });
-    let Some(st) = interp.channels.map.get_mut(&id) else {
-        return no_channel(interp, &id);
-    };
-    let Some(reader) = st.reader.as_mut() else {
-        return interp.set_error(b"channel is write only");
-    };
-    let mut buf = Vec::new();
-    let res = match nchars {
-        Some(n) => {
-            let mut limited = reader.take(n as u64);
-            limited.read_to_end(&mut buf)
+    let op = {
+        let mut channels = interp.channels.borrow_mut();
+        match channels.map.get_mut(&id) {
+            None => ChanOp::NoChannel,
+            Some(st) => match st.reader.as_mut() {
+                None => ChanOp::WriteOnly,
+                Some(reader) => {
+                    let mut buf = Vec::new();
+                    let res = match nchars {
+                        Some(n) => reader.take(n as u64).read_to_end(&mut buf),
+                        None => reader.read_to_end(&mut buf),
+                    };
+                    match res {
+                        Err(e) => ChanOp::Io(e),
+                        Ok(_) => {
+                            st.eof = nchars.is_none() || buf.is_empty();
+                            if nonewline && buf.last() == Some(&b'\n') {
+                                buf.pop();
+                            }
+                            ChanOp::Bytes(buf)
+                        }
+                    }
+                }
+            },
         }
-        None => reader.read_to_end(&mut buf),
     };
-    if let Err(e) = res {
-        return io_error(interp, &e);
-    }
-    st.eof = nchars.is_none() || buf.is_empty();
-    if nonewline && buf.last() == Some(&b'\n') {
-        buf.pop();
-    }
-    interp.set_result_bytes(&buf);
-    Code::Ok
+    finish_chan(interp, &id, op)
 }
 
 fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -197,26 +228,46 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"gets channelId ?varName?");
     }
     let id = obj_bytes(argv[1]);
-    let Some(st) = interp.channels.map.get_mut(&id) else {
-        return no_channel(interp, &id);
-    };
-    let Some(reader) = st.reader.as_mut() else {
-        return interp.set_error(b"channel is write only");
-    };
-    let mut line = Vec::new();
-    let n = match reader.read_until(b'\n', &mut line) {
-        Ok(n) => n,
-        Err(e) => return io_error(interp, &e),
-    };
-    if n == 0 {
-        st.eof = true;
+    // Read the line inside the borrow scope; `n == usize::MAX` flags EOF/no-line.
+    enum Gets {
+        Line(Vec<u8>, usize),
+        NoChannel,
+        WriteOnly,
+        Io(std::io::Error),
     }
-    if line.last() == Some(&b'\n') {
-        line.pop();
-        if line.last() == Some(&b'\r') {
-            line.pop();
+    let g = {
+        let mut channels = interp.channels.borrow_mut();
+        match channels.map.get_mut(&id) {
+            None => Gets::NoChannel,
+            Some(st) => match st.reader.as_mut() {
+                None => Gets::WriteOnly,
+                Some(reader) => {
+                    let mut line = Vec::new();
+                    match reader.read_until(b'\n', &mut line) {
+                        Err(e) => Gets::Io(e),
+                        Ok(n) => {
+                            if n == 0 {
+                                st.eof = true;
+                            }
+                            if line.last() == Some(&b'\n') {
+                                line.pop();
+                                if line.last() == Some(&b'\r') {
+                                    line.pop();
+                                }
+                            }
+                            Gets::Line(line, n)
+                        }
+                    }
+                }
+            },
         }
-    }
+    };
+    let (line, n) = match g {
+        Gets::NoChannel => return no_channel(interp, &id),
+        Gets::WriteOnly => return interp.set_error(b"channel is write only"),
+        Gets::Io(e) => return io_error(interp, &e),
+        Gets::Line(line, n) => (line, n),
+    };
     if argv.len() == 3 {
         // gets chan var → set var to the line, return its length (or -1 at EOF).
         let var = obj_bytes(argv[2]);
@@ -246,24 +297,27 @@ fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         [ch, s] => (obj_bytes(*ch), obj_bytes(*s)),
         _ => return wrong_args(interp, usage),
     };
-    let result = match chan.as_slice() {
-        b"stdout" => write_to(&mut std::io::stdout(), &string, newline),
-        b"stderr" => write_to(&mut std::io::stderr(), &string, newline),
-        _ => match interp
-            .channels
-            .map
-            .get_mut(&chan)
-            .and_then(|s| s.writer.as_mut())
-        {
-            Some(w) => write_to(w, &string, newline),
-            None => return no_channel(interp, &chan),
-        },
+    // `None` ⇒ no such channel; `Some(Err)` ⇒ write failed.
+    let result: Option<std::io::Result<()>> = match chan.as_slice() {
+        b"stdout" => Some(write_to(&mut std::io::stdout(), &string, newline)),
+        b"stderr" => Some(write_to(&mut std::io::stderr(), &string, newline)),
+        _ => {
+            let mut channels = interp.channels.borrow_mut();
+            channels
+                .map
+                .get_mut(&chan)
+                .and_then(|s| s.writer.as_mut())
+                .map(|w| write_to(w, &string, newline))
+        }
     };
-    if result.is_err() {
-        return interp.set_error(b"error writing to channel");
+    match result {
+        None => no_channel(interp, &chan),
+        Some(Err(_)) => interp.set_error(b"error writing to channel"),
+        Some(Ok(())) => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
     }
-    interp.set_result_bytes(b"");
-    Code::Ok
 }
 
 fn write_to(w: &mut impl Write, bytes: &[u8], newline: bool) -> std::io::Result<()> {
@@ -286,14 +340,23 @@ fn flush_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"stderr" => {
             let _ = std::io::stderr().flush();
         }
-        _ => match interp.channels.map.get_mut(&id) {
-            Some(st) => {
-                if let Some(w) = st.writer.as_mut() {
-                    let _ = w.flush();
+        _ => {
+            let found = {
+                let mut channels = interp.channels.borrow_mut();
+                match channels.map.get_mut(&id) {
+                    Some(st) => {
+                        if let Some(w) = st.writer.as_mut() {
+                            let _ = w.flush();
+                        }
+                        true
+                    }
+                    None => false,
                 }
+            };
+            if !found {
+                return no_channel(interp, &id);
             }
-            None => return no_channel(interp, &id),
-        },
+        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -304,9 +367,10 @@ fn eof_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"eof channelId");
     }
     let id = obj_bytes(argv[1]);
-    match interp.channels.map.get(&id) {
-        Some(st) => {
-            interp.set_result_bytes(if st.eof { b"1" } else { b"0" });
+    let eof = interp.channels.borrow().map.get(&id).map(|st| st.eof);
+    match eof {
+        Some(eof) => {
+            interp.set_result_bytes(if eof { b"1" } else { b"0" });
             Code::Ok
         }
         None => no_channel(interp, &id),
@@ -323,7 +387,7 @@ fn fconfigure_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if id != b"stdout"
         && id != b"stderr"
         && id != b"stdin"
-        && !interp.channels.map.contains_key(&id)
+        && !interp.channels.borrow().map.contains_key(&id)
     {
         return no_channel(interp, &id);
     }
@@ -360,24 +424,29 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"end" => SeekFrom::End(offset),
         _ => return interp.set_error(b"bad origin: must be start, current, or end"),
     };
-    let Some(st) = interp.channels.map.get_mut(&id) else {
-        return no_channel(interp, &id);
-    };
-    let r = if let Some(rd) = st.reader.as_mut() {
-        rd.seek(from)
-    } else if let Some(w) = st.writer.as_mut() {
-        w.seek(from)
-    } else {
-        Ok(0)
-    };
-    match r {
-        Ok(_) => {
-            st.eof = false;
-            interp.set_result_bytes(b"");
-            Code::Ok
+    let op = {
+        let mut channels = interp.channels.borrow_mut();
+        match channels.map.get_mut(&id) {
+            None => ChanOp::NoChannel,
+            Some(st) => {
+                let r = if let Some(rd) = st.reader.as_mut() {
+                    rd.seek(from)
+                } else if let Some(w) = st.writer.as_mut() {
+                    w.seek(from)
+                } else {
+                    Ok(0)
+                };
+                match r {
+                    Ok(_) => {
+                        st.eof = false;
+                        ChanOp::Bytes(Vec::new())
+                    }
+                    Err(e) => ChanOp::Io(e),
+                }
+            }
         }
-        Err(e) => io_error(interp, &e),
-    }
+    };
+    finish_chan(interp, &id, op)
 }
 
 fn tell_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -386,18 +455,26 @@ fn tell_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"tell channelId");
     }
     let id = obj_bytes(argv[1]);
-    let Some(st) = interp.channels.map.get_mut(&id) else {
-        return no_channel(interp, &id);
+    let pos = {
+        let mut channels = interp.channels.borrow_mut();
+        match channels.map.get_mut(&id) {
+            None => None,
+            Some(st) => Some(if let Some(rd) = st.reader.as_mut() {
+                rd.stream_position().unwrap_or(0)
+            } else if let Some(w) = st.writer.as_mut() {
+                w.stream_position().unwrap_or(0)
+            } else {
+                0
+            }),
+        }
     };
-    let pos = if let Some(rd) = st.reader.as_mut() {
-        rd.stream_position().unwrap_or(0)
-    } else if let Some(w) = st.writer.as_mut() {
-        w.stream_position().unwrap_or(0)
-    } else {
-        0
-    };
-    interp.set_result_bytes(pos.to_string().as_bytes());
-    Code::Ok
+    match pos {
+        Some(pos) => {
+            interp.set_result_bytes(pos.to_string().as_bytes());
+            Code::Ok
+        }
+        None => no_channel(interp, &id),
+    }
 }
 
 #[cfg(test)]

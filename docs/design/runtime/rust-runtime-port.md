@@ -1746,20 +1746,29 @@ full test sets). The unblocking fixes:
   elements; index specs accept the full `integer±integer` grammar (`string range
   $s 0 $last-1`); `namespace upvar` is implemented; `glob -types` filters by
   file-kind/permission.
-- **re-entrant Safe Base** — the cross-interp eval engine now supports genuine
-  parent⇄child recursion (a child's aliased `source` calls back into the parent,
-  which calls `interp invokehidden $child …` back into the *same* child while its
-  outer eval is on the stack — exactly C's nested `Tcl_Eval`). The child stays in
-  the parent's table and is evaluated through a raw `*mut Interp` into its
-  heap-stable `Box` (so the pointer survives map reorganisation); the `&mut`
-  aliasing across the boundary models C's shared `Tcl_Interp*` and is **bounded**
-  by `MAX_CROSS_INTERP_DEPTH` (native-stack cap) rather than forbidden. A child
-  deleted *during* its own eval (the self-deleting `exit`→`interp delete` alias)
-  has its teardown **deferred** until the eval unwinds (C's deferred
-  `Tcl_DeleteInterp`), so the boxed interp is never freed under a live raw
-  pointer. `safe::interpCreate`/`interpDelete` and the full Safe Base lifecycle
-  now work (safe.test: 0 run → **51 passed** of 155, no crashes; interp.test
-  94 → 104). `interp issafe`/`aliases` (+`$child` forms) added.
+- **re-entrant Safe Base (idiomatic, sound, lock-free)** — the cross-interp eval
+  engine supports genuine parent⇄child recursion (a child's aliased `source`
+  calls back into the parent, which calls `interp invokehidden $child …` back
+  into the *same* child while its outer eval is on the stack — exactly C's nested
+  `Tcl_Eval`). This is sound **by construction**, not by a bounded raw-pointer
+  hack: `Interp` is a cheap `Rc<InterpState>` handle and **every field of
+  `InterpState` is interior-mutable** (`RefCell`/`Cell`), borrowed only for the
+  span of a single operation — never across a sub-eval (the command resolver
+  already returns *cloned* `Command` handles so dispatch holds no table borrow).
+  Re-entry into an interp clones its handle (an `Rc` bump) and reaches the shared
+  state through `Rc` + `RefCell`, so there is **no aliased `&mut`** — a discipline
+  slip is a clean panic, never UB (Miri-clean for the interp layer). Children are
+  `RefCell<BTreeMap<…, Interp>>`; the parent link is a `Weak<InterpState>` (no
+  ownership cycle). Single-threaded throughout — `Rc`/`RefCell`/`Cell`, no locks.
+  `CROSS_INTERP_DEPTH` survives only as a native-stack bound. A child deleted
+  *during* its own eval (the self-deleting `exit`→`interp delete` alias) has its
+  teardown **deferred** (`eval_active`/`pending_delete`) until the eval unwinds
+  (C's deferred `Tcl_DeleteInterp`). `safe::interpCreate`/`interpDelete` and the
+  full Safe Base lifecycle work (safe.test: 0 run → **51 passed** of 155, no
+  crashes; interp.test 94 → 104). `interp issafe`/`aliases` (+`$child` forms)
+  added. The whole-runtime conversion (`&mut self` field access → interior
+  mutability) is behavior-preserving: the sweep is byte-identical before/after
+  (8654/18939), and all 237 lib tests + clippy/fmt stay green.
 
 Biggest remaining error-before-summary blockers, by file count:
 
