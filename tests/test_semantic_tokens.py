@@ -122,35 +122,58 @@ class TestSemanticTokens:
         types = [t["type"] for t in tokens]
         assert "string" in types
 
-    def test_braced_string_spans_full_literal(self):
-        """A braced word's string token must cover the whole ``{...}`` literal.
+    def test_braced_string_covers_full_inner_content(self):
+        """A braced word's string token must cover the whole inner content.
 
         Regression for issue #579: the braced word's text holds only the inner
-        content, but the token starts on the opening brace.  Emitting it without
-        re-adding the braces left the token one character short, so the closing
-        brace and the final inner character lost their colour (the reported
-        "last digit a different colour" symptom).
+        content, but the token started on the opening brace.  Emitting the inner
+        text from the brace position left the token one character short, so the
+        final inner character lost its colour (the reported "last digit a
+        different colour" symptom).  The braces themselves are grouping syntax
+        and are left uncoloured.
         """
         source = "puts {12345}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         string_tokens = [t for t in tokens if t["type"] == "string"]
         assert len(string_tokens) == 1
         tok = string_tokens[0]
-        # ``{12345}`` starts at column 5 and is 7 characters wide.
-        assert tok["char"] == source.index("{")
-        assert tok["length"] == len("{12345}")
+        # The token covers ``12345`` only — one column past the ``{``, no braces.
+        assert tok["char"] == source.index("{") + 1
+        assert tok["length"] == len("12345")
 
-    def test_braced_number_single_string_token(self):
-        """Braced numbers should produce exactly one full-width string token."""
+    def test_braced_literal_includes_last_character(self):
+        """The final inner character of a braced literal must be coloured.
+
+        Covers the user-reported cases where a trailing letter (``a``, ``g``)
+        or digit was dropped from the highlight.
+        """
+        for source, inner in (
+            ("set v {10 20 30 40 50a}", "10 20 30 40 50a"),
+            ("set v {ab cd efg}", "ab cd efg"),
+        ):
+            tokens = _decode_tokens(semantic_tokens_full(source))
+            string_tokens = [t for t in tokens if t["type"] == "string"]
+            assert len(string_tokens) == 1, source
+            tok = string_tokens[0]
+            assert tok["char"] == source.index("{") + 1, source
+            assert tok["length"] == len(inner), source
+
+    def test_braced_number_single_inner_token(self):
+        """Braced numbers produce one string token over the inner content."""
         source = "{42}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         assert len(tokens) == 1
         assert tokens[0]["type"] == "string"
-        assert tokens[0]["char"] == 0
-        assert tokens[0]["length"] == len("{42}")
+        assert tokens[0]["char"] == 1  # past the opening brace
+        assert tokens[0]["length"] == len("42")
 
-    def test_braced_string_multiline_covers_both_delimiters(self):
-        """A multi-line braced literal keeps the opening and closing braces."""
+    def test_empty_braces_emit_no_string_token(self):
+        """An empty ``{}`` braced word has no inner content to colour."""
+        tokens = _decode_tokens(semantic_tokens_full("set v {}"))
+        assert not [t for t in tokens if t["type"] == "string"]
+
+    def test_braced_string_multiline_excludes_delimiters(self):
+        """A multi-line braced literal colours inner content, not the braces."""
         source = "puts {line1\nline2}"
         tokens = _decode_tokens(semantic_tokens_full(source))
         string_tokens = sorted(
@@ -158,16 +181,16 @@ class TestSemanticTokens:
             key=lambda t: (t["line"], t["char"]),
         )
         assert len(string_tokens) == 2
-        # First line: ``{line1`` (brace + content, no trailing brace yet).
+        # First line: ``line1`` (one column past the ``{``, no brace).
         first = string_tokens[0]
         assert first["line"] == 0
-        assert first["char"] == source.index("{")
-        assert first["length"] == len("{line1")
-        # Second line: ``line2}`` (content + closing brace).
+        assert first["char"] == source.index("{") + 1
+        assert first["length"] == len("line1")
+        # Second line: ``line2`` only — the closing brace is excluded.
         second = string_tokens[1]
         assert second["line"] == 1
         assert second["char"] == 0
-        assert second["length"] == len("line2}")
+        assert second["length"] == len("line2")
 
     def test_quoted_string_still_spans_full_literal(self):
         """Quoted strings keep covering both quote delimiters (guards the fix)."""

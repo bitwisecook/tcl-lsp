@@ -921,6 +921,29 @@ def _collect_tokens(
             ):
                 modifiers = 1 << _MOD_INDEX["defaultLibrary"]
 
+            # Braced literal classified as a string: colour only the inner
+            # content and leave the ``{`` / ``}`` delimiters as grouping
+            # syntax.  ``tok.text`` already holds just the inner content, but
+            # the token starts on the opening brace, so shift one character
+            # right (via ``token_content_base``) and emit from there; the
+            # closing brace is simply not covered.  Emitting ``tok.text`` from
+            # ``tok.start`` instead would start on the brace and fall one
+            # character short, dropping the last inner character (issue #579).
+            if tok.type is TokenType.STR and type_idx == _TYPE_INDEX["string"]:
+                content_offset, content_line, content_col = token_content_base(tok)
+                _append_text_token(
+                    tokens,
+                    start=SourcePosition(
+                        line=content_line,
+                        character=content_col,
+                        offset=content_offset,
+                    ),
+                    text=tok.text,
+                    type_idx=type_idx,
+                    modifiers=modifiers,
+                )
+                continue
+
             # Reconstruct the full source representation so
             # len(rendered) matches the source span.
             if tok.type is TokenType.VAR:
@@ -937,15 +960,6 @@ def _collect_tokens(
                     rendered = '"' + tok.text
                 else:
                     rendered = '"' + tok.text + '"'
-            elif tok.type is TokenType.STR:
-                # A braced word's text holds only the inner content; the
-                # ``{``/``}`` delimiters are stripped by the lexer but the
-                # token still starts on the opening brace.  Re-add both braces
-                # so the rendered span covers the whole ``{...}`` literal,
-                # matching the quoted-string convention above.  Without this
-                # the token is one character short and the closing brace plus
-                # the final inner character lose their colour (issue #579).
-                rendered = "{" + tok.text + "}"
             else:
                 rendered = tok.text
 
