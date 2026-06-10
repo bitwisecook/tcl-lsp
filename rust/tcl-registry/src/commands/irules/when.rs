@@ -17,6 +17,30 @@ fn when_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     Vec::new()
 }
 
+/// Keyword tail values: `priority` / `timing` after the event name.
+const WHEN_KEYWORD_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "priority",
+        detail: "Declare handler priority.",
+    },
+    ArgValue {
+        value: "timing",
+        detail: "Enable/disable timing metrics for this handler.",
+    },
+];
+
+/// Timing values: `enable` / `disable` after the `timing` keyword.
+const WHEN_TIMING_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "enable",
+        detail: "Enable timing metrics for this handler.",
+    },
+    ArgValue {
+        value: "disable",
+        detail: "Disable timing metrics for this handler.",
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "when",
@@ -50,6 +74,18 @@ pub fn spec() -> CommandSpec {
                 kind: FormKind::Default,
                 synopsis: "when EVENT priority N { body }",
             },
+        ],
+        // Command-level arg-value completion for the keyword tail:
+        // `when EVENT priority|timing …` and `when EVENT timing
+        // enable|disable …`.  Even indices that follow `timing` carry
+        // the enable/disable values, odd indices carry the
+        // priority/timing keywords.  Event-name completion at index 0
+        // is handled separately via `Traits::IS_EVENT_HANDLER`.
+        arg_values: &[
+            (1, WHEN_KEYWORD_VALUES),
+            (2, WHEN_TIMING_VALUES),
+            (3, WHEN_KEYWORD_VALUES),
+            (4, WHEN_TIMING_VALUES),
         ],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

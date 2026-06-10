@@ -276,6 +276,31 @@ pub fn completions(
                         }
                     }
                 }
+                // Command-level positional arg-value completion — the
+                // bareword value sets declared directly on the command
+                // (not a subcommand).  Covers iRules `when EVENT timing
+                // enable|disable` and `HTTP::respond <status>
+                // content|noserver|version`.  The argument index is the
+                // 0-based position after the command name (`word_idx - 1`).
+                if word_idx >= 1 {
+                    let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
+                    let mut values = spec.arg_values_at(arg_idx);
+                    // `when`'s keyword tail carries an enumerable value
+                    // slot only after the `timing` keyword (the `priority`
+                    // keyword takes a numeric argument).  Mirror
+                    // completion.py::_when_argument_values — even-index
+                    // value slots are gated on the preceding literal being
+                    // `timing`.
+                    if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+                        && arg_idx >= 2
+                        && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
+                    {
+                        values = &[];
+                    }
+                    if !values.is_empty() {
+                        return arg_value_completions(values, &partial);
+                    }
+                }
             }
         }
     }
