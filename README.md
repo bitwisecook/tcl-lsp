@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/Tcl LSP Logo-8bit-512.png" alt="Tcl LSP" width="128">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/tcl-lsp-logo-dark.svg">
+    <img src="docs/tcl-lsp-logo.svg" alt="Tcl LSP" width="128">
+  </picture>
 </p>
 
 # tcl-lsp
