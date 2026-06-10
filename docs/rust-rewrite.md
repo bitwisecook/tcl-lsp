@@ -4425,12 +4425,12 @@ worklist):** completion 34, irules 24, code_actions 17, semantic_tokens 14,
 hover 10, rename 9, commands (executeCommand) 8, signature_help 5, references 4,
 recovery 3, navigation_extras 3, editor_features 3, document_highlight 1.
 
-### SYNC-JUN10-phase1 — provider parity increments (lsp_e2e 220→245 passing)
+### SYNC-JUN10-phase1 — provider parity increments (lsp_e2e 220→280 passing)
 
 Worst-first provider fixes against the above baseline (each landed with crate
 unit tests + clippy/fmt clean, no regressions):
 
-- **semantic_tokens 14→7.** Bareword argument words now classify as `string`
+- **semantic_tokens 14→3.** Bareword argument words now classify as `string`
   (`classify_arg_token` ESC fallback, mirroring Python `_classify_token`).
   **Recursive tokenisation** ported (`collect_script` / `collect_expr`):
   `ArgRole::Body` braced bodies are re-segmented, `ArgRole::Expr` braced
@@ -4439,30 +4439,56 @@ unit tests + clippy/fmt clean, no regressions):
   substitutions recurse — driven by the registry's `arg_indices_for_role`
   (incl. the dynamic `if`/`dict`/`foreach` resolvers). BigIP object-ref
   overlay now wins over the generic bareword `string`. Operator command
-  heads (`+ 3 4`) classify as `operator`. *Remaining (7): `oo::` namespace
-  split, `::cmd` global-qualifier over-emit, `-opt` decorator kind,
-  subcommand `defaultLibrary` modifier, `switch -regexp` arm patterns,
-  bareword backslash-escape sub-tokens.*
-- **rename 9→2.** Variable rename now resolves from the *definition* site
-  (`set x`, no `$`) via `var_name_at_definition_offset`; collision gates for
-  variable-into-existing-var and proc-into-existing-proc; namespace qualifier
-  preserved on the declaration token. *Remaining (2): namespaced-proc decl
+  heads (`+ 3 4`) classify as `operator`. Recognised `-option` switches →
+  `decorator`; known subcommand words → `keyword`+`defaultLibrary`;
+  namespace-qualified heads (`oo::class`, `::set`) split into a `namespace`
+  prefix + command token. *Remaining (3): proc-name `definition` modifier,
+  `switch -regexp` arm patterns, bareword backslash-escape sub-tokens.*
+- **completion 34→14.** Added the `textEdit` architecture (`CompletionEdit` →
+  LSP `CompletionTextEdit`): variable completion computes the `$`→token-end
+  replace range (brace/`\X`-aware), switch completion the dash→cursor range;
+  scope-aware variable enumeration (`visible_variable_names`); option/builtin
+  `documentation`; unsubstitutable-name filtering. *Remaining (14): array
+  element completion (needs `VarDef.array_indices`), cross/same-namespace
+  qualification, scope-binding aliases (dict for/with/update, upvar, namespace
+  upvar, try on-error, uplevel) — all analyser-depth.*
+- **signature_help 5→0.** Line-end cursor clamp, arg-position guard, Python-
+  faithful proc label (short name, `?name?` optionals), unknown-subcommand →
+  none, summary+snippet documentation.
+- **rename 9→2.** Definition-site variable rename, var/proc collision gates,
+  namespace-qualifier preservation. *Remaining (2): namespaced-proc decl
   short-form; one shared-server flaky.*
 - **executeCommand 8→2.** Wired `describeIruleEvent` / `describeIruleCommand`
   / `listIruleEvents` / `diagramData` / `getEffectiveConfig`. *Remaining (2):
-  `fixAllSafeIssues`, `optimiseDocument` (larger — code-action fix-all +
-  optimiser-applied source).*
-- **navigation_extras 3→0.** Call-hierarchy items use the short proc display
-  name (`helper`, not `::helper`); lookups match short-or-qualified.
-- **document_highlight 1→0.** Proc/class/method highlights use `Text` kind
-  (only variables carry Write/Read).
-- **server identity:** `serverInfo.name` corrected to `tcl-lsp`.
+  `fixAllSafeIssues`, `optimiseDocument` (code-action fix-all + optimiser-
+  applied source).*
+- **editor_features 3→0.** Code-lens `data.qname`; document-link tooltips +
+  `package require` links.
+- **hover 10→7.** Hover on command `-option` tokens. *Remaining (7):
+  namespace-var, binary-spec, regexp-literal, alias hover — provider depth.*
+- **navigation_extras 3→0** (short call-hierarchy names);
+  **document_highlight 1→0** (proc/class/method use `Text`); **server
+  identity** `serverInfo.name` → `tcl-lsp`.
 
-**Current native-server e2e: 245 passed / 110 failed / 1 skipped.** Largest
-remaining buckets: completion 34 (the `textEdit` range-computation
-architecture — variable/switch/array completion all need it — plus scope-
-binding features), irules 24 (domain features), code_actions 17 (refactor-
-action families), hover 10, semantic_tokens 7, signature_help 5.
+**Current native-server e2e: 280 passed / 75 failed / 1 skipped** (from
+220/135). The contained provider-parity gaps are closed; the remaining 75 map
+to **genuinely-unported subsystems**, which Phase 1's gate explicitly defers
+("remaining reds are only genuinely-unported domain features"):
+
+- **code_actions 17 + most iRules quick-fixes** — the refactor / quick-fix
+  transform families (extract/inline proc, DeMorgan, expression-invert,
+  continuation-comment, IPv4↔IPv6, doc-comment generation, `eval`→`list`, the
+  IRULE3001/T103/T106 encode-wrap fixes). This is the `core/refactoring/` →
+  `tcl-refactor` port (a distinct crate in the plan), not a provider bug.
+- **iRules domain 24** — F5 profile-requirement data, event→profile
+  generation, timing/option keyword data. The `core/bigip` / dialect-data
+  depth.
+- **completion 14 / references 4 / hover 7** — analyser-depth: scope-binding
+  alias tracking, `array_indices`, namespace resolution, multi-write var
+  references, binary/alias hover. The `core/analysis` deepening (Phase 2).
+- **recovery 2** — nested / multi-break ghost-token recovery (parser depth);
+  **semantic_tokens 3 / rename 2** — small provider tails (one rename is a
+  shared-server flaky).
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
