@@ -70,6 +70,7 @@ def is_bigip_conf_name(uri: str) -> bool:
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename in _BIGIP_CONF_NAMES
 
+
 # BIG-IP file extensions for discovery beyond the canonical basenames.
 # ``.scf`` is the F5 single-config-file export format (always BIG-IP);
 # ``.conf`` files are tried opportunistically — the parser is tolerant
