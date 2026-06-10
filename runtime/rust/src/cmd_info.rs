@@ -41,6 +41,8 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"locals" => set_list(interp, argv, Interp::local_var_names),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
+        b"object" => crate::cmd_oo::info_object(interp, argv),
+        b"class" => crate::cmd_oo::info_class(interp, argv),
         b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),
         b"patchlevel" => fixed(interp, argv, b"info patchlevel", b"9.0.3"),
         // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
