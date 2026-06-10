@@ -204,6 +204,88 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
     defs
 }
 
+/// Out-variable names assigned by `catch` / `regexp` / `scan` command
+/// substitutions appearing in `condition` (an `if`/`while` condition expr).
+/// These builtins write result variables as a side effect, so a read of
+/// such a variable in the guarded body is **not** read-before-set — the
+/// CFG records them as defs on the synthetic `<cond>` statement so the
+/// def-use / W210 analysis sees the write. Mirrors the Python analyser
+/// modelling the condition substitution's writes (FP-RBS family).
+pub(crate) fn condition_command_out_vars(condition: &ExprNode) -> Vec<String> {
+    let mut cmds = Vec::new();
+    collect_expr_commands(condition, &mut cmds);
+    let mut out = Vec::new();
+    for cmd_text in &cmds {
+        let trimmed = cmd_text.trim();
+        let inner = trimmed
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .unwrap_or(trimmed);
+        cmd_substitution_out_vars(&tokenise_to_words(inner), &mut out);
+    }
+    out
+}
+
+/// A word usable as a variable name: identifier characters only (so
+/// `{script}`, `$ref`, `[sub]` and quoted words are rejected).
+fn is_bare_var_word(word: &str) -> bool {
+    !word.is_empty()
+        && word
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+}
+
+fn push_out_var(word: &str, out: &mut Vec<String>) {
+    if is_bare_var_word(word) {
+        let normalised = normalise_var_name(word);
+        if !normalised.is_empty() && !out.iter().any(|v| v == normalised) {
+            out.push(normalised.to_owned());
+        }
+    }
+}
+
+/// Out-vars written by the builtin named by `words[0]`, appended to `out`.
+fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
+    match words.first().map(String::as_str) {
+        // `catch SCRIPT ?resultVar? ?optionsVar?`
+        Some("catch") => {
+            if let Some(w) = words.get(2) {
+                push_out_var(w, out);
+            }
+            if let Some(w) = words.get(3) {
+                push_out_var(w, out);
+            }
+        }
+        // `scan STRING FORMAT ?varName ...?`
+        Some("scan") => {
+            for w in words.iter().skip(3) {
+                push_out_var(w, out);
+            }
+        }
+        // `regexp ?switches? EXP STRING ?matchVar subVar ...?`
+        Some("regexp") => {
+            let mut i = 1;
+            while i < words.len() && words[i].starts_with('-') {
+                if words[i] == "--" {
+                    i += 1;
+                    break;
+                }
+                // `-start` consumes a value; every other regexp switch is a
+                // valueless flag.
+                if words[i] == "-start" {
+                    i += 1;
+                }
+                i += 1;
+            }
+            // Skip EXP and STRING; the remaining words are out-vars.
+            for w in words.iter().skip(i + 2) {
+                push_out_var(w, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Return `true` if *expr* contains at least one command
 /// substitution (`[cmd ...]`). Used by CFG lowering to decide
 /// whether a branch condition needs a synthetic `<cond>` placeholder
@@ -236,7 +318,7 @@ pub fn expr_has_command(expr: &ExprNode) -> bool {
 /// Respects short-circuit evaluation: for `&&`/`||`, the RHS is
 /// always included (conservative — we do not attempt compile-time
 /// constant evaluation in this port).
-fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
+pub(crate) fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
     match expr {
         ExprNode::Command { text, .. } => {
             out.push(text.clone());
