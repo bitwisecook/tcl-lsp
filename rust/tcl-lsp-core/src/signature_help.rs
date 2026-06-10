@@ -124,6 +124,10 @@ pub fn signature_help(
                 let sub_param = active_param.saturating_sub(1);
                 return subcommand_signature_help(&command, sub, sub_param);
             }
+            // A first arg is present but isn't a known subcommand — offer no
+            // signature rather than the generic command-level one (`string
+            // bogus` must not surface `string option arg …`).
+            return None;
         }
     }
     builtin_signature_help(spec, active_param)
@@ -157,14 +161,25 @@ fn command_context_with_args(
 
     let cursor_offset = {
         let line_index = LineIndex::new(source);
-        if u32::try_from(line_index.line_count()).unwrap_or(0) <= line {
+        let line_count = u32::try_from(line_index.line_count()).unwrap_or(0);
+        if line_count <= line {
             return None;
         }
         let line_start = line_index.line_start(line);
         let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
-        // Clamp to the end of the source so callers passing a
-        // virtual EOL column don't index past the buffer.
-        line_start.saturating_add(character).min(source_len)
+        // Clamp to the END OF THIS LINE (before its `\n`), not the end of the
+        // source: a client may report a virtual column past EOL, and crossing
+        // into the newline would reset the command segment and drop the
+        // signature (matching Python's per-line cursor clamp).
+        let line_end = if line + 1 < line_count {
+            line_index.line_start(line + 1).saturating_sub(1)
+        } else {
+            source_len
+        };
+        line_start
+            .saturating_add(character)
+            .min(line_end)
+            .min(source_len)
     };
 
     // Lex the document up to the cursor's byte offset.  We
@@ -228,9 +243,10 @@ fn command_context_with_args(
     } else {
         u32::try_from(arg_token_count.saturating_sub(1)).ok()?
     };
-    if active_param == 0 && !at_new_word {
-        // Cursor still on the command name itself — no
-        // signature yet.
+    if arg_token_count == 0 && !at_new_word {
+        // Cursor still inside the command-name word itself (no argument typed
+        // yet) — no signature.  When an argument *is* present, a cursor on it
+        // is a real arg position even at index 0 (`greet World`).
         return None;
     }
     Some((command, args, active_param))
@@ -375,11 +391,18 @@ fn builtin_signature_help(
         active_param.min(max_idx)
     };
 
-    let documentation = if hover.summary.is_empty() {
-        None
-    } else {
-        Some(hover.summary.to_owned())
-    };
+    // Signature documentation renders the fuller hover text (summary +
+    // extended snippet) that hover itself omits — mirrors Python's
+    // `_signature_documentation` (`hover.render_markdown`), so e.g. `set`
+    // surfaces its "With one argument…" description.
+    let mut doc_parts: Vec<&str> = Vec::new();
+    if !hover.summary.is_empty() {
+        doc_parts.push(hover.summary);
+    }
+    if !hover.snippet.is_empty() {
+        doc_parts.push(hover.snippet);
+    }
+    let documentation = (!doc_parts.is_empty()).then(|| doc_parts.join("\n\n"));
 
     Some(SignatureHelp {
         signatures: vec![SignatureInformation {
@@ -393,29 +416,32 @@ fn builtin_signature_help(
 }
 
 fn proc_signature_help(proc_def: &ProcDef, active_param: u32) -> SignatureHelp {
-    let parameters: Vec<ParameterInformation> = proc_def
-        .params
-        .iter()
-        .map(|p| {
-            let label = if p.has_default {
-                let default = p.default_value.as_deref().unwrap_or("");
-                format!("{{{} {}}}", p.name, default)
-            } else {
-                p.name.clone()
-            };
-            ParameterInformation { label }
-        })
-        .collect();
+    // Mirrors Python `_proc_signature_help`: optional (defaulted) params show
+    // as `?name?` in the parameter list and `?name default?` in the signature
+    // label, which itself is `<short-name> <params>` (no `proc` prefix, short
+    // — not qualified — name).
+    let mut parameters: Vec<ParameterInformation> = Vec::with_capacity(proc_def.params.len());
+    let mut label_parts: Vec<String> = Vec::with_capacity(proc_def.params.len());
+    for p in &proc_def.params {
+        if p.has_default {
+            let default = p.default_value.as_deref().unwrap_or("");
+            parameters.push(ParameterInformation {
+                label: format!("?{}?", p.name),
+            });
+            label_parts.push(format!("?{} {}?", p.name, default));
+        } else {
+            parameters.push(ParameterInformation {
+                label: p.name.clone(),
+            });
+            label_parts.push(p.name.clone());
+        }
+    }
 
-    let label = format!(
-        "proc {} {}",
-        proc_def.qualified_name,
-        parameters
-            .iter()
-            .map(|p| p.label.as_str())
-            .collect::<Vec<_>>()
-            .join(" "),
-    );
+    let label = if label_parts.is_empty() {
+        proc_def.name.clone()
+    } else {
+        format!("{} {}", proc_def.name, label_parts.join(" "))
+    };
 
     let active_parameter = if parameters.is_empty() {
         0
@@ -466,7 +492,7 @@ mod tests {
         assert_eq!(h.signatures.len(), 1);
         assert_eq!(h.signatures[0].parameters.len(), 2);
         assert_eq!(h.active_parameter, 0);
-        assert!(h.signatures[0].label.contains("::greet"));
+        assert!(h.signatures[0].label.contains("greet"));
     }
 
     #[test]
@@ -593,9 +619,10 @@ mod tests {
         let h = signature_help(src, 1, 5, &analysis, Some(&registry))
             .expect("expected user proc signature help");
         // User-proc label uses `proc ` prefix; built-in label
-        // uses the command-name prefix.
+        // The user-proc label is `<name> <params>` (short name, no `proc`
+        // prefix); the built-in synopsis would not carry `custom_arg`.
         assert!(
-            h.signatures[0].label.starts_with("proc "),
+            h.signatures[0].label.starts_with("puts"),
             "expected user proc to win; got label {label}",
             label = h.signatures[0].label,
         );
@@ -654,7 +681,7 @@ mod tests {
             signature_help(src, 2, 7, &analysis, None).expect("expected signature help for `b`");
         // The signature should be for `b`, not `a`.
         assert!(
-            h.signatures[0].label.contains("::b"),
+            h.signatures[0].label.starts_with("b "),
             "expected label for `b`, got {label}",
             label = h.signatures[0].label,
         );
@@ -685,7 +712,7 @@ mod tests {
             .expect("expected alias-resolved signature help");
         assert_eq!(h.signatures.len(), 1);
         assert!(
-            h.signatures[0].label.contains("::greet"),
+            h.signatures[0].label.contains("greet"),
             "expected greet's signature via alias; got {label}",
             label = h.signatures[0].label,
         );
@@ -715,20 +742,16 @@ mod tests {
     }
 
     #[test]
-    fn subcommand_signature_falls_back_for_unknown_subcommand() {
-        // `string nonsense $arg` — `nonsense` isn't a string
-        // subcommand, so the provider should fall back to the
-        // command-level signature.
+    fn subcommand_signature_none_for_unknown_subcommand() {
+        // `string nonsense $arg` — `nonsense` isn't a string subcommand, so
+        // the provider offers no signature (it must not surface the generic
+        // command-level `string option arg …`).  Matches the Python server.
         let src = "string nonsense \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let h = signature_help(src, 0, 16, &analysis, Some(&registry))
-            .expect("expected fallback signature");
-        // Falls back to the command-level synopsis.
         assert!(
-            h.signatures[0].label.starts_with("string"),
-            "got label {label}",
-            label = h.signatures[0].label,
+            signature_help(src, 0, 16, &analysis, Some(&registry)).is_none(),
+            "unknown subcommand should yield no signature",
         );
     }
 
@@ -747,7 +770,7 @@ mod tests {
         let h =
             signature_help(src, 3, 2, &analysis, None).expect("expected chained alias resolution");
         assert!(
-            h.signatures[0].label.contains("::c"),
+            h.signatures[0].label.contains("c"),
             "expected target `c`; got {label}",
             label = h.signatures[0].label,
         );
