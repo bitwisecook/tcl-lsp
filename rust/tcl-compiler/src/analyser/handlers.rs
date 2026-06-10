@@ -763,6 +763,12 @@ impl Analyser {
                 }
                 i += 2;
             } else if matches!(kw, "on" | "trap") && i + 3 < args.len() {
+                // `on CODE {msg opts} body` / `trap PAT {msg opts} body` — the
+                // var-list at i+2 binds the result message + options dict in
+                // the handler body, so define them before walking it.
+                if let Some(vl_tok) = arg_tokens.get(i + 2).copied() {
+                    self.define_vars_from_list(&args[i + 2], vl_tok, scope_path);
+                }
                 if let Some(body_tok) = arg_tokens.get(i + 3).copied() {
                     self.analyse_body(&args[i + 3], body_tok, scope_path);
                 }
@@ -772,6 +778,100 @@ impl Analyser {
             }
         }
         true
+    }
+
+    /// Register the local-alias names introduced by `upvar`.
+    ///
+    /// `upvar ?level? otherVar myVar ?otherVar myVar ...?` — an optional
+    /// leading level makes the arg count odd; each pair after it binds the
+    /// local alias `myVar`.  Mirrors `_handle_upvar_command`.
+    pub fn handle_upvar_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "upvar" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let pair_start = usize::from(args.len() % 2 == 1);
+        let mut i = pair_start + 1;
+        while i < args.len() && i < arg_tokens.len() {
+            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            i += 2;
+        }
+    }
+
+    /// Register the local aliases introduced by `namespace upvar`.
+    ///
+    /// `namespace upvar nsname otherVar myVar ?otherVar myVar ...?` — `myVar`
+    /// lives at indices 3, 5, 7, …  Mirrors `_handle_namespace_upvar_command`.
+    pub fn handle_namespace_upvar_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "namespace" || args.len() < 4 || args[0] != "upvar" {
+            return;
+        }
+        let mut i = 3;
+        while i < args.len() && i < arg_tokens.len() {
+            self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+            i += 2;
+        }
+    }
+
+    /// Register loop / alias variables introduced by `dict for` / `dict
+    /// update` / `dict with`.  Mirrors `_handle_dict_var_command`.
+    pub fn handle_dict_var_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "dict" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        match args[0].as_str() {
+            // `dict for {keyVar valueVar} dictValue body`.
+            "for" if args.len() >= 4 && arg_tokens.len() >= 2 => {
+                self.define_vars_from_list(&args[1], arg_tokens[1], scope_path);
+            }
+            // `dict update dictVar key1 var1 ?key2 var2 ...? body` — vars at
+            // 3, 5, 7, … (i.e. `len-2` last).
+            "update" if args.len() >= 5 && (args.len() - 3) % 2 == 0 => {
+                let mut i = 3;
+                while i + 1 < args.len() {
+                    if let Some(tok) = arg_tokens.get(i) {
+                        self.define_var(&args[i], *tok, scope_path, false, None);
+                    }
+                    i += 2;
+                }
+            }
+            // `dict with dictVar body` — only the no-path case is statically
+            // resolvable, and only when the dict came from a const literal.
+            "with" if args.len() == 3 && arg_tokens.len() >= 2 => {
+                let Some(const_val) = self
+                    .lookup_const_string(&args[1], scope_path)
+                    .map(str::to_owned)
+                else {
+                    return;
+                };
+                let elements = crate::tcl_expr_eval::split_tcl_list(&const_val);
+                let mut i = 0;
+                while i < elements.len() {
+                    if !elements[i].is_empty() {
+                        self.define_var(&elements[i], arg_tokens[1], scope_path, false, None);
+                    }
+                    i += 2;
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
@@ -2756,10 +2856,11 @@ mod tests {
             &[],
         );
         assert!(a.result.global_scope.variables.contains_key("q"));
-        // varList NOT defined — matches Python's ``_handle_try``
-        // which doesn't define those bindings.
-        assert!(!a.result.global_scope.variables.contains_key("result"));
-        assert!(!a.result.global_scope.variables.contains_key("options"));
+        // The `on error {result options}` var-list binds the result message +
+        // options dict in the handler body — both are defined (so completion
+        // offers `$result` / `$options`), matching the Python server.
+        assert!(a.result.global_scope.variables.contains_key("result"));
+        assert!(a.result.global_scope.variables.contains_key("options"));
     }
 
     #[test]

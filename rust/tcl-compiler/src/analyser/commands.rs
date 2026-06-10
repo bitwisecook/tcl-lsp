@@ -343,6 +343,11 @@ impl Analyser {
         self.handle_set_command(cmd_name, args, arg_tokens, arg_single, scope_path);
         self.handle_var_declaration_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_incr_command(cmd_name, args, arg_tokens, scope_path);
+        // Local-alias / loop-var bindings: `upvar`, `namespace upvar`, and
+        // `dict for/update/with` introduce names visible to completion / hover.
+        self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_namespace_upvar_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_dict_var_command(cmd_name, args, arg_tokens, scope_path);
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
