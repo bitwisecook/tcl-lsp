@@ -572,11 +572,10 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
         // Braced `${name}` — the span may omit the closing brace.
         inner.strip_suffix('}').unwrap_or(inner)
     } else {
-        // Unbraced `$arr(idx)` — keep everything before the index.
-        match rest.find('(') {
-            Some(i) => &rest[..i],
-            None => rest,
-        }
+        // Unbraced `$arr(idx)` — keep the index too, so `record_var_read`
+        // (via `split_array_name`) can record the element on the array var
+        // (it normalises to the base name for the reference itself).
+        rest
     };
     if name.is_empty() {
         None
