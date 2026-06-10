@@ -1695,10 +1695,11 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | Initial baseline | 86 / 168 | 81 | 5572 / 11022 |
 | + reimport / build-info | 94 / 168 | 73 | 6139 / 12299 |
 | + totitle / nsdelete / file / pkg-require-global | 105 / 168 | 62 | 6830 / 14079 |
-| + panic fixes / qualified-name fallback | **110 / 168** | 57 | **7214 / 15345** |
+| + panic fixes / qualified-name fallback | 110 / 168 | 57 | 7214 / 15345 |
+| + `binary format`/`scan` | **116 / 168** | 51 | **8325 / 17673** |
 
-Cumulative: **+24 files** now run to a tcltest summary, errored-before-summary
-**81 → 57**, **+1642 tests pass**, and **zero panics** (the passed *count*
+Cumulative: **+30 files** now run to a tcltest summary, errored-before-summary
+**81 → 51**, **+2753 tests pass**, and **zero panics** (the passed *count*
 matters more than the ~47% rate — the denominator grows as more files run their
 full test sets). The unblocking fixes:
 
@@ -1714,14 +1715,14 @@ full test sets). The unblocking fixes:
   value exceeded`), `proc` `args`-split with all-defaulted positionals, and a
   required parameter after a defaulted one (`wrong # args`);
 - relative qualified command names fall back to the global namespace (so
-  `tcl::build-info` resolves from inside a namespace).
+  `tcl::build-info` resolves from inside a namespace);
+- `binary format`/`binary scan` (the core type codes — see `cmd_binary`).
 
 Biggest remaining error-before-summary blockers, by file count:
 
 | Blocker | Files | Notes |
 |---|---|---|
-| `binary` command | 8 | `binary format`/`scan` (own chunk) |
-| `interp` `command`/`children` | 4+4 | child-interp support/introspection |
+| `interp` child interpreters (`create`/`children`/`eval`/…) | ~10 | a substantial feature (sub-`Interp`s) |
 | `tcl::oo` package | 4 | TclOO (own chunk) |
 | `tcl::test` package | 2 | the C-tier test commands |
 
