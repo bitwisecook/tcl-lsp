@@ -790,6 +790,178 @@ fn extract_inline_actions(
     Vec::new()
 }
 
+// ---------------------------------------------------------------------------
+// iRules taint quick-fixes — driven by the *context* diagnostics the editor
+// sends (the analyser may not have re-emitted them), so they take a separate
+// entry point.
+// ---------------------------------------------------------------------------
+
+/// A diagnostic supplied in the code-action request context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextDiagnostic {
+    /// Diagnostic code (e.g. `IRULE3001`).
+    pub code: String,
+    /// Human-readable message (carries the tainted `$var`).
+    pub message: String,
+    /// The diagnostic's range.
+    pub range: LspRange,
+}
+
+const HTML_ENCODE_PROC: &str =
+    "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
+const REGEX_QUOTE_PROC: &str =
+    "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+
+/// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
+/// double-encode removal).  Mirrors the taint arm of
+/// `server/features/code_actions.py`.
+#[must_use]
+pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
+    let mut out = Vec::new();
+    for d in diags {
+        out.extend(taint_quickfix(source, d));
+    }
+    out
+}
+
+/// Extract the variable name (no `$`/braces) named in a taint message.
+fn taint_var_name(message: &str) -> Option<String> {
+    let bytes = message.as_bytes();
+    let dollar = message.find('$')?;
+    let mut i = dollar + 1;
+    let braced = bytes.get(i) == Some(&b'{');
+    if braced {
+        i += 1;
+    }
+    let start = i;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_alphanumeric() || c == b'_' || c == b':' {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if i == start {
+        return None;
+    }
+    Some(message[start..i].to_string())
+}
+
+/// Find the `$name` / `${name}` reference for `var` on the diagnostic's start
+/// line, returning `(char_start, char_end, matched_text)`.
+fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
+    let braced = format!("${{{var}}}");
+    let bare = format!("${var}");
+    if let Some(b) = line.find(&braced) {
+        let cstart = line[..b].chars().count();
+        return Some((cstart, cstart + braced.chars().count(), braced));
+    }
+    // Bare form — require the next char not to be a var-continuation so `$ab`
+    // doesn't match for `$a`.
+    let mut search_from = 0;
+    while let Some(rel) = line[search_from..].find(&bare) {
+        let b = search_from + rel;
+        let after = line[b + bare.len()..].chars().next();
+        if after.map_or(true, |c| !(c.is_alphanumeric() || c == '_' || c == ':')) {
+            let cstart = line[..b].chars().count();
+            return Some((cstart, cstart + bare.chars().count(), bare));
+        }
+        search_from = b + bare.len();
+    }
+    None
+}
+
+fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
+    let line_no = d.range.start_line as usize;
+    let Some(line) = source.split('\n').nth(line_no) else {
+        return Vec::new();
+    };
+    let Some(var) = taint_var_name(&d.message) else {
+        return Vec::new();
+    };
+
+    // T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
+    if d.code == "T106" {
+        let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
+            return Vec::new();
+        };
+        let chars: Vec<char> = line.chars().collect();
+        // Scan left for the enclosing `[`, right for `]`.
+        let mut lb = vstart;
+        while lb > 0 && chars[lb - 1] != '[' {
+            lb -= 1;
+        }
+        let mut rb = vend;
+        while rb < chars.len() && chars[rb] != ']' {
+            rb += 1;
+        }
+        if lb == 0 || rb >= chars.len() {
+            return Vec::new();
+        }
+        let start = char_col_to_utf16_local(line, lb - 1);
+        let end = char_col_to_utf16_local(line, rb + 1);
+        return vec![CodeAction {
+            title: "Remove redundant encoder".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: d.range.start_line,
+                    start_character: start,
+                    end_line: d.range.start_line,
+                    end_character: end,
+                },
+                new_text: matched,
+            }],
+            kind: ActionKind::QuickFix,
+            command: None,
+        }];
+    }
+
+    let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {
+        "IRULE3001" => ("html_encode", Some(HTML_ENCODE_PROC)),
+        "IRULE3002" => ("URI::encode", None),
+        "T103" => ("regex::quote", Some(REGEX_QUOTE_PROC)),
+        _ => return Vec::new(),
+    };
+    let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
+        return Vec::new();
+    };
+    let start = char_col_to_utf16_local(line, vstart);
+    let end = char_col_to_utf16_local(line, vend);
+    let mut edits = vec![crate::rename::TextEdit {
+        range: LspRange {
+            start_line: d.range.start_line,
+            start_character: start,
+            end_line: d.range.start_line,
+            end_character: end,
+        },
+        new_text: format!("[{encoder} {matched}]"),
+    }];
+    // Insert the helper proc at the top of the file when it isn't defined and
+    // the encoder is a user proc (html_encode / regex::quote; URI::encode is
+    // a built-in F5 command).
+    if let Some(template) = proc_template {
+        let proc_name = encoder;
+        if !source.contains(&format!("proc {proc_name}")) {
+            edits.push(crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: 0,
+                },
+                new_text: format!("{template}\n"),
+            });
+        }
+    }
+    vec![CodeAction {
+        title: format!("Wrap ${var} with [{encoder}]"),
+        edits,
+        kind: ActionKind::QuickFix,
+        command: None,
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

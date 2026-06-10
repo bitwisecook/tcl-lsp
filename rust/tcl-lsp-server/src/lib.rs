@@ -2621,10 +2621,39 @@ impl LanguageServer for Backend {
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        // Lift the request-context diagnostics (the editor sends the ones it
+        // currently shows) so context-driven quick-fixes — e.g. the iRules
+        // taint encode-wrap fixes — can act on them even when the analyser
+        // didn't re-emit them.
+        let context_diags: Vec<core_code_actions::ContextDiagnostic> = params
+            .context
+            .diagnostics
+            .iter()
+            .filter_map(|d| {
+                let code = match d.code.as_ref()? {
+                    tower_lsp::lsp_types::NumberOrString::String(s) => s.clone(),
+                    tower_lsp::lsp_types::NumberOrString::Number(n) => n.to_string(),
+                };
+                Some(core_code_actions::ContextDiagnostic {
+                    code,
+                    message: d.message.clone(),
+                    range: CoreLspRange {
+                        start_line: d.range.start.line,
+                        start_character: d.range.start.character,
+                        end_line: d.range.end.line,
+                        end_character: d.range.end.character,
+                    },
+                })
+            })
+            .collect();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
                 &doc.text, range, &registry,
+            ));
+            actions.extend(core_code_actions::context_diagnostic_actions(
+                &doc.text,
+                &context_diags,
             ));
             actions
         })
