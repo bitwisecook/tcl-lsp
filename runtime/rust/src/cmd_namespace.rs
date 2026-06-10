@@ -271,25 +271,29 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         for simple in to_import {
-            // Reject clobbering an existing command unless -force.
-            if !force && interp.namespaces().which_command(dest, &simple).is_some() {
-                // Only a conflict if it would resolve in the dest ns itself.
-                if interp
-                    .namespaces()
-                    .imported_in(dest)
-                    .iter()
-                    .any(|(k, _)| k == &simple)
-                    || dest_has_own(interp, dest, &simple)
-                {
-                    let mut m = b"can't import command \"".to_vec();
-                    m.extend_from_slice(&simple);
-                    m.extend_from_slice(b"\": already exists");
-                    return interp.set_error(&m);
-                }
-            }
             let mut source = src_fqn.clone();
             source.extend_from_slice(b"::");
             source.extend_from_slice(&simple);
+            // Re-importing the *same* command from the *same* source is a silent
+            // no-op (C's `TclGetOriginalCommand` reimport check, tclNamesp.c) —
+            // common when a file and its sourced helper both `namespace import
+            // ::tcltest::*`. Only a clobber of a different command is a conflict.
+            let existing_import = interp
+                .namespaces()
+                .imported_in(dest)
+                .into_iter()
+                .find(|(k, _)| k == &simple)
+                .map(|(_, s)| s);
+            if existing_import.as_deref() == Some(source.as_slice()) {
+                continue;
+            }
+            // Reject clobbering an existing (different) command unless -force.
+            if !force && (existing_import.is_some() || dest_has_own(interp, dest, &simple)) {
+                let mut m = b"can't import command \"".to_vec();
+                m.extend_from_slice(&simple);
+                m.extend_from_slice(b"\": already exists");
+                return interp.set_error(&m);
+            }
             interp
                 .namespaces_mut()
                 .bind(dest, &simple, Command::Imported { source });
@@ -766,6 +770,48 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.eval_str(b"namespace eval app { greet hi }"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn reimport_same_source_is_idempotent() {
+        // Re-importing the *same* command from the *same* source is a silent
+        // no-op (C's reimport check) — the common case where a file and its
+        // sourced helper both `namespace import ::lib::*` (e.g. tcltest). Only a
+        // clobber of a *different* command is a conflict (without -force).
+        leak_free(|i| {
+            i.eval_str(b"namespace eval lib { proc g {} {return G} ; namespace export g }");
+            assert_eq!(i.eval_str(b"namespace import ::lib::*"), Code::Ok);
+            // Second import of the same command from the same source: no error.
+            assert_eq!(i.eval_str(b"namespace import ::lib::*"), Code::Ok);
+            assert_eq!(i.eval_str(b"namespace import ::lib::g"), Code::Ok);
+            // A different command of the same simple name does conflict.
+            i.eval_str(b"namespace eval other { proc g {} {return O} ; namespace export g }");
+            assert_eq!(i.eval_str(b"namespace import ::other::*"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't import command \"g\": already exists"
+            );
+            // -force overrides the clobber.
+            assert_eq!(i.eval_str(b"namespace import -force ::other::*"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn build_info_queries() {
+        // `tcl::build-info` (the tcltest constraint source): version/patchlevel
+        // parse the build string; feature flags we don't set report 0.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"tcl::build-info version"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0");
+            assert_eq!(i.eval_str(b"tcl::build-info patchlevel"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0.3");
+            for feat in [&b"debug"[..], b"purify", b"memdebug", b"no-deprecate"] {
+                let mut cmd = b"tcl::build-info ".to_vec();
+                cmd.extend_from_slice(feat);
+                assert_eq!(i.eval_str(&cmd), Code::Ok);
+                assert_eq!(i.result_bytes(), b"0", "feature {feat:?} should be absent");
+            }
         });
     }
 

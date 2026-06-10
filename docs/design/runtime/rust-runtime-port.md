@@ -1678,15 +1678,39 @@ gated PR. Status: **not-started.**
 
 ## Tcl 9 test-suite scoreboard (gold standard)
 
-`tmp/tcl9.0.3/tests/*.test` (168 files), run via
-`scripts/run_tcl9_tcltest_sweep.py`. **In scope: behaviour.** No file passing on
-the Zig baseline may regress. Per-file pass/partial/excluded is captured against
-the Zig baseline; seeded empty here — the first sweep establishes the baseline
-column.
+`tmp/tcl9.0.3/tests/*.test` (168 files). The **Zig/WASM** backend is swept by
+`scripts/dev/run_tcl9_tcltest_sweep.py`; the **Rust interpreter** is swept by
+`scripts/dev/rust_tcltest_sweep.py`, which sources each file through the
+`run_script` example (real `tcltest` loads via `--init`/`init.tcl`) and parses
+tcltest's own `Total/Passed/Skipped/Failed` summary. **In scope: behaviour.**
 
-| `.test` file | Zig baseline (pass/total) | Rust (pass/total) | Status |
+### Rust runtime baseline — 2026-06-10 (first sweep)
+
+The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
+2.5.10). First measured baseline, then the same day's two unblocking fixes
+(idempotent `namespace import` re-import + `tcl::build-info`):
+
+| Sweep | Files run-to-summary | Errored before summary | Tests passed |
 |---|---|---|---|
-| _seed — captured by first `run_tcl9_tcltest_sweep.py` run_ | — | — | not-started |
+| Initial baseline | 86 / 168 | 81 | 5572 / 11022 |
+| + reimport / build-info fixes | 94 / 168 | 73 | 6139 / 12299 |
+
+(The passed-test *count* rose by 567 even though the percentage held ~50%: the
+denominator grew because 8 more files now run their full test sets.) The
+biggest remaining error-before-summary blockers, by file count, are the
+data-prioritised next gaps:
+
+| Blocker | Files | Notes |
+|---|---|---|
+| `binary` command | 7 | `binary format`/`scan` not implemented |
+| `file delete` (+ other `file` subcommands) | 6 | filesystem mutation subcommands |
+| `namespace delete` | 6 | needs arena tombstoning (deferred T1.5 item) |
+| `interp children` / child interps | 4 | child-interp introspection |
+| `tcl::oo` package | 4 | TclOO (own chunk) |
+| `string totitle` | 3 | small `string` subcommand |
+
+> Per-file detail is in the sweep's `--json`; the table above is the
+> reproducible baseline anchor. Drive these down toward the Zig baseline.
 
 ### Out-of-scope exclusions (by design)
 
