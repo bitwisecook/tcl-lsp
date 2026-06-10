@@ -1433,10 +1433,14 @@ mod tests {
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 1, "{actions:?}");
-        assert_eq!(actions[0].title, "Initialise `var`");
-        assert_eq!(actions[0].edits.len(), 1);
-        assert_eq!(actions[0].edits[0].new_text, "set var 0");
+        let qf: Vec<&CodeAction> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .collect();
+        assert_eq!(qf.len(), 1, "{actions:?}");
+        assert_eq!(qf[0].title, "Initialise `var`");
+        assert_eq!(qf[0].edits.len(), 1);
+        assert_eq!(qf[0].edits[0].new_text, "set var 0");
     }
 
     #[test]
@@ -1479,8 +1483,12 @@ mod tests {
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 1);
-        assert!(actions[0].title.contains("Variable read before set"));
+        let qf: Vec<&CodeAction> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .collect();
+        assert_eq!(qf.len(), 1);
+        assert!(qf[0].title.contains("Variable read before set"));
     }
 
     #[test]
@@ -1494,7 +1502,12 @@ mod tests {
             whole_document_range("set x 1\nputs $x\n"),
             Some(&analysis),
         );
-        assert!(actions.is_empty(), "{actions:?}");
+        // No diagnostic fixes → no quick-fix actions (range-based refactors
+        // like extract-proc may still be offered for the selection).
+        assert!(
+            !actions.iter().any(|a| a.kind == ActionKind::QuickFix),
+            "{actions:?}",
+        );
     }
 
     #[test]
@@ -1519,8 +1532,12 @@ mod tests {
             ],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 2);
-        let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
+        let titles: Vec<&str> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .map(|a| a.title.as_str())
+            .collect();
+        assert_eq!(titles.len(), 2);
         assert!(titles.contains(&"A") && titles.contains(&"B"));
     }
 
