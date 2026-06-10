@@ -6,7 +6,40 @@ Full Tcl and iRules language support for Sublime Text, powered by
 **Replaces** [sublime-iRules](https://github.com/billchurch/sublime-iRules)
 with a superset of its features across all Tcl dialects.
 
+## Requirements
+
+- **Sublime Text** 4 (build 4107+)
+- **Python 3.10+** on your system PATH — the LSP server runs as a Python
+  process. The `.sublime-package` bundles the server and all its Python
+  dependencies, so no `pip install` is needed; you only need an
+  interpreter installed.
+- The **[LSP](https://packagecontrol.io/packages/LSP)** package — install
+  it **first**, before this package, for full language-server features
+  (diagnostics, completions, hover, formatting, code actions, and more).
+  Syntax highlighting, snippets, and settings work without it.
+
+Install LSP from Package Control:
+
+> Command Palette → **Package Control: Install Package** → **LSP**
+
 ## Installation
+
+### Via Package Control (recommended, once tcl-lsp is on the channel)
+
+1. Open the Command Palette → **Package Control: Install Package**
+2. Search for **Tcl-LSP** and install it
+3. Restart Sublime Text and install the **LSP** package for full
+   language-server features
+
+Maintainer note: Package Control fetches the package source archive from
+the `bitwisecook/tcl-lsp-sublime-text` mirror repo (a flat-layout sibling
+of this monorepo that exists because Package Control's `tags: true`
+discovery downloads the git tarball at each tag and expects the package
+contents at the root). The mirror is repopulated and tagged from
+`build/sublime-stage/` by `make publish-sublime` on every release; no
+edit to that repo is ever needed by hand.
+
+### Manual install
 
 1. Download `Tcl.sublime-package` from the
    [latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
@@ -45,7 +78,7 @@ Sublime Text cache on first load.
 To use a specific Python interpreter, set `python_path` in
 **Preferences > Package Settings > LSP-Tcl > Settings**.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 ### Development install (from source)
@@ -66,8 +99,8 @@ full details on Python setup across platforms.
 
 3. Install the **LSP** package from Package Control
 
-The server source in `lsp/`, `core/`, and `explorer/` is used directly
-from the repository — no build step needed.
+The server source in `server/`, `compiler/`, `analyser/`, and `tooling/explorer/`
+is used directly from the repository — no build step needed.
 
 ## What the plugin provides
 
@@ -170,6 +203,36 @@ If the bundled server is not found or you want to use a different version:
 }
 ```
 
+### Key bindings
+
+This package ships **no** key bindings by default, to avoid clashing with
+your own. Example bindings for every command live in
+**Preferences > Package Settings > Tcl > Key Bindings**, which opens the
+commented-out example keymap on the left and your own user keymap on the
+right. Copy any binding you want into the right-hand pane and uncomment it.
+
+For a step-by-step walkthrough and the full list of bindable commands,
+see [How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
+
+## Disabling the context menu
+
+The package adds a few entries (Format Document, Minify Document, Unminify
+Error, Apply Safe Quick Fixes) to the editor right-click menu. They only
+appear in Tcl and iRules files — each command's `is_visible` check hides
+it in other file types.
+
+If you'd rather not have them at all, you can override the menu: create the
+file `Packages/Tcl/Context.sublime-menu` (use **Browse Packages…** from the
+menu to find your `Packages` directory) and put an empty list in it to
+remove every entry:
+
+```json
+[]
+```
+
+Anything you put in that file replaces the bundled context menu, so you can
+also keep only the entries you want.
+
 ## Command Palette
 
 | Command | Description |
@@ -225,12 +288,6 @@ This package is a drop-in replacement for
 4. The built-in formatter is now powered by the LSP server and supports
    all Tcl dialects, not just iRules
 
-## Requirements
-
-- **Sublime Text** 4 (build 4107+)
-- **Python 3.10+** on your system PATH (for the LSP server process)
-- **LSP** package from Package Control (recommended, not required)
-
 ## Licence
 
 AGPL-3.0-or-later — see [LICENSE](../../LICENSE) for details.
@@ -257,5 +314,5 @@ file and per-project overrides in Sublime Text.
 Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
 write current settings to the config file.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

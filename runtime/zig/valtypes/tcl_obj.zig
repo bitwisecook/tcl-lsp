@@ -31,6 +31,7 @@
 // new code should import ``tcl_chars.zig`` directly.
 
 const chars = @import("tcl_chars.zig");
+const bignum = @import("tcl_bignum.zig");
 const std = @import("std");
 const build_options = @import("build_options");
 
@@ -39,6 +40,16 @@ pub const TYPE_STRING: i32 = 0;
 pub const TYPE_INT: i32 = 1;
 pub const TYPE_LIST: i32 = 2;
 pub const TYPE_DICT: i32 = 3;
+// Sentinel written into ``OBJ_TYPE_TAG`` of every freed slab before
+// it joins a per-class free-list.  ``tcl_obj_release`` checks for it
+// before reading ``OBJ_REFCOUNT`` (which now overlays the freelist
+// next-link, not a real refcount), so a stale handle that points at
+// a slab on the freelist becomes a survivable no-op rather than the
+// "decrement the next-link" pattern that corrupted the chain and
+// surfaced as an out-of-bounds memory fault inside ``obj_alloc``.
+// ``obj_alloc`` overwrites the tag with ``TYPE_STRING`` when it
+// reissues the slab, so live objects never collide with the marker.
+pub const TYPE_FREED_POISON: i32 = -559038737; // 0xDEADBEEF
 // TYPE_FLOAT: f64 bits stored in the int_cache field via @bitCast.
 // The str_ptr/str_len fields hold a cached string representation
 // once obj_ensure_string has been called.
@@ -53,6 +64,29 @@ pub const TYPE_FLOAT: i32 = 4;
 // inline encoding stays transparent to the rest of the system.
 pub const TYPE_INLINE_STRING: i32 = 5;
 pub const MAX_INLINE_STR: u32 = 8;
+// TYPE_BIGNUM: arbitrary-precision integer (Stage 2).  The
+// OBJ_DICT_EXT slot (offset 28) holds a ``*bignum.BigInt`` —
+// a heap-allocated ``std.math.big.int.Managed`` whose limb
+// buffer is owned through ``std.heap.c_allocator`` (wasi-libc
+// malloc), keeping the bignum heap consistent with the rest of
+// the runtime.  Stage 1 used a 16-byte off-heap i128 payload;
+// Stage 2 lifted the i128 cap so values like
+// ``665802003400000000000000`` (upstream ``expr-old-36.11``,
+// 80 bits) and ``0xff..ff`` (38 hex digits, 152 bits, upstream
+// ``expr-old-36.16``) round-trip exactly.
+//
+// The OBJ_DICT_EXT slot is shared with the dict hash side-
+// cache; a single TclObj is one type at a time, so the slot's
+// owning subsystem is determined by ``OBJ_TYPE_TAG``.
+// ``release_now`` checks the tag and routes the cleanup either
+// to ``bignum.destroy`` (TYPE_BIGNUM) or
+// ``tcl_dict.dict_destroy_ext`` (TYPE_DICT).
+//
+// String-rep caching reuses the same ``OBJ_STR_PTR`` /
+// ``OBJ_STR_LEN`` / ``OBJ_STR_CAP`` machinery as TYPE_INT and
+// TYPE_FLOAT, so a value rendered once stays cached for the
+// rest of the obj's lifetime.
+pub const TYPE_BIGNUM: i32 = 6;
 
 // TclObj field offsets
 pub const OBJ_REFCOUNT: u32 = 0;
@@ -92,12 +126,21 @@ pub const OBJ_SIZE: u32 = 32;
 //
 // Why the range is positive-only (PR #237 review): the frame
 // layer's local-variable bucket value field shares the same i32
-// space, and uses negative sentinels to mark variable aliases:
+// space, and uses sentinel bit patterns to mark variable aliases.
+// The current encoding (see ``tcl_frames.zig`` for the canonical
+// definition) is:
 //
 //   * ``ALIAS_GLOBAL`` = ``-1``  (bucket value -1 means "alias to
 //     a same-named global").
-//   * ``ALIAS_EXT``    = ``v <= -2`` (bucket value is the negated
-//     descriptor heap address).
+//   * ``ALIAS_EXT``    = bucket value where BOTH bit 31 (sign) AND
+//     bit 0 are set, and the value is not -1.  Encoded as
+//     ``(desc >> 1) | 0x80000001``; decoded as
+//     ``((value & 0x7FFFFFFE) << 1)``.  The right-shift-by-1 + OR
+//     leaves bit 0 free as the alias-ext marker and sets bit 31
+//     to keep the value distinct from any tagged-immediate
+//     encoding (which is always non-negative).  The descriptor
+//     address — 8-byte aligned — survives the round-trip since
+//     bit 0 of the input is always clear.
 //
 // A tagged immediate of ``-1`` encodes as ``(0xFFFFFFFE | 1) =
 // 0xFFFFFFFF = -1`` — the same bit pattern as ``ALIAS_GLOBAL``.
@@ -306,6 +349,13 @@ pub export fn tcl_oom_clear() void {
 
 fn free_obj(addr: u32) void {
     if (addr == 0) return;
+    // Poison the type tag so a stale ``tcl_obj_release`` on the
+    // freed slab can detect the use-after-free and skip the
+    // decrement-and-write that would otherwise corrupt the freelist
+    // next-link.  ``obj_alloc`` writes ``TYPE_STRING`` over the
+    // poison when the slab is reissued, so the marker only lives
+    // for the slab's freelist sojourn.
+    write_i32(addr + OBJ_TYPE_TAG, TYPE_FREED_POISON);
     // S6.1: TclObj headers are size class 32 (OBJ_SIZE = 32) so
     // try the recycler first.
     if (try_recycle(addr, OBJ_SIZE)) return;
@@ -363,14 +413,46 @@ pub fn write_i64(addr: u32, val: i64) void {
 // entirely (the ``if (build_options.leak_check)`` is folded by the
 // optimiser to a constant ``false``).
 //
-// The harness reads ``tcl_test_alloc_count`` after a workload to
-// assert zero residual.  ``tcl_test_double_free_count`` catches the
-// case where ``tcl_obj_release`` is called on an obj whose refcount
-// is already 0 (already on the deferred-free queue) — that is the
-// over-release pattern S2's failed attempt hit.
+// Two separate counters are exposed so the diff tool can keep
+// ``double_free`` as a hard error (true over-release / UAF-release)
+// while accepting non-zero ``retain_after_defer`` (a softer signal:
+// the slot's retain landed on a pending-free or freed slab and
+// bailed defensively — the slot ends up missing a logical reference
+// but the runtime stays internally consistent).
+//
+//   double_free            — bumped by ``tcl_obj_release`` on a
+//                            slab that's already on the pending
+//                            queue (rc==0), POISONed, or whose rc
+//                            looks like a freelist next-link
+//                            (out-of-range).  These are true
+//                            correctness violations the harness
+//                            asserts zero on.
+//   retain_after_defer     — bumped by ``tcl_obj_retain`` on the
+//                            same three slab states.  Indicates a
+//                            slot took out a reference on a slab
+//                            that's mid-flight to the recycler;
+//                            the retain bails so no slab corruption,
+//                            but the slot is now missing the
+//                            reference it thinks it owns.
 
 var g_alloc_count: i32 = 0;
 var g_double_free_count: i32 = 0;
+var g_retain_after_defer_count: i32 = 0;
+
+// Sub-bucket splits for ``double_free`` — the three "skip and bump"
+// paths in ``tcl_obj_release`` (POISON tag, rc==0 pending, bad rc
+// value).  Triage tip from the #439 investigation: split tells you
+// whether the dominant pattern is a true UAF-release (POISON), an
+// over-release of a queued obj (pending), or a stale handle on a
+// recycled slab (bad_rc).  POISON + bad_rc together usually means
+// the deferred-free queue overflowed and the cascading immediate-free
+// reissued slabs, exposing the stale handles in the dispatch chain.
+//
+// The sub-bucket counters always add up to ``g_double_free_count``;
+// the aggregate stays so existing harness code keeps working.
+var g_double_free_poison_count: i32 = 0;
+var g_double_free_pending_count: i32 = 0;
+var g_double_free_bad_rc_count: i32 = 0;
 
 pub export fn tcl_test_alloc_count() i32 {
     return g_alloc_count;
@@ -380,9 +462,136 @@ pub export fn tcl_test_double_free_count() i32 {
     return g_double_free_count;
 }
 
+pub export fn tcl_test_double_free_poison_count() i32 {
+    return g_double_free_poison_count;
+}
+
+pub export fn tcl_test_double_free_pending_count() i32 {
+    return g_double_free_pending_count;
+}
+
+pub export fn tcl_test_double_free_bad_rc_count() i32 {
+    return g_double_free_bad_rc_count;
+}
+
+pub export fn tcl_test_retain_after_defer_count() i32 {
+    return g_retain_after_defer_count;
+}
+
 pub export fn tcl_test_reset_counters() void {
     g_alloc_count = 0;
     g_double_free_count = 0;
+    g_double_free_poison_count = 0;
+    g_double_free_pending_count = 0;
+    g_double_free_bad_rc_count = 0;
+    g_retain_after_defer_count = 0;
+    pending_sample_count = 0;
+}
+
+// Pending-bucket capture buffer — when a release hits the rc==0
+// path, sample the obj's address and the first ``PENDING_SAMPLE_BYTES``
+// of its string buffer to a ring so a host-side triage script can
+// read them out and classify what's being over-released.
+const PENDING_SAMPLE_CAP: u32 = 32;
+const PENDING_SAMPLE_BYTES: u32 = 48;
+var pending_sample_addr: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_type: [PENDING_SAMPLE_CAP]i32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_str: [PENDING_SAMPLE_CAP][PENDING_SAMPLE_BYTES]u8 = .{.{0} ** PENDING_SAMPLE_BYTES} ** PENDING_SAMPLE_CAP;
+var pending_sample_len: [PENDING_SAMPLE_CAP]u32 = .{0} ** PENDING_SAMPLE_CAP;
+var pending_sample_count: u32 = 0;
+
+/// Search the deferred-free queue for ``addr``.  Used by
+/// :func:`capture_pending_sample` to gate the
+/// ``OBJ_STR_PTR``/``OBJ_STR_LEN`` dereference on the slab actually
+/// being a live queued obj.  Linear scan over ``pending_free`` —
+/// O(``pending_free_count``) per call — but the capture buffer caps
+/// at 32 samples per workload and the queue drains often, so the
+/// total cost is bounded.
+inline fn is_addr_in_pending(addr: u32) bool {
+    var i: u32 = 0;
+    while (i < pending_free_count) : (i += 1) {
+        if (pending_free[i] == addr) return true;
+    }
+    return false;
+}
+
+inline fn capture_pending_sample(addr: u32) void {
+    if (pending_sample_count >= PENDING_SAMPLE_CAP) return;
+    pending_sample_addr[pending_sample_count] = addr;
+    pending_sample_type[pending_sample_count] = read_i32(addr + OBJ_TYPE_TAG);
+    pending_sample_len[pending_sample_count] = 0;
+    // The ``rc == 0`` release path also covers stale handles to
+    // libc-freed slabs whose first word happens to be zero — the
+    // existing comment in ``tcl_obj_release`` says "or freed" and
+    // the ``bad_rc`` guard below is the catch-all.  In that case
+    // ``OBJ_STR_PTR`` is garbage and the ``src[i]`` copy would
+    // dereference an arbitrary linear-memory address, OOB-trapping
+    // leak_sweep and losing the diagnostic counters (Codex /
+    // Copilot review on PR #444).
+    //
+    // Gate the buffer copy on the address actually being on the
+    // deferred-free queue: any rc==0 obj NOT on the queue must be
+    // either freed or recycled, so its header fields can't be
+    // trusted.  When skipped, we still record the addr + type tag
+    // so host-side triage knows a non-queue-resident over-release
+    // fired (sample_len stays 0 to mark "no content captured").
+    if (!is_addr_in_pending(addr)) {
+        pending_sample_count += 1;
+        return;
+    }
+    const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+    const sl: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
+    var copy_len: u32 = sl;
+    if (copy_len > PENDING_SAMPLE_BYTES) copy_len = PENDING_SAMPLE_BYTES;
+    if (sp != 0 and copy_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(sp);
+        var i: u32 = 0;
+        while (i < copy_len) : (i += 1) {
+            pending_sample_str[pending_sample_count][i] = src[i];
+        }
+    }
+    pending_sample_len[pending_sample_count] = sl;
+    pending_sample_count += 1;
+}
+
+pub export fn tcl_test_pending_sample_count() i32 {
+    return @intCast(pending_sample_count);
+}
+
+pub export fn tcl_test_pending_sample_addr(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @bitCast(pending_sample_addr[i]);
+}
+
+pub export fn tcl_test_pending_sample_type(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return pending_sample_type[i];
+}
+
+pub export fn tcl_test_pending_sample_str_ptr(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @bitCast(@intFromPtr(&pending_sample_str[i]));
+}
+
+pub export fn tcl_test_pending_sample_str_len(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    const l = pending_sample_len[i];
+    if (l > PENDING_SAMPLE_BYTES) return PENDING_SAMPLE_BYTES;
+    return @intCast(l);
+}
+
+pub export fn tcl_test_pending_sample_full_len(idx: i32) i32 {
+    const i: u32 = @bitCast(idx);
+    if (i >= pending_sample_count) return 0;
+    return @intCast(pending_sample_len[i]);
+}
+
+pub export fn tcl_test_pending_sample_reset() void {
+    pending_sample_count = 0;
 }
 
 /// Run at the end of a test workload.  Drains the deferred-free
@@ -452,6 +661,158 @@ pub export fn obj_new_float(value: f64) i32 {
     return @bitCast(ptr);
 }
 
+/// Allocate a new TYPE_BIGNUM TclObj holding *value*.  Values
+/// that fit in i64 collapse to TYPE_INT (via :func:`obj_new_int`)
+/// so callers don't accidentally pay the bignum allocation cost
+/// for an already-small result — overflow-detection in the
+/// arithmetic helpers is the right place to choose between the
+/// two representations.
+///
+/// Stage 2 storage: an off-heap ``bignum.BigInt`` (a Zig
+/// ``std.math.big.int.Managed``).  The pointer is written into
+/// ``OBJ_DICT_EXT``; ``release_now`` detects TYPE_BIGNUM and
+/// routes cleanup through ``bignum.destroy``.  String-rep caching
+/// reuses ``OBJ_STR_PTR`` / ``OBJ_STR_LEN`` / ``OBJ_STR_CAP``
+/// like other scalar types.
+pub fn obj_new_bignum(value: i128) i32 {
+    // Promote-down to TYPE_INT when the value is i64-representable.
+    if (value >= std.math.minInt(i64) and value <= std.math.maxInt(i64)) {
+        return obj_new_int(@intCast(value));
+    }
+    const m = bignum.alloc_from_int(value) orelse return 0;
+    return obj_new_bignum_take(m);
+}
+
+/// Take ownership of an already-allocated ``*bignum.BigInt`` and
+/// wrap it in a TclObj.  Auto-collapses to TYPE_INT (and frees the
+/// BigInt) when the value fits in i64 — saves a heap allocation for
+/// every "result happens to fit i64" arithmetic case.
+///
+/// Caller transfers ownership: on success, the obj owns *m* and
+/// will free it on release.  On obj-allocation failure, *m* is
+/// destroyed before returning 0 so the caller can't double-free.
+pub fn obj_new_bignum_take(m: *bignum.BigInt) i32 {
+    if (bignum.fits_i64(m)) {
+        const v = bignum.to_i64(m);
+        bignum.destroy(m);
+        return obj_new_int(v);
+    }
+    const ptr = obj_alloc();
+    if (ptr == 0) {
+        bignum.destroy(m);
+        return 0;
+    }
+    write_i32(ptr + OBJ_TYPE_TAG, TYPE_BIGNUM);
+    write_i32(ptr + OBJ_DICT_EXT, @bitCast(@as(u32, @intCast(@intFromPtr(m)))));
+    return @bitCast(ptr);
+}
+
+/// Read the underlying ``*bignum.BigInt`` from a TYPE_BIGNUM obj,
+/// or ``null`` for any other tag.  The returned pointer is borrowed
+/// — callers must not destroy it (the obj retains ownership).
+pub fn obj_get_bignum_managed(obj: i32) ?*bignum.BigInt {
+    if (obj == 0) return null;
+    if (is_immediate(obj)) return null;
+    const addr: u32 = @bitCast(obj);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag != TYPE_BIGNUM) return null;
+    const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+    if (ptr_addr == 0) return null;
+    return @ptrFromInt(ptr_addr);
+}
+
+/// Read an i128 view of any int-shaped TclObj.  Truncates to the
+/// low 128 bits when the value exceeds i128 — callers needing the
+/// full magnitude must go through :func:`obj_get_bignum_managed`
+/// (when ``obj_type(obj) == TYPE_BIGNUM``).
+pub fn obj_get_bignum(obj: i32) i128 {
+    if (obj == 0) return 0;
+    if (is_immediate(obj)) return @as(i128, immediate_unbox(obj));
+    const addr: u32 = @bitCast(obj);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_BIGNUM) {
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_i128(m);
+    }
+    if (tag == TYPE_INT) return @as(i128, read_i64(addr + OBJ_INT_CACHE));
+    if (tag == TYPE_FLOAT) {
+        const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
+        return float_to_i128_clamped(fval);
+    }
+    if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING or tag == TYPE_LIST) {
+        const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
+        if (bignum.parse_i128(sptr, slen)) |val| return val;
+        if (try_parse_int(sptr, slen)) |val| return @as(i128, val);
+        if (try_parse_float(sptr, slen)) |fval| return float_to_i128_clamped(fval);
+    }
+    return 0;
+}
+
+/// Convert *fval* to ``i128``, clamping to the i128 range and
+/// returning 0 for NaN.  Plain ``@intFromFloat`` panics in debug
+/// builds when *fval* is outside the destination range (so e.g.
+/// ``@intFromFloat(1.0e308)`` traps under wasi-libc); this helper
+/// does the magnitude check explicitly so callers in the obj-
+/// widening path stay safe.  Values that exceed i128 saturate at the
+/// i128 boundary — callers that need full precision must go through
+/// ``tcl_arith.float_to_bignum_obj`` (which uses Managed.setString).
+fn float_to_i128_clamped(fval: f64) i128 {
+    if (std.math.isNan(fval)) return 0;
+    const i128_max_f: f64 = @floatFromInt(std.math.maxInt(i128));
+    const i128_min_f: f64 = @floatFromInt(std.math.minInt(i128));
+    if (fval >= i128_max_f) return std.math.maxInt(i128);
+    if (fval <= i128_min_f) return std.math.minInt(i128);
+    return @intFromFloat(fval);
+}
+
+/// i64 counterpart to :func:`float_to_i128_clamped` — clamps to the
+/// i64 range and returns 0 for NaN.  Used by ``obj_get_int`` paths
+/// that surface a float operand to a caller expecting an i64; debug
+/// builds previously panicked on ``int(1.0e30)`` because the
+/// unchecked ``@intFromFloat`` was outside the i64 range.
+pub fn float_to_i64_clamped(fval: f64) i64 {
+    if (std.math.isNan(fval)) return 0;
+    const i64_max_f: f64 = @floatFromInt(std.math.maxInt(i64));
+    const i64_min_f: f64 = @floatFromInt(std.math.minInt(i64));
+    if (fval >= i64_max_f) return std.math.maxInt(i64);
+    if (fval <= i64_min_f) return std.math.minInt(i64);
+    return @intFromFloat(fval);
+}
+
+/// Promote any int-shaped operand to a freshly-allocated BigInt,
+/// or return the existing borrowed BigInt for TYPE_BIGNUM.  The
+/// boolean return tells the caller whether they own the result and
+/// must :func:`bignum.destroy` it.
+///
+/// Used by arithmetic helpers in ``tcl_arith.zig`` when an
+/// operation needs a ``*BigInt`` and any of its inputs may still
+/// be in a smaller representation (TYPE_INT, immediate, or a
+/// string literal that hasn't been promoted yet).
+pub fn obj_promote_to_bignum(obj: i32) struct { m: ?*bignum.BigInt, owned: bool } {
+    // Already a bignum — borrow.
+    if (obj_get_bignum_managed(obj)) |m| return .{ .m = m, .owned = false };
+    // String literal that exceeds i64 — parse fresh as bignum.
+    if (obj != 0 and !is_immediate(obj)) {
+        const addr: u32 = @bitCast(obj);
+        const tag = read_i32(addr + OBJ_TYPE_TAG);
+        if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING or tag == TYPE_LIST) {
+            const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+            const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
+            if (try_parse_int(sptr, slen) == null) {
+                if (bignum.alloc_from_string(sptr, slen)) |m| {
+                    return .{ .m = m, .owned = true };
+                }
+            }
+        }
+    }
+    // Anything else collapses through the i128 path.
+    const v = obj_get_bignum(obj);
+    return .{ .m = bignum.alloc_from_int(v), .owned = true };
+}
+
 pub export fn obj_get_float(obj: i32) f64 {
     if (obj == 0) return 0.0;
     // S6.4 — tagged immediate: convert int → float directly.
@@ -460,11 +821,26 @@ pub export fn obj_get_float(obj: i32) f64 {
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_INT) return @floatFromInt(read_i64(addr + OBJ_INT_CACHE));
-    if (tag == TYPE_STRING) {
+    if (tag == TYPE_BIGNUM) {
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0.0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_f64(m);
+    }
+    if (tag == TYPE_STRING or tag == TYPE_LIST) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
+        if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        // Integer literal beyond i128 (e.g. ``8.4e40``-magnitude
+        // operands in ``** $big -1.0``) — convert through the full
+        // bignum so the float exponent path sees the true magnitude
+        // instead of collapsing to 0.0.
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     // S6.2 — inline string parses the inline payload through the
     // obj-internal pointer in OBJ_STR_PTR.
@@ -473,6 +849,11 @@ pub export fn obj_get_float(obj: i32) f64 {
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
+        if (bignum.parse_i128(sptr, slen)) |val| return @floatFromInt(val);
+        if (bignum.alloc_from_string(sptr, slen)) |m| {
+            defer bignum.destroy(m);
+            return bignum.to_f64(m);
+        }
     }
     return 0.0;
 }
@@ -490,9 +871,20 @@ pub export fn obj_get_int(obj: i32) i64 {
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
     if (tag == TYPE_FLOAT) {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
-        return @intFromFloat(fval);
+        return float_to_i64_clamped(fval);
     }
-    if (tag == TYPE_STRING) {
+    if (tag == TYPE_BIGNUM) {
+        // Truncating int conversion: take the low 64 bits of the
+        // arbitrary-precision payload.  Matches C Tcl 9.0 behaviour
+        // when an i64-only API (Tcl_GetWideIntFromObj) is asked for
+        // a value that doesn't fit — caller must check overflow
+        // before requesting the i64 form when accuracy is required.
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_i64(m);
+    }
+    if (tag == TYPE_STRING or tag == TYPE_LIST) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| {
@@ -504,7 +896,16 @@ pub export fn obj_get_int(obj: i32) i64 {
         // ``expr {int("2.7")}`` = 2).  Do not cache as TYPE_INT since
         // the value retains its fractional form.
         if (try_parse_float(sptr, slen)) |fval| {
-            return @intFromFloat(fval);
+            return float_to_i64_clamped(fval);
+        }
+        // Bignum-string fallback: the literal exceeds i64 but fits
+        // in i128.  We can't shimmer the obj into TYPE_BIGNUM here
+        // (that would also require allocating the off-heap payload
+        // and we're inside a read accessor) so just truncate to the
+        // low 64 bits.  Callers that need the full value go through
+        // :func:`obj_get_bignum`.
+        if (bignum.parse_i128(sptr, slen)) |val| {
+            return @as(i64, @truncate(val));
         }
         // Tcl boolean literals — ``true`` / ``yes`` / ``on`` → 1,
         // ``false`` / ``no`` / ``off`` → 0 (case-insensitive, and
@@ -526,7 +927,7 @@ pub export fn obj_get_int(obj: i32) i64 {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| return val;
-        if (try_parse_float(sptr, slen)) |fval| return @intFromFloat(fval);
+        if (try_parse_float(sptr, slen)) |fval| return float_to_i64_clamped(fval);
         if (try_parse_bool(sptr, slen)) |val| return val;
         return 0;
     }
@@ -617,21 +1018,26 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
     while (i < len and is_space(src[i])) i += 1;
     if (i >= len) return null;
     const start = i;
-    if (src[i] == '-' or src[i] == '+') i += 1;
+    if (src[i] == '-' or src[i] == '+') {
+        i += 1;
+    }
     if (i >= len) return null;
     var has_dot = false;
     var has_exp = false;
     var has_digit = false;
     while (i < len) {
         const c = src[i];
-        if (c >= '0' and c <= '9') { has_digit = true; i += 1; }
-        else if (c == '.' and !has_dot and !has_exp) { has_dot = true; i += 1; }
-        else if ((c == 'e' or c == 'E') and !has_exp and has_digit) {
+        if (c >= '0' and c <= '9') {
+            has_digit = true;
+            i += 1;
+        } else if (c == '.' and !has_dot and !has_exp) {
+            has_dot = true;
+            i += 1;
+        } else if ((c == 'e' or c == 'E') and !has_exp and has_digit) {
             has_exp = true;
             i += 1;
             if (i < len and (src[i] == '+' or src[i] == '-')) i += 1;
-        }
-        else break;
+        } else break;
     }
     while (i < len and is_space(src[i])) i += 1;
     if (i != len) return null;
@@ -665,7 +1071,21 @@ pub export fn tcl_obj_retain(obj: i32) void {
     // S6.4 — tagged immediates have no refcount header (immortal).
     if (is_immediate(obj)) return;
     const addr: u32 = @bitCast(obj);
+    // Use-after-free guard: same poison + sanity checks as
+    // ``tcl_obj_release``.  Retaining a slab that's currently on a
+    // per-class free-list would write ``previous_head + 1`` to the
+    // slab's first word, corrupting the next-link.  See the
+    // discussion on ``tcl_obj_release`` above.
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_FREED_POISON) {
+        if (build_options.leak_check) g_retain_after_defer_count += 1;
+        return;
+    }
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    if (rc < 0 or rc > (1 << 20)) {
+        if (build_options.leak_check) g_retain_after_defer_count += 1;
+        return;
+    }
     // PR #237 second-pass review: refuse to retain a deferred-free-
     // queued obj (rc == 0 marker).  Without this guard, the sequence
     //
@@ -679,9 +1099,11 @@ pub export fn tcl_obj_retain(obj: i32) void {
     // guards rc==0 (records double-release in leakcheck); make
     // retain symmetric so the resurrection-into-second-queue path
     // is impossible.  A retain after a defer is itself a refcount-
-    // discipline violation; record it for leakcheck visibility.
+    // discipline violation but a softer one than a true double
+    // release — the slot bails defensively without corrupting the
+    // slab — so it goes on the dedicated retain_after_defer counter.
     if (rc == 0) {
-        if (build_options.leak_check) g_double_free_count += 1;
+        if (build_options.leak_check) g_retain_after_defer_count += 1;
         return;
     }
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
@@ -708,19 +1130,27 @@ var pending_free_count: u32 = 0;
 
 fn release_now(addr: u32) void {
     if (build_options.leak_check) g_alloc_count -= 1;
-    // Free any dict hash side-cache before the obj header is freed —
-    // the cache holds retained value handles that need draining
-    // through ``tcl_obj_release`` so they reach refcount 0 with the
-    // dict.  Done first because ``dict_destroy_ext`` may trigger a
-    // chain of releases that recursively land in ``release_now`` for
-    // the value handles, and the obj header bytes must still be
-    // valid (not freed) for those recursive releases to read the
+    // Free any dict hash side-cache OR bignum payload before the obj
+    // header is freed — both share the OBJ_DICT_EXT slot (a single
+    // TclObj is one type at a time, so the slot's owning subsystem
+    // is determined by ``OBJ_TYPE_TAG``).
+    //
+    // Done first because ``dict_destroy_ext`` may trigger a chain
+    // of releases that recursively land in ``release_now`` for the
+    // value handles, and the obj header bytes must still be valid
+    // (not freed) for those recursive releases to read the
     // ``OBJ_DICT_EXT`` field correctly during their own cleanup.
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
     const ext: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
     if (ext != 0) {
-        const tcl_dict = @import("tcl_dict.zig");
         write_i32(addr + OBJ_DICT_EXT, 0);
-        tcl_dict.dict_destroy_ext(ext);
+        if (tag == TYPE_BIGNUM) {
+            const m: *bignum.BigInt = @ptrFromInt(ext);
+            bignum.destroy(m);
+        } else {
+            const tcl_dict = @import("tcl_dict.zig");
+            tcl_dict.dict_destroy_ext(ext);
+        }
     }
     const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
     if (cap > 0) {
@@ -740,6 +1170,13 @@ fn release_now(addr: u32) void {
             free_sized(sp, cap);
         }
     }
+    // Drop the list-index forward cursor cache if it points at this object.
+    // Keyed on the handle (not the buffer) so it also fires for inline
+    // strings, whose buffer is inside the header (cap == 0) and never reaches
+    // the external-buffer free path above — otherwise a recycled slab reissued
+    // to another same-length inline list could yield a stale cursor element.
+    const tcl_list = @import("tcl_list.zig");
+    tcl_list.list_index_cache_invalidate(@bitCast(addr));
     free_obj(addr);
 }
 
@@ -772,13 +1209,52 @@ pub export fn tcl_obj_release(obj: i32) void {
     // to free; release is a no-op.
     if (is_immediate(obj)) return;
     const addr: u32 = @bitCast(obj);
+    // Use-after-free guard #1: poison check.  ``free_obj`` writes
+    // ``TYPE_FREED_POISON`` into the slab's type tag before recycling
+    // it.  ``obj_alloc`` writes ``TYPE_STRING`` over the marker when
+    // the slab is reissued, so the marker is only present while the
+    // slab sits on a free-list awaiting a new tenant.  A stale handle
+    // that observes the marker is releasing a slab that no longer
+    // backs any logical TclObj — skip the decrement-and-write so
+    // the freelist next-link (overlapping ``OBJ_REFCOUNT``) stays
+    // intact.
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_FREED_POISON) {
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_poison_count += 1;
+        }
+        return;
+    }
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc == 0) {
         // Already on the deferred-free queue (rc==0 marker) or
         // freed.  Any further release is the over-release pattern
         // S2's failed attempt hit; record it so leakcheck builds
         // surface it.  Production builds compile this branch out.
-        if (build_options.leak_check) g_double_free_count += 1;
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_pending_count += 1;
+            capture_pending_sample(addr);
+        }
+        return;
+    }
+    // Use-after-free guard #2: refcount sanity check.  A live obj's
+    // refcount tops out at a few dozen in real workloads.  An
+    // implausibly large value means we're reading a freelist
+    // next-link (or other heap address) out of a freed slab's first
+    // word — typically when a stale handle survives across a free.
+    // Skip the decrement so the freelist chain stays intact instead
+    // of accumulating a "head - 1" corruption that traps later in
+    // ``alloc``.  Belt-and-braces with the poison check above; one
+    // catches the slab-on-freelist case, the other catches an
+    // already-libc-freed slab whose first word happens to hold any
+    // garbage.
+    if (rc < 0 or rc > (1 << 20)) {
+        if (build_options.leak_check) {
+            g_double_free_count += 1;
+            g_double_free_bad_rc_count += 1;
+        }
         return;
     }
     if (rc <= 1) {
@@ -841,11 +1317,26 @@ pub fn obj_type(obj: i32) i32 {
     // callers checking ``obj_type`` for ``TYPE_STRING`` shouldn't
     // have to know about it.
     if (tag == TYPE_INLINE_STRING) return TYPE_STRING;
+    // Phase 1 list rep: ``TYPE_LIST`` is a plain string obj whose buffer
+    // is additionally known to be a canonical list (the "skip list
+    // re-validation" marker set by ``tcl_cmd_lappend``).  Its scalar
+    // identity is still string — every value-level consumer (arithmetic
+    // float/bignum heuristics, ``string is``, formatting) must treat it
+    // exactly like ``TYPE_STRING``; the list-ness is an internal hint
+    // that only the list builders read via the raw type tag.  Normalise
+    // it here so introducing the marker can't change scalar behaviour.
+    if (tag == TYPE_LIST) return TYPE_STRING;
     return tag;
 }
 
-/// Copy *len* bytes from src to dst in linear memory.
+/// Copy *len* bytes from src to dst in linear memory.  Null-safe when
+/// *len* is 0 — callers like the hash-table insert path may pass
+/// ``(dst=0, src=0, len=0)`` when storing an empty-string key (an
+/// alias with a stale target descriptor for instance), and
+/// ``@ptrFromInt(0)`` would panic in debug builds even though the
+/// loop body never runs.
 pub fn memcpy(dst: u32, src: u32, len: u32) void {
+    if (len == 0 or src == 0 or dst == 0) return;
     const d: [*]u8 = @ptrFromInt(dst);
     const s: [*]const u8 = @ptrFromInt(src);
     for (0..len) |i| {
@@ -856,6 +1347,73 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 /// Create a new string TclObj by copying *len* bytes from *src*.
 /// The new TclObj owns its byte buffer (capacity = aligned alloc
 /// size) so subsequent appends can grow in place when refcount==1.
+/// Build a TclObj from a braced-word source span, applying Tcl's
+/// ``\<newline>`` → space substitution that ``Tcl_ParseBraces``
+/// performs in C.  Inside braces, every other escape stays literal
+/// — only the line-continuation sequence is collapsed.  When no
+/// substitution is needed (the common case) this falls through to
+/// :func:`obj_new_string_copy` so the inline-string fast path is
+/// preserved.
+///
+/// Reference Tcl behaviour (parseOld-7.4, interp-20.33/34): a braced
+/// string ``{a\<NL>b}`` has length ``a b`` (3 chars) once parsed —
+/// the backslash-newline plus any whitespace immediately following
+/// the newline collapses to a single space.  See ``Tcl_ParseBraces``
+/// in ``tmp/tcl9.0.3/generic/tclParse.c`` for the canonical C-side
+/// implementation.
+pub fn obj_new_braced_string(src: u32, len: u32) i32 {
+    if (len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(src);
+    // Scan for ``\<line-terminator>`` — the only substitution that
+    // fires inside braces.  All three Tcl-recognised forms count:
+    // ``\<LF>``, ``\<CR>``, and the two-byte ``\<CR><LF>``.  No
+    // match → fast-path through the regular string-copy
+    // constructor (preserves the inline-string optimisation).
+    // Matches the codegen-side ``_braced_lineconts`` helper in
+    // ``compiler/codegen/wasm/_emitter/_values.py``.
+    var has_bs_nl = false;
+    var i: u32 = 0;
+    while (i + 1 < len) : (i += 1) {
+        if (sp[i] == '\\' and (sp[i + 1] == '\n' or sp[i + 1] == '\r')) {
+            has_bs_nl = true;
+            break;
+        }
+    }
+    if (!has_bs_nl) return obj_new_string_copy(src, len);
+
+    // Allocate worst-case-sized output buffer (substitution can only
+    // *shrink* the byte span — each ``\<NL>...`` collapses to one
+    // space).  Walk again, emitting bytes verbatim except for the
+    // collapse sequence.
+    const out_buf = alloc(len);
+    if (out_buf == 0) return 0;
+    const dst: [*]u8 = @ptrFromInt(out_buf);
+    var off: u32 = 0;
+    i = 0;
+    while (i < len) {
+        if (i + 1 < len and sp[i] == '\\' and (sp[i + 1] == '\n' or sp[i + 1] == '\r')) {
+            // Collapse ``\<line-terminator><whitespace>*`` → space.
+            // ``\<CR><LF>`` consumes the trailing ``<LF>`` so the
+            // pair is treated as one logical line terminator
+            // (matches reference Tcl's ``TclParseBackslash``).
+            dst[off] = ' ';
+            off += 1;
+            const was_cr = sp[i + 1] == '\r';
+            i += 2;
+            if (was_cr and i < len and sp[i] == '\n') i += 1;
+            while (i < len) : (i += 1) {
+                const c = sp[i];
+                if (c != ' ' and c != '\t') break;
+            }
+            continue;
+        }
+        dst[off] = sp[i];
+        off += 1;
+        i += 1;
+    }
+    return obj_new_string_take(out_buf, off, len);
+}
+
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
     // S6.2 — inline-string optimisation.  Strings short enough to
@@ -865,6 +1423,11 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     // ``release_now`` doesn't try to free a non-existent buffer.
     if (len <= MAX_INLINE_STR) {
         const obj = obj_alloc();
+        // OOM on the inline path: the non-inline branch (below)
+        // checks ``buf == 0`` but this branch used to write straight
+        // through ``@ptrFromInt(0)`` (offsets 4 / 8 / 12 / 16 / 20
+        // of low memory).  Debug panics, release silently corrupts.
+        if (obj == 0) return 0;
         write_i32(obj + OBJ_TYPE_TAG, TYPE_INLINE_STRING);
         memcpy(obj + OBJ_INT_CACHE, src, len);
         // Point str_ptr at the inline buffer so callers reading
@@ -891,6 +1454,37 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (obj != 0) {
         write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     }
+    return obj;
+}
+
+/// Wrap an already-``alloc``-ed buffer in a fresh string TclObj that
+/// *owns* the buffer — ``release_now`` will hand the slab back via
+/// ``free_sized`` instead of leaking it.  The plain ``obj_new_string``
+/// stores ``cap = 0`` (the borrowing variant for buffers that live in
+/// the wasm data segment or in another obj's storage); callers that
+/// allocated a fresh ``buf`` and want the obj to claim ownership must
+/// go through this helper or set ``OBJ_STR_CAP`` themselves.
+///
+/// ``alloc_size`` is the original argument passed to ``alloc``; the
+/// stored cap is rounded symmetrically with ``alloc``'s own rounding so
+/// ``free_sized`` recycles the slab to the right free-list.
+pub fn obj_new_string_take(buf: u32, len: u32, alloc_size: u32) i32 {
+    // Compute the symmetric size class up-front so the OOM cleanup
+    // path can hand ``buf`` back to ``free_sized`` with the same
+    // class the caller's ``alloc`` requested.  Without this the
+    // OOM exit (obj header alloc fails after we already own
+    // ``buf``) would leak the caller-provided buffer — defeating
+    // the whole point of the take-ownership helper (Copilot review
+    // on PR #322).
+    const aligned = (alloc_size + 7) & ~@as(u32, 7);
+    const cap = if (aligned <= 2048) round_up_to_class(aligned) else aligned;
+    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
+    if (obj == 0) {
+        if (buf != 0 and alloc_size != 0) free_sized(buf, cap);
+        return 0;
+    }
+    if (buf == 0 or alloc_size == 0) return obj;
+    write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     return obj;
 }
 
@@ -962,24 +1556,149 @@ pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
 }
 
-// Scratch buffer for float-to-string conversion (max 32 bytes).
-var ftoa_buf: [32]u8 = undefined;
+// Scratch buffer for float-to-string conversion.  Sized for the
+// worst-case Tcl-style "F" rendering (sign + up to 17 mantissa digits
+// + ``.`` + ``0`` for normal magnitudes), and "E" rendering (sign +
+// 17 digits + ``.`` + ``e`` + sign + 4-digit exponent for subnormals
+// down to ~5e-324).  64 bytes is comfortably above both.
+var ftoa_buf: [64]u8 = undefined;
 
 fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
-    const result = std.fmt.bufPrint(&ftoa_buf, "{d}", .{value}) catch ftoa_buf[0..1];
-    const len = result.len;
-    // Tcl requires floats to look like floats: ensure the string contains
-    // a '.', 'e', or 'E' so that "5.0" is not confused with integer "5".
-    var has_dot = false;
-    for (result) |c| {
-        if (c == '.' or c == 'e' or c == 'E') { has_dot = true; break; }
+    // Tcl 9 renders non-finite floats as ``Inf``, ``-Inf``, ``NaN``
+    // — not Zig's lowercase ``inf`` / ``nan``.
+    if (std.math.isNan(value)) {
+        const lit = "NaN";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
     }
-    if (!has_dot and len + 2 <= ftoa_buf.len) {
-        ftoa_buf[len] = '.';
-        ftoa_buf[len + 1] = '0';
-        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len + 2) };
+    if (std.math.isInf(value)) {
+        if (value < 0) {
+            const lit = "-Inf";
+            @memcpy(ftoa_buf[0..lit.len], lit);
+            return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+        }
+        const lit = "Inf";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
     }
-    return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len) };
+
+    // Render the shortest-roundtrip scientific form (always fits in
+    // 53 bytes — see ``std.fmt.float.bufferSize(.scientific, f64)``);
+    // then reformat into Tcl 9's ``Tcl_PrintDouble`` style.  Using
+    // ``{d}`` here directly is unsafe — for subnormals like ``1e-320``
+    // the decimal expansion is 322 characters, which previously
+    // overflowed a 32-byte buffer and silently rendered as ``0.0``
+    // (the ``catch`` fallback returned a single stale byte).
+    var sci_buf: [64]u8 = undefined;
+    const sci = std.fmt.float.render(&sci_buf, value, .{ .mode = .scientific }) catch {
+        // Should never fail at this buffer size; emit a safe fallback.
+        const lit = "0.0";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+    };
+
+    // Parse ``[-]<digits>[.<more>]e<sign?><exp>`` into a sign, a
+    // contiguous digit run, and the integer exponent.  Tcl's
+    // ``exponent`` is the position of the leading digit relative to
+    // the decimal point — equivalent to Zig scientific's exponent.
+    var sign_neg = false;
+    var i: usize = 0;
+    if (sci.len > 0 and sci[0] == '-') {
+        sign_neg = true;
+        i = 1;
+    }
+    var e_pos: usize = i;
+    while (e_pos < sci.len and sci[e_pos] != 'e') e_pos += 1;
+    var digits: [32]u8 = undefined;
+    var ndigits: usize = 0;
+    var j = i;
+    while (j < e_pos) : (j += 1) {
+        if (sci[j] != '.') {
+            if (ndigits < digits.len) {
+                digits[ndigits] = sci[j];
+                ndigits += 1;
+            }
+        }
+    }
+    var exp: i32 = 0;
+    if (e_pos < sci.len) {
+        exp = std.fmt.parseInt(i32, sci[e_pos + 1 ..], 10) catch 0;
+    }
+
+    var out: usize = 0;
+    if (sign_neg) {
+        ftoa_buf[out] = '-';
+        out += 1;
+    }
+
+    // Tcl 9 picks E format when ``exponent < -4`` or ``exponent > 16``
+    // (see ``Tcl_PrintDouble`` in ``generic/tclUtil.c``); otherwise F.
+    if (exp < -4 or exp > 16) {
+        // E format: ``<d>[.<more>]e<+/-><abs_exp>``.  Tcl always emits
+        // an explicit sign for the exponent, matching ``e%+d``.
+        ftoa_buf[out] = if (ndigits > 0) digits[0] else '0';
+        out += 1;
+        if (ndigits > 1) {
+            ftoa_buf[out] = '.';
+            out += 1;
+            var k: usize = 1;
+            while (k < ndigits) : (k += 1) {
+                ftoa_buf[out] = digits[k];
+                out += 1;
+            }
+        }
+        ftoa_buf[out] = 'e';
+        out += 1;
+        ftoa_buf[out] = if (exp >= 0) '+' else '-';
+        out += 1;
+        const abs_exp: u32 = if (exp < 0) @intCast(-exp) else @intCast(exp);
+        const er = std.fmt.bufPrint(ftoa_buf[out..], "{d}", .{abs_exp}) catch {
+            ftoa_buf[out] = '0';
+            out += 1;
+            return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(out) };
+        };
+        out += er.len;
+    } else if (exp < 0) {
+        // F format with leading "0.<zeros><digits>".
+        ftoa_buf[out] = '0';
+        out += 1;
+        ftoa_buf[out] = '.';
+        out += 1;
+        var zeros: i32 = -exp - 1;
+        while (zeros > 0) : (zeros -= 1) {
+            ftoa_buf[out] = '0';
+            out += 1;
+        }
+        var k: usize = 0;
+        while (k < ndigits) : (k += 1) {
+            ftoa_buf[out] = digits[k];
+            out += 1;
+        }
+    } else {
+        // F format with ``<int_part>.<frac_part>``; pad the integer
+        // part with trailing zeros if exponent runs past ``ndigits``,
+        // and emit ``.0`` when there's no fractional part so the
+        // result stays distinguishable from an integer.
+        const int_len: usize = @as(usize, @intCast(exp)) + 1;
+        var k: usize = 0;
+        while (k < int_len) : (k += 1) {
+            ftoa_buf[out] = if (k < ndigits) digits[k] else '0';
+            out += 1;
+        }
+        ftoa_buf[out] = '.';
+        out += 1;
+        if (k >= ndigits) {
+            ftoa_buf[out] = '0';
+            out += 1;
+        } else {
+            while (k < ndigits) : (k += 1) {
+                ftoa_buf[out] = digits[k];
+                out += 1;
+            }
+        }
+    }
+
+    return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(out) };
 }
 
 /// Render a TclObj to its string representation (integer, float, or string).
@@ -1037,10 +1756,26 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         const buf = alloc(cap);
         if (buf == 0) return .{ .ptr = 0, .len = 0 };
         memcpy(buf, @intFromPtr(result.ptr), result.len);
-        write_i32(addr + OBJ_STR_PTR, @intCast(buf));
-        write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+        write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+        write_i32(addr + OBJ_STR_LEN, @bitCast(result.len));
         write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
         return .{ .ptr = buf, .len = result.len };
+    }
+    if (tag == TYPE_BIGNUM) {
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return .{ .ptr = 0, .len = 0 };
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        const rendered = bignum.alloc_format(m) orelse return .{ .ptr = 0, .len = 0 };
+        defer bignum.allocator.free(rendered);
+        const len: u32 = @intCast(rendered.len);
+        const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
+        const buf = alloc(cap);
+        if (buf == 0) return .{ .ptr = 0, .len = 0 };
+        memcpy(buf, @intFromPtr(rendered.ptr), len);
+        write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+        write_i32(addr + OBJ_STR_LEN, @bitCast(len));
+        write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
+        return .{ .ptr = buf, .len = len };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
     const result = itoa(val);
@@ -1051,8 +1786,8 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     const buf = alloc(cap);
     if (buf == 0) return .{ .ptr = 0, .len = 0 };
     memcpy(buf, @intFromPtr(result.ptr), result.len);
-    write_i32(addr + OBJ_STR_PTR, @intCast(buf));
-    write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+    write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+    write_i32(addr + OBJ_STR_LEN, @bitCast(result.len));
     write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
     return .{ .ptr = buf, .len = result.len };
 }

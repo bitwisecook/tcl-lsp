@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from server.features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
 
 
 def _str_code(d: types.Diagnostic) -> str:
@@ -195,17 +195,21 @@ class TestDeepDiagnostics:
 
     def test_disabled_optimisations(self):
         """Per-code optimisation filters work in deep phase."""
-        source = 'set x [string tolower "HELLO"]'
+        # Use an input that surfaces a single optimisation diagnostic — the
+        # previous ``string tolower`` snippet produced none, so the filter was
+        # never exercised. (A multi-pass input would let disabling one code
+        # unmask another, which isn't what this filter test is about.)
+        source = "puts [expr {1 + 1}]"
         diags_with = get_deep_diagnostics(source, {}, optimiser_enabled=True)
         o_codes = {_str_code(d) for d in diags_with if _str_code(d).startswith("O")}
+        assert o_codes, "expected optimisation diagnostics to filter"
 
-        if o_codes:
-            # Disable all found codes and verify they disappear
-            diags_without = get_deep_diagnostics(
-                source, {}, optimiser_enabled=True, disabled_optimisations=o_codes
-            )
-            remaining = {_str_code(d) for d in diags_without if _str_code(d).startswith("O")}
-            assert remaining == set()
+        # Disable all found codes and verify they disappear
+        diags_without = get_deep_diagnostics(
+            source, {}, optimiser_enabled=True, disabled_optimisations=o_codes
+        )
+        remaining = {_str_code(d) for d in diags_without if _str_code(d).startswith("O")}
+        assert remaining == set()
 
 
 class TestCombinedGetDiagnostics:

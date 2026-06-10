@@ -7,12 +7,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import build_cfg
-from core.compiler.lowering import lower_to_ir
-from core.compiler.memory_ssa import (
+from compiler.cfg import build_cfg
+from compiler.lowering import lower_to_ir
+from compiler.memory_ssa import (
     build_memory_ssa,
 )
-from core.compiler.ssa import build_ssa
+from compiler.ssa import build_ssa
 
 
 def _build_proc(source: str, proc_name: str | None = None):
@@ -123,7 +123,12 @@ class TestAliasDetectionExtended:
         source = "proc foo {} { global gvar\n set gvar 42 }"
         mem, _ = _build_proc(source, "foo")
         gvar_aliases = mem.aliases_for("gvar")
-        assert len(gvar_aliases) >= 1
+        # The ``global gvar`` declaration aliases the local to the global of
+        # the same name.
+        assert any(
+            a.reason == "global" and any(loc.name == "gvar" for loc in a.locations)
+            for a in gvar_aliases
+        ), gvar_aliases
 
     def test_aliases_for_unknown_name(self):
         source = "proc foo {} { global gvar\n set gvar 42 }"
@@ -134,7 +139,7 @@ class TestAliasDetectionExtended:
 class TestMemoryOpsExtended:
     def test_memory_use_recorded(self):
         """Reading an aliased variable should produce a USE memory op."""
-        from core.compiler.memory_ssa import MemoryOpKind
+        from compiler.memory_ssa import MemoryOpKind
 
         source = "proc foo {} { global gvar\n set x $gvar }"
         mem, _ = _build_proc(source, "foo")
@@ -155,7 +160,7 @@ class TestMemoryOpsExtended:
 
     def test_memory_phi_at_merge(self):
         """Aliased variables with different versions at merge create memory phis."""
-        from core.compiler.memory_ssa import MemoryOpKind
+        from compiler.memory_ssa import MemoryOpKind
 
         source = "proc foo {cond} { global g\nif {$cond} {set g 1} else {set g 2}\nset x $g }"
         mem, _ = _build_proc(source, "foo")
@@ -169,7 +174,7 @@ class TestMemoryOpsExtended:
 class TestMemorySSAIntegration:
     def test_function_analysis_has_memory_ssa(self):
         """Verify memory-SSA is available through FunctionAnalysis."""
-        from core.compiler.core_analyses import analyse_function
+        from compiler.core_analyses import analyse_function
 
         source = "proc foo {} { global gvar\n set gvar 42 }"
         mod = lower_to_ir(source)
@@ -178,4 +183,8 @@ class TestMemorySSAIntegration:
             ssa = build_ssa(cfg)
             analysis = analyse_function(cfg, ssa)
             assert analysis.memory_ssa is not None
-            assert len(analysis.memory_ssa.alias_sets) >= 1
+            # The wired-in memory-SSA carries the ``global gvar`` alias.
+            assert any(
+                a.reason == "global" and any(loc.name == "gvar" for loc in a.locations)
+                for a in analysis.memory_ssa.alias_sets
+            ), analysis.memory_ssa.alias_sets

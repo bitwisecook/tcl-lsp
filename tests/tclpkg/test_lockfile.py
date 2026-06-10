@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from tclpkg.errors import TclPkgError
-from tclpkg.lockfile import (
+from tooling.tclpkg.errors import TclPkgError
+from tooling.tclpkg.lockfile import (
     ExcludeEntry,
     LockedPackage,
     LockFile,

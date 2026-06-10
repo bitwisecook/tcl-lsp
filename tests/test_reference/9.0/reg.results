@@ -1,0 +1,1151 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     reg.test
+DATE     2026-05-06T21:17:28Z
+---
+PASS reg-0.1
+PASS reg-31.1
+PASS reg-33.1
+PASS reg-33.10
+PASS reg-33.11
+PASS reg-33.12
+PASS reg-33.13
+PASS reg-33.15
+PASS reg-33.15.1
+PASS reg-33.16
+PASS reg-33.16.1
+PASS reg-33.17
+PASS reg-33.18
+PASS reg-33.19
+PASS reg-33.2
+PASS reg-33.20
+PASS reg-33.21
+PASS reg-33.22
+PASS reg-33.23
+PASS reg-33.24
+PASS reg-33.25
+PASS reg-33.26
+PASS reg-33.27
+PASS reg-33.28
+PASS reg-33.29
+PASS reg-33.3
+PASS reg-33.30
+PASS reg-33.31
+PASS reg-33.4
+PASS reg-33.5
+PASS reg-33.6
+PASS reg-33.7
+PASS reg-33.8
+PASS reg-33.9
+SKIP reg-1.1 ARE.compile testregexp
+SKIP reg-1.1 ARE.execute testregexp
+SKIP reg-1.1 BRE.compile testregexp
+SKIP reg-1.1 BRE.execute testregexp
+SKIP reg-1.2 ARE.compile testregexp
+SKIP reg-1.2 ARE.execute testregexp
+SKIP reg-1.2 BRE.compile testregexp
+SKIP reg-1.2 BRE.execute testregexp
+SKIP reg-1.3 ARE.compile testregexp
+SKIP reg-1.3 ARE.execute testregexp
+SKIP reg-1.3 BRE.compile testregexp
+SKIP reg-1.3 BRE.execute testregexp
+SKIP reg-10.1 ARE.compile testregexp
+SKIP reg-10.1 ARE.execute testregexp
+SKIP reg-10.1 BRE.compile testregexp
+SKIP reg-10.1 BRE.execute testregexp
+SKIP reg-10.10 ARE.compile testregexp
+SKIP reg-10.10 ARE.execute testregexp
+SKIP reg-10.10 BRE.compile testregexp
+SKIP reg-10.10 BRE.execute testregexp
+SKIP reg-10.11 ARE.compile testregexp
+SKIP reg-10.11 ARE.execute testregexp
+SKIP reg-10.11 BRE.compile testregexp
+SKIP reg-10.11 BRE.execute testregexp
+SKIP reg-10.12 ARE.compile testregexp
+SKIP reg-10.12 ARE.execute testregexp
+SKIP reg-10.12 BRE.compile testregexp
+SKIP reg-10.12 BRE.execute testregexp
+SKIP reg-10.13 ARE.compile testregexp
+SKIP reg-10.13 ARE.execute testregexp
+SKIP reg-10.13 BRE.compile testregexp
+SKIP reg-10.13 BRE.execute testregexp
+SKIP reg-10.14.compile testregexp
+SKIP reg-10.14.execute testregexp
+SKIP reg-10.15.compile testregexp
+SKIP reg-10.15.execute testregexp
+SKIP reg-10.16.compile testregexp
+SKIP reg-10.16.execute testregexp
+SKIP reg-10.17.compile testregexp
+SKIP reg-10.17.execute testregexp
+SKIP reg-10.18 ARE.compile testregexp
+SKIP reg-10.18 ARE.execute testregexp
+SKIP reg-10.18 BRE.compile testregexp
+SKIP reg-10.18 BRE.execute testregexp
+SKIP reg-10.19 ARE.compile testregexp
+SKIP reg-10.19 ARE.execute testregexp
+SKIP reg-10.19 BRE.compile testregexp
+SKIP reg-10.19 BRE.execute testregexp
+SKIP reg-10.2 ARE.compile testregexp
+SKIP reg-10.2 ARE.execute testregexp
+SKIP reg-10.2 BRE.compile testregexp
+SKIP reg-10.2 BRE.execute testregexp
+SKIP reg-10.20 ARE.compile testregexp
+SKIP reg-10.20 ARE.execute testregexp
+SKIP reg-10.20 BRE.compile testregexp
+SKIP reg-10.20 BRE.execute testregexp
+SKIP reg-10.21.compile testregexp
+SKIP reg-10.21.execute testregexp
+SKIP reg-10.22.compile testregexp
+SKIP reg-10.22.execute testregexp
+SKIP reg-10.23.compile testregexp
+SKIP reg-10.23.execute testregexp
+SKIP reg-10.24.compile testregexp
+SKIP reg-10.24.execute testregexp
+SKIP reg-10.25.compile testregexp
+SKIP reg-10.25.execute testregexp
+SKIP reg-10.26.compile testregexp
+SKIP reg-10.26.execute testregexp
+SKIP reg-10.27.compile testregexp
+SKIP reg-10.27.execute testregexp
+SKIP reg-10.28.compile testregexp
+SKIP reg-10.28.execute testregexp
+SKIP reg-10.29.error testregexp
+SKIP reg-10.3 ARE.compile testregexp
+SKIP reg-10.3 ARE.execute testregexp
+SKIP reg-10.3 BRE.compile testregexp
+SKIP reg-10.3 BRE.execute testregexp
+SKIP reg-10.30.error testregexp
+SKIP reg-10.31.error testregexp
+SKIP reg-10.32.error testregexp
+SKIP reg-10.4 ARE.compile testregexp
+SKIP reg-10.4 ARE.execute testregexp
+SKIP reg-10.4 BRE.compile testregexp
+SKIP reg-10.4 BRE.execute testregexp
+SKIP reg-10.5 ARE.compile testregexp
+SKIP reg-10.5 ARE.execute testregexp
+SKIP reg-10.5 BRE.compile testregexp
+SKIP reg-10.5 BRE.execute testregexp
+SKIP reg-10.6 ARE.compile testregexp
+SKIP reg-10.6 ARE.execute testregexp
+SKIP reg-10.6 BRE.compile testregexp
+SKIP reg-10.6 BRE.execute testregexp
+SKIP reg-10.7 ARE.compile testregexp
+SKIP reg-10.7 ARE.execute testregexp
+SKIP reg-10.7 BRE.compile testregexp
+SKIP reg-10.7 BRE.execute testregexp
+SKIP reg-10.8 ARE.compile testregexp
+SKIP reg-10.8 ARE.execute testregexp
+SKIP reg-10.8 BRE.compile testregexp
+SKIP reg-10.8 BRE.execute testregexp
+SKIP reg-10.9 ARE.compile testregexp
+SKIP reg-10.9 ARE.execute testregexp
+SKIP reg-10.9 BRE.compile testregexp
+SKIP reg-10.9 BRE.execute testregexp
+SKIP reg-11.1 ARE.compile testregexp
+SKIP reg-11.1 ARE.execute testregexp
+SKIP reg-11.1 BRE.compile testregexp
+SKIP reg-11.1 BRE.execute testregexp
+SKIP reg-11.10.compile testregexp
+SKIP reg-11.10.execute testregexp
+SKIP reg-11.11.compile testregexp
+SKIP reg-11.11.execute testregexp
+SKIP reg-11.12.compile testregexp
+SKIP reg-11.12.execute testregexp
+SKIP reg-11.13.compile testregexp
+SKIP reg-11.13.execute testregexp
+SKIP reg-11.14.compile testregexp
+SKIP reg-11.14.execute testregexp
+SKIP reg-11.15.compile testregexp
+SKIP reg-11.15.execute testregexp
+SKIP reg-11.16.compile testregexp
+SKIP reg-11.16.execute testregexp
+SKIP reg-11.17.compile testregexp
+SKIP reg-11.17.execute testregexp
+SKIP reg-11.18.compile testregexp
+SKIP reg-11.18.execute testregexp
+SKIP reg-11.19.compile testregexp
+SKIP reg-11.19.execute testregexp
+SKIP reg-11.2 ARE.compile testregexp
+SKIP reg-11.2 ARE.execute testregexp
+SKIP reg-11.2 BRE.compile testregexp
+SKIP reg-11.2 BRE.execute testregexp
+SKIP reg-11.20.compile testregexp
+SKIP reg-11.20.execute testregexp
+SKIP reg-11.21.error testregexp
+SKIP reg-11.22.error testregexp
+SKIP reg-11.23.error testregexp
+SKIP reg-11.24.error testregexp
+SKIP reg-11.25.error testregexp
+SKIP reg-11.26.error testregexp
+SKIP reg-11.27.compile testregexp
+SKIP reg-11.27.execute testregexp
+SKIP reg-11.28.compile testregexp
+SKIP reg-11.28.execute testregexp
+SKIP reg-11.29.compile testregexp
+SKIP reg-11.29.execute testregexp
+SKIP reg-11.3 ARE.compile testregexp
+SKIP reg-11.3 ARE.execute testregexp
+SKIP reg-11.3 BRE.compile testregexp
+SKIP reg-11.3 BRE.execute testregexp
+SKIP reg-11.30.compile testregexp
+SKIP reg-11.30.execute testregexp
+SKIP reg-11.31.compile testregexp
+SKIP reg-11.31.execute testregexp
+SKIP reg-11.32.compile testregexp
+SKIP reg-11.32.execute testregexp
+SKIP reg-11.4 ARE.compile testregexp
+SKIP reg-11.4 ARE.execute testregexp
+SKIP reg-11.4 BRE.compile testregexp
+SKIP reg-11.4 BRE.execute testregexp
+SKIP reg-11.5 ARE.compile testregexp
+SKIP reg-11.5 ARE.execute testregexp
+SKIP reg-11.5 BRE.compile testregexp
+SKIP reg-11.5 BRE.execute testregexp
+SKIP reg-11.6 ARE.compile testregexp
+SKIP reg-11.6 ARE.execute testregexp
+SKIP reg-11.6 BRE.compile testregexp
+SKIP reg-11.6 BRE.execute testregexp
+SKIP reg-11.7.compile testregexp
+SKIP reg-11.7.execute testregexp
+SKIP reg-11.8.compile testregexp
+SKIP reg-11.8.execute testregexp
+SKIP reg-11.9.compile testregexp
+SKIP reg-11.9.execute testregexp
+SKIP reg-12.1.compile testregexp
+SKIP reg-12.1.execute testregexp
+SKIP reg-12.10.compile testregexp
+SKIP reg-12.10.execute testregexp
+SKIP reg-12.11.compile testregexp
+SKIP reg-12.11.execute testregexp
+SKIP reg-12.12.compile testregexp
+SKIP reg-12.12.execute testregexp
+SKIP reg-12.13.compile testregexp
+SKIP reg-12.13.execute testregexp
+SKIP reg-12.14.compile testregexp
+SKIP reg-12.14.execute testregexp
+SKIP reg-12.15.compile testregexp
+SKIP reg-12.15.execute testregexp
+SKIP reg-12.16.compile testregexp
+SKIP reg-12.16.execute testregexp
+SKIP reg-12.17.compile testregexp
+SKIP reg-12.17.execute testregexp
+SKIP reg-12.18.compile testregexp
+SKIP reg-12.18.execute testregexp
+SKIP reg-12.2.compile testregexp
+SKIP reg-12.2.execute testregexp
+SKIP reg-12.3.compile testregexp
+SKIP reg-12.3.execute testregexp
+SKIP reg-12.4.compile testregexp
+SKIP reg-12.4.execute testregexp
+SKIP reg-12.5.compile testregexp
+SKIP reg-12.5.execute testregexp
+SKIP reg-12.6.compile testregexp
+SKIP reg-12.6.execute testregexp
+SKIP reg-12.7.compile testregexp
+SKIP reg-12.7.execute testregexp
+SKIP reg-12.8.compile testregexp
+SKIP reg-12.8.execute testregexp
+SKIP reg-12.9.compile testregexp
+SKIP reg-12.9.execute testregexp
+SKIP reg-13.1 ARE.error testregexp
+SKIP reg-13.1 BRE.error testregexp
+SKIP reg-13.10.compile testregexp
+SKIP reg-13.10.execute testregexp
+SKIP reg-13.11.compile testregexp
+SKIP reg-13.11.execute testregexp
+SKIP reg-13.12.compile testregexp
+SKIP reg-13.12.execute testregexp
+SKIP reg-13.13.compile testregexp
+SKIP reg-13.13.execute testregexp
+SKIP reg-13.14.compile testregexp
+SKIP reg-13.14.execute testregexp
+SKIP reg-13.15.compile testregexp
+SKIP reg-13.15.execute testregexp
+SKIP reg-13.16.compile testregexp
+SKIP reg-13.16.execute testregexp
+SKIP reg-13.17.1.error testregexp
+SKIP reg-13.17.compile testregexp
+SKIP reg-13.17.execute testregexp
+SKIP reg-13.18.compile testregexp
+SKIP reg-13.18.execute testregexp
+SKIP reg-13.19.compile testregexp
+SKIP reg-13.19.execute testregexp
+SKIP reg-13.2.compile testregexp
+SKIP reg-13.2.execute testregexp
+SKIP reg-13.20.compile testregexp
+SKIP reg-13.20.execute testregexp
+SKIP reg-13.21.compile testregexp
+SKIP reg-13.21.execute testregexp
+SKIP reg-13.22.compile testregexp
+SKIP reg-13.22.execute testregexp
+SKIP reg-13.23.error testregexp
+SKIP reg-13.24.compile testregexp
+SKIP reg-13.24.execute testregexp
+SKIP reg-13.25.error testregexp
+SKIP reg-13.26.compile testregexp
+SKIP reg-13.26.execute testregexp
+SKIP reg-13.27.compile testregexp
+SKIP reg-13.27.execute testregexp
+SKIP reg-13.28.compile testregexp
+SKIP reg-13.28.execute testregexp
+SKIP reg-13.29.compile testregexp
+SKIP reg-13.29.execute testregexp
+SKIP reg-13.3.compile testregexp
+SKIP reg-13.3.execute testregexp
+SKIP reg-13.30.compile testregexp
+SKIP reg-13.30.execute testregexp
+SKIP reg-13.31.compile testregexp
+SKIP reg-13.31.execute testregexp
+SKIP reg-13.32.compile testregexp
+SKIP reg-13.32.execute testregexp
+SKIP reg-13.33.compile testregexp
+SKIP reg-13.33.execute testregexp
+SKIP reg-13.34.compile testregexp
+SKIP reg-13.34.execute testregexp
+SKIP reg-13.4.compile testregexp
+SKIP reg-13.4.execute testregexp
+SKIP reg-13.5.compile testregexp
+SKIP reg-13.5.execute testregexp
+SKIP reg-13.6.compile testregexp
+SKIP reg-13.6.execute testregexp
+SKIP reg-13.7.compile testregexp
+SKIP reg-13.7.execute testregexp
+SKIP reg-13.8.compile testregexp
+SKIP reg-13.8.execute testregexp
+SKIP reg-13.9.compile testregexp
+SKIP reg-13.9.execute testregexp
+SKIP reg-14.1.compile testregexp
+SKIP reg-14.1.execute testregexp
+SKIP reg-14.10.compile testregexp
+SKIP reg-14.10.execute testregexp
+SKIP reg-14.11.compile testregexp
+SKIP reg-14.11.execute testregexp
+SKIP reg-14.12.compile testregexp
+SKIP reg-14.12.execute testregexp
+SKIP reg-14.13.compile testregexp
+SKIP reg-14.13.execute testregexp
+SKIP reg-14.14.compile testregexp
+SKIP reg-14.14.execute testregexp
+SKIP reg-14.15.compile testregexp
+SKIP reg-14.15.execute testregexp
+SKIP reg-14.16.compile testregexp
+SKIP reg-14.16.execute testregexp
+SKIP reg-14.17.compile testregexp
+SKIP reg-14.17.execute testregexp
+SKIP reg-14.18.error testregexp
+SKIP reg-14.19.error testregexp
+SKIP reg-14.2.compile testregexp
+SKIP reg-14.2.execute testregexp
+SKIP reg-14.20.compile testregexp
+SKIP reg-14.20.execute testregexp
+SKIP reg-14.21.compile testregexp
+SKIP reg-14.21.execute testregexp
+SKIP reg-14.22.compile testregexp
+SKIP reg-14.22.execute testregexp
+SKIP reg-14.23.compile testregexp
+SKIP reg-14.23.execute testregexp
+SKIP reg-14.24.compile testregexp
+SKIP reg-14.24.execute testregexp
+SKIP reg-14.25.compile testregexp
+SKIP reg-14.25.execute testregexp
+SKIP reg-14.26.compile testregexp
+SKIP reg-14.26.execute testregexp
+SKIP reg-14.27.compile testregexp
+SKIP reg-14.27.execute testregexp
+SKIP reg-14.28.compile testregexp
+SKIP reg-14.28.execute testregexp
+SKIP reg-14.29.compile testregexp
+SKIP reg-14.29.execute testregexp
+SKIP reg-14.3.compile testregexp
+SKIP reg-14.3.execute testregexp
+SKIP reg-14.4.compile testregexp
+SKIP reg-14.4.execute testregexp
+SKIP reg-14.5.compile testregexp
+SKIP reg-14.5.execute testregexp
+SKIP reg-14.6.compile testregexp
+SKIP reg-14.6.execute testregexp
+SKIP reg-14.7.compile testregexp
+SKIP reg-14.7.execute testregexp
+SKIP reg-14.8.compile testregexp
+SKIP reg-14.8.execute testregexp
+SKIP reg-14.9.compile testregexp
+SKIP reg-14.9.execute testregexp
+SKIP reg-15.1.compile testregexp
+SKIP reg-15.1.execute testregexp
+SKIP reg-15.10.compile testregexp
+SKIP reg-15.10.execute testregexp
+SKIP reg-15.11.error testregexp
+SKIP reg-15.12.compile testregexp
+SKIP reg-15.12.execute testregexp
+SKIP reg-15.13.compile testregexp
+SKIP reg-15.13.execute testregexp
+SKIP reg-15.2.compile testregexp
+SKIP reg-15.2.execute testregexp
+SKIP reg-15.3.compile testregexp
+SKIP reg-15.3.execute testregexp
+SKIP reg-15.4.compile testregexp
+SKIP reg-15.4.execute testregexp
+SKIP reg-15.5.error testregexp
+SKIP reg-15.6.compile testregexp
+SKIP reg-15.6.execute testregexp
+SKIP reg-15.7.compile testregexp
+SKIP reg-15.7.execute testregexp
+SKIP reg-15.8.compile testregexp
+SKIP reg-15.8.execute testregexp
+SKIP reg-15.9.error testregexp
+SKIP reg-16.1.compile testregexp
+SKIP reg-16.1.execute testregexp
+SKIP reg-16.2.compile testregexp
+SKIP reg-16.2.execute testregexp
+SKIP reg-16.3.compile testregexp
+SKIP reg-16.3.execute testregexp
+SKIP reg-16.4.compile testregexp
+SKIP reg-16.4.execute testregexp
+SKIP reg-16.5.compile testregexp
+SKIP reg-16.5.execute testregexp
+SKIP reg-16.6.compile testregexp
+SKIP reg-16.6.execute testregexp
+SKIP reg-16.7.compile testregexp
+SKIP reg-16.7.execute testregexp
+SKIP reg-16.8.compile testregexp
+SKIP reg-16.8.execute testregexp
+SKIP reg-16.9.compile testregexp
+SKIP reg-16.9.execute testregexp
+SKIP reg-17.1.compile testregexp
+SKIP reg-17.1.execute testregexp
+SKIP reg-18.1.compile testregexp
+SKIP reg-18.1.execute testregexp
+SKIP reg-19.1 ARE.compile testregexp
+SKIP reg-19.1 ARE.execute testregexp
+SKIP reg-19.1 BRE.compile testregexp
+SKIP reg-19.1 BRE.execute testregexp
+SKIP reg-19.2 ARE.compile testregexp
+SKIP reg-19.2 ARE.execute testregexp
+SKIP reg-19.2 BRE.compile testregexp
+SKIP reg-19.2 BRE.execute testregexp
+SKIP reg-19.3 ARE.compile testregexp
+SKIP reg-19.3 ARE.execute testregexp
+SKIP reg-19.3 BRE.compile testregexp
+SKIP reg-19.3 BRE.execute testregexp
+SKIP reg-19.4 ARE.compile testregexp
+SKIP reg-19.4 ARE.execute testregexp
+SKIP reg-19.4 BRE.compile testregexp
+SKIP reg-19.4 BRE.execute testregexp
+SKIP reg-19.5 ARE.compile testregexp
+SKIP reg-19.5 ARE.execute testregexp
+SKIP reg-19.5 BRE.compile testregexp
+SKIP reg-19.5 BRE.execute testregexp
+SKIP reg-2.1.error testregexp
+SKIP reg-2.2.error testregexp
+SKIP reg-2.3.error testregexp
+SKIP reg-2.4.error testregexp
+SKIP reg-2.5.error testregexp
+SKIP reg-20.1 ARE.error testregexp
+SKIP reg-20.1 BRE.error testregexp
+SKIP reg-20.10.error testregexp
+SKIP reg-20.11.compile testregexp
+SKIP reg-20.11.execute testregexp
+SKIP reg-20.12.compile testregexp
+SKIP reg-20.12.execute testregexp
+SKIP reg-20.13.compile testregexp
+SKIP reg-20.13.execute testregexp
+SKIP reg-20.14.compile testregexp
+SKIP reg-20.14.execute testregexp
+SKIP reg-20.15.compile testregexp
+SKIP reg-20.15.execute testregexp
+SKIP reg-20.16.compile testregexp
+SKIP reg-20.16.execute testregexp
+SKIP reg-20.17.compile testregexp
+SKIP reg-20.17.execute testregexp
+SKIP reg-20.18.compile testregexp
+SKIP reg-20.18.execute testregexp
+SKIP reg-20.19.compile testregexp
+SKIP reg-20.19.execute testregexp
+SKIP reg-20.2.compile testregexp
+SKIP reg-20.2.execute testregexp
+SKIP reg-20.20.compile testregexp
+SKIP reg-20.20.execute testregexp
+SKIP reg-20.21.compile testregexp
+SKIP reg-20.21.execute testregexp
+SKIP reg-20.22.compile testregexp
+SKIP reg-20.22.execute testregexp
+SKIP reg-20.23.compile testregexp
+SKIP reg-20.23.execute testregexp
+SKIP reg-20.24.compile testregexp
+SKIP reg-20.24.execute testregexp
+SKIP reg-20.25.compile testregexp
+SKIP reg-20.25.execute testregexp
+SKIP reg-20.26.compile testregexp
+SKIP reg-20.26.execute testregexp
+SKIP reg-20.27.compile testregexp
+SKIP reg-20.27.execute testregexp
+SKIP reg-20.28.error testregexp
+SKIP reg-20.29.compile testregexp
+SKIP reg-20.29.execute testregexp
+SKIP reg-20.3 ARE.compile testregexp
+SKIP reg-20.3 ARE.execute testregexp
+SKIP reg-20.3 BRE.compile testregexp
+SKIP reg-20.3 BRE.execute testregexp
+SKIP reg-20.30.error testregexp
+SKIP reg-20.31.compile testregexp
+SKIP reg-20.31.execute testregexp
+SKIP reg-20.32.compile testregexp
+SKIP reg-20.32.execute testregexp
+SKIP reg-20.33.compile testregexp
+SKIP reg-20.33.execute testregexp
+SKIP reg-20.34.compile testregexp
+SKIP reg-20.34.execute testregexp
+SKIP reg-20.35.compile testregexp
+SKIP reg-20.35.execute testregexp
+SKIP reg-20.4.compile testregexp
+SKIP reg-20.4.execute testregexp
+SKIP reg-20.5.compile testregexp
+SKIP reg-20.5.execute testregexp
+SKIP reg-20.6.compile testregexp
+SKIP reg-20.6.execute testregexp
+SKIP reg-20.7 ARE.error testregexp
+SKIP reg-20.7 BRE.error testregexp
+SKIP reg-20.8 ARE.compile testregexp
+SKIP reg-20.8 ARE.execute testregexp
+SKIP reg-20.8 BRE.compile testregexp
+SKIP reg-20.8 BRE.execute testregexp
+SKIP reg-20.9.compile testregexp
+SKIP reg-20.9.execute testregexp
+SKIP reg-21.1.compile testregexp
+SKIP reg-21.1.execute testregexp
+SKIP reg-21.10.compile testregexp
+SKIP reg-21.10.execute testregexp
+SKIP reg-21.11.compile testregexp
+SKIP reg-21.11.execute testregexp
+SKIP reg-21.12.compile testregexp
+SKIP reg-21.12.execute testregexp
+SKIP reg-21.13.compile testregexp
+SKIP reg-21.13.execute testregexp
+SKIP reg-21.14.compile testregexp
+SKIP reg-21.14.execute testregexp
+SKIP reg-21.15.compile testregexp
+SKIP reg-21.15.execute testregexp
+SKIP reg-21.16.compile testregexp
+SKIP reg-21.16.execute testregexp
+SKIP reg-21.17.compile testregexp
+SKIP reg-21.17.execute testregexp
+SKIP reg-21.18.compile testregexp
+SKIP reg-21.18.execute testregexp
+SKIP reg-21.19.compile testregexp
+SKIP reg-21.19.execute testregexp
+SKIP reg-21.2.compile testregexp
+SKIP reg-21.2.execute testregexp
+SKIP reg-21.20.compile testregexp
+SKIP reg-21.20.execute testregexp
+SKIP reg-21.21.compile testregexp
+SKIP reg-21.21.execute testregexp
+SKIP reg-21.22.compile testregexp
+SKIP reg-21.22.execute testregexp
+SKIP reg-21.23.compile testregexp
+SKIP reg-21.23.execute testregexp
+SKIP reg-21.24.compile testregexp
+SKIP reg-21.24.execute testregexp
+SKIP reg-21.25.compile testregexp
+SKIP reg-21.25.execute testregexp
+SKIP reg-21.26.compile testregexp
+SKIP reg-21.26.execute testregexp
+SKIP reg-21.27.compile testregexp
+SKIP reg-21.27.execute testregexp
+SKIP reg-21.28.compile testregexp
+SKIP reg-21.28.execute testregexp
+SKIP reg-21.29.compile testregexp
+SKIP reg-21.29.execute testregexp
+SKIP reg-21.3.compile testregexp
+SKIP reg-21.3.execute testregexp
+SKIP reg-21.30.compile testregexp
+SKIP reg-21.30.execute testregexp
+SKIP reg-21.31.compile testregexp
+SKIP reg-21.31.execute testregexp
+SKIP reg-21.32.compile testregexp
+SKIP reg-21.32.execute testregexp
+SKIP reg-21.33.compile testregexp
+SKIP reg-21.33.execute testregexp
+SKIP reg-21.34.compile testregexp
+SKIP reg-21.34.execute testregexp
+SKIP reg-21.35.compile testregexp
+SKIP reg-21.35.execute testregexp
+SKIP reg-21.4.compile testregexp
+SKIP reg-21.4.execute testregexp
+SKIP reg-21.5.compile testregexp
+SKIP reg-21.5.execute testregexp
+SKIP reg-21.6.compile testregexp
+SKIP reg-21.6.execute testregexp
+SKIP reg-21.7.compile testregexp
+SKIP reg-21.7.execute testregexp
+SKIP reg-21.8.compile testregexp
+SKIP reg-21.8.execute testregexp
+SKIP reg-21.9.compile testregexp
+SKIP reg-21.9.execute testregexp
+SKIP reg-22.1 ARE.compile testregexp
+SKIP reg-22.1 ARE.execute testregexp
+SKIP reg-22.1 BRE.compile testregexp
+SKIP reg-22.1 BRE.execute testregexp
+SKIP reg-22.10 ARE.compile testregexp
+SKIP reg-22.10 ARE.execute testregexp
+SKIP reg-22.10 BRE.compile testregexp
+SKIP reg-22.10 BRE.execute testregexp
+SKIP reg-22.11 ARE.compile testregexp
+SKIP reg-22.11 ARE.execute testregexp
+SKIP reg-22.11 BRE.compile testregexp
+SKIP reg-22.11 BRE.execute testregexp
+SKIP reg-22.12 ARE.compile testregexp
+SKIP reg-22.12 ARE.execute testregexp
+SKIP reg-22.12 BRE.compile testregexp
+SKIP reg-22.12 BRE.execute testregexp
+SKIP reg-22.13 ARE.compile testregexp
+SKIP reg-22.13 ARE.execute testregexp
+SKIP reg-22.13 BRE.compile testregexp
+SKIP reg-22.13 BRE.execute testregexp
+SKIP reg-22.14 ARE.compile testregexp
+SKIP reg-22.14 ARE.execute testregexp
+SKIP reg-22.14 BRE.compile testregexp
+SKIP reg-22.14 BRE.execute testregexp
+SKIP reg-22.15 ARE.compile testregexp
+SKIP reg-22.15 ARE.execute testregexp
+SKIP reg-22.15 BRE.compile testregexp
+SKIP reg-22.15 BRE.execute testregexp
+SKIP reg-22.16 ARE.compile testregexp
+SKIP reg-22.16 ARE.execute testregexp
+SKIP reg-22.16 BRE.compile testregexp
+SKIP reg-22.16 BRE.execute testregexp
+SKIP reg-22.17 ARE.compile testregexp
+SKIP reg-22.17 ARE.execute testregexp
+SKIP reg-22.17 BRE.compile testregexp
+SKIP reg-22.17 BRE.execute testregexp
+SKIP reg-22.18 ARE.compile testregexp
+SKIP reg-22.18 ARE.execute testregexp
+SKIP reg-22.18 BRE.compile testregexp
+SKIP reg-22.18 BRE.execute testregexp
+SKIP reg-22.19 ARE.compile testregexp
+SKIP reg-22.19 ARE.execute testregexp
+SKIP reg-22.19 BRE.compile testregexp
+SKIP reg-22.19 BRE.execute testregexp
+SKIP reg-22.2 ARE.compile testregexp
+SKIP reg-22.2 ARE.execute testregexp
+SKIP reg-22.2 BRE.compile testregexp
+SKIP reg-22.2 BRE.execute testregexp
+SKIP reg-22.20 ARE.compile testregexp
+SKIP reg-22.20 ARE.execute testregexp
+SKIP reg-22.20 BRE.compile testregexp
+SKIP reg-22.20 BRE.execute testregexp
+SKIP reg-22.21 ARE.compile testregexp
+SKIP reg-22.21 ARE.execute testregexp
+SKIP reg-22.21 BRE.compile testregexp
+SKIP reg-22.21 BRE.execute testregexp
+SKIP reg-22.22 ARE.compile testregexp
+SKIP reg-22.22 ARE.execute testregexp
+SKIP reg-22.22 BRE.compile testregexp
+SKIP reg-22.22 BRE.execute testregexp
+SKIP reg-22.3 ARE.compile testregexp
+SKIP reg-22.3 ARE.execute testregexp
+SKIP reg-22.3 BRE.compile testregexp
+SKIP reg-22.3 BRE.execute testregexp
+SKIP reg-22.4 ARE.compile testregexp
+SKIP reg-22.4 ARE.execute testregexp
+SKIP reg-22.4 BRE.compile testregexp
+SKIP reg-22.4 BRE.execute testregexp
+SKIP reg-22.5 ARE.compile testregexp
+SKIP reg-22.5 ARE.execute testregexp
+SKIP reg-22.5 BRE.compile testregexp
+SKIP reg-22.5 BRE.execute testregexp
+SKIP reg-22.6 ARE.compile testregexp
+SKIP reg-22.6 ARE.execute testregexp
+SKIP reg-22.6 BRE.compile testregexp
+SKIP reg-22.6 BRE.execute testregexp
+SKIP reg-22.7 ARE.compile testregexp
+SKIP reg-22.7 ARE.execute testregexp
+SKIP reg-22.7 BRE.compile testregexp
+SKIP reg-22.7 BRE.execute testregexp
+SKIP reg-22.8 ARE.compile testregexp
+SKIP reg-22.8 ARE.execute testregexp
+SKIP reg-22.8 BRE.compile testregexp
+SKIP reg-22.8 BRE.execute testregexp
+SKIP reg-22.9 ARE.compile testregexp
+SKIP reg-22.9 ARE.execute testregexp
+SKIP reg-22.9 BRE.compile testregexp
+SKIP reg-22.9 BRE.execute testregexp
+SKIP reg-23.1.compile testregexp
+SKIP reg-23.1.execute testregexp
+SKIP reg-23.2.compile testregexp
+SKIP reg-23.2.execute testregexp
+SKIP reg-23.3.compile testregexp
+SKIP reg-23.3.execute testregexp
+SKIP reg-23.4.compile testregexp
+SKIP reg-23.4.execute testregexp
+SKIP reg-23.5.compile testregexp
+SKIP reg-23.5.execute testregexp
+SKIP reg-23.6.compile testregexp
+SKIP reg-23.6.execute testregexp
+SKIP reg-23.7.compile testregexp
+SKIP reg-23.7.execute testregexp
+SKIP reg-23.8.compile testregexp
+SKIP reg-23.8.execute testregexp
+SKIP reg-24.1.compile testregexp
+SKIP reg-24.1.execute testregexp
+SKIP reg-24.10.compile testregexp
+SKIP reg-24.10.execute testregexp
+SKIP reg-24.11.compile testregexp
+SKIP reg-24.11.execute testregexp
+SKIP reg-24.12.compile testregexp
+SKIP reg-24.12.execute testregexp
+SKIP reg-24.13.compile testregexp
+SKIP reg-24.13.execute testregexp
+SKIP reg-24.2.compile testregexp
+SKIP reg-24.2.execute testregexp
+SKIP reg-24.3.compile testregexp
+SKIP reg-24.3.execute testregexp
+SKIP reg-24.4.compile testregexp
+SKIP reg-24.4.execute testregexp
+SKIP reg-24.5.compile testregexp
+SKIP reg-24.5.execute testregexp
+SKIP reg-24.6.compile testregexp
+SKIP reg-24.6.execute testregexp
+SKIP reg-24.7.compile testregexp
+SKIP reg-24.7.execute testregexp
+SKIP reg-24.8.compile testregexp
+SKIP reg-24.8.execute testregexp
+SKIP reg-24.9.compile testregexp
+SKIP reg-24.9.execute testregexp
+SKIP reg-25.1.compile testregexp
+SKIP reg-25.1.execute testregexp
+SKIP reg-25.2.compile testregexp
+SKIP reg-25.2.execute testregexp
+SKIP reg-25.3.compile testregexp
+SKIP reg-25.3.execute testregexp
+SKIP reg-26.1.compile testregexp
+SKIP reg-26.1.execute testregexp
+SKIP reg-26.2.compile testregexp
+SKIP reg-26.2.execute testregexp
+SKIP reg-26.3.compile testregexp
+SKIP reg-26.3.execute testregexp
+SKIP reg-27.1.compile testregexp
+SKIP reg-27.1.execute testregexp
+SKIP reg-27.2 ARE.compile testregexp
+SKIP reg-27.2 ARE.execute testregexp
+SKIP reg-27.2 BRE.compile testregexp
+SKIP reg-27.2 BRE.execute testregexp
+SKIP reg-27.3 ARE.compile testregexp
+SKIP reg-27.3 ARE.execute testregexp
+SKIP reg-27.3 BRE.compile testregexp
+SKIP reg-27.3 BRE.execute testregexp
+SKIP reg-28.1 ARE.compile testregexp
+SKIP reg-28.1 ARE.execute testregexp
+SKIP reg-28.1 BRE.compile testregexp
+SKIP reg-28.1 BRE.execute testregexp
+SKIP reg-28.10.compile testregexp
+SKIP reg-28.10.execute testregexp
+SKIP reg-28.11.compile testregexp
+SKIP reg-28.11.execute testregexp
+SKIP reg-28.12.compile testregexp
+SKIP reg-28.12.execute testregexp
+SKIP reg-28.2.compile testregexp
+SKIP reg-28.2.execute testregexp
+SKIP reg-28.3.compile testregexp
+SKIP reg-28.3.execute testregexp
+SKIP reg-28.4.compile testregexp
+SKIP reg-28.4.execute testregexp
+SKIP reg-28.5.compile testregexp
+SKIP reg-28.5.execute testregexp
+SKIP reg-28.6.compile testregexp
+SKIP reg-28.6.execute testregexp
+SKIP reg-28.7.compile testregexp
+SKIP reg-28.7.execute testregexp
+SKIP reg-28.8.compile testregexp
+SKIP reg-28.8.execute testregexp
+SKIP reg-28.9.compile testregexp
+SKIP reg-28.9.execute testregexp
+SKIP reg-29.1.compile testregexp
+SKIP reg-29.1.execute testregexp
+SKIP reg-29.10.compile testregexp
+SKIP reg-29.10.execute testregexp
+SKIP reg-29.11.compile testregexp
+SKIP reg-29.11.execute testregexp
+SKIP reg-29.12.compile testregexp
+SKIP reg-29.12.execute testregexp
+SKIP reg-29.13.compile testregexp
+SKIP reg-29.13.execute testregexp
+SKIP reg-29.14.compile testregexp
+SKIP reg-29.14.execute testregexp
+SKIP reg-29.15.compile testregexp
+SKIP reg-29.15.execute testregexp
+SKIP reg-29.16.compile testregexp
+SKIP reg-29.16.execute testregexp
+SKIP reg-29.17.compile testregexp
+SKIP reg-29.17.execute testregexp
+SKIP reg-29.2.compile testregexp
+SKIP reg-29.2.execute testregexp
+SKIP reg-29.3.compile testregexp
+SKIP reg-29.3.execute testregexp
+SKIP reg-29.4.compile testregexp
+SKIP reg-29.4.execute testregexp
+SKIP reg-29.5.compile testregexp
+SKIP reg-29.5.execute testregexp
+SKIP reg-29.6.compile testregexp
+SKIP reg-29.6.execute testregexp
+SKIP reg-29.7.compile testregexp
+SKIP reg-29.7.execute testregexp
+SKIP reg-29.8.compile testregexp
+SKIP reg-29.8.execute testregexp
+SKIP reg-29.9.compile testregexp
+SKIP reg-29.9.execute testregexp
+SKIP reg-3.1 ARE.compile testregexp
+SKIP reg-3.1 ARE.execute testregexp
+SKIP reg-3.1 BRE.compile testregexp
+SKIP reg-3.1 BRE.execute testregexp
+SKIP reg-3.2.compile testregexp
+SKIP reg-3.2.execute testregexp
+SKIP reg-3.3.compile testregexp
+SKIP reg-3.3.execute testregexp
+SKIP reg-3.4.compile testregexp
+SKIP reg-3.4.execute testregexp
+SKIP reg-3.5.compile testregexp
+SKIP reg-3.5.execute testregexp
+SKIP reg-3.6 ARE.compile testregexp
+SKIP reg-3.6 ARE.execute testregexp
+SKIP reg-3.6 BRE.compile testregexp
+SKIP reg-3.6 BRE.execute testregexp
+SKIP reg-30.1 ARE.error testregexp
+SKIP reg-30.1 BRE.error testregexp
+SKIP reg-30.2.compile testregexp
+SKIP reg-30.2.execute testregexp
+SKIP reg-30.3.compile testregexp
+SKIP reg-30.3.execute testregexp
+SKIP reg-30.4 ARE.compile testregexp
+SKIP reg-30.4 ARE.execute testregexp
+SKIP reg-30.4 BRE.compile testregexp
+SKIP reg-30.4 BRE.execute testregexp
+SKIP reg-30.5 ARE.compile testregexp
+SKIP reg-30.5 ARE.execute testregexp
+SKIP reg-30.5 BRE.compile testregexp
+SKIP reg-30.5 BRE.execute testregexp
+SKIP reg-30.6 ARE.compile testregexp
+SKIP reg-30.6 ARE.execute testregexp
+SKIP reg-30.6 BRE.compile testregexp
+SKIP reg-30.6 BRE.execute testregexp
+SKIP reg-30.7.compile testregexp
+SKIP reg-30.7.execute testregexp
+SKIP reg-30.8.compile testregexp
+SKIP reg-30.8.execute testregexp
+SKIP reg-30.9.compile testregexp
+SKIP reg-30.9.execute testregexp
+SKIP reg-32.1 testregexp
+SKIP reg-32.2 testregexp
+SKIP reg-32.3 testregexp
+SKIP reg-32.3.1 testregexp
+SKIP reg-32.4 knownBug
+SKIP reg-32.4.1 knownBug
+SKIP reg-32.5 knownBug
+SKIP reg-32.6 knownBug
+SKIP reg-32.7 knownBug
+SKIP reg-32.8 knownBug
+SKIP reg-32.9 knownBug
+SKIP reg-33.14 nonPortable
+SKIP reg-4.1.compile testregexp
+SKIP reg-4.1.execute testregexp
+SKIP reg-4.10.error testregexp
+SKIP reg-4.11.compile testregexp
+SKIP reg-4.11.execute testregexp
+SKIP reg-4.12.error testregexp
+SKIP reg-4.13.compile testregexp
+SKIP reg-4.13.execute testregexp
+SKIP reg-4.14.compile testregexp
+SKIP reg-4.14.execute testregexp
+SKIP reg-4.15.compile testregexp
+SKIP reg-4.15.execute testregexp
+SKIP reg-4.16.compile testregexp
+SKIP reg-4.16.execute testregexp
+SKIP reg-4.2.compile testregexp
+SKIP reg-4.2.execute testregexp
+SKIP reg-4.3.compile testregexp
+SKIP reg-4.3.execute testregexp
+SKIP reg-4.4.compile testregexp
+SKIP reg-4.4.execute testregexp
+SKIP reg-4.5.compile testregexp
+SKIP reg-4.5.execute testregexp
+SKIP reg-4.6.error testregexp
+SKIP reg-4.7.error testregexp
+SKIP reg-4.8.compile testregexp
+SKIP reg-4.8.execute testregexp
+SKIP reg-4.9.error testregexp
+SKIP reg-5.1 ARE.compile testregexp
+SKIP reg-5.1 ARE.execute testregexp
+SKIP reg-5.1 BRE.compile testregexp
+SKIP reg-5.1 BRE.execute testregexp
+SKIP reg-5.2 ARE.compile testregexp
+SKIP reg-5.2 ARE.execute testregexp
+SKIP reg-5.2 BRE.compile testregexp
+SKIP reg-5.2 BRE.execute testregexp
+SKIP reg-5.3 ARE.compile testregexp
+SKIP reg-5.3 ARE.execute testregexp
+SKIP reg-5.3 BRE.compile testregexp
+SKIP reg-5.3 BRE.execute testregexp
+SKIP reg-5.4 ARE.compile testregexp
+SKIP reg-5.4 ARE.execute testregexp
+SKIP reg-5.4 BRE.compile testregexp
+SKIP reg-5.4 BRE.execute testregexp
+SKIP reg-5.5 ARE.compile testregexp
+SKIP reg-5.5 ARE.execute testregexp
+SKIP reg-5.5 BRE.compile testregexp
+SKIP reg-5.5 BRE.execute testregexp
+SKIP reg-5.6 ARE.compile testregexp
+SKIP reg-5.6 ARE.execute testregexp
+SKIP reg-5.6 BRE.compile testregexp
+SKIP reg-5.6 BRE.execute testregexp
+SKIP reg-5.7 ARE.compile testregexp
+SKIP reg-5.7 ARE.execute testregexp
+SKIP reg-5.7 BRE.compile testregexp
+SKIP reg-5.7 BRE.execute testregexp
+SKIP reg-5.8 ARE.compile testregexp
+SKIP reg-5.8 ARE.execute testregexp
+SKIP reg-5.8 BRE.compile testregexp
+SKIP reg-5.8 BRE.execute testregexp
+SKIP reg-6.1.error testregexp
+SKIP reg-6.10.compile testregexp
+SKIP reg-6.10.execute testregexp
+SKIP reg-6.11.compile testregexp
+SKIP reg-6.11.execute testregexp
+SKIP reg-6.12.compile testregexp
+SKIP reg-6.12.execute testregexp
+SKIP reg-6.13 ARE.compile testregexp
+SKIP reg-6.13 ARE.execute testregexp
+SKIP reg-6.13 BRE.compile testregexp
+SKIP reg-6.13 BRE.execute testregexp
+SKIP reg-6.14.compile testregexp
+SKIP reg-6.14.execute testregexp
+SKIP reg-6.15.compile testregexp
+SKIP reg-6.15.execute testregexp
+SKIP reg-6.16.compile testregexp
+SKIP reg-6.16.execute testregexp
+SKIP reg-6.17.compile testregexp
+SKIP reg-6.17.execute testregexp
+SKIP reg-6.18.compile testregexp
+SKIP reg-6.18.execute testregexp
+SKIP reg-6.19.error testregexp
+SKIP reg-6.2.compile testregexp
+SKIP reg-6.2.execute testregexp
+SKIP reg-6.20.error testregexp
+SKIP reg-6.3.compile testregexp
+SKIP reg-6.3.execute testregexp
+SKIP reg-6.4.error testregexp
+SKIP reg-6.5.compile testregexp
+SKIP reg-6.5.execute testregexp
+SKIP reg-6.6.error testregexp
+SKIP reg-6.7 ARE.compile testregexp
+SKIP reg-6.7 ARE.execute testregexp
+SKIP reg-6.7 BRE.compile testregexp
+SKIP reg-6.7 BRE.execute testregexp
+SKIP reg-6.8.compile testregexp
+SKIP reg-6.8.execute testregexp
+SKIP reg-6.9.compile testregexp
+SKIP reg-6.9.execute testregexp
+SKIP reg-7.1 ARE.compile testregexp
+SKIP reg-7.1 ARE.execute testregexp
+SKIP reg-7.1 BRE.compile testregexp
+SKIP reg-7.1 BRE.execute testregexp
+SKIP reg-7.10 ARE.error testregexp
+SKIP reg-7.10 BRE.error testregexp
+SKIP reg-7.11.error testregexp
+SKIP reg-7.12.error testregexp
+SKIP reg-7.13.error testregexp
+SKIP reg-7.14.error testregexp
+SKIP reg-7.15.error testregexp
+SKIP reg-7.2 ARE.compile testregexp
+SKIP reg-7.2 ARE.execute testregexp
+SKIP reg-7.2 BRE.compile testregexp
+SKIP reg-7.2 BRE.execute testregexp
+SKIP reg-7.3.compile testregexp
+SKIP reg-7.3.execute testregexp
+SKIP reg-7.4.compile testregexp
+SKIP reg-7.4.execute testregexp
+SKIP reg-7.5.compile testregexp
+SKIP reg-7.5.execute testregexp
+SKIP reg-7.6.error testregexp
+SKIP reg-7.7.compile testregexp
+SKIP reg-7.7.execute testregexp
+SKIP reg-7.8 ARE.error testregexp
+SKIP reg-7.8 BRE.error testregexp
+SKIP reg-7.9 ARE.error testregexp
+SKIP reg-7.9 BRE.error testregexp
+SKIP reg-8.1.compile testregexp
+SKIP reg-8.1.execute testregexp
+SKIP reg-8.10.compile testregexp
+SKIP reg-8.10.execute testregexp
+SKIP reg-8.11.compile testregexp
+SKIP reg-8.11.execute testregexp
+SKIP reg-8.12.error testregexp
+SKIP reg-8.13.error testregexp
+SKIP reg-8.14.compile testregexp
+SKIP reg-8.14.execute testregexp
+SKIP reg-8.15.compile testregexp
+SKIP reg-8.15.execute testregexp
+SKIP reg-8.16.compile testregexp
+SKIP reg-8.16.execute testregexp
+SKIP reg-8.17.compile testregexp
+SKIP reg-8.17.execute testregexp
+SKIP reg-8.18.compile testregexp
+SKIP reg-8.18.execute testregexp
+SKIP reg-8.19.compile testregexp
+SKIP reg-8.19.execute testregexp
+SKIP reg-8.2.compile testregexp
+SKIP reg-8.2.execute testregexp
+SKIP reg-8.20.compile testregexp
+SKIP reg-8.20.execute testregexp
+SKIP reg-8.21.compile testregexp
+SKIP reg-8.21.execute testregexp
+SKIP reg-8.22.compile testregexp
+SKIP reg-8.22.execute testregexp
+SKIP reg-8.23.compile testregexp
+SKIP reg-8.23.execute testregexp
+SKIP reg-8.24.compile testregexp
+SKIP reg-8.24.execute testregexp
+SKIP reg-8.25.compile testregexp
+SKIP reg-8.25.execute testregexp
+SKIP reg-8.26.compile testregexp
+SKIP reg-8.26.execute testregexp
+SKIP reg-8.27.compile testregexp
+SKIP reg-8.27.execute testregexp
+SKIP reg-8.3.error testregexp
+SKIP reg-8.4.error testregexp
+SKIP reg-8.5.error testregexp
+SKIP reg-8.6.error testregexp
+SKIP reg-8.7.error testregexp
+SKIP reg-8.8.error testregexp
+SKIP reg-8.9.compile testregexp
+SKIP reg-8.9.execute testregexp
+SKIP reg-9.1 ARE.compile testregexp
+SKIP reg-9.1 ARE.execute testregexp
+SKIP reg-9.1 BRE.compile testregexp
+SKIP reg-9.1 BRE.execute testregexp
+SKIP reg-9.10 ARE.error testregexp
+SKIP reg-9.10 BRE.error testregexp
+SKIP reg-9.11 ARE.compile testregexp
+SKIP reg-9.11 ARE.execute testregexp
+SKIP reg-9.11 BRE.compile testregexp
+SKIP reg-9.11 BRE.execute testregexp
+SKIP reg-9.12 ARE.error testregexp
+SKIP reg-9.12 BRE.error testregexp
+SKIP reg-9.13 ARE.compile testregexp
+SKIP reg-9.13 ARE.execute testregexp
+SKIP reg-9.13 BRE.compile testregexp
+SKIP reg-9.13 BRE.execute testregexp
+SKIP reg-9.14 ARE.error testregexp
+SKIP reg-9.14 BRE.error testregexp
+SKIP reg-9.15 ARE.compile testregexp
+SKIP reg-9.15 ARE.execute testregexp
+SKIP reg-9.15 BRE.compile testregexp
+SKIP reg-9.15 BRE.execute testregexp
+SKIP reg-9.16 ARE.compile testregexp
+SKIP reg-9.16 ARE.execute testregexp
+SKIP reg-9.16 BRE.compile testregexp
+SKIP reg-9.16 BRE.execute testregexp
+SKIP reg-9.17 ARE.error testregexp
+SKIP reg-9.17 BRE.error testregexp
+SKIP reg-9.18 ARE.error testregexp
+SKIP reg-9.18 BRE.error testregexp
+SKIP reg-9.19 ARE.error testregexp
+SKIP reg-9.19 BRE.error testregexp
+SKIP reg-9.2 ARE.compile testregexp
+SKIP reg-9.2 ARE.execute testregexp
+SKIP reg-9.2 BRE.compile testregexp
+SKIP reg-9.2 BRE.execute testregexp
+SKIP reg-9.20 ARE.error testregexp
+SKIP reg-9.20 BRE.error testregexp
+SKIP reg-9.21 ARE.error testregexp
+SKIP reg-9.21 BRE.error testregexp
+SKIP reg-9.22 ARE.error testregexp
+SKIP reg-9.22 BRE.error testregexp
+SKIP reg-9.23 ARE.error testregexp
+SKIP reg-9.23 BRE.error testregexp
+SKIP reg-9.24 ARE.error testregexp
+SKIP reg-9.24 BRE.error testregexp
+SKIP reg-9.25 ARE.error testregexp
+SKIP reg-9.25 BRE.error testregexp
+SKIP reg-9.26 ARE.error testregexp
+SKIP reg-9.26 BRE.error testregexp
+SKIP reg-9.27 ARE.compile testregexp
+SKIP reg-9.27 ARE.execute testregexp
+SKIP reg-9.27 BRE.compile testregexp
+SKIP reg-9.27 BRE.execute testregexp
+SKIP reg-9.28 ARE.compile testregexp
+SKIP reg-9.28 ARE.execute testregexp
+SKIP reg-9.28 BRE.compile testregexp
+SKIP reg-9.28 BRE.execute testregexp
+SKIP reg-9.29 ARE.compile testregexp
+SKIP reg-9.29 ARE.execute testregexp
+SKIP reg-9.29 BRE.compile testregexp
+SKIP reg-9.29 BRE.execute testregexp
+SKIP reg-9.3 ARE.compile testregexp
+SKIP reg-9.3 ARE.execute testregexp
+SKIP reg-9.3 BRE.compile testregexp
+SKIP reg-9.3 BRE.execute testregexp
+SKIP reg-9.30 ARE.error testregexp
+SKIP reg-9.30 BRE.error testregexp
+SKIP reg-9.31 ARE.error testregexp
+SKIP reg-9.31 BRE.error testregexp
+SKIP reg-9.32 ARE.compile testregexp
+SKIP reg-9.32 ARE.execute testregexp
+SKIP reg-9.32 BRE.compile testregexp
+SKIP reg-9.32 BRE.execute testregexp
+SKIP reg-9.33 ARE.compile testregexp
+SKIP reg-9.33 ARE.execute testregexp
+SKIP reg-9.33 BRE.compile testregexp
+SKIP reg-9.33 BRE.execute testregexp
+SKIP reg-9.34 ARE.compile testregexp
+SKIP reg-9.34 ARE.execute testregexp
+SKIP reg-9.34 BRE.compile testregexp
+SKIP reg-9.34 BRE.execute testregexp
+SKIP reg-9.35.compile testregexp
+SKIP reg-9.35.execute testregexp
+SKIP reg-9.36.compile testregexp
+SKIP reg-9.36.execute testregexp
+SKIP reg-9.37.compile testregexp
+SKIP reg-9.37.execute testregexp
+SKIP reg-9.38.compile testregexp
+SKIP reg-9.38.execute testregexp
+SKIP reg-9.39.compile testregexp
+SKIP reg-9.39.execute testregexp
+SKIP reg-9.4 ARE.compile testregexp
+SKIP reg-9.4 ARE.execute testregexp
+SKIP reg-9.4 BRE.compile testregexp
+SKIP reg-9.4 BRE.execute testregexp
+SKIP reg-9.40.compile testregexp
+SKIP reg-9.40.execute testregexp
+SKIP reg-9.41.compile testregexp
+SKIP reg-9.41.execute testregexp
+SKIP reg-9.42.error testregexp
+SKIP reg-9.43 ARE.compile testregexp
+SKIP reg-9.43 ARE.execute testregexp
+SKIP reg-9.43 BRE.compile testregexp
+SKIP reg-9.43 BRE.execute testregexp
+SKIP reg-9.44.compile testregexp
+SKIP reg-9.44.execute testregexp
+SKIP reg-9.5 ARE.compile testregexp
+SKIP reg-9.5 ARE.execute testregexp
+SKIP reg-9.5 BRE.compile testregexp
+SKIP reg-9.5 BRE.execute testregexp
+SKIP reg-9.6 ARE.compile testregexp
+SKIP reg-9.6 ARE.execute testregexp
+SKIP reg-9.6 BRE.compile testregexp
+SKIP reg-9.6 BRE.execute testregexp
+SKIP reg-9.7 ARE.compile testregexp
+SKIP reg-9.7 ARE.execute testregexp
+SKIP reg-9.7 BRE.compile testregexp
+SKIP reg-9.7 BRE.execute testregexp
+SKIP reg-9.8 ARE.compile testregexp
+SKIP reg-9.8 ARE.execute testregexp
+SKIP reg-9.8 BRE.compile testregexp
+SKIP reg-9.8 BRE.execute testregexp
+SKIP reg-9.9 ARE.compile testregexp
+SKIP reg-9.9 ARE.execute testregexp
+SKIP reg-9.9 BRE.compile testregexp
+SKIP reg-9.9 BRE.execute testregexp
+---
+TOTAL   1141
+PASSED  34
+SKIPPED 1107
+FAILED  0

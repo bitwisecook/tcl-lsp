@@ -1,0 +1,264 @@
+ByteCode 0x557861fa83b0, refCt 1, epoch 21, interp 0x557861e30350 (epoch 21)
+  Source "# Regression for Copilot review on PR #180:\n# tcl_cmd_..."
+  Cmds 42, src 1473, inst 634, litObjs 32, aux 0, stkDepth 4, code/src 0.00
+  Commands 42:
+      1: pc 0-5, src 437-454        2: pc 6-59, src 456-529
+      3: pc 15-27, src 461-483        4: pc 33-54, src 506-528
+      5: pc 60-114, src 531-603        6: pc 69-82, src 536-568
+      7: pc 69-81, src 545-567        8: pc 88-109, src 579-602
+      9: pc 115-170, src 606-685       10: pc 124-138, src 611-638
+     11: pc 144-165, src 661-684       12: pc 171-227, src 687-765
+     13: pc 180-195, src 692-729       14: pc 180-194, src 701-728
+     15: pc 201-222, src 740-764       16: pc 228-277, src 768-847
+     17: pc 237-245, src 773-789       18: pc 251-272, src 824-846
+     19: pc 278-328, src 849-915       20: pc 287-296, src 854-880
+     21: pc 287-295, src 863-879       22: pc 302-323, src 891-914
+     23: pc 329-378, src 973-1040       24: pc 338-346, src 978-999
+     25: pc 338-345, src 987-998       26: pc 352-373, src 1010-1039
+     27: pc 379-393, src 1083-1100       28: pc 394-448, src 1102-1180
+     29: pc 403-416, src 1107-1139       30: pc 403-415, src 1116-1138
+     31: pc 422-443, src 1150-1179       32: pc 449-508, src 1182-1267
+     33: pc 458-475, src 1187-1220       34: pc 458-470, src 1195-1217
+     35: pc 482-503, src 1237-1266       36: pc 509-561, src 1343-1403
+     37: pc 518-529, src 1348-1364       38: pc 535-556, src 1381-1402
+     39: pc 562-610, src 1405-1461       40: pc 571-578, src 1410-1420
+     41: pc 584-605, src 1439-1460       42: pc 611-632, src 1463-1471
+  Command 1: "set spaced {a b c}..."
+    (0) push1 0 	# "spaced"
+    (2) push1 1 	# "a b c"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "if {[linsert {x y} 1 $spaced] ne {x {a b c} y}} { error..."
+    (6) startCommand +53 2 	# next cmd at pc 59, 2 cmds start here
+  Command 3: "linsert {x y} 1 $spaced..."
+    (15) push1 2 	# "x y"
+    (17) push1 3 	# "1"
+    (19) push1 0 	# "spaced"
+    (21) loadStk 
+    (22) lreplace4 3 2 
+    (28) push1 4 	# "x {a b c} y"
+    (30) strneq 
+    (31) jumpFalse1 +26 	# pc 57
+  Command 4: "error \"linsert spaced\"..."
+    (33) startCommand +22 1 	# next cmd at pc 55, 1 cmds start here
+    (42) push1 5 	# "linsert spaced"
+    (44) push1 6 	# ""
+    (46) returnImm +1 0 
+    (55) jump1 +4 	# pc 59
+    (57) push1 6 	# ""
+    (59) pop 
+  Command 5: "if {[llength [linsert {x y} 1 $spaced]] != 3} { error \"..."
+    (60) startCommand +54 3 	# next cmd at pc 114, 3 cmds start here
+  Command 6: "llength [linsert {x y} 1 $spaced]..."
+  Command 7: "linsert {x y} 1 $spaced..."
+    (69) push1 2 	# "x y"
+    (71) push1 3 	# "1"
+    (73) push1 0 	# "spaced"
+    (75) loadStk 
+    (76) lreplace4 3 2 
+    (82) listLength 
+    (83) push1 7 	# "3"
+    (85) neq 
+    (86) jumpFalse1 +26 	# pc 112
+  Command 8: "error \"linsert llength\"..."
+    (88) startCommand +22 1 	# next cmd at pc 110, 1 cmds start here
+    (97) push1 8 	# "linsert llength"
+    (99) push1 6 	# ""
+    (101) returnImm +1 0 
+    (110) jump1 +4 	# pc 114
+    (112) push1 6 	# ""
+    (114) pop 
+  Command 9: "if {[lreplace {x y z} 1 1 $spaced] ne {x {a b c} z}} { ..."
+    (115) startCommand +55 2 	# next cmd at pc 170, 2 cmds start here
+  Command 10: "lreplace {x y z} 1 1 $spaced..."
+    (124) push1 9 	# "x y z"
+    (126) push1 3 	# "1"
+    (128) push1 3 	# "1"
+    (130) push1 0 	# "spaced"
+    (132) loadStk 
+    (133) lreplace4 4 1 
+    (139) push1 10 	# "x {a b c} z"
+    (141) strneq 
+    (142) jumpFalse1 +26 	# pc 168
+  Command 11: "error \"lreplace spaced\"..."
+    (144) startCommand +22 1 	# next cmd at pc 166, 1 cmds start here
+    (153) push1 11 	# "lreplace spaced"
+    (155) push1 6 	# ""
+    (157) returnImm +1 0 
+    (166) jump1 +4 	# pc 170
+    (168) push1 6 	# ""
+    (170) pop 
+  Command 12: "if {[llength [lreplace {x y z} 1 1 $spaced]] != 3} { er..."
+    (171) startCommand +56 3 	# next cmd at pc 227, 3 cmds start here
+  Command 13: "llength [lreplace {x y z} 1 1 $spaced]..."
+  Command 14: "lreplace {x y z} 1 1 $spaced..."
+    (180) push1 9 	# "x y z"
+    (182) push1 3 	# "1"
+    (184) push1 3 	# "1"
+    (186) push1 0 	# "spaced"
+    (188) loadStk 
+    (189) lreplace4 4 1 
+    (195) listLength 
+    (196) push1 7 	# "3"
+    (198) neq 
+    (199) jumpFalse1 +26 	# pc 225
+  Command 15: "error \"lreplace llength\"..."
+    (201) startCommand +22 1 	# next cmd at pc 223, 1 cmds start here
+    (210) push1 12 	# "lreplace llength"
+    (212) push1 6 	# ""
+    (214) returnImm +1 0 
+    (223) jump1 +4 	# pc 227
+    (225) push1 6 	# ""
+    (227) pop 
+  Command 16: "if {[lrepeat 3 $spaced] ne {{a b c} {a b c} {a b c}}} {..."
+    (228) startCommand +49 1 	# next cmd at pc 277, 1 cmds start here
+  Command 17: "lrepeat 3 $spaced..."
+    (237) push1 13 	# "lrepeat"
+    (239) push1 7 	# "3"
+    (241) push1 0 	# "spaced"
+    (243) loadStk 
+    (244) invokeStk1 3 
+    (246) push1 14 	# "{a b c} {a b c} {a b c}"
+    (248) strneq 
+    (249) jumpFalse1 +26 	# pc 275
+  Command 18: "error \"lrepeat spaced\"..."
+    (251) startCommand +22 1 	# next cmd at pc 273, 1 cmds start here
+    (260) push1 15 	# "lrepeat spaced"
+    (262) push1 6 	# ""
+    (264) returnImm +1 0 
+    (273) jump1 +4 	# pc 277
+    (275) push1 6 	# ""
+    (277) pop 
+  Command 19: "if {[llength [lrepeat 3 $spaced]] != 3} { error \"lrepe..."
+    (278) startCommand +50 2 	# next cmd at pc 328, 2 cmds start here
+  Command 20: "llength [lrepeat 3 $spaced]..."
+  Command 21: "lrepeat 3 $spaced..."
+    (287) push1 13 	# "lrepeat"
+    (289) push1 7 	# "3"
+    (291) push1 0 	# "spaced"
+    (293) loadStk 
+    (294) invokeStk1 3 
+    (296) listLength 
+    (297) push1 7 	# "3"
+    (299) neq 
+    (300) jumpFalse1 +26 	# pc 326
+  Command 22: "error \"lrepeat llength\"..."
+    (302) startCommand +22 1 	# next cmd at pc 324, 1 cmds start here
+    (311) push1 16 	# "lrepeat llength"
+    (313) push1 6 	# ""
+    (315) returnImm +1 0 
+    (324) jump1 +4 	# pc 328
+    (326) push1 6 	# ""
+    (328) pop 
+  Command 23: "if {[llength [lrepeat 3 {}]] != 3} { error \"lrepeat em..."
+    (329) startCommand +49 2 	# next cmd at pc 378, 2 cmds start here
+  Command 24: "llength [lrepeat 3 {}]..."
+  Command 25: "lrepeat 3 {}..."
+    (338) push1 13 	# "lrepeat"
+    (340) push1 7 	# "3"
+    (342) push1 6 	# ""
+    (344) invokeStk1 3 
+    (346) listLength 
+    (347) push1 7 	# "3"
+    (349) neq 
+    (350) jumpFalse1 +26 	# pc 376
+  Command 26: "error \"lrepeat empty llength\"..."
+    (352) startCommand +22 1 	# next cmd at pc 374, 1 cmds start here
+    (361) push1 17 	# "lrepeat empty llength"
+    (363) push1 6 	# ""
+    (365) returnImm +1 0 
+    (374) jump1 +4 	# pc 378
+    (376) push1 6 	# ""
+    (378) pop 
+  Command 27: "set bracey \"a{b}c..."
+    (379) startCommand +14 1 	# next cmd at pc 393, 1 cmds start here
+    (388) push1 18 	# "bracey"
+    (390) push1 19 	# "a{b}c"
+    (392) storeStk 
+    (393) pop 
+  Command 28: "if {[llength [linsert {x y} 1 $bracey]] != 3} { error \"..."
+    (394) startCommand +54 3 	# next cmd at pc 448, 3 cmds start here
+  Command 29: "llength [linsert {x y} 1 $bracey]..."
+  Command 30: "linsert {x y} 1 $bracey..."
+    (403) push1 2 	# "x y"
+    (405) push1 3 	# "1"
+    (407) push1 18 	# "bracey"
+    (409) loadStk 
+    (410) lreplace4 3 2 
+    (416) listLength 
+    (417) push1 7 	# "3"
+    (419) neq 
+    (420) jumpFalse1 +26 	# pc 446
+  Command 31: "error \"linsert brace llength\"..."
+    (422) startCommand +22 1 	# next cmd at pc 444, 1 cmds start here
+    (431) push1 20 	# "linsert brace llength"
+    (433) push1 6 	# ""
+    (435) returnImm +1 0 
+    (444) jump1 +4 	# pc 448
+    (446) push1 6 	# ""
+    (448) pop 
+  Command 32: "if {[lindex [linsert {x y} 1 $bracey] 1] ne $bracey} { ..."
+    (449) startCommand +59 3 	# next cmd at pc 508, 3 cmds start here
+  Command 33: "lindex [linsert {x y} 1 $bracey] 1..."
+  Command 34: "linsert {x y} 1 $bracey..."
+    (458) push1 2 	# "x y"
+    (460) push1 3 	# "1"
+    (462) push1 18 	# "bracey"
+    (464) loadStk 
+    (465) lreplace4 3 2 
+    (471) listIndexImm 1 
+    (476) push1 18 	# "bracey"
+    (478) loadStk 
+    (479) strneq 
+    (480) jumpFalse1 +26 	# pc 506
+  Command 35: "error \"linsert brace content\"..."
+    (482) startCommand +22 1 	# next cmd at pc 504, 1 cmds start here
+    (491) push1 21 	# "linsert brace content"
+    (493) push1 6 	# ""
+    (495) returnImm +1 0 
+    (504) jump1 +4 	# pc 508
+    (506) push1 6 	# ""
+    (508) pop 
+  Command 36: "if {[linsert {a b} 0 X] ne \"X a b\"} { error \"linsert..."
+    (509) startCommand +52 2 	# next cmd at pc 561, 2 cmds start here
+  Command 37: "linsert {a b} 0 X..."
+    (518) push1 22 	# "a b"
+    (520) push1 23 	# "0"
+    (522) push1 24 	# "X"
+    (524) lreplace4 3 2 
+    (530) push1 25 	# "X a b"
+    (532) strneq 
+    (533) jumpFalse1 +26 	# pc 559
+  Command 38: "error \"linsert plain\"..."
+    (535) startCommand +22 1 	# next cmd at pc 557, 1 cmds start here
+    (544) push1 26 	# "linsert plain"
+    (546) push1 6 	# ""
+    (548) returnImm +1 0 
+    (557) jump1 +4 	# pc 561
+    (559) push1 6 	# ""
+    (561) pop 
+  Command 39: "if {[lrepeat 4 X] ne \"X X X X\"} { error \"lrepeat pla..."
+    (562) startCommand +48 1 	# next cmd at pc 610, 1 cmds start here
+  Command 40: "lrepeat 4 X..."
+    (571) push1 13 	# "lrepeat"
+    (573) push1 27 	# "4"
+    (575) push1 24 	# "X"
+    (577) invokeStk1 3 
+    (579) push1 28 	# "X X X X"
+    (581) strneq 
+    (582) jumpFalse1 +26 	# pc 608
+  Command 41: "error \"lrepeat plain\"..."
+    (584) startCommand +22 1 	# next cmd at pc 606, 1 cmds start here
+    (593) push1 29 	# "lrepeat plain"
+    (595) push1 6 	# ""
+    (597) returnImm +1 0 
+    (606) jump1 +4 	# pc 610
+    (608) push1 6 	# ""
+    (610) pop 
+  Command 42: "return ok..."
+    (611) startCommand +22 1 	# next cmd at pc 633, 1 cmds start here
+    (620) push1 30 	# "ok"
+    (622) push1 31 	# ""
+    (624) returnImm +0 1 
+    (633) done 
+

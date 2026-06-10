@@ -35,9 +35,54 @@ pub var current_site_id: u32 = 0;
 /// iteration; read by the trap paths to print a short snippet of
 /// source context on error.  All three zero means "no eval context"
 /// (e.g. when the trap fires from directly-compiled code).
+///
+/// These are mirrors of the TOP slot of ``eval_ctx_*`` below; see
+/// :func:`push_eval_ctx` / :func:`pop_eval_ctx` for the saved
+/// stack used by ``Tcl_LogCommandInfo``-style multi-frame
+/// traceback construction (parse-9.1).
 pub var current_eval_ptr: u32 = 0;
 pub var current_eval_len: u32 = 0;
 pub var current_eval_pos: u32 = 0;
+
+/// Saved (script, len, command_pos) for each *outer* eval_script
+/// invocation — index 0 holds the outermost, index ``eval_ctx_depth
+/// - 1`` holds the parent of the currently-running ``eval_script``.
+/// Push on entry to ``eval_script`` (and similar nested-eval sites);
+/// pop on exit.  ``log_command_info`` walks the stack from
+/// innermost to outermost to emit the full ``while executing`` /
+/// ``invoked from within`` chain.
+pub const EVAL_CTX_MAX: u32 = 256;
+pub var eval_ctx_ptr: [EVAL_CTX_MAX]u32 = [_]u32{0} ** EVAL_CTX_MAX;
+pub var eval_ctx_len: [EVAL_CTX_MAX]u32 = [_]u32{0} ** EVAL_CTX_MAX;
+pub var eval_ctx_pos: [EVAL_CTX_MAX]u32 = [_]u32{0} ** EVAL_CTX_MAX;
+pub var eval_ctx_depth: u32 = 0;
+
+/// Push the CURRENT eval context onto the saved-context stack.
+/// Call immediately on entry to a nested eval (eval_script,
+/// uplevel body eval, eval_apply body, etc.) BEFORE writing the
+/// new context to ``current_eval_*``.  Returns the depth at which
+/// the new entry was placed; pass to :func:`pop_eval_ctx`.
+pub fn push_eval_ctx() u32 {
+    if (eval_ctx_depth >= EVAL_CTX_MAX) return eval_ctx_depth; // overflow → no-op
+    eval_ctx_ptr[eval_ctx_depth] = current_eval_ptr;
+    eval_ctx_len[eval_ctx_depth] = current_eval_len;
+    eval_ctx_pos[eval_ctx_depth] = current_eval_pos;
+    const d = eval_ctx_depth;
+    eval_ctx_depth += 1;
+    return d;
+}
+
+/// Pop a previously-pushed eval context and restore
+/// ``current_eval_*`` to its values.  ``saved_depth`` should match
+/// what :func:`push_eval_ctx` returned — defensive against
+/// unbalanced push/pop pairs.
+pub fn pop_eval_ctx(saved_depth: u32) void {
+    if (eval_ctx_depth == 0 or saved_depth >= eval_ctx_depth) return;
+    eval_ctx_depth = saved_depth;
+    current_eval_ptr = eval_ctx_ptr[saved_depth];
+    current_eval_len = eval_ctx_len[saved_depth];
+    current_eval_pos = eval_ctx_pos[saved_depth];
+}
 
 /// Exported: update the eval-script context.  Called from
 /// :func:`tcl_interp.eval_script` on every iteration.

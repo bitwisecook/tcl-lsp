@@ -98,16 +98,24 @@ const parse_cache = @import("../valtypes/parse_cache.zig");
 //                                         procs.  Set by proc_register_compiled
 //                                         so dispatch() can raise "wrong # args"
 //                                         before calling the compiled WASM fn.)
-pub const COMMAND_SIZE: u32 = 44;
+pub const COMMAND_SIZE: u32 = 52;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
-const OFF_BODY_OBJ: u32 = 16;
-const OFF_N_PARAMS: u32 = 20;
+pub const OFF_BODY_OBJ: u32 = 16;
+pub const OFF_N_PARAMS: u32 = 20;
 pub const OFF_FUNC_IDX: u32 = 24;
-const OFF_ARGS_TAIL: u32 = 28;
+pub const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 pub const OFF_EXPORT_NAME_BUCKET: u32 = 36;
 const OFF_N_REQUIRED: u32 = 40;
+// Raw (ptr, len) of the source-text params spec.  Used by ``info
+// args`` to materialise a fresh TclObj on demand without retaining
+// anything at module-init time.  Stashed by
+// :func:`proc_set_params_source_raw`.  Pointing at WASM data segment
+// bytes (immutable, owned by the module instance) — no allocation,
+// no refcount.
+const OFF_PARAMS_SRC_PTR: u32 = 44;
+const OFF_PARAMS_SRC_LEN: u32 = 48;
 
 /// Set on imported (redirect) commands.  ``params_obj`` holds an
 /// ``*ImportedCmdData`` pointing at the source ``*Command`` and
@@ -142,6 +150,54 @@ pub const CMD_INTERP_CHILD: u32 = 0x200;
 /// :func:`tcl_coro.resume_one` so subsequent ``[NAME]`` calls
 /// resume the coroutine.
 pub const CMD_COROUTINE: u32 = 0x400;
+
+/// Set on a ``Command`` synthesised by ``rename`` when a hardcoded
+/// BUILTIN command was renamed to a new name.  ``params_obj`` holds
+/// the BUILTIN's ``reg.HandlerFn`` pointer (via ``@intFromPtr``)
+/// rather than a TclObj — the proc-dispatch fast path detects this
+/// flag and calls the wrapped handler with the original ``words[]``.
+/// Mirrors ``CMD_INTERP_CHILD`` / ``CMD_ALIAS`` in shape; the only
+/// difference is the slot's payload type.
+pub const CMD_BUILTIN_FORWARD: u32 = 0x800;
+
+/// Set on a ``Command`` synthesised by ``rename BUILTIN ""`` (or by
+/// ``rename BUILTIN newname`` for the source side) — marks the
+/// BUILTIN as deleted so a subsequent ``[BUILTIN ...]`` call surfaces
+/// ``invalid command name "BUILTIN"`` instead of silently dispatching
+/// through the BUILTIN cmd_table.  ``params_obj`` is unused (zero).
+/// The dispatcher checks this flag BEFORE the BUILTIN lookup so the
+/// mask wins.
+pub const CMD_BUILTIN_MASKED: u32 = 0x1000;
+
+/// Set on a ``Command`` registered as a Tcl 9 ensemble dispatch
+/// command (``namespace ensemble create``).  ``params_obj`` stashes
+/// the ``*EnsembleRec`` (see ``cmds/namespace.zig``) describing the
+/// target namespace, the ``-map`` table, ``-subcommands`` list,
+/// ``-unknown`` handler prefix, ``-parameters`` prefix args, and
+/// ``-prefixes`` flag.  The proc-dispatch fast path consults this
+/// bit before treating the Command as a plain interpreted proc and
+/// hands control to the ensemble subcommand resolver.
+pub const CMD_ENSEMBLE: u32 = 0x2000;
+
+/// Set on a Command's ``OFF_FLAGS`` when it is destroyed (``rename foo
+/// {}`` / command delete).  The Command struct is not freed immediately
+/// — a captured ``bucket`` pointer (e.g. the execution-trace dispatcher
+/// holding the traced command across its enter→body→leave window) stays
+/// valid — so consumers that must distinguish "still live" from "gone"
+/// test this bit.  Mirrors C Tcl's ``CMD_DYING``: ``TEOV_RunLeaveTraces``
+/// skips ``leave``/``leavestep`` callbacks for a command deleted during
+/// its own ``enter`` trace or a nested step (trace-25.8..25.11).  A reused
+/// slot is reset to flags=0 by ``proc_register``, so the bit never
+/// survives into a freshly (re)defined command.
+pub const CMD_DELETED: u32 = 0x4000;
+
+/// True iff *cmd* (a Command bucket address) has been destroyed.  Safe to
+/// call on 0 (returns false).
+pub fn cmd_is_deleted(cmd: u32) bool {
+    if (cmd == 0) return false;
+    const flags: u32 = @bitCast(read_i32(cmd + OFF_FLAGS));
+    return (flags & CMD_DELETED) != 0;
+}
 
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
@@ -243,29 +299,72 @@ fn lru_insert(ns: u32, hash: u32, len: u32, first_byte: u8, cmd: u32) void {
 fn alloc_command(name_ptr: u32, name_len: u32, hash: u32) u32 {
     _ = hash;
     const addr = alloc(COMMAND_SIZE);
+    if (addr == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(addr);
     @memset(slice[0..COMMAND_SIZE], 0);
-    const nbuf = alloc(name_len);
-    if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
-    write_i32(addr, @bitCast(nbuf));
-    write_i32(addr + 4, @bitCast(name_len));
+    if (name_len > 0) {
+        const nbuf = alloc(name_len);
+        if (nbuf == 0) {
+            obj.free_sized(addr, COMMAND_SIZE);
+            return 0;
+        }
+        memcpy(nbuf, name_ptr, name_len);
+        write_i32(addr, @bitCast(nbuf));
+        write_i32(addr + 4, @bitCast(name_len));
+    }
     // flags slot at offset 8 stays zero — set later for imports.
     return addr;
+}
+
+/// Public wrapper used by external command modules that need to
+/// synthesise a fresh Command bucket (e.g. ``namespace ensemble
+/// create``).  Mirrors the internal :func:`alloc_command` shape but
+/// is callable from other Zig modules.
+pub fn alloc_command_export(name_ptr: u32, name_len: u32) u32 {
+    return alloc_command(name_ptr, name_len, 0);
 }
 
 /// Resolve the registered FQN to ``(target_ns, simple_name)`` and
 /// return the existing ``*Command`` from that ns's ``cmd_table`` if
 /// any, plus the resolution result so the insert path can use it
 /// without re-walking.  ``existing == 0`` for a fresh registration.
+///
+/// Empty simple names are valid for command registration — trailing
+/// ``::`` on a proc name (``proc test_ns::``) creates a command
+/// named ``""`` inside ``test_ns``, mirroring Tcl 9's behaviour
+/// (``TclGetNamespaceForQualName`` returns simpleName="" not NULL
+/// for trailing colons on cmd/var lookups).  The hash table backing
+/// the cmd_table handles empty keys natively (see ``hash_table.zig``
+/// — empty-key find short-circuits on ``el == 0``, insert allocates
+/// a non-zero size-class buffer so ``ep != 0``).  We do still
+/// require ``target_ns != 0`` — a missing intermediate namespace
+/// can't be patched up here.
 fn resolve_for_register(name_ptr: u32, name_len: u32) struct {
     r: tcl_ns.QualifiedResult,
     existing: u32,
 } {
     const cxt = tcl_ns.ns_current();
     const r = tcl_ns.ns_resolve_qualified_creating(cxt, name_ptr, name_len);
-    if (r.target_ns == 0 or r.simple_len == 0) return .{ .r = r, .existing = 0 };
+    if (r.target_ns == 0) return .{ .r = r, .existing = 0 };
     const existing = tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
     return .{ .r = r, .existing = existing };
+}
+
+/// Fire a redefined command's ``delete`` trace (if any) and drop every
+/// command / execution trace keyed on its bucket.  Reference Tcl deletes
+/// the old command when ``proc`` re-registers an existing name, which
+/// invokes its delete trace and removes all traces before the new body
+/// is installed (trace-19.4 / 19.5 / 20.3).
+fn redefine_clear_command_traces(cmd: u32) void {
+    const exec_trace = @import("tcl_exec_trace.zig");
+    if (exec_trace.ops_for(cmd) == 0) return;
+    if ((exec_trace.ops_for(cmd) & exec_trace.OP_CMD_DELETE) != 0) {
+        const cmd_interp = @import("../cmds/tcl_cmd_interp.zig");
+        const fqn = cmd_interp.command_fqn_obj(cmd);
+        defer if (fqn != 0) obj.tcl_obj_release(fqn);
+        exec_trace.fire_command(cmd, exec_trace.OP_CMD_DELETE, fqn, 0);
+    }
+    exec_trace.remove_all_for(cmd);
 }
 
 /// Register an interpreted proc (body is Tcl source, func_idx = 0).
@@ -316,20 +415,36 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const n_params = obj.list_count_elements(sp.ptr, sp.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
-    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return obj_new_int(0);
+    if (ctx.r.target_ns == 0) return obj_new_int(0);
 
     var cmd: u32 = ctx.existing;
     if (cmd == 0) {
         cmd = alloc_command(sn.ptr, sn.len, hash);
         _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
         proc_count += 1;
+    } else {
+        // Redefining an existing command deletes the old one before
+        // installing the new body (C Tcl ``TclCreateObjCommandInNs``).
+        // Fire its ``delete`` command trace and drop every command /
+        // execution trace keyed on the bucket so the recreated command
+        // starts clean — trace-19.4 / 19.5 / 20.3.
+        redefine_clear_command_traces(cmd);
     }
 
     // Clear any CMD_IMPORTED bit — defining a proc with the same
     // simple name shadows an import in this ns (matches C Tcl).
     write_i32(cmd + OFF_FLAGS, 0);
+    // Re-registration over an existing slot must release the
+    // prior ``params_obj``/``body_obj`` retains before overwriting,
+    // or each ``proc foo …; proc foo …`` cycle leaks two TclObjs.
+    // First-registration paths land here with both slots at 0; the
+    // null-safe ``tcl_obj_release`` handles that without a branch.
+    const prev_params: i32 = read_i32(cmd + OFF_PARAMS_OBJ);
+    const prev_body: i32 = read_i32(cmd + OFF_BODY_OBJ);
     write_i32(cmd + OFF_PARAMS_OBJ, owned_params);
     write_i32(cmd + OFF_BODY_OBJ, owned_body);
+    if (prev_params != 0 and prev_params != owned_params) obj.tcl_obj_release(prev_params);
+    if (prev_body != 0 and prev_body != owned_body) obj.tcl_obj_release(prev_body);
     write_i32(cmd + OFF_N_PARAMS, @intCast(n_params));
     write_i32(cmd + OFF_FUNC_IDX, 0);
     write_i32(cmd + OFF_ARGS_TAIL, 0);
@@ -345,6 +460,87 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const body_s = obj_ensure_string(owned_body);
     parse_cache.build_for_body(body_s.ptr, body_s.len);
     return obj_new_int(0);
+}
+
+/// Register *name* as a forwarding shim for a hardcoded BUILTIN
+/// command's handler — used by ``rename BUILTIN newName`` so the new
+/// name dispatches through the proc table (winning over the BUILTIN
+/// table) and invokes the original handler.  The handler pointer is
+/// stashed into the ``params_obj`` slot via ``@intFromPtr``; the
+/// dispatch fast path detects ``CMD_BUILTIN_FORWARD`` and re-casts.
+pub fn register_builtin_forward(name_ptr: u32, name_len: u32, handler_addr: u32) void {
+    lru_invalidate();
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return;
+
+    var cmd: u32 = ctx.existing;
+    if (cmd == 0) {
+        cmd = alloc_command(ctx.r.simple_ptr, ctx.r.simple_len, 0);
+        _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
+        proc_count += 1;
+    }
+    write_i32(cmd + OFF_FLAGS, @bitCast(CMD_BUILTIN_FORWARD));
+    write_i32(cmd + OFF_PARAMS_OBJ, @bitCast(handler_addr));
+    write_i32(cmd + OFF_BODY_OBJ, 0);
+    write_i32(cmd + OFF_N_PARAMS, 0);
+    write_i32(cmd + OFF_FUNC_IDX, 0);
+    write_i32(cmd + OFF_ARGS_TAIL, 0);
+}
+
+/// Register *name* as a tombstone marking a hardcoded BUILTIN as
+/// deleted — used by ``rename BUILTIN ""`` and the source side of
+/// ``rename BUILTIN newName``.  The dispatch fast path detects
+/// ``CMD_BUILTIN_MASKED`` and emits ``invalid command name "X"``
+/// before reaching the BUILTIN cmd_table lookup, so a renamed-away
+/// BUILTIN behaves as if it never existed.
+pub fn register_builtin_masked(name_ptr: u32, name_len: u32) void {
+    lru_invalidate();
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return;
+
+    var cmd: u32 = ctx.existing;
+    if (cmd == 0) {
+        cmd = alloc_command(ctx.r.simple_ptr, ctx.r.simple_len, 0);
+        _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
+        proc_count += 1;
+    }
+    write_i32(cmd + OFF_FLAGS, @bitCast(CMD_BUILTIN_MASKED));
+    write_i32(cmd + OFF_PARAMS_OBJ, 0);
+    write_i32(cmd + OFF_BODY_OBJ, 0);
+    write_i32(cmd + OFF_N_PARAMS, 0);
+    write_i32(cmd + OFF_FUNC_IDX, 0);
+    write_i32(cmd + OFF_ARGS_TAIL, 0);
+}
+
+/// Remove a Command from the proc table — used by the deletion arm of
+/// ``rename`` (and by the inverse-rename path that restores a masked
+/// BUILTIN by deleting its tombstone).  Returns true iff a Command
+/// was found and removed.  Invalidates the LRU.
+pub fn unregister_command(name_ptr: u32, name_len: u32) bool {
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.existing == 0) return false;
+    // Release any retained ``params_obj`` / ``body_obj`` slots
+    // before clearing the table entry — every ``rename foo {}``
+    // (and every inverse-rename through here) used to leak the
+    // proc's params + body retains.
+    const cmd = ctx.existing;
+    const flags: u32 = @bitCast(read_i32(cmd + OFF_FLAGS));
+    // Only release for plain interpreted procs — imports / aliases /
+    // hidden child Interp pointers stash other things in PARAMS_OBJ
+    // / BODY_OBJ that aren't TclObj refs.
+    const is_special = (flags & (CMD_IMPORTED | CMD_ALIAS | CMD_INTERP_CHILD |
+        CMD_COROUTINE | CMD_BUILTIN_FORWARD | CMD_BUILTIN_MASKED | CMD_ENSEMBLE)) != 0;
+    if (!is_special) {
+        const prev_params: i32 = read_i32(cmd + OFF_PARAMS_OBJ);
+        const prev_body: i32 = read_i32(cmd + OFF_BODY_OBJ);
+        if (prev_params != 0) obj.tcl_obj_release(prev_params);
+        if (prev_body != 0) obj.tcl_obj_release(prev_body);
+        write_i32(cmd + OFF_PARAMS_OBJ, 0);
+        write_i32(cmd + OFF_BODY_OBJ, 0);
+    }
+    _ = tcl_ns.ns_cmd_clear(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len);
+    lru_invalidate_all();
+    return true;
 }
 
 /// Promote a possibly-borrowing TclObj to an owning copy.  When the
@@ -382,7 +578,14 @@ pub export fn proc_register_compiled(
     const hash = fnv1a(sn.ptr, sn.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
-    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return obj_new_int(0);
+    // Reject only an unresolvable namespace — an empty *simple* name is
+    // legal (a command literally named ""), and the interpreted
+    // ``proc_register`` above accepts it.  Rejecting ``simple_len == 0``
+    // here left ``proc {} {} {…}`` undefined in ordinary (non-``eval``)
+    // source, so a later ``{}`` call trapped ``invalid command name ""``
+    // instead of dispatching the compiled body (proc-3.7 via the static
+    // codegen path, not just the eval-fallback path).
+    if (ctx.r.target_ns == 0) return obj_new_int(0);
 
     var cmd: u32 = ctx.existing;
     if (cmd == 0) {
@@ -399,6 +602,13 @@ pub export fn proc_register_compiled(
     write_i32(cmd + OFF_FUNC_IDX, func_idx);
     write_i32(cmd + OFF_ARGS_TAIL, args_tail);
     write_i32(cmd + OFF_N_REQUIRED, n_required);
+    // Clear the raw params source slot so a re-registration over an
+    // existing bucket doesn't inherit a stale data-segment pointer
+    // from a previous module instance.  Stamping is handled by
+    // :func:`proc_set_params_source_raw` immediately after this call
+    // when the codegen prologue emits the stash sequence.
+    write_i32(cmd + OFF_PARAMS_SRC_PTR, 0);
+    write_i32(cmd + OFF_PARAMS_SRC_LEN, 0);
 
     // Stash the registration-time WASM export name in the sidecar
     // record at ``OFF_EXPORT_NAME_BUCKET``.  ``tcl_dispatch`` reads
@@ -440,6 +650,60 @@ pub export fn proc_register_compiled(
 /// proc-body bytes) for large bundles like ``tcltest.test``).  We
 /// just retain the TclObj header so refcounting can't reclaim the
 /// slab while the proc table still references it.
+/// Counterpart to :func:`proc_set_body_source` for the params spec.
+/// ``proc_register_compiled`` zeros ``OFF_PARAMS_OBJ`` because the AOT
+/// path doesn't need a runtime params TclObj for dispatch — but
+/// ``info args`` / ``info default`` read this slot and need the
+/// original ``{p1 ?p2default? ... args}`` source list.  Codegen
+/// emits a call to this right after :func:`proc_set_body_source` in
+/// the compiled-proc registration prologue.
+///
+/// Raw-bytes variant of the params source stash.  Stores the
+/// data-segment ``(ptr, len)`` of the proc's params spec in
+/// ``OFF_PARAMS_SRC_*`` so ``info args`` / ``info default`` can
+/// materialise a fresh TclObj on demand.  The bytes live in the
+/// immutable WASM data segment and need neither retain nor release,
+/// which keeps the per-proc init prologue allocation-free for the
+/// params sidecar — useful at scale (cmdAH has ~300 compiled procs).
+/// The corresponding TclObj-passing variant
+/// (``proc_set_params_source``) is retained as well for callers
+/// that already hold an owning handle (interpreted-proc paths,
+/// runtime re-register).
+pub export fn proc_set_params_source_raw(
+    name_ptr: i32,
+    name_len: i32,
+    params_ptr: i32,
+    params_len: i32,
+) i32 {
+    if (name_ptr == 0 or name_len <= 0) return obj_new_int(0);
+    if (params_ptr == 0 or params_len <= 0) return obj_new_int(0);
+    // Look up the proc bucket directly by raw bytes — no TclObj
+    // allocation, no retain.  Keeps the per-proc init prologue
+    // a sequence of plain ``i32.const`` + ``call`` instructions.
+    const cmd_addr = tcl_ns.ns_find_command(
+        tcl_ns.ns_current(),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
+    if (cmd_addr == 0) return obj_new_int(0);
+    const flags: u32 = @bitCast(read_i32(cmd_addr + OFF_FLAGS));
+    const guard_mask: u32 = CMD_IMPORTED | CMD_ALIAS | CMD_INTERP_CHILD |
+        CMD_COROUTINE | CMD_BUILTIN_FORWARD | CMD_BUILTIN_MASKED;
+    if ((flags & guard_mask) != 0) return obj_new_int(0);
+    write_i32(cmd_addr + OFF_PARAMS_SRC_PTR, params_ptr);
+    write_i32(cmd_addr + OFF_PARAMS_SRC_LEN, params_len);
+    return obj_new_int(0);
+}
+
+/// Reader for the raw-bytes params source.  Returns 0/0 when the
+/// proc has no stashed source (interpreted proc, or codegen
+/// skipped the stash because ``params_source`` was empty).
+pub fn proc_get_params_src(bucket: u32) struct { ptr: u32, len: u32 } {
+    const ptr: u32 = @bitCast(read_i32(bucket + OFF_PARAMS_SRC_PTR));
+    const len: u32 = @bitCast(read_i32(bucket + OFF_PARAMS_SRC_LEN));
+    return .{ .ptr = ptr, .len = len };
+}
+
 pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
     if (body_obj == 0) return obj_new_int(0);
     const bucket = proc_lookup(name);
@@ -452,10 +716,14 @@ pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
     // (so a self-set with the same handle stays alive), then release
     // the old slot — the order makes a same-obj rebind a net no-op
     // refcount change rather than a transient drop-to-zero.
+    //
+    // Gate both the retain AND release on the inequality so a
+    // same-handle re-stamp doesn't leak +1 (the retain would have
+    // fired unconditionally while the release was suppressed).
     const prev: i32 = read_i32(cmd + OFF_BODY_OBJ);
-    obj.tcl_obj_retain(body_obj);
+    if (body_obj != prev) obj.tcl_obj_retain(body_obj);
     write_i32(cmd + OFF_BODY_OBJ, body_obj);
-    if (prev != 0) obj.tcl_obj_release(prev);
+    if (prev != 0 and prev != body_obj) obj.tcl_obj_release(prev);
     return obj_new_int(0);
 }
 

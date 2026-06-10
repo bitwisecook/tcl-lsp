@@ -1,0 +1,9 @@
+# tcl-lsp test-slow stamp — DO NOT EDIT BY HAND.
+# Written by 'make test-slow' on success; verified in CI via
+# 'scripts/test-slow-stamp.sh check'.  Only 'fingerprint' is gated on;
+# describe/head/date are informational (they change when this stamp is
+# committed, so they cannot be compared).
+describe=v1.10.10-52-gf41d9825-dirty
+head=f41d98257801e9cfa872e5000646e168d79714d2
+date=2026-06-10T12:11:37Z
+fingerprint=3a8d3ea68800910409be4c78e6f85cca50c48e73674de90cbfa843ac86932c17

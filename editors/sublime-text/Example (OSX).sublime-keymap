@@ -1,0 +1,29 @@
+[
+	// Example key bindings for the Tcl package (macOS).
+	//
+	// These are commented out so they don't clash with your own
+	// bindings. Copy any you want into your user keymap (the right-hand
+	// pane in Preferences > Package Settings > Tcl > Key Bindings) and
+	// uncomment them.
+
+	// Format the current document.
+	// {"keys": ["super+alt+f"], "command": "lsp_format_document"},
+
+	// Apply all safe quick fixes.
+	// {"keys": ["super+alt+q"], "command": "tcl_fix_all_safe_issues"},
+
+	// Apply all optimisation suggestions.
+	// {"keys": ["super+alt+o"], "command": "tcl_optimise_document"},
+
+	// Minify the current document.
+	// {"keys": ["super+alt+m"], "command": "tcl_minify_document"},
+
+	// Translate a minified error message back to original names.
+	// {"keys": ["super+alt+u"], "command": "tcl_unminify_error"},
+
+	// Choose the active Tcl dialect.
+	// {"keys": ["super+alt+d"], "command": "tcl_select_dialect"},
+
+	// Restart the Tcl language server.
+	// {"keys": ["super+alt+r"], "command": "tcl_restart_server"},
+]

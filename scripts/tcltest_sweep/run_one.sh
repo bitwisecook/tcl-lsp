@@ -31,8 +31,11 @@ cd "$repo_root"
 # (hyphens and dots become underscores).
 classname=$(echo "$name" | tr '.-' '_')
 
-result=$(timeout "$tmout" uv run pytest "tests/external/run_tcl9_tests.py::TestTcl9_${classname}::test_runs" --no-header -q --tb=line 2>&1)
+t_start=$(date +%s.%N)
+result=$(timeout "$tmout" uv run --extra dev pytest "tests/external/run_tcl9_tests.py::TestTcl9_${classname}::test_runs" --no-header -q --tb=line 2>&1)
 rc=$?
+t_end=$(date +%s.%N)
+duration=$(awk -v a="$t_start" -v b="$t_end" 'BEGIN { printf "%.3f", b - a }')
 
 summary=$(echo "$result" | grep -oE 'Total[[:space:]]+[0-9]+[[:space:]]+Passed[[:space:]]+[0-9]*[[:space:]]+Skipped[[:space:]]+[0-9]*[[:space:]]+Failed[[:space:]]+[0-9]*' | tail -1)
 outcome="unknown"
@@ -59,4 +62,5 @@ jq -n --arg name "$name" \
       --arg trap "$trap_line" \
       --arg first "$first_failing" \
       --argjson rc "$rc" \
-      '{name: $name, classname: $classname, outcome: $outcome, rc: $rc, summary: $summary, trap: $trap, first_failing: $first}'
+      --argjson duration "$duration" \
+      '{name: $name, classname: $classname, outcome: $outcome, rc: $rc, summary: $summary, trap: $trap, first_failing: $first, duration_s: $duration}'

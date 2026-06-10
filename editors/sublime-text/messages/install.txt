@@ -1,0 +1,35 @@
+Tcl Language Support — powered by tcl-lsp
+==========================================
+
+Thanks for installing! This package provides Tcl, iRules, iApps, and EDA
+language support for Sublime Text 4.
+
+Quick start
+-----------
+
+1.  Install the LSP package from Package Control (recommended) to enable
+    diagnostics, completions, hover, go-to-definition, formatting, code
+    actions, semantic tokens, rename, signature help, and inlay hints.
+2.  The bundled `tcl-lsp` server is ready to use — it ships with the
+    package. You only need Python 3.10+ on your PATH for the server to
+    run.
+3.  Open any `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`, `.iapp`,
+    `.iappimpl`, `.impl`, or `.exp` file to start using it.
+
+Configuration
+-------------
+
+  Preferences > Package Settings > LSP-Tcl > Settings
+
+Dialects supported: Tcl 8.4, 8.5, 8.6, 9.0, F5 iRules, F5 iApps, F5
+TMSH/BIG-IP, Synopsys/Cadence/Xilinx/Intel/Mentor EDA, and Expect.
+
+Documentation
+-------------
+
+  https://github.com/bitwisecook/tcl-lsp
+
+Issues and feedback
+-------------------
+
+  https://github.com/bitwisecook/tcl-lsp/issues

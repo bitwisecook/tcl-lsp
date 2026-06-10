@@ -96,7 +96,7 @@ pub fn dict_destroy_ext(ext_addr: u32) void {
 pub fn dict_invalidate_cache(dict_obj: i32) void {
     if (dict_obj == 0) return;
     if (obj.is_immediate(dict_obj)) return;
-    const addr: u32 = @intCast(dict_obj);
+    const addr: u32 = @bitCast(dict_obj);
     const ext: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_DICT_EXT));
     if (ext == 0) return;
     obj.write_i32(addr + obj.OBJ_DICT_EXT, 0);
@@ -343,7 +343,7 @@ fn dict_hash_insert(ext_addr: u32, kp: u32, kl: u32, h: u32, value: i32) void {
 fn dict_ensure_cache(dict_obj: i32) u32 {
     if (dict_obj == 0) return 0;
     if (obj.is_immediate(dict_obj)) return 0;
-    const addr: u32 = @intCast(dict_obj);
+    const addr: u32 = @bitCast(dict_obj);
     var ext: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_DICT_EXT));
     if (ext != 0) return ext;
     ext = dict_ext_alloc();
@@ -479,7 +479,7 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     // already cope with immediates; the in-place path needs the same
     // guard.
     if (sd.len > 0 and dict != 0 and !obj.is_immediate(dict)) {
-        const addr: u32 = @intCast(dict);
+        const addr: u32 = @bitCast(dict);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
@@ -540,8 +540,8 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     // just-appended (k, v) pair, so the next mutation on the new
     // dict starts cache-warm.
     if (new != 0 and !obj.is_immediate(new) and ext != 0 and dict != 0 and !obj.is_immediate(dict)) {
-        const dict_addr: u32 = @intCast(dict);
-        const new_addr: u32 = @intCast(new);
+        const dict_addr: u32 = @bitCast(dict);
+        const new_addr: u32 = @bitCast(new);
         const dict_rc = obj.read_i32(dict_addr + obj.OBJ_REFCOUNT);
         var target_ext: u32 = 0;
         if (dict_rc <= 1) {
@@ -553,9 +553,15 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
             target_ext = dict_clone_ext(ext);
         }
         obj.write_i32(new_addr + obj.OBJ_DICT_EXT, @bitCast(target_ext));
-        const v_obj = obj_new_string_copy(sv.ptr, sv.len);
-        dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
-        obj.tcl_obj_release(v_obj);
+        // ``dict_clone_ext`` returns 0 on OOM; ``dict_hash_insert``
+        // would then read/write addresses 4/8/12 of low memory.
+        // Skip the cache plumbing on the OOM path — the dict's
+        // list-rep is correct either way.
+        if (target_ext != 0) {
+            const v_obj = obj_new_string_copy(sv.ptr, sv.len);
+            dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
+            obj.tcl_obj_release(v_obj);
+        }
     } else {
         dict_invalidate_cache(dict);
     }
@@ -634,18 +640,12 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
             off += elem.len;
         }
     }
-    // Claim ownership of ``buf`` via OBJ_STR_CAP so eventual
-    // ``tcl_obj_release`` reclaims the bytes through ``free_sized``.
-    // Without this the rebuilt-dict buffer would leak on every
-    // ``dict unset`` (or any caller that releases the returned
-    // dict TclObj).
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``obj_new_string_take`` writes the cap atomically with the
+    // header and free_sizes ``buf`` on its own OOM path — the
+    // earlier two-step ``obj_new_string`` + manual cap-write form
+    // was racy under header OOM (we had to add an explicit free
+    // on the OOM branch to compensate).
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
@@ -690,13 +690,10 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             }
         }
     }
-    const out = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (out == 0) {
-        obj.free_sized(buf, cap);
-        return 0;
-    }
-    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    return out;
+    // ``_take`` atomically transfers ownership of ``buf`` to the
+    // returned obj and frees it on header-OOM — no need for the
+    // explicit ``free_sized`` + manual cap-write dance.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
@@ -724,11 +721,8 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, vp, vl);
-    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
-    if (new_obj != 0) {
-        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
-    }
-    return new_obj;
+    // Atomic take — see the rationale in ``dict_rebuild_with_value``.
+    return obj.obj_new_string_take(buf, off, cap);
 }
 
 // Exported: dict merge — merge *source* into *target*; for duplicate
@@ -782,7 +776,9 @@ pub export fn dict_keys(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 2) {
@@ -806,7 +802,7 @@ pub export fn dict_keys(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
 // Exported: dict values — return a list of all values in the dict.
@@ -814,7 +810,9 @@ pub export fn dict_values(dict: i32) i32 {
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
     if (n == 0) return obj_new_string(0, 0);
-    const buf = alloc(sd.len);
+    const buf_size: u32 = sd.len;
+    const buf = alloc(buf_size);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 1;
     while (idx < n) : (idx += 2) {
@@ -838,12 +836,44 @@ pub export fn dict_values(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, buf_size);
 }
 
-// Exported: dict size — number of key-value pairs.
+// Exported: dict size — number of UNIQUE key-value pairs.  When the
+// underlying list rep contains duplicate keys (``set m {a X b Y a Z}``;
+// ``dict size $m`` → 2), we canonicalise via the hash side-cache to
+// match C Tcl 9 ``Tcl_DictObjSize`` (tclDictObj.c).  Just dividing
+// the list-element count by 2 would overcount on duplicates and break
+// string-10.20.1.
 pub export fn dict_size(dict: i32) i32 {
+    const ext = dict_ensure_cache(dict);
+    if (ext != 0) {
+        const count: u32 = @bitCast(obj.read_i32(ext + DICT_EXT_COUNT));
+        return obj_new_int(@intCast(count));
+    }
+    // Fallback (immediate handle / cache-OOM): walk the list rep
+    // and dedupe via O(N²) compare against earlier keys.  Slower than
+    // the cache path but correctness-preserving for the rare cases
+    // that can't allocate a hash table.
     const sd = obj_ensure_string(dict);
     const n = list_count_elements(sd.ptr, sd.len);
-    return obj_new_int(@divTrunc(n, 2));
+    if (n <= 1) return obj_new_int(0);
+    var unique: i64 = 0;
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = list_element_at(sd.ptr, sd.len, idx);
+        var seen = false;
+        var prev: i64 = 0;
+        while (prev < idx) : (prev += 2) {
+            const pk = list_element_at(sd.ptr, sd.len, prev);
+            if (pk.len == k.len and
+                str_cmp(sd.ptr + pk.start, pk.len, sd.ptr + k.start, k.len) == 0)
+            {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) unique += 1;
+    }
+    return obj_new_int(unique);
 }

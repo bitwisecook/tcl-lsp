@@ -1,0 +1,26 @@
+# SHA-256 checksums of the Tcl regex engine sources fetched by
+# scripts/fetch_tcl_regex.sh from raw.githubusercontent.com/tcltk/tcl.
+#
+# These pin the *content* of each file, not just the upstream tag — so a
+# tag-retargeting attack on tcltk/tcl (the same shape as the March 2025
+# tj-actions/changed-files compromise) is detected before the bytes are
+# linked into the WASM runtime.  Bump TCL_REGEX_VERSION in fetch_tcl_regex.sh
+# and these checksums together.
+#
+# Format: `<sha256>  <filename>` (sha256sum -c compatible).  The leading
+# `VERSION:` line is parsed by the script and must match the version pin.
+VERSION: 9.0.3
+0474ca211a971356e1195221d9ac4351a62c0544122ade7a63bbde0d0882a850  regcomp.c
+ccb3dd4924f70acf276946cacbc5d9fa152adc717b6df6b62d28cd5fdc6025af  regexec.c
+03be1daf7518e2da15d6bc78847ad93e8e8a10b39e473ed6e4a5bb22f316e096  regfree.c
+d3656dcddddfe5bc04633342f4e056bcc6e78fec58bc3c976c7411d875bbb2f8  regerror.c
+ae361e311f931338a80e4b4ce25b291b0c05dffc439ce2556f4a67ca73c78587  regfronts.c
+976f6b91e51b48aef849eec79bb5118bd68e46f4f38cb815e27fdc5e5a896375  regc_color.c
+9a5bcc94d7059766c01c846074b9657a39309868fd2e7bfed847af1b2eb3c033  regc_cvec.c
+f532d88ee21186aabb9ecc3ed1fc01257ca2eb9b5ec968e93b913335b8d0ca69  regc_lex.c
+77d13b41413ad2226805b92173c763e0ad5bbf6ab9731e4e13ca87a461ad8787  regc_locale.c
+abf7429a123c4971f77e031861e68ea0814ec0b38c69e95cb37144024b3d429d  regc_nfa.c
+110ca807a464275529806155aeb060254cc1aa8622c195da56c348226bf6ec2d  rege_dfa.c
+9ab668ff9045ca52586613bc5a3a427e56350c1a87023420cc49dd5e8441f3b4  regerrs.h
+c8d2b752b8acc928d1e8fb11b8f58e3b7e18dbd623c50de98c573cf754198e7c  regex.h
+d338568fe56ba78d0431b60582bc0d1c4e7ee21eb4bb6164d7e274c7bcea6eda  regguts.h

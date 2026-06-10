@@ -28,12 +28,12 @@ ByteCode ::top, 38 instructions, 59 bytes, 6 literals, 0 variables
   # for_body_7:
     (22) push1 0	# "sum"
     (24) incrStkImm +1
-  # cmd_end_3:
+  # cmd_end_4:
     (26) pop
   # for_step_8:
     (27) push1 3	# "j"
     (29) incrStkImm +1
-  # cmd_end_4:
+  # cmd_end_5:
     (31) pop
   # for_header_6:
     (32) push1 3	# "j"
@@ -45,10 +45,11 @@ ByteCode ::top, 38 instructions, 59 bytes, 6 literals, 0 variables
     (40) nop
     (41) nop
     (42) nop
+  # loop_break_3:
   # for_step_4:
     (43) push1 2	# "i"
     (45) incrStkImm +1
-  # cmd_end_5:
+  # cmd_end_6:
     (47) pop
   # for_header_2:
     (48) push1 2	# "i"

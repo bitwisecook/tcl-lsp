@@ -14,9 +14,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -36,13 +36,49 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_ERROR: set[str] = set(
-    # error.test immediately raises "123456 is not a valid ReturnCode" because
-    # the Python VM's ReturnCode enum only covers 0-4 (OK/ERROR/RETURN/BREAK/
-    # CONTINUE) while error.test uses ``return -code 123456``.  This aborts
-    # the entire test file before any tcltest cases run, so Total=0 and no
-    # individual test fails.  The set is empty to match that reality.
-)
+KNOWN_FAILURES_ERROR: set[str] = {
+    "error-1.6",
+    "error-1.7",
+    "error-10.10",
+    "error-10.11",
+    "error-10.12",
+    "error-10.7",
+    "error-13.10",
+    "error-13.3",
+    "error-13.4",
+    "error-13.5",
+    "error-13.6",
+    "error-13.7",
+    "error-13.9",
+    "error-14.8",
+    "error-14.9",
+    "error-15.4",
+    "error-15.5",
+    "error-2.3",
+    "error-2.6",
+    "error-3.1",
+    "error-4.1",
+    "error-4.2",
+    "error-4.3",
+    "error-4.5",
+    "error-4.6",
+    "error-4.7",
+    "error-4.8",
+    "error-5.1",
+    "error-5.2",
+    "error-6.1",
+    "error-6.10",
+    "error-6.2",
+    "error-6.3",
+    "error-6.4",
+    "error-6.5",
+    "error-7.1",
+    "error-8.10",
+    "error-8.11",
+    "error-8.8",
+    "error-8.9",
+    "error-9.6",
+}
 
 
 # Test runner
@@ -150,4 +186,4 @@ class TestErrorNative:
 
     def test_error(self) -> None:
         results = _run_test_file("error.test")
-        _check_results(results, KNOWN_FAILURES_ERROR, "error.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_ERROR, "error.test")

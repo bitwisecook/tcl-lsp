@@ -37,6 +37,7 @@
 //                              the spec page calls out.
 
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const caps = @import("../interp/tcl_caps.zig");
@@ -81,11 +82,11 @@ const env_host_spawn = if (builtin.is_test) struct {
 };
 const host_spawn = env_host_spawn.host_spawn;
 
-fn eval_exec(words: []const i32) i32 {
-    if (!caps.check(caps.CAP_EXEC, "exec", "EXEC")) return 0;
+fn eval_exec(words: []const i32) result_mod.InterpResult {
+    if (!caps.check(caps.CAP_EXEC, "exec", "EXEC")) return result_mod.from_globals(0);
     if (words.len < 2) {
         stubs.raise("wrong # args: should be \"exec ?switches? arg ?arg ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
 
     // Compute the serialised buffer size up front so we can allocate
@@ -103,7 +104,7 @@ fn eval_exec(words: []const i32) i32 {
             for (0..s.len) |i| {
                 if (src[i] == 0) {
                     stubs.raise("exec: argument contains embedded NUL byte");
-                    return 0;
+                    return result_mod.from_globals(0);
                 }
             }
         }
@@ -111,7 +112,7 @@ fn eval_exec(words: []const i32) i32 {
     }
     if (total == 0) {
         stubs.raise("exec: no arguments");
-        return 0;
+        return result_mod.from_globals(0);
     }
 
     const buf_addr: u32 = obj.alloc(total);
@@ -128,7 +129,7 @@ fn eval_exec(words: []const i32) i32 {
         off += 1;
     }
 
-    return host_spawn(buf_addr, total, 0, 0);
+    return result_mod.from_globals(host_spawn(buf_addr, total, 0, 0));
 }
 
 pub const registrations = [_]reg.CmdEntry{
@@ -136,7 +137,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // No ``pub export fn tcl_cmd_exec`` — the Python registry
-// (``core/commands/registry/tcl/exec_.py``) deliberately omits a
+// (``dialects/tcl/exec_.py``) deliberately omits a
 // ``wasm_runtime_import`` because the codegen's single-arg
 // truncation would silently drop trailing argv words on a multi-arg
 // ``exec``.  Every call routes through the eval-fallback into

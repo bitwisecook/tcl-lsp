@@ -17,9 +17,11 @@ How do I modernise an old iRule, or convert a reverse-proxy configuration into a
 
 ## How to use
 
-### Convert (legacy pattern detection)
+### Find legacy patterns (detection only)
 
-Scans an iRule for legacy patterns and suggests modern replacements:
+Scans an iRule for legacy patterns and reports modern replacements.  The verb
+only *reports* — it does not rewrite source.  Run `tcl opt` to actually apply
+the transforms.
 
 | Legacy pattern | Modern replacement |
 |---|---|
@@ -31,12 +33,12 @@ Scans an iRule for legacy patterns and suggests modern replacements:
 
 ### VS Code Copilot Chat
 
-`@irule /convert` — runs the detection and explains each suggestion.
+`@irule /find-legacy` — runs the detection and rewrites the iRule with the modern replacements.
 
 ### tcl-lsp CLI
 
 ```
-tcl convert my_irule.irul
+tcl find-legacy my_irule.irul
 ```
 
 ### Claude Code
@@ -57,7 +59,7 @@ Reads an nginx `location` block, Apache `RewriteRule`, or HAProxy `acl`/`use_bac
 ## Example
 
 ```
-$ tcl convert old_irule.irul
+$ tcl find-legacy old_irule.irul
 === Modernisation Suggestions ===
 
   W100 (line 3): Unbraced expression — use expr {$x + 1} instead of expr $x + 1.
@@ -69,6 +71,6 @@ $ tcl convert old_irule.irul
 ## Related
 
 - [KCS feature index](README.md)
-- [Chat Slash Commands](kcs-feature-chat-slash-commands.md) — the `/convert` and `/migrate` commands
+- [Chat Slash Commands](kcs-feature-chat-slash-commands.md) — the `/find-legacy` and `/migrate` commands
 - [Diagnostics](kcs-feature-diagnostics.md) — the analyser codes the converter detects
 - [XC Translation](kcs-feature-xc-translation.md) — translates iRules to F5 Distributed Cloud (different target)

@@ -1,0 +1,20 @@
+# lmap.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '8 of 66 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 66
+observed_passed = 58
+observed_failed = 8
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lmap-1.13", "lmap-1.15", "lmap-2.9", "lmap-4.13", "lmap-4.15", "lmap-5.9", "lmap-8.1", "lmap-8.2"]

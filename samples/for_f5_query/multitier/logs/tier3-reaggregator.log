@@ -1,0 +1,10 @@
+Mar 14 06:50:55 tier3-a.example.test info mcpd[5452]: 01071db9:6: Boot complete on tier3-a.example.test
+Mar 14 06:57:21 tier3-a.example.test info mcpd[5452]: 01071a08:6: Configuration loaded from /config/bigip.conf successfully.
+Mar 14 07:12:59 tier3-a.example.test info logger[37175]: 01070417:6: AUDIT - jadmin - tmsh - tmsh -c modify ltm virtual /Common/internet_egress_vs description "managed by netops"
+Mar 14 07:25:31 tier3-a.example.test warning bigd[4848]: 01340011:4: Pool /Common/internet_uplink_pool member /Common/upstream_gw:0 monitor status down.
+Mar 14 07:27:21 tier3-a.example.test info bigd[4848]: 01340012:6: Pool /Common/internet_uplink_pool member /Common/upstream_gw:0 monitor status up.
+Mar 14 07:42:46 tier3-a.example.test notice tmm[13116]: 01230140:5: Connection limit approached on /Common/internet_egress_vs.
+Mar 14 07:58:30 tier3-a.example.test warning tmm[13116]: 01260009:4: SSL handshake failed for client 198.51.100.7 on /Common/internet_egress_vs.
+Mar 14 08:08:37 tier3-a.example.test err tmm[13116]: 01010013:3: monitor /Common/tcp failing for /Common/upstream_gw:0 (pool /Common/internet_uplink_pool).
+Mar 14 09:34:21 tier3-a.example.test info logger[37175]: 01071be3:6: AUDIT - jadmin - tmsh - tmsh -c save sys config
+Mar 14 09:47:34 tier3-a.example.test info mcpd[5452]: 01071681:6: Configuration saved to /config/bigip.conf.

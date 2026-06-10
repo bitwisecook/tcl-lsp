@@ -1,0 +1,177 @@
+ByteCode ::top, 115 instructions, 360 bytes, 21 literals, 0 variables
+  Literals:
+    0: "results"
+    1: ""
+    2: "switch"
+    3: "-glob"
+    4: "hello"
+    5: "foo {lappend results A} h* {lappend r..."
+    6: "B"
+    7: "\u0000\u0002glob h* missed: "
+    8: "foobar"
+    9: "f*bar {lappend results M} default {la..."
+    10: "M"
+    11: "glob middle-wildcard missed"
+    12: "zed"
+    13: "foo {lappend results A} default {lapp..."
+    14: "D"
+    15: "glob default missed"
+    16: "exact"
+    17: "NO"
+    18: "YES"
+    19: "exact broken"
+    20: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "results"
+    (2) push1 1	# ""
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "switch"
+    (8) push1 3	# "-glob"
+    (10) push1 4	# "hello"
+    (12) push1 5	# "foo {lappend results A} h* {lappend r..."
+    (14) invokeStk1 4	# switch
+  # cmd_end_1:
+    (16) pop
+    (17) startCommand +48 1	# next cmd at pc 65, 1 cmds start here
+    (26) push1 0	# "results"
+    (28) loadStk
+    (29) push1 6	# "B"
+    (31) strneq
+    (32) jumpFalse1 +31	# pc 63
+  # if_then_3:
+    (34) startCommand +27 1	# next cmd at pc 61, 1 cmds start here
+    (43) push1 7	# "glob h* missed: "
+    (45) push1 0	# "results"
+    (47) loadStk
+    (48) strcat 2
+    (50) push1 1	# ""
+    (52) returnImm +1 0
+  # cmd_end_3:
+    (61) jump1 +4	# pc 65
+  # if_next_4:
+    (63) push1 1	# ""
+  # if_end_2:
+  # if_cmd_end_2:
+    (65) pop
+    (66) startCommand +14 1	# next cmd at pc 80, 1 cmds start here
+    (75) push1 0	# "results"
+    (77) push1 1	# ""
+    (79) storeStk
+  # cmd_end_4:
+    (80) pop
+    (81) push1 2	# "switch"
+    (83) push1 3	# "-glob"
+    (85) push1 8	# "foobar"
+    (87) push1 9	# "f*bar {lappend results M} default {la..."
+    (89) invokeStk1 4	# switch
+  # cmd_end_5:
+    (91) pop
+    (92) startCommand +43 1	# next cmd at pc 135, 1 cmds start here
+    (101) push1 0	# "results"
+    (103) loadStk
+    (104) push1 10	# "M"
+    (106) strneq
+    (107) jumpFalse1 +26	# pc 133
+  # if_then_6:
+    (109) startCommand +22 1	# next cmd at pc 131, 1 cmds start here
+    (118) push1 11	# "glob middle-wildcard missed"
+    (120) push1 1	# ""
+    (122) returnImm +1 0
+  # cmd_end_7:
+    (131) jump1 +4	# pc 135
+  # if_next_7:
+    (133) push1 1	# ""
+  # if_end_5:
+  # if_cmd_end_6:
+    (135) pop
+    (136) startCommand +14 1	# next cmd at pc 150, 1 cmds start here
+    (145) push1 0	# "results"
+    (147) push1 1	# ""
+    (149) storeStk
+  # cmd_end_8:
+    (150) pop
+    (151) push1 2	# "switch"
+    (153) push1 3	# "-glob"
+    (155) push1 12	# "zed"
+    (157) push1 13	# "foo {lappend results A} default {lapp..."
+    (159) invokeStk1 4	# switch
+  # cmd_end_9:
+    (161) pop
+    (162) startCommand +43 1	# next cmd at pc 205, 1 cmds start here
+    (171) push1 0	# "results"
+    (173) loadStk
+    (174) push1 14	# "D"
+    (176) strneq
+    (177) jumpFalse1 +26	# pc 203
+  # if_then_9:
+    (179) startCommand +22 1	# next cmd at pc 201, 1 cmds start here
+    (188) push1 15	# "glob default missed"
+    (190) push1 1	# ""
+    (192) returnImm +1 0
+  # cmd_end_11:
+    (201) jump1 +4	# pc 205
+  # if_next_10:
+    (203) push1 1	# ""
+  # if_end_8:
+  # if_cmd_end_10:
+    (205) pop
+    (206) startCommand +14 1	# next cmd at pc 220, 1 cmds start here
+    (215) push1 0	# "results"
+    (217) push1 1	# ""
+    (219) storeStk
+  # cmd_end_12:
+    (220) pop
+    (221) startCommand +71 1	# next cmd at pc 292, 1 cmds start here
+    (230) push1 16	# "exact"
+    (232) jumpTable 0
+		["foo"->pc 242, "exact"->pc 266]
+    (237) jump4 +53	# pc 290
+  # switch_arm_body_13:
+    (242) startCommand +19 1	# next cmd at pc 261, 1 cmds start here
+    (251) push1 0	# "results"
+    (253) push1 17	# "NO"
+    (255) list 1
+    (260) lappendListStk
+  # cmd_end_14:
+    (261) jump4 +31	# pc 292
+  # switch_next_15:
+  # switch_arm_body_14:
+    (266) startCommand +19 1	# next cmd at pc 285, 1 cmds start here
+    (275) push1 0	# "results"
+    (277) push1 18	# "YES"
+    (279) list 1
+    (284) lappendListStk
+  # cmd_end_15:
+    (285) jump4 +7	# pc 292
+  # switch_next_16:
+  # switch_default_12:
+    (290) push1 1	# ""
+  # switch_end_11:
+  # if_cmd_end_13:
+    (292) pop
+    (293) startCommand +43 1	# next cmd at pc 336, 1 cmds start here
+    (302) push1 0	# "results"
+    (304) loadStk
+    (305) push1 18	# "YES"
+    (307) strneq
+    (308) jumpFalse1 +26	# pc 334
+  # if_then_18:
+    (310) startCommand +22 1	# next cmd at pc 332, 1 cmds start here
+    (319) push1 19	# "exact broken"
+    (321) push1 1	# ""
+    (323) returnImm +1 0
+  # cmd_end_17:
+    (332) jump1 +4	# pc 336
+  # if_next_19:
+    (334) push1 1	# ""
+  # if_end_17:
+  # if_cmd_end_16:
+    (336) pop
+    (337) startCommand +22 1	# next cmd at pc 359, 1 cmds start here
+    (346) push1 20	# "ok"
+    (348) push1 1	# ""
+    (350) returnImm +0 1
+  # ret_end_18:
+    (359) done

@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import Token, TokenType
+from compiler.parsing.lexer import TclLexer
+from shared.tokens import Token, TokenType
 
 from .helpers import lex
 
@@ -458,18 +458,14 @@ class TestExpansion:
         assert any(t.type == TokenType.STR and t.text == "*" for t in tokens)
 
     def test_no_expand_in_84_dialect(self):
-        """{*} should not expand when expand_syntax is disabled (Tcl 8.4 mode)."""
-        from core.parsing.lexer import TclLexer
+        """{*} should not expand under a Tcl 8.4 dialect scope."""
+        from compiler.registry.dialect import dialect_scope
 
-        old = TclLexer.expand_syntax
-        TclLexer.expand_syntax = False
-        try:
+        with dialect_scope("tcl8.4"):
             tokens = lex("cmd {*}$args")
             assert not any(t.type == TokenType.EXPAND for t in tokens)
             # Should be treated as braced string "*" concatenated with $args
             assert any(t.type == TokenType.STR and t.text == "*" for t in tokens)
-        finally:
-            TclLexer.expand_syntax = old
 
     def test_expansion_followed_by_semicolon(self):
         """{*} followed by semicolon is a braced string, not expansion."""
@@ -626,8 +622,10 @@ class TestBracedVarByteSpans:
         assert "arr" in tok.text and "key" in tok.text
         assert not self._is_braced(tok)
 
-    def test_braced_scalar_array_like(self):
-        """${a(1)}: braced form treats parens as literal (scalar, not array)."""
+    def test_braced_array_like_name(self):
+        """${a(1)}: braced form loads the whole name a(1) (the runtime
+        resolves array element a(1)) — matches tcl 9, unlike bare $a(1)
+        which splits into array a element 1."""
         tokens = lex("${a(1)}")
         tok = tokens[0]
         assert tok.type == TokenType.VAR
@@ -778,26 +776,26 @@ class TestBracedVarByteSpans:
         assert tok.text == "array name (foo)"
         assert self._is_braced(tok)
 
-    def test_braced_var_stops_at_first_close_brace(self):
-        """${name{}name}: stops at first }, rest is ESC text.
-
-        Matches C Tcl's Tcl_ParseVarName which scans until first '}'.
-        """
+    def test_braced_var_with_balanced_inner_braces(self):
+        """``${name{}name}`` -- inner ``{}`` is balanced (depth 0->1->0),
+        so the trailing ``name`` is part of the var-name and the final
+        ``}`` closes.  Matches Tcl 9.0.3 ``Tcl_ParseVarName`` brace-
+        depth tracking."""
         tokens = lex("${name{}name}")
         var_toks = [t for t in tokens if t.type == TokenType.VAR]
         assert len(var_toks) == 1
-        assert var_toks[0].text == "name{"
+        assert var_toks[0].text == "name{}name"
         assert self._is_braced(var_toks[0])
-        # The "name}" after the first close brace is separate ESC text
-        esc_toks = [t for t in tokens if t.type == TokenType.ESC]
-        assert any(t.text == "name}" for t in esc_toks)
 
     def test_braced_var_with_open_brace(self):
-        """${name{}: open brace inside braced var name."""
+        """``${name{}`` -- inner ``{`` opens depth 1, the ``}`` returns
+        to 0; runs out of input before finding the closing ``}`` of the
+        ``${...}`` itself.  Name = ``name{}`` (warning: missing close-
+        brace)."""
         tokens = lex("${name{}")
         tok = tokens[0]
         assert tok.type == TokenType.VAR
-        assert tok.text == "name{"
+        assert tok.text == "name{}"
         assert self._is_braced(tok)
 
     # In quoted strings
@@ -1601,7 +1599,7 @@ class TestVariableShapeMalformedNestedSubstitutions:
         assert any(t.type == TokenType.CMD for t in tokens)
         assert any(t.type == TokenType.ESC and "value" in t.text for t in tokens)
 
-    def test_braced_word_keeps_scalar_like_array_name_literal(self):
+    def test_braced_word_keeps_braced_array_name_literal(self):
         tokens = lex("puts {${a(1)} [set x}")
         strs = [t for t in tokens if t.type == TokenType.STR]
         assert any("${a(1)}" in t.text for t in strs)

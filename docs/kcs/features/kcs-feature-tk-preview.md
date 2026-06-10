@@ -1,5 +1,8 @@
 # KCS: feature — Tk Preview
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Live preview pane for Tk GUI applications that updates as you edit.
@@ -31,7 +34,7 @@ The Tk preview extracts the widget hierarchy from source code and renders it in 
 - `editors/vscode/src/tkPreviewPanel.ts`
 - `editors/vscode/src/tkPreviewPanelHtml.ts`
 - `editors/vscode/src/tkLivePreview.ts`
-- `core/tk/extract.py`
+- `dialects/tk/dialect/extract.py`
 
 ## Failure modes
 

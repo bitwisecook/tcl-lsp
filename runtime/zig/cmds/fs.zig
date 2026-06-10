@@ -1,24 +1,25 @@
 // ``file``, ``pwd``, ``cd``, ``glob`` — filesystem commands.
 
-const fs_mod      = @import("../io/tcl_fs.zig");
-const obj         = @import("../valtypes/tcl_obj.zig");
-const stubs       = @import("../stubs/tcl_stubs.zig");
-const reg         = @import("../dispatch/tcl_cmd_registry.zig");
+const fs_mod = @import("../io/tcl_fs.zig");
+const result_mod = @import("../interp/tcl_result.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-fn eval_file(words: []const i32) i32 {
+fn eval_file(words: []const i32) result_mod.InterpResult {
     const sub = if (words.len >= 2) words[1] else 0;
-    const a1  = if (words.len >= 3) words[2] else 0;
-    const a2  = if (words.len >= 4) words[3] else 0;
-    return fs_mod.tcl_cmd_file(sub, a1, a2);
+    const a1 = if (words.len >= 3) words[2] else 0;
+    const a2 = if (words.len >= 4) words[3] else 0;
+    return result_mod.from_globals(fs_mod.tcl_cmd_file(sub, a1, a2));
 }
 
-fn eval_pwd(words: []const i32) i32 {
+fn eval_pwd(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return fs_mod.tcl_cmd_pwd();
+    return result_mod.from_globals(fs_mod.tcl_cmd_pwd());
 }
 
-fn eval_cd(words: []const i32) i32 {
-    return fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0);
+fn eval_cd(words: []const i32) result_mod.InterpResult {
+    return result_mod.from_globals(fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0));
 }
 
 /// Tcl 9 spelling: ``source ?-encoding name? fileName``.
@@ -31,17 +32,35 @@ fn eval_cd(words: []const i32) i32 {
 /// unknown leading option) raises so scripts don't silently lose
 /// the trailing word — diverging from tclsh on those shapes would
 /// hide a real bug at the call site.
-fn eval_source(words: []const i32) i32 {
+fn eval_source(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         stubs.raise("source: missing fileName");
-        return 0;
+        return result_mod.from_globals(0);
     }
-    if (words.len == 2) return fs_mod.tcl_cmd_source(words[1]);
+    if (words.len == 2) return result_mod.from_globals(fs_mod.tcl_cmd_source(words[1]));
+    if (words.len == 3 and is_dash_nopkg(words[1])) {
+        // Undocumented -nopkg option (used by ::tcl::Pkg::source).  It only
+        // suppresses "package files" tracking, which the WASM runtime does
+        // not maintain, so it behaves exactly like a plain source.
+        return result_mod.from_globals(fs_mod.tcl_cmd_source(words[2]));
+    }
     if (words.len == 4 and is_dash_encoding(words[1])) {
-        return fs_mod.tcl_cmd_source(words[3]);
+        return result_mod.from_globals(fs_mod.tcl_cmd_source(words[3]));
     }
     stubs.raise("source: expected ?-encoding name? fileName");
-    return 0;
+    return result_mod.from_globals(0);
+}
+
+fn is_dash_nopkg(o: i32) bool {
+    if (o == 0) return false;
+    const s = obj.obj_ensure_string(o);
+    if (s.len != 6) return false;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    const lit = "-nopkg";
+    inline for (0..6) |i| {
+        if (p[i] != lit[i]) return false;
+    }
+    return true;
 }
 
 fn is_dash_encoding(o: i32) bool {
@@ -64,13 +83,19 @@ fn is_dash_encoding(o: i32) bool {
 /// raises (per the man page); with the switch we silently return
 /// the empty list.
 ///
-/// Switches not yet wired (``-directory`` / ``-tails`` / ``-types``
-/// / ``-path`` / ``-join``) raise ``unsupported`` so scripts get
-/// a clear diagnostic — adding them is purely a parsing job; the
-/// underlying readdir machinery already supports the work.
-fn eval_glob(words: []const i32) i32 {
+/// ``-directory DIR`` / ``-join`` / ``-tails`` are wired through
+/// :func:`fs_mod.tcl_cmd_glob_dir` (the recursive readdir walk that
+/// ``tclPkgUnknown`` uses to discover stdlib ``pkgIndex.tcl`` files
+/// under ``TCL_LIBRARY``).  ``-types`` is parsed (consuming its value)
+/// but its filter is not yet applied — the directory walk already
+/// returns regular files, which covers the stdlib-discovery callers.
+/// ``-path`` still raises ``unsupported``.
+fn eval_glob(words: []const i32) result_mod.InterpResult {
     var idx: usize = 1;
     var nocomplain = false;
+    var join = false;
+    var tails = false;
+    var dir_obj: i32 = 0;
     while (idx < words.len) : (idx += 1) {
         const w = words[idx];
         const s = obj.obj_ensure_string(w);
@@ -85,14 +110,37 @@ fn eval_glob(words: []const i32) i32 {
             nocomplain = true;
             continue;
         }
-        if (eq_lit(sp, s.len, "-directory") or
-            eq_lit(sp, s.len, "-tails") or
-            eq_lit(sp, s.len, "-types") or
-            eq_lit(sp, s.len, "-path") or
-            eq_lit(sp, s.len, "-join"))
-        {
+        if (eq_lit(sp, s.len, "-join")) {
+            join = true;
+            continue;
+        }
+        if (eq_lit(sp, s.len, "-tails")) {
+            tails = true;
+            continue;
+        }
+        if (eq_lit(sp, s.len, "-directory")) {
+            if (idx + 1 >= words.len) {
+                stubs.raise("missing argument to \"-directory\"");
+                return result_mod.from_globals(0);
+            }
+            idx += 1;
+            dir_obj = words[idx];
+            continue;
+        }
+        if (eq_lit(sp, s.len, "-types")) {
+            // Consume the type-list argument; the filter is not applied
+            // (the readdir walk already yields the regular files the
+            // stdlib-discovery callers expect).
+            if (idx + 1 >= words.len) {
+                stubs.raise("missing argument to \"-types\"");
+                return result_mod.from_globals(0);
+            }
+            idx += 1;
+            continue;
+        }
+        if (eq_lit(sp, s.len, "-path")) {
             stubs.unsupported_sub("glob", sp[0..s.len]);
-            return 0;
+            return result_mod.from_globals(0);
         }
         // Unknown switch — match stock Tcl's behaviour and raise
         // ``bad option "<switch>"`` instead of silently demoting to
@@ -102,6 +150,10 @@ fn eval_glob(words: []const i32) i32 {
         const suffix: []const u8 = "\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --";
         const total: u32 = @intCast(prefix.len + s.len + suffix.len);
         const buf_addr = obj.alloc(total);
+        if (buf_addr == 0) {
+            stubs.raise("bad option");
+            return result_mod.from_globals(0);
+        }
         const buf: [*]u8 = @ptrFromInt(buf_addr);
         var off: usize = 0;
         for (prefix) |c| {
@@ -116,36 +168,112 @@ fn eval_glob(words: []const i32) i32 {
             buf[off] = c;
             off += 1;
         }
-        const msg_slice = (@as([*]const u8, @ptrFromInt(buf_addr)))[0..total];
-        stubs.raise(msg_slice);
-        return 0;
+        // Wrap the buffer via ``obj_new_string_take`` so its bytes
+        // belong to the error message TclObj — previously the slab
+        // was orphaned and ``stubs.raise`` minted a second copy from
+        // the byte view, leaking the original ``total`` bytes per
+        // unknown-switch diagnostic.
+        const msg_obj = obj.obj_new_string_take(buf_addr, total, total);
+        const catch_mod_glob = @import("../interp/tcl_catch.zig");
+        catch_mod_glob.tcl_cmd_error(msg_obj);
+        return result_mod.from_globals(0);
     }
     if (idx >= words.len) {
-        if (nocomplain) return obj.obj_new_string(0, 0);
+        if (nocomplain) return result_mod.from_globals(obj.obj_new_string(0, 0));
         stubs.raise("wrong # args: should be \"glob ?switches? pattern ?pattern ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
-    var acc: i32 = obj.obj_new_string(0, 0);
+    // Ownership: ``acc`` is NULL until the first non-empty glob
+    // result lands.  On match #1 we move ``result`` straight into
+    // ``acc`` (transfer of +1).  On match #2+ we concat into a fresh
+    // ``list_concat`` return (also +1) and release both the prior
+    // ``acc`` and ``result``.  The earlier code seeded ``acc`` with
+    // a fresh empty-string obj that leaked on the first transfer,
+    // and never released the per-pattern ``result`` after concat —
+    // every multi-pattern glob leaked one TclObj per non-first
+    // pattern plus the empty seed.
+    // ``-join`` collapses the remaining pattern words into a single
+    // path pattern, joining them with ``/`` (e.g. ``-join * pkgIndex.tcl``
+    // → ``*/pkgIndex.tcl``).  We build one owned TclObj and walk a
+    // one-element pattern range over it.
+    var joined: i32 = 0;
+    if (join and idx < words.len) {
+        var total: u32 = 0;
+        var n = idx;
+        while (n < words.len) : (n += 1) {
+            total += @intCast(obj.obj_ensure_string(words[n]).len);
+            if (n + 1 < words.len) total += 1; // separator
+        }
+        const jbuf = obj.alloc(total);
+        if (jbuf == 0) {
+            stubs.raise("glob: out of memory joining patterns");
+            return result_mod.from_globals(0);
+        }
+        const jp: [*]u8 = @ptrFromInt(jbuf);
+        var off: u32 = 0;
+        n = idx;
+        while (n < words.len) : (n += 1) {
+            const ps = obj.obj_ensure_string(words[n]);
+            const psp: [*]const u8 = @ptrFromInt(ps.ptr);
+            var c: u32 = 0;
+            while (c < ps.len) : (c += 1) {
+                jp[off] = psp[c];
+                off += 1;
+            }
+            if (n + 1 < words.len) {
+                jp[off] = '/';
+                off += 1;
+            }
+        }
+        joined = obj.obj_new_string_take(jbuf, total, total);
+    }
+
+    var acc: i32 = 0;
     var any_matched = false;
     while (idx < words.len) : (idx += 1) {
-        const result = fs_mod.tcl_cmd_glob(words[idx]);
-        if (result == 0) return 0; // capability-denied or fatal — error already raised
+        const pattern_obj = if (joined != 0) joined else words[idx];
+        const result = if (dir_obj != 0)
+            fs_mod.tcl_cmd_glob_dir(dir_obj, pattern_obj, tails)
+        else
+            fs_mod.tcl_cmd_glob(pattern_obj);
+        // The joined pattern was a single synthetic word consumed by
+        // this one call; release it and end the walk.
+        if (joined != 0) {
+            obj.tcl_obj_release(joined);
+            joined = 0;
+            idx = words.len;
+        }
+        if (result == 0) {
+            if (acc != 0) obj.tcl_obj_release(acc);
+            return result_mod.from_globals(0); // capability-denied or fatal — error already raised
+        }
         const r = obj.obj_ensure_string(result);
-        if (r.len == 0) continue;
+        if (r.len == 0) {
+            obj.tcl_obj_release(result);
+            continue;
+        }
         any_matched = true;
-        // Concatenate result lists by pasting raw bytes with a single
-        // separator — both sides are already canonical list strings.
-        if (obj.obj_ensure_string(acc).len == 0) {
+        if (acc == 0) {
             acc = result;
         } else {
-            acc = list_concat(acc, result);
+            const next = list_concat(acc, result);
+            // ``list_concat`` may return a borrow on the empty-side
+            // paths; only release the inputs when they're not the
+            // returned handle.  Both ``acc`` and ``result`` are +1
+            // owned here so the safe pattern is "release each if it
+            // didn't become the new accumulator".
+            if (next != acc) obj.tcl_obj_release(acc);
+            if (next != result) obj.tcl_obj_release(result);
+            acc = next;
         }
     }
     if (!any_matched and !nocomplain) {
+        if (acc != 0) obj.tcl_obj_release(acc);
         stubs.raise("no files matched glob pattern");
-        return 0;
+        return result_mod.from_globals(0);
     }
-    return acc;
+    if (acc == 0) acc = obj.obj_new_string(0, 0);
+    return result_mod.from_globals(acc);
 }
 
 fn eq_lit(p: [*]const u8, len: u32, lit: []const u8) bool {
@@ -166,13 +294,14 @@ fn list_concat(a: i32, b: i32) i32 {
     if (sb.len == 0) return a;
     const total: u32 = sa.len + 1 + sb.len;
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     const out: [*]u8 = @ptrFromInt(buf);
     const ap: [*]const u8 = @ptrFromInt(sa.ptr);
     const bp: [*]const u8 = @ptrFromInt(sb.ptr);
     for (0..sa.len) |i| out[i] = ap[i];
     out[sa.len] = ' ';
     for (0..sb.len) |i| out[sa.len + 1 + i] = bp[i];
-    return obj.obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 pub const registrations = [_]reg.CmdEntry{
@@ -184,7 +313,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // ``file <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/file.py``.  Cross-checked against
+// ``dialects/tcl/file.py``.  Cross-checked against
 // ``generic/tclFCmd.c`` + ``generic/tclFileName.c`` in C Tcl 9.0 —
 // each sub-command's handler enforces its arity via
 // ``Tcl_WrongNumArgs``.  ``pwd`` and ``cd`` have no sub-commands.

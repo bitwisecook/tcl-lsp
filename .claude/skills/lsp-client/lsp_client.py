@@ -156,27 +156,13 @@ SYMBOL_KIND = {
 class LspClient:
     """Manages a language server subprocess and JSON-RPC communication."""
 
-    def __init__(
-        self,
-        server_dir: str,
-        launch_cmd: list[str] | None = None,
-        cwd: str | None = None,
-    ) -> None:
+    def __init__(self, server_dir: str, launch_cmd: list[str] | None = None) -> None:
         self.server_dir = server_dir
-        # The command used to spawn the server, and the working
-        # directory to spawn it in. Defaults to the Python server for
-        # backward compatibility; the Rust backend overrides both.
-        self.launch_cmd = launch_cmd or [
-            "uv",
-            "run",
-            "--directory",
-            server_dir,
-            "--no-dev",
-            "python",
-            "-m",
-            "lsp",
+        #: argv used to spawn the server.  Defaults to the Python server via
+        #: ``uv``; ``launch_cmd`` overrides it (e.g. the native Rust binary).
+        self._launch_cmd = launch_cmd or [
+            "uv", "run", "--directory", server_dir, "--no-dev", "python", "-m", "lsp",
         ]
-        self.cwd = cwd or server_dir
         self.process: subprocess.Popen | None = None
         self._request_id = 0
         self._pending: dict[int, dict] = {}  # id -> {"event": Event, "result": ...}
@@ -190,11 +176,11 @@ class LspClient:
     def start(self) -> None:
         """Spawn the server and start the reader thread."""
         self.process = subprocess.Popen(
-            self.launch_cmd,
+            self._launch_cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=self.cwd,
+            cwd=self.server_dir,
         )
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
@@ -390,6 +376,29 @@ class LspClient:
 # LSP lifecycle helpers
 
 
+def find_native_server(override: str | None = None) -> str:
+    """Locate the native Rust ``tcl-lsp-server`` binary (serverKind=rust).
+
+    Honours ``override`` / ``TCL_LSP_SERVER_BIN`` first, then probes
+    ``target/{release,debug}/`` under the project root.
+    """
+    explicit = override or os.environ.get("TCL_LSP_SERVER_BIN")
+    if explicit:
+        p = Path(explicit).resolve()
+        if p.exists():
+            return str(p)
+        raise FileNotFoundError(f"No native server at {p}")
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    for profile in ("release", "debug"):
+        candidate = project_root / "target" / profile / "tcl-lsp-server"
+        if candidate.exists():
+            return str(candidate)
+    raise FileNotFoundError(
+        "No native tcl-lsp-server binary found — build it with "
+        "`cargo build -p tcl-lsp-server` (or `make rust-server`), or pass --server-bin."
+    )
+
+
 def find_server_dir(override: str | None = None) -> str:
     """Locate the tcl-lsp server directory."""
     if override:
@@ -419,70 +428,6 @@ def find_server_dir(override: str | None = None) -> str:
     )
 
 
-def find_repo_root(override: str | None = None) -> Path:
-    """Locate the Cargo workspace root (contains `Cargo.toml` + `rust/`)."""
-    if override:
-        root = Path(override).resolve()
-        if (root / "Cargo.toml").exists():
-            return root
-        raise FileNotFoundError(f"No Cargo workspace at {root}")
-    # Walk up from this script and from cwd looking for the workspace root.
-    starts = [Path(__file__).resolve(), Path.cwd().resolve()]
-    for start in starts:
-        for cand in [start, *start.parents]:
-            if (cand / "Cargo.toml").exists() and (cand / "rust").is_dir():
-                return cand
-    raise FileNotFoundError(
-        "Cannot find the Cargo workspace root for the Rust server. "
-        "Use --server-dir to point at the repo root."
-    )
-
-
-def resolve_rust_server(override: str | None) -> tuple[str, list[str], str]:
-    """Locate (building if needed) the Rust `tcl-lsp-server` binary.
-
-    Returns ``(server_dir, launch_cmd, cwd)``.
-    """
-    root = find_repo_root(override)
-    binary = root / "target" / "debug" / "tcl-lsp-server"
-    if not binary.exists():
-        print(
-            "Rust server binary not found; building (cargo build -p tcl-lsp-server)...",
-            file=sys.stderr,
-        )
-        subprocess.run(
-            ["cargo", "build", "-q", "-p", "tcl-lsp-server", "--bin", "tcl-lsp-server"],
-            cwd=str(root),
-            check=True,
-        )
-    if not binary.exists():
-        raise FileNotFoundError(f"Rust server binary not found at {binary}")
-    return str(root), [str(binary)], str(root)
-
-
-def resolve_server(backend: str, override: str | None) -> tuple[str, list[str], str]:
-    """Resolve the server launch config for the chosen backend.
-
-    Returns ``(server_dir, launch_cmd, cwd)``. ``server_dir`` is used for
-    the ``rootUri`` sent at initialize; ``launch_cmd`` / ``cwd`` spawn the
-    process.
-    """
-    if backend == "rust":
-        return resolve_rust_server(override)
-    server_dir = find_server_dir(override)
-    launch_cmd = [
-        "uv",
-        "run",
-        "--directory",
-        server_dir,
-        "--no-dev",
-        "python",
-        "-m",
-        "lsp",
-    ]
-    return server_dir, launch_cmd, server_dir
-
-
 def initialize(client: LspClient) -> dict:
     """Send initialize + initialized."""
     result = client.send_request(
@@ -510,42 +455,8 @@ def initialize(client: LspClient) -> dict:
     return result
 
 
-# File-extension → LSP languageId, mirroring the editor's language
-# associations (editors/vscode/package.json).  The server derives the
-# analysis dialect from the languageId sent on didOpen
-# (Backend::dialect_from_language_id) — and that takes precedence over
-# any `tclLsp.dialect` setting — so sending the right languageId is what
-# makes a `.irul` file analyse as f5-irules instead of plain Tcl.
-_LANGUAGE_ID_BY_EXT = {
-    ".irul": "tcl-irule",
-    ".irule": "tcl-irule",
-    ".iapp": "tcl-iapp",
-    ".iappimpl": "tcl-iapp",
-    ".impl": "tcl-iapp",
-    ".exp": "tcl-expect",
-}
-
-
-def language_id_for(path_or_uri: str) -> str:
-    """LSP languageId for a file, by extension (default ``tcl``).
-
-    Accepts a filesystem path or a ``file://`` URI.  Unknown extensions
-    fall back to ``"tcl"`` (the server maps that to its default tcl8.6).
-    """
-    ext = os.path.splitext(path_or_uri)[1].lower()
-    return _LANGUAGE_ID_BY_EXT.get(ext, "tcl")
-
-
-def open_document(
-    client: LspClient, file_path: str, language_id: str | None = None
-) -> tuple[str, str]:
-    """Read a file, send textDocument/didOpen, return (uri, content).
-
-    ``language_id`` overrides the extension-derived LSP languageId (see
-    :func:`language_id_for`).  The server maps the languageId to the
-    analysis dialect, so this is what selects f5-irules / f5-iapps /
-    tcl9.0 / etc.
-    """
+def open_document(client: LspClient, file_path: str) -> tuple[str, str]:
+    """Read a file, send textDocument/didOpen, return (uri, content)."""
     abs_path = os.path.abspath(file_path)
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(f"File not found: {abs_path}")
@@ -557,7 +468,7 @@ def open_document(
         {
             "textDocument": {
                 "uri": uri,
-                "languageId": language_id or language_id_for(abs_path),
+                "languageId": "tcl",
                 "version": 1,
                 "text": content,
             },
@@ -1170,7 +1081,7 @@ def cmd_command_info(client: LspClient, command_name: str) -> None:
     print_command_info(result)
 
 
-def cmd_context(client: LspClient, uri: str, content: str, language_id: str | None = None) -> None:
+def cmd_context(client: LspClient, uri: str, content: str) -> None:
     """Build a context pack: diagnostics + symbols + event metadata.
 
     Mirrors the context enrichment from the VS Code extension's contextPack.ts.
@@ -1179,16 +1090,9 @@ def cmd_context(client: LspClient, uri: str, content: str, language_id: str | No
     basename = os.path.basename(file_path)
     line_count = len(content.split("\n"))
 
-    # Report the dialect the server actually analysed under — the same
-    # languageId open_document sent, mapped to its canonical dialect
-    # name (editor ids map; canonical names like `tcl9.0` pass through).
-    lid = language_id or language_id_for(file_path)
-    dialect = {
-        "tcl": "tcl8.6",
-        "tcl-irule": "f5-irules",
-        "tcl-iapp": "f5-iapps",
-        "tcl-expect": "expect",
-    }.get(lid, lid)
+    # Detect dialect from extension
+    ext = os.path.splitext(file_path)[1].lower()
+    dialect = "f5-irules" if ext in (".irul", ".irule") else "tcl8.6"
 
     print("=== Context Pack ===")
     print(f"  Dialect: {dialect}")
@@ -1300,14 +1204,7 @@ def cmd_all(client: LspClient, uri: str, content: str) -> None:
 _TIMING_RE = re.compile(r"\[timing\]\s+(\S+)\s+([\d.]+)ms")
 
 
-def cmd_bench(
-    client: LspClient,
-    uri: str,
-    content: str,
-    *,
-    iterations: int = 1,
-    language_id: str | None = None,
-) -> None:
+def cmd_bench(client: LspClient, uri: str, content: str, *, iterations: int = 1) -> None:
     """Benchmark time-to-semantic-tokens replicating VS Code's request pattern.
 
     VS Code sends requests sequentially after didOpen:
@@ -1346,7 +1243,7 @@ def cmd_bench(
                 {
                     "textDocument": {
                         "uri": uri,
-                        "languageId": language_id or language_id_for(uri),
+                        "languageId": "tcl",
                         "version": i + 1,
                         "text": content,
                     }
@@ -1354,6 +1251,16 @@ def cmd_bench(
             )
 
         t_open = time.perf_counter()
+
+        # VS Code sends didChangeConfiguration shortly after didOpen —
+        # detect iRules content or extension to match real editor behavior.
+        ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
+        is_irules = ext in ("irul", "irule") or "when " in content[:2000]
+        if is_irules:
+            client.send_notification(
+                "workspace/didChangeConfiguration",
+                {"settings": {"tclLsp": {"dialect": "f5-irules"}}},
+            )
 
         # Sequential request chain — each waits for its response.
         step_times: list[tuple[str, float]] = []
@@ -1503,27 +1410,16 @@ examples:
   %(prog)s all samples/for_screenshots/03-completions.tcl
 """,
     )
+    parser.add_argument("--server-dir", help="Path to tcl-lsp directory (auto-detected by default)")
     parser.add_argument(
         "--server",
         choices=["python", "rust"],
-        default="python",
-        help="Which language server to drive: the Python server (`python -m lsp`, "
-        "default) or the native Rust server (`tcl-lsp-server`, built on demand).",
+        default=os.environ.get("TCL_LSP_SERVER_KIND", "python"),
+        help="Which LSP backend to drive: the Python server (default) or the native Rust binary.",
     )
     parser.add_argument(
-        "--server-dir",
-        help="Path to the server. For --server python: the tcl-lsp dir holding "
-        "`lsp/`. For --server rust: the Cargo workspace root. Auto-detected by default.",
-    )
-    parser.add_argument(
-        "--language-id",
-        help="Override the LSP languageId sent on didOpen (default: derived from "
-        "the file extension — e.g. .irul -> tcl-irule). The server maps this to "
-        "the analysis dialect, so it is what selects f5-irules etc. Accepts editor "
-        "ids (tcl, tcl-irule, tcl-iapp, tcl-expect) or canonical dialect names "
-        "(f5-irules, f5-iapps, tcl8.4, tcl9.0, ...). Use it to force a dialect for "
-        "files whose extension does not imply one (e.g. an iRule saved as .tcl, or "
-        "testing tcl9.0 behaviour).",
+        "--server-bin",
+        help="Path to the native tcl-lsp-server binary (for --server rust; else auto-detected).",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1618,15 +1514,23 @@ examples:
 
     args = parser.parse_args()
 
-    # Resolve the chosen backend (Python or Rust).
+    # Find server (Python dir or native Rust binary)
+    server_kind = (args.server or "python").strip().lower()
+    launch_cmd: list[str] | None = None
     try:
-        server_dir, launch_cmd, cwd = resolve_server(args.server, args.server_dir)
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        if server_kind == "rust":
+            native = find_native_server(args.server_bin)
+            # rootUri only needs a directory; the binary doesn't need a bundle.
+            server_dir = args.server_dir or str(Path.cwd())
+            launch_cmd = [native]
+        else:
+            server_dir = find_server_dir(args.server_dir)
+    except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Create client and run
-    client = LspClient(server_dir, launch_cmd=launch_cmd, cwd=cwd)
+    client = LspClient(server_dir, launch_cmd=launch_cmd)
     try:
         client.start()
         initialize(client)
@@ -1648,12 +1552,21 @@ examples:
             time.sleep(0.2)
             cmd_command_info(client, args.name)
         else:
-            # Commands that require a file.  The LSP languageId carries
-            # the dialect to the server (it takes precedence over any
-            # `tclLsp.dialect` setting), derived from the file extension
-            # unless `--language-id` overrides it.
-            language_id = args.language_id or language_id_for(args.file)
-            uri, content = open_document(client, args.file, language_id)
+            # Commands that require a file
+            ext = os.path.splitext(args.file)[1].lower()
+            if ext in (".irul", ".irule"):
+                dialect = "f5-irules"
+            elif ext in (".iapp", ".iappimpl", ".impl"):
+                dialect = "f5-iapps"
+            else:
+                dialect = None
+            if dialect:
+                client.send_notification(
+                    "workspace/didChangeConfiguration",
+                    {"settings": {"tclLsp": {"dialect": dialect}}},
+                )
+
+            uri, content = open_document(client, args.file)
 
             # Give server a moment to process didOpen and push diagnostics
             time.sleep(0.3)
@@ -1682,17 +1595,11 @@ examples:
                 case "diagram":
                     cmd_diagram(client, content)
                 case "context":
-                    cmd_context(client, uri, content, language_id=language_id)
+                    cmd_context(client, uri, content)
                 case "all":
                     cmd_all(client, uri, content)
                 case "bench":
-                    cmd_bench(
-                        client,
-                        uri,
-                        content,
-                        iterations=args.iterations,
-                        language_id=language_id,
-                    )
+                    cmd_bench(client, uri, content, iterations=args.iterations)
                 case "logs":
                     cmd_logs(client, uri, timing_only=args.timing_only)
 

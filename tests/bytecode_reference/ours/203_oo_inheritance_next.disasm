@@ -1,0 +1,48 @@
+ByteCode ::top, 28 instructions, 63 bytes, 11 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "superClass"
+    3: "\n    method doit x {\n        lappen..."
+    4: "subClass"
+    5: "\n    superclass superClass\n    meth..."
+    6: "result"
+    7: ""
+    8: "new"
+    9: "doit"
+    10: "1"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "superClass"
+    (6) push1 3	# "\n    method doit x {\n        lappen..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) push1 0	# "oo::class"
+    (13) push1 1	# "create"
+    (15) push1 4	# "subClass"
+    (17) push1 5	# "\n    superclass superClass\n    meth..."
+    (19) invokeStk1 4	# oo::class
+  # cmd_end_1:
+    (21) pop
+    (22) startCommand +14 1	# next cmd at pc 36, 1 cmds start here
+    (31) push1 6	# "result"
+    (33) push1 7	# ""
+    (35) storeStk
+  # cmd_end_2:
+    (36) pop
+    (37) push1 4	# "subClass"
+    (39) push1 8	# "new"
+    (41) invokeStk1 2
+    (43) push1 9	# "doit"
+    (45) push1 10	# "1"
+    (47) invokeStk1 3	# [subClass new]
+  # cmd_end_3:
+    (49) pop
+    (50) startCommand +12 1	# next cmd at pc 62, 1 cmds start here
+    (59) push1 6	# "result"
+    (61) loadStk
+  # cmd_end_4:
+  # exit_2:
+    (62) done

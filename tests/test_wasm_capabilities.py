@@ -227,10 +227,16 @@ class TestCapGlob:
         wasm = _compile_tcl("exit -1\n")
         try:
             _run_wasm(wasm, capture_stdout=True, capabilities=CAP_EXIT)
-        except BaseException:
-            return  # expected — proc_exit traps to the embedder
-        # If wasmtime translates the exit code into a normal return,
-        # at least we know the call did not trap on the cast.
+        except BaseException as exc:
+            # A trap is expected — proc_exit rejects the truncated status. The
+            # contract is that ``-1`` folded cleanly through u32 truncation and
+            # reached proc_exit (which rejects 4294967295 as out-of-range),
+            # rather than tripping @intCast's safety check.  So the trap must
+            # be the WASI exit-status rejection, NOT an integer-overflow trap.
+            msg = str(exc).lower()
+            assert not any(k in msg for k in ("overflow", "invalid conversion", "intcast")), msg
+            return
+        # A normal return is also fine — it likewise proves the cast didn't trap.
 
     def test_no_match_raises_without_nocomplain(self, tmp_path: Path):
         wasm = _compile_tcl("set rc [catch {glob *.does-not-match} msg]\nputs $rc\nputs $msg\n")

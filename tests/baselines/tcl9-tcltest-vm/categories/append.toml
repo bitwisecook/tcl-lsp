@@ -1,0 +1,20 @@
+# append.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '17 of 52 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 52
+observed_passed = 32
+observed_failed = 17
+observed_skipped = 3
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["append-3.3", "append-3.6", "append-4.7", "append-4.9", "append-4.10", "append-4.11", "append-4.12", "append-4.13", "append-4.14", "append-4.15", "append-4.16", "append-4.21", "append-4.22", "append-7.1", "append-7.5", "append-10.2", "append-10.4"]

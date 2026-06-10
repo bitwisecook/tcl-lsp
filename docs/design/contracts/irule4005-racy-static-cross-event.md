@@ -35,9 +35,9 @@ beyond the write itself.
 
 ## File-path anchors
 
-- `core/compiler/connection_scope.py` — `racy_static_defs` computation
-- `core/analysis/analyser.py` — `_emit_racy_static_diagnostics()`
-- `lsp/server.py` — `_ALL_DIAGNOSTIC_CODES` registration
+- `compiler/connection_scope.py` — `racy_static_defs` computation
+- `analyser/_analyser/_diag_racy.py` — `_emit_racy_static_diagnostics()`
+- `server/server.py` — `_ALL_DIAGNOSTIC_CODES` registration
 - `editors/vscode/package.json` — `tclLsp.diagnostics.IRULE4005` toggle
 
 ## Failure modes

@@ -1,11 +1,11 @@
 """Tests for proc argument trait inference."""
 
-from core.analysis.proc_arg_traits import (
+from analyser.semantic_model import ProcArgTrait
+from compiler.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
     merge_traits,
 )
-from core.analysis.semantic_model import ProcArgTrait
 
 
 class TestEvalTrait:
@@ -49,14 +49,22 @@ class TestVarWriteTrait:
         assert ProcArgTrait.VAR_WRITE in traits["varName"]
 
     def test_set_with_param_as_varname(self):
+        # `set $varName value` writes a CURRENT-scope variable named by the
+        # param's value, NOT the caller's `varName` (verified vs tclsh), so the
+        # param is read for its name, not a write-back.  Only `upvar`-to-caller
+        # is VAR_WRITE.  (Updated from the old over-broad baseline.)
         body = "set $varName value"
         traits = infer_param_traits(("varName",), body)
-        assert ProcArgTrait.VAR_WRITE in traits["varName"]
+        assert ProcArgTrait.VAR_READ in traits["varName"]
+        assert ProcArgTrait.VAR_WRITE not in traits["varName"]
 
     def test_incr_with_param_as_varname(self):
+        # `incr $counter` increments a current-scope variable named by the
+        # param's value (verified vs tclsh: the caller's `counter` is untouched).
         body = "incr $counter"
         traits = infer_param_traits(("counter",), body)
-        assert ProcArgTrait.VAR_WRITE in traits["counter"]
+        assert ProcArgTrait.VAR_READ in traits["counter"]
+        assert ProcArgTrait.VAR_WRITE not in traits["counter"]
 
     def test_upvar_alias_write(self):
         body = "upvar 1 $varName localVar\nset localVar 42"
@@ -79,45 +87,81 @@ class TestLoopListTrait:
 
 
 class TestScanLassignRegexp:
+    # NOTE: ``$param`` arguments to scan / lassign / regexp / regsub /
+    # binary scan are CALLEE-LOCAL dynamic-name writes -- the command
+    # writes a variable in the callee's own frame named by the param
+    # VALUE, not by the param NAME.  Verified vs tclsh:
+    #
+    #   proc p {resultVar} {
+    #       regsub {hello} hello-input world $resultVar
+    #       puts "callee local '$resultVar' = [set $resultVar]"
+    #   }
+    #   set resultVar caller-original
+    #   p mylocal
+    #   # tclsh prints: callee local 'mylocal' = world-input
+    #   #              caller resultVar after = caller-original
+    #
+    # So the caller's ``resultVar`` arg is NOT written.  The right
+    # trait is DYNAMIC_NAME_LOCAL (refines VAR_READ to say "value used
+    # as a callee-local var name") + VAR_READ (the param string IS
+    # consumed).  The old assertion of VAR_WRITE encoded a buggy
+    # baseline that conflated dynamic-name use with caller-frame
+    # aliasing.
     def test_scan_var_write(self):
         body = "scan $input {%d %s} $intVar $strVar"
         traits = infer_param_traits(("input", "intVar", "strVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("intVar", frozenset())
-        assert ProcArgTrait.VAR_WRITE in traits.get("strVar", frozenset())
-        assert "input" not in traits
+        assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get("intVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("intVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("intVar", frozenset())
+        assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get("strVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("strVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("strVar", frozenset())
 
     def test_lassign_var_write(self):
         body = "lassign $data $first $second $third"
         traits = infer_param_traits(("data", "first", "second", "third"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("first", frozenset())
-        assert ProcArgTrait.VAR_WRITE in traits.get("second", frozenset())
-        assert ProcArgTrait.VAR_WRITE in traits.get("third", frozenset())
+        for name in ("first", "second", "third"):
+            assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get(name, frozenset())
+            assert ProcArgTrait.VAR_READ in traits.get(name, frozenset())
+            assert ProcArgTrait.VAR_WRITE not in traits.get(name, frozenset())
 
     def test_regexp_match_vars(self):
         body = "regexp {(\\w+)} $str $matchVar $subVar"
         traits = infer_param_traits(("str", "matchVar", "subVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("matchVar", frozenset())
-        assert ProcArgTrait.VAR_WRITE in traits.get("subVar", frozenset())
+        for name in ("matchVar", "subVar"):
+            assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get(name, frozenset())
+            assert ProcArgTrait.VAR_READ in traits.get(name, frozenset())
+            assert ProcArgTrait.VAR_WRITE not in traits.get(name, frozenset())
 
     def test_regexp_with_switches(self):
         body = "regexp -nocase -- {pattern} $str $matchVar"
         traits = infer_param_traits(("str", "matchVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("matchVar", frozenset())
+        assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get("matchVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("matchVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("matchVar", frozenset())
 
     def test_regsub_var_write(self):
         body = "regsub {old} $str new $resultVar"
         traits = infer_param_traits(("str", "resultVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("resultVar", frozenset())
 
     def test_regsub_with_switches(self):
         body = "regsub -all -- {old} $str new $resultVar"
         traits = infer_param_traits(("str", "resultVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.DYNAMIC_NAME_LOCAL in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("resultVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("resultVar", frozenset())
 
     def test_binary_scan_var_write(self):
+        # `binary scan $data fmt $intVar` writes a current-scope variable named
+        # by the param's value (verified vs tclsh: the caller's `intVar` is
+        # untouched), so the param is read for its name, not a write-back.
         body = "binary scan $data {I} $intVar"
         traits = infer_param_traits(("data", "intVar"), body)
-        assert ProcArgTrait.VAR_WRITE in traits.get("intVar", frozenset())
+        assert ProcArgTrait.VAR_READ in traits.get("intVar", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in traits.get("intVar", frozenset())
 
 
 class TestWhileForTraits:
@@ -205,13 +249,18 @@ class TestDeepAnalysis:
         assert ProcArgTrait.EVAL in merged.get("body", frozenset())
 
     def test_nested_if_body(self):
+        # `set $varName value` (even nested) writes a current-scope variable
+        # named by the param's value, not the caller's — so the deep pass sees
+        # the param read for its name, not a write-back (verified vs tclsh).
         body = "if {$cond} {\n    set $varName value\n}"
         deep = infer_param_traits_deep(("cond", "varName"), body)
-        assert ProcArgTrait.VAR_WRITE in deep.get("varName", frozenset())
+        assert ProcArgTrait.VAR_READ in deep.get("varName", frozenset())
+        assert ProcArgTrait.VAR_WRITE not in deep.get("varName", frozenset())
 
     def test_max_depth_guard(self):
         """Deep analysis should not crash on deeply nested bodies."""
         body = "if {1} { " * 20 + "eval $x" + " }" * 20
-        # Should not raise, even though nesting is deep
-        infer_param_traits_deep(("x",), body)
-        # Should not raise regardless of depth
+        # Deep nesting must not crash; the depth guard bails cleanly and
+        # returns an (empty) trait map rather than raising or recursing away.
+        result = infer_param_traits_deep(("x",), body)
+        assert result == {}

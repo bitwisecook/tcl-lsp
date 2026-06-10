@@ -12,15 +12,22 @@ Helix has built-in LSP support. Add the following to your `languages.toml`
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
-## Configuration
+## Upstream integration (after merge)
+
+Once tcl-lsp is added to
+[`helix-editor/helix`](https://github.com/helix-editor/helix)'s default
+`languages.toml`, Helix users only need the `tcl-lsp-server.pyz` zipapp
+on their PATH — no per-user `languages.toml` edit is required.
+
+## Configuration (until upstream merges)
 
 ```toml
 [language-server.tcl-lsp]
 command = "uv"
-args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "lsp"]
+args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
 
 # Or with the standalone zipapp:
 # command = "python3"
@@ -71,5 +78,5 @@ Settings from the config file are applied as baseline defaults.  Helix
 can set shared defaults in the config file and per-project overrides in
 Helix.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

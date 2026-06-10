@@ -1,0 +1,20 @@
+# cmdMZ.test — auto-generated baseline.
+# bucket = 'B0-host-exception'
+# reason = "ValueError leak: invalid literal for int() with base 10: 'foo'"
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 12
+observed_passed = 8
+observed_failed = 2
+observed_skipped = 1
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["cmdMZ-1.1", "cmdMZ-return-1.0"]

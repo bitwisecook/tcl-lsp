@@ -1,0 +1,40 @@
+# Emit tmsh commands that create a GTM wide-IP per LTM virtual,
+# using a firewall NAT map to translate each VS's internal destination
+# into the external address the wide-IP must front, and pulling the
+# FQDN from the VS's ``description`` metadata.
+#
+# Run:
+#   f5 query \
+#     --raw \
+#     -f samples/for_f5_query/examples/gtm_from_ltm_nats.f5q \
+#     --input-json nats.json=samples/for_f5_query/examples/firewall_nats.json \
+#     samples/for_f5_query/examples/gtm_source_ltm.conf
+#
+# Inputs:
+#   - ltm config — each virtual that should be GTM-fronted carries its
+#     FQDN as a ``description "fqdn.example.com"`` line.  Virtuals
+#     without a description are skipped.
+#   - nats.json — a JSON object mapping internal IPv4 -> external IPv4.
+#     The internal address is the bare host part of the VS destination
+#     (no partition prefix, no port).  Missing entries skip the VS.
+#
+# For each labelled VS the query emits three tmsh commands in order:
+#   1. ``modify gtm server`` — registers the VS under the GTM server
+#      stanza by its external address.
+#   2. ``create gtm pool`` — a wide-IP pool with the VS as its sole
+#      member.
+#   3. ``create gtm wideip`` — the FQDN, pointing at the new pool.
+#
+# Pipe to a .scf file and ``tmsh load /sys config merge file <file>``
+# on the GTM to apply.
+
+.ltm.virtual[]
+| select(.description != "")
+| . as $vs
+| host($vs.destination) as $internal
+| $nats[$internal] as $external
+| basename($vs.name) as $bn
+| str(port($vs.destination)) as $port
+| "modify gtm server /Common/bigip01 { virtual-servers add { " + $bn + " { destination " + $external + ":" + $port + " } } }\n"
++ "create gtm pool a /Common/" + $bn + "_gtm_pool { members add { /Common/bigip01:" + $bn + " { } } }\n"
++ "create gtm wideip a /Common/" + $vs.description + " { pool-lb-mode global-availability pools add { /Common/" + $bn + "_gtm_pool { } } }"

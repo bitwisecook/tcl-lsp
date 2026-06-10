@@ -1,22 +1,27 @@
 # KCS: feature — Compiler Explorer
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes, plus a structured WebAssembly disassembly view with click-to-source navigation, call and branch target cross-linking, control-flow arrows, and labelled structural ops.
 
 ## Applies to
 
-VS Code
+VS Code, JetBrains, tcl-lsp CLI
 
 ## Availability
 
 | Context | How |
 |---------|-----|
-| VS Code | `Tcl: Open Compiler Explorer` (Ctrl+Alt+E) |
+| VS Code | `Tcl: Open in Tcl Compiler Explorer` (Ctrl+Alt+E), or right-click a Tcl file → `Tcl` → `Open in Tcl Compiler Explorer` |
+| JetBrains | Right-click a Tcl/iRule file → `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window |
 
 ## How to use
 
-- **VS Code**: Open a Tcl file and run `Tcl: Open Compiler Explorer` from the command palette or press Ctrl+Alt+E. The panel shows bytecode disassembly side-by-side with the source, and updates live as you edit.
+- **VS Code**: Open a Tcl file and run `Tcl: Open in Tcl Compiler Explorer` from the command palette or press Ctrl+Alt+E. The panel shows bytecode disassembly side-by-side with the source, and updates live as you edit.
+- **JetBrains**: Right-click a Tcl/iRule file in the editor or project view and choose `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window. The panel tracks the active editor and recompiles when you open or switch to a different Tcl file.
 
 ## Operational context
 
@@ -33,11 +38,23 @@ The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassemb
 - A label on `block` / `loop` / `if` opens identifying the Tcl construct that produced them (`foreach`, `while`, `for`, `if`, `catch body`, `switch arm`).
 - Orthogonal control-flow arrows in the left gutter showing every branch target, with forward edges drawn solid-blue and back-edges drawn dashed-yellow.
 
+### Optimiser lens (off / on / diff)
+
+The IR, CFG, SSA, bytecode, and WASM tabs each carry an optimiser lens with three modes:
+
+- **off** — the program as written.
+- **on** — the program after the optimiser runs.
+- **diff** — a localised diff of the two.
+
+The diff compares the *node* (an IR statement, a CFG block, a bytecode instruction), not the rendered text. Byte offsets, source ranges, statement and literal-pool indices, local-variable slots, header tallies, and the box-drawing tree/gutter glyphs all shift whenever the optimiser adds or removes a node, even when the surrounding nodes are untouched. The diff normalises those position-only tokens away so a single rewrite surfaces as a single localised change rather than flagging every following line. Operand values that carry meaning — instruction arities, increment immediates, literal text, variable names — are kept, so genuinely different nodes still differ.
+
+The `tcl-explorer` CLI and TUI render the same offset-free diff via `--opt diff` (for example `tcl-explorer script.tcl --show ir --opt diff`). The web panel does this for the IR/CFG diff and the bytecode "Show optimiser diff" view.
+
 ## File-path anchors
 
 - `editors/vscode/src/compilerExplorer.ts`
 - `editors/vscode/src/compilerExplorerHtml.ts`
-- `explorer/`
+- `tooling/explorer/` (`_normalise_diff_line` / `_print_opt_diff` in `cli.py`; `normaliseForDiff` / `irToLines` in `static/explorer-core.js`)
 
 ## Failure modes
 

@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.diagnostics import get_diagnostics
+from server.features.diagnostics import get_diagnostics
 
 
 class TestLSPDiagnostics:
@@ -39,12 +39,18 @@ class TestLSPDiagnostics:
     def test_warning_severity(self):
         result = get_diagnostics("string bogus hello")
         warnings = [d for d in result if d.severity == types.DiagnosticSeverity.Warning]
-        assert len(warnings) >= 1
+        # The invalid ``string`` subcommand is W001, reported as a warning.
+        assert any(str(d.code) == "W001" for d in warnings), [
+            (str(d.code), d.severity) for d in result
+        ]
 
     def test_hint_severity(self):
         result = get_diagnostics("proc foo {} { set x 1 }")
         hints = [d for d in result if d.severity == types.DiagnosticSeverity.Hint]
-        assert len(hints) >= 1
+        # The unused/dead local ``x`` is reported as hint-level W211/W220.
+        assert any(str(d.code) in {"W211", "W220"} for d in hints), [
+            (str(d.code), d.severity) for d in result
+        ]
 
     def test_multiple_errors(self):
         source = "set\nbreak extra\nwhile {1}"
@@ -163,7 +169,9 @@ class TestVariableShapeDiagnostics:
         assert len(s100) == 1
         assert "$::demo::arr" in s100[0].message
 
-    def test_braced_scalar_like_array_name_treated_as_scalar_name(self):
+    def test_braced_array_like_name_treated_as_base_array(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); the
+        # shape diagnostic reports the base array ``$a``.
         source = _load_fixture("variable_shapes/braced_scalar_like_array_name.tcl")
         result = get_diagnostics(source)
         s100 = [d for d in result if d.code == "S100"]
@@ -199,10 +207,42 @@ class TestMalformedNestedSubstitutionDiagnostics:
         assert len(e201) == 1
         assert "missing close-bracket" in e201[0].message
 
-    def test_braced_scalar_like_array_name_in_braces_has_no_parse_error(self):
+    def test_braced_array_like_name_in_braces_has_no_parse_error(self):
         result = get_diagnostics("puts {${a(1)} [set x}")
         assert not any(d.code and str(d.code).startswith("E") for d in result)
 
     def test_unbraced_array_ref_in_braces_has_no_parse_error(self):
         result = get_diagnostics("puts {$a(1) [set x}")
         assert not any(d.code and str(d.code).startswith("E") for d in result)
+
+
+class TestCachedStyleDiagnosticsNoDuplication:
+    """A whole-line style diagnostic must be published once even when several
+    top-level chunks share the physical line (``cmd1 ; cmd2``).  Regression for
+    chunk-cache partitioning handing the same line-level diagnostic to every
+    chunk on that line."""
+
+    def test_w111_not_duplicated_across_same_line_chunks(self):
+        from server.features.diagnostics import get_basic_diagnostics
+        from server.workspace.document_state import DocumentState
+
+        # Two commands on one >120-char physical line → two top-level chunks,
+        # both spanning line 0; the line-too-long W111 must appear once.
+        src = "set x " + "a" * 130 + "; set y 2\n"
+        st = DocumentState(uri="dup://t.tcl")
+        st.update(src)
+        assert len(st.chunks) >= 2, "fixture must produce >1 chunk on the same line"
+
+        cached = st.get_cached_style_diagnostics(line_length=120) or []
+        assert sum(1 for d in cached if d.code == "W111") == 1
+
+        # And through the published basic-diagnostics path, which appends the
+        # cached style diagnostics verbatim.
+        diags, _analysis, _suppressed = get_basic_diagnostics(
+            src,
+            analysis=st.analysis,
+            cu=st.compilation_unit,
+            line_length=120,
+            cached_style_diagnostics=cached,
+        )
+        assert sum(1 for d in diags if d.code == "W111") == 1

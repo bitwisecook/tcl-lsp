@@ -1,13 +1,13 @@
-# Leak-sweep trap triage (29/96 files)
+# Leak-sweep trap triage (9/100 files)
 
 The committed leak baseline (`tests/baselines/wasm_leak_baseline.json`)
-records 29 of 96 in-scope tcltest files trapping during sweep
-execution.  All 29 are *correctness* gaps in the runtime / codegen,
+records 9 of 100 in-scope tcltest files trapping during sweep
+execution.  All 9 are *correctness* gaps in the runtime / codegen,
 not leaks: every trapping test exits cleanly when re-run with the
 production (non-leakcheck) build, but inside the sweep harness the
 test hits an `unreachable` instruction during evaluation.
 
-This document clusters the 29 files by subsystem so future fixes
+This document clusters the 9 files by subsystem so future fixes
 can target the highest-leverage categories first.
 
 ## Method
@@ -18,7 +18,7 @@ exercises.  All 29 traps land in the runtime's `eval_script`,
 the *compiled* wasm dispatched to runtime eval, and the runtime
 hit a path it can't currently handle.
 
-The sweep harness (`scripts/leak_sweep.py`) captures the wasmtime
+The sweep harness (`scripts/dev/leak_sweep.py`) captures the wasmtime
 backtrace as `trap_message` but does not currently decode the
 runtime's `tcl trap: site=<id>` markers against the per-bundle
 `DiagMap`.  Adding that decoding would let triage drill straight to
@@ -127,7 +127,7 @@ support that the compiler currently approximates.
 
 ## Prerequisite for deeper triage
 
-Enrich `scripts/leak_sweep.py` to:
+Enrich `scripts/dev/leak_sweep.py` to:
 
 1. Capture the trap site's WASI stderr alongside the wasmtime
    backtrace.

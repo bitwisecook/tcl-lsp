@@ -10,15 +10,24 @@ require.extensions[".md"] = (mod: NodeJS.Module, filename: string) => {
 };
 
 export async function run(): Promise<void> {
+  const failureMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-failures.json");
   const mocha = new Mocha({
     ui: "tdd",
     color: true,
     timeout: 60_000, // LSP startup can be slow
   });
+  if (process.env.MOCHA_GREP) {
+    mocha.grep(process.env.MOCHA_GREP);
+  }
 
   const testsRoot = path.resolve(__dirname);
 
-  const files = await glob("**/*.test.js", { cwd: testsRoot });
+  // The multiFolder/ subdirectory has its own runner (runMultiFolderTest)
+  // because those tests need the .code-workspace fixture.  Skip them here.
+  const files = await glob("**/*.test.js", {
+    cwd: testsRoot,
+    ignore: ["multiFolder/**"],
+  });
   files.sort();
   for (const f of files) {
     mocha.addFile(path.resolve(testsRoot, f));
@@ -27,6 +36,8 @@ export async function run(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const runner = mocha.run((failures) => {
       if (failures > 0) {
+        fs.mkdirSync(path.dirname(failureMarker), { recursive: true });
+        fs.writeFileSync(failureMarker, JSON.stringify({ failures }) + "\n", "utf8");
         reject(new Error(`${failures} test(s) failed.`));
       } else {
         resolve();

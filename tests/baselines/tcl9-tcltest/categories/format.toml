@@ -1,0 +1,30 @@
+# Categorisation for format.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.12",   # format-1.12: ``%b`` / ``%#b`` / ``%llb`` with bignum
+            # operands (``2**100``) — our ``%b`` codec doesn't yet
+            # walk a bignum digit-by-digit.
+  "2.18",   # format-2.18: edge case in unsigned width formatting.
+  "2.19",   # format-2.19: same — unsigned with explicit width.
+  "8.28",   # format-8.28: ``%c`` with high codepoint (0x10000041)
+            # should fold to U+FFFD (replacement char) via TCL_COMBINE
+            # — our codec accepts the raw code-point.
+  "11.4",   # format-11.4: XPG3 ``%n$`` positional index 0 should
+            # raise ``"%n$" argument index out of range``; ours
+            # silently treats ``%0$`` as ordinary ``%d``.
+  "11.8",   # format-11.8: XPG3 ``%n$`` mixing rules.
+  "11.9",   # format-11.9: same — positional indexing range check.
+  "11.11",  # format-11.11: XPG3 width-from-index.
+  "11.12",  # format-11.12: XPG3 ``.*`` precision-from-index.
+  "11.13",  # format-11.13: XPG3 with negative precision argument.
+  "11.14",  # format-11.14: XPG3 ``%2$.*s %4$d`` — pulls width and
+            # precision from positional args; our impl resolves them
+            # against the wrong slot.
+  "17.1",   # format-17.1: ``%d`` truncates a wide value to int32
+            # where Tcl 9 widens the output to 64-bit by default.
+]
+
+[baseline]
+good_to_have_failing = 12

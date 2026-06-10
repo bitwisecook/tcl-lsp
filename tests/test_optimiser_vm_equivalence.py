@@ -31,9 +31,9 @@ from __future__ import annotations
 import io
 import textwrap
 
-from core.compiler.optimiser import optimise_source
-from vm.interp import TclInterp
-from vm.types import TclError
+from compiler.optimiser import optimise_source
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 # helpers
 
@@ -352,10 +352,14 @@ class TestO120CornerCases:
         _assert_equiv(source)
         _, rewrites = optimise_source(source)
         codes = {r.code for r in rewrites}
-        # SCCP may fold [string trim "foo"] → "foo" and [string length ""]→0,
-        # replacing O120 with O101/O109 constant propagation.
-        assert {"O117", "O119"}.issubset(codes)
-        assert codes & {"O120", "O101", "O109"}
+        # O119 (dead-branch elimination on the always-true second `if`) fires.
+        assert "O119" in codes
+        # `s` is the constant "", so `[string length $s] == 0` now folds whole
+        # (the registry const-fold runs inside branch conditions): the cheaper
+        # O117 strlen→`eq ""` rewrite — which targets *non-constant* args — is
+        # superseded here by full constant folding (O101/O109).  O117 still fires
+        # when the argument isn't statically known (see the non-const variant).
+        assert codes & {"O117", "O120", "O101", "O109"}
 
     def test_o120_with_o122_tail_recursion_conversion(self):
         source = textwrap.dedent("""\

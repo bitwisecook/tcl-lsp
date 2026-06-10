@@ -44,15 +44,16 @@ ByteCode ::top, 40 instructions, 71 bytes, 7 literals, 0 variables
     (43) jumpFalse1 +9	# pc 52
   # if_then_9:
     (45) jump4 +23	# pc 68
-  # cmd_end_4:
+  # cmd_end_5:
     (50) jump1 +4	# pc 54
   # if_next_10:
     (52) push1 4	# ""
   # if_end_8:
+  # if_cmd_end_4:
     (54) pop
     (55) push1 2	# "sum"
     (57) incrStkImm +1
-  # cmd_end_5:
+  # cmd_end_6:
     (59) pop
   # while_header_2:
     (60) push1 0	# "i"

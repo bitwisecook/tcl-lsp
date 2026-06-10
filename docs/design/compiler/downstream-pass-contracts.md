@@ -23,14 +23,14 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 ## File-path anchors
 
-- `core/compiler/optimiser/` (`find_optimisations`)
-- `core/compiler/taint/` (`find_taint_warnings`)
-- `core/compiler/shimmer.py` (`find_shimmer_warnings`)
-- `core/compiler/gvn.py` (`find_redundant_computations`)
-- `core/compiler/irules_flow.py` (`find_irules_flow_warnings`)
-- `core/compiler/value_shapes.py`
-- `core/compiler/var_refs.py`
-- `lsp/features/diagnostics.py` (pass aggregation and suppression)
+- `compiler/optimiser/` (`find_optimisations`)
+- `compiler/taint/` (`find_taint_warnings`)
+- `compiler/shimmer.py` (`find_shimmer_warnings`)
+- `compiler/gvn.py` (`find_redundant_computations`)
+- `compiler/irules_flow.py` (`find_irules_flow_warnings`)
+- `compiler/value_shapes.py`
+- `compiler/var_refs.py`
+- `server/features/diagnostics.py` (pass aggregation and suppression)
 
 ## Failure modes
 
@@ -58,4 +58,4 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)
-- [shared utility contracts](../../../docs/design/contracts/core-lsp-shared-utility.md)
+- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts.md)

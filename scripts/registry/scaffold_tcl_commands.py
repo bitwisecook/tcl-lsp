@@ -28,13 +28,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.commands.registry.runtime import (  # noqa: E402
+from compiler.registry.runtime import (  # noqa: E402
     SIGNATURES,
     CommandSig,
     SubcommandSig,
     configure_signatures,
 )
-from core.commands.registry.signatures import Arity  # noqa: E402
+from compiler.registry.signatures import Arity  # noqa: E402
 
 # Man page parsing (reused from generate_tcl_core_from_manpages.py)
 

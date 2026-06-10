@@ -11,14 +11,14 @@ tcl-lsp works with Neovim's built-in LSP client. No plugin is required.
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 The server needs to be accessible via one of:
 
 ```sh
 # Option A — run from source (requires uv)
-uv run --directory /path/to/tcl-lsp --no-dev python -m lsp
+uv run --directory /path/to/tcl-lsp --no-dev python -m server
 
 # Option B — standalone zipapp (just needs Python 3.10+)
 python3 /path/to/tcl-lsp-server.pyz
@@ -28,9 +28,25 @@ To point to a specific Python interpreter, use the full path as the first
 element of `cmd` in your LSP config (e.g.
 `'/opt/homebrew/bin/python3.14'`).
 
+## Via nvim-lspconfig (recommended once merged upstream)
+
+Once the tcl-lsp config is merged into
+[`neovim/nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig), the
+setup is a one-liner:
+
+```lua
+require('lspconfig').tcl_lsp.setup({})
+```
+
+The config expects the `tcl-lsp-server.pyz` zipapp to be on your PATH.
+Download the zipapp from the
+[latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
+and drop it somewhere on PATH (renamed or symlinked to
+`tcl-lsp-server.pyz` so the executable bit is set).
+
 ## Neovim 0.11+ (native LSP)
 
-1. Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/tcl_lsp.lua`.
+1. Copy `tcl_lsp.lua` to `~/.config/nvim/server/tcl_lsp.lua`.
 2. Edit the `cmd` line to point at your server.
 3. Register the filetype and enable the server in your `init.lua`:
 
@@ -148,5 +164,5 @@ project-specific overrides in your Neovim config.
 Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
 write current settings to the config file.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

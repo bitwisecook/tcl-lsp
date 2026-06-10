@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tclpkg.fetchers import FetchError, _safe_extract_zip
+from tooling.tclpkg.fetchers import FetchError, _safe_extract_zip
 
 
 def _make_zip(path: Path, members: dict[str, str]) -> None:
@@ -121,7 +121,7 @@ class TestZipBombProtection:
 
     def test_oversized_zip_rejected(self, tmp_path, monkeypatch) -> None:
         """A zip that decompresses beyond the limit is rejected."""
-        import tclpkg.fetchers as mod
+        import tooling.tclpkg.fetchers as mod
 
         # Temporarily lower the limit to make the test fast.
         monkeypatch.setattr(mod, "_MAX_EXTRACT_BYTES", 100)

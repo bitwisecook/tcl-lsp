@@ -10,7 +10,7 @@ lockfile, or content-addressable cache.
 ## Operational context
 
 `tclpkg` is a deterministic, MVS-based dependency manager integrated into
-the `tcl` CLI (`explorer/tcl_cli.py`) via `tcl pkg …` and `tcl venv …`
+the `tcl` CLI (`tooling/tcl/main.py`) via `tcl pkg …` and `tcl venv …`
 verb groups.  It draws design inspiration from Go modules (MVS resolver,
 lockfile as source of truth), Zig (content-addressable cache keyed by
 SHA-256), and Python venv (virtual environment model).
@@ -22,13 +22,13 @@ tclpkg.tcl (manifest)
        │
        ▼
   Sandboxed TclInterp  ──────────►  ManifestAST
-  (vm/interp.py safe mode)              │
+  (tooling/vm/interp.py safe mode)              │
                                         ▼
-                               MVS Resolver (tclpkg/resolver.py)
+                               MVS Resolver (tooling/tclpkg/resolver.py)
                                         │
                                         ▼
                               Content-Addressable Store
-                              (tclpkg/cas.py, ~/.cache/tcl-lsp/tclpkg/)
+                              (tooling/tclpkg/cas.py, ~/.cache/tcl-lsp/tooling/tclpkg/)
                                         │
                                         ▼
                                tclpkg.lock (lockfile)
@@ -49,7 +49,7 @@ tclpkg.tcl (manifest)
 2. Any command not on the whitelist is refused at the INVOKE level.
 3. `package` and `version` are required; all others are optional.
 4. `tcl` constraint defaults to `>=8.6` if omitted.
-5. Implemented in `tclpkg/manifest.py`.
+5. Implemented in `tooling/tclpkg/manifest.py`.
 
 ### Lockfile (`tclpkg.lock`)
 
@@ -58,7 +58,7 @@ tclpkg.tcl (manifest)
    byte-identical output (except the `generated` timestamp, preserved by
    `--frozen`).
 8. Schema version (`"version": 1`) bumped only on breaking changes.
-9. Implemented in `tclpkg/lockfile.py`.
+9. Implemented in `tooling/tclpkg/lockfile.py`.
 
 ### MVS Resolver
 
@@ -67,50 +67,53 @@ tclpkg.tcl (manifest)
     `replace` is ignored.
 12. `exclude` from the root manifest refuses a specific version; errors
     with the dependency chain that selected it.
-13. Implemented in `tclpkg/resolver.py`.
+13. Implemented in `tooling/tclpkg/resolver.py`.
 
 ### Content-addressable cache
 
-14. Location: `~/.cache/tcl-lsp/tclpkg/cas/sha256/<ab>/<hash>/tree/`.
+14. Location: `~/.cache/tcl-lsp/tooling/tclpkg/cas/sha256/<ab>/<hash>/tree/`.
 15. Integrity string format: `sha256-<base64url-no-pad>`.
 16. Hash computed over canonicalised worktree (sorted paths, stripped
     `.git/`, permission-masked, timestamps ignored).
 17. Entries are immutable once written.
-18. Implemented in `tclpkg/cas.py`.
+18. Implemented in `tooling/tclpkg/cas.py`.
 
 ### Virtual environments
 
 19. `tcl venv create .venv` produces `bin/`, `lib/`, `tclvenv.cfg`.
 20. `bin/tclsh` wrapper always sets `TCLLIBPATH`.
 21. Activation scripts for bash/zsh and fish.
-22. Implemented in `tclpkg/venv.py`.
+22. Implemented in `tooling/tclpkg/venv.py`.
 
 ### LSP integration
 
 23. `_KNOWN_TCL_LSP_SECTIONS` includes `"packageManager"`.
-24. `tcl-lsp.tclpkg.install` and `tcl-lsp.tclpkg.search` command handlers.
+24. `tcl-lsp.tclpkg.install` adds missing manifest requirements, rewrites
+    `tclpkg.lock`, and returns a status dict; `tcl-lsp.tclpkg.search`
+    searches the offline registry cache.
 25. W120 code action offers "Install '<pkg>' via tclpkg" alongside the
     existing "Add 'package require'" action.
 26. VS Code settings under `tclLsp.packageManager.*`.
 
 ## File-path anchors
 
-- `tclpkg/__init__.py` — public API surface
-- `tclpkg/manifest.py` — manifest loader
-- `tclpkg/lockfile.py` — lockfile I/O
-- `tclpkg/resolver.py` — MVS resolver
-- `tclpkg/cas.py` — CAS + integrity hashing
-- `tclpkg/fetchers.py` — tarball/git/path fetchers
-- `tclpkg/registry.py` — registry client
-- `tclpkg/venv.py` — virtual environment management
-- `tclpkg/ui.py` — CLI output helpers
-- `explorer/verbs/pkg.py` — `tcl pkg` CLI verb handlers
-- `explorer/verbs/venv.py` — `tcl venv` CLI verb handlers
-- `vm/interp.py:102` — `TclInterp(safe=…)` parameter
-- `vm/commands/interp_cmds.py:65` — `interp issafe` handler
-- `core/common/user_config.py:126` — `_cache_dir()` helper
-- `lsp/server.py:424` — `_KNOWN_TCL_LSP_SECTIONS`
-- `lsp/features/code_actions.py:381` — `_tclpkg_install_action()`
+- `tooling/tclpkg/__init__.py` — public API surface
+- `tooling/tclpkg/manifest.py` — manifest loader
+- `tooling/tclpkg/lockfile.py` — lockfile I/O
+- `tooling/tclpkg/resolver.py` — MVS resolver
+- `tooling/tclpkg/cas.py` — CAS + integrity hashing
+- `tooling/tclpkg/fetchers.py` — tarball/git/path fetchers
+- `tooling/tclpkg/registry.py` — registry client
+- `tooling/tclpkg/venv.py` — virtual environment management
+- `tooling/tclpkg/ui.py` — CLI output helpers
+- `tooling/tcl/verbs/pkg.py` — `tcl pkg` CLI verb handlers
+- `tooling/tcl/verbs/venv.py` — `tcl venv` CLI verb handlers
+- `tooling/vm/interp.py:102` — `TclInterp(safe=…)` parameter
+- `tooling/vm/commands/interp_cmds.py:65` — `interp issafe` handler
+- `shared/user_config.py:130` — `_cache_dir()` helper
+- `server/settings.py:60` — `_KNOWN_TCL_LSP_SECTIONS`
+- `server/commands.py:996` — `tcl-lsp.tclpkg.install` command handler
+- `server/features/code_actions.py:419` — `_tclpkg_install_action()`
 
 ## Failure modes
 
@@ -122,7 +125,7 @@ tclpkg.tcl (manifest)
 
 ## Test anchors
 
-- `tests/tclpkg/test_manifest.py` — 29 tests for manifest parsing
+- `tests/tclpkg/test_manifest.py` — 24 tests for manifest parsing
 - `tests/tclpkg/test_lockfile.py` — 23 tests for lockfile serialisation
 - `tests/tclpkg/test_cas.py` — 18 tests for CAS hashing + storage
 - `tests/tclpkg/test_resolver.py` — 15 tests for MVS resolution

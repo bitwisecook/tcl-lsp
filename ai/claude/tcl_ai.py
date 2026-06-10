@@ -9,7 +9,7 @@ Subcommands:
     diagnostics <file>          Show diagnostics from the analyzer
     validate <file>             Categorized validation report (errors, security, taint, etc.)
     review <file>               Security-focused diagnostic report
-    convert <file>              Detect legacy patterns eligible for modernisation
+    find-legacy <file>          Detect legacy patterns eligible for modernisation
     symbols <file>              Show document symbol hierarchy
     diagram <file>              Extract control flow from compiler IR
     optimize <file>             Show optimization suggestions and rewritten source
@@ -56,7 +56,7 @@ from ai.shared.diagnostics import (
 
 
 def cmd_diagnostics(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -78,7 +78,7 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 
 
 def cmd_symbols(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     events = _detect_events(source)
@@ -158,17 +158,17 @@ def cmd_diagram(source: str, file_path: str) -> None:
 
 
 def cmd_optimize(source: str, file_path: str, *, profile: str = "full") -> None:
-    from core.common.optimisation_profiles import (
-        DEFAULT_ACTION_PROFILE,
-        profile_from_name,
-        profile_spec,
-        profile_to_disabled,
-    )
-    from core.compiler.optimiser import (
+    from compiler.optimiser import (
         Optimisation,
         apply_optimisations,
         find_optimisations,
         optimise_source_multipass,
+    )
+    from shared.optimisation_profiles import (
+        DEFAULT_ACTION_PROFILE,
+        profile_from_name,
+        profile_spec,
+        profile_to_disabled,
     )
 
     try:
@@ -268,7 +268,7 @@ def cmd_event_order(source: str, file_path: str) -> None:
 
 
 def cmd_event_info(event_name: str) -> None:
-    from core.commands.registry.info import lookup_event_info
+    from compiler.registry.info import lookup_event_info
 
     info = lookup_event_info(event_name, dialect="f5-irules")
 
@@ -296,7 +296,7 @@ def cmd_event_info(event_name: str) -> None:
 
 
 def cmd_command_info(command_name: str) -> None:
-    from core.commands.registry.info import lookup_command_info
+    from compiler.registry.info import lookup_command_info
 
     info = lookup_command_info(command_name, dialect="f5-irules")
 
@@ -325,7 +325,7 @@ def cmd_command_info(command_name: str) -> None:
 
 
 def cmd_validate(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -365,7 +365,7 @@ def cmd_validate(source: str, file_path: str) -> None:
 
 
 def cmd_review(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -396,11 +396,11 @@ def cmd_review(source: str, file_path: str) -> None:
     print(f"\n  Total security-related issues: {len(security_diags)}")
 
 
-# Subcommand: convert (legacy pattern detection)
+# Subcommand: find-legacy (legacy pattern detection)
 
 
-def cmd_convert(source: str, file_path: str) -> None:
-    from core.analysis import analyse
+def cmd_find_legacy(source: str, file_path: str) -> None:
+    from analyser import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -427,7 +427,7 @@ def cmd_convert(source: str, file_path: str) -> None:
 
 def cmd_context(source: str, file_path: str) -> None:
     from ai.shared.irule_analysis import ordered_events as _ordered_events
-    from core.analysis import analyse
+    from analyser import analyse
 
     basename = os.path.basename(file_path)
     ext = os.path.splitext(file_path)[1].lower()
@@ -492,7 +492,7 @@ def cmd_context(source: str, file_path: str) -> None:
         print()
         print(f"=== Event Metadata ({len(evt_list)} events) ===")
         try:
-            from core.commands.registry.info import lookup_event_info
+            from compiler.registry.info import lookup_event_info
 
             for evt in evt_list[:8]:
                 info = lookup_event_info(evt.name, dialect="f5-irules")
@@ -544,7 +544,7 @@ def _count_scope_symbols(scope, lines: list[str], depth: int = 0) -> int:
 
 
 def cmd_call_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_call_graph
+    from analyser.semantic_graph import build_call_graph
 
     data = build_call_graph(source)
     nodes = data.get("nodes", [])
@@ -591,7 +591,7 @@ def cmd_call_graph(source: str, file_path: str) -> None:
 
 
 def cmd_symbol_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_symbol_graph
+    from analyser.semantic_graph import build_symbol_graph
 
     data = build_symbol_graph(source)
     summary = data.get("summary", {})
@@ -652,7 +652,7 @@ def _print_scope(scope: dict, depth: int) -> None:
 
 
 def cmd_dataflow_graph(source: str, file_path: str) -> None:
-    from core.analysis.semantic_graph import build_dataflow_graph
+    from analyser.semantic_graph import build_dataflow_graph
 
     data = build_dataflow_graph(source)
     summary = data.get("summary", {})
@@ -708,7 +708,7 @@ def cmd_def_use(source: str, file_path: str, variable: str = "") -> None:
     """Show def-use chains from compiler SSA analysis."""
     _configure_dialect_from_path(file_path)
 
-    from core.compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
+    from compiler.dataflow_graph import dataflow_graph_to_dict, extract_dataflow_graph
 
     graph = extract_dataflow_graph(source)
     result = dataflow_graph_to_dict(graph)
@@ -762,7 +762,7 @@ def cmd_memory_aliases(source: str, file_path: str) -> None:
     """Show memory alias information from memory-SSA analysis."""
     _configure_dialect_from_path(file_path)
 
-    from core.compiler.compilation_unit import ensure_compilation_unit
+    from compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, context="cli.memory_aliases")
     if cu is None:
@@ -804,7 +804,7 @@ def cmd_memory_aliases(source: str, file_path: str) -> None:
 def cmd_help(topic: str | None = None) -> None:
     """Show available features and how to use them."""
     try:
-        from core.help.kcs_db import list_features, search_help
+        from shared.help.kcs_db import list_features, search_help
 
         if topic:
             results = search_help(topic)
@@ -874,7 +874,7 @@ def _build_feature_catalogue() -> dict:
     """Build a structured catalogue by reading KCS feature docs from disk."""
     import glob
 
-    from core.help.kcs_db import applies_to_category, parse_applies_to
+    from shared.help.kcs_db import applies_to_category, parse_applies_to
 
     features_dir = _find_features_dir()
     if features_dir is None:
@@ -1968,12 +1968,58 @@ def _build_test_script_with_metadata(
     return script, {"cfg_paths": cfg_paths, "multi_tmm_detected": multi_tmm}
 
 
+def cmd_bigip_cleanup(
+    paths: list[str],
+    *,
+    keep: list[str] | None = None,
+    no_keep_common: bool = False,
+) -> None:
+    """Generate ``tmsh delete`` commands for unreferenced BIG-IP objects."""
+    from pathlib import Path
+
+    from dialects.f5.bigip.cleanup import compute_cleanup, report_to_dict
+    from dialects.f5.bigip.parser import parse_bigip_conf
+
+    sources: dict[str, str] = {}
+    configs = {}
+    for path_str in paths:
+        path = Path(path_str).resolve()
+        if not path.is_file():
+            print(f"Error: not a file: {path_str}", file=sys.stderr)
+            sys.exit(1)
+        uri = path.as_uri()
+        src = path.read_text(encoding="utf-8", errors="replace")
+        sources[uri] = src
+        configs[uri] = parse_bigip_conf(src)
+
+    keep_paths: set[str] = set()
+    extra_prefixes: set[str] = set()
+    for entry in keep or []:
+        if entry.endswith("/"):
+            extra_prefixes.add(entry)
+        else:
+            keep_paths.add(entry)
+    if no_keep_common:
+        keep_partitions = frozenset(extra_prefixes)
+    else:
+        keep_partitions = frozenset(extra_prefixes | {"/Common/"})
+
+    report = compute_cleanup(
+        sources=sources,
+        configs=configs,
+        keep_paths=frozenset(keep_paths),
+        keep_partitions=keep_partitions,
+    )
+
+    print(json.dumps(report_to_dict(report), indent=2))
+
+
 # CLI
 
 
 def _configure_dialect_from_path(file_path: str) -> None:
     """Configure the command registry dialect based on file extension."""
-    from core.commands.registry.runtime import configure_signatures
+    from compiler.registry.runtime import configure_signatures
 
     ext = os.path.splitext(file_path)[1].lower()
     dialect = "f5-irules" if ext in (".irul", ".irule") else "tcl8.6"
@@ -1999,7 +2045,7 @@ examples:
   %(prog)s diagnostics samples/for_screenshots/ai-scene.irul
   %(prog)s validate samples/for_screenshots/ai-scene.irul
   %(prog)s review samples/for_screenshots/ai-scene.irul
-  %(prog)s convert samples/for_screenshots/ai-scene.irul
+  %(prog)s find-legacy samples/for_screenshots/ai-scene.irul
   %(prog)s diagram samples/for_screenshots/ai-scene.irul
   %(prog)s event-order samples/for_screenshots/ai-scene.irul
   %(prog)s event-info HTTP_REQUEST
@@ -2022,7 +2068,10 @@ examples:
     p = sub.add_parser("review", help="Security-focused diagnostic report")
     p.add_argument("file", help="Tcl/iRule file to review")
 
-    p = sub.add_parser("convert", help="Detect legacy patterns eligible for modernisation")
+    p = sub.add_parser(
+        "find-legacy",
+        help="Detect legacy patterns eligible for modernisation (detection only).",
+    )
     p.add_argument("file", help="Tcl/iRule file to scan")
 
     p = sub.add_parser("symbols", help="Show document symbol hierarchy")
@@ -2101,6 +2150,28 @@ examples:
     p.add_argument("--style", default="doxygen", choices=["doxygen", "plain"], help="Tag style")
     p.add_argument("--decoration", action="store_true", help="Add decoration borders")
 
+    p = sub.add_parser(
+        "bigip-cleanup",
+        help="Generate `tmsh delete` commands for objects unreferenced by any virtual.",
+    )
+    p.add_argument(
+        "paths",
+        nargs="+",
+        help="bigip.conf / SCF files to analyse (one or more).",
+    )
+    p.add_argument(
+        "--keep",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Object full-path or partition prefix (ends with '/') to retain.",
+    )
+    p.add_argument(
+        "--no-keep-common",
+        action="store_true",
+        help="Do not auto-keep /Common/* (delete factory-shipped objects too).",
+    )
+
     p = sub.add_parser("help", help="Show available features and how to use them")
     p.add_argument(
         "topic",
@@ -2121,6 +2192,13 @@ examples:
     if args.command == "command-info":
         cmd_command_info(args.name)
         return
+    if args.command == "bigip-cleanup":
+        cmd_bigip_cleanup(
+            args.paths,
+            keep=args.keep,
+            no_keep_common=args.no_keep_common,
+        )
+        return
 
     # Commands that need a file
     source = _read_file(args.file)
@@ -2135,8 +2213,8 @@ examples:
             cmd_validate(source, file_path)
         case "review":
             cmd_review(source, file_path)
-        case "convert":
-            cmd_convert(source, file_path)
+        case "find-legacy":
+            cmd_find_legacy(source, file_path)
         case "symbols":
             cmd_symbols(source, file_path)
         case "diagram":
@@ -2156,7 +2234,7 @@ examples:
         case "memory-aliases":
             cmd_memory_aliases(source, file_path)
         case "tk-layout":
-            from core.tk.extract import extract_tk_layout
+            from dialects.tk.dialect.extract import extract_tk_layout
 
             layout = extract_tk_layout(source)
             print(json.dumps(layout, indent=2))
@@ -2183,7 +2261,7 @@ def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis import analyse
+    from analyser import analyse
 
     result = analyse(source)
     print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
@@ -2194,8 +2272,8 @@ def cmd_generate_docstring(
 ) -> None:
     """Generate a docstring stub for a specific proc."""
     _configure_dialect_from_path(file_path)
-    from core.analysis import analyse
-    from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
+    from analyser import analyse
+    from tooling.formatter.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
     proc_def = result.find_proc(proc_name)
@@ -2213,8 +2291,8 @@ def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: b
     """Add docstring stubs to all undocumented procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis import analyse
-    from core.formatting.docstring import resolve_tag_style
+    from analyser import analyse
+    from tooling.formatter.docstring import resolve_tag_style
 
     result = analyse(source)
     modified, _count = insert_docstring_stubs(
@@ -2227,12 +2305,12 @@ def cmd_refactor(source: str, file_path: str) -> None:
     """List all available refactorings in the source file."""
     _configure_dialect_from_path(file_path)
 
-    from core.parsing.command_segmenter import segment_commands
-    from core.refactoring._brace_expr import brace_expr
-    from core.refactoring._extract_datagroup import extract_to_datagroup
-    from core.refactoring._if_to_switch import if_to_switch
-    from core.refactoring._inline_variable import inline_variable
-    from core.refactoring._switch_to_dict import switch_to_dict
+    from compiler.parsing.command_segmenter import segment_commands
+    from tooling.refactoring._brace_expr import brace_expr
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._if_to_switch import if_to_switch
+    from tooling.refactoring._inline_variable import inline_variable
+    from tooling.refactoring._switch_to_dict import switch_to_dict
 
     available: list[dict] = []
     for seg in segment_commands(source):
@@ -2271,7 +2349,7 @@ def cmd_suggest_datagroups(source: str, file_path: str) -> None:
     """AI-enhanced data-group extraction scan."""
     _configure_dialect_from_path(file_path)
 
-    from core.refactoring._extract_datagroup import suggest_datagroup_extraction
+    from tooling.refactoring._extract_datagroup import suggest_datagroup_extraction
 
     candidates = suggest_datagroup_extraction(source)
     print(f"## Data-Group Extraction Candidates ({len(candidates)})\n")
@@ -2300,7 +2378,7 @@ def cmd_extract_datagroup(source: str, file_path: str, line: int, dg_name: str) 
     """Static data-group extraction at a specific line."""
     _configure_dialect_from_path(file_path)
 
-    from core.refactoring._extract_datagroup import extract_to_datagroup
+    from tooling.refactoring._extract_datagroup import extract_to_datagroup
 
     result = extract_to_datagroup(source, line, 0, dg_name=dg_name)
     if result is None:

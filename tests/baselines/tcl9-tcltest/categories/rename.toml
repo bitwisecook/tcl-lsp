@@ -1,0 +1,19 @@
+# Categorisation for rename.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "5.1",    # rename-5.1: ``for {set i 0} {$i < 10} {incr i} {
+            # eval $SAVED_UNKNOWN; tcl_wordBreakBefore "" 0; rename
+            # tcl_wordBreakBefore {}; rename unknown {} }``.
+            # After renaming ``unknown`` away and re-creating it via
+            # ``eval $SAVED_UNKNOWN``, the next iteration's
+            # ``tcl_wordBreakBefore`` (not bound) triggers our stub
+            # unknown which fails to bind the ``args`` parameter:
+            # ``can't read "args": no such variable``.  Real fix is
+            # threading proc-param binding through the dynamic-proc-
+            # creation-via-eval path.
+]
+
+[baseline]
+good_to_have_failing = 1

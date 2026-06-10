@@ -1,5 +1,8 @@
 # KCS: feature — @irule Chat Participant
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, and transforming F5 BIG-IP iRules.
@@ -25,7 +28,7 @@ Type `@irule` in the Copilot Chat panel followed by a slash command:
 | `/fix` | Fix issues found by the LSP |
 | `/validate` | Run LSP diagnostics |
 | `/review` | Security and safety review |
-| `/convert` | Modernise legacy patterns (matchclass, unbraced expr) |
+| `/find-legacy` | Find and modernise legacy patterns (matchclass, unbraced expr) |
 | `/optimise` | Apply LSP optimisations with explanations |
 | `/scaffold` | Generate an iRule skeleton from events |
 | `/datagroup` | Suggest data-group extraction for inline lookups |

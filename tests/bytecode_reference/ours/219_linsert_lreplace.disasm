@@ -1,0 +1,178 @@
+ByteCode ::top, 110 instructions, 298 bytes, 24 literals, 0 variables
+  Literals:
+    0: "a b c"
+    1: "1"
+    2: "X"
+    3: "a X b c"
+    4: "linsert middle"
+    5: ""
+    6: "0"
+    7: "X a b c"
+    8: "linsert head"
+    9: "99"
+    10: "a b c X"
+    11: "linsert clamp-end"
+    12: "linsert empty"
+    13: "a b c d e"
+    14: "3"
+    15: "a X e"
+    16: "lreplace range+val"
+    17: "a e"
+    18: "lreplace delete-range"
+    19: "b c"
+    20: "lreplace delete-head"
+    21: "5"
+    22: "lreplace append-beyond"
+    23: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a b c"
+    (2) push1 1	# "1"
+    (4) push1 2	# "X"
+    (6) lreplace4 3 2
+    (12) push1 3	# "a X b c"
+    (14) strneq
+    (15) jumpFalse1 +17	# pc 32
+  # if_then_3:
+    (17) push1 4	# "linsert middle"
+    (19) push1 5	# ""
+    (21) returnImm +1 0
+  # cmd_end_1:
+    (30) jump1 +4	# pc 34
+  # if_next_4:
+    (32) push1 5	# ""
+  # if_end_2:
+    (34) pop
+    (35) push1 0	# "a b c"
+    (37) push1 6	# "0"
+    (39) push1 2	# "X"
+    (41) lreplace4 3 2
+    (47) push1 7	# "X a b c"
+    (49) strneq
+    (50) jumpFalse1 +17	# pc 67
+  # if_then_6:
+    (52) push1 8	# "linsert head"
+    (54) push1 5	# ""
+    (56) returnImm +1 0
+  # cmd_end_3:
+    (65) jump1 +4	# pc 69
+  # if_next_7:
+    (67) push1 5	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (69) pop
+    (70) push1 0	# "a b c"
+    (72) push1 9	# "99"
+    (74) push1 2	# "X"
+    (76) lreplace4 3 2
+    (82) push1 10	# "a b c X"
+    (84) strneq
+    (85) jumpFalse1 +17	# pc 102
+  # if_then_9:
+    (87) push1 11	# "linsert clamp-end"
+    (89) push1 5	# ""
+    (91) returnImm +1 0
+  # cmd_end_5:
+    (100) jump1 +4	# pc 104
+  # if_next_10:
+    (102) push1 5	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (104) pop
+    (105) push1 5	# ""
+    (107) push1 6	# "0"
+    (109) push1 2	# "X"
+    (111) lreplace4 3 2
+    (117) push1 2	# "X"
+    (119) strneq
+    (120) jumpFalse1 +17	# pc 137
+  # if_then_12:
+    (122) push1 12	# "linsert empty"
+    (124) push1 5	# ""
+    (126) returnImm +1 0
+  # cmd_end_7:
+    (135) jump1 +4	# pc 139
+  # if_next_13:
+    (137) push1 5	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (139) pop
+    (140) push1 13	# "a b c d e"
+    (142) push1 1	# "1"
+    (144) push1 14	# "3"
+    (146) push1 2	# "X"
+    (148) lreplace4 4 1
+    (154) push1 15	# "a X e"
+    (156) strneq
+    (157) jumpFalse1 +17	# pc 174
+  # if_then_15:
+    (159) push1 16	# "lreplace range+val"
+    (161) push1 5	# ""
+    (163) returnImm +1 0
+  # cmd_end_9:
+    (172) jump1 +4	# pc 176
+  # if_next_16:
+    (174) push1 5	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (176) pop
+    (177) push1 13	# "a b c d e"
+    (179) push1 1	# "1"
+    (181) push1 14	# "3"
+    (183) lreplace4 3 1
+    (189) push1 17	# "a e"
+    (191) strneq
+    (192) jumpFalse1 +17	# pc 209
+  # if_then_18:
+    (194) push1 18	# "lreplace delete-range"
+    (196) push1 5	# ""
+    (198) returnImm +1 0
+  # cmd_end_11:
+    (207) jump1 +4	# pc 211
+  # if_next_19:
+    (209) push1 5	# ""
+  # if_end_17:
+  # if_cmd_end_10:
+    (211) pop
+    (212) push1 0	# "a b c"
+    (214) push1 6	# "0"
+    (216) push1 6	# "0"
+    (218) lreplace4 3 1
+    (224) push1 19	# "b c"
+    (226) strneq
+    (227) jumpFalse1 +17	# pc 244
+  # if_then_21:
+    (229) push1 20	# "lreplace delete-head"
+    (231) push1 5	# ""
+    (233) returnImm +1 0
+  # cmd_end_13:
+    (242) jump1 +4	# pc 246
+  # if_next_22:
+    (244) push1 5	# ""
+  # if_end_20:
+  # if_cmd_end_12:
+    (246) pop
+    (247) push1 0	# "a b c"
+    (249) push1 21	# "5"
+    (251) push1 21	# "5"
+    (253) push1 2	# "X"
+    (255) lreplace4 4 1
+    (261) push1 10	# "a b c X"
+    (263) strneq
+    (264) jumpFalse1 +17	# pc 281
+  # if_then_24:
+    (266) push1 22	# "lreplace append-beyond"
+    (268) push1 5	# ""
+    (270) returnImm +1 0
+  # cmd_end_15:
+    (279) jump1 +4	# pc 283
+  # if_next_25:
+    (281) push1 5	# ""
+  # if_end_23:
+  # if_cmd_end_14:
+    (283) pop
+    (284) push1 23	# "ok"
+    (286) push1 5	# ""
+    (288) returnImm +0 1
+  # ret_end_16:
+    (297) done

@@ -30,7 +30,7 @@ Three CLI verbs cover compilation inspection and export:
 ```
 $ tcl dis my_irule.tcl -o out.asm
 $ tcl highlight my_irule.tcl --format html -o highlighted.html
-$ tcl compwasm my_irule.tcl -o out.wasm --wat
+$ tcl compwasm my_irule.tcl -o out.wasm --wat-output out.wat
 ```
 
 The `dis` output shows the compiled instruction stream — useful for understanding what the compiler produces and verifying that optimisation passes fired correctly.

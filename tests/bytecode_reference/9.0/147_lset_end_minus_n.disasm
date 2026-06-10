@@ -1,0 +1,28 @@
+ByteCode 0x563fbcf0eba0, refCt 1, epoch 21, interp 0x563fbcd9c350 (epoch 21)
+  Source "set lst {a b c d e}\nlset lst end-1 X\nputs $ls..."
+  Cmds 3, src 47, inst 38, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-18        2: pc 6-29, src 20-35
+      3: pc 30-36, src 37-45
+  Command 1: "set lst {a b c d e}..."
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c d e"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "lset lst end-1 X..."
+    (6) startCommand +23 1 	# next cmd at pc 29, 1 cmds start here
+    (15) push1 0 	# "lst"
+    (17) push1 2 	# "end-1"
+    (19) push1 3 	# "X"
+    (21) over 2 
+    (26) loadStk 
+    (27) lsetList 
+    (28) storeStk 
+    (29) pop 
+  Command 3: "puts $lst..."
+    (30) push1 4 	# "puts"
+    (32) push1 0 	# "lst"
+    (34) loadStk 
+    (35) invokeStk1 2 
+    (37) done 
+

@@ -10,7 +10,7 @@ import { handleExplain } from "./commands/explain";
 import { handleFix } from "./commands/fix";
 import { handleValidate } from "./commands/validate";
 import { handleReview } from "./commands/review";
-import { handleConvert } from "./commands/convert";
+import { handleFindLegacy } from "./commands/find-legacy";
 import { handleOptimise } from "./commands/optimise";
 import { handleScaffold } from "./commands/scaffold";
 import { handleDatagroup } from "./commands/datagroup";
@@ -97,8 +97,8 @@ const iruleRequestHandler: vscode.ChatRequestHandler = async (
       case "review":
         result = await handleReview(ctx);
         break;
-      case "convert":
-        result = await handleConvert(ctx);
+      case "find-legacy":
+        result = await handleFindLegacy(ctx);
         break;
       case "optimise":
       case "optimize":
@@ -156,7 +156,7 @@ async function handleGeneral(ctx: CommandContext): Promise<vscode.ChatResult> {
         "- `/fix` — Fix issues found by the LSP\n" +
         "- `/validate` — Run LSP diagnostics\n" +
         "- `/review` — Security and safety review\n" +
-        "- `/convert` — Modernise legacy patterns (matchclass, unbraced expr, etc.)\n" +
+        "- `/find-legacy` — Find and modernise legacy patterns (matchclass, unbraced expr, etc.)\n" +
         "- `/optimise` (`/optimize`) — Apply LSP optimisations with explanations\n" +
         "- `/scaffold` — Generate an iRule skeleton from events\n" +
         "- `/datagroup` — Suggest data-group extraction for inline lookups\n" +
@@ -225,7 +225,7 @@ async function provideIruleFollowups(
           label: "Rewrite securely",
         },
       ];
-    case "convert":
+    case "find-legacy":
       return [
         { prompt: "Validate the modernised iRule", command: "validate" },
         { prompt: "Review for security issues", command: "review" },

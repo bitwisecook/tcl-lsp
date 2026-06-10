@@ -1,0 +1,21 @@
+# lrange.test categorisation (Tcl 9.0.3 source tree).
+# 1755 / 1766 passing.  Residual failures are list-quoting and
+# arity-error edge cases plus the calculated-index forms.
+
+good_to_have = [
+  "1.10",   # lrange-1.10: ``lrange "a b\{c d" 1 2`` should preserve
+            # the backslash-quoted brace in the result element ``b\{c``.
+  "1.16",   # lrange-1.16: list-element quoting when a sub-element
+            # contains brackets that would otherwise be cmd subst.
+  "2.1",    # lrange-2.1: arity error for 2-arg lrange.
+  "2.2",    # lrange-2.2: arity error for 4-arg lrange.
+  "2.3", "2.4", "2.5", "2.6",  # other arity / index validation.
+  "3.3",    # lrange-3.3: compiled-form index out-of-range handling.
+  "3.5",    # lrange-3.5: calculated index ``-1+0`` (expression),
+            # negative start should clamp to 0.
+  "3.6",    # lrange-3.6: calculated index ``end+1``, end out of
+            # range should clamp to end.
+]
+
+[baseline]
+good_to_have_failing = 11

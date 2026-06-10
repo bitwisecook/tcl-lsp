@@ -1,0 +1,26 @@
+# binary.test — auto-generated WASM baseline.
+# bucket = 'W0-runtime-error'
+# reason = 'error while executing at wasm backtrace:'
+# classification: real-mismatch
+# rationale: binary command trap — runtime bug in the handler
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["binary-2.8", "binary-3.8", "binary-13.21", "binary-13.23", "binary-16.1", "binary-16.4", "binary-16.5", "binary-17.3", "binary-24.2", "binary-24.3", "binary-24.6", "binary-25.2", "binary-25.4", "binary-25.6", "binary-25.10", "binary-26.2", "binary-26.6", "binary-26.7", "binary-26.8", "binary-26.10", "binary-26.11", "binary-26.13", "binary-26.14", "binary-26.15", "binary-27.2", "binary-27.3", "binary-27.4", "binary-27.6", "binary-27.9", "binary-27.10", "binary-27.11", "binary-27.12", "binary-28.2", "binary-28.3", "binary-28.4", "binary-28.6", "binary-28.9", "binary-28.10", "binary-28.11", "binary-29.2", "binary-29.3", "binary-29.4", "binary-29.6", "binary-29.9", "binary-29.10", "binary-29.11", "binary-29.12", "binary-30.2", "binary-30.3", "binary-30.4", "binary-30.6", "binary-30.9", "binary-30.10", "binary-30.11", "binary-30.12", "binary-31.3", "binary-31.5", "binary-31.7", "binary-31.11", "binary-31.15", "binary-32.3", "binary-32.5", "binary-32.7", "binary-32.11", "binary-32.15", "binary-33.2", "binary-33.3", "binary-33.4", "binary-34.2", "binary-34.5", "binary-34.6", "binary-35.2", "binary-35.3", "binary-37.10", "binary-37.11"]
+
+[crash]
+type = "Trap"
+msg = "error while executing at wasm backtrace:"

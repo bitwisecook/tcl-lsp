@@ -1,5 +1,8 @@
 # KCS: feature — Folding
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Code folding for procs, namespaces, event handlers, and braced blocks.
@@ -19,7 +22,7 @@ Folding ranges are computed from the parsed AST, identifying proc bodies, namesp
 
 ## File-path anchors
 
-- `lsp/features/folding.py`
+- `server/features/folding.py`
 
 ## Failure modes
 

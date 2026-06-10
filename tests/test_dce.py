@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.inlining import apply_inline_catalogue
-from core.compiler.ir import IRAssignConst, IRAssignValue, IRIncr
-from core.compiler.lowering import lower_to_ir
-from core.compiler.passes.dce import dce_module
-from core.compiler.var_escape import analyse_var_escape
+from compiler.inlining import apply_inline_catalogue
+from compiler.ir import IRAssignConst, IRAssignValue, IRIncr
+from compiler.lowering import lower_to_ir
+from compiler.passes.dce import dce_module
+from compiler.var_escape import analyse_var_escape
 
 
 def _prepare(source: str):
@@ -132,7 +132,7 @@ class TestSideEffects:
         # would remove the call.  ``_proc_writes`` doesn't count
         # IRAssignExpr (used in unrelated tests above), so we
         # inspect the body shape directly here.
-        from core.compiler.ir import IRAssignExpr
+        from compiler.ir import IRAssignExpr
 
         module, _ = _prepare(
             'proc f {} {\n  set x [expr {[string length "hello"]}]\n  puts ok\n}\n'
@@ -196,7 +196,7 @@ class TestNestedRecursion:
     def _proc_writes_recursive(self, module, qname: str, name: str) -> int:
         """Count writes to ``name`` anywhere in the proc body
         (top-level + every nested control-flow body)."""
-        from core.compiler.ir import (
+        from compiler.ir import (
             IRAssignConst,
             IRAssignValue,
             IRBlock,

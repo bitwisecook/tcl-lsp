@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.core_analyses import LatticeKind, analyse_source
-from core.compiler.types import TclType, TypeKind
+from compiler.core_analyses import LatticeKind, analyse_source
+from compiler.types import TclType, TypeKind
 
 
 class TestCoreAnalyses:
@@ -91,11 +91,11 @@ if {$total > 5} {
         # ``_substitute_expr_with_lattice``.
         import math
 
-        from core.compiler.core_analyses import (
+        from compiler.core_analyses import (
             LatticeValue,
             _substitute_expr_with_lattice,
         )
-        from core.compiler.expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar
+        from compiler.expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar
 
         # Evaluating ``$x + 0`` with lattice x=CONST(nan) must widen.
         expr = ExprBinary(
@@ -127,7 +127,7 @@ if {$total > 5} {
         # through ``format_tcl_value`` and are covered by its own tests.)
         import math
 
-        from core.compiler.optimiser._helpers import _format_constant
+        from compiler.optimiser._helpers import _format_constant
 
         assert _format_constant(math.nan) is None
         assert _format_constant(-math.nan) is None
@@ -274,7 +274,7 @@ proc add {a b} {
 
     def test_shimmer_preserved_after_folding(self):
         """Shimmer warning on incr increment arg is still emitted."""
-        from core.compiler.shimmer import ShimmerWarning, find_shimmer_warnings
+        from compiler.shimmer import ShimmerWarning, find_shimmer_warnings
 
         source = 'set c [expr {0+1}]\nset c "${c}0"\nset b 1\nincr b $c'
         warnings = find_shimmer_warnings(source)
@@ -301,7 +301,9 @@ class TestVariableShapeCoreAnalyses:
         ).top_level
         assert ("::ns::arr", 1) in analysis.types
 
-    def test_braced_scalar_like_array_name_flows_as_scalar_symbol(self):
+    def test_braced_array_like_name_flows_as_base_array_symbol(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); it
+        # flows under the base array symbol "a".
         analysis = analyse_source('set {a(1)} "alpha beta"\nset n [llength ${a(1)}]').top_level
         assert ("a", 1) in analysis.types
 

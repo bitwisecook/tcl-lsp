@@ -139,8 +139,8 @@ const PosixOff = struct { secs: i32 };
 
 const PosixRule = struct {
     month: u8, // 1..12
-    week: u8,  // 1..5 (5 = last week of month)
-    dow: u8,   // 0..6 (Sun = 0)
+    week: u8, // 1..5 (5 = last week of month)
+    dow: u8, // 0..6 (Sun = 0)
     /// Local-clock seconds since midnight (default 7200 = 02:00).
     time: i32,
 };

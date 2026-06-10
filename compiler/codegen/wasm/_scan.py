@@ -1,0 +1,1664 @@
+"""Pre-codegen scan of the IR for runtime imports.
+
+``_scan_needed_imports`` walks the CFG module and every IR statement,
+classifies each command against the runtime-import tables in
+``_imports.py``, and returns the set of runtime functions the emitter
+must import. This keeps the emitter itself free of the noisy
+command → import dispatch: it can assume every primitive it might call
+is available.
+"""
+
+# canonicalisation: audited #246
+
+from __future__ import annotations
+
+from ...cfg import CFGModule
+from ...expr_ast import (
+    BinOp,
+    ExprBinary,
+    ExprCall,
+    ExprCommand,
+    ExprRaw,
+    ExprTernary,
+    ExprUnary,
+    ExprVar,
+    UnaryOp,
+)
+from ...ir import (
+    IRAssignConst,
+    IRAssignExpr,
+    IRAssignValue,
+    IRBarrier,
+    IRBlock,
+    IRCall,
+    IRCatch,
+    IRExprEval,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRIncr,
+    IRModule,
+    IRReturn,
+    IRScript,
+    IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
+)
+from ._imports import (
+    _OBJ_LIFECYCLE_IMPORTS,
+    _STRING_IS_IMPORT,
+    command_emits_nothing,
+    runtime_import_for,
+    subcommand_runtime_import_for,
+)
+from ._parsing import _has_embedded_subst_scan, _parse_array_ref
+
+
+def _split_tcl_words(text: str) -> list[str]:
+    """Split Tcl command text into words, respecting braces and brackets.
+
+    Returns each word with its outer brace/bracket delimiters intact so
+    callers can distinguish brace-quoted literals from bare words.
+    """
+    parts: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        while i < n and text[i] in " \t\n":
+            i += 1
+        if i >= n:
+            break
+        if text[i] == "{":
+            depth = 1
+            start = i
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n and text[i + 1] in "{}":
+                    i += 2
+                    continue
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
+            parts.append(text[start:i])
+        elif text[i] == "[":
+            depth = 1
+            start = i
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "[":
+                    depth += 1
+                elif text[i] == "]":
+                    depth -= 1
+                i += 1
+            parts.append(text[start:i])
+        elif text[i] == '"':
+            start = i
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\":
+                    i += 1
+                i += 1
+            i += 1
+            parts.append(text[start:i])
+        else:
+            start = i
+            while i < n and text[i] not in " \t\n":
+                i += 1
+            parts.append(text[start:i])
+    return parts
+
+
+def _scan_script_body_imports(body_text: str, needed: set[str]) -> None:
+    """Parse a Tcl script body and add any runtime imports it needs.
+
+    Used by ``_scan_text_for_cmd_subst`` to scan catch bodies that
+    appear in command-substitution position (e.g. ``[catch {foreach …} msg]``).
+    Without this, imports required by the body (e.g. ``tcl_list_length``
+    for ``foreach``) are missed because the text scanner only searches
+    for ``[…]`` command substitutions, not brace-quoted body content.
+    """
+    try:
+        from ...lowering import lower_to_ir
+
+        ir_module = lower_to_ir(body_text)
+    except Exception:
+        return
+    # We don't have a CFGModule for this snippet; pass a dummy.  The
+    # inner scanner only uses the IR, not the CFG.
+    _scan_needed_imports_ir_only(ir_module, needed)
+
+
+def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
+    """Walk *ir_module* and add needed imports to *needed*.
+
+    Subset of ``_scan_needed_imports`` that works without a CFGModule.
+    Called by ``_scan_script_body_imports`` for inline body text.
+    """
+    from ...ir import (
+        IRAssignExpr,
+        IRCatch,
+        IRExprEval,
+        IRFor,
+        IRForeach,
+        IRIf,
+        IRReturn,
+        IRSwitch,
+        IRTry,
+        IRWhile,
+    )
+
+    def _scan_s(script: IRScript) -> None:
+        for stmt in script.statements:
+            _scan_st(stmt)
+
+    def _scan_st(stmt: IRStatement) -> None:
+        match stmt:
+            case IRForeach(body=body):
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                _scan_s(body)
+            case IRFor(init=init, condition=condition, body=body, next=next_script):
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
+                _scan_s(init)
+                _scan_expr_body_imports_from_node(condition, needed)
+                _scan_s(body)
+                _scan_s(next_script)
+            case IRWhile(condition=condition, body=body):
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                _scan_expr_body_imports_from_node(condition, needed)
+                _scan_s(body)
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    _scan_expr_body_imports_from_node(clause.condition, needed)
+                    _scan_s(clause.body)
+                if else_body:
+                    _scan_s(else_body)
+            case IRCatch(body=body):
+                needed.add("tcl_catch_enter")
+                needed.add("tcl_catch_leave")
+                needed.add("tcl_catch_result")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_catch_set_ok_result")
+                needed.add("tcl_return_set")
+                needed.add("tcl_catch_options")
+                _scan_s(body)
+            case IRSwitch(arms=arms, default_body=default_body):
+                for arm in arms:
+                    if arm.body:
+                        _scan_s(arm.body)
+                if default_body:
+                    _scan_s(default_body)
+            case IRTry(body=body, finally_body=finally_body):
+                _scan_s(body)
+                if finally_body:
+                    _scan_s(finally_body)
+            case IRExprEval(expr=expr):
+                # Without walking the expr AST, imports that the
+                # expression needs (``tcl_arith_neg`` for unary
+                # ``-``, etc.) are missed when the ``expr`` command
+                # appears inside a brace-quoted body that the IR-only
+                # scanner sees (e.g. ``[catch {expr {-"a"}} msg]``).
+                # That left ``expr-old-5.1`` returning ``0 0`` even
+                # though ``tcl_arith_neg`` correctly validates string
+                # operands.
+                _scan_expr_body_imports_from_node(expr, needed)
+            case IRAssignExpr(expr=expr):
+                _scan_expr_body_imports_from_node(expr, needed)
+                # ``set r [expr $v]`` (var-only RHS) re-parses ``$v``'s
+                # value as an expression at runtime.  Pull in the
+                # canonicaliser so the codegen path that handles this
+                # case has the import wired up.
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
+            case IRReturn(expr=expr):
+                if expr is not None:
+                    _scan_expr_body_imports_from_node(expr, needed)
+            case _:
+                # Scan value strings in IRCall / IRAssignValue for cmd-substs.
+                args = getattr(stmt, "args", None)
+                if isinstance(args, (list, tuple)):
+                    for a in args:
+                        if isinstance(a, str) and "[" in a:
+                            _scan_text_for_cmd_subst(a, needed)
+
+    _scan_s(ir_module.top_level)
+    for proc in ir_module.procedures.values():
+        _scan_s(proc.body)
+
+
+def _scan_expr_body_imports_from_node(node: object, needed: set[str]) -> None:
+    """Walk an already-parsed expr AST and add needed imports.
+
+    Same logic as ``_scan_expr_body_imports`` but accepts a parsed
+    node directly — used by ``_scan_needed_imports_ir_only`` to walk
+    ``IRExprEval`` / ``IRAssignExpr`` / ``IRReturn(expr=…)`` so
+    expressions inside catch bodies pick up their helper imports.
+    """
+    _scan_expr_body_imports_impl(node, needed)
+
+
+def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
+    """Parse an expression body and add any runtime imports it needs."""
+    from compiler.parsing.expr_parser import parse_expr
+
+    try:
+        node = parse_expr(expr_text)
+    except Exception:
+        return
+    _scan_expr_body_imports_impl(node, needed)
+
+
+def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
+    """Shared implementation for the AST-walking expr-import scan."""
+    from ...expr_ast import BinOp
+
+    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW})
+    _ARITH_IMPORT = {
+        BinOp.ADD: "tcl_arith_add",
+        BinOp.SUB: "tcl_arith_sub",
+        BinOp.MUL: "tcl_arith_mul",
+        BinOp.DIV: "tcl_arith_div",
+        BinOp.MOD: "tcl_arith_mod",
+        # ``**`` routes to the bignum-aware runtime helper rather
+        # than the inline i64 loop in ``_emit_power`` (object-context
+        # path only — the i64 path keeps the existing inline loop).
+        BinOp.POW: "tcl_arith_pow",
+    }
+    # Bitwise / shift — strict integer domain (issues #260, #261).
+    _BITWISE_OPS = frozenset(
+        {
+            BinOp.LSHIFT,
+            BinOp.RSHIFT,
+            BinOp.BIT_AND,
+            BinOp.BIT_OR,
+            BinOp.BIT_XOR,
+        }
+    )
+    _BITWISE_IMPORT = {
+        BinOp.LSHIFT: "tcl_arith_lshift",
+        BinOp.RSHIFT: "tcl_arith_rshift",
+        BinOp.BIT_AND: "tcl_arith_band",
+        BinOp.BIT_OR: "tcl_arith_bor",
+        BinOp.BIT_XOR: "tcl_arith_bxor",
+    }
+    _MATH_FUNC_IMPORT = {
+        "log": "tcl_math_log",
+        "sqrt": "tcl_math_sqrt",
+        "exp": "tcl_math_exp",
+        "log10": "tcl_math_log10",
+        "sin": "tcl_math_sin",
+        "cos": "tcl_math_cos",
+        "tan": "tcl_math_tan",
+        "asin": "tcl_math_asin",
+        "acos": "tcl_math_acos",
+        "atan": "tcl_math_atan",
+        "atan2": "tcl_math_atan2",
+        "sinh": "tcl_math_sinh",
+        "cosh": "tcl_math_cosh",
+        "tanh": "tcl_math_tanh",
+        "floor": "tcl_math_floor",
+        "ceil": "tcl_math_ceil",
+        "fmod": "tcl_math_fmod",
+        "hypot": "tcl_math_hypot",
+        "fabs": "tcl_math_fabs",
+        "abs": "tcl_math_fabs",
+        "double": "tcl_math_double",
+        "float": "tcl_math_double",
+        "round": "tcl_math_round",
+        "int": "tcl_math_int",
+        "entier": "tcl_math_int",
+        "wide": "tcl_math_wide",
+        "isqrt": "tcl_math_isqrt",
+        "bool": "tcl_math_bool",
+        "isfinite": "tcl_math_isfinite",
+        "isinf": "tcl_math_isinf",
+        "isnan": "tcl_math_isnan",
+        "isnormal": "tcl_math_isnormal",
+        "issubnormal": "tcl_math_issubnormal",
+        "fpclassify": "tcl_math_fpclassify",
+        "isunordered": "tcl_math_isunordered",
+    }
+
+    def _walk(n: object) -> None:
+        match n:
+            case ExprVar(name=name, text=text):
+                # Mirrors the ``ExprVar`` arm in :func:`_scan_expr` so
+                # an expression body reached via the cmd-subst scan
+                # path (``[expr {...}]`` inside another command) gets
+                # the same imports the IR-level expression scan would
+                # have requested.  Without this, an ``$::ns::v`` /
+                # ``$::arr(k)`` read inside ``[expr {...}]`` traps when
+                # the value-level array scan is the only path that
+                # registers ``tcl_array_get`` / ``tcl_global_get``.
+                if name.startswith("::"):
+                    needed.add("tcl_global_get")
+                # Detect array refs in both the bare ``$arr(k)`` form
+                # (text ends with ``)``) and the braced ``${arr(k)}``
+                # form the lowerer emits for array reads inside
+                # interpolated strings (text ends with ``}``).  Either
+                # routes through ``_emit_var_read_obj`` →
+                # ``_parse_array_ref`` and needs ``tcl_array_get``.
+                if "(" in text and (
+                    text.endswith(")") or (text.startswith("${") and text.endswith("}"))
+                ):
+                    needed.add("tcl_array_get")
+            case ExprBinary(op=op, left=left, right=right):
+                if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
+                    needed.add("tcl_string_equal")
+                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
+                    needed.add("tcl_string_compare")
+                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.EQ, BinOp.NE):
+                    # Numeric ``==`` / ``!=`` route through the NaN-
+                    # aware equality helper (which itself delegates
+                    # to ``tcl_expr_order_cmp`` after the NaN check).
+                    # Bignum operands and int-vs-float mixed compares
+                    # pick the right rule via ``tcl_expr_order_cmp``;
+                    # the wrapper additionally enforces IEEE-754's
+                    # ``NaN != NaN`` semantics.
+                    needed.add("tcl_expr_eq_nan_aware")
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.IN, BinOp.NI):
+                    needed.add("tcl_list_contains")
+                if op in _ARITH_OPS:
+                    imp = _ARITH_IMPORT.get(op)
+                    if imp:
+                        needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                if op in _BITWISE_OPS:
+                    imp = _BITWISE_IMPORT.get(op)
+                    if imp:
+                        needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # Bitwise helpers reject float operands by inspecting
+                    # the runtime tag — operands must be passed as
+                    # TYPE_FLOAT TclObjs (not silently truncated to int).
+                    # ``_emit_obj_literal_for_expr`` boxes a float literal
+                    # via ``tcl_obj_new_float`` when the import is
+                    # registered; without it, a literal like ``70.34``
+                    # falls back to ``int(70.34) = 70`` and the runtime
+                    # never sees the float — issue #261.
+                    needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` preserves the float tag through
+                    # ``-$x`` so a downstream bitwise op still sees a
+                    # TYPE_FLOAT operand and raises the canonical
+                    # ``cannot use floating-point value …`` error.
+                    needed.add("tcl_arith_neg")
+                _walk(left)
+                _walk(right)
+            case ExprUnary(op=uop, operand=operand):
+                if uop == UnaryOp.BIT_NOT:
+                    needed.add("tcl_arith_bnot")
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # See note above — ``~`` rejects float operands and
+                    # needs the float-literal box import registered to
+                    # observe the float tag.
+                    needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` keeps the float tag through
+                    # ``~(-$x)`` chains.
+                    needed.add("tcl_arith_neg")
+                if uop == UnaryOp.NEG:
+                    # Without this the obj-context emitter for
+                    # ``-LITERAL`` falls back to the inline ``0 - x``
+                    # i64 path, which can't represent literals beyond
+                    # the i64 boundary (the ``i64.const`` saturates).
+                    # ``tcl_arith_neg`` is the bignum-aware path
+                    # (i128 promotion via ``valtypes/tcl_bignum.zig``)
+                    # — register it whenever a unary NEG appears in
+                    # an expression so e.g. ``expr {-9223372036854775808}``
+                    # round-trips precisely instead of truncating to
+                    # ``-9223372036854775807``.
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.POS:
+                    # Tcl 9 unary ``+`` validates non-numeric strings —
+                    # ``expr {+"a"}`` raises ``cannot use non-numeric
+                    # string "a" as operand of "+"`` (expr-old-5.2).
+                    # Without ``tcl_arith_pos`` the codegen took a
+                    # silent identity path that returned the string
+                    # operand unchanged.
+                    needed.add("tcl_arith_pos")
+                    needed.add("tcl_obj_new_string")
+                _walk(operand)
+            case ExprTernary(condition=cond, true_branch=t, false_branch=f):
+                _walk(cond)
+                _walk(t)
+                _walk(f)
+            case ExprCall(function=func, args=args):
+                imp = _MATH_FUNC_IMPORT.get(func)
+                if imp:
+                    needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                if func == "pow" and len(args) == 2:
+                    # ``pow(a, b)`` math-function call (distinct from
+                    # the ``**`` operator) — register the bignum-aware
+                    # runtime helper so the obj-context emitter can
+                    # route through it (the inline i64 loop in
+                    # ``_emit_power`` truncates float operands).
+                    needed.add("tcl_arith_pow")
+                    # The float literal box helper is needed for
+                    # operands like ``pow(2.1, 3.1)``; without it the
+                    # ``_emit_obj_literal_for_expr`` float branch
+                    # falls back to ``int(float_val)`` and the args
+                    # become 2/3 instead of 2.1/3.1.
+                    needed.add("tcl_obj_new_float")
+                for arg in args:
+                    _walk(arg)
+
+    _walk(node)
+
+
+def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
+    """Scan a text value for [cmd ...] command substitutions and add imports."""
+    i = 0
+    while i < len(text):
+        if text[i] == "[":
+            depth = 1
+            j = i + 1
+            while j < len(text) and depth > 0:
+                if text[j] == "[":
+                    depth += 1
+                elif text[j] == "]":
+                    depth -= 1
+                j += 1
+            cmd_text = text[i + 1 : j - 1].strip()
+            parts = cmd_text.split(None, 2)
+            # Full split to count args when we need to decide whether a
+            # multi-value linsert/lreplace shape is in play.
+            full_parts = cmd_text.split()
+            if parts:
+                cmd = parts[0]
+                rimp = runtime_import_for(cmd)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
+                    if cmd == "puts":
+                        # ``puts -nonewline …`` dispatches to a
+                        # second helper; include the import whenever
+                        # ``puts`` appears so the dispatch path can
+                        # pick it up.  Cheap (one import slot) and
+                        # avoids a second scan.
+                        needed.add("tcl_puts_nonewline")
+                        # ``puts $chan …`` and ``puts -nonewline $chan …``
+                        # route through ``tcl_cmd_puts_chan`` so the
+                        # message lands on the right fd.  Adding the
+                        # import unconditionally is cheap and lets the
+                        # emitter pick the channel form without a
+                        # second scan over the AST.
+                        needed.add("tcl_puts_chan")
+                    elif cmd == "lreplace" and len(full_parts) > 5:
+                        # ``[lreplace list first last v1 v2 …]`` —
+                        # more than 4 args routes through the
+                        # multi-value ``tcl_cmd_lreplace_list`` helper
+                        # with the inserts packed via ``tcl_list_create``.
+                        needed.add("tcl_cmd_lreplace_list")
+                        needed.add("tcl_list_create")
+                    elif cmd == "format" and len(full_parts) > 4:
+                        # ``format`` with more than 3 substitution
+                        # args exceeds ``tcl_cmd_format``'s fixed-arity
+                        # slot budget; route through the variadic
+                        # ``tcl_cmd_format_list`` helper which packs
+                        # args into a Tcl list at runtime.  Used by
+                        # opt.test's ``OptTree`` (7-arg ``format``
+                        # with ``%-*s`` columns) and any other
+                        # multi-substitution callsite.
+                        needed.add("tcl_cmd_format_list")
+                        needed.add("tcl_list_create")
+                elif cmd == "list":
+                    # ``[list $a $b ...]`` with variable/command args uses
+                    # tcl_lappend internally in _emit_list_value to properly
+                    # quote each element.  Add it so the import is available.
+                    needed.add("tcl_lappend")
+                    # Args that are interpolated double-quoted strings
+                    # (``[list "value=$x" b]``) route through ``_emit_value``
+                    # → ``_emit_interpolated_value`` which builds the
+                    # element via a ``tcl_append`` concat chain.  Without
+                    # this import the interpolation collapses to a literal
+                    # in the lookup table and ``$x`` never substitutes.
+                    needed.add("tcl_append")
+                elif cmd == "dict" and len(parts) > 1:
+                    subcmd = parts[1]
+                    sri = subcommand_runtime_import_for("dict", subcmd)
+                    if sri is not None:
+                        needed.add(sri.import_key)
+                    elif subcmd == "create":
+                        # ``dict create`` with non-literal k/v args
+                        # folds at runtime via ``tcl_lappend`` so each
+                        # element is properly list-quoted (concat
+                        # trims whitespace — wrong for dict values).
+                        needed.add("tcl_lappend")
+                    elif subcmd == "merge":
+                        # ``dict merge`` is chained at the compiler
+                        # level; the runtime helper takes pairs.
+                        needed.add("tcl_dict_merge_pair")
+                elif cmd == "string" and len(parts) > 1:
+                    subcmd = parts[1]
+                    sri = subcommand_runtime_import_for("string", subcmd)
+                    if sri is not None:
+                        needed.add(sri.import_key)
+                    elif subcmd == "cat":
+                        # ``string cat`` is variadic no-trim concat.
+                        # Register ``tcl_append`` so the runtime path
+                        # is always reachable.
+                        needed.add("tcl_append")
+                    elif subcmd == "is":
+                        # "string is <class> <value>" — extract class name
+                        rest = parts[2] if len(parts) > 2 else ""
+                        class_parts = rest.split(None, 1)
+                        if class_parts and class_parts[0] in _STRING_IS_IMPORT:
+                            needed.add(_STRING_IS_IMPORT[class_parts[0]])
+                elif cmd == "info" and len(parts) > 1:
+                    subcmd = parts[1]
+                    if subcmd == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_array_exists")
+                        needed.add("tcl_obj_get_int")
+                        needed.add("tcl_obj_new_int")
+                        # FRAME-tagged vars (per var-escape analysis)
+                        # route through this runtime helper for
+                        # literal-name existence checks.
+                        needed.add("tcl_info_exists")
+                        # ``info exists arr(key)`` inside a substitution —
+                        # parts[2] (if present) is the var text.
+                        if len(parts) > 2:
+                            raw = parts[2]
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
+                    if subcmd in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
+                    elif subcmd == "level":
+                        # Inline ``info level 0`` in a compiled proc
+                        # builds a list by ``tcl_append``-ing the
+                        # proc name + each param; pull in the helper
+                        # so the codegen's concat chain can reach it.
+                        needed.add("tcl_append")
+                elif cmd == "lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
+                elif cmd == "clock" and len(parts) > 1:
+                    sri = subcommand_runtime_import_for("clock", parts[1])
+                    if sri is not None:
+                        needed.add(sri.import_key)
+                elif cmd == "uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
+                    needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
+                elif cmd == "set" and len(parts) >= 2:
+                    # ``[set arr(key)]`` reads through ``tcl_array_get``
+                    # via ``_emit_command_subst_value`` →
+                    # ``_emit_var_read_obj`` → ``_emit_array_element_read``.
+                    # Without this scan branch, the import is missing and
+                    # the read silently degrades to ``i32.const 0`` (empty).
+                    # ``[set arr(key) value]`` writes through ``tcl_array_set``.
+                    name = parts[1]
+                    if _parse_array_ref(name) is not None:
+                        if len(full_parts) == 2:
+                            needed.add("tcl_array_get")
+                        else:
+                            needed.add("tcl_array_set")
+                elif cmd == "array" and len(parts) > 1:
+                    sub = parts[1]
+                    # Every array-access subcommand fires any ``array``-op
+                    # variable trace before the access (trace-5.1); the
+                    # compiled fast-path needs the fire helper imported.
+                    if sub in ("exists", "size", "unset", "names", "get", "set"):
+                        needed.add("tcl_array_fire_op_trace")
+                    if sub == "exists":
+                        needed.add("tcl_array_exists")
+                    elif sub == "size":
+                        needed.add("tcl_array_size")
+                    elif sub == "unset":
+                        needed.add("tcl_array_unset")
+                    elif sub == "names":
+                        needed.add("tcl_array_names")
+                        # ``array names arr $pat*`` interpolates the
+                        # pattern; pull in ``tcl_append`` so the
+                        # codegen's interpolation emitter can build
+                        # the pattern string at runtime instead of
+                        # degrading to a raw literal (which would
+                        # disable the glob filter).
+                        needed.add("tcl_append")
+                    elif sub == "get":
+                        # ``array get arr ?pat?`` — see ``names``.
+                        needed.add("tcl_array_get_all")
+                        needed.add("tcl_append")
+                    elif sub == "set":
+                        needed.add("tcl_array_set")
+                elif cmd == "namespace" and len(parts) > 1 and parts[1] == "eval":
+                    # ``[namespace eval ns arg1 arg2 ...]`` with dynamic
+                    # script args: needs tcl_eval to run the assembled
+                    # script and tcl_append to join multiple args.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_append")
+                elif cmd == "expr":
+                    if len(parts) > 1:
+                        # Extract the whole expr body (not using split, which
+                        # breaks braced content like {"a" < "b"}).
+                        rest = cmd_text[len(cmd) :].lstrip()
+                        if rest.startswith("{") and rest.endswith("}"):
+                            rest = rest[1:-1]
+                        _scan_expr_body_imports(rest, needed)
+                        # ``[expr {$var}]`` and ``[expr {literal}]`` paths
+                        # route through ``tcl_expr_canonicalise`` so a
+                        # number-shaped string value collapses to the
+                        # canonical numeric form.  Pull in the helper here
+                        # so the import is present whenever an expr command
+                        # substitution appears in a value context.
+                        needed.add("tcl_expr_canonicalise")
+                elif cmd == "catch":
+                    # ``[catch {body} ?var?]`` as a command substitution
+                    # compiles via the real catch codegen path (see
+                    # ``_emit_command_subst``/``_emit_command_subst_value``);
+                    # that path needs the catch runtime imports whose
+                    # top-level scan only adds them when ``catch`` is a
+                    # statement command.
+                    needed.add("tcl_catch_enter")
+                    needed.add("tcl_catch_leave")
+                    needed.add("tcl_catch_result")
+                    needed.add("tcl_catch_has_error")
+                    needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_catch_options")
+                    needed.add("tcl_return_set")
+                    # Also scan the catch body at the IR level so that
+                    # nested loop/switch commands (e.g. ``foreach``)
+                    # get their own required imports added.  Without
+                    # this, ``[catch {foreach a L body} msg]`` misses
+                    # ``tcl_list_length`` / ``tcl_list_index`` and the
+                    # emitted foreach silently produces 0 iterations.
+                    _catch_words = _split_tcl_words(cmd_text)
+                    if len(_catch_words) >= 2:
+                        _body_arg = _catch_words[1]
+                        if _body_arg.startswith("{") and _body_arg.endswith("}"):
+                            _scan_script_body_imports(_body_arg[1:-1], needed)
+                # Recurse into the command text for nested
+                # substitutions.  Scanning ``parts[-1]`` alone misses
+                # nested brackets that landed in earlier split slots
+                # (``list [catch …] $r [dict …]`` splits into 3 with
+                # the inner ``[catch`` stuck mid-token of parts[1] /
+                # parts[2]); use the whole tail-of-cmd_text so every
+                # ``[…]`` group is rescanned regardless of where the
+                # ``split(None, 2)`` boundary fell.
+                if len(parts) > 1:
+                    rest = cmd_text[len(parts[0]) :]
+                    _scan_text_for_cmd_subst(rest, needed)
+            i = j
+        else:
+            i += 1
+
+
+def _scan_needed_imports(
+    cfg_module: CFGModule,
+    ir_module: IRModule,
+) -> set[str]:
+    """Pre-scan IR to find which runtime imports the compiled module needs."""
+    needed: set[str] = set()
+
+    def _scan_script(script: IRScript) -> None:
+        for stmt in script.statements:
+            _scan_stmt(stmt)
+
+    def _scan_value(value: str, *, is_body_text: bool = False) -> None:
+        """Scan a value string for embedded command substitutions.
+
+        ``is_body_text=True`` means the string is source text that the
+        lowerer will re-parse (e.g. a proc body) rather than a value
+        that the codegen will emit at runtime.  In that case we skip
+        the interpolated-string scan — otherwise a proc body containing
+        ``$a`` / ``$b`` would spuriously pull in ``tcl_append``, since
+        the body is never emitted via the concat-chain path.
+        """
+        if "[" in value:
+            _scan_text_for_cmd_subst(value, needed)
+        if is_body_text:
+            return
+        # Interpolated strings ("hello $x" / "$x[foo]" etc.) need tcl_append
+        # at codegen time to concatenate the parts.
+        if _has_embedded_subst_scan(value):
+            needed.add("tcl_append")
+        # ``$arr(key)`` references need tcl_array_get at codegen time.
+        _scan_value_for_array_refs(value)
+        # Pure ``$::ns::var`` / ``${::ns::var}`` references read through
+        # the global table.
+        if "::" in value and ("$" in value or value.startswith("::")):
+            # Conservative: request global_get whenever the value might
+            # resolve to a ``::``-qualified name.  False positives just
+            # over-import; they don't break correctness.
+            inner = value
+            if inner.startswith("${") and inner.endswith("}"):
+                inner = inner[2:-1]
+            elif inner.startswith("$"):
+                inner = inner[1:]
+            if inner.startswith("::"):
+                needed.add("tcl_global_get")
+
+    def _scan_expr(expr: object) -> None:
+        """Walk an expression AST and scan ExprCommand nodes."""
+
+        match expr:
+            case ExprCommand(text=text):
+                _scan_text_for_cmd_subst(text, needed)
+            case ExprRaw(text=text):
+                # ``ExprRaw`` carries unparsed expr operand text
+                # (e.g. ``\"X\"`` from ``[expr \"X\"]`` inside an
+                # outer ``"..."``).  When the text contains a
+                # backslash escape, the codegen routes through
+                # ``tcl_eval_expr_str`` so the inner content is
+                # parsed as expression source rather than a
+                # literal value.  Pull the import in only when the
+                # raw text actually needs it; pure-arith modules
+                # never trigger this branch and keep their
+                # minimal-import contract intact.
+                if "\\" in text:
+                    needed.add("tcl_eval_expr_str")
+            case ExprVar(name=name, text=text):
+                # ``$::ns::var`` in an expression reads from the global
+                # table; ``$arr(key)`` reads via tcl_array_get.
+                if name.startswith("::"):
+                    needed.add("tcl_global_get")
+                if "(" in text and text.endswith(")"):
+                    needed.add("tcl_array_get")
+            case ExprBinary(op=op, left=left, right=right):
+                if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
+                    needed.add("tcl_string_equal")
+                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
+                    needed.add("tcl_string_compare")
+                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.EQ, BinOp.NE):
+                    # Mirror the IR-only scanner: ``==`` / ``!=`` route
+                    # through the NaN-aware equality helper which
+                    # itself delegates to ``tcl_expr_order_cmp`` after
+                    # the NaN check (IEEE-754: ``NaN == NaN`` is 0).
+                    needed.add("tcl_expr_eq_nan_aware")
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW):
+                    _ARITH_IMPORT2 = {
+                        BinOp.ADD: "tcl_arith_add",
+                        BinOp.SUB: "tcl_arith_sub",
+                        BinOp.MUL: "tcl_arith_mul",
+                        BinOp.DIV: "tcl_arith_div",
+                        BinOp.MOD: "tcl_arith_mod",
+                        BinOp.POW: "tcl_arith_pow",
+                    }
+                    imp2 = _ARITH_IMPORT2.get(op)
+                    if imp2:
+                        needed.add(imp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                if op in (BinOp.LSHIFT, BinOp.RSHIFT, BinOp.BIT_AND, BinOp.BIT_OR, BinOp.BIT_XOR):
+                    _BITWISE_IMPORT2 = {
+                        BinOp.LSHIFT: "tcl_arith_lshift",
+                        BinOp.RSHIFT: "tcl_arith_rshift",
+                        BinOp.BIT_AND: "tcl_arith_band",
+                        BinOp.BIT_OR: "tcl_arith_bor",
+                        BinOp.BIT_XOR: "tcl_arith_bxor",
+                    }
+                    bimp2 = _BITWISE_IMPORT2.get(op)
+                    if bimp2:
+                        needed.add(bimp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # See companion comment in ``_scan_expr_body_imports``
+                    # — float-literal box import is required for the
+                    # bitwise helpers to observe a TYPE_FLOAT operand.
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
+                _scan_expr(left)
+                _scan_expr(right)
+            case ExprUnary(op=uop, operand=operand):
+                if uop == UnaryOp.BIT_NOT:
+                    needed.add("tcl_arith_bnot")
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.NEG:
+                    # Match the per-expr-body scanner: register
+                    # ``tcl_arith_neg`` for any NEG so the i64-context
+                    # codegen can route through the bignum-aware
+                    # negate helper (which also raises ``cannot use
+                    # non-numeric string …`` on string operands —
+                    # expr-old-5.1).
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.POS:
+                    # ``tcl_arith_pos`` validates string operands
+                    # (expr-old-5.2: ``+"a"`` raises ``cannot use
+                    # non-numeric string "a" as operand of "+"``).
+                    needed.add("tcl_arith_pos")
+                    needed.add("tcl_obj_new_string")
+                _scan_expr(operand)
+            case ExprTernary(condition=cond, true_branch=t, false_branch=f):
+                _scan_expr(cond)
+                _scan_expr(t)
+                _scan_expr(f)
+            case ExprCall(function=func, args=args):
+                _MATH_FUNC_IMPORT2 = {
+                    "log": "tcl_math_log",
+                    "sqrt": "tcl_math_sqrt",
+                    "exp": "tcl_math_exp",
+                    "log10": "tcl_math_log10",
+                    "sin": "tcl_math_sin",
+                    "cos": "tcl_math_cos",
+                    "tan": "tcl_math_tan",
+                    "asin": "tcl_math_asin",
+                    "acos": "tcl_math_acos",
+                    "atan": "tcl_math_atan",
+                    "atan2": "tcl_math_atan2",
+                    "sinh": "tcl_math_sinh",
+                    "cosh": "tcl_math_cosh",
+                    "tanh": "tcl_math_tanh",
+                    "floor": "tcl_math_floor",
+                    "ceil": "tcl_math_ceil",
+                    "fmod": "tcl_math_fmod",
+                    "hypot": "tcl_math_hypot",
+                    "fabs": "tcl_math_fabs",
+                    "abs": "tcl_math_fabs",
+                    "double": "tcl_math_double",
+                    "float": "tcl_math_double",
+                    "round": "tcl_math_round",
+                    "int": "tcl_math_int",
+                    "entier": "tcl_math_int",
+                    "wide": "tcl_math_wide",
+                    "isqrt": "tcl_math_isqrt",
+                    "bool": "tcl_math_bool",
+                }
+                imp2 = _MATH_FUNC_IMPORT2.get(func)
+                if imp2:
+                    needed.add(imp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                for arg in args:
+                    _scan_expr(arg)
+
+    def _scan_qualified_name(name: str | None) -> None:
+        """``::``-prefixed variable names route reads/writes through the
+        global table.  Pull in the matching runtime hooks eagerly so the
+        code emission paths can rely on them being registered.
+
+        Also handles array-element writes: ``set arr(key) val`` lowers
+        with ``name='arr(key)'``, which needs ``tcl_array_set``.
+        """
+        if not name:
+            return
+        if _parse_array_ref(name) is not None:
+            needed.add("tcl_array_set")
+            needed.add("tcl_array_get")
+            return
+        if name.startswith("::"):
+            needed.add("tcl_global_get")
+            needed.add("tcl_global_set")
+
+    def _scan_value_for_array_refs(value: str | None) -> None:
+        """Pull in array-get for ``$arr(key)`` references inside a value
+        string.  The read path routes through tcl_array_get whenever the
+        name parses as an array reference.
+        """
+        if not value or "(" not in value:
+            return
+        # Conservative: scan for ``$name(`` or ``${name(`` substrings.
+        i = 0
+        n = len(value)
+        while i < n:
+            if value[i] == "$" and i + 1 < n:
+                # Advance over bare name or ${...} with parens.
+                j = i + 1
+                if value[j] == "{":
+                    # ``${arr(key)}`` — the lowerer emits this form
+                    # when the surface syntax was a quoted-string
+                    # ``$arr(key)``.  Check for ``(`` *inside* the
+                    # braced content, not just after the closing
+                    # brace.  Without this, the import-scan misses
+                    # ``tcl_array_get`` and ``_emit_array_element_read``
+                    # silently emits ``i32.const 0`` at run time —
+                    # making every ``puts "v=$arr(key)"`` read come
+                    # back as empty string.
+                    inner_start = j + 1
+                    k = inner_start
+                    while k < n and value[k] != "}":
+                        k += 1
+                    # scan the inner for ``(``
+                    ii = inner_start
+                    while ii < k:
+                        if value[ii] == "(":
+                            needed.add("tcl_array_get")
+                            break
+                        ii += 1
+                    else:
+                        pass
+                    if "tcl_array_get" in needed:
+                        break
+                    j = k
+                else:
+                    # Bare ``$name`` — accept identifier characters
+                    # plus the ``::`` namespace separator.  The
+                    # separator must advance two characters at a time
+                    # so the second colon doesn't terminate the scan
+                    # mid-name; a single-step advance left ``$::myarr(``
+                    # unrecognised and ``tcl_array_get`` was never
+                    # imported, so the read silently fell back to
+                    # ``i32.const 0`` and the caller trapped on the
+                    # synthesised null obj.
+                    while j < n:
+                        c = value[j]
+                        if c.isalnum() or c == "_":
+                            j += 1
+                        elif c == ":" and j + 1 < n and value[j + 1] == ":":
+                            j += 2
+                        else:
+                            break
+                if j < n and value[j] == "(":
+                    needed.add("tcl_array_get")
+                    break
+                i = j
+            else:
+                i += 1
+
+    def _scan_array_subcmd(args: tuple[str, ...]) -> None:
+        if not args:
+            return
+        sub = args[0]
+        if sub == "exists":
+            needed.add("tcl_array_exists")
+        elif sub == "size":
+            needed.add("tcl_array_size")
+        elif sub == "unset":
+            needed.add("tcl_array_unset")
+        elif sub == "names":
+            needed.add("tcl_array_names")
+            # ``array names arr ?pattern?`` — the pattern may be an
+            # interpolated string (``$option*``); scan it so
+            # ``tcl_append`` / ``tcl_array_get`` make it into the
+            # module imports and the pattern is emitted literally,
+            # not as a null TclObj that disables the filter.
+            if len(args) >= 3:
+                _scan_value(args[2])
+        elif sub == "set":
+            needed.add("tcl_array_set")
+
+    def _scan_stmt(stmt: IRStatement) -> None:
+        match stmt:
+            case IRCall(canonical_command=command, args=args):
+                if command == "::lset":
+                    # ``lset`` is emitter-resident, not in _CMD_RUNTIME
+                    # (see the comment in _imports.py).  Register the
+                    # runtime import here so the shared-imports table
+                    # has ``tcl_list_set`` ready for ``_emit_cmd_lset``.
+                    needed.add("tcl_list_set")
+                    if len(args) > 3:
+                        # Multi-index ``lset v i j k newval`` builds an
+                        # indices TclObj by chaining ``tcl_list`` pairs
+                        # in ``_emit_cmd_lset``.  Without this import,
+                        # the emitter raises an internal error.
+                        needed.add("tcl_list_create")
+                rimp = runtime_import_for(command)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
+                    if command == "::puts":
+                        # Include the -nonewline and channel-form
+                        # helpers alongside tcl_puts so the emitter can
+                        # pick the right shape without a second scan.
+                        needed.add("tcl_puts_nonewline")
+                        needed.add("tcl_puts_chan")
+                    elif command == "::apply" and len(args) >= 2:
+                        # ``apply LAMBDA arg1 arg2 ...`` packs the
+                        # call-site tail into a Tcl list via
+                        # ``_emit_args_list``.  When any tail arg is
+                        # non-literal (``$var`` / ``[cmd]``) the list
+                        # build needs ``tcl_lappend`` at runtime; without
+                        # this import the args_list fallback joins the
+                        # args at compile time and a ``[cmd]`` reaches
+                        # the lambda as a literal byte string.
+                        if any(
+                            a.startswith("$") or a.startswith("[") or "[" in a or "$" in a
+                            for a in args[1:]
+                        ):
+                            needed.add("tcl_lappend")
+                    elif command == "::lreplace" and len(args) > 4:
+                        # Multi-value ``lreplace list first last v1 v2 …``
+                        # routes through the dedicated
+                        # ``tcl_cmd_lreplace_list`` helper; the inserts
+                        # are packed via ``tcl_list_create``.
+                        needed.add("tcl_cmd_lreplace_list")
+                        needed.add("tcl_list_create")
+                elif (
+                    command == "::string"
+                    and args
+                    and (sri := subcommand_runtime_import_for("string", args[0])) is not None
+                ):
+                    needed.add(sri.import_key)
+                elif command == "::string" and args and args[0] == "is" and len(args) >= 3:
+                    is_key = _STRING_IS_IMPORT.get(args[1])
+                    if is_key:
+                        needed.add(is_key)
+                elif command == "::string" and args and args[0] == "cat":
+                    # ``string cat`` is variadic no-trim concat; the
+                    # runtime path leans on ``tcl_append`` when any arg
+                    # isn't a pure literal.
+                    needed.add("tcl_append")
+                elif command == "::list":
+                    # ``list $a $b ...`` with variable args uses tcl_lappend
+                    # internally in _emit_list_value to quote each element.
+                    needed.add("tcl_lappend")
+                elif (
+                    command == "::dict"
+                    and args
+                    and (sri := subcommand_runtime_import_for("dict", args[0])) is not None
+                ):
+                    needed.add(sri.import_key)
+                elif command == "::dict" and args and args[0] == "create":
+                    # ``dict create`` with non-literal k/v args
+                    # folds at runtime via ``tcl_lappend`` so
+                    # values with whitespace / braces survive
+                    # (concat would trim them).
+                    needed.add("tcl_lappend")
+                elif command == "::dict" and args and args[0] == "merge":
+                    needed.add("tcl_dict_merge_pair")
+                elif command == "::set" and args and _parse_array_ref(args[0]) is not None:
+                    # ``set arr(key)`` (read) / ``set arr(key) value``
+                    # (write) route through ``_emit_array_element_read`` /
+                    # ``_emit_array_element_write`` (tcl_array_get /
+                    # tcl_array_set).  Those emitters fall back to a null
+                    # push when the import is absent, so a bare element
+                    # read whose array is never written elsewhere would
+                    # otherwise silently skip the read — and its variable
+                    # read traces never fire (trace-1.x).  The substitution
+                    # form ``$arr(k)`` is already covered by the value
+                    # scan; this handles the command-form spelling.
+                    if len(args) == 1:
+                        needed.add("tcl_array_get")
+                    else:
+                        needed.add("tcl_array_set")
+                elif command == "::global":
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                    # Inside a proc, ``global`` also registers a runtime
+                    # frame alias so interpreter-side dispatch (e.g. a
+                    # ``trace add variable`` on the name) resolves it to
+                    # the global — see _emit_global.
+                    needed.add("tcl_frame_alias_global")
+                elif command == "::upvar":
+                    # upvar #0 resolves to a global alias — reads/writes go
+                    # through the global table. The target name is computed
+                    # at runtime (may be an interpolated string).
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                elif command == "::variable":
+                    # variable inside a proc aliases local → ::ns::local in
+                    # the enclosing namespace. Same runtime path as upvar #0.
+                    needed.add("tcl_global_get")
+                    needed.add("tcl_global_set")
+                    # Dynamic ``variable $name ?value?`` (tcltest's
+                    # ``Default`` / ``Option``) needs runtime string
+                    # concatenation + existence probe to build the
+                    # qualified target and honour the Tcl semantics
+                    # of initialising only when unset.
+                    if args and (args[0].startswith("$") or args[0].startswith("[")):
+                        needed.add("tcl_append")
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_get_int")
+                elif command == "::info" and args:
+                    # info exists — resolves via tcl_global_exists for
+                    # aliased / ``::`` names; plain locals are boxed to
+                    # TclObj via tcl_obj_new_int.  Other subcommands go
+                    # through tcl_info_dispatch.
+                    if args[0] == "exists":
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_array_exists")
+                        needed.add("tcl_obj_get_int")
+                        needed.add("tcl_obj_new_int")
+                        # Literal-name existence in FRAME-tagged vars
+                        # dispatches through the runtime helper.
+                        needed.add("tcl_info_exists")
+                        # ``info exists arr(key)`` — probe the array table.
+                        if len(args) >= 2:
+                            raw = args[1]
+                            # ``info exists $dynamicName`` — dispatch
+                            # to runtime ``info_exists`` which resolves
+                            # the name's value at runtime.
+                            if raw.startswith("$") or raw.startswith("["):
+                                stripped = raw
+                                if raw.startswith("${") and raw.endswith("}"):
+                                    stripped = raw[2:-1]
+                                elif raw.startswith("$"):
+                                    stripped = raw[1:]
+                                if _parse_array_ref(stripped) is None:
+                                    needed.add("tcl_info_exists")
+                            # Strip a ``$`` / ``${...}`` sigil if present.
+                            if raw.startswith("${") and raw.endswith("}"):
+                                raw = raw[2:-1]
+                            elif raw.startswith("$"):
+                                raw = raw[1:]
+                            if _parse_array_ref(raw) is not None:
+                                needed.add("tcl_array_element_exists")
+                    if args[0] in ("body", "args", "exists"):
+                        needed.add("tcl_info_dispatch")
+                    elif args[0] == "level":
+                        # Inline ``info level 0`` builds a list via
+                        # the ``tcl_append`` concat-chain; see
+                        # ``_emit_info_value``.
+                        needed.add("tcl_append")
+                elif command == "::lassign":
+                    needed.add("tcl_list_index")
+                    needed.add("tcl_list_tail")
+                elif command == "::clock" and args:
+                    sri = subcommand_runtime_import_for("clock", args[0])
+                    if sri is not None:
+                        needed.add(sri.import_key)
+                elif command == "::array" and args:
+                    _scan_array_subcmd(args)
+                elif command == "::uplevel":
+                    needed.add("tcl_eval")
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
+                    needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
+                    # Multi-word bodies concat with spaces; also each body
+                    # part is run through _emit_value which may need
+                    # tcl_append for interpolated strings.
+                    for arg in args:
+                        _scan_value(arg)
+                    if len(args) > 2 or (
+                        len(args) > 1
+                        and not args[0].startswith(("#", "-"))
+                        and not args[0].lstrip("-").isdigit()
+                    ):
+                        needed.add("tcl_append")
+                elif command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
+                    # ``namespace eval ns arg1 arg2 ...`` with dynamic
+                    # script args: evaluated through WASM, not fallback.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_append")
+                    # Scan each script arg as a runtime value (not body text)
+                    # so array-element refs ($arr($key)) pull in tcl_array_get.
+                    for a in args[2:]:
+                        _scan_value(a)
+                elif command == "::unset":
+                    for a in args:
+                        if _parse_array_ref(a) is not None:
+                            needed.add("tcl_array_unset_element")
+                        else:
+                            # Whole-variable unset: may need array_unset to
+                            # clear an array table when the var is an alias.
+                            needed.add("tcl_array_unset")
+                elif command == "::catch":
+                    needed.add("tcl_catch_enter")
+                    needed.add("tcl_catch_leave")
+                    needed.add("tcl_catch_result")
+                    needed.add("tcl_catch_has_error")
+                    needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_return_set")
+                    needed.add("tcl_catch_options")
+                    needed.add("tcl_error_full")
+                elif command == "error" and len(args) >= 2:
+                    # 3-arg ``error msg ?info? ?code?`` form — the
+                    # bespoke ``cmds/error_.py`` emitter routes
+                    # through ``tcl_cmd_error_full``.  Pure-math
+                    # modules without an ``error`` site shouldn't
+                    # pull this import, so it's conditional on the
+                    # arity here (not added in the always-on
+                    # block lower down).
+                    needed.add("tcl_error_full")
+                # Scan all arguments for command substitutions.  For
+                # body-taking commands (``proc``, ``namespace eval``,
+                # ``catch``, etc.) the args are source text re-parsed
+                # by the lowerer, not values emitted at runtime — mark
+                # them so the scan doesn't over-import tcl_append.
+                is_body = command_emits_nothing(command) or command == "::catch"
+                for arg in args:
+                    _scan_value(arg, is_body_text=is_body)
+            case IRAssignValue(name=name, value=value):
+                _scan_qualified_name(name)
+                _scan_value(value)
+                _scan_value_for_array_refs(value)
+            case IRAssignConst(name=name):
+                _scan_qualified_name(name)
+            case IRIncr(name=name, amount=amount):
+                _scan_qualified_name(name)
+                if isinstance(amount, str):
+                    _scan_value(amount)
+                    _scan_value_for_array_refs(amount)
+                # Issue #262: route through ``tcl_incr`` to get the
+                # strict-integer guard (rejects float strings like
+                # ``"52.60"`` rather than silently truncating).
+                needed.add("tcl_incr")
+                needed.add("tcl_obj_new_int")
+            case IRExprEval(expr=expr):
+                _scan_expr(expr)
+            case IRAssignExpr(name=name, expr=expr):
+                _scan_qualified_name(name)
+                _scan_expr(expr)
+                # ``set r [expr $v]`` (var-only RHS) re-parses the
+                # var's value as an expression at runtime — pull in
+                # the canonicaliser used by the IRAssignExpr emitter
+                # for the ``ExprVar`` shape (compExpr-1.4 / expr-58.x
+                # subnormal pre-evaluation).
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
+            case IRReturn(value=value, expr=expr):
+                if value is not None:
+                    _scan_value(value)
+                if expr is not None:
+                    _scan_expr(expr)
+            case IRBarrier(command=barrier_cmd, args=barrier_args):
+                # Eval-fallback path always needs tcl_eval.  Also pull
+                # in the catch-/return-flag inspectors so the wrapper
+                # that follows the eval can detect a body-raised
+                # ``error`` / ``return`` and unwind out of the
+                # surrounding compiled proc — without these, control
+                # falls through to the next statement and a strict
+                # ``$x`` read traps with a misleading "no such
+                # variable" because the body never finished setting
+                # up ``x``.  Inert at top level (``::top``) where the
+                # check is skipped.
+                needed.add("tcl_eval")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_check_return")
+                needed.add("tcl_flow_take_return")
+                if barrier_cmd in ("catch", "::catch"):
+                    # Catch barriers may be AOT-compiled (when the body
+                    # is a static literal) — ensure the catch runtime
+                    # imports are present so the emitter can use them.
+                    needed.add("tcl_catch_enter")
+                    needed.add("tcl_catch_leave")
+                    needed.add("tcl_catch_result")
+                    needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_catch_options")
+                    needed.add("tcl_error_full")
+                elif barrier_cmd == "uplevel":
+                    needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
+                    needed.add("tcl_frame_depth_restore")
+                    needed.add("tcl_uplevel_eval")
+                    # The body may contain ``$var``/``[cmd]`` references
+                    # that have to be resolved BEFORE eval — scan for
+                    # interpolation helpers.
+                    for arg in barrier_args:
+                        _scan_value(arg)
+                elif (
+                    barrier_cmd == "namespace"
+                    and barrier_args
+                    and barrier_args[0] == "eval"
+                    and len(barrier_args) > 2
+                ):
+                    # ``namespace eval ns arg1 arg2 ...`` with dynamic script
+                    # args: emitted via WASM assembly (not fallback), so each
+                    # script arg is evaluated through ``_emit_value`` and may
+                    # need ``tcl_append``, ``tcl_array_get``, etc.
+                    needed.add("tcl_append")
+                    for a in barrier_args[2:]:
+                        _scan_value(a)
+                elif (
+                    barrier_cmd == "return"
+                    and barrier_args
+                    and len(barrier_args) == 3
+                    and barrier_args[0] == "-code"
+                    and barrier_args[1] == "error"
+                ):
+                    # ``return -code error <msg>`` emits the message
+                    # inline via ``_emit_value``; scan it so the
+                    # interpolation helpers (``tcl_append``, maybe
+                    # ``tcl_array_get`` for ``$arr(key)`` references)
+                    # show up in the module's import list.
+                    _scan_value(barrier_args[2])
+            case IRBlock(body=body):
+                # ``namespace eval`` body inlined; recurse into its
+                # statements so any runtime helpers they need (e.g.
+                # tcl_append for interpolated strings) show up in
+                # the module's import list.
+                _scan_script(body)
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    _scan_expr(clause.condition)
+                    _scan_script(clause.body)
+                if else_body:
+                    _scan_script(else_body)
+            case IRFor(init=init, condition=condition, body=body, next=next_s):
+                _scan_script(init)
+                _scan_expr(condition)
+                _scan_script(body)
+                _scan_script(next_s)
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
+            case IRWhile(condition=condition, body=body):
+                _scan_expr(condition)
+                _scan_script(body)
+                # See _emit_while: body's eval-fallback (e.g. dict
+                # update) may set ``break_flag`` / ``continue_flag``;
+                # the compiled loop probes these via
+                # ``flow_consume_*`` after the body to propagate the
+                # signal.
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+            case IRForeach(body=body):
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                _scan_script(body)
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+            case IRSwitch(
+                subject=subject,
+                arms=arms,
+                default_body=default_body,
+                mode=mode,
+                patterns_braced=patterns_braced,
+            ):
+                if mode == "glob":
+                    needed.add("tcl_string_match")
+                elif mode == "regexp":
+                    # No WASM regex matcher: the regexp switch is
+                    # re-invoked *wholesale* through the runtime via the
+                    # eval fallback (see _emit_statement's IRSwitch case).
+                    # Neither the subject nor the arm bodies are emitted
+                    # as WASM, so only the eval/flow imports an IRBarrier
+                    # needs are required — skip scanning the subject and
+                    # bodies to avoid pulling in unused imports.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_catch_has_error")
+                    needed.add("tcl_flow_check_return")
+                    needed.add("tcl_flow_take_return")
+                else:
+                    needed.add("tcl_string_equal")
+                if mode != "regexp":
+                    # The subject may be a command substitution or
+                    # interpolated string — scan it so the codegen's
+                    # ``_emit_value`` call in ``_emit_str_value``
+                    # (which now routes ``ExprRaw`` through the full
+                    # value-emitter) can reach ``tcl_append`` /
+                    # ``tcl_list_length`` / etc.  Without this the
+                    # interpolation emitter degrades to
+                    # ``_emit_obj_literal`` and the subject compares
+                    # against its raw source text rather than its
+                    # runtime value.
+                    _scan_value(subject)
+                    if not patterns_braced:
+                        # Separate-word patterns (``switch -- $s $pat body``)
+                        # are emitted via ``_emit_value`` and may carry
+                        # ``$var`` / ``[cmd]`` / ``$arr(key)`` substitutions
+                        # that need their own runtime imports (``tcl_append``
+                        # / ``tcl_array_get`` / …).  Braced-block patterns are
+                        # literal list elements and need no scan.
+                        for arm in arms:
+                            _scan_value(arm.pattern)
+                    for arm in arms:
+                        if arm.body:
+                            _scan_script(arm.body)
+                    if default_body:
+                        _scan_script(default_body)
+            case IRCatch(body=body):
+                needed.add("tcl_catch_enter")
+                needed.add("tcl_catch_leave")
+                needed.add("tcl_catch_result")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_return_set")
+                needed.add("tcl_catch_set_ok_result")
+                needed.add("tcl_catch_options")
+                needed.add("tcl_error_full")
+                _scan_script(body)
+            case IRTry(body=body, finally_body=finally_body):
+                _scan_script(body)
+                if finally_body:
+                    _scan_script(finally_body)
+
+    # Scan top-level
+    _scan_script(ir_module.top_level)
+
+    # Scan procedures
+    for proc in ir_module.procedures.values():
+        _scan_script(proc.body)
+
+    # Scan methods
+    if ir_module.methods:
+        for method in ir_module.methods.values():
+            _scan_script(method.body)
+
+    # Always include TclObj lifecycle imports — every non-trivial module
+    # needs them for value creation, storage, and arithmetic unboxing.
+    needed.update(_OBJ_LIFECYCLE_IMPORTS)
+
+    # Always include error and eval — error for traps, eval for
+    # interpreter fallback on uncompiled commands.  tcl_diag_set is
+    # also always imported so trap messages can be resolved against
+    # the sidecar source-location map.  tcl_global_set / get cover
+    # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
+    # that keeps ``::top`` writes visible to eval fallbacks.
+    needed.add("tcl_error")
+    needed.add("tcl_error_via_return")
+    needed.add("tcl_eval")
+    needed.add("tcl_ns_set")
+    needed.add("tcl_ns_restore")
+    needed.add("tcl_diag_set")
+    needed.add("tcl_global_set")
+    needed.add("tcl_global_get")
+    # Strict variable-read variants — used by ``_emit_var_read_obj`` so
+    # that ``$x`` / ``set x`` / ``expr {$x}`` raise ``can't read
+    # "<name>": no such variable`` when the variable has never been
+    # set.  Without these the WASM backend silently returned 0 / empty
+    # string and any loop driven by a missing variable ran forever
+    # (issue #263 — wasm-ignores-missing-var).  ``tcl_var_unset_error``
+    # is the helper the WASM-local-mirror read path emits inline after
+    # a ``local.get`` returns 0.
+    needed.add("tcl_global_get_or_error")
+    needed.add("tcl_var_unset_error")
+    # Dynamic-name var path — ``set $x v`` / ``append ::$n v`` etc.
+    # The codegen routes any name token containing a ``$`` / ``[``
+    # substitution through ``tcl_var_resolve`` / ``tcl_var_set`` so
+    # the runtime can dispatch to the right storage (``::``-qualified
+    # globals, array elements, alias chasing, proc-local fallback)
+    # after substituting the name.  ``tcl_append`` is the concat
+    # primitive ``_emit_value`` uses to assemble the substituted
+    # name from its literal + ``${var}`` parts — without it the
+    # interpolation fallback emits a literal-string TclObj
+    # (``::${tracevar}``) and the var write goes to the wrong key.
+    # Without these imports the dynamic branch in
+    # ``_emit_var_read_obj`` / ``_emit_var_write_obj_impl`` silently
+    # degrades to a literal lookup.
+    needed.add("tcl_var_resolve")
+    needed.add("tcl_var_set")
+    needed.add("tcl_append")
+    # Proc-local array directory key resolution.  The eval-side
+    # ``array`` command (``runtime/zig/cmds/array.zig``) routes every
+    # array-name argument through ``frame_resolve_array_name`` so an
+    # unaliased proc-local lands in the synthetic
+    # ``::__local::<depth>::<name>`` directory entry.  The compiled
+    # ``_emit_array_name_obj`` path mirrors this so a write that
+    # falls through to the eval fallback (``array set arr $args``,
+    # parsed lazily) and a subsequent compiled read (``array names
+    # arr``) reach the *same* directory entry.  Without this, an
+    # ``array set arr $listVar`` (eval-fallback path) deposited keys
+    # under ``::__local::1::arr`` while ``array names arr``
+    # (compiled) read from ``::ns::arr``, returning empty — observed
+    # as ``tcltest::test`` losing every ``-body`` / ``-result`` /
+    # ``-match`` value passed via ``$args`` and the trace stem
+    # trapping inside the arg-parser loop.
+    needed.add("frame_resolve_array_name")
+    # Register each compiled proc by name so the interpreter's
+    # host-bridge dispatch can find it when an interpreted caller
+    # (a Tcl-source proc body walked by eval_script) invokes a
+    # compiled helper.  The frame helpers are also pulled in so
+    # compiled procs can push a frame + bind params (necessary for
+    # eval-fallbacks inside a proc body to resolve ``$var`` via
+    # ``var_resolve``).  Only needed when the module has any procs.
+    if ir_module.procedures:
+        needed.add("tcl_proc_register_compiled")
+        # Rename-aware dispatch guard for proc calls in command
+        # substitutions under builtin distrust — see ``_emit_command_subst``.
+        needed.add("tcl_proc_lookup")
+        needed.add("tcl_proc_get_func_idx")
+        needed.add("tcl_exec_trace_quiescent")
+        # Stash the source-text body on every compiled proc whose
+        # body source survived lowering so ``info body`` returns the
+        # original ``proc`` body verbatim rather than the empty string
+        # the AOT path would otherwise leave behind.  The codegen
+        # prologue skips the call when ``body_source is None``.
+        needed.add("tcl_proc_set_body_source")
+        # Raw-bytes sibling: stash the params spec via data-segment
+        # ptr/len so ``info args`` materialises a TclObj on demand.
+        # The raw shape avoids the per-proc ``tcl_obj_retain`` that
+        # cascades into tcltest bootstrap failures (see
+        # ``proc_set_params_source_raw``'s docstring).
+        needed.add("tcl_proc_set_params_source_raw")
+        needed.add("tcl_frame_push")
+        needed.add("tcl_frame_pop")
+        # Proc-error frame stamp — the epilogue calls this just before
+        # ``tcl_frame_pop`` so any error-propagation path through this
+        # proc adds ``(procedure "X" line N)`` to ``::errorInfo``.
+        needed.add("tcl_proc_stamp_error_frame")
+        needed.add("tcl_frame_set_argv")
+        needed.add("tcl_frame_get_argv")
+        # Phase 8: stamp ``info frame`` metadata on the new frame
+        # so callers inside the body get useful diagnostics.  The
+        # prologue emits ``frame_set_type`` (always PROC) plus
+        # ``frame_set_proc_name`` (the FQ name of the proc).  The
+        # body script + per-command line tracking are follow-ups.
+        needed.add("tcl_frame_set_type")
+        needed.add("tcl_frame_set_proc_name")
+        # Phase 8 follow-up: stamp ``frame_set_script`` from the
+        # compiled-proc prologue so ``info frame -script`` returns
+        # the proc's body for compiled procs (interpreted procs were
+        # already covered).  No-op for synthetic procs without a
+        # body_source.
+        needed.add("tcl_frame_set_script")
+        # Record the formal-parameter spec on the frame so ``info
+        # locals`` / ``info vars`` enumerate the proc's formals in
+        # *declaration* order.  The prologue only emits the call when
+        # the body actually references ``info locals`` / ``info vars``,
+        # but the import has to be available for that conditional stamp.
+        needed.add("tcl_frame_set_params")
+        # Phase 8 follow-up: per-call-site ``frame_set_line`` stamp
+        # so ``info frame -line`` returns the source line of the
+        # currently-executing command rather than the proc's
+        # entry-point line.
+        needed.add("tcl_frame_set_line")
+        # Phase 8 follow-up: prologue claims line-stamp ownership so
+        # nested ``eval_script`` calls don't overwrite the per-stmt
+        # stamps emitted from compiled bodies.
+        needed.add("tcl_frame_claim_line_codegen")
+        # Phase 7: indexed local-variable accessors.  Always pulled
+        # in for compiled procs so any slot-resolved name can route
+        # to the indexed array regardless of which proc body
+        # references it.
+        needed.add("tcl_frame_local_at")
+        needed.add("tcl_frame_local_set_at")
+        # The proc-name TclObj is built via obj_new_string from the
+        # FQ-name literal in the data segment; pull in the helper
+        # unconditionally for procs so the prologue can construct it.
+        needed.add("tcl_obj_new_string")
+        # Compiled procs need to detect & propagate signal flags
+        # (``error_flag`` / ``return_flag``) raised by callees and
+        # eval-fallback bodies.  Pulled in for any module with procs
+        # since any callee may raise either flag — see the
+        # ``_emit_error_flag_check_and_return`` /
+        # ``_emit_signal_check_and_return`` callsites in
+        # ``_commands.py``.  Pure-arithmetic top-level scripts (no
+        # procs) don't trigger the bridge so they skip these.
+        needed.add("tcl_catch_has_error")
+        needed.add("tcl_flow_check_return")
+        needed.add("tcl_flow_take_return")
+        # ``return -code break`` / ``return -code continue`` from a
+        # compiled callee leave a signal flag set; the per-callsite
+        # probe early-returns from the WASM function so the proc
+        # dispatcher can route the signal to the caller's enclosing
+        # loop.  Always include the import alongside the other flow
+        # helpers when the module has procedures.
+        needed.add("tcl_flow_check_signal_loop")
+        # ``variable X`` / ``global X`` inside a compiled proc emit
+        # ``tcl_frame_alias_named`` so an interpreter-side eval inside
+        # the body (a ``while``-with-bracket-cond, an explicit ``eval
+        # { ... }``, the eval-fallback for an unknown command) sees
+        # the same alias the compiled code uses.  Without this, the
+        # body's ``incr X`` lands in a fresh frame-local while
+        # compiled reads/writes go to the ns var -- two divergent
+        # views of the same name.
+        needed.add("tcl_frame_alias_named")
+        needed.add("tcl_frame_alias_global")
+        # ``upvar 1 other local`` / ``upvar N other local`` / ``upvar
+        # #N other local`` (with N > 0) compiled-proc support: register
+        # the local as an alias to a variable in another frame so the
+        # callee's ``set local x`` lands in the caller's slot.  Used by
+        # opt.test (``OptDoAll``, ``OptDoOne``, ``OptCurSetValue``,
+        # ``OptTreeVars``), uplevel.test, abstractlist.test, reg.test.
+        needed.add("tcl_frame_alias_frame_var")
+        needed.add("tcl_frame_get_depth")
+        needed.add("tcl_upvar_resolve_depth")
+        # Static-relative upvar helper (skips cross-interp frames).
+        needed.add("tcl_upvar_walk_relative")
+        # Pending-argv0 ABI: the callee prologue reads this slot
+        # (cleared on read) to pick up the invoked word recorded by
+        # the caller immediately before the compiled ``call``.  The
+        # set side is emitted per-call-site; always pulling in both
+        # halves keeps host-bridge entry points working (the take
+        # returns 0 and the prologue falls back to the qname tail).
+        needed.add("tcl_frame_set_pending_argv0")
+        needed.add("tcl_frame_take_pending_argv0")
+        needed.add("tcl_local_set")
+        needed.add("tcl_local_get")
+        # Strict variant for compiled-proc var reads — see issue #263.
+        needed.add("tcl_local_get_or_error")
+        # Phase 6 follow-up: silent variants used by the frame-sync /
+        # frame-readback codegen paths so they don't fire variable
+        # traces on every interpreter boundary.
+        needed.add("tcl_local_set_silent")
+        needed.add("tcl_local_get_silent")
+        # tcl_list is used by the compiled-proc prologue to build
+        # the invocation argv list, element by element, before
+        # stashing it via frame_set_argv.
+        needed.add("tcl_list_create")
+        # Variadic (``args`` tail) procs need ``llength`` / ``lindex``
+        # in the prologue so the argv-capture loop can expand the
+        # packed ``args`` list into individual elements — otherwise
+        # ``[llength [info level 0]]`` is off by one for
+        # ``proc p {args} {}`` and collapses surplus words into one
+        # element for ``proc p {x args} {}``.  Only add when at least
+        # one proc in the module has an ``args`` tail; pure-arith
+        # fixtures stay minimal.
+        for proc in ir_module.procedures.values():
+            if proc.params and proc.params[-1] == "args":
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                # Call sites pack surplus call-site args into the
+                # trailing ``args`` slot via ``_emit_args_list`` →
+                # ``tcl_cmd_lappend``.  When the tail contains any
+                # non-literal element (``$var`` / ``[cmd]``) the
+                # all-literals compile-time concat path doesn't
+                # apply, so the runtime needs ``tcl_lappend``
+                # available.  Without this, the fallback compile-
+                # time path quotes ``${x}`` as the literal string
+                # and the value never reaches the callee.
+                needed.add("tcl_lappend")
+                break
+
+    return needed

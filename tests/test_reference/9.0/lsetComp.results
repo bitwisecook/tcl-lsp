@@ -1,0 +1,29 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     lsetComp.test
+DATE     2026-05-06T21:17:21Z
+---
+PASS lsetComp-1.1
+PASS lsetComp-2.1
+PASS lsetComp-2.2
+PASS lsetComp-2.3
+PASS lsetComp-2.4
+PASS lsetComp-2.5
+PASS lsetComp-2.6
+PASS lsetComp-2.7
+PASS lsetComp-2.8
+PASS lsetComp-2.9
+PASS lsetComp-3.1
+PASS lsetComp-3.2
+PASS lsetComp-3.3
+PASS lsetComp-3.4
+PASS lsetComp-3.5
+PASS lsetComp-3.6
+PASS lsetComp-3.7
+PASS lsetComp-3.8
+PASS lsetComp-3.9
+---
+TOTAL   19
+PASSED  19
+SKIPPED 0
+FAILED  0

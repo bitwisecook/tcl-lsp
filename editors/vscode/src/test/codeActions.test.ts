@@ -85,9 +85,17 @@ suite("Code Actions", () => {
 
   test("provides guided collect bootstrap fix for IRULE1005", async () => {
     await activate(irulesDocUri);
-    // IRULE1005 is a deep diagnostic — wait for at least 4 diagnostics
-    // (3 basic + 1 deep) so the async deep pass has time to complete.
-    const diagnostics = await waitForDiagnostics(irulesDocUri, { minCount: 4 });
+    // IRULE1005 is a deep diagnostic — it fires after the initial basic
+    // pass has produced several IRULE1001/IRULE1004/W211 diagnostics.
+    // Waiting on ``minCount`` alone returns too early, so poll until
+    // IRULE1005 specifically appears.
+    const diagnostics = await waitForDiagnostics(irulesDocUri, {
+      predicate: (diags) =>
+        diags.some((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "IRULE1005";
+        }),
+    });
 
     const irule1005 = diagnostics.find((d) => {
       const code = typeof d.code === "object" ? d.code.value : d.code;

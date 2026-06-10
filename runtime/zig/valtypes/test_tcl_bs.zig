@@ -96,17 +96,21 @@ test "consume_bs_escape — \\xNN with 1 and 2 hex digits" {
     try testing.expectEqual(@as(u32, 1), r.written);
     try testing.expectEqual(@as(u8, 0x09), out[0]);
 
-    // \xFFExtra — only the first two hex digits are taken.
+    // \xFFExtra — only the first two hex digits are taken; Tcl 9
+    // emits the codepoint U+00FF as 2 UTF-8 bytes (0xC3 0xBF).
     r = one("xFFExtra", &out);
     try testing.expectEqual(@as(u32, 3), r.next_si);
-    try testing.expectEqual(@as(u8, 0xFF), out[0]);
+    try testing.expectEqual(@as(u32, 2), r.written);
+    try testing.expectEqual(@as(u8, 0xC3), out[0]);
+    try testing.expectEqual(@as(u8, 0xBF), out[1]);
 
-    // \x with no following hex digit at all → emits 0x00 and only
+    // \x with no following hex digit at all → emits the literal
+    // ``x`` byte (Tcl 9: unknown-escape rule, subst-3.1) and only
     // consumes the ``x``.
     r = one("xz", &out);
     try testing.expectEqual(@as(u32, 1), r.next_si);
     try testing.expectEqual(@as(u32, 1), r.written);
-    try testing.expectEqual(@as(u8, 0x00), out[0]);
+    try testing.expectEqual(@as(u8, 'x'), out[0]);
 }
 
 // ---- \uNNNN ---------------------------------------------------------
@@ -182,10 +186,13 @@ test "consume_bs_escape — octal \\NNN" {
     try testing.expectEqual(@as(u32, 1), r.next_si);
     try testing.expectEqual(@as(u8, 7), out[0]);
 
-    // \377 — max byte value.
+    // \377 — max byte value as codepoint U+00FF; Tcl 9 emits 2 UTF-8
+    // bytes (0xC3 0xBF).
     r = one("377", &out);
     try testing.expectEqual(@as(u32, 3), r.next_si);
-    try testing.expectEqual(@as(u8, 0xFF), out[0]);
+    try testing.expectEqual(@as(u32, 2), r.written);
+    try testing.expectEqual(@as(u8, 0xC3), out[0]);
+    try testing.expectEqual(@as(u8, 0xBF), out[1]);
 
     // ``8`` and ``9`` are NOT octal digits — Tcl treats ``\8`` and
     // ``\9`` as unknown escapes and emits the literal byte (cf.

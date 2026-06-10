@@ -31,8 +31,8 @@ lexicographically smallest name is chosen.
 
 ## File-path anchors
 
-- `core/analysis/analyser.py` -- `_collect_defined_vars()`, `_find_case_mismatch()`
-- `core/commands/registry/models.py` -- `safe_on_uninit` field
+- `analyser/_analyser/_diag_var_lifecycle.py` -- `_collect_defined_vars()`, `_find_case_mismatch()`
+- `compiler/registry/models.py` -- `safe_on_uninit` field
 
 ## Test anchors
 

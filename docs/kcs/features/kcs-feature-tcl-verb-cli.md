@@ -1,5 +1,8 @@
 # KCS: feature — Unified Tcl Verb CLI
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 `tcl.pyz` provides a single verb-based CLI for optimisation, diagnostics/linting, validation, formatting, symbol/graph extraction, iRules event metadata lookups, legacy-pattern conversion guidance, disassembly, syntax highlighting, WASM compilation, compiler exploration, and KCS help search.
@@ -22,10 +25,10 @@ python tcl.pyz diagram script.tcl --json
 python tcl.pyz callgraph script.tcl --json
 python tcl.pyz symbolgraph script.tcl --json
 python tcl.pyz dataflow script.tcl --json
-python tcl.pyz event-order rule.irule --dialect f5-irules --json
-python tcl.pyz event-info HTTP_REQUEST --json
+python f5.pyz irule event-order rule.irule --json
+python f5.pyz irule event-info HTTP_REQUEST --json
 python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
-python tcl.pyz convert rule.irule --json
+python tcl.pyz find-legacy rule.irule --json
 python tcl.pyz dis script.tcl
 python tcl.pyz compwasm script.tcl -o out.wasm --wat-output out.wat
 python tcl.pyz highlight script.tcl --force-colour
@@ -53,13 +56,13 @@ python tcl.pyz venv delete .venv
 
 ## Operational context
 
-- Entry module: `explorer/tcl_cli.py`
-- Zipapp entrypoint: `scripts/zipapp_tcl_main.py`
-- Build command: `python scripts/build_zipapp.py tcl --version <v> --output <path>`
+- Entry module: `tooling/tcl/main.py`
+- Zipapp entrypoint: `scripts/zipapp-main/tcl.py`
+- Build command: `python scripts/build/zipapps.py tcl --version <v> --output <path>`
 - Make target: `make zipapp-tcl`
 - KCS DB prerequisite for packaging: `make kcs-db`
 - Shared metadata lookups for `event-info` / `command-info` are provided by
-  `core/commands/registry/info.py` and reused by CLI and AI consumers.
+  `compiler/registry/info.py` and reused by CLI and AI consumers.
 - Invocation name contract: when invoked as `irule` (symlink/rename), the CLI
   uses `irule` for usage/version text and defaults dialect to `f5-irules`.
 
@@ -88,13 +91,13 @@ python tcl.pyz venv delete .venv
 - `event-order`: emits events found in source ordered by canonical iRules firing order (`--json` supported).
 - `event-info`: emits iRules event metadata and valid command counts for a named event (`--json` supported).
 - `command-info`: emits command registry metadata for a named command and dialect (`--json` supported).
-- `convert`: emits diagnostics that map to known modernisation rewrites (`--json` supported).
+- `find-legacy`: emits diagnostics that map to known modernisation rewrites (`--json` supported, detection only — use `opt` to apply rewrites).
 - `dis`: compiles resolved source and emits bytecode disassembly.
 - `compwasm`: compiles resolved source to a WASM binary (`--wat-output` optional).
 - `highlight`: emits syntax-highlighted output in ANSI or HTML (`--format`, `--no-colour`, `--force-colour`).
 - `diff`: compares two inputs at parser AST, lowered IR, and CFG layers (`--show` and `--json` supported).
 - `explore`: forwards combined source into compiler-explorer views.
-- `help`: searches `core/help/kcs_help.db` and reports KCS feature matches (`--dialect` optionally narrows matches).
+- `help`: searches `shared/help/kcs_help.db` and reports KCS feature matches (`--dialect` optionally narrows matches).
 
 ## Exit-code contract
 
@@ -104,10 +107,10 @@ python tcl.pyz venv delete .venv
 
 ## File-path anchors
 
-- `explorer/tcl_cli.py`
-- `core/analysis/semantic_graph.py`
-- `core/commands/registry/info.py`
-- `tests/test_core_lift_consumers.py`
-- `scripts/zipapp_tcl_main.py`
-- `scripts/build_zipapp.py`
+- `tooling/tcl/main.py`
+- `analyser/semantic_graph.py`
+- `compiler/registry/info.py`
+- `tests/test_tcl_cli.py`
+- `scripts/zipapp-main/tcl.py`
+- `scripts/build/zipapps.py`
 - `Makefile`

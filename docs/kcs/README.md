@@ -37,6 +37,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — stale incremental cache produces wrong diagnostics.
 - [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or
   hover ranges point at the wrong span.
+- [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
+  — a highlight over a braced word covers `{$condition` instead of
+  `{$condition}`, dropping the closing delimiter.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
@@ -53,9 +56,16 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
-- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — which
-  environment variables steer the Rust LSP shim and the JSON-RPC test
-  client.
+- [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —
+  which `f5` verb to pick for filter / find / rename tasks.
+- [kcs-qa-tcl-lsp-annotations.md](kcs-qa-tcl-lsp-annotations.md) — which
+  `# tcl-lsp:` and `# noqa` comments the analyser understands.
+- [kcs-qa-how-tcl-lsp-loads-configuration.md](kcs-qa-how-tcl-lsp-loads-configuration.md)
+  — the five places the server reads configuration from, and which
+  layer wins when they disagree.
+- [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
+  — the nine INI sections (seven shared plus the location-specific
+  `[global]` and `[project]`), their keys, and which values are valid.
 
 ## How-Tos
 
@@ -79,6 +89,62 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-bind-sublime-tcl-commands.md](kcs-howto-bind-sublime-tcl-commands.md)
+  — add keyboard shortcuts for the Tcl package's commands in Sublime
+  Text using the bundled example keymap.
+- [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
+  — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
+  factory-created instance commands) so the call graph, arity checker,
+  and trait inferencer understand them.
+- [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
+  — add first-class registry support for a Tcl package (sqlite3,
+  tcllib, etc.) so the shipped distribution recognises its commands
+  with hover docs, completion, arity checks, and side-effect
+  classification.
+- [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
+  — bulk-readdress virtual servers into a new subnet with `f5 query`.
+- [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)
+  — move every object from one partition into another, including
+  route-domain transforms.
+- [kcs-howto-compose-query-streams.md](kcs-howto-compose-query-streams.md)
+  — filter and transform streams of BIG-IP objects with `select`,
+  `map`, `any`, `all`, `sort`, `unique`, and friends.
+- [kcs-howto-audit-config-with-query.md](kcs-howto-audit-config-with-query.md)
+  — audit a config for orphans, naming-convention violations, port
+  policy, partition leaks, and pool-member sanity using `f5 query`.
+- [kcs-howto-audit-server-certs-with-query.md](kcs-howto-audit-server-certs-with-query.md)
+  — verify the cert on each device's `sys file ssl-cert` matches
+  the cert each virtual is actually serving; find devices where a
+  cert push failed in a multi-tier deployment.
+- [kcs-howto-reproduce-http-monitor-with-query.md](kcs-howto-reproduce-http-monitor-with-query.md)
+  — reproduce an `ltm monitor http(s)` from your laptop, honouring
+  the 5,120-byte response-check ceiling (F5 KB K3451) so the
+  result matches what the device sees.
+- [kcs-howto-verify-migration-before-after-with-query.md](kcs-howto-verify-migration-before-after-with-query.md)
+  — verify a migration before/after straight from two UCS files:
+  config parity (IPs, self-IP lockdowns, monitors, certs) with a
+  match column, plus live probes that prove the VIPs still listen,
+  serve the same cert, and answer `GET /` the same way.
+- [kcs-howto-read-encrypted-ucs-archives.md](kcs-howto-read-encrypted-ucs-archives.md)
+  — run any `f5` verb against a passphrase-protected UCS (`tmsh save
+  sys ucs ... passphrase`); supply the passphrase via
+  `F5_UCS_PASSPHRASE` or a secure prompt (`extract` / `convert` add
+  `--passphrase-env` / `--no-passphrase-prompt`).
+- [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
+  — compose multi-step transformations (rename + readdress + policy
+  edit) across the config in one `;`-separated query.
+- [kcs-howto-rewrite-pool-refs-in-irules.md](kcs-howto-rewrite-pool-refs-in-irules.md)
+  — rename a pool everywhere, including inside iRule bodies.
+- [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)
+  — filter BIG-IP objects by arbitrary property predicates.
+- [kcs-howto-script-against-f5-query-from-python.md](kcs-howto-script-against-f5-query-from-python.md)
+  — drive the query engine from a Python script via the `f5q`
+  alias, get typed `ObjectRef` / `PathRef` results back, render
+  with a built-in plugin, or ship your own renderer in one
+  `@renderer` decorator.
+- [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
+  — empirical reference of Tcl 9.0.3 variable-handling behaviour
+  with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.
 
 ## Tcl 9 correctness
 
@@ -90,15 +156,15 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## Functionality (commands, features, and tools)
 
-65 per-feature KCS notes live under [`features/`](features/README.md).
+74 per-feature KCS notes live under [`features/`](features/README.md).
 The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-120 per-code KCS notes live under [`codes/`](codes/README.md) — 92
-diagnostic pages (E, W, S, T, and IRULE families) and 28 optimisation
+143 per-code KCS notes live under [`codes/`](codes/README.md) — 112
+diagnostic pages (E, W, S, T, and IRULE families) and 31 optimisation
 pages (O family). Each page follows the diagnostic or optimisation
 template, tags the compiler pass that produces it, explains in plain
 English why the check exists, shows a triggering example and the fix,

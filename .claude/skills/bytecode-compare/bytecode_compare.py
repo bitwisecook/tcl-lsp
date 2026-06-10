@@ -76,7 +76,7 @@ def _split_bytecode_sections(disasm_text: str) -> list[str]:
     # proc body sections by their instruction content so that comparison
     # is independent of proc body ordering.
     top = sections[0]
-    procs = sorted(sections[1:], key=lambda s: _section_sort_key(s))
+    procs = sorted(sections[1:], key=_section_sort_key)
     return [top] + procs
 
 
@@ -167,9 +167,9 @@ def ref_dir(version: str) -> Path:
 
 def regenerate_ours() -> None:
     """Regenerate our bytecode reference files."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen import codegen_module, format_module_asm
-    from core.compiler.lowering import lower_to_ir
+    from compiler.cfg import build_cfg
+    from compiler.codegen.bytecode import codegen_module, format_module_asm
+    from compiler.lowering import lower_to_ir
 
     OURS_DIR.mkdir(parents=True, exist_ok=True)
     for snippet in sorted(SNIPPETS_DIR.glob("*.tcl")):

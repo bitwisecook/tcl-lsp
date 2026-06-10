@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from core.compiler.value_shapes import is_pure_var_ref, parse_command_substitution
-from core.compiler.var_refs import VarReferenceScanner, VarScanOptions
+from compiler.value_shapes import is_pure_var_ref, parse_command_substitution
+from compiler.var_refs import (
+    VarReferenceScanner,
+    VarScanOptions,
+    command_sub_write_names,
+)
 
 
 def test_is_pure_var_ref_shapes() -> None:
@@ -36,3 +40,24 @@ def test_var_reference_scanner_var_read_role_expansion() -> None:
 
     assert default_scanner.scan_script(source) == set()
     assert role_scanner.scan_script(source) == {"arr", "done"}
+
+
+def test_command_sub_write_names() -> None:
+    # catch result/options vars written inside a substitution.
+    assert command_sub_write_names("[catch {error b} msg opts]") == {"msg", "opts"}
+    assert command_sub_write_names("[catch {set x 1} m]") == {"m"}
+    # regexp/scan literal match vars.
+    assert command_sub_write_names("[regexp {(\\w+)} $s whole sub]") == {"whole", "sub"}
+    assert command_sub_write_names("[scan $s {%d} a]") == {"a"}
+    # Nested substitution.
+    assert command_sub_write_names("[list [catch {x} e]]") == {"e"}
+    # A catch buried in an expr body still writes its var (expr evaluates the
+    # command substitution at run time).
+    assert command_sub_write_names("[expr {[catch {eof $s} tmp] || $tmp}]") == {"tmp"}
+    # A dynamically-named write target (`$dyn`) names a runtime variable, not a
+    # literal write, so it is NOT collected (it would otherwise wrongly suppress
+    # a genuine read of `dyn`).
+    assert command_sub_write_names("[scan $s {%d} $dyn]") == set()
+    # No command substitution → nothing.
+    assert command_sub_write_names("catch {x} e") == set()
+    assert command_sub_write_names("plain text") == set()

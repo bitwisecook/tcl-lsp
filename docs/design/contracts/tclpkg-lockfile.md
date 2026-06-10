@@ -19,7 +19,7 @@ an existing lockfile.
 
 ## File-path anchors
 
-- ``tclpkg/lockfile.py`` — ``LockFile``, ``serialise()``, ``deserialise()``, ``write_lockfile()``
+- ``tooling/tclpkg/lockfile.py`` — ``LockFile``, ``serialise()``, ``deserialise()``, ``write_lockfile()``
 
 ## Test anchors
 

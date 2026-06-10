@@ -13,6 +13,6 @@ open "|$cmd"
 set maybe_path $argv0
 source $maybe_path
 
-uplevel 1 $user_script
+uplevel 1 "eval $user_script"
 regexp {(a+)+$} $user_script
 regexp $user_script $maybe_path

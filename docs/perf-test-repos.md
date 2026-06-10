@@ -10,29 +10,29 @@ separately to run benchmarks.
 
 ```bash
 # Single file
-python3 scripts/perf_semantic_tokens.py /path/to/practcl.tcl
+python3 scripts/dev/perf_semantic_tokens.py /path/to/practcl.tcl
 
 # With simulated network latency (10 ms one-way)
-python3 scripts/perf_semantic_tokens.py --latency-ms 10 /path/to/practcl.tcl
+python3 scripts/dev/perf_semantic_tokens.py --latency-ms 10 /path/to/practcl.tcl
 
 # All .tcl files in a directory (sorted by size, limited to 50)
-python3 scripts/perf_semantic_tokens.py /path/to/tcllib/modules/
+python3 scripts/dev/perf_semantic_tokens.py /path/to/tcllib/modules/
 
 # JSON output for CI
-python3 scripts/perf_semantic_tokens.py --json /path/to/practcl.tcl
+python3 scripts/dev/perf_semantic_tokens.py --json /path/to/practcl.tcl
 ```
 
 **Profiling** (per-phase CPU breakdown with cProfile):
 
 ```bash
 # Full breakdown
-python3 scripts/profile_semantic_tokens.py /path/to/practcl.tcl
+python3 scripts/dev/profile_semantic_tokens.py /path/to/practcl.tcl
 
 # Focus on a specific phase
-python3 scripts/profile_semantic_tokens.py --phase tokens /path/to/practcl.tcl
+python3 scripts/dev/profile_semantic_tokens.py --phase tokens /path/to/practcl.tcl
 
 # Dump profile for snakeviz
-python3 scripts/profile_semantic_tokens.py --dump /tmp/prof.pstats /path/to/practcl.tcl
+python3 scripts/dev/profile_semantic_tokens.py --dump /tmp/prof.pstats /path/to/practcl.tcl
 ```
 
 ## General Tcl

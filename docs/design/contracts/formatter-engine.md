@@ -10,17 +10,27 @@ Formatting is implemented as an engine/config/runtime pipeline and surfaced thro
 
 ## Decision rules / contracts
 
-1. Formatter output should be idempotent for stable inputs and config.
+1. `format_tcl` is **idempotent for every input** — `format_tcl(format_tcl(x))
+   == format_tcl(x)`. Valid Tcl reaches its formatted form in one pass (the
+   confirming pass returns it unchanged). Structurally malformed input (an
+   unbalanced `{` / `[` / `"`) can reconstruct non-idempotently — the lexer
+   swallows the unterminated region to EOF and the reconstruction fabricates a
+   closer a re-parse re-mangles, formerly growing the output by a delimiter on
+   every pass — so `format_tcl` iterates to a fixed point and, if none exists
+   within the pass cap, returns the input unchanged rather than mangle or
+   unboundedly grow un-formattable code. The same `_minify_body_stable` wrapper
+   guards the minifier. (Cost: valid input formats twice — once plus the
+   confirming pass.)
 2. Formatting decisions must preserve parseability and command semantics.
 3. New formatting options require config wiring + regression coverage.
-4. Formatter consumers should import `core/formatting/*` directly; do not add alternate import paths.
+4. Formatter consumers should import `tooling/formatter/*` directly; do not add alternate import paths.
 
 ## File-path anchors
 
-- `core/formatting/config.py`
-- `core/formatting/engine.py`
-- `core/formatting/formatter.py`
-- `lsp/features/formatting.py`
+- `tooling/formatter/config.py`
+- `tooling/formatter/engine.py`
+- `tooling/formatter/formatter.py`
+- `server/features/formatting.py`
 
 ## Failure modes
 
@@ -33,7 +43,6 @@ Formatting is implemented as an engine/config/runtime pipeline and surfaced thro
 - `tests/test_formatter.py`
 - `tests/test_tcl_parse.py`
 - `tests/test_tcl_parse_expr.py`
-- `tests/test_core_lift_consumers.py`
 
 ## Discoverability
 

@@ -4137,6 +4137,371 @@ the leading `\` byte, covering `\<LF>` and `\<CRLF>`).  Self-contained, off
 the hot keystroke path; pin with a nested-body continuation case + a
 dangling-`\`-at-EOF case.
 
+## SYNC-JUN10 family — full rebase onto main HEAD + whole-workspace audit (2026-06-10)
+
+**This is a `Full rebase` (the heavy catch-up mode documented under
+[Audit workflow](#audit-workflow)).**  The `rust` branch had only been
+kept current via the documentary anchor process since main's May-2026
+seven-concern reorganisation — its working tree still carried the *old*
+Python layout (`core/`, `lsp/`, `vm/`, `fuzzing/`, `explorer/`,
+`debugger/`, `tclpkg/`).  Per the Full-rebase trigger "(b) `main` has had
+a path-renaming refactor", the branch tree was reset onto
+`origin/main`@`0becf577` and the Rust workstream re-applied on top:
+
+- **Kept from `origin/main` (the new base):** the entire seven-concern
+  Python tree (`shared/`, `compiler/`, `dialects/`, `analyser/`,
+  `server/`, `tooling/`), the reorganised `tests/` (which is how the
+  **`tests/lsp_e2e/` end-to-end LSP suite** — #547 + #556 — now rides on
+  the branch), `bench/`, `.importlinter`, and all shared infra.  Main's
+  Makefile/CI were **already Rust-aware** (`test-rust` / `check-rust` /
+  `ensure-rust-deps`, guarded on a top-level `Cargo.toml`; `/target/` +
+  `rust/tcl-lsp-rust/.venv/` already in `.gitignore`; the CI `Set up
+  Rust` step), so no infra merge was needed — the overlaid workspace
+  plugs straight in.
+- **Re-applied from `origin/rust` (the Rust workstream):** the `rust/`
+  Cargo workspace (eight member crates), `runtime/rust` + `runtime/rust-spike`,
+  `Cargo.toml` / `Cargo.lock` / `rust-toolchain.toml` / `deny.toml`, the
+  Rust-only design/perf docs (`docs/design/{rust,runtime}/…`,
+  `docs/perf/wasm-tcl9-parity/…`), `rust-rewrite-registries.md`, and this
+  document.
+- **Conformed to main ("follow main"):** seven shared `docs/design/runtime/*.md`
+  files were restored to main's versions (the branch had stale-or-divergent
+  copies — e.g. a pre-reorg `scripts/check_refcount_contract.py` path).  The
+  Python↔Rust opt-in **shim** was re-threaded onto the new layout rather than
+  dropped — see *Shim re-thread* below.
+
+Advances the anchor from `origin/main`@`08babde2` (SYNC-JUN09) to
+`origin/main`@`0becf577` (#571).  Histories remain unrelated (no
+merge-base) — per-file audit of the **9** intervening commits:
+
+> **SYNC-JUN10b follow-up — anchor → `origin/main`@`6d7c4a06` (#570).**
+> Main then landed #570 (*resolve all CodeQL alerts — break import cycles by
+> lifting, plus forward-only cleanups*, 78 files across `compiler/`, `server/`,
+> `analyser/`, `dialects/`, `tooling/` + `.importlinter`).  Absorbed onto the
+> branch by cherry-picking #570 (its parent is exactly the `0becf577` anchor,
+> so it 3-way-merged cleanly).
+>
+> **Audited for Rust relevance — none.**  Every CodeQL fix category is
+> behaviour-preserving: `py/ineffectual-statement` (`...` → `pass`,
+> `await task` → `_ = await task`), `py/unused-import` / `-global` / `-local`
+> (dead-code removal), `py/uninitialized-local-variable` (distinct match/case
+> capture names), `py/mixed-returns` (explicit `return` after an *exhaustive*
+> match — no path change), `py/empty-except` (comments only), `py/cyclic-import`
+> (deferred / lifted imports), and one JS `var data` declaration.  No analyser,
+> compiler, optimiser, or runtime **semantics** changed, so there is **no Rust
+> port row**; the import-cycle lifts merely validate the crate-boundary DAG the
+> Rust workspace already enforces by construction.
+>
+> One Python→Rust **mapping breadcrumb** for future audits: the SCCP/GVN lattice
+> types `LatticeKind` / `LatticeValue` (+ `UNKNOWN` / `OVERDEFINED` / `const` /
+> `constset` / `_to_set`) were relocated verbatim from `core_analyses.py` to the
+> new `compiler/analysis_types.py` — the Rust lattice in `tcl-compiler` is
+> independent and unchanged; only the Python source path moved.
+>
+> Tree parity: among all core Python concern dirs the branch is byte-identical
+> to `origin/main`@`6d7c4a06` except the four intentional Rust-workstream edits
+> (`compiler/parsing/lexer.py` shim — auto-merged, hook still calls
+> `_expand_syntax_active()` / `_irules_brace_separator_active()`;
+> `compiler/rust_spans.py`; the two `tests/lsp_e2e` harness files).
+> `shared.diagnostic` / `shared.tokens` were untouched, so
+> `compiler/rust_spans.py` stays contract-legal (`import-linter` 7/7 kept).
+> The rebased branch therefore tracks main's new head `6d7c4a06`.
+
+| # | commit | classification |
+|---|---|---|
+| #551 | `186f0fbd` | `{*}` expansion truncation + list scaling O(N²) — **out of scope** (WASM/Zig VM; the Rust CST already models `{*}` as an `Expand` marker, CST-PORT strip 5). |
+| #554 | `63434bb6` | variable-trace error wrapping + qualified `foreach` fallback — **in scope** → `SYNC-JUN10-2`. |
+| #556 | `4d17155f` | migrate in-process tests to end-to-end LSP suite — **test infra**; now present on the branch via the rebase (`tests/lsp_e2e/`).  Closes with the `S*` server port. |
+| #559 | `cf3e7a76` | FD leak in WASM test runner — **out of scope** (Zig/WASM runner). |
+| #558 | `7df56eff` | metadata headers on KCS docs — **out of scope** (pure doc). |
+| #560 | `242406e5` | veto inert close-bracket insertions in E201 recovery — **already landed + improved** in Rust (`rust/tcl-lexer/src/structural_index.rs::is_inert` / `inert_for_insert`); the Rust structural-inert-spans map subsumes Python's per-insert check. |
+| #569 | `c0d40285` | dependency bumps — **mechanical**. |
+| #564 | `504cadda` | variable-trace + `info exists` on unset — **out of scope** (bytecode-VM semantics; mirror lands in the future `tcl-vm` crate, tracked T-FIRE / T-COMMIT). |
+| #571 | `0becf577` | suppress general Tcl diagnostics for `f5-bigip` config files — **in scope** → `SYNC-JUN10-1`. |
+
+### Whole-workspace audit (rust code ⇄ main Python ⇄ this doc)
+
+A five-way parallel audit (frontend, mid-end, registry+dialects,
+LSP+analyser, runtime) cross-checked every "landed" claim against the
+actual Rust code and against main's current Python.  Outcome: **the doc
+is broadly accurate** — all of CST-PORT / CST-CONSUMERS / GAP-A1 (frontend),
+the eleven SYNC-MAY31/JUN02 mid-end rows, the registry parity set
+(timerate, const-fold callback library, stub overlay, ~1016 iRules + iApps
+specs), ~90% of the E/W/O diagnostic catalogue + all eight dialect-aware LSP
+feature modules, and the entire T1.1–T1.5 + M1–M4 runtime port verified
+present in code.  Four doc-staleness corrections and two new drift rows:
+
+**Doc-stale (corrected in place where load-bearing):**
+- **SYNC-JUN09-2 is closed-by-design, not an open gap.** Rust reached
+  closer-geometry parity by *delegation*, not by adding the planned
+  `closer_present_in_region` sibling: `rust/.../syntax/descend.rs::terminated`
+  already calls `word_closer_offset` internally (reads the exact predicted
+  bytes), and `rust/tcl-lexer/src/ranges.rs::word_closer_offset` faithfully
+  ports `shared/ranges.py`.  The "three independent copies" shape #540
+  removed on the Python side never existed in Rust.  No sibling needed unless
+  a substring caller later wants the region-relative `base_offset`.
+- **GAP-D1 (lsort options) is closed.** All twelve `OptionSpec` entries are
+  present in `rust/tcl-registry/src/commands/tcl/lsort_.rs`; only the inline
+  comment claiming they were dropped is stale.
+- **Runtime T1.3** uses `Drop` on `VarTable` rather than the
+  explicit-release the doc describes — a post-doc-write safety improvement,
+  not a gap.
+- **`tcl-registry` has no `f5-bigip` dialect** in `dialects.rs` (the bitflags
+  carry `IRULES`/`IAPPS` only; `parse("f5-bigip")` → `None`; no
+  `commands/bigip/`).  This underlies `SYNC-JUN10-1`.
+
+**New drift rows** (`SYNC-JUN10-1`, `SYNC-JUN10-2`) and re-confirmed
+carry-forward deferrals (`SYNC-JUN09-1`, `SYNC-JUN09-3`) below.
+
+### SYNC-JUN10-1 — suppress general Tcl diagnostics for `f5-bigip` configs (#571)
+
+**In scope, behaviour-preserving filter (LSP-server).**  Python #571
+(`server/diagnostics_pipeline.py`) returns an empty analysis result
+**before running the analyser** when the resolved dialect is `f5-bigip`, so
+encrypted BIG-IP config markers (`$M$…$`) are not misread as Tcl variable
+references and a `bigip.conf` does not light up with spurious Tcl
+diagnostics.
+
+**Rust state.**  `rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`
+(and the `analysis_for` path it calls) run the analyser unconditionally —
+there is **no `dialect == "f5-bigip"` early-return** — so the native server
+publishes the exact spurious diagnostics #571 suppresses.  Confirmed
+independently by the registry and LSP audits.
+
+**Port.**  Add the dialect guard at the top of `publish_analyser_diagnostics`
+(return an empty diagnostic set for `f5-bigip`), mirroring the Python
+pipeline.  Pair it with the missing `f5-bigip` registry dialect (see the
+doc-stale note above) so dialect resolution and diagnostic suppression agree.
+Small; LSP-server only.
+
+### SYNC-JUN10-2 — qualified-`foreach` fallback to `IRBarrier` (#554)
+
+**In scope, lowering correctness.**  Python #554 added a `tokens` field to
+`IRForeach` and routes a namespace-qualified loop variable
+(`foreach ::ns::v $list body`) to an `IRBarrier` instead of a structured
+`IRForeach`, because the structured loop cannot bind a qualified target.
+
+**Rust state.**  `rust/tcl-compiler/src/lowering` has **no `tokens` field on
+`IRForeach`** and **no qualified-foreach check** — a qualified loop var falls
+through to a structured loop that binds nothing and runs zero iterations
+(surfacing downstream as a WASM trap when the never-bound variable is read).
+Confirmed by the mid-end audit.
+
+**Port.**  Add the `tokens` field to the Rust `IRForeach`, detect a
+namespace-qualified loop variable in the foreach lowering, and emit an
+`IRBarrier` fallback in that case (mirroring Python).  Pin with a
+`foreach ::g $l {…}` regression.  Medium; lowering + IR vocabulary.
+
+### SYNC-JUN09-1 / SYNC-JUN09-3 — re-confirmed still open
+
+The two parsing-frontend deferrals from SYNC-JUN09 remain unported and were
+re-verified against the current Rust tree: **SYNC-JUN09-1** (lowering body
+re-parse via `descend_token` — `rust/tcl-compiler/src/lowering/mod.rs::
+{lower_script,lower_body}` still re-segment unconditionally) and
+**SYNC-JUN09-3** (depth-recursive + dangling-tail continuation folding —
+`rust/tcl-lsp-core/src/folding.rs::collect_continuation_folds` is still
+top-level-only).  Both stay open with the port recipes given in the
+SYNC-JUN09 section.
+
+### Shim re-thread — Python↔Rust opt-in delegation onto the seven-concern layout
+
+The branch's opt-in shim (the `TCL_LSP_RUST_*`-gated delegations that route
+Python through the `tcl_lsp_rust` wheel when installed) lived in old-layout
+files (`core/parsing/lexer.py`, `core/compiler/{gvn,interprocedural,
+optimiser/_manager,rust_spans}.py`, `core/analysis/signature_scan.py`,
+`lsp/features/document_symbols.py`).  Re-threaded as part of this rebase:
+
+- **Landed:** `compiler/rust_spans.py` (the shared offset→`Range`
+  resolver + `rust_shim_enabled`), with its imports corrected to the
+  contract-legal `shared.diagnostic.Range` / `shared.tokens.SourcePosition`
+  (the old `analysis.semantic_model` import would now violate the
+  `compiler ↛ analyser` import-linter contract).  And the **lexer
+  fast-path** in `compiler/parsing/lexer.py::tokenise_all` — adapted to
+  main's per-call dialect resolution (`_expand_syntax_active()` /
+  `_irules_brace_separator_active()`) since the class-level `expand_syntax`
+  attribute was removed by `SYNC-MAY19-dialect-contextvar`.  Both are
+  `try/except`-guarded, so a wheel-less environment (CI, the test venv)
+  degrades to pure Python with no behaviour change.
+- **Outstanding (`SYNC-JUN10-shim`):** the remaining five gated
+  delegations — GVN (`compiler/gvn.py`), interprocedural
+  (`compiler/interprocedural.py`), optimiser manager
+  (`compiler/optimiser/_manager.py`), `signature_scan`
+  (`analyser/signature_scan.py`, default-on on the old branch) and
+  `document_symbols` (`server/features/document_symbols.py`) — are **not yet
+  re-threaded**.  Each take main's current implementation as the base
+  (which since the anchor diverged from the old-branch copies), add the
+  `try/except` wheel import + materialiser + the env-gated dispatch, and use
+  `compiler.rust_spans.build_position_resolver` for span conversion.  Land as
+  one reviewable chunk; default-off (and `signature_scan` default-on only
+  when the wheel is installed) keeps `make prep-pr` green meanwhile.
+
+### SYNC-JUN10 verification run — both backends + native-server e2e
+
+Post-rebase test run on the branch:
+
+| suite | result |
+|---|---|
+| `cargo test --workspace --all-features` | **3719 passed, 0 failed** (30 crate test binaries) |
+| `runtime/rust` (`cargo test`) | **213 passed, 0 failed** |
+| `tests/lsp_e2e` against the **Python** server | **356 passed** |
+| `tests/lsp_e2e` against the **native Rust** server | **220 passed / 136 failed** (after the snapshot-built marker landed — see below) |
+
+**Server-backend selection landed (test infra).**  The e2e harness, the VS
+Code extension, the `lsp-client` skill, and the Makefile now select the
+backend uniformly: `TCL_LSP_SERVER_KIND=python|rust` (+ `TCL_LSP_SERVER_BIN`
+/ `tclLsp.serverKind` / `tclLsp.rustServerPath`), with the native binary
+located at `target/{release,debug}/tcl-lsp-server` or built via `make
+rust-server`.  This is what lets the same JSON-RPC battery drive either
+backend.
+
+### SYNC-JUN10-e2e — native-server logging + e2e parity baseline
+
+**Native-server `window/logMessage` instrumentation — LANDED.**  The native
+server now emits a `[timing] workspace_state.update …ms (uri=…, lines=…,
+diags=…)` marker via `window/logMessage` once a document's analysis snapshot
+is cached, the workspace index refreshed, and diagnostics published
+(`rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`) — mirroring
+the Python server's `[timing]` lines so the same logs surface in editors' LSP
+output channels.  This also made the e2e harness backend-neutral: its
+`open_document` readiness barrier (`await_log("workspace_state.update", uri)`)
+now resolves against either server, so `TCL_LSP_SERVER_KIND=rust` drives the
+full battery (previously every `open_document` waited out the timeout).
+
+**Parity baseline (native Rust server vs the 356-test e2e battery): 220
+passed / 136 failed.**  Per feature:
+
+| feature | pass/total | feature | pass/total |
+|---|---|---|---|
+| definition | 8/8 ✅ | diagnostics | 7/7 ✅ |
+| document_symbols | 17/17 ✅ | edit_tracking_stress | 17/17 ✅ |
+| navigation | 6/6 ✅ | structure (folding/sel) | 7/7 ✅ |
+| document_highlight | 6/7 | hover | 27/37 |
+| references | 10/13 | recovery | 13/16 |
+| editor_features | 6/9 | semantic_tokens | 26/40 |
+| signature_help | 9/14 | rename | 10/19 |
+| navigation_extras | 3/6 | code_actions | 13/30 |
+| irules | 19/43 | completion | 15/49 |
+| commands (execute) | 1/9 | server_version | 0/2 † |
+
+† `test_server_version` asserts the **pyz** build version; the native server
+reports its crate version (`0.1.0`).  Harness-specific — skip in rust mode.
+
+**Native-server parity backlog** (the real feature gaps the failures map to,
+roughly worst-first): **completion** (15/49), **execute-command surface**
+(`commands` 1/9), **code actions** (13/30), **iRules dialect features**
+(19/43), **rename** (10/19), and the long tails on semantic_tokens /
+signature_help / hover.  These are the native server's feature-completeness
+backlog — each should be triaged into the relevant `tcl-lsp-core` provider and
+turned into a tracked row as it's picked up.  The harness is no longer the
+blocker; this is genuine provider parity work.
+
+## Testing strategy — porting the 14k-test pytest suite to Rust
+
+Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
+decide, per file, where each belongs after the rewrite.  Four buckets; counts
+are approximate (some files straddle two buckets — `test_checks.py` is the
+canonical split candidate, ~half diagnostic-output → E2E, ~half internal
+bounds/escape analysis → Rust unit):
+
+| bucket | ~files | ~tests | destination |
+|---|---|---|---|
+| **RUST-UNIT** | ~170 | ~6,500 | Rust crate unit tests (source-in → structured-out) |
+| **PY-INTERNAL / VM-INTEGRATION** | ~190 | ~6,000 | Python-product/tooling, or runtime-port + WASM differential |
+| **E2E** | ~70 | ~1,800 | `tests/lsp_e2e` (JSON-RPC; validates *either* backend) |
+| **COVERED / meta** | ~18 | ~250 | already differential (`test_rust_*`) / e2e / catalog meta-tests |
+
+### RUST-UNIT — the bulk; port as crate unit tests
+
+Pure `source → IR / analysis / codegen` logic with no server or Python-only
+API.  Map to crates:
+
+- **`tcl-lexer`** — `test_lexer`, `test_lexer_cursor_state`, `test_expr_lexer`,
+  `test_command_segmenter`, `test_token_scanning*`, `test_parser_edge_cases`
+  (upstream-ported vs C Tcl 9.0), `test_tcl_parse`, `test_recovering_lexer_differential`.
+- **`tcl-syntax`** — `test_green_tree`, `test_syntax_tree`, `test_recovery`,
+  `test_incremental_reparse`.
+- **`tcl-compiler`** — `test_codegen*`, `test_complex_codegen`, `test_ir_lowering`,
+  `test_cfg`, `test_ssa`, `test_core_analyses`, `test_optimiser*` (incl. the
+  O100–O127 coverage + tclsh-equivalence batteries), `test_gvn`, `test_licm`,
+  `test_memory_ssa`, `test_intervals`, `test_interval_bounds`, `test_inline*`,
+  `test_interprocedural`, `test_place*`, `test_shimmer*`, `test_side_effects`,
+  `test_dce`, `test_def_use`, `test_dataflow_graph`, `test_taint` (~291),
+  `test_type_propagation` / `test_type_lattice` / `test_expr_types`,
+  `test_expr_parser` (~216), `test_tcl_expr_eval` (~325), `test_tcl_parse_expr`,
+  `test_scan_format`, `test_proc_arg_traits`, `test_proc_fingerprint`, `test_pgo_*`,
+  `test_specialise_factories`.
+- **`tcl-registry`** — `test_command_registry` (~155), `test_event_registry`,
+  `test_event_tree`, `test_event_flow_chains`, `test_dialect_profiles`,
+  `test_irules_call`, `test_irule_context`, `test_stub_*`, `test_signature_scan`,
+  `test_package_loading` / `test_package_resolver`, `test_detect_dialect`,
+  `test_tcllib` (registry parts), `test_stdlib_registry` (registry parts).
+- **analyser checks (in `tcl-compiler` / `tcl-lsp-core`)** — `test_analyser`
+  (~280), the `test_checks` internal half, `test_semantic_tokens` (token typing),
+  `test_mro`, `test_semantic_graph`, `test_existence_checks`, `test_class_hierarchy`,
+  `test_proc_lookup`, and — **highest value** — the **false-positive / ground-truth
+  battery**: `test_ground_truth_tn_fn` + the twelve `test_fp_*` files (`_obj`,
+  `_ds`, `_nab`, `_inj`, `_opt`, `_bnd`, `_rbs`, `_sty`, `_sh`, `_rch`, `_tnt`,
+  …), all locked against tclsh 9.0.  These are the analyser's correctness
+  contract and the Rust analyser must carry them verbatim.
+
+### E2E — replicate over JSON-RPC (backend-neutral)
+
+LSP-observable behaviour that should move to `tests/lsp_e2e` so it certifies
+*either* server: `test_completion`, `test_diagnostics*` / `test_diagnostic_ranges`
+/ `test_diagnostic_phases`, `test_definition`, `test_declaration`,
+`test_document_symbols`, `test_folding`, `test_inlay_hints`, `test_hover`,
+`test_semantic_tokens*` (incl. delta), `test_selection_range`, `test_refactoring*`
+(code actions), `test_code_lens`, `test_signature_help`, `test_call_hierarchy`,
+`test_rename`, `test_references`, `test_server_commands`, `test_pull_diagnostics`,
+`test_per_folder_config*`, `test_snippet_templates`, `test_suppression_layers`,
+`test_workspace_*`, `test_precision_lifecycle_lsp`, `test_will_save`,
+`test_irules_checks` (the diagnostics half).  Many already have an `*_e2e.py`
+sibling; the white-box variants should fold into the e2e suite once the
+harness is backend-neutral (`SYNC-JUN10-e2e-harness`).
+
+### PY-INTERNAL / VM-INTEGRATION — keep, port-the-behaviour, or drop
+
+- **Python VM** (`test_vm_*`, ~16 files / ~850 tests) — exercise `tooling.vm.interp`
+  (the in-process Python Tcl interpreter).  The **behaviours** they pin are the
+  `runtime/rust` port's job: mirror as `runtime/rust` unit tests (213 today) +
+  the WASM differential-vs-tclsh suite, not as API-for-API ports.
+- **WASM execution / codegen integration** (~49 files / ~1,200 tests) — compile
+  Tcl → WASM and run in wasmtime against the Zig runtime.  Neither unit nor LSP;
+  become Rust-CLI-driven integration tests as the Rust codegen/runtime matures.
+  Their tclsh-differential semantics are critical to preserve.
+- **F5 / BigIP tooling** (~30+ files; `test_f5_query` ~552, `test_irule_test_framework`
+  ~161, BigIP parser/policy/registry, `tmsh` parse/emit, pcap/tshark/UCS-crypto) —
+  Python-product tooling.  The **F5 query DSL** and **BigIP SCF parser** could
+  become Rust crates *if* F5 support ships in Rust (the registry specs already
+  live in `tcl-registry`); the network/pcap/tshark/crypto/MCP/web-explorer halves
+  are Python-product-only with no core Rust analogue.
+- **Formatter / minifier** (`test_formatter` ~181, `test_minifier` ~191) — the
+  pure rule logic (indent/brace/spacing; symbol collection/renaming) is portable
+  to Rust tooling crates; the LSP/CLI request layer stays Python until those
+  subsystems port.
+- **Pure Python-product** (no Rust analogue): compiler-explorer CLI + Flask web
+  app, debugger backends/hooks, fuzzing harness, `tclpkg` CLI / Docker
+  generation (version/manifest logic *could* port), KCS-DB build, MCP/AI tools,
+  `import-linter`, pyz packaging, editor-surface JSON, process pools, progress,
+  rope integration, settings-scope merge.
+
+### Coverage gaps flagged (no Rust tests exist yet)
+
+- **Server config parsing** (`test_user_config` ~56, `test_server_config` ~20):
+  `.tcl-lsp.ini` / `tclLsp.*` schema + merge — **untested in the Rust server**;
+  add `tcl-lsp-core` unit tests.
+- **BigIP dialect** (parser / policy / object-ref index) — no Rust tests at all.
+- **WASM-runtime command dispatch** — only `runtime/rust`'s 213 + the Python VM;
+  no Rust unit coverage of per-builtin dispatch yet.
+- **Tk dialect extraction** (`test_tk_extract`) — confirm a Rust impl + tests exist.
+- **The e2e harness itself** is not yet backend-portable (`SYNC-JUN10-e2e-harness`).
+
+This section is an audit, not a work order: no tests were ported.  The
+port order should follow the crate DAG (lexer → syntax → compiler → registry
+→ analyser → lsp-core), landing each file's Rust unit tests alongside the port
+of the code it covers, with the `test_fp_*` / ground-truth battery as the
+analyser's acceptance gate.
+
 ## CST-CONSUMERS — give the landed CST descent a production caller (candidate a)
 
 **Opened 2026-06-04 (post-CST-PORT; the #538 review's L1 finding).**  The

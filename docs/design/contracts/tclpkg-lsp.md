@@ -16,7 +16,9 @@ not appear.
 4. ``_KNOWN_TCL_LSP_SECTIONS`` includes ``"packageManager"`` so editor
    settings under ``tclLsp.packageManager.*`` flow through dot-path routing.
 5. ``tcl-lsp.tclpkg.install`` command handler: triggered by the code
-   action, accepts ``(package_name, uri)`` and returns a status dict.
+   action, accepts ``(package_name, uri)``, finds the nearest
+   ``tclpkg.tcl``, adds a missing ``require`` directive, rewrites
+   ``tclpkg.lock``, and returns a status dict.
 6. ``tcl-lsp.tclpkg.search`` command handler: searches the offline
    registry cache and returns up to 20 results.
 7. W120 code action now offers both "Add 'package require'" and
@@ -28,9 +30,9 @@ not appear.
 
 ## File-path anchors
 
-- ``lsp/server.py:424`` — ``_KNOWN_TCL_LSP_SECTIONS``
-- ``lsp/server.py:3251`` — project root and venv detection in ``on_initialized``
-- ``lsp/server.py:2007`` — ``tcl-lsp.tclpkg.install`` command handler
-- ``lsp/features/code_actions.py:381`` — ``_tclpkg_install_action()``
-- ``tclpkg/diagnostics.py`` — W130–W134 code registration
+- ``server/settings.py:60`` — ``_KNOWN_TCL_LSP_SECTIONS``
+- ``server/workspace_init.py:322`` — project root and venv detection in ``on_initialized``
+- ``server/commands.py:996`` — ``tcl-lsp.tclpkg.install`` command handler
+- ``server/features/code_actions.py:419`` — ``_tclpkg_install_action()``
+- ``shared/codes.py:301`` — W130–W134 code registration
 - ``editors/vscode/package.json`` — ``tclLsp.packageManager.*`` settings

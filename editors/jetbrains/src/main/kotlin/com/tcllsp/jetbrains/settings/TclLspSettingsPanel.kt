@@ -1,12 +1,18 @@
 package com.tcllsp.jetbrains.settings
 
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.ProjectManager
+import com.intellij.platform.lsp.api.LspServerManager
 import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.tcllsp.jetbrains.TclLspServerSupportProvider
 import javax.swing.*
+
+private val LOG = Logger.getInstance("com.tcllsp.jetbrains.settings.TclLspSettingsPanel")
 
 class TclLspSettingsPanel {
 
@@ -84,6 +90,8 @@ class TclLspSettingsPanel {
     // Diagnostics — Style & Best Practice
     private val diagW001 = JBCheckBox("W001: Unknown subcommand")
     private val diagW002 = JBCheckBox("W002: Command is disabled in active dialect profile")
+    private val diagW003 = JBCheckBox("W003: Expression operator not available in active dialect")
+    private val diagW004 = JBCheckBox("W004: Command option is not available in the active dialect")
     private val diagW100 = JBCheckBox("W100: Unbraced expression argument")
     private val diagW104 = JBCheckBox("W104: String concatenation for list building")
     private val diagW105 = JBCheckBox("W105: Unbraced code block or missing variable declaration ...")
@@ -104,11 +112,14 @@ class TclLspSettingsPanel {
     private val diagW124 = JBCheckBox("W124: Invalid IP address literal")
     private val diagW125 = JBCheckBox("W125: Orphaned control-flow keyword used as standalone com...")
     private val diagW126 = JBCheckBox("W126: Non-channel value in channel argument position")
+    private val diagW127 = JBCheckBox("W127: Value not in the command's allowed set")
+    private val diagW128 = JBCheckBox("W128: Command called after it was renamed or deleted earli...")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
     private val diagW231 = JBCheckBox("W231: Constant list index out of range")
     private val diagW232 = JBCheckBox("W232: Constant string index out of range")
+    private val diagW233 = JBCheckBox("W233: Division or modulo by a provably-zero divisor")
     private val diagW240 = JBCheckBox("W240: Loop condition is a constant false")
     private val diagW241 = JBCheckBox("W241: Loop is provably infinite")
 
@@ -118,6 +129,8 @@ class TclLspSettingsPanel {
     private val diagW212 = JBCheckBox("W212: Variable substitution where name expected (set \$x, i...")
     private val diagW213 = JBCheckBox("W213: Variable may not exist")
     private val diagW214 = JBCheckBox("W214: Unused proc parameter")
+    private val diagW215 = JBCheckBox("W215: Variable name unreachable via \$-substitution (creata...")
+    private val diagW216 = JBCheckBox("W216: Broken brace-form array element reference")
     private val diagW220 = JBCheckBox("W220: Dead store")
 
     // Diagnostics — Security
@@ -137,6 +150,8 @@ class TclLspSettingsPanel {
 
     // Diagnostics — Hints
     private val diagH300 = JBCheckBox("H300: Possible paste error")
+    private val diagI230 = JBCheckBox("I230: Constant branch condition")
+    private val diagI231 = JBCheckBox("I231: Constant switch arm condition")
     private val diagW123 = JBCheckBox("W123: Unresolved command")
     private val diagW242 = JBCheckBox("W242: Loop termination cannot be proven")
 
@@ -146,7 +161,7 @@ class TclLspSettingsPanel {
     private val diagS102 = JBCheckBox("S102: Variable oscillates between two types across loop it...")
 
     // Diagnostics — Taint
-    private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous code-execution s...")
+    private val diagT100 = JBCheckBox("T100: Tainted data flows into a dangerous sink: eval/uplev...")
     private val diagT101 = JBCheckBox("T101: Tainted data flows into an output command (puts)")
     private val diagT102 = JBCheckBox("T102: Tainted data in option position without -- terminator")
 
@@ -227,6 +242,8 @@ class TclLspSettingsPanel {
     private val optO126 = JBCheckBox("O126: Remove unused variable assignments")
     private val optO127 = JBCheckBox("O127: Inline single-use variable assignment")
     private val optO128 = JBCheckBox("O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...")
+    private val optO129 = JBCheckBox("O129: Fold a pure builtin command substitution with consta...")
+    private val optO130 = JBCheckBox("O130: Fold static lappend list build chains into a single ...")
     // @generated:opt-checkboxes:end
 
     // Shimmer
@@ -325,18 +342,20 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Style & Best Practice"))
         val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagW001, diagW002, diagW100, diagW104, diagW105, diagW106,
-            diagW108, diagW110, diagW111, diagW112, diagW113, diagW114,
-            diagW115, diagW116, diagW117, diagW118, diagW120, diagW121,
-            diagW122, diagW124, diagW125, diagW126, diagW200, diagW201,
-            diagW230, diagW231, diagW232, diagW240, diagW241,
+            diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
+            diagW105, diagW106, diagW108, diagW110, diagW111, diagW112,
+            diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
+            diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
+            diagW127, diagW128, diagW200, diagW201, diagW230, diagW231,
+            diagW232, diagW233, diagW240, diagW241,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
         builder.addComponent(TitledSeparator("Diagnostics — Variables"))
         val diagVarPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagW210, diagW211, diagW212, diagW213, diagW214, diagW220,
+            diagW210, diagW211, diagW212, diagW213, diagW214, diagW215,
+            diagW216, diagW220,
         ).forEach { diagVarPanel.add(it) }
         builder.addComponent(diagVarPanel)
 
@@ -352,7 +371,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Hints"))
         val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagH300, diagW123, diagW242,
+            diagH300, diagI230, diagI231, diagW123, diagW242,
         ).forEach { diagHintPanel.add(it) }
         builder.addComponent(diagHintPanel)
 
@@ -402,7 +421,8 @@ class TclLspSettingsPanel {
             optO106, optO107, optO108, optO109, optO110, optO111,
             optO112, optO113, optO114, optO115, optO116, optO117,
             optO118, optO119, optO120, optO121, optO122, optO123,
-            optO124, optO125, optO126, optO127, optO128,
+            optO124, optO125, optO126, optO127, optO128, optO129,
+            optO130,
         ).forEach { optPanel.add(it) }
         builder.addComponent(optPanel)
         // @generated:opt-ui:end
@@ -510,6 +530,8 @@ class TclLspSettingsPanel {
             diagE200.isSelected != s.diagnosticE200 ||
             diagW001.isSelected != s.diagnosticW001 ||
             diagW002.isSelected != s.diagnosticW002 ||
+            diagW003.isSelected != s.diagnosticW003 ||
+            diagW004.isSelected != s.diagnosticW004 ||
             diagW100.isSelected != s.diagnosticW100 ||
             diagW104.isSelected != s.diagnosticW104 ||
             diagW105.isSelected != s.diagnosticW105 ||
@@ -530,11 +552,14 @@ class TclLspSettingsPanel {
             diagW124.isSelected != s.diagnosticW124 ||
             diagW125.isSelected != s.diagnosticW125 ||
             diagW126.isSelected != s.diagnosticW126 ||
+            diagW127.isSelected != s.diagnosticW127 ||
+            diagW128.isSelected != s.diagnosticW128 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW230.isSelected != s.diagnosticW230 ||
             diagW231.isSelected != s.diagnosticW231 ||
             diagW232.isSelected != s.diagnosticW232 ||
+            diagW233.isSelected != s.diagnosticW233 ||
             diagW240.isSelected != s.diagnosticW240 ||
             diagW241.isSelected != s.diagnosticW241 ||
             diagW210.isSelected != s.diagnosticW210 ||
@@ -542,6 +567,8 @@ class TclLspSettingsPanel {
             diagW212.isSelected != s.diagnosticW212 ||
             diagW213.isSelected != s.diagnosticW213 ||
             diagW214.isSelected != s.diagnosticW214 ||
+            diagW215.isSelected != s.diagnosticW215 ||
+            diagW216.isSelected != s.diagnosticW216 ||
             diagW220.isSelected != s.diagnosticW220 ||
             diagW101.isSelected != s.diagnosticW101 ||
             diagW102.isSelected != s.diagnosticW102 ||
@@ -557,6 +584,8 @@ class TclLspSettingsPanel {
             diagW309.isSelected != s.diagnosticW309 ||
             diagW313.isSelected != s.diagnosticW313 ||
             diagH300.isSelected != s.diagnosticH300 ||
+            diagI230.isSelected != s.diagnosticI230 ||
+            diagI231.isSelected != s.diagnosticI231 ||
             diagW123.isSelected != s.diagnosticW123 ||
             diagW242.isSelected != s.diagnosticW242 ||
             diagS100.isSelected != s.diagnosticS100 ||
@@ -636,6 +665,8 @@ class TclLspSettingsPanel {
             optO126.isSelected != s.optimiserO126 ||
             optO127.isSelected != s.optimiserO127 ||
             optO128.isSelected != s.optimiserO128 ||
+            optO129.isSelected != s.optimiserO129 ||
+            optO130.isSelected != s.optimiserO130 ||
             // @generated:opt-dirty:end
             // Shimmer
             shimmerEnabled.isSelected != s.shimmerEnabled ||
@@ -653,6 +684,12 @@ class TclLspSettingsPanel {
 
     fun apply() {
         val s = TclLspSettings.getInstance()
+        // Capture the pre-apply launch settings so we can detect whether
+        // the LSP server needs to be restarted to pick up a new command
+        // line. Other settings flow through workspace/configuration on
+        // the next request and don't require a restart.
+        val oldPythonPath = s.pythonPath
+        val oldServerPath = s.serverPath
         s.pythonPath = pythonPathField.text
         s.serverPath = serverPathField.text
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
@@ -718,6 +755,8 @@ class TclLspSettingsPanel {
         s.diagnosticE200 = diagE200.isSelected
         s.diagnosticW001 = diagW001.isSelected
         s.diagnosticW002 = diagW002.isSelected
+        s.diagnosticW003 = diagW003.isSelected
+        s.diagnosticW004 = diagW004.isSelected
         s.diagnosticW100 = diagW100.isSelected
         s.diagnosticW104 = diagW104.isSelected
         s.diagnosticW105 = diagW105.isSelected
@@ -738,11 +777,14 @@ class TclLspSettingsPanel {
         s.diagnosticW124 = diagW124.isSelected
         s.diagnosticW125 = diagW125.isSelected
         s.diagnosticW126 = diagW126.isSelected
+        s.diagnosticW127 = diagW127.isSelected
+        s.diagnosticW128 = diagW128.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW230 = diagW230.isSelected
         s.diagnosticW231 = diagW231.isSelected
         s.diagnosticW232 = diagW232.isSelected
+        s.diagnosticW233 = diagW233.isSelected
         s.diagnosticW240 = diagW240.isSelected
         s.diagnosticW241 = diagW241.isSelected
         s.diagnosticW210 = diagW210.isSelected
@@ -750,6 +792,8 @@ class TclLspSettingsPanel {
         s.diagnosticW212 = diagW212.isSelected
         s.diagnosticW213 = diagW213.isSelected
         s.diagnosticW214 = diagW214.isSelected
+        s.diagnosticW215 = diagW215.isSelected
+        s.diagnosticW216 = diagW216.isSelected
         s.diagnosticW220 = diagW220.isSelected
         s.diagnosticW101 = diagW101.isSelected
         s.diagnosticW102 = diagW102.isSelected
@@ -765,6 +809,8 @@ class TclLspSettingsPanel {
         s.diagnosticW309 = diagW309.isSelected
         s.diagnosticW313 = diagW313.isSelected
         s.diagnosticH300 = diagH300.isSelected
+        s.diagnosticI230 = diagI230.isSelected
+        s.diagnosticI231 = diagI231.isSelected
         s.diagnosticW123 = diagW123.isSelected
         s.diagnosticW242 = diagW242.isSelected
         s.diagnosticS100 = diagS100.isSelected
@@ -844,6 +890,8 @@ class TclLspSettingsPanel {
         s.optimiserO126 = optO126.isSelected
         s.optimiserO127 = optO127.isSelected
         s.optimiserO128 = optO128.isSelected
+        s.optimiserO129 = optO129.isSelected
+        s.optimiserO130 = optO130.isSelected
         // @generated:opt-apply:end
 
         s.shimmerEnabled = shimmerEnabled.isSelected
@@ -854,6 +902,31 @@ class TclLspSettingsPanel {
         s.aiEnabled = aiEnabled.isSelected
         s.aiExtraPrompts = aiExtraPrompts.text
         s.diagnosticsGenericVariablePatterns = genericPatternsField.text
+
+        if (s.pythonPath != oldPythonPath || s.serverPath != oldServerPath) {
+            restartLspServers()
+        }
+    }
+
+    /**
+     * Restart the Tcl LSP server in every open project. Called after
+     * launch-affecting settings change (Python path, server path) so
+     * the user picks up the new command line without restarting the
+     * IDE. Non-launch settings (features, formatting, diagnostics, …)
+     * are sent to the running server via workspace/configuration and
+     * don't need a restart.
+     */
+    @Suppress("UnstableApiUsage")
+    private fun restartLspServers() {
+        for (project in ProjectManager.getInstance().openProjects) {
+            if (project.isDisposed) continue
+            try {
+                LspServerManager.getInstance(project)
+                    .stopAndRestartIfNeeded(TclLspServerSupportProvider::class.java)
+            } catch (e: Exception) {
+                LOG.warn("Failed to restart Tcl LSP server for project ${project.name}", e)
+            }
+        }
     }
 
     fun reset() {
@@ -923,6 +996,8 @@ class TclLspSettingsPanel {
         diagE200.isSelected = s.diagnosticE200
         diagW001.isSelected = s.diagnosticW001
         diagW002.isSelected = s.diagnosticW002
+        diagW003.isSelected = s.diagnosticW003
+        diagW004.isSelected = s.diagnosticW004
         diagW100.isSelected = s.diagnosticW100
         diagW104.isSelected = s.diagnosticW104
         diagW105.isSelected = s.diagnosticW105
@@ -943,11 +1018,14 @@ class TclLspSettingsPanel {
         diagW124.isSelected = s.diagnosticW124
         diagW125.isSelected = s.diagnosticW125
         diagW126.isSelected = s.diagnosticW126
+        diagW127.isSelected = s.diagnosticW127
+        diagW128.isSelected = s.diagnosticW128
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW230.isSelected = s.diagnosticW230
         diagW231.isSelected = s.diagnosticW231
         diagW232.isSelected = s.diagnosticW232
+        diagW233.isSelected = s.diagnosticW233
         diagW240.isSelected = s.diagnosticW240
         diagW241.isSelected = s.diagnosticW241
         diagW210.isSelected = s.diagnosticW210
@@ -955,6 +1033,8 @@ class TclLspSettingsPanel {
         diagW212.isSelected = s.diagnosticW212
         diagW213.isSelected = s.diagnosticW213
         diagW214.isSelected = s.diagnosticW214
+        diagW215.isSelected = s.diagnosticW215
+        diagW216.isSelected = s.diagnosticW216
         diagW220.isSelected = s.diagnosticW220
         diagW101.isSelected = s.diagnosticW101
         diagW102.isSelected = s.diagnosticW102
@@ -970,6 +1050,8 @@ class TclLspSettingsPanel {
         diagW309.isSelected = s.diagnosticW309
         diagW313.isSelected = s.diagnosticW313
         diagH300.isSelected = s.diagnosticH300
+        diagI230.isSelected = s.diagnosticI230
+        diagI231.isSelected = s.diagnosticI231
         diagW123.isSelected = s.diagnosticW123
         diagW242.isSelected = s.diagnosticW242
         diagS100.isSelected = s.diagnosticS100
@@ -1049,6 +1131,8 @@ class TclLspSettingsPanel {
         optO126.isSelected = s.optimiserO126
         optO127.isSelected = s.optimiserO127
         optO128.isSelected = s.optimiserO128
+        optO129.isSelected = s.optimiserO129
+        optO130.isSelected = s.optimiserO130
         // @generated:opt-reset:end
 
         shimmerEnabled.isSelected = s.shimmerEnabled

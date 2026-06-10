@@ -1,0 +1,20 @@
+# switch.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '44 of 113 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 113
+observed_passed = 69
+observed_failed = 44
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["switch-3.15", "switch-3.16", "switch-3.17", "switch-3.18", "switch-4.1", "switch-4.2", "switch-4.5", "switch-5.1", "switch-6.1", "switch-6.2", "switch-8.1", "switch-9.1", "switch-9.2", "switch-9.3", "switch-9.4", "switch-9.8", "switch-9.10", "switch-11.1", "switch-11.3", "switch-11.4", "switch-11.5", "switch-11.6", "switch-12.1", "switch-12.3", "switch-12.4", "switch-12.5", "switch-12.6", "switch-12.7", "switch-12.8", "switch-12.9", "switch-13.1", "switch-13.2", "switch-13.3", "switch-13.4", "switch-13.5", "switch-13.6", "switch-14.1", "switch-14.2", "switch-14.7", "switch-14.10", "switch-14.13", "switch-14.16", "switch-14.17", "switch-15.1"]

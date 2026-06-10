@@ -1,0 +1,30 @@
+# Categorisation for regexpComp.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.5",    # regexpComp-1.5: edge case with empty string + multi
+            # capture groups.
+  "6.8",    # regexpComp-6.8: error wording / behaviour for malformed
+            # regexp option arguments.
+  "11.7",   # regexpComp-11.7: regsub error wording for malformed
+            # option arguments.
+  "20.2",   # regexpComp-20.2: ``regexp -about`` shared-object
+            # shimmering edge case.
+  "21.6",   # regexpComp-21.6: ``regexp -n foo dogfoOd`` — option
+            # prefix matching.  We don't yet accept unique prefixes
+            # for ``-nocase``.
+  "21.7",   # regexpComp-21.7: same shape — option prefix matching.
+  "21.10",  # regexpComp-21.10: same shape — option prefix matching.
+  "21.11",  # regexpComp-21.11: same shape — option prefix matching.
+  "22.0.1", # regexpComp-22.0.1: [Bug 1810038] ``regexp ($|^X)* {}``
+            # — empty-alternation edge case in the regex engine.
+  "22.5",   # regexpComp-22.5: regexp alternation edge case.
+  "23.5",   # regexpComp-23.5: regexp anchor handling.
+  "24.6",   # regexpComp-24.6: ``-n`` as prefix of ``-nocase``.
+  "24.7",   # regexpComp-24.7: same — prefix matching with case-
+            # insensitive variant.
+]
+
+[baseline]
+good_to_have_failing = 13

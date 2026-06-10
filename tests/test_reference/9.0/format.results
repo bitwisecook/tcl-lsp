@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     format.test
-DATE     2026-03-03T12:53:59Z
+DATE     2026-05-06T21:17:23Z
 ---
 PASS format-1.1
 PASS format-1.10

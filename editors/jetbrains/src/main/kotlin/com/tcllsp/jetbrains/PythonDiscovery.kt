@@ -28,7 +28,9 @@ fun discoverPython(configured: String = "auto"): PythonInfo? {
     if (configured.isNotBlank() && configured != "auto") {
         val info = probePython(configured, source = "configured")
         if (info != null) {
-            LOG.info("Python: using configured interpreter: ${info.path} (${info.version})")
+            LOG.info(
+                "Python: using configured interpreter: ${describePath(info.path)} (${info.version})"
+            )
             return info
         }
         LOG.warn("Python: configured interpreter '$configured' not found or below 3.10")
@@ -131,8 +133,63 @@ fun discoverPython(configured: String = "auto"): PythonInfo? {
     }
 
     val best = results.first()
-    LOG.info("Python: discovered ${results.size} interpreters, using ${best.path} (${best.version}, ${best.source})")
+    LOG.info(
+        "Python: discovered ${results.size} interpreters, using " +
+        "${describePath(best.path)} (${best.version}, ${best.source})"
+    )
     return best
+}
+
+/**
+ * Format an interpreter path for log messages. For bare PATH names
+ * (e.g. ``python3.14``) the actual executable is resolved by
+ * ProcessBuilder at spawn time, but for diagnostics it's useful to
+ * show which file on disk the name would resolve to. Returns
+ * ``"<command> (-> <resolved>)"`` when resolution succeeds, otherwise
+ * just the command itself.
+ */
+internal fun describeInterpreter(command: String): String = describePath(command)
+
+private fun describePath(command: String): String {
+    // Anything that looks like a filesystem path (absolute, or contains
+    // either platform's separator) is already self-describing.  We treat
+    // ``\\`` and ``/`` interchangeably so Windows paths spelled
+    // ``C:/Python/python.exe`` aren't misclassified as bare PATH names
+    // and re-resolved against PATH for logging (Copilot review, PR #438).
+    if (command.contains('/') || command.contains('\\') || File(command).isAbsolute) {
+        return command
+    }
+    val resolved = resolveOnPath(command) ?: return command
+    return "$command (-> $resolved)"
+}
+
+private fun resolveOnPath(command: String): String? {
+    val pathEnv = System.getenv("PATH") ?: return null
+    val pathSep = System.getProperty("path.separator") ?: ":"
+    // ``os.name.contains("win")`` matches ``"Darwin"`` (macOS), which
+    // would prevent PATH resolution on macOS and apply Windows-only
+    // ``PATHEXT`` logic to other Unixes.  Match the official prefix
+    // instead (Copilot review, PR #438).
+    val isWindows = System.getProperty("os.name").lowercase().startsWith("windows")
+    val pathExts = if (isWindows) {
+        (System.getenv("PATHEXT") ?: ".EXE;.BAT;.CMD;.COM").split(";")
+    } else {
+        listOf("")
+    }
+    for (dir in pathEnv.split(pathSep)) {
+        if (dir.isBlank()) continue
+        for (ext in pathExts) {
+            val candidate = File(dir, command + ext)
+            if (candidate.isFile && candidate.canExecute()) {
+                return try {
+                    candidate.canonicalPath
+                } catch (_: Exception) {
+                    candidate.absolutePath
+                }
+            }
+        }
+    }
+    return null
 }
 
 private val VERSION_REGEX = Regex("""Python\s+(\d+)\.(\d+)\.(\d+)""")
@@ -140,8 +197,9 @@ private val VERSION_REGEX = Regex("""Python\s+(\d+)\.(\d+)\.(\d+)""")
 private fun probePython(command: String, source: String): PythonInfo? {
     return try {
         val file = File(command)
-        // For absolute paths, check existence first
-        if (command.contains(File.separator) && !file.exists()) return null
+        val hasPathSep = command.contains(File.separator)
+        // For absolute / relative paths, check existence first.
+        if (hasPathSep && !file.exists()) return null
 
         val process = ProcessBuilder(command, "--version")
             .redirectErrorStream(true)
@@ -162,10 +220,16 @@ private fun probePython(command: String, source: String): PythonInfo? {
         if (major < MIN_PYTHON_MAJOR) return null
         if (major == MIN_PYTHON_MAJOR && minor < MIN_PYTHON_MINOR) return null
 
-        // Resolve real path to deduplicate symlinks
-        val resolvedPath = try {
-            file.canonicalPath
-        } catch (_: Exception) {
+        // Only canonicalise when the caller already gave us a real
+        // filesystem path. For a bare PATH name like ``python3.14``,
+        // ``File(command).canonicalPath`` resolves against ``user.dir``
+        // and produces a fake path (e.g. ``/home/jim/python3.14``) that
+        // doesn't exist — which the LSP launcher then tries to spawn,
+        // breaking the plugin entirely. Pass bare names through and let
+        // ProcessBuilder resolve them via PATH at spawn time.
+        val resolvedPath = if (hasPathSep) {
+            try { file.canonicalPath } catch (_: Exception) { command }
+        } else {
             command
         }
 

@@ -1,0 +1,1352 @@
+"""Statement-loop propagation passes for the optimiser."""
+
+from __future__ import annotations
+
+import re
+
+from compiler.interprocedural import (
+    evaluate_proc_with_constants,
+    fold_static_proc_call,
+)
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.green_tree import tokenise
+from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
+from compiler.registry.runtime import ArgRole, arg_indices_for_role
+from shared.codes import opt
+from shared.naming import (
+    normalise_var_name as _normalise_var_name,
+)
+from shared.ranges import range_from_token
+from shared.tcl_list import tcl_list_quote
+from shared.tokens import Token, TokenType
+
+from ..token_helpers import parse_decimal_int as _parse_decimal_int
+from ..types import TypeLattice
+from ._expr_simplify import (
+    _instcombine_expr,
+    _substitute_expr_constants,
+    _try_eq_ne_string_compare_simplify_expr,
+    _try_fold_expr,
+    _try_strength_reduce_expr,
+    _try_strlen_simplify_expr,
+    _try_unwrap_expr_in_expr,
+)
+from ._helpers import (
+    _braced_token_range,
+    _braced_token_range_from_range,
+    _command_subst_range,
+    _constants_from_exit_versions,
+    _expr_arg_from_expr_command,
+    _literal_from_constant_str,
+    _parse_command_words,
+    _parse_single_command_from_range,
+    _render_folded_literal,
+    _resolve_summary_proc_name,
+    safe_string_constants,
+)
+from ._types import Optimisation, PassContext
+
+# Whitespace-stripping helper for the O110 noise guard (see callers).
+_EXPR_WS_RE = re.compile(r"\s+")
+
+
+def _strip_ws(expr: str) -> str:
+    """Return *expr* with all whitespace removed.
+
+    Used to suppress O110 ("Canonicalise expression / InstCombine") when the
+    only difference between input and output is whitespace — the canonical-
+    spacing re-render of an already-equivalent expression is noise, not a
+    real finding.  Structural changes (paren removal, boolean simplification,
+    operand reordering, etc.) all alter non-whitespace characters and still
+    fire.
+    """
+    return _EXPR_WS_RE.sub("", expr)
+
+
+# O-code registrations for codes primarily emitted from this module
+opt(
+    code="O102",
+    description="Fold constant `[expr {...}]` command substitutions.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O103",
+    description="Fold static procedure calls using interprocedural summaries.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O105",
+    description=(
+        "Propagate constants into variable references and detect redundant computations (GVN/CSE)."
+    ),
+    opt_category="constant_folding",
+)
+opt(
+    code="O110",
+    description="Canonicalise expressions (InstCombine).",
+    opt_category="constant_folding",
+)
+opt(
+    code="O111",
+    description="Brace expression performance hints (paired with W100).",
+    opt_category="readability",
+)
+opt(
+    code="O113",
+    description="Strength-reduce expressions (`x**2` → `x*x`, `x%8` → `x&7`).",
+    opt_category="constant_folding",
+)
+opt(
+    code="O116",
+    description="Fold constant `[list a b c]` to literal value.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O117",
+    description='Simplify `[string length $s] == 0` → `$s eq ""`.',
+    opt_category="readability",
+)
+opt(
+    code="O118",
+    description="Fold constant `[lindex {a b c} 1]` to element.",
+    opt_category="constant_folding",
+)
+opt(
+    code="O129",
+    description=(
+        "Fold a pure builtin command substitution with constant arguments "
+        "(`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …)."
+    ),
+    opt_category="constant_folding",
+)
+opt(
+    code="O120",
+    description="Prefer `eq`/`ne` over `==`/`!=` for string comparisons.",
+    opt_category="readability",
+)
+
+
+def optimise_expression_args(
+    ctx: PassContext,
+    cmd_name: str,
+    args: list[str],
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    constants: dict[str, str],
+    *,
+    namespace: str = "::",
+    ssa_uses: dict[str, int] | None = None,
+    types: dict[tuple[str, int], TypeLattice] | None = None,
+    values: dict | None = None,
+) -> None:
+    for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
+        if idx >= len(args) or idx >= len(arg_tokens) or idx >= len(arg_single):
+            continue
+        if not arg_single[idx]:
+            continue
+
+        expr_tok = arg_tokens[idx]
+        if expr_tok.type not in (TokenType.STR, TokenType.ESC):
+            continue
+
+        expr_text = args[idx]
+
+        if expr_tok.type is TokenType.STR:
+            replacement_prefix = "{"
+            replacement_suffix = "}"
+            tok_range = _braced_token_range(expr_tok)
+        else:
+            replacement_prefix = ""
+            replacement_suffix = ""
+            tok_range = range_from_token(expr_tok)
+
+        # O115: unwrap redundant nested expr -- [expr {E}] in expr ctx -> E
+        unwrapped = _try_unwrap_expr_in_expr(expr_text)
+        if unwrapped is not None and unwrapped != expr_text:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O115",
+                    message="Remove redundant nested expr",
+                    range=tok_range,
+                    replacement=f"{replacement_prefix}{unwrapped}{replacement_suffix}",
+                )
+            )
+            continue
+
+        substituted_expr, var_changed, _subst = _substitute_expr_constants(expr_text, constants)
+        substituted_expr, proc_changed = _substitute_expr_proc_calls(
+            ctx,
+            substituted_expr,
+            constants,
+            namespace=namespace,
+        )
+        substituted_expr, cmd_changed = _substitute_expr_builtin_cmd_subs(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            values=values,
+        )
+        changed = var_changed or proc_changed or cmd_changed
+
+        # O115/O113/O117/O120 pre-checks on the original expression text
+        sr_detected = _try_strength_reduce_expr(expr_text)[1]
+        sl_detected = _try_strlen_simplify_expr(expr_text)[1]
+        sc_detected = _try_eq_ne_string_compare_simplify_expr(
+            expr_text,
+            ssa_uses=ssa_uses,
+            types=types,
+            values=values,
+        )[1]
+
+        compared_expr, compare_changed = _try_eq_ne_string_compare_simplify_expr(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            types=types,
+            values=values,
+        )
+
+        is_bool_ctx = REGISTRY.has_boolean_condition(cmd_name) or cmd_name == "elseif"
+        combined_expr, combine_changed = _instcombine_expr(
+            compared_expr,
+            bool_context=is_bool_ctx,
+            ssa_uses=ssa_uses,
+            types=types,
+        )
+        folded_expr = _try_fold_expr(combined_expr)
+
+        if folded_expr is not None and folded_expr != expr_text:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O101",
+                    message="Fold constant expression",
+                    range=tok_range,
+                    replacement=f"{replacement_prefix}{folded_expr}{replacement_suffix}",
+                )
+            )
+            continue
+
+        if (compare_changed or combine_changed) and combined_expr != expr_text:
+            # ``_render_expr_for_rewrite`` always produces canonical spacing,
+            # so any input whose whitespace differs ("$a-1" vs "$a - 1",
+            # "($x*$y)/$z" vs "($x * $y) / $z") shows up as ``changed`` even
+            # when nothing semantically moved.  That is a pure-noise FP — the
+            # user's chosen spacing isn't a defect, and "Canonicalise
+            # expression" reads as "your code is wrong" for what is just a
+            # style preference.  Treat the rewrite as significant only when
+            # whitespace-normalised forms differ, i.e. a real structural
+            # change happened (paren removal, boolean simplification, eq/ne
+            # detection, etc.) tclsh-verified examples that should still
+            # fire: ``($x >> 16) & 0xFF`` (paren-strip), ``$byte == 0 ? 0 : 1``
+            # → ``$byte != 0`` (bool simplify), ``[string length $s] == 0``
+            # (O117 takes over).
+            if _strip_ws(combined_expr) == _strip_ws(expr_text):
+                # Pure-whitespace canonicalisation — not a real finding.
+                continue
+            opt_code = (
+                "O113"
+                if sr_detected
+                else ("O117" if sl_detected else ("O120" if sc_detected else "O110"))
+            )
+            opt_msg = (
+                "Strength-reduce expression"
+                if sr_detected
+                else (
+                    "Simplify string length zero-check"
+                    if sl_detected
+                    else (
+                        "Use eq/ne for string comparison"
+                        if sc_detected
+                        else "Canonicalise expression (InstCombine)"
+                    )
+                )
+            )
+            ctx.optimisations.append(
+                Optimisation(
+                    code=opt_code,
+                    message=opt_msg,
+                    range=tok_range,
+                    replacement=f"{replacement_prefix}{combined_expr}{replacement_suffix}",
+                )
+            )
+            continue
+
+        if changed and substituted_expr != expr_text:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O100",
+                    message="Propagate constant into expression",
+                    range=tok_range,
+                    replacement=f"{replacement_prefix}{substituted_expr}{replacement_suffix}",
+                )
+            )
+
+
+def _fold_builtin_cmd_subst(
+    cmd_text: str,
+    ssa_uses: dict[str, int] | None,
+    values: dict | None,
+) -> str | None:
+    """Constant-fold a pure builtin ``[cmd args]`` to a safe Tcl word, or None.
+
+    Delegates to the shared registry folder (the same one SCCP uses) so a
+    command folds here exactly when SCCP would treat its result as a constant;
+    the value is then rendered as a single brace/escape-quoted word.
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    # ``cmd_text`` is the CMD token body (no surrounding brackets); the folder
+    # parses the ``[cmd ...]`` substitution form and returns the command's
+    # exact string output (no numeric coercion — ``format %5.2f`` keeps its
+    # leading-space padding).  Render it as one safe Tcl word.
+    result = fold_cmd_subst_to_string(f"[{cmd_text}]", ssa_uses or {}, values or {})
+    if result is None:
+        return None
+    return tcl_list_quote(result, first=False)
+
+
+def optimise_expr_substitutions(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    constants: dict[str, str],
+    *,
+    ssa_uses: dict[str, int] | None = None,
+    types: dict[tuple[str, int], TypeLattice] | None = None,
+    values: dict | None = None,
+) -> None:
+    for idx, tok in enumerate(arg_tokens):
+        if idx >= len(arg_single) or not arg_single[idx]:
+            continue
+        if tok.type is not TokenType.CMD:
+            continue
+
+        # Fold any pure builtin command substitution with constant arguments
+        # via the *registry* const_fold callbacks — the single source of truth
+        # for how each command folds (string / llength / lrange / join / split /
+        # concat / format / dict / list / lindex / ...).  The callbacks are
+        # verified byte-identical to C Tcl 9 (tests/test_const_fold_vs_tcl.py);
+        # the result is rendered as one safe Tcl word so it can replace the
+        # substitution in any word position.  ``list`` / ``lindex`` keep their
+        # historical diagnostic codes (O116 / O118) for editor granularity;
+        # everything else reports the general O129.
+        general = _fold_builtin_cmd_subst(tok.text, ssa_uses, values)
+        if general is not None:
+            head = tok.text.split(None, 1)[0] if tok.text.strip() else ""
+            code = {"list": "O116", "lindex": "O118"}.get(head, "O129")
+            message = {
+                "O116": "Fold constant list command",
+                "O118": "Fold constant lindex command",
+            }.get(code, "Fold constant command substitution")
+            ctx.optimisations.append(
+                Optimisation(
+                    code=code,
+                    message=message,
+                    range=_command_subst_range(tok),
+                    replacement=general,
+                )
+            )
+            continue
+
+        expr_arg = _expr_arg_from_expr_command(tok.text)
+        if expr_arg is None:
+            continue
+
+        # O115: unwrap a redundant nested expr command substitution.  When the
+        # outer expr body is exactly ``[expr {E}]`` (e.g. inside ``return
+        # [expr {[expr {$x * 2}]}]``), the inner command sub is pointless --
+        # collapse ``[expr {[expr {E}]}]`` to ``[expr {E}]``.  ``optimise_
+        # expression_args`` only fires for EXPR-role args, so this is the path
+        # that reaches expr command subs sitting in value positions.
+        unwrapped = _try_unwrap_expr_in_expr(expr_arg)
+        if unwrapped is not None and unwrapped != expr_arg:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O115",
+                    message="Remove redundant nested expr",
+                    range=_command_subst_range(tok),
+                    replacement=f"[expr {{{unwrapped}}}]",
+                )
+            )
+            continue
+
+        substituted_expr, changed, _subst = _substitute_expr_constants(expr_arg, constants)
+        substituted_expr, cmd_changed = _substitute_expr_builtin_cmd_subs(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            values=values,
+        )
+        changed = changed or cmd_changed
+        sc_detected = _try_eq_ne_string_compare_simplify_expr(
+            expr_arg,
+            ssa_uses=ssa_uses,
+            types=types,
+            values=values,
+        )[1]
+        compared_expr, compare_changed = _try_eq_ne_string_compare_simplify_expr(
+            substituted_expr,
+            ssa_uses=ssa_uses,
+            types=types,
+            values=values,
+        )
+        combined_expr, combine_changed = _instcombine_expr(
+            compared_expr,
+            ssa_uses=ssa_uses,
+            types=types,
+        )
+        folded_expr = _try_fold_expr(combined_expr)
+
+        if folded_expr is not None:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O102",
+                    message="Fold constant expr command substitution",
+                    range=_command_subst_range(tok),
+                    replacement=folded_expr,
+                )
+            )
+            continue
+
+        if (compare_changed or combine_changed) and combined_expr != expr_arg:
+            # Same whitespace-noise guard as ``optimise_expression_args``: a
+            # canonical-spacing re-render of an input with non-canonical
+            # spacing is not a real canonicalisation, so don't suggest one.
+            if _strip_ws(combined_expr) == _strip_ws(expr_arg):
+                continue
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O120" if sc_detected else "O110",
+                    message=(
+                        "Use eq/ne for string comparison"
+                        if sc_detected
+                        else "Canonicalise expr command substitution (InstCombine)"
+                    ),
+                    range=_command_subst_range(tok),
+                    replacement=f"[expr {{{combined_expr}}}]",
+                )
+            )
+            continue
+
+        if changed and substituted_expr != expr_arg:
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O100",
+                    message="Propagate constant variable into expression",
+                    range=_command_subst_range(tok),
+                    replacement=f"[expr {{{substituted_expr}}}]",
+                )
+            )
+
+
+def _binding_allows_proc_fold(ctx: PassContext, proc_word: str, resolved: str) -> bool:
+    """True when *proc_word* still resolves to *resolved* at the current point.
+
+    Consults the flow-sensitive command-binding lattice (set only for the top
+    level).  When unavailable (inside proc/method bodies) the call is allowed —
+    the ``redefined_procedures`` gate and the module-level builtin-trust overlay
+    still apply there.  At the top level a call whose name has been renamed away
+    (now opaque), rebound to a *different* proc, or made ambiguous (UNKNOWN) is
+    refused, so ``[a]`` after ``rename a b`` is not folded as the old proc.
+    """
+    cb = ctx.command_binding
+    if cb is None:
+        return True
+    from ..command_binding import BindingKind
+
+    binding = cb.binding_at(ctx.cur_block, ctx.cur_idx, proc_word)
+    return binding.kind is BindingKind.PROC and binding.target == resolved
+
+
+def optimise_static_proc_calls(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    constants: dict[str, str],
+    *,
+    namespace: str = "::",
+) -> None:
+    """Fold [procName args...] command substitutions using interprocedural summaries."""
+    if not ctx.interproc.procedures:
+        return
+
+    for idx, tok in enumerate(arg_tokens):
+        if idx >= len(arg_single) or not arg_single[idx]:
+            continue
+        if tok.type is not TokenType.CMD or not tok.text:
+            continue
+
+        parsed = _parse_command_words(tok.text)
+        if parsed is None:
+            continue
+        cmd_texts, cmd_tokens, cmd_single = parsed
+        if not cmd_texts:
+            continue
+
+        # See through iRules ``call proc_name arg...`` indirection.
+        if cmd_texts[0] == "call" and len(cmd_texts) >= 2:
+            proc_word = cmd_texts[1]
+            arg_start = 2
+        else:
+            proc_word = cmd_texts[0]
+            arg_start = 1
+
+        resolved = _resolve_summary_proc_name(
+            proc_word,
+            namespace=namespace,
+            interproc=ctx.interproc,
+        )
+        if resolved is None:
+            continue
+
+        # Don't fold calls to redefined procedures.
+        if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
+            continue
+
+        # Flow-sensitive rename gate: at the top level the binding lattice knows
+        # whether ``proc_word`` still resolves to *this* proc at this point — a
+        # call after ``rename a b`` (so ``a`` is now opaque) must not be folded
+        # as the old proc.
+        if not _binding_allows_proc_fold(ctx, proc_word, resolved):
+            continue
+
+        static_args: list[int | bool | str] = []
+        all_static = True
+        for i in range(arg_start, len(cmd_texts)):
+            if i >= len(cmd_tokens) or i >= len(cmd_single):
+                all_static = False
+                break
+            literal = _parse_static_call_arg(
+                cmd_texts[i],
+                cmd_tokens[i],
+                single_token=cmd_single[i],
+                constants=constants,
+            )
+            if literal is None:
+                all_static = False
+                break
+            static_args.append(literal)
+
+        if not all_static:
+            continue
+
+        folded = fold_static_proc_call(ctx.interproc, resolved, tuple(static_args))
+        if folded is None:
+            summary = ctx.interproc.procedures.get(resolved)
+            proc_entry = ctx.proc_cfgs.get(resolved)
+            if summary is not None and proc_entry is not None and summary.pure:
+                cfg_func, proc_params = proc_entry
+                folded = evaluate_proc_with_constants(cfg_func, proc_params, tuple(static_args))
+        if folded is None:
+            continue
+        replacement = _render_folded_literal(folded)
+        if replacement is None:
+            continue
+
+        ctx.optimisations.append(
+            Optimisation(
+                code="O103",
+                message="Fold static procedure call from interprocedural summary",
+                range=_command_subst_range(tok),
+                replacement=replacement,
+            )
+        )
+
+
+def _is_braced_var_token(tok: Token) -> bool:
+    """Return True when ``tok`` is a ``${name}`` style variable token."""
+    if tok.type is not TokenType.VAR:
+        return False
+    span_len = tok.end.offset - tok.start.offset + 1
+    # Lexer VAR token text is the normalised var name (without "$"/braces).
+    # Unbraced refs are "$name" (span = len(name) + 1), braced refs are
+    # "${name}" with the closing brace excluded from token.end
+    # (span = len(name) + 2).
+    return span_len > len(tok.text) + 1
+
+
+def _var_token_range(tok: Token):
+    """Return the replacement range for a variable token."""
+    token_range = range_from_token(tok)
+    if _is_braced_var_token(tok):
+        return _braced_token_range_from_range(token_range)
+    return token_range
+
+
+def optimise_constant_var_refs(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    constants: dict[str, str],
+) -> None:
+    """Replace single-token $var references with known constant values (O100)."""
+    for idx, tok in enumerate(arg_tokens):
+        if idx >= len(arg_single) or not arg_single[idx]:
+            continue
+        if tok.type is not TokenType.VAR:
+            continue
+        name = _normalise_var_name(tok.text)
+        value = constants.get(name)
+        if value is None:
+            continue
+        # This $var is a single-token whole word (``arg_single[idx]``), so the
+        # constant can be inlined as the canonical Tcl source for that value.
+        # ``tcl_list_quote`` is the project's 1:1 port of Tcl's own
+        # ``TclScanElement``/``TclConvertElement``: it returns a single word
+        # that parses back to exactly ``value`` -- bare when safe, brace-quoted
+        # when brace-balanced, backslash-escaped otherwise -- which is what
+        # ``$var`` already evaluates to.  ``first=False`` because the
+        # substituted word is always an argument, never a command head, so a
+        # leading ``#`` need not be quoted.
+        ctx.optimisations.append(
+            Optimisation(
+                code="O100",
+                message="Propagate constant into command argument",
+                range=_var_token_range(tok),
+                replacement=tcl_list_quote(value, first=False),
+            )
+        )
+
+
+# Characters that would introduce new Tcl substitutions inside a double-quoted
+# string and therefore must not appear in inlined constant values.
+_UNSAFE_IN_STRING_RE = re.compile(r'[\$\[\]\\"]')
+
+
+def optimise_string_interpolation_var_refs(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    constants: dict[str, str],
+    all_tokens: tuple[Token, ...],
+) -> None:
+    """Replace $var inside multi-token string arguments with constants (O105).
+
+    This extends ``optimise_constant_var_refs`` to handle the common pattern
+    of variable references embedded in double-quoted strings, e.g.::
+
+        set x 42
+        puts "value is $x"   ;# -> puts "value is 42"
+    """
+    if not all_tokens or not constants:
+        return
+
+    # Build a set of offsets for VAR tokens that are single-token words
+    # (already handled by optimise_constant_var_refs).
+    single_var_offsets: set[int] = set()
+    for idx, tok in enumerate(arg_tokens):
+        if idx < len(arg_single) and arg_single[idx] and tok.type is TokenType.VAR:
+            single_var_offsets.add(tok.start.offset)
+
+    # Also collect the command-name token offset so we don't touch it.
+    # arg_tokens is argv[1:], but the first token of the command (argv[0])
+    # can appear in all_tokens.  We skip it by only looking at VAR tokens
+    # that are NOT single-token words and not the command name itself.
+
+    for atk in all_tokens:
+        if atk.type is not TokenType.VAR:
+            continue
+        if atk.start.offset in single_var_offsets:
+            continue
+        name = _normalise_var_name(atk.text)
+        value = constants.get(name)
+        if value is None:
+            continue
+        # Safety: don't inline values containing Tcl special characters that
+        # would introduce new substitutions inside the surrounding string.
+        if _UNSAFE_IN_STRING_RE.search(value):
+            continue
+        ctx.optimisations.append(
+            Optimisation(
+                code="O105",
+                message="Propagate constant into string interpolation",
+                range=_var_token_range(atk),
+                replacement=value,
+            )
+        )
+
+
+def _fold_embedded_cmd_subst(
+    cmd_text: str,
+    constants: dict[str, str],
+    ssa_uses: dict[str, int] | None,
+    values: dict | None,
+) -> str | None:
+    """Fold a builtin or ``[expr {…}]`` substitution to its **raw** string value.
+
+    For a substitution embedded *inside an interpolation string* the replacement
+    is spliced straight into the surrounding ``"…"`` (or bare word), so the raw
+    command output is wanted — not the single-word ``tcl_list_quote`` rendering
+    that :func:`_fold_builtin_cmd_subst` produces for free-standing argument
+    positions.  Returns ``None`` when the sub isn't a constant-foldable builtin
+    or pure ``expr``.
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    # Pure builtin command substitution: [string length abc], [list a b c], …
+    folded = fold_cmd_subst_to_string(f"[{cmd_text}]", ssa_uses or {}, values or {})
+    if folded is not None:
+        return folded
+
+    # [expr {E}] — propagate constants, fold any nested builtin subs, then fold.
+    expr_arg = _expr_arg_from_expr_command(cmd_text)
+    if expr_arg is None:
+        return None
+    substituted, _changed, _ = _substitute_expr_constants(expr_arg, constants)
+    substituted, _ = _substitute_expr_builtin_cmd_subs(
+        substituted, ssa_uses=ssa_uses, values=values
+    )
+    return _try_fold_expr(substituted)
+
+
+def optimise_string_interpolation_cmd_subs(
+    ctx: PassContext,
+    arg_tokens: list[Token],
+    arg_single: list[bool],
+    all_tokens: tuple[Token, ...],
+    constants: dict[str, str],
+    *,
+    ssa_uses: dict[str, int] | None = None,
+    values: dict | None = None,
+) -> None:
+    """Fold a pure ``[cmd …]`` embedded *inside an interpolation string* (O129).
+
+    The optimiser already folds a command substitution that is a whole argument
+    word (``puts [string length abc]`` → ``puts 5``) and propagates ``$var``
+    refs inside a quoted string (``puts "x is $x"``).  This closes the remaining
+    gap — a substitution embedded *within* a multi-token string word::
+
+        puts "v=[string length abc]"   ;# -> puts "v=5"
+        set x 3; puts "sq=[expr {$x*$x}]"  ;# -> puts "sq=9"
+
+    Only substitutions that aren't a whole-word single argument are handled here
+    (those go through :func:`optimise_expr_substitutions`).  Command subs inside
+    a *braced* expr/body word never reach ``all_tokens`` — braces suppress them
+    — so EXPR/BODY positions are untouched.
+
+    The folded value is spliced raw into the surrounding word, so it must be
+    safe in *any* word position: ``fold_cmd_subst_to_string`` already rejects
+    ``; \\n [ $ " \\``; we additionally reject a result containing whitespace,
+    which would split a *bare* (unquoted) interpolation word into extra
+    arguments.  (A space is harmless inside ``"…"`` but the token stream doesn't
+    distinguish the two cheaply, so the conservative rule keeps the rewrite
+    correct in both.)
+    """
+    if not all_tokens:
+        return
+
+    # Whole-word CMD args are folded by optimise_expr_substitutions — skip them
+    # here so the same substitution isn't optimised twice.
+    single_cmd_offsets: set[int] = set()
+    for idx, tok in enumerate(arg_tokens):
+        if idx < len(arg_single) and arg_single[idx] and tok.type is TokenType.CMD:
+            single_cmd_offsets.add(tok.start.offset)
+
+    for atk in all_tokens:
+        if atk.type is not TokenType.CMD or not atk.text:
+            continue
+        if atk.start.offset in single_cmd_offsets:
+            continue
+        folded = _fold_embedded_cmd_subst(atk.text, constants, ssa_uses, values)
+        if folded is None:
+            continue
+        # Whitespace in the result would re-split a bare interpolation word.
+        if any(ch.isspace() for ch in folded):
+            continue
+        ctx.optimisations.append(
+            Optimisation(
+                code="O129",
+                message="Fold constant command substitution",
+                range=_command_subst_range(atk),
+                replacement=folded,
+            )
+        )
+
+
+def optimise_return_terminator(
+    ctx: PassContext, source: str, block, ssa_block, analysis, *, namespace: str = "::"
+) -> None:
+    """Check return values for foldable command substitutions."""
+    from ..cfg import CFGReturn
+
+    term = block.terminator
+    if not isinstance(term, CFGReturn) or not term.value or not term.range:
+        return
+
+    # Build constants from exit versions of this block.
+    constants = _constants_from_exit_versions(ssa_block.exit_versions, analysis.values)
+
+    # Parse the return command text to find command substitution tokens.
+    ret_range = term.range
+    start = ret_range.start.offset
+    end = ret_range.end.offset
+    if start < 0 or end < start or end >= len(source):
+        return
+
+    parsed = _parse_single_command_from_range(source, ret_range)
+    if parsed is None:
+        return
+    argv_texts, argv_tokens, argv_single = parsed
+    if len(argv_texts) < 2:
+        return
+
+    arg_tokens_slice = argv_tokens[1:]
+    arg_single_slice = argv_single[1:]
+    optimise_expr_substitutions(ctx, arg_tokens_slice, arg_single_slice, constants)
+    optimise_static_proc_calls(
+        ctx, arg_tokens_slice, arg_single_slice, constants, namespace=namespace
+    )
+    optimise_constant_var_refs(ctx, arg_tokens_slice, arg_single_slice, constants)
+
+    # Propagate constants into ``$var`` refs embedded in a quoted return value,
+    # e.g. ``set x hi; return "got $x"`` → ``return "got hi"`` (O105).  Use the
+    # same same-block / no-intervening-call safety gate as the statement loop;
+    # ``_parse_single_command_from_range`` only keeps each word's first token, so
+    # re-lex the return command to recover the nested VAR tokens inside strings.
+    safe_constants = safe_string_constants(constants, block, len(block.statements))
+    if safe_constants:
+        all_tokens, _ = tokenise(
+            source[start : end + 1],
+            start,
+            ret_range.start.line,
+            ret_range.start.character,
+        )
+        optimise_string_interpolation_var_refs(
+            ctx, arg_tokens_slice, arg_single_slice, safe_constants, all_tokens
+        )
+
+
+def _substitute_expr_proc_calls(
+    ctx: PassContext,
+    expr: str,
+    constants: dict[str, str],
+    *,
+    namespace: str = "::",
+) -> tuple[str, bool]:
+    """Replace [procName ...] inside an expr with folded constants."""
+    if not ctx.interproc.procedures:
+        return expr, False
+
+    pieces: list[str] = []
+    cursor = 0
+    changed = False
+
+    for tok in tokenise_expr(expr, dialect=active_dialect()):
+        if tok.start > cursor:
+            pieces.append(expr[cursor : tok.start])
+
+        if tok.type is ExprTokenType.COMMAND and len(tok.text) >= 2:
+            cmd_text = tok.text[1:-1]  # strip [ and ]
+            folded_text = _try_fold_proc_call_in_expr(
+                ctx,
+                cmd_text,
+                constants,
+                namespace=namespace,
+            )
+            if folded_text is not None:
+                pieces.append(folded_text)
+                changed = True
+            else:
+                pieces.append(tok.text)
+        else:
+            pieces.append(tok.text)
+
+        cursor = tok.end + 1
+
+    if cursor < len(expr):
+        pieces.append(expr[cursor:])
+
+    return "".join(pieces), changed
+
+
+def _substitute_expr_builtin_cmd_subs(
+    expr: str,
+    *,
+    ssa_uses: dict[str, int] | None = None,
+    values: dict | None = None,
+) -> tuple[str, bool]:
+    """Fold pure *builtin* command substitutions embedded in an expr body.
+
+    ``[expr {[string length abc] + 2}]`` → the inner ``[string length abc]``
+    folds to ``3`` (via the registry ``const_fold`` callbacks, the same source
+    of truth O129 uses), leaving ``3 + 2`` for :func:`_try_fold_expr` to finish.
+    An integer result is inlined bare so arithmetic keeps folding; any other
+    clean value (``[string toupper hi]`` → ``HI``) is rendered as a quoted expr
+    operand.  ``fold_cmd_subst_to_string`` already guarantees the result is free
+    of ``"`` / ``$`` / ``[`` / ``\\`` / ``;`` / newline, so double-quoting is safe.
+    User-proc calls are left untouched (handled by
+    :func:`_substitute_expr_proc_calls`).
+    """
+    from compiler.core_analyses import fold_cmd_subst_to_string
+
+    pieces: list[str] = []
+    cursor = 0
+    changed = False
+
+    for tok in tokenise_expr(expr, dialect=active_dialect()):
+        if tok.start > cursor:
+            pieces.append(expr[cursor : tok.start])
+
+        if tok.type is ExprTokenType.COMMAND and len(tok.text) >= 2:
+            folded = fold_cmd_subst_to_string(tok.text, ssa_uses or {}, values or {})
+            if folded is not None:
+                if _parse_decimal_int(folded) is not None:
+                    pieces.append(folded)
+                else:
+                    pieces.append(f'"{folded}"')
+                changed = True
+            else:
+                pieces.append(tok.text)
+        else:
+            pieces.append(tok.text)
+
+        cursor = tok.end + 1
+
+    if cursor < len(expr):
+        pieces.append(expr[cursor:])
+
+    return "".join(pieces), changed
+
+
+def _try_fold_proc_call_in_expr(
+    ctx: PassContext,
+    cmd_text: str,
+    constants: dict[str, str],
+    *,
+    namespace: str = "::",
+) -> str | None:
+    """Try to fold a [procName ...] inside an expr to a numeric literal."""
+    parsed = _parse_command_words(cmd_text)
+    if parsed is None:
+        return None
+    cmd_texts, cmd_tokens, cmd_single = parsed
+    if not cmd_texts:
+        return None
+
+    # See through iRules ``call proc_name arg...`` indirection.
+    if cmd_texts[0] == "call" and len(cmd_texts) >= 2:
+        proc_word = cmd_texts[1]
+        arg_start = 2
+    else:
+        proc_word = cmd_texts[0]
+        arg_start = 1
+
+    resolved = _resolve_summary_proc_name(
+        proc_word,
+        namespace=namespace,
+        interproc=ctx.interproc,
+    )
+    if resolved is None:
+        return None
+
+    static_args: list[int | bool | str] = []
+    for i in range(arg_start, len(cmd_texts)):
+        if i >= len(cmd_tokens) or i >= len(cmd_single):
+            return None
+        literal = _parse_static_call_arg(
+            cmd_texts[i],
+            cmd_tokens[i],
+            single_token=cmd_single[i],
+            constants=constants,
+        )
+        if literal is None:
+            return None
+        static_args.append(literal)
+
+    # Don't fold calls to redefined procedures.
+    if ctx.ir_module is not None and resolved in ctx.ir_module.redefined_procedures:
+        return None
+
+    # Flow-sensitive rename gate (see optimise_static_proc_calls).
+    if not _binding_allows_proc_fold(ctx, proc_word, resolved):
+        return None
+
+    folded = fold_static_proc_call(ctx.interproc, resolved, tuple(static_args))
+    if folded is None:
+        summary = ctx.interproc.procedures.get(resolved)
+        proc_entry = ctx.proc_cfgs.get(resolved)
+        if summary is not None and proc_entry is not None and summary.pure:
+            cfg_func, proc_params = proc_entry
+            folded = evaluate_proc_with_constants(
+                cfg_func,
+                proc_params,
+                tuple(static_args),
+            )
+    if folded is None:
+        return None
+
+    # Only substitute numeric values into expr context.
+    if isinstance(folded, bool):
+        return "1" if folded else "0"
+    if isinstance(folded, int):
+        return str(folded)
+    if isinstance(folded, str):
+        p = _parse_decimal_int(folded)
+        if p is not None:
+            return str(p)
+    return None
+
+
+def _parse_static_call_arg(
+    arg_text: str,
+    arg_token: Token,
+    *,
+    single_token: bool,
+    constants: dict[str, str],
+) -> int | bool | str | None:
+    """Parse a literal or SCCP-constant argument for static proc folding."""
+    if not single_token:
+        return None
+    if arg_token.type in (TokenType.ESC, TokenType.STR):
+        return _literal_from_constant_str(arg_text)
+    if arg_token.type is TokenType.VAR:
+        var_name = _normalise_var_name(arg_token.text)
+        value = constants.get(var_name)
+        if value is None:
+            return None
+        return _literal_from_constant_str(value)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# O127: Inline single-use variable assignment (store-to-load forwarding)
+# ---------------------------------------------------------------------------
+
+opt(
+    code="O127",
+    description=(
+        "Inline single-use variable assignment — eliminate redundant variable load by "
+        "folding `set` into the use site."
+    ),
+    opt_category="code_motion",
+)
+
+
+def optimise_load_forwarding(
+    ctx: PassContext,
+    source: str,
+    cfg,
+    ssa,
+    analysis,
+    *,
+    is_top_level: bool = False,
+) -> None:
+    """Detect single-use variables and suggest inlining the assignment at the use site.
+
+    When ``set x [cmd]`` is followed by a single use of ``$x``, the variable
+    load is redundant — the value was just computed.  This pass suggests
+    rewriting to ``[set x [cmd]]`` at the use site (preserving the assignment)
+    and deleting the standalone ``set`` statement.
+
+    Inspired by ZJIT's store-to-load forwarding: instead of storing to a
+    variable and immediately loading it back, forward the value directly.
+
+    Uses the following SSA/SCCP infrastructure:
+
+    - **Def-use chains** (``analysis.def_use_chains``): precise single-use
+      detection — only fires when a definition has exactly one ``OPERAND``
+      use and no phi/terminator uses.
+    - **SCCP lattice** (``analysis.values``): skip constants already handled
+      by O100 — only forward OVERDEFINED (non-constant) values.
+    - **Memory-SSA aliases** (``analysis.memory_ssa``): skip variables
+      involved in aliasing (upvar/global/variable) where writes through
+      one name could be visible through another.
+    - **Side-effect classification** (``classify_side_effects``): use the
+      registry-backed effect model to determine intervening barriers,
+      replacing a hardcoded command list.
+    - **SSA versions** (``ssa_stmt.uses``/``defs``): verify that all
+      variables read by the inlined expression have unchanged SSA versions
+      between the def site and the use site.
+    """
+    from ..analysis_types import LatticeKind
+    from ..def_use import UseKind
+    from ..ir import IRAssignConst, IRAssignExpr, IRAssignValue, IRBarrier, IRCall
+    from ..side_effects import classify_side_effects
+    from ._helpers import _full_command_range, _tokens_for_statement
+    from ._pattern_recognition import _statement_delete_rewrite_range, _statement_rewrite_context
+
+    if is_top_level:
+        return
+
+    # Require def-use chains for precise single-use detection.
+    du = analysis.def_use_chains
+    if du is None:
+        return
+
+    # Alias information from memory-SSA (pre-computed during analysis).
+    aliased_names: frozenset[str] = frozenset()
+    if analysis.memory_ssa is not None:
+        aliased_names = analysis.memory_ssa.aliased_names
+    else:
+        # Fallback: compute aliases directly.
+        from ..memory_ssa import compute_aliases
+
+        for aset in compute_aliases(ssa):
+            aliased_names = aliased_names | aset.names
+
+    executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
+
+    # Hoist trace-aware classification context out of the per-statement
+    # loop: ``traced_commands()`` walks ``IRModule.command_traces`` on
+    # every call, and the answer is invariant across the def-use chain
+    # walk below.
+    if ctx.ir_module is not None:
+        traced_commands = ctx.ir_module.traced_commands()
+        has_dynamic_trace = ctx.ir_module.has_dynamic_trace()
+    else:
+        traced_commands = None
+        has_dynamic_trace = False
+
+    # Build statement rewrite ranges for deletion.
+    range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
+
+    # Build a set of source ranges already targeted by prior optimisation
+    # passes (pre-loop pattern recognition + statement-loop propagation).
+    # O127 must not emit rewrites that overlap with these.
+    rewritten_ranges: set[tuple[int, int]] = set()
+    for prior in ctx.optimisations:
+        rewritten_ranges.add((prior.range.start.offset, prior.range.end.offset))
+
+    # Walk def-use chains looking for single-use, same-block forwarding candidates.
+    for def_key, chain in du.chains.items():
+        def_name, def_ver = def_key
+
+        # Must have exactly one use, and it must be a statement operand
+        # (not a phi incoming edge or terminator condition).
+        if chain.use_count != 1:
+            continue
+        use = chain.uses[0]
+        if use.kind is not UseKind.OPERAND:
+            continue
+
+        # Def must be a statement (not a phi or parameter).
+        defsite = chain.definition
+        if defsite.statement_index < 0:
+            continue
+
+        # Def and use must be in the same executable block.
+        def_block = defsite.block
+        use_block = use.block
+        if def_block != use_block:
+            continue
+        if def_block not in executable_blocks:
+            continue
+
+        block = cfg.blocks.get(def_block)
+        ssa_block = ssa.blocks.get(def_block)
+        if block is None or ssa_block is None:
+            continue
+
+        def_idx = defsite.statement_index
+        use_idx = use.statement_index
+        if def_idx >= len(block.statements) or use_idx >= len(block.statements):
+            continue
+        if use_idx <= def_idx:
+            continue
+
+        stmt = block.statements[def_idx]
+        ssa_stmt = ssa_block.statements[def_idx]
+
+        # Only consider pure assignment statements.
+        if not isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr)):
+            continue
+
+        # Skip constants — SCCP lattice says O100 handles those.
+        lv = analysis.values.get(def_key)
+        if lv is not None and getattr(lv, "kind", None) is LatticeKind.CONST:
+            continue
+
+        # Skip definitions whose statement was already rewritten by
+        # SCCP/ICIP propagation (O100/O101/O102/O103).
+        if (def_block, def_idx) in ctx.propagated_expr_stmts:
+            continue
+
+        # Skip definitions whose use was already consumed by constant
+        # propagation into a branch condition.
+        if def_key in ctx.propagated_branch_uses:
+            continue
+
+        # Skip the use-site statement if it was already rewritten by
+        # propagation.
+        if (use_block, use_idx) in ctx.propagated_expr_stmts:
+            continue
+
+        # Skip def statements already targeted by prior passes (O104,
+        # O114, O119, etc.) — their rewrites would conflict with the
+        # delete edit.
+        def_stmt_range = range_by_stmt.get((def_block, def_idx))
+        if def_stmt_range is not None:
+            def_start = def_stmt_range.start.offset
+            def_end = def_stmt_range.end.offset
+            if any(not (e < def_start or s > def_end) for s, e in rewritten_ranges):
+                continue
+
+        # Skip cross-event variables.
+        if def_name in ctx.cross_event_vars:
+            continue
+
+        # Skip aliased variables — both the defined variable and any
+        # variable read by the expression.  Memory-SSA alias sets track
+        # upvar/global/variable bindings; writes through one alias are
+        # visible through another, so forwarding is unsafe.
+        if def_name in aliased_names:
+            continue
+        def_read_names = set(ssa_stmt.uses.keys())
+        if def_read_names & aliased_names:
+            continue
+
+        # Check intervening statements between def and use:
+        # - No barriers (IRBarrier)
+        # - No side-effectful commands or assignments with command
+        #   substitutions (IRCall, IRAssignValue/IRAssignExpr with [])
+        # - No redefinition of any variable read by the expression
+        unsafe = False
+        for between_idx in range(def_idx + 1, use_idx):
+            if between_idx >= len(block.statements):
+                break
+            between_stmt = block.statements[between_idx]
+
+            # IRBarrier is always a kill.
+            if isinstance(between_stmt, IRBarrier):
+                unsafe = True
+                break
+
+            # Barrier-relaxed eval / uplevel still count as kills —
+            # their bodies run with full side-effect potential, just
+            # with inline IR rather than a string round-trip.  Treat
+            # them conservatively so O127 load-forwarding does not
+            # chase through a scope that may mutate arbitrary names.
+            from ..ir import IRBlock as _IRBlock
+            from ..ir import IRUpFrame as _IRUpFrame
+
+            if isinstance(between_stmt, _IRUpFrame) or (
+                isinstance(between_stmt, _IRBlock)
+                and between_stmt.source_tokens is not None
+                and between_stmt.source_tokens.argv_texts
+                and between_stmt.source_tokens.argv_texts[0] == "eval"
+            ):
+                unsafe = True
+                break
+
+            # Assignments with command substitutions execute side effects;
+            # forwarding past them could reorder observable behaviour.
+            if isinstance(between_stmt, IRAssignValue) and "[" in between_stmt.value:
+                unsafe = True
+                break
+            if isinstance(between_stmt, IRAssignExpr):
+                from ._expr_simplify import _expr_has_command_subst
+
+                if _expr_has_command_subst(between_stmt.expr):
+                    unsafe = True
+                    break
+
+            # Use the side-effect model for command invocations.
+            if isinstance(between_stmt, IRCall):
+                callee_summary = None
+                if ctx.interproc is not None:
+                    from compiler.interprocedural import resolve_call_target
+
+                    known = set(ctx.interproc.procedures)
+                    target = resolve_call_target(
+                        between_stmt.command,
+                        between_stmt.args,
+                        cfg.name if hasattr(cfg, "name") else "::top",
+                        known,
+                    )
+                    if target is not None:
+                        callee_summary = ctx.interproc.procedures.get(target)
+                effect = classify_side_effects(
+                    between_stmt.command,
+                    between_stmt.args,
+                    callee_summary=callee_summary,
+                    traced_commands=traced_commands,
+                    has_dynamic_trace=has_dynamic_trace,
+                )
+                if not effect.pure:
+                    unsafe = True
+                    break
+
+            # SSA version check: if any intervening statement redefines
+            # a variable that the expression reads, inlining is unsafe.
+            between_ssa = ssa_block.statements[between_idx]
+            if def_read_names & set(between_ssa.defs.keys()):
+                unsafe = True
+                break
+        if unsafe:
+            continue
+
+        # Extract the full command text from source.
+        stmt_range = stmt.range
+        full_stmt_range = _full_command_range(source, stmt_range) or stmt_range
+        stmt_text = source[full_stmt_range.start.offset : full_stmt_range.end.offset + 1]
+
+        # Build the inline replacement: [set name value_expr]
+        inline_text = f"[{stmt_text}]"
+
+        # Find the $var token in the use-site statement and verify
+        # intra-statement evaluation order safety.
+        use_stmt = block.statements[use_idx]
+        parsed = _tokens_for_statement(use_stmt, source)
+        if parsed is None:
+            continue
+
+        _, use_argv_tokens, use_argv_single = parsed
+        var_token = None
+        has_earlier_effect = False
+        for tidx, tok in enumerate(use_argv_tokens):
+            if tok.type is TokenType.VAR and _normalise_var_name(tok.text) == def_name:
+                if tidx < len(use_argv_single) and not use_argv_single[tidx]:
+                    continue
+                var_token = tok
+                break
+            # Check for command substitutions or variable writes in tokens
+            # that appear BEFORE our $var.  These execute left-to-right in
+            # Tcl; inlining [set x ...] after them would change evaluation
+            # order if the inlined RHS reads state they modify.
+            if tok.type is TokenType.CMD:
+                has_earlier_effect = True
+            elif tok.type is TokenType.VAR:
+                # A $var by itself is a read, not a write — safe.
+                pass
+
+        if var_token is None:
+            continue
+
+        # If there are command substitutions before $var in the use
+        # statement, the inlined expression might evaluate in a
+        # different context.  Skip unless the def expression has no
+        # reads (pure constant-like) — conservative but correct.
+        if has_earlier_effect and def_read_names:
+            continue
+
+        # Emit grouped rewrite: inline at use site + delete the set line.
+        group_id = ctx.alloc_group()
+
+        # 1. Replace $var with [set name value].
+        var_range = _var_token_range(var_token)
+        ctx.optimisations.append(
+            Optimisation(
+                code="O127",
+                message=f"Inline single-use variable `${def_name}`",
+                range=var_range,
+                replacement=inline_text,
+                group=group_id,
+            )
+        )
+
+        # 2. Delete the original set statement.
+        def_stmt_key = (def_block, def_idx)
+        full_range = range_by_stmt.get(def_stmt_key)
+        if full_range is not None:
+            delete_range = _statement_delete_rewrite_range(
+                source,
+                full_range,
+                next_start_by_stmt.get(def_stmt_key),
+            )
+            ctx.optimisations.append(
+                Optimisation(
+                    code="O127",
+                    message="Remove inlined assignment",
+                    range=delete_range,
+                    replacement="",
+                    group=group_id,
+                )
+            )

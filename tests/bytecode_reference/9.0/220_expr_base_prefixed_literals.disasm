@@ -1,0 +1,105 @@
+ByteCode 0x55582d2cdd00, refCt 1, epoch 21, interp 0x55582d1dd350 (epoch 21)
+  Source "# ``expr`` literals with 0x / 0o / 0b prefixes must par..."
+  Cmds 20, src 696, inst 172, litObjs 20, aux 0, stkDepth 2, code/src 0.00
+  Commands 20:
+      1: pc 0-30, src 320-385        2: pc 0-2, src 325-335
+      3: pc 8-25, src 347-384        4: pc 10-12, src 371-381
+      5: pc 31-55, src 387-440        6: pc 31-32, src 392-406
+      7: pc 38-50, src 418-439        8: pc 56-80, src 442-504
+      9: pc 56-57, src 447-468       10: pc 63-75, src 479-503
+     11: pc 81-106, src 506-553       12: pc 81-83, src 511-521
+     13: pc 89-101, src 533-552       14: pc 107-132, src 584-631
+     15: pc 107-109, src 589-597       16: pc 115-127, src 609-630
+     17: pc 133-157, src 633-684       18: pc 133-134, src 638-646
+     19: pc 140-152, src 658-683       20: pc 158-170, src 686-694
+  Command 1: "if {[expr {0x10}] != 16} { error \"hex 0x10 broke: [exp..."
+  Command 2: "expr {0x10}..."
+    (0) push1 0 	# "0x10"
+    (2) tryCvtToNumeric 
+    (3) push1 1 	# "16"
+    (5) neq 
+    (6) jumpFalse1 +22 	# pc 28
+  Command 3: "error \"hex 0x10 broke: [expr {0x10}]\"..."
+    (8) push1 2 	# "hex 0x10 broke: "
+  Command 4: "expr {0x10}..."
+    (10) push1 0 	# "0x10"
+    (12) tryCvtToNumeric 
+    (13) strcat 2 
+    (15) push1 3 	# ""
+    (17) returnImm +1 0 
+    (26) jump1 +4 	# pc 30
+    (28) push1 3 	# ""
+    (30) pop 
+  Command 5: "if {[expr {0x10 + 1}] != 17} { error \"hex add broke\"..."
+  Command 6: "expr {0x10 + 1}..."
+    (31) push1 4 	# "17"
+    (33) push1 5 	# "17"
+    (35) neq 
+    (36) jumpFalse1 +17 	# pc 53
+  Command 7: "error \"hex add broke\"..."
+    (38) push1 6 	# "hex add broke"
+    (40) push1 3 	# ""
+    (42) returnImm +1 0 
+    (51) jump1 +4 	# pc 55
+    (53) push1 3 	# ""
+    (55) pop 
+  Command 8: "if {[expr {0b1010 & 0b0110}] != 2} { error \"binary AND..."
+  Command 9: "expr {0b1010 & 0b0110}..."
+    (56) push1 7 	# "2"
+    (58) push1 8 	# "2"
+    (60) neq 
+    (61) jumpFalse1 +17 	# pc 78
+  Command 10: "error \"binary AND broke\"..."
+    (63) push1 9 	# "binary AND broke"
+    (65) push1 3 	# ""
+    (67) returnImm +1 0 
+    (76) jump1 +4 	# pc 80
+    (78) push1 3 	# ""
+    (80) pop 
+  Command 11: "if {[expr {0o17}] != 15} { error \"octal broke\"..."
+  Command 12: "expr {0o17}..."
+    (81) push1 10 	# "0o17"
+    (83) tryCvtToNumeric 
+    (84) push1 11 	# "15"
+    (86) neq 
+    (87) jumpFalse1 +17 	# pc 104
+  Command 13: "error \"octal broke\"..."
+    (89) push1 12 	# "octal broke"
+    (91) push1 3 	# ""
+    (93) returnImm +1 0 
+    (102) jump1 +4 	# pc 106
+    (104) push1 3 	# ""
+    (106) pop 
+  Command 14: "if {[expr {42}] != 42} { error \"decimal broke\"..."
+  Command 15: "expr {42}..."
+    (107) push1 13 	# "42"
+    (109) tryCvtToNumeric 
+    (110) push1 13 	# "42"
+    (112) neq 
+    (113) jumpFalse1 +17 	# pc 130
+  Command 16: "error \"decimal broke\"..."
+    (115) push1 14 	# "decimal broke"
+    (117) push1 3 	# ""
+    (119) returnImm +1 0 
+    (128) jump1 +4 	# pc 132
+    (130) push1 3 	# ""
+    (132) pop 
+  Command 17: "if {[expr {-7}] != -7} { error \"neg decimal broke\"..."
+  Command 18: "expr {-7}..."
+    (133) push1 15 	# "-7"
+    (135) push1 16 	# "-7"
+    (137) neq 
+    (138) jumpFalse1 +17 	# pc 155
+  Command 19: "error \"neg decimal broke\"..."
+    (140) push1 17 	# "neg decimal broke"
+    (142) push1 3 	# ""
+    (144) returnImm +1 0 
+    (153) jump1 +4 	# pc 157
+    (155) push1 3 	# ""
+    (157) pop 
+  Command 20: "return ok..."
+    (158) push1 18 	# "ok"
+    (160) push1 19 	# ""
+    (162) returnImm +0 1 
+    (171) done 
+

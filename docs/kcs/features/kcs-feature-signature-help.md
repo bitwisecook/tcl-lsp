@@ -1,5 +1,8 @@
 # KCS: feature — Signature Help
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Parameter hints for commands and procs as you type arguments.
@@ -19,7 +22,7 @@ The provider looks up the command or proc under the cursor and shows the expecte
 
 ## File-path anchors
 
-- `lsp/features/signature_help.py`
+- `server/features/signature_help.py`
 
 ## Failure modes
 

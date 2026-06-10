@@ -8,17 +8,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
-from core.commands.registry.runtime import configure_signatures
-from core.compiler.optimiser import (
+from analyser import analyse
+from analyser.semantic_model import Range
+from compiler.optimiser import (
     demorgan_transform,
     find_optimisations,
     invert_expression,
     optimise_source,
 )
-from core.compiler.optimiser._helpers import _full_command_range
-from core.parsing.tokens import SourcePosition
+from compiler.optimiser._helpers import _full_command_range
+from compiler.registry.runtime import configure_signatures
+from shared.tokens import SourcePosition
 
 
 class TestOptimiser:
@@ -309,44 +309,58 @@ class TestOptimiser:
         assert any(r.code == "O110" for r in rewrites)
 
     # Identity / absorbing element rules
+    #
+    # D5-O110: identity/annihilator drops require provably-numeric
+    # operands; wrap each in a loop where ``x`` is SCCP-typed INT.
+
+    @staticmethod
+    def _int_x(body: str) -> str:
+        return (
+            "proc f {n} {\n"
+            "  for {set x 0} {$x < $n} {incr x} {\n"
+            "    " + body + "\n"
+            "    puts $v\n"
+            "  }\n"
+            "}\n"
+        )
 
     def test_instcombine_pow_zero(self):
-        source = "set v [expr {$x ** 0}]"
+        source = self._int_x("set v [expr {$x ** 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 1" in optimised
 
     def test_instcombine_pow_one(self):
-        source = "set v [expr {$x ** 1}]"
+        source = self._int_x("set v [expr {$x ** 1}]")
         optimised, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_shift_zero(self):
-        source = "set v [expr {$x << 0}]"
+        source = self._int_x("set v [expr {$x << 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_rshift_zero(self):
-        source = "set v [expr {$x >> 0}]"
+        source = self._int_x("set v [expr {$x >> 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitand_zero(self):
-        source = "set v [expr {$x & 0}]"
+        source = self._int_x("set v [expr {$x & 0}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
     def test_instcombine_bitor_zero(self):
-        source = "set v [expr {$x | 0}]"
+        source = self._int_x("set v [expr {$x | 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_bitxor_zero(self):
-        source = "set v [expr {$x ^ 0}]"
+        source = self._int_x("set v [expr {$x ^ 0}]")
         _, rewrites = optimise_source(source)
         assert any(r.code == "O110" for r in rewrites)
 
     def test_instcombine_mod_one(self):
-        source = "set v [expr {$x % 1}]"
+        source = self._int_x("set v [expr {$x % 1}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -450,8 +464,10 @@ class TestOptimiser:
         assert "!$x || !$y" in o110.replacement
 
     def test_instcombine_double_bitnot(self):
-        """~~$x → $x."""
-        source = "set v [expr {~~$x}]"
+        """~~$x → $x.
+
+        D5-O110: drops the bitwise-not operator; needs provably-numeric x."""
+        source = self._int_x("set v [expr {~~$x}]")
         optimised, _ = optimise_source(source)
         assert "set v [expr {$x}]" in optimised
 
@@ -468,7 +484,8 @@ class TestOptimiser:
         assert "set v 0" in optimised
 
     def test_instcombine_self_xor(self):
-        source = "set v [expr {$x ^ $x}]"
+        # D5-O110: x ^ x drops both operands; needs numeric proof.
+        source = self._int_x("set v [expr {$x ^ $x}]")
         optimised, _ = optimise_source(source)
         assert "set v 0" in optimised
 
@@ -965,12 +982,69 @@ class TestConstantVarRefPropagation:
         assert any(r.code == "O105" for r in rewrites)
         assert any(r.code == "O109" for r in rewrites)
 
+    def test_string_constant_with_space_propagated_as_braced_word(self):
+        """A whole-word $var holding a multi-word string folds to a braced word.
+
+        ``$msg`` already evaluates to the single value "Hello World"; replacing
+        it with the brace-quoted ``{Hello World}`` is semantically identical and
+        unblocks the constant from being inlined into its (sole) use.
+        """
+        source = "set msg {Hello World}\nputs $msg"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "puts {Hello World}"
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_string_constant_with_metachars_propagated_safely(self):
+        """Metacharacters in the value are suppressed by the braces, not run."""
+        source = "set x {a $b [c]}\nputs $x"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "puts {a $b [c]}"
+        assert any(r.code == "O100" for r in rewrites)
+
+    def test_string_constant_returned_collapses_via_multipass(self):
+        """``set msg {Hello World}; return $msg`` -> ``return {Hello World}``.
+
+        The dead ``set`` is then removed, leaving the proc body as a single
+        ``return`` of the literal — the local never escapes, so dropping the
+        assignment is not an observable side effect.
+        """
+        from compiler.optimiser import optimise_source_multipass
+
+        source = textwrap.dedent(
+            """\
+            proc build_banner {} {
+                set msg {Hello}
+                append msg { }
+                append msg World
+                return $msg
+            }
+            """
+        )
+        optimised, _rewrites, _iters = optimise_source_multipass(source)
+        assert "return {Hello World}" in optimised
+        assert "append" not in optimised
+        # The intermediate local must be gone — no surviving ``set msg``.
+        assert "set msg" not in optimised
+
+    def test_braced_whole_name_array_ref_not_folded_as_literal(self):
+        """``set x ${a(1)}`` reads array element ``a(1)`` — never a literal.
+
+        Braced ``${a(1)}`` is a whole-name array load (the natural spelling
+        is preserved through lowering); SCCP must treat it as a
+        (conservatively unknown) variable read, not fold its text in as a
+        constant value.
+        """
+        source = "set x ${a(1)}\nputs $x"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert rewrites == []
+
 
 class TestPatternMatchSimplification:
     """O110: simplify matches_regex / matches_glob to simpler string ops."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
@@ -1120,11 +1194,15 @@ class TestStrengthReduction:
 
 
 class TestIncrIdiom:
-    """O114 — incr idiom recognition."""
+    """O114 — incr idiom recognition.
+
+    D5-O114: requires SSA-known INT type on the loop var.  Seeding with
+    ``set x 0`` lets SCCP type ``x`` as INT and the rewrite fires."""
 
     def test_incr_add_one(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 1}]
             }
         """).rstrip()
@@ -1134,7 +1212,8 @@ class TestIncrIdiom:
 
     def test_incr_add_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x + 5}]
             }
         """).rstrip()
@@ -1144,7 +1223,8 @@ class TestIncrIdiom:
 
     def test_incr_sub_n(self):
         source = textwrap.dedent("""\
-            proc foo {x} {
+            proc foo {} {
+                set x 0
                 set x [expr {$x - 3}]
             }
         """).rstrip()
@@ -1160,6 +1240,20 @@ class TestNestedExprUnwrap:
         source = "if {[expr {$x + 1}]} {}"
         optimised, rewrites = optimise_source(source)
         assert "[expr" not in optimised
+        assert any(r.code == "O115" for r in rewrites)
+
+    def test_nested_expr_in_return_unwrapped(self):
+        # An ``[expr {...}]`` command sub in a value position (here ``return``)
+        # is reached via optimise_expr_substitutions, not optimise_expression_args.
+        source = "proc double_expr {x} {\n    return [expr {[expr {$x * 2}]}]\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "return [expr {$x * 2}]" in optimised
+        assert any(r.code == "O115" for r in rewrites)
+
+    def test_nested_expr_in_set_unwrapped(self):
+        source = "proc f {x} {\n    set y [expr {[expr {$x * 2}]}]\n    return $y\n}"
+        optimised, rewrites = optimise_source(source)
+        assert "set y [expr {$x * 2}]" in optimised
         assert any(r.code == "O115" for r in rewrites)
 
 
@@ -1221,25 +1315,45 @@ class TestStringCompareEqNe:
         assert '$a == "1"' in optimised
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_numeric_like_literal_rewritten_for_known_string_var(self):
+    def test_numeric_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
+
+        tclsh: ``set a [string trim "1.0"]`` is STRING-typed (intrep),
+        but its value "1.0" parses as a double.  ``expr {$a == "1"}``
+        takes the numeric path: 1.0 == 1.0 -> 1.  ``expr {$a eq "1"}``
+        takes the string path: "1.0" ne "1" -> 0.  The rewrite would
+        flip the result.  Per the at-least-one-non-numeric rule, the
+        literal "1" IS numeric-looking and the var is unproven, so we
+        must NOT rewrite.
+        """
         source = 'set a [string trim $raw]\nif {$a == "1"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "1"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
-
-    def test_var_vs_var_both_string_typed(self):
-        source = "set a foo\nset b bar\nif {$a == $b} {}"
-        optimised, rewrites = optimise_source(source)
-        # O105 may propagate constants, giving "foo" eq "bar"
-        assert "eq" in optimised
-        assert "==" not in optimised
-        assert any(r.code == "O120" for r in rewrites)
-
-    def test_var_vs_var_one_string_typed_not_rewritten(self):
-        """Only one side is known-string; the other is unknown — don't rewrite."""
-        source = "set a foo\nif {$a == $b} {}"
         _, rewrites = optimise_source(source)
         assert not any(r.code == "O120" for r in rewrites)
+
+    def test_var_vs_var_both_string_typed(self):
+        # Both operands are SCCP constants ("foo", "bar"), so the comparison
+        # now folds outright -- "foo" != "bar" -> the condition is constant
+        # false.  (That is strictly better than the O120 ==/eq rewrite, which
+        # is still exercised for *non-constant* operands by the other tests
+        # above, e.g. test_rewrites_ne_in_expr_command_substitution.)
+        source = "set a foo\nset b bar\nif {$a == $b} {}"
+        optimised, _rewrites = optimise_source(source)
+        assert "==" not in optimised
+        assert "eq" not in optimised  # the constant compare is gone, not rewritten
+
+    def test_var_vs_var_one_const_non_numeric_IS_rewritten(self):
+        """D5-O120: SCCP CONST proves the runtime value is non-numeric.
+
+        ``set a foo`` gives ``a`` an SCCP CONST("foo").  "foo" cannot
+        parse as a number, so Tcl ``==`` will always take the string
+        path regardless of $b's runtime value -- the rewrite to ``eq``
+        is sound (at-least-one-non-numeric rule).  tclsh-verified:
+        ``set a foo; set b X; expr {$a == $b}`` == ``expr {$a eq $b}``
+        for every X tested (foo/1/1.0/true/yes/...).
+        """
+        source = "set a foo\nif {$a == $b} {}"
+        _, rewrites = optimise_source(source)
+        assert any(r.code == "O120" for r in rewrites)
 
     def test_var_vs_var_int_typed_not_rewritten(self):
         source = "set a [expr {1 + 2}]\nset b [expr {3 + 4}]\nif {$a == $b} {}"
@@ -1261,17 +1375,36 @@ class TestStringCompareEqNe:
         _, rewrites = optimise_source(source)
         assert not any(r.code == "O120" for r in rewrites)
 
-    def test_boolean_like_literal_rewritten_for_known_string_var(self):
-        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
-        optimised, rewrites = optimise_source(source)
-        assert '$a eq "true"' in optimised
-        assert any(r.code == "O120" for r in rewrites)
+    def test_boolean_like_literal_NOT_rewritten_for_string_typed_var(self):
+        """D5-O120: STRING type alone does NOT prove non-numeric VALUE.
 
-    def test_var_vs_var_from_string_producers_rewritten(self):
+        While tclsh actually treats ``"true"`` as a string in ``==``
+        contexts (``expr {"1" == "true"}`` -> 0, never 1), our
+        ``_is_numeric_string_value("true")`` is over-conservative
+        because it shares the BOOLEAN_WORDS predicate with the
+        constant-substitution path (where ``true`` IS the boolean 1).
+        Safely conservative: we lose this optimisation but never
+        introduce wrong output.  Test pins the conservatism so a
+        future precision tightening must remove ``true``/``false``
+        from the O120 numeric-looking set deliberately.
+        """
+        source = 'set a [string trim $raw]\nif {$a == "true"} {}'
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
+
+    def test_var_vs_var_from_string_producers_NOT_rewritten(self):
+        """D5-O120: two STRING-typed vars without CONST proof.
+
+        Both ``$a`` and ``$b`` are typed STRING (output of ``string
+        trim``) but neither has an SCCP CONST value -- they could
+        both hold "1.0"/"1" at runtime, where ``==`` is 1 (numeric)
+        and ``eq`` is 0 (string).  The old test encoded the unsound
+        STRING-typed-is-enough heuristic; per the at-least-one-non-
+        numeric rule we now correctly bail.
+        """
         source = "set a [string trim $x]\nset b [string trim $y]\nif {$a == $b} {}"
-        optimised, rewrites = optimise_source(source)
-        assert "$a eq $b" in optimised
-        assert any(r.code == "O120" for r in rewrites)
+        _, rewrites = optimise_source(source)
+        assert not any(r.code == "O120" for r in rewrites)
 
     def test_mixed_expr_only_rewrites_string_compare(self):
         source = 'set a [string trim $raw]\nif {$a == "x" && $n == 1} {}'
@@ -1328,21 +1461,24 @@ class TestMultiSetPacking:
         assert any(r.code == "O119" for r in rewrites)
 
     def test_read_breaks_group(self):
+        # The eval barrier stops O105 from propagating the constants away so
+        # O119 actually packs; b/c/d are three consecutive un-read sets, while
+        # ``a`` is read by ``puts $a`` before the run and must be excluded.
         source = textwrap.dedent("""\
             set a 1
             puts $a
             set b 2
             set c 3
-            puts "$b $c"
+            set d 4
+            eval {$a $b $c $d}
         """).rstrip()
-        _optimised, rewrites = optimise_source(source)
-        # $a is read between set a and set b, so set a cannot be grouped with b,c.
-        o119_rewrites = [r for r in rewrites if r.code == "O119"]
-        # Either no O119 (group of b,c is only 2) or a is not in any lassign.
-        if o119_rewrites:
-            for r in o119_rewrites:
-                if r.replacement and "lassign" in r.replacement:
-                    assert "a" not in r.replacement.split()
+        optimised, rewrites = optimise_source(source)
+        # O119 fires and packs b/c/d into one lassign.
+        assert any(r.code == "O119" for r in rewrites), [r.code for r in rewrites]
+        assert "lassign {2 3 4} b c d" in optimised, optimised
+        # ``a`` was read mid-run so it is NOT swept into the lassign group.
+        assert "lassign" not in optimised.split("\n")[0]  # a handled separately
+        assert " a " not in optimised.replace("lassign {2 3 4} b c d", "")
 
     def test_too_few_not_packed(self):
         source = textwrap.dedent("""\
@@ -1355,7 +1491,7 @@ class TestMultiSetPacking:
 
     def test_tcl9_skips_packing(self):
         """In Tcl 9.0 individual set is faster — O119 must not fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl9.0")
         try:
@@ -1525,10 +1661,11 @@ class TestEndOffsetIndexRewrite:
         assert optimised == "set x [lindex $a(1) end]"
         assert any(r.code == "O128" for r in rewrites)
 
-    def test_no_rewrite_braced_scalar_vs_array_element(self):
-        # ``${a(1)}`` refers to a scalar variable literally named ``a(1)``;
-        # ``$a(1)`` (bare) is an array-element access.  They must not be
-        # conflated even though both texts include ``a(1)``.
+    def test_no_rewrite_braced_whole_name_vs_array_element(self):
+        # ``${a(1)}`` is a whole-name load of array element ``a(1)``;
+        # ``$a(1)`` (bare) SPLITS into array ``a`` element ``1``.  These
+        # compile to different loads and must not be conflated even though
+        # both texts include ``a(1)``.
         source = "set x [lindex ${a(1)} [expr {[llength $a(1)] - 1}]]"
         _optimised, rewrites = optimise_source(source)
         assert not any(r.code == "O128" for r in rewrites)
@@ -1664,13 +1801,13 @@ class TestEndOffsetIndexRewrite:
 class TestVariableShapeOptimisationGuardrails:
     """Variable-shape forms should not be conflated by optimiser rewrites."""
 
-    def test_braced_scalar_like_array_name_not_rewritten_as_array_ref(self):
+    def test_braced_whole_name_array_ref_not_rewritten_as_array_ref(self):
         source = "set x ${a(1)}\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert optimised == source
         assert rewrites == []
 
-    def test_unbraced_array_ref_not_rewritten_as_braced_scalar_name(self):
+    def test_unbraced_array_ref_not_rewritten_as_braced_whole_name(self):
         source = "set x $a(1)\nputs $x"
         optimised, rewrites = optimise_source(source)
         assert optimised == source
@@ -1926,7 +2063,7 @@ class TestTailCallOptimisation:
 
     def test_o122_output_is_valid_tcl(self):
         """O122 rewrite should not produce trailing syntax errors."""
-        from core.analysis import analyse
+        from analyser import analyse
 
         source = textwrap.dedent("""\
             proc gcd {a b} {
@@ -2102,12 +2239,12 @@ class TestUnusedIruleProcs:
     """O124: comment out unused procs in iRules."""
 
     def _setup_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
 
     def _teardown_irules(self):
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
 
@@ -2564,19 +2701,27 @@ class TestCodeSinking:
         assert not any(r.code == "O125" for r in rewrites)
 
     def test_sink_preserves_indentation(self):
+        # O125 only sinks when constant propagation is blocked — here the
+        # nested ``set b bar`` redefine stops O100 from folding ``set b foo``
+        # away, so the sink actually fires (the simple
+        # ``set b foo; if {$a} {puts $b}`` form is fully propagated instead).
         source = textwrap.dedent("""\
             set b foo
             if {$a} {
-                puts $b
+                if {$c} {
+                    set b bar
+                }
+                if {$d} {
+                    puts $b
+                }
             }""")
-        optimised, _rewrites = optimise_source(source)
-        lines = optimised.split("\n")
-        # The sunk statement should match the body indentation.
-        for line in lines:
-            if "set b foo" in line and "# [O125]" not in line:
-                # This is the sunk statement inside the body.
-                leading = len(line) - len(line.lstrip())
-                assert leading == 4  # matches puts indentation
+        optimised, rewrites = optimise_source(source)
+        assert any(r.code == "O125" for r in rewrites), [r.code for r in rewrites]
+        # The sunk ``set b foo`` lands at the outer-if body indent (4 spaces).
+        sunk = [ln for ln in optimised.split("\n") if ln.lstrip().startswith("set b foo")]
+        assert sunk, optimised
+        for line in sunk:
+            assert len(line) - len(line.lstrip()) == 4
 
     def test_no_sink_when_rhs_dep_can_change_in_condition(self):
         source = textwrap.dedent("""\
@@ -2766,19 +2911,24 @@ class TestLoadForwarding:
         assert any(r.code == "O100" for r in rewrites)
 
     def test_skip_when_propagation_already_rewrote_use_site(self):
-        """If O100/O102 already rewrote the use-site statement, O127 defers."""
+        """If propagation already rewrote the use-site statement, O127 defers."""
+        # ``return $y`` keeps y live so the ``set y`` statement survives; the
+        # constant ``c`` is folded into the expr (use-site rewritten), so the
+        # single-use ``x`` must NOT additionally be inlined by O127.
         source = textwrap.dedent("""\
             proc test {} {
                 set c 1
                 set x [clock seconds]
                 set y [expr {$c + $x}]
+                return $y
             }""")
-        _optimised, rewrites = optimise_source(source)
+        optimised, rewrites = optimise_source(source)
         codes = [r.code for r in rewrites]
-        # O100 propagates $c into the expr. O127 should not also try
-        # to inline $x into the same (already rewritten) statement.
-        if "O100" in codes:
-            assert not any(r.code == "O127" for r in rewrites)
+        # The constant c was folded into the expr (use-site rewritten).
+        assert "$c" not in optimised, optimised
+        assert "$x + 1" in optimised or "1 + $x" in optimised, optimised
+        # Because that statement was already rewritten, O127 defers on x.
+        assert "O127" not in codes, codes
 
     def test_skip_aliased_read_variable(self):
         """If the expression reads an aliased variable, skip entirely."""
@@ -2792,13 +2942,21 @@ class TestLoadForwarding:
         assert not any(r.code == "O127" for r in rewrites)
 
     def test_skip_when_pre_loop_pass_already_rewrites_def(self):
-        """If O114 (incr idiom) already targets the def, O127 must not conflict."""
+        """If O114 (incr idiom) already targets the def, O127 must not conflict.
+
+        D5-O114: O114 only fires when x is provably INT.  Loop-counter
+        pattern: x is INT-typed but OVERDEFINED in value, so O114 fires
+        and O127 must defer to it."""
         source = textwrap.dedent("""\
-            proc test {} {
-                set x [expr {$x + 1}]
-                puts $x
+            proc test {n} {
+                for {set x 0} {$x < $n} {incr x} {
+                    set x [expr {$x + 1}]
+                    puts $x
+                }
             }""")
         _optimised, rewrites = optimise_source(source)
+        codes = [r.code for r in rewrites]
+        assert "O114" in codes, f"sanity: O114 should fire here; got {codes}"
         # O114 rewrites the set→incr. O127 should not also try to
         # inline and delete the same statement.
         assert not any(r.code == "O127" for r in rewrites)

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.inlining import (
+from compiler.inlining import (
     apply_inline_catalogue,
     inline_module,
 )
-from core.compiler.ir import InlineDecision, IRCall
-from core.compiler.lowering import lower_to_ir
-from core.compiler.var_escape import analyse_var_escape
+from compiler.ir import InlineDecision, IRCall
+from compiler.lowering import lower_to_ir
+from compiler.var_escape import analyse_var_escape
 
 
 def _prepare(source: str):
@@ -71,7 +71,7 @@ class TestNestedSites:
         new_module = inline_module(module, summaries)
         # Find the IRIf statement; its clause body should have no
         # remaining ``noop`` call.
-        from core.compiler.ir import IRIf
+        from compiler.ir import IRIf
 
         if_nodes = [s for s in new_module.top_level.statements if isinstance(s, IRIf)]
         assert if_nodes, "expected an IRIf statement"
@@ -81,7 +81,7 @@ class TestNestedSites:
     def test_call_inside_for_body_dropped(self):
         module, summaries = _prepare("proc noop {} {}\nfor {set i 0} {$i < 3} {incr i} { noop }\n")
         new_module = inline_module(module, summaries)
-        from core.compiler.ir import IRFor
+        from compiler.ir import IRFor
 
         for_nodes = [s for s in new_module.top_level.statements if isinstance(s, IRFor)]
         assert for_nodes, "expected an IRFor statement"
@@ -169,7 +169,7 @@ class TestParameterisedInline:
         assert _calls_to(new_module.top_level, "f") == 0
         # The set's ``name`` is mangled; the puts's arg uses the
         # same mangled name via $-substitution.
-        from core.compiler.ir import IRAssignConst, IRAssignValue
+        from compiler.ir import IRAssignConst, IRAssignValue
 
         mangled_name: str | None = None
         for s in new_module.top_level.statements:
@@ -196,7 +196,7 @@ class TestParameterisedInline:
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
         # An IRReturn ends up at the top level.
-        from core.compiler.ir import IRReturn
+        from compiler.ir import IRReturn
 
         assert any(isinstance(s, IRReturn) for s in new_module.top_level.statements)
 
@@ -210,7 +210,7 @@ class TestParameterisedInline:
         assert _calls_to(new_module.top_level, "f") == 0
         # ``set marker after`` survives — the wrap didn't short-
         # circuit the rest of the caller body.
-        from core.compiler.ir import IRAssignConst, IRAssignValue, IRWhile
+        from compiler.ir import IRAssignConst, IRAssignValue, IRWhile
 
         assert any(
             isinstance(s, (IRAssignConst, IRAssignValue)) and s.name == "marker"
@@ -238,7 +238,7 @@ class TestParameterisedInline:
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
         # The bound ``args`` slot's value is a ``[list …]`` literal.
-        from core.compiler.ir import IRAssignValue
+        from compiler.ir import IRAssignValue
 
         args_binding = next(
             s
@@ -279,7 +279,7 @@ class TestParameterisedInline:
         module, summaries = _prepare("proc f {a args} { puts $a }\nf 1\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignConst, IRAssignValue
+        from compiler.ir import IRAssignConst, IRAssignValue
 
         args_binding = next(
             s
@@ -296,7 +296,7 @@ class TestParameterisedInline:
         module, summaries = _prepare("proc f {x} { puts $x }\nf {literal-$y}\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignConst
+        from compiler.ir import IRAssignConst
 
         binding = next(
             s
@@ -313,7 +313,7 @@ class TestParameterisedInline:
         module, summaries = _prepare("proc f {x} { puts $x }\nset y 42\nf $y\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignValue
+        from compiler.ir import IRAssignValue
 
         binding = next(
             s
@@ -338,7 +338,7 @@ class TestParameterisedInline:
         module, summaries = _prepare("proc f {x {y 5}} { puts $x }\nf 3\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignValue
+        from compiler.ir import IRAssignValue
 
         y_binding = next(
             s
@@ -367,7 +367,7 @@ class TestParameterisedInline:
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
         # Wrap emits an IRFor surrounding the rewritten body.
-        from core.compiler.ir import IRReturn, IRWhile
+        from compiler.ir import IRReturn, IRWhile
 
         assert any(isinstance(s, IRWhile) for s in new_module.top_level.statements)
         # Terminal call → the trailing ``return $__result`` is
@@ -388,7 +388,7 @@ class TestParameterisedInline:
         assert _calls_to(new_module.top_level, "f") == 0
         # Look inside the wrap loop for a ``set __inline_..__RESULT 2``
         # capture statement on the fall-through path.
-        from core.compiler.ir import IRAssignValue, IRWhile
+        from compiler.ir import IRAssignValue, IRWhile
 
         loop = next(s for s in new_module.top_level.statements if isinstance(s, IRWhile))
         captures = [
@@ -446,7 +446,7 @@ class TestParameterisedInline:
         module, summaries = _prepare("proc f {} { set arr(0) 1; set arr(1) 2 }\nf\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignConst, IRAssignValue
+        from compiler.ir import IRAssignConst, IRAssignValue
 
         # Both writes should have a mangled ``arr`` base with
         # the original ``(0)`` / ``(1)`` index intact.
@@ -470,7 +470,7 @@ class TestParameterisedInline:
         # renamed array.
         module, summaries = _prepare('proc f {} { set arr(k) "hi"; puts $arr(k) }\nf\n')
         new_module = inline_module(module, summaries)
-        from core.compiler.ir import IRAssignValue, IRCall
+        from compiler.ir import IRAssignValue, IRCall
 
         write_name = next(
             s.name
@@ -497,7 +497,7 @@ class TestParameterisedInline:
         assert _calls_to(new_module.top_level, "f") == 0
         # The IRIf survives the inline; the bound x is referenced
         # inside the renamed condition.
-        from core.compiler.ir import IRIf
+        from compiler.ir import IRIf
 
         assert any(isinstance(s, IRIf) for s in new_module.top_level.statements)
 
@@ -506,7 +506,7 @@ class TestParameterisedInline:
         # bound parameter slots don't collide.
         module, summaries = _prepare("proc f {x} { puts $x }\nf 1\nf 2\n")
         new_module = inline_module(module, summaries)
-        from core.compiler.ir import IRAssignValue
+        from compiler.ir import IRAssignValue
 
         param_writes = [
             s.name
@@ -632,8 +632,8 @@ class TestPipelineIntegration:
 
     def test_empty_body_call_disappears_in_emitted_wasm(self):
         """``noop`` calls should produce zero ``call`` instructions to ``::noop``."""
-        from core.compiler.cfg import build_cfg
-        from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
+        from compiler.cfg import build_cfg
+        from compiler.codegen.wasm import WasmOp, wasm_codegen_module
 
         source = "proc noop {} {}\nnoop\nnoop\nnoop\n"
         ir = lower_to_ir(source)
@@ -662,8 +662,8 @@ class TestPipelineIntegration:
 
     def test_inline_flag_off_preserves_calls(self):
         """``inline=False`` skips the splice — calls remain in the bytecode."""
-        from core.compiler.cfg import build_cfg
-        from core.compiler.codegen.wasm import wasm_codegen_module
+        from compiler.cfg import build_cfg
+        from compiler.codegen.wasm import wasm_codegen_module
 
         source = "proc noop {} {}\nnoop\nnoop\n"
         ir = lower_to_ir(source)
@@ -704,7 +704,7 @@ class TestResolution:
         new_module = inline_module(module, summaries)
         # Find the IRBlock and confirm the noop call inside it
         # got inlined away.
-        from core.compiler.ir import IRBlock
+        from compiler.ir import IRBlock
 
         block = next(s for s in new_module.top_level.statements if isinstance(s, IRBlock))
         assert _calls_to(block.body, "noop") == 0

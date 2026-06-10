@@ -21,8 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 
 def _diag_with_code(source: str, code: str):
@@ -305,17 +305,32 @@ class TestGlobalAndUpvarCommands:
         ns_scopes = [s for s in result.global_scope.children if s.kind == "namespace"]
         assert any("name" in s.variables for s in ns_scopes)
 
-    def test_upvar_suppresses_w210(self):
-        """``upvar 1 $varName local`` should suppress W210 for 'local'.
+    def test_upvar_static_target_suppresses_w210(self):
+        """``upvar 1 caller local`` with a STATIC target binds ``local``
+        to the named caller variable.  The reverse case (dynamic target,
+        ``upvar 1 $varName local``) does NOT suppress W210 because the
+        callee can be invoked with a varName that doesn't exist in the
+        caller, which errors at runtime:
 
-        The ``upvar`` command brings an external variable into the local
-        scope.  Although the scope tree may not register 'local' in the
-        variables dict (it is handled via the SSA path), it should not
-        produce a read-before-set warning.
+            proc foo {varName} { upvar 1 $varName local; puts $local }
+            foo nonexistent
+            # tclsh: can't read "local": no such variable
+
+        That dynamic-target case used to be silently suppressed via a
+        scope-tree heuristic; the phi-from-undef detector now correctly
+        flags it because the use's reaching def is the ``upvar`` alias
+        (a no-op when the target is unset).  See
+        ``test_ground_truth_tn_fn.py`` for the matching ground-truth
+        test that locks in this verdict.  Static-target ``upvar`` stays
+        silent (the alias is sound when the caller has the var).
         """
         source = textwrap.dedent("""\
-            proc foo {varName} {
-                upvar 1 $varName local
+            proc caller {} {
+                set v 1
+                foo
+            }
+            proc foo {} {
+                upvar 1 v local
                 puts $local
             }
         """)
@@ -385,7 +400,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_no_w210_tcl86(self):
         """``incr x`` on uninitialised var is safe in 8.5+ — no W210."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         try:
@@ -404,7 +419,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_warns_tcl84(self):
         """``incr x`` on uninitialised var errors in Tcl 8.4 — W210 fires."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.4")
         try:
@@ -423,7 +438,7 @@ class TestReadBeforeSet:
 
     def test_incr_without_prior_set_warns_irules(self):
         """iRules is based on Tcl 8.4.6 — ``incr`` on uninit var errors."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         try:
@@ -461,10 +476,27 @@ class TestReadBeforeSet:
         diags = _diag_with_code(source, "W210")
         assert not any("result" in d.message for d in diags)
 
-    def test_lappend_in_loop_no_w210(self):
-        """``lappend`` inside a loop to accumulate values — no W210."""
+    def test_lappend_in_loop_with_init_no_w210(self):
+        """``lappend`` inside a loop to accumulate values, WITH an
+        initialiser before the loop — no W210.
+
+        Important: the same shape WITHOUT the ``set result {}`` init
+        IS a genuine read-before-set when the loop body might not
+        run:
+
+            proc foo {items} { foreach item $items { lappend result $item }; return $result }
+            foo {}
+            # tclsh: can't read "result": no such variable
+
+        The phi-from-undef detector correctly fires W210 on that
+        no-init shape because the loop-header phi traces back to an
+        undef incoming on the entry path (no concrete def reaches the
+        empty-list iteration).  The version below is the safe idiom
+        (init outside the loop) and must stay silent.
+        """
         source = textwrap.dedent("""\
             proc foo {items} {
+                set result {}
                 foreach item $items {
                     lappend result $item
                 }
@@ -628,7 +660,7 @@ class TestForeachInCollectionW210:
 
     @staticmethod
     def _setup_dialect():
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="synopsys-eda-tcl")
 
@@ -699,7 +731,7 @@ class TestForeachInCollectionW210:
 
     def test_not_treated_as_loop_without_dialect(self):
         """Without EDA dialect, foreach_in_collection is not a loop command."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
         source = textwrap.dedent("""\

@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Brace expr
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Convert an unbraced `expr "..."` argument to braced `expr {...}` for safety and performance.
@@ -52,8 +55,8 @@ The refactoring extracts the raw source text of the quoted argument, strips the 
 
 ## File-path anchors
 
-- `core/refactoring/_brace_expr.py`
-- `lsp/features/code_actions.py`
+- `tooling/refactoring/_brace_expr.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

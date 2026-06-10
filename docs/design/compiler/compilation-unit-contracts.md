@@ -14,6 +14,7 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 1. **Single-source-of-truth artefact**
    - New pass inputs should come from `CompilationUnit` / `FunctionUnit` facts before introducing any pass-local parse/lower pipeline.
+   - TclOO method bodies are first-class CU artefacts: `CompilationUnit.methods` holds a per-method `FunctionUnit` and `interproc.methods` a `MethodSummary`. A pass needing method-level facts (purity, CFG/SSA) must consume those rather than re-lowering class bodies.
 2. **Per-procedure cache safety**
    - Cache keys must include a stable procedure identity and source slice content hash.
    - Reused entries must preserve range correctness and dialect-sensitive behaviour.
@@ -24,10 +25,10 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 ## File-path anchors
 
-- `core/compiler/compilation_unit.py` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
-- `core/compiler/interprocedural.py` (`analyse_interprocedural_ir`)
-- `lsp/features/diagnostics.py` (`get_diagnostics`, CU consumption)
-- `core/analysis/analyser.py` (CU-assisted semantic diagnostics)
+- `compiler/compilation_unit.py` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
+- `compiler/interprocedural.py` (`analyse_interprocedural_ir`)
+- `server/features/diagnostics.py` (`get_diagnostics`, CU consumption)
+- `analyser/_analyser/__init__.py` (CU-assisted semantic diagnostics)
 
 ## Failure modes
 

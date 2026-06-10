@@ -1,5 +1,8 @@
 # KCS: feature — Semantic Tokens
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Rich syntax highlighting for regex, format strings, binary specs, and clock formats with incremental delta delivery and per-chunk caching.
@@ -26,10 +29,10 @@ Semantic tokens add highlighting for constructs the TextMate grammar cannot hand
 
 ## File-path anchors
 
-- `lsp/features/semantic_tokens.py`
-- `core/common/document_buffer.py`
-- `lsp/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
-- `lsp/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
+- `server/features/_semantic_tokens/`
+- `shared/document_buffer.py`
+- `server/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
+- `server/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
 
 ## Failure modes
 

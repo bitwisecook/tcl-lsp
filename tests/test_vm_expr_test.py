@@ -24,9 +24,9 @@ if hasattr(sys, "set_int_max_str_digits"):
     sys.set_int_max_str_digits(20000)
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -46,62 +46,30 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_COMPEXPR_OLD: set[str] = set(
-    # compExpr-old.test raises TclReturn immediately (``source`` or
-    # ``package require`` at the top level returns before any tcltest
-    # cases run), so Total=0 and no test ever fails.
-)
+KNOWN_FAILURES_COMPEXPR_OLD: set[str] = {
+    "compExpr-old-1.13",
+    "compExpr-old-14.31",
+    "compExpr-old-15.2",
+    "compExpr-old-15.3",
+    "compExpr-old-15.4",
+    "compExpr-old-15.5",
+    "compExpr-old-19.1",
+    "compExpr-old-3.7",
+}
 
-KNOWN_FAILURES_COMPEXPR: set[str] = set(
-    # compExpr.test raises TclReturn immediately; Total=0.
-)
+KNOWN_FAILURES_COMPEXPR: set[str] = {
+    "compExpr-2.10",
+    "compExpr-2.5",
+    "compExpr-8.1",
+    "compExpr-8.2",
+    "compExpr-8.3",
+    "compExpr-8.4",
+}
 
-KNOWN_FAILURES_EXPR_OLD: set[str] = set(
-    # expr-old.test raises TclReturn immediately; Total=0.
-)
-
-
-# Script patching
-
-
-def _patch_hello_world_procs(script: str) -> str:
-    """Replace the ``hello_world``/``12days`` procs with no-ops.
-
-    These procs contain deeply nested expressions that trigger a
-    compiler error in our VM.  The procs are only used by a few
-    tests (``*-1.1``) that exercise correct evaluation ordering,
-    not expression semantics proper.
-    """
-    for proc_name in ("put_hello_char", "hello_world", "12days", "do_twelve_days"):
-        start_marker = f"proc {proc_name} "
-        idx = script.find(start_marker)
-        if idx < 0:
-            continue
-        # Find the opening brace of the body (second '{' on the line)
-        body_start = script.index("{", script.index("{", idx) + 1)
-        # Count braces to find the matching close
-        depth = 1
-        pos = body_start + 1
-        while depth > 0 and pos < len(script):
-            ch = script[pos]
-            if ch == "\\":
-                pos += 2
-                continue
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-            pos += 1
-        # pos is now just past the closing brace
-        end_of_proc = pos
-        # Replace with a no-op proc
-        # Find the arg list
-        args_start = script.index("{", idx)
-        args_end = script.index("}", args_start) + 1
-        arg_list = script[args_start:args_end]
-        replacement = f"proc {proc_name} {arg_list} {{}}"
-        script = script[:idx] + replacement + script[end_of_proc:]
-    return script
+KNOWN_FAILURES_EXPR_OLD: set[str] = {
+    "expr-old-32.50",
+    "expr-old-36.7",
+}
 
 
 # Test runner
@@ -137,12 +105,6 @@ def _run_test_file(test_file: str) -> dict[str, object]:
         "testConstraint ieeeFloatingPoint [testIEEE]",
         "testConstraint ieeeFloatingPoint 1",
     )
-
-    # The ``12days`` proc body triggers a compiler error in our VM
-    # (the deeply nested expressions reference ``$a`` which the
-    # bytecode compiler tries to resolve at compile time).  Replace
-    # the helper procs with no-ops so the rest of the file runs.
-    script = _patch_hello_world_procs(script)
 
     try:
         interp.eval(script)
@@ -246,9 +208,7 @@ class TestCompExprOldNative:
 
     def test_compexpr_old(self) -> None:
         results = _run_test_file("compExpr-old.test")
-        _check_results(
-            results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test", expect_zero_total=True
-        )
+        _check_results(results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test")
 
 
 class TestCompExprNative:
@@ -256,7 +216,7 @@ class TestCompExprNative:
 
     def test_compexpr(self) -> None:
         results = _run_test_file("compExpr.test")
-        _check_results(results, KNOWN_FAILURES_COMPEXPR, "compExpr.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_COMPEXPR, "compExpr.test")
 
 
 class TestExprOldNative:
@@ -264,4 +224,4 @@ class TestExprOldNative:
 
     def test_expr_old(self) -> None:
         results = _run_test_file("expr-old.test")
-        _check_results(results, KNOWN_FAILURES_EXPR_OLD, "expr-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_EXPR_OLD, "expr-old.test")

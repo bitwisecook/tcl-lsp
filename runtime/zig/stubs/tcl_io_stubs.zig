@@ -5,7 +5,7 @@
 // **Reachability** — these ``pub export fn tcl_cmd_X`` symbols are
 // direct WASM imports on the Python codegen side.  Each export name
 // is referenced from the ``WasmRuntimeImport`` field on a
-// ``CommandSpec`` under ``core/commands/registry/tcl/``.  The
+// ``CommandSpec`` under ``dialects/tcl/``.  The
 // compiled WASM emits direct calls to these exports, so deleting
 // any one of them breaks module instantiation for scripts that use
 // that command.  Keep them in lock-step with the specs; the parity

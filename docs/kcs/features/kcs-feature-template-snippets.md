@@ -1,5 +1,8 @@
 # KCS: feature — Template Snippets
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 16 built-in Tcl and iRules code templates insertable from the command palette.

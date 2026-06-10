@@ -1,5 +1,8 @@
 # KCS: feature — Package Scaffolding
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Generate a Tcl package skeleton with namespace, package provide, and test stubs.

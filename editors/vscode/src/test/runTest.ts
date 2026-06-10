@@ -1,4 +1,5 @@
 import * as path from "path";
+import * as fs from "fs";
 import { execSync } from "child_process";
 import { runTests } from "@vscode/test-electron";
 
@@ -56,7 +57,17 @@ function cleanupStaleTestHosts(extensionDevelopmentPath: string, extensionTestsP
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
   const extensionTestsPath = path.resolve(__dirname, "./index");
+  const failureMarker = path.resolve(
+    extensionDevelopmentPath,
+    ".vscode-test",
+    "mocha-failures.json",
+  );
   cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
+  try {
+    fs.unlinkSync(failureMarker);
+  } catch {
+    // No stale marker to remove.
+  }
 
   // Clear persisted user settings from prior test runs so tests start
   // with a clean slate.  Settings modified via workspace.getConfiguration
@@ -104,6 +115,10 @@ async function main() {
     emitProcessSnapshot(extensionDevelopmentPath, extensionTestsPath);
     cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
     if (err instanceof Error && err.message.includes("did not exit within")) {
+      if (fs.existsSync(failureMarker)) {
+        console.error("VS Code tests failed before the runner timeout cleanup.");
+        process.exit(1);
+      }
       console.warn("VS Code tests completed but runner did not exit; continuing after cleanup.");
       process.exit(0);
     }

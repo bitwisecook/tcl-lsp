@@ -1,0 +1,22 @@
+# interp.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '13 of 354 failed'
+# classification: real-mismatch
+# rationale: child-interp behaviour mismatches
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 354
+observed_passed = 333
+observed_failed = 13
+observed_skipped = 8
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["interp-7.4", "interp-15.1", "interp-15.3", "interp-16.5", "interp-20.38", "interp-20.43", "interp-29.3.7c", "interp-29.3.8b", "interp-29.3.10b", "interp-29.3.11b", "interp-29.4.1", "interp-29.4.2", "interp-34.9"]

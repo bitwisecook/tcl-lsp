@@ -9,14 +9,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.formatting import BraceStyle, FormatterConfig, IndentStyle, format_tcl
-from core.formatting.engine import (
+from shared.tokens import TokenType
+from tooling.formatter import BraceStyle, FormatterConfig, IndentStyle, format_tcl
+from tooling.formatter.engine import (
     ArgKind,
     _identify_body_args,
     _reconstruct_raw,
     parse_commands,
 )
-from core.parsing.tokens import TokenType
 
 
 class TestFormatterConfig:
@@ -142,28 +142,28 @@ class TestParseCommands:
 
 class TestReconstruction:
     def test_reconstruct_esc(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.ESC, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "hello"
 
     def test_reconstruct_str(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.STR, text="hello", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "{hello}"
 
     def test_reconstruct_cmd(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.CMD, text="expr 1+2", start=pos, end=pos)
         assert _reconstruct_raw(tok) == "[expr 1+2]"
 
     def test_reconstruct_var(self):
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.VAR, text="name", start=pos, end=pos)
@@ -171,7 +171,7 @@ class TestReconstruction:
 
     def test_reconstruct_braced_var(self):
         """${name} form is preserved when token byte span indicates braces."""
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         # For ${name}: start.offset=0 (at $), end.offset=5 (at 'e' in name)
         # Span (5 - 0) = 5 > len("name") = 4 → braced
@@ -182,7 +182,7 @@ class TestReconstruction:
 
     def test_reconstruct_expand(self):
         """{*} expansion prefix is reconstructed."""
-        from core.parsing.tokens import SourcePosition, Token
+        from shared.tokens import SourcePosition, Token
 
         pos = SourcePosition(0, 0, 0)
         tok = Token(type=TokenType.EXPAND, text="", start=pos, end=pos)
@@ -384,11 +384,11 @@ class TestBasicFormatting:
         source = "if {1} {\nif {2} {\nif {3} {\nif {4} {\nputs deep\n}\n}\n}\n}"
         result = format_tcl(source)
         lines = result.strip().split("\n")
-        # Find the "puts deep" line and check its indent
-        for line in lines:
-            if "puts deep" in line:
-                indent = len(line) - len(line.lstrip())
-                assert indent == 16  # 4 levels * 4 spaces
+        # The "puts deep" line must survive and be indented 4 levels deep.
+        deep = [ln for ln in lines if "puts deep" in ln]
+        assert len(deep) == 1, result
+        indent = len(deep[0]) - len(deep[0].lstrip())
+        assert indent == 16  # 4 levels * 4 spaces
 
     def test_quoted_string_preserved(self):
         source = 'puts "hello $name"'
@@ -701,8 +701,8 @@ class TestBracedVarAndExpansionPreservation:
         result = format_tcl(source)
         assert "arr(key)" in result
 
-    def test_braced_scalar_array_like(self):
-        """${a(1)} braced form (scalar, not array) preserved."""
+    def test_braced_array_like_name(self):
+        """${a(1)} braced whole-name form (loads array element a(1)) preserved."""
         source = "puts ${a(1)}"
         result = format_tcl(source)
         assert "${a(1)}" in result
@@ -1089,7 +1089,12 @@ class TestLongLineWrapping:
             "    }\n"
             "}"
         )
-        result = format_tcl(source)
+        # Wrapping a ``when`` event body keys off the active dialect
+        # recognising ``when``; scope it so the test is self-contained.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = format_tcl(source)
         lines = result.strip().split("\n")
         # The condition should be split across lines
         assert any(line.lstrip().startswith("&&") for line in lines)
@@ -1104,29 +1109,34 @@ class TestLongLineWrapping:
         )
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # Expression content at indent_level 0 + 1 = 4 spaces
-        for line in lines:
-            if line.lstrip().startswith("&&") or line.lstrip().startswith("||"):
-                indent_count = len(line) - len(line.lstrip())
-                assert indent_count == 4  # (indent_level + 1) * indent_size
+        # The condition must wrap, and continuation lines sit at
+        # (indent_level 0 + 1) * 4 = 4 spaces.
+        cont = [ln for ln in lines if ln.lstrip().startswith(("&&", "||"))]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) == 4
 
     def test_nested_continuation_indent(self):
         """Wrapped lines inside a proc use correct indentation."""
         config = FormatterConfig(max_line_length=70, indent_size=4)
+        # Long enough that the proc-indented if-condition exceeds 70 cols and
+        # must wrap (the previous $a/$b/$c/$d version fit on one line, so this
+        # test never actually exercised wrapping).
         source = (
             "proc test {} {\n"
-            "    if {$a > 1 && $b > 2 && $c > 3 && $d > 4} {\n"
+            "    if {$alpha_value > 100 && $beta_value > 200 && $gamma_value > 300} {\n"
             "        puts yes\n"
             "    }\n"
             "}"
         )
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # if is at indent_level=1 (4 spaces), so expression at (1+1)*4 = 8
-        for line in lines:
-            if line.lstrip().startswith("&&") or line.lstrip().startswith("||"):
-                indent = len(line) - len(line.lstrip())
-                assert indent == 8  # (indent_level + 1) * indent_size
+        # if is at indent_level=1 (4 spaces), so continuation lines sit at
+        # (1+1)*4 = 8 spaces — and the condition must actually wrap.
+        cont = [ln for ln in lines if ln.lstrip().startswith(("&&", "||"))]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) == 8
 
     def test_mixed_operators(self):
         """Wrapping works with mixed && and || operators."""
@@ -1138,15 +1148,19 @@ class TestLongLineWrapping:
 
     def test_no_break_inside_brackets(self):
         """&& inside command substitution is not a break point."""
-        config = FormatterConfig(max_line_length=60)
-        source = "if {[expr {$a && $b}] && [expr {$c && $d}]} {\n    puts yes\n}"
+        # max_line_length 40 forces the top-level && to wrap; the previous
+        # 60-col limit left the line intact so this never exercised the
+        # bracket-aware break logic.
+        config = FormatterConfig(max_line_length=40)
+        source = "if {[expr {$aaa && $bbb}] && [expr {$ccc && $ddd}]} {\n    puts yes\n}"
         result = format_tcl(source, config)
-        # Should only break at the top-level && between the two [expr]
+        # Should only break at the top-level && between the two [expr]; the
+        # && inside each [expr] must not become a break point.
         lines = result.strip().split("\n")
-        for line in lines:
-            stripped = line.lstrip()
-            if stripped.startswith("&&"):
-                assert stripped.startswith("&& [expr")
+        cont = [ln.lstrip() for ln in lines if ln.lstrip().startswith("&&")]
+        assert cont, result
+        for stripped in cont:
+            assert stripped.startswith("&& [expr")
 
     def test_one_operand_per_line(self):
         """Each operand gets its own indented line in block style."""
@@ -1236,12 +1250,12 @@ class TestBackslashContinuation:
         source = "proc foo {} {\n    set x [long_command -option1 value1 -option2 value2 -option3 value3]\n}"
         result = format_tcl(source, config)
         lines = result.strip().split("\n")
-        # Find continuation lines (those that follow a line ending with \)
-        for i, line in enumerate(lines):
-            if i > 0 and lines[i - 1].rstrip().endswith("\\"):
-                indent = len(line) - len(line.lstrip())
-                # Should be at least indent_level + 1
-                assert indent >= 8  # (1 + 1) * 4
+        # The long command must wrap onto backslash-continuation lines, each
+        # indented to at least indent_level + 1.
+        cont = [ln for i, ln in enumerate(lines) if i > 0 and lines[i - 1].rstrip().endswith("\\")]
+        assert cont, result
+        for line in cont:
+            assert len(line) - len(line.lstrip()) >= 8  # (1 + 1) * 4
 
     def test_splitting_idempotent(self):
         """Splitting is stable across multiple format passes."""
@@ -1280,13 +1294,17 @@ class TestBackslashContinuation:
             "    }\n"
             "}"
         )
-        result = format_tcl(source)
-        for line in result.strip().split("\n"):
-            assert len(line) <= 120, f"Line too long ({len(line)}): {line}"
-        # Braced variables must survive formatting (#137)
-        assert "${ttl_ceiling}" in result
-        # Verify idempotency
-        r2 = format_tcl(result)
+        # ``when`` event-body wrapping is dialect-driven; scope it.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = format_tcl(source)
+            for line in result.strip().split("\n"):
+                assert len(line) <= 120, f"Line too long ({len(line)}): {line}"
+            # Braced variables must survive formatting (#137)
+            assert "${ttl_ceiling}" in result
+            # Verify idempotency
+            r2 = format_tcl(result)
         assert result == r2
 
 
@@ -1430,7 +1448,7 @@ class TestLSPFormatting:
     def test_get_formatting_returns_text_edit(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1442,7 +1460,7 @@ class TestLSPFormatting:
     def test_get_formatting_no_change(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "puts hello\n"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1452,7 +1470,7 @@ class TestLSPFormatting:
     def test_get_formatting_respects_tab_size(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=2, insert_spaces=True)
@@ -1462,7 +1480,7 @@ class TestLSPFormatting:
     def test_get_formatting_uses_tabs(self):
         from lsprotocol.types import FormattingOptions
 
-        from lsp.features.formatting import get_formatting
+        from server.features.formatting import get_formatting
 
         source = "proc foo {} {\nset x 1\nreturn $x\n}"
         options = FormattingOptions(tab_size=4, insert_spaces=False)
@@ -1472,7 +1490,7 @@ class TestLSPFormatting:
     def test_range_formatting(self):
         from lsprotocol.types import FormattingOptions, Position, Range
 
-        from lsp.features.formatting import get_range_formatting
+        from server.features.formatting import get_range_formatting
 
         source = "set x 1\nproc foo {} {\nputs hi\n}\nset y 2"
         options = FormattingOptions(tab_size=4, insert_spaces=True)
@@ -1482,3 +1500,48 @@ class TestLSPFormatting:
         )
         edits = get_range_formatting(source, range_, options)
         assert len(edits) >= 0  # May or may not have edits depending on content
+
+
+class TestFormatterIdempotency:
+    """``format_tcl`` must be idempotent — ``format_tcl(format_tcl(x)) == format_tcl(x)``
+    — for every input, including structurally malformed code.  Before the
+    stabilising wrapper, an unbalanced ``{`` / ``[`` / ``"`` made the
+    reconstruction fabricate a closer that a re-parse re-mangled, growing the
+    output by a delimiter on *every* pass (catastrophic under format-on-save).
+    """
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "[\n{*}{",  # unterminated [ around an unterminated {
+            'set s "a b c"$};',  # bare $ + stray } after a quoted word
+            'puts "line1\nline2"[\n\tset x $y\n\n\n{',  # unterminated quote-led word
+            "proc p {a b} { return [expr {$a+$b}] ;",  # unbalanced proc body
+            "{",
+            "[",
+            "$",
+            "a$",
+            "\\",
+            "if {$x} { puts a } else { puts b }}",  # one extra }
+        ],
+    )
+    def test_malformed_input_is_idempotent(self, src):
+        once = format_tcl(src)
+        assert format_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+    def test_valid_code_unchanged_and_idempotent(self):
+        import random
+
+        snippets = [
+            "set x 1",
+            "proc add {a b} {\n    return [expr {$a + $b}]\n}",
+            "if {$x} {\n    puts a\n} else {\n    puts b\n}",
+            "foreach x $xs {\n    puts $x\n}",
+            'set s "hello world"',
+            "namespace eval ns {\n    variable v 0\n}",
+        ]
+        rng = random.Random(1234)
+        for _ in range(2000):
+            src = "\n".join(rng.choice(snippets) for _ in range(rng.randint(1, 5)))
+            once = format_tcl(src)
+            assert format_tcl(once) == once, f"valid not idempotent: {src!r}"

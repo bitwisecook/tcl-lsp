@@ -43,6 +43,7 @@
 // :func:`current_in_coroutine`) so the dispatch site in
 // :func:`eval_proc_call_bucket` doesn't care which model is active.
 
+const std = @import("std");
 const obj = @import("../valtypes/tcl_obj.zig");
 const tcl_obj_retain = obj.tcl_obj_retain;
 const tcl_obj_release = obj.tcl_obj_release;
@@ -50,9 +51,11 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const tcl_frames = @import("../interp/tcl_frames.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_async = @import("tcl_asyncify.zig");
 
-// The yield signal flag lives on ``tcl_catch.yield_flag`` so
+// The yield signal flag lives on ``tcl_catch.state.yield_flag`` so
 // ``has_signal()`` in the interpreter sees it without a module-
 // circular import.  Reads/writes go through tcl_catch directly.
 
@@ -101,6 +104,30 @@ pub const Coro = struct {
     async_buf: u32,
     async_buf_size: u32,
     state: CoroState,
+    /// Last suspension reason: ``0`` = never yielded, ``1`` =
+    /// suspended via ``yield``, ``2`` = suspended via ``yieldto``.
+    /// Read by ``::tcl::unsupported::corotype`` to distinguish
+    /// the two suspension flavours (coroutine.test 11.1).
+    last_yield_kind: u8,
+    /// Body's terminal control-flow code, as a ``Code`` enum
+    /// integer.  Captured by ``resume_segments`` just before it
+    /// consumes a RETURN signal so the eager ``coroutine`` cmd
+    /// can re-arm it after ``cleanup_terminated`` runs.  Zero
+    /// (== Code.OK) when the body yielded or completed cleanly.
+    terminal_code: u8,
+    /// Body's terminal numeric return code (``return -code N``
+    /// for N ≥ 5).  Paired with ``terminal_code = .RETURN``;
+    /// zero otherwise.
+    terminal_return_code: i64,
+    /// Phase 10: per-coro saved frame context.  Save-transfer
+    /// ownership: the coro's frame retains live in this snapshot
+    /// while the coro is suspended; on resume we restore them and
+    /// drain the caller's live state into ``ctx_caller_save`` for
+    /// the duration of the coro's run.  Empty when the coro has
+    /// never resumed (first resume starts with a fresh frame
+    /// stack).
+    ctx: tcl_frames.FrameContext,
+    has_ctx: u8,
 };
 
 var g_coros: [MAX_COROS]Coro = undefined;
@@ -114,8 +141,8 @@ var g_call_depth: u32 = 0;
 pub fn reset() void {
     g_n_coros = 0;
     g_call_depth = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 }
 
 fn name_eq(c: *const Coro, ptr: u32, len: u32) bool {
@@ -156,11 +183,30 @@ fn split_segments(c: *Coro) void {
             in_word = true;
             continue;
         }
-        if (ch == '{') { brace += 1; in_word = true; continue; }
-        if (ch == '}') { if (brace > 0) brace -= 1; in_word = true; continue; }
-        if (ch == '[') { bracket += 1; in_word = true; continue; }
-        if (ch == ']') { if (bracket > 0) bracket -= 1; in_word = true; continue; }
-        if (brace > 0 or bracket > 0) { in_word = true; continue; }
+        if (ch == '{') {
+            brace += 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == '}') {
+            if (brace > 0) brace -= 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == '[') {
+            bracket += 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == ']') {
+            if (bracket > 0) bracket -= 1;
+            in_word = true;
+            continue;
+        }
+        if (brace > 0 or bracket > 0) {
+            in_word = true;
+            continue;
+        }
         if (ch == ';' or ch == '\n') {
             if (in_word and c.n_segments < MAX_SEGMENTS) {
                 c.segments[c.n_segments] = .{
@@ -208,6 +254,17 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     // Heap-copy the name so the coroutine survives the caller's
     // word release.
     const nbuf = obj.alloc(name_len);
+    // OOM: alloc raised ``oom_flag``.  Surface ``null`` to the
+    // caller so the coroutine isn't half-registered.  Release the
+    // body retain taken above (otherwise the caller has no handle
+    // to balance it) and mark the freshly-allocated slot FREE so
+    // a future ``alloc_slot`` reclaims it instead of leaking the
+    // table entry.
+    if (nbuf == 0 and name_len != 0) {
+        tcl_obj_release(body_obj);
+        c.state = .FREE;
+        return null;
+    }
     if (name_len > 0) obj.memcpy(nbuf, name_ptr, name_len);
     c.name_ptr = nbuf;
     c.name_len = name_len;
@@ -222,6 +279,14 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     c.async_buf = 0;
     c.async_buf_size = 0;
     c.state = .PENDING;
+    c.last_yield_kind = 0;
+    c.terminal_code = 0;
+    c.terminal_return_code = 0;
+    // Phase 10: ``ctx`` starts unpopulated.  ``resume_segments``
+    // detects the first-resume case via ``has_ctx == 0`` and
+    // restores a fresh frame stack instead of an old snapshot.
+    c.ctx = std.mem.zeroes(tcl_frames.FrameContext);
+    c.has_ctx = 0;
     if (!tcl_async.ENABLED) split_segments(c);
     return c;
 }
@@ -236,6 +301,16 @@ pub fn record_registration(c: *Coro, ns_addr: u32, simple_ptr: u32, simple_len: 
     c.ns_addr = ns_addr;
     if (simple_len > 0) {
         const buf = obj.alloc(simple_len);
+        // OOM: alloc raised ``oom_flag``.  Leave ``cmd_simple_ptr``
+        // unset (zero) and ``cmd_simple_len`` zero so the cleanup
+        // path's ``simple_len != 0`` gate skips the ``ns_cmd_clear``
+        // — without that gate ``ns_cmd_clear`` would dereference a
+        // null pointer when the coro terminates.
+        if (buf == 0) {
+            c.cmd_simple_ptr = 0;
+            c.cmd_simple_len = 0;
+            return;
+        }
         obj.memcpy(buf, simple_ptr, simple_len);
         c.cmd_simple_ptr = buf;
     } else {
@@ -288,6 +363,27 @@ fn current_coro() ?*Coro {
     return &g_coros[g_call_stack[g_call_depth - 1]];
 }
 
+/// Mark the currently-executing coroutine as suspended via ``yield``
+/// (kind=1) or ``yieldto`` (kind=2).  Read by
+/// ``::tcl::unsupported::corotype`` to surface the suspension flavour.
+/// No-op when called outside a coroutine (defensive — callers should
+/// gate on :func:`current_in_coroutine` first).
+pub fn record_yield_kind(kind: u8) void {
+    if (current_coro()) |c| {
+        c.last_yield_kind = kind;
+    }
+}
+
+/// FQN span of the currently-executing coroutine, or null when not
+/// running inside any coroutine.  Used by ``info coroutine``.
+pub fn current_coro_name() ?struct { ptr: u32, len: u32 } {
+    if (current_coro()) |c| {
+        if (c.name_len == 0) return null;
+        return .{ .ptr = c.name_ptr, .len = c.name_len };
+    }
+    return null;
+}
+
 /// Stage-2 asyncify resume — must be EXCLUDED from asyncify
 /// instrumentation via ``--pass-arg=asyncify-removelist@tcl_coro_drive``
 /// so the unwind triggered by yield stops here instead of
@@ -310,6 +406,13 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     const is_resume = c.state == .SUSPENDED;
     if (c.state == .PENDING) {
         c.async_buf = obj.alloc(tcl_async.DEFAULT_BUFFER_SIZE);
+        // OOM: alloc raised ``oom_flag``.  Without an async buffer
+        // the asyncify rewind / unwind machinery cannot run, so
+        // surface 0 (the body never executes a single bytecode);
+        // the OOM is on the interp's error path and the caller's
+        // catch / next-boundary check sees it.  Avoids
+        // ``init_buffer`` writing through a null pointer.
+        if (c.async_buf == 0) return 0;
         c.async_buf_size = tcl_async.DEFAULT_BUFFER_SIZE;
         tcl_async.init_buffer(c.async_buf, c.async_buf_size);
     }
@@ -329,8 +432,8 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     // returns instead.
 
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     if (is_resume) {
         // Last instrumented call is push_call above; from here to
@@ -351,9 +454,9 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     const state = tcl_async.asyncify_get_state();
     if (state == tcl_async.STATE_UNWINDING) {
         tcl_async.asyncify_stop_unwind();
-        const yv = tcl_catch.yield_value;
-        tcl_catch.yield_flag = 0;
-        tcl_catch.yield_value = 0;
+        const yv = tcl_catch.state.yield_value;
+        tcl_catch.state.yield_flag = 0;
+        tcl_catch.state.yield_value = 0;
         c.state = .SUSPENDED;
         // pop_call() runs while state is NORMAL — safe (no rewind
         // active).  But to keep the semantics of the v1 driver
@@ -377,6 +480,16 @@ fn resume_async(c: *Coro) i32 {
 }
 
 /// v1 segment-based resume — used when asyncify is disabled.
+///
+/// Phase 10: each coro now carries its own frame stack via
+/// :type:`tcl_frames.FrameContext`.  On entry we save-transfer the
+/// caller's live frames into a local ``caller_ctx`` and restore the
+/// coro's previously-saved snapshot (or a fresh stack on first
+/// resume).  On yield we save-transfer the coro's frames back into
+/// its slot and restore the caller's.  On terminal completion the
+/// caller's frames come back; the coro's snapshot is dropped (the
+/// retains it owned die with it, which is correct since the coro
+/// is terminating).
 fn resume_segments(c: *Coro) i32 {
     if (c.state == .DEAD) return 0;
     if (c.next_segment >= c.n_segments) {
@@ -387,9 +500,22 @@ fn resume_segments(c: *Coro) i32 {
     if (!push_call(c)) return 0;
     defer pop_call();
 
+    // Save-transfer the caller's frame state.  ``frame_context_save_transfer``
+    // moves the live retains into the snapshot and zeroes the
+    // live slots so the coro starts with a clean stack.
+    const caller_ctx = tcl_frames.frame_context_save_transfer();
+
+    if (c.has_ctx != 0) {
+        // Restore the coro's previously-saved frames.  Symmetric
+        // transfer — no retains/releases happen, just bytes copy in.
+        tcl_frames.frame_context_restore_transfer(c.ctx);
+    }
+    // First resume: live state is already empty after the save above,
+    // so the coro starts with a fresh frame_depth=0.
+
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     var result: i32 = 0;
     while (c.next_segment < c.n_segments) {
@@ -397,20 +523,87 @@ fn resume_segments(c: *Coro) i32 {
         c.next_segment += 1;
         if (seg.src_len == 0) continue;
         result = interp.eval_script(seg.src_ptr, seg.src_len);
-        if (tcl_catch.yield_flag != 0) {
-            tcl_catch.yield_flag = 0;
-            const yv = tcl_catch.yield_value;
-            tcl_catch.yield_value = 0;
+        if (tcl_catch.state.yield_flag != 0) {
+            tcl_catch.state.yield_flag = 0;
+            const yv = tcl_catch.state.yield_value;
+            tcl_catch.state.yield_value = 0;
             c.state = .SUSPENDED;
+            // Save-transfer the coro's frames into its slot, then
+            // restore the caller's previously-saved context.  The
+            // coro's retains now live in ``c.ctx``; the caller's
+            // live state goes back to whatever it had before resume.
+            c.ctx = tcl_frames.frame_context_save_transfer();
+            c.has_ctx = 1;
+            tcl_frames.frame_context_restore_transfer(caller_ctx);
             return yv;
         }
-        if (tcl_catch.error_flag != 0 or tcl_catch.return_flag != 0) {
+        const ir = result_mod.snapshot(result);
+        if (ir.code == .ERROR or ir.code == .RETURN) {
+            // Capture the body's terminal flow-control code so the
+            // eager-invocation site (``eval_coroutine``) can
+            // re-arm it after ``cleanup_terminated`` runs.  We
+            // still consume RETURN here to keep stale flags from
+            // leaking past a deferred ``[c]`` resume that
+            // terminates — without the consume the next
+            // top-level statement's catch would observe the
+            // coroutine's RETURN as if the surrounding script
+            // had returned (regression:
+            // ``test_coroutine_command_removed_after_terminal_return``).
+            // ERROR is left set so non-eager callers still see
+            // the error.  ``eval_coroutine`` distinguishes the
+            // eager case via the captured ``terminal_code`` /
+            // ``terminal_return_code`` snapshots.
+            c.terminal_code = @intFromEnum(ir.code);
+            c.terminal_return_code = tcl_catch.state.return_code;
+            if (ir.code == .RETURN) result_mod.consume(.RETURN);
             c.state = .DEAD;
+            // Drain the coro's live frames before installing the
+            // caller's context — the coro's frame slots own retains
+            // (argv / FrameInfo handles / Phase 7 indexed locals /
+            // Phase 6 trace-record chains) that would leak when the
+            // restore overwrites the live array.  ``frame_pop``'s
+            // teardown matches the per-pop release contract so a
+            // sequence of pops releases everything cleanly.  After
+            // the drain the caller's context restores into a fully
+            // empty live state.
+            tcl_frames.frame_drain_all_live();
+            tcl_frames.frame_context_restore_transfer(caller_ctx);
+            c.has_ctx = 0;
             return result;
         }
     }
     c.state = .DEAD;
+    // Body ran to completion without yield — same teardown as the
+    // ERROR/RETURN path: drain coro frames, restore caller.
+    tcl_frames.frame_drain_all_live();
+    tcl_frames.frame_context_restore_transfer(caller_ctx);
+    c.has_ctx = 0;
     return result;
+}
+
+/// Snapshot of a coroutine body's terminal control-flow state,
+/// captured by ``resume_one`` before ``cleanup_terminated`` runs
+/// (which clears the Coro slot).  Read by callers — typically
+/// ``eval_coroutine`` on the eager-invocation path — to re-arm
+/// the body's terminal code so a wrapping ``catch`` observes it.
+pub const TerminalState = struct {
+    /// ``Code`` enum integer (0=OK, 1=ERROR, 2=RETURN, 3=BREAK, 4=CONTINUE).
+    code: u8,
+    /// Numeric ``return -code N`` value for N ≥ 5; zero otherwise.
+    return_code: i64,
+};
+
+var g_last_terminal: TerminalState = .{ .code = 0, .return_code = 0 };
+
+/// Read (and clear) the terminal state captured by the most
+/// recent ``resume_one`` call that hit a body-completion path.
+/// Returns OK / 0 when the resume ended via yield (no terminal
+/// code) — callers compare against ``Code.OK`` to detect "the
+/// body completed".
+pub fn take_last_terminal() TerminalState {
+    const t = g_last_terminal;
+    g_last_terminal = .{ .code = 0, .return_code = 0 };
+    return t;
 }
 
 /// Resume the coroutine.  Routes to the asyncify driver when
@@ -422,7 +615,22 @@ fn resume_segments(c: *Coro) i32 {
 /// doesn't accumulate tombstones forever (Codex P1 on PR #284).
 pub fn resume_one(c: *Coro) i32 {
     const result = if (tcl_async.ENABLED) resume_async(c) else resume_segments(c);
-    if (c.state == .DEAD) cleanup_terminated(c);
+    // Capture terminal state into a process-global slot before
+    // ``cleanup_terminated`` clears the Coro fields — eager
+    // ``coroutine`` invocation reads this back to re-arm the
+    // body's terminal RETURN / numeric code so a wrapping catch
+    // surfaces the right code (coroutine.test 7.5).  ERROR
+    // doesn't need the same plumbing because its global flag is
+    // intentionally NOT consumed by ``resume_segments``.
+    if (c.state == .DEAD) {
+        g_last_terminal = .{
+            .code = c.terminal_code,
+            .return_code = c.terminal_return_code,
+        };
+        cleanup_terminated(c);
+    } else {
+        g_last_terminal = .{ .code = 0, .return_code = 0 };
+    }
     return result;
 }
 
@@ -444,9 +652,14 @@ pub fn resume_one(c: *Coro) i32 {
 /// the saved call site and re-fires the unwind (issue #282).
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
-    if (value != 0) tcl_obj_retain(value);
-    tcl_catch.yield_flag = 1;
-    tcl_catch.yield_value = value;
+    // Same-handle re-stamp must be a net no-op on rc, and the prior
+    // ``yield_value`` (if any) must be released so successive yields
+    // without a caller-side consume don't leak.
+    const prev = tcl_catch.state.yield_value;
+    if (value != 0 and value != prev) tcl_obj_retain(value);
+    tcl_catch.state.yield_flag = 1;
+    tcl_catch.state.yield_value = value;
+    if (prev != 0 and prev != value) tcl_obj_release(prev);
     if (tcl_async.ENABLED) {
         if (current_coro()) |c| {
             tcl_async.coro_yield_unwind(c.async_buf);

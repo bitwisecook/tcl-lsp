@@ -12,6 +12,7 @@ produces from a single input file.
 | `profile_standard.tcl` | Output at **standard** — readability + constant folding |
 | `profile_full.tcl` | Output at **full** — all passes, single pass |
 | `profile_aggressive.tcl` | Output at **aggressive** — all passes, multi-pass to fixpoint |
+| `deep_pipeline.tcl` | Deep multi-pass stress sample — layered so each optimisation exposes the next (5+ passes, interprocedural folding). Runs on C Tcl 9; `tests/test_optimiser_deep_sample.py` proves the optimised / formatted / minified forms all stay behaviourally identical. |
 
 ## Profiles
 
@@ -121,9 +122,9 @@ source text reaches a fixpoint (no further changes).
 
 ```bash
 uv run python -c "
-from core.common.codes_all import *
-from core.common.optimisation_profiles import profile_to_disabled, OptimisationProfile
-from core.compiler.optimiser import optimise_source, optimise_source_multipass
+from server._codes_init import *
+from shared.optimisation_profiles import profile_to_disabled, OptimisationProfile
+from compiler.optimiser import optimise_source, optimise_source_multipass
 
 source = open('samples/optimiser/input.tcl').read()
 for p in [OptimisationProfile.READABILITY, OptimisationProfile.STANDARD, OptimisationProfile.FULL]:

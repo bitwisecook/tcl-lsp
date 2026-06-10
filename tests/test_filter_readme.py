@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.filter_readme import KNOWN_EDITORS, filter_readme  # noqa: E402
+from scripts.install.filter_readme import KNOWN_EDITORS, filter_readme  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Rule 1: Editor subsections under ## Editor support

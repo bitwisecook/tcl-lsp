@@ -9,12 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol.types import MarkupContent
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
-from core.compiler.irules_flow import find_irules_flow_warnings
-from lsp.features.completion import get_completions
-from lsp.features.hover import get_hover
+from analyser import analyse
+from analyser.semantic_model import Severity
+from compiler.irules_flow import find_irules_flow_warnings
+from compiler.registry.runtime import configure_signatures
+from server.features.completion import get_completions
+from server.features.hover import get_hover
 
 
 def _diag_with_code(source: str, code: str):
@@ -160,6 +160,88 @@ class TestIrule1001:
         assert diags[0].severity is Severity.HINT
         assert "ACCESS::log" in diags[0].message
         assert "ACCESS" in diags[0].message
+
+
+class TestNestingScriptBodyAnalysis:
+    """``clientside`` / ``serverside`` / ``after`` script bodies are analysed.
+
+    These commands accept an optional ``NESTING_SCRIPT`` body.  Once the body
+    carries ``ArgRole.BODY`` its contents are recursively analysed, so an
+    event-illegal command nested inside the body is flagged just as it would
+    be at the top level of the handler.  Before the body role existed the
+    script was an opaque value and the nested command went unchecked.
+    """
+
+    def test_wrong_event_command_in_clientside_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    clientside { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_wrong_event_command_in_serverside_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    serverside { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_wrong_event_command_in_after_body_warns(self):
+        src = 'when CLIENT_ACCEPTED {\n    after 1000 { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_wrong_event_command_in_peer_body_warns(self):
+        # ``peer`` is the third side-switch; its script body is analysed too.
+        src = 'when CLIENT_ACCEPTED {\n    peer { HTTP::respond 200 content "ok" }\n}'
+        diags = _diag_with_code(src, "IRULE1001")
+        assert len(diags) == 1
+        assert "HTTP::respond" in diags[0].message
+
+    def test_clientside_serverside_accept_zero_or_one_argument(self):
+        # clientside/serverside: the bare query form and a single nesting
+        # script are valid; extra top-level words are E003 (arity 0..1).
+        for cmd, event in (("clientside", "CLIENT_ACCEPTED"), ("serverside", "SERVER_CONNECTED")):
+            assert _diag_with_code(f"when {event} priority 5 {{ {cmd} }}", "E003") == []
+            assert (
+                _diag_with_code(
+                    f"when {event} priority 5 {{ {cmd} {{ IP::remote_addr }} }}", "E003"
+                )
+                == []
+            )
+            diags = _diag_with_code(f"when {event} priority 5 {{ {cmd} a b c }}", "E003")
+            assert len(diags) == 1
+            assert cmd in diags[0].message
+
+    def test_peer_requires_a_script_body(self):
+        # peer has no bare query form: a lone `peer` is E002 (too few),
+        # one script is valid, and extra words are E003 (arity 1..1).
+        bare = _diag_with_code("when SERVER_CONNECTED priority 5 {\n    peer\n}", "E002")
+        assert len(bare) == 1
+        assert "peer" in bare[0].message
+        assert (
+            _diag_with_code(
+                "when SERVER_CONNECTED priority 5 {\n    peer { TCP::collect }\n}", "E002"
+            )
+            == []
+        )
+        too_many = _diag_with_code("when SERVER_CONNECTED priority 5 {\n    peer a b c\n}", "E003")
+        assert len(too_many) == 1
+
+    def test_peer_collect_satisfies_opposite_side_payload(self):
+        # ``peer { TCP::collect }`` in a server-side event collects on the
+        # *client* side, satisfying CLIENT_DATA's payload requirement — so no
+        # IRULE1005 fires.
+        from compiler.irules_flow import find_irules_flow_warnings
+
+        src = (
+            "when SERVER_CONNECTED priority 5 {\n"
+            "    peer { TCP::collect }\n"
+            "}\n"
+            "when CLIENT_DATA priority 5 {\n"
+            "    TCP::payload\n"
+            "}"
+        )
+        assert [w for w in find_irules_flow_warnings(src) if w.code == "IRULE1005"] == []
 
 
 # IRULE2001: Deprecated matchclass
@@ -1053,6 +1135,50 @@ class TestEventAwareCompletions:
         neutral_sort = [i for i in http_items if i.sort_text and i.sort_text.startswith("B1")]
         assert len(neutral_sort) == len(http_items), "Outside when, expected neutral event rank"
 
+    def test_http_version_setter_offers_known_versions(self):
+        # The HTTP::version setter offers the known HTTP/1.x versions as
+        # argument-value completions.
+        configure_signatures(dialect="f5-irules")
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version \n}"
+        items = get_completions(src, 1, len("    HTTP::version "))
+        offered = {i.label for i in items}
+        assert {"0.9", "1.0", "1.1"} <= offered
+
+
+class TestW127ClosedValueSet:
+    """W127: a literal at a closed-value argument index must be in the set.
+
+    Driven by ``FormSpec.closed_value_args``; ``HTTP::version`` is the first
+    user.  HTTP/2 and /3 are separate namespaces, so ``HTTP::version "2.0"``
+    is a mistake the check catches.
+    """
+
+    def test_invalid_http_version_warns_and_lists_allowed(self):
+        src = 'when HTTP_RESPONSE priority 5 {\n    HTTP::version "2.0"\n}'
+        diags = _diag_with_code(src, "W127")
+        assert len(diags) == 1
+        assert "2.0" in diags[0].message
+        assert "0.9" in diags[0].message  # the allowed set is listed
+        assert "1.1" in diags[0].message
+
+    def test_valid_http_versions_have_no_warning(self):
+        for v in ("0.9", "1.0", "1.1"):
+            src = f'when HTTP_RESPONSE priority 5 {{\n    HTTP::version "{v}"\n}}'
+            assert _diag_with_code(src, "W127") == [], v
+
+    def test_string_form_is_exempt(self):
+        # The ``-string`` form is an unconstrained raw value, not a closed set.
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version -string 9.9\n}"
+        assert _diag_with_code(src, "W127") == []
+
+    def test_dynamic_value_is_exempt(self):
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version $v\n}"
+        assert _diag_with_code(src, "W127") == []
+
+    def test_getter_form_has_no_warning(self):
+        src = "when HTTP_RESPONSE priority 5 {\n    HTTP::version\n}"
+        assert _diag_with_code(src, "W127") == []
+
 
 # Enhanced hovers
 
@@ -1077,7 +1203,7 @@ class TestEnhancedHovers:
     def test_http_respond_lifecycle_note_in_signature_help(self):
         configure_signatures(dialect="f5-irules")
         src = "HTTP::respond 200 "
-        from lsp.features.signature_help import get_signature_help
+        from server.features.signature_help import get_signature_help
 
         result = get_signature_help(src, 0, 18)
         assert result is not None
@@ -1391,6 +1517,29 @@ class TestIrule5003:
         src = "while {$count != 0} { incr other -1 }"
         diags = _diag_with_code(src, "IRULE5003")
         assert len(diags) == 0
+
+    def test_does_not_fire_in_plain_tcl_dialect(self):
+        """IRULE5003 is iRules-specific and must not appear in plain Tcl.
+
+        The runaway-loop consequence (TMOS runtime-budget kill) only
+        applies to iRules; plain Tcl just takes a long time, so the
+        diagnostic would be noise for non-iRules users.
+
+        ``configure_signatures`` mutates a process-wide ``ContextVar``,
+        so the dialect is restored to ``f5-irules`` in a ``finally``
+        block even if an assertion in the loop fails — otherwise the
+        leaked dialect would pollute subsequent tests in this file
+        (which all rely on the iRules dialect being active).
+        """
+        src = "while {$count != 0} { incr count -1 }"
+        try:
+            for dialect in ("tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"):
+                configure_signatures(dialect=dialect)
+                result = analyse(src)
+                irule_5003 = [d for d in result.diagnostics if d.code == "IRULE5003"]
+                assert irule_5003 == [], f"IRULE5003 must not fire in {dialect}; got {irule_5003}"
+        finally:
+            configure_signatures(dialect="f5-irules")
 
 
 # IRULE4004: Hoist constant set from per-request to per-connection
@@ -1814,7 +1963,7 @@ class TestMultipleWhenHandlers:
 
     def test_lowering_numbers_duplicate_events(self):
         """Lowering creates separate IR procedures for duplicate when blocks."""
-        from core.compiler.lowering import lower_to_ir
+        from compiler.lowering import lower_to_ir
 
         src = (
             "when HTTP_REQUEST {\n    set x 1\n}\n"
@@ -1833,7 +1982,7 @@ class TestMultipleWhenHandlers:
 
     def test_event_order_yields_all_handlers(self):
         """extract_event_order returns one entry per handler."""
-        from core.compiler.irules_flow import extract_event_order
+        from compiler.irules_flow import extract_event_order
 
         src = (
             "when HTTP_REQUEST priority 200 { set x 1 }\n"

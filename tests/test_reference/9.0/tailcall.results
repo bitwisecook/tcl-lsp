@@ -1,0 +1,47 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     tailcall.test
+DATE     2026-05-06T21:17:41Z
+---
+PASS tailcall-1
+PASS tailcall-10a
+PASS tailcall-10b
+PASS tailcall-11a
+PASS tailcall-11b
+PASS tailcall-11c
+PASS tailcall-12.1
+PASS tailcall-12.2
+PASS tailcall-12.3a0
+PASS tailcall-12.3a1
+PASS tailcall-12.3a2
+PASS tailcall-12.3a3
+PASS tailcall-12.3b0
+PASS tailcall-12.3b1
+PASS tailcall-12.3b2
+PASS tailcall-12.3b3
+PASS tailcall-13.1
+PASS tailcall-13.2
+PASS tailcall-14.1
+PASS tailcall-14.1-bc
+PASS tailcall-2
+PASS tailcall-3
+PASS tailcall-4
+PASS tailcall-5
+PASS tailcall-6
+PASS tailcall-7
+PASS tailcall-8
+PASS tailcall-9
+PASS tailcall-bug-784befb0ba
+SKIP tailcall-0.1 testnrelevels
+SKIP tailcall-0.2 testnrelevels
+SKIP tailcall-0.3 testnrelevels
+SKIP tailcall-0.4 testnrelevels
+SKIP tailcall-0.5 testnrelevels
+SKIP tailcall-0.5.1 testnrelevels
+SKIP tailcall-0.6 testnrelevels
+SKIP tailcall-0.7 testnrelevels
+---
+TOTAL   37
+PASSED  29
+SKIPPED 8
+FAILED  0

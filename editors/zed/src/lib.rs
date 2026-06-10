@@ -14,8 +14,7 @@ const BUNDLED_VERSION: &str = match option_env!("TCL_LSP_BUNDLED_VERSION") {
 };
 
 #[cfg(bundled_lsp)]
-const BUNDLED_LSP_BYTES: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-server.pyz"));
+const BUNDLED_LSP_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-server.pyz"));
 #[cfg(bundled_mcp)]
 const BUNDLED_MCP_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/tcl-lsp-mcp-server.pyz"));
@@ -46,14 +45,12 @@ fn find_python(worktree: &zed::Worktree) -> Result<String> {
             return Ok(path);
         }
     }
-    Err(
-        "Python 3.10+ is required but was not found on PATH. \
+    Err("Python 3.10+ is required but was not found on PATH. \
          The extension bundles all Python dependencies, but a Python interpreter \
          must be installed on your system. Install from https://www.python.org/downloads/ \
          or via Homebrew (brew install python@3.14), then restart Zed. \
          See https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite"
-            .into(),
-    )
+        .into())
 }
 
 /// Find the best Python 3.10+ by probing common names without a worktree.
@@ -165,9 +162,8 @@ fn ensure_bundled_asset(name: &str, bytes: &[u8]) -> Option<String> {
 // to update after registry changes.
 
 static TCL_COMMANDS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    let json: serde_json::Value =
-        serde_json::from_str(include_str!("generated/tcl_commands.json"))
-            .expect("generated/tcl_commands.json is valid JSON");
+    let json: serde_json::Value = serde_json::from_str(include_str!("generated/tcl_commands.json"))
+        .expect("generated/tcl_commands.json is valid JSON");
     json["commands"]
         .as_array()
         .map(|arr| {
@@ -179,9 +175,8 @@ static TCL_COMMANDS: LazyLock<Vec<String>> = LazyLock::new(|| {
 });
 
 static IRULE_EVENTS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    let json: serde_json::Value =
-        serde_json::from_str(include_str!("generated/irule_events.json"))
-            .expect("generated/irule_events.json is valid JSON");
+    let json: serde_json::Value = serde_json::from_str(include_str!("generated/irule_events.json"))
+        .expect("generated/irule_events.json is valid JSON");
     json["events"]
         .as_array()
         .map(|arr| {
@@ -203,7 +198,6 @@ impl zed::Extension for TclExtension {
         }
     }
 
-
     fn language_server_command(
         &mut self,
         language_server_id: &LanguageServerId,
@@ -217,8 +211,7 @@ impl zed::Extension for TclExtension {
             Some(local) => local,
             None => {
                 #[cfg(bundled_lsp)]
-                let bundled =
-                    ensure_bundled_asset("tcl-lsp-server.pyz", BUNDLED_LSP_BYTES);
+                let bundled = ensure_bundled_asset("tcl-lsp-server.pyz", BUNDLED_LSP_BYTES);
                 #[cfg(not(bundled_lsp))]
                 let bundled: Option<String> = None;
 
@@ -240,7 +233,6 @@ impl zed::Extension for TclExtension {
         })
     }
 
-
     fn language_server_workspace_configuration(
         &mut self,
         _language_server_id: &LanguageServerId,
@@ -249,7 +241,6 @@ impl zed::Extension for TclExtension {
         let settings = zed::settings::LspSettings::for_worktree("tcl-lsp", worktree)?;
         Ok(settings.settings)
     }
-
 
     fn label_for_completion(
         &self,
@@ -263,16 +254,13 @@ impl zed::Extension for TclExtension {
             zed::lsp::CompletionKind::Variable => {
                 // Variable completions: highlight "$" prefix distinctly.
                 let mut spans = Vec::new();
-                if label.starts_with('$') {
+                if let Some(rest) = label.strip_prefix('$') {
                     spans.push(zed::CodeLabelSpan::literal(
                         "$",
                         Some("punctuation.special".into()),
                     ));
-                    if label.len() > 1 {
-                        spans.push(zed::CodeLabelSpan::literal(
-                            &label[1..],
-                            Some("variable".into()),
-                        ));
+                    if !rest.is_empty() {
+                        spans.push(zed::CodeLabelSpan::literal(rest, Some("variable".into())));
                     }
                 } else {
                     spans.push(zed::CodeLabelSpan::literal(label, Some("variable".into())));
@@ -295,15 +283,12 @@ impl zed::Extension for TclExtension {
                             Some("punctuation.delimiter".into()),
                         ));
                     }
-                    spans.push(zed::CodeLabelSpan::literal(
-                        *part,
-                        Some("function".into()),
-                    ));
+                    spans.push(zed::CodeLabelSpan::literal(*part, Some("function".into())));
                 }
                 // Append detail (signature) if present.
                 let code = if let Some(ref detail) = completion.detail {
                     spans.push(zed::CodeLabelSpan::literal(
-                        &format!(" {detail}"),
+                        format!(" {detail}"),
                         Some("comment".into()),
                     ));
                     format!("{label} {detail}")
@@ -320,16 +305,10 @@ impl zed::Extension for TclExtension {
             zed::lsp::CompletionKind::Keyword => {
                 // Switches/keywords: highlight "-" prefix.
                 let mut spans = Vec::new();
-                if label.starts_with('-') {
-                    spans.push(zed::CodeLabelSpan::literal(
-                        "-",
-                        Some("punctuation".into()),
-                    ));
-                    if label.len() > 1 {
-                        spans.push(zed::CodeLabelSpan::literal(
-                            &label[1..],
-                            Some("keyword".into()),
-                        ));
+                if let Some(rest) = label.strip_prefix('-') {
+                    spans.push(zed::CodeLabelSpan::literal("-", Some("punctuation".into())));
+                    if !rest.is_empty() {
+                        spans.push(zed::CodeLabelSpan::literal(rest, Some("keyword".into())));
                     }
                 } else {
                     spans.push(zed::CodeLabelSpan::literal(label, Some("keyword".into())));
@@ -345,7 +324,6 @@ impl zed::Extension for TclExtension {
         }
     }
 
-
     fn label_for_symbol(
         &self,
         _language_server_id: &LanguageServerId,
@@ -356,10 +334,7 @@ impl zed::Extension for TclExtension {
 
         match symbol.kind {
             zed::lsp::SymbolKind::Function => {
-                spans.push(zed::CodeLabelSpan::literal(
-                    "proc ",
-                    Some("keyword".into()),
-                ));
+                spans.push(zed::CodeLabelSpan::literal("proc ", Some("keyword".into())));
                 let parts: Vec<&str> = name.split("::").collect();
                 for (i, part) in parts.iter().enumerate() {
                     if i > 0 {
@@ -402,7 +377,6 @@ impl zed::Extension for TclExtension {
             filter_range: (0..name.len()).into(),
         })
     }
-
 
     fn complete_slash_command_argument(
         &self,
@@ -551,7 +525,6 @@ impl zed::Extension for TclExtension {
             _ => Err(format!("Unknown slash command: {}", command.name)),
         }
     }
-
 
     fn context_server_command(
         &mut self,

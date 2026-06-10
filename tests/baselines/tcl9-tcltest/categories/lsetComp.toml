@@ -1,0 +1,18 @@
+# Categorisation for lsetComp.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "2.8",    # lsetComp-2.8: ``lset x {1 5} 5`` where 5 is past the
+            # nested list length — should raise ``index "5" out of
+            # range``.  Our compiled lset path silently returns the
+            # original list unchanged.
+  "2.9",    # lsetComp-2.9: same — list-of-indices form, out-of-range.
+  "3.8",    # lsetComp-3.8: flat-args form, ``lset x 1 5 5`` —
+            # equivalent gap, separate code path.
+  "3.9",    # lsetComp-3.9: same — flat-args, out-of-range at deeper
+            # nesting level.
+]
+
+[baseline]
+good_to_have_failing = 4

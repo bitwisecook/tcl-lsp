@@ -40,7 +40,7 @@ Type `@irule`, `@tcl`, or `@tk` in the Copilot Chat panel, followed by a `/` and
 | Command | What it does |
 |---------|-------------|
 | `/review` | Security and safety review of the iRule. |
-| `/convert` | Detect legacy patterns eligible for modernisation. |
+| `/find-legacy` | Find legacy patterns eligible for modernisation, then have the assistant rewrite them. |
 | `/scaffold` | Generate an iRule skeleton from a list of events. |
 | `/datagroup` | Suggest data-group extraction opportunities. |
 | `/diff` | Explain the differences between two versions of an iRule. |

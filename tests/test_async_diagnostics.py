@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.async_diagnostics import DiagnosticScheduler
+from server.async_diagnostics import DiagnosticScheduler
 
 
 def _diag(code: str) -> types.Diagnostic:
@@ -51,7 +51,7 @@ def _make_publish_fn() -> Any:
 
 def _codes(diags: list[types.Diagnostic]) -> list[str]:
     """Extract codes from a list of diagnostics."""
-    return [d.code for d in diags if d.code]  # type: ignore[misc, invalid-return-type]
+    return [str(d.code) for d in diags if d.code]
 
 
 async def _wait_for(predicate: Any, *, timeout: float = 5.0, interval: float = 0.05) -> None:
@@ -219,6 +219,8 @@ class TestSchedulerCancellation:
         """Cancelling a URI with no pending task should be a no-op."""
         scheduler = DiagnosticScheduler()
         scheduler.cancel("file:///nonexistent.tcl")  # Should not raise
+        # No phantom pending entry is created by cancelling an unknown URI.
+        assert scheduler._pending == {}
 
     def test_cancel_all(self):
         """cancel_all should stop all pending tasks."""

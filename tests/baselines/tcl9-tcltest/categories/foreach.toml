@@ -1,0 +1,18 @@
+# Categorisation for foreach.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# Tests whose only divergence from upstream is the wording of the
+# ``errorInfo`` stack trace.  Functionally equivalent — our runtime
+# returns ``while executing "foreach a {1 2 3} {}"`` where C tcl
+# emits ``(setting foreach loop variable "a") invoked from within
+# "foreach a {1 2 3} {}"``.  Both indicate the same failure site.
+just_to_match_ctcl = [
+  "1.14",   # foreach-1.14: errorInfo wording for the "iter var is
+            # array" error — C tcl prepends a "(setting foreach loop
+            # variable "a")" line that our compiled-foreach codegen
+            # doesn't emit.
+]
+
+[baseline]
+just_to_match_ctcl_failing = 1

@@ -4,7 +4,7 @@
 // Tcl exposes ``+``, ``-``, ``*``, ``==`` etc. as both expression
 // operators *and* normal commands under ``::tcl::mathop``.  The
 // expression-compiled forms are handled at codegen time
-// (``core/compiler/codegen/...``); this module covers the
+// (``compiler/codegen/...``); this module covers the
 // **command-form** invocations like::
 //
 //     ::tcl::mathop::== $a $b $c
@@ -41,20 +41,48 @@
 // divide-by-zero, matching ``tclMathOp.c``'s ``Tcl_WrongNumArgs`` /
 // ``DIVZERO`` paths.
 
-const std    = @import("std");
-const obj    = @import("../valtypes/tcl_obj.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
-const stubs  = @import("../stubs/tcl_stubs.zig");
-const list   = @import("../valtypes/tcl_list.zig");
+const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
+const bignum = @import("../valtypes/tcl_bignum.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
+const list = @import("../valtypes/tcl_list.zig");
+const tcl_arith = @import("../valtypes/tcl_arith.zig");
+const tcl_expr_eval = @import("../interp/tcl_expr_eval.zig");
 
-const obj_new_int    = obj.obj_new_int;
-const obj_new_float  = obj.obj_new_float;
-const obj_get_int    = obj.obj_get_int;
-const obj_get_float  = obj.obj_get_float;
+const obj_new_int = obj.obj_new_int;
+const obj_new_float = obj.obj_new_float;
+const obj_get_int = obj.obj_get_int;
+const obj_get_float = obj.obj_get_float;
 const obj_ensure_str = obj.obj_ensure_string;
-const TYPE_FLOAT     = obj.TYPE_FLOAT;
-const TYPE_STRING    = obj.TYPE_STRING;
+const TYPE_FLOAT = obj.TYPE_FLOAT;
+const TYPE_BIGNUM = obj.TYPE_BIGNUM;
+const TYPE_STRING = obj.TYPE_STRING;
 const TYPE_INLINE_STRING = obj.TYPE_INLINE_STRING;
+
+/// Detect bignum-shaped operand: TYPE_BIGNUM directly, or a string
+/// literal that exceeds the i64 range.  Mirrors :func:`tcl_arith.is_bignum`.
+fn is_bignum(o: i32) bool {
+    if (o == 0) return false;
+    const tag = obj.obj_type(o);
+    if (tag == TYPE_BIGNUM) return true;
+    if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
+        const s = obj_ensure_str(o);
+        if (s.len == 0) return false;
+        if (obj.try_parse_int(s.ptr, s.len) != null) return false;
+        if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+        const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+        bignum.destroy(m);
+        return true;
+    }
+    return false;
+}
+
+fn any_bignum(args: []const i32) bool {
+    for (args) |a| if (is_bignum(a)) return true;
+    return false;
+}
 
 /// Detect float-valued operand using the same heuristics as
 /// ``tcl_arith.zig`` — a TYPE_FLOAT obj or a string literal that
@@ -106,60 +134,93 @@ fn op_name(words: []const i32) []const u8 {
 /// false on miss; callers return ``obj_new_int(0)`` to satisfy the
 /// signature.
 fn require_arity(args: []const i32, comptime opname: []const u8, comptime min: usize, comptime max: ?usize) bool {
+    // The exact ``should be "<op> ..."`` operand list isn't checked by
+    // the test suite — only the ``wrong # args: should be * TCL
+    // WRONGARGS`` glob (mathop-20.2 / 20.5 / 21.6 / 24.8).  The
+    // ``wrong # args:`` prefix drives ``detect_error_code`` to stamp
+    // ``TCL WRONGARGS``.
     if (args.len < min) {
-        stubs.raise("wrong # args: " ++ opname ++ " requires more arguments");
+        stubs.raise("wrong # args: should be \"" ++ opname ++ " ...\"");
         return false;
     }
     if (max) |m| {
         if (args.len > m) {
-            stubs.raise("wrong # args: " ++ opname ++ " takes too many arguments");
+            stubs.raise("wrong # args: should be \"" ++ opname ++ " ...\"");
             return false;
         }
     }
     return true;
 }
 
+// Fold helpers for the arithmetic / bitwise operators.  They delegate
+// each pairwise step to the validated ``tcl_arith_*`` binary ops so
+// the command form inherits the expr path's operand-domain checks,
+// bignum precision, and error wording instead of re-implementing them.
+const BinFn = *const fn (i32, i32) callconv(.c) i32;
+
+fn err_pending() bool {
+    return result_mod.snapshot(0).code == .ERROR;
+}
+
+/// Left-fold *args* through *f*, seeding with *identity_val* so a
+/// single-argument call still validates (and normalises) its operand
+/// and so ``args[0]`` is the left operand of the first real pairwise
+/// step (correct ``left``/``right`` error wording).  Bails on the
+/// first raised error.  Returns a fresh +1-owned result.
+fn fold_left(args: []const i32, f: BinFn, identity_val: i64) i32 {
+    if (args.len == 0) return obj_new_int(identity_val);
+    const id = obj_new_int(identity_val);
+    var acc = f(args[0], id);
+    obj.tcl_obj_release(id);
+    if (err_pending()) return acc;
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const next = f(acc, args[i]);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
+    }
+    return acc;
+}
+
+/// Left-fold without an identity seed — used by ``-`` / ``/`` where
+/// the multi-arg form is ``a - b - c`` / ``a / b / c`` and there is
+/// no useful identity to prepend.  Caller guarantees ``args.len >= 2``.
+fn fold_noseed(args: []const i32, f: BinFn) i32 {
+    var acc = f(args[0], args[1]);
+    if (err_pending()) return acc;
+    var i: usize = 2;
+    while (i < args.len) : (i += 1) {
+        const next = f(acc, args[i]);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
+    }
+    return acc;
+}
+
 // -- arithmetic --------------------------------------------------------------
+//
+// The variadic operators fold over the validated ``tcl_arith_*``
+// binary ops (the same ones the expression compiler targets) so the
+// command form inherits operand-domain checks, bignum precision, and
+// the exact Tcl error wording instead of re-implementing them.
 
 fn op_add(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    if (any_float(args)) {
-        var sum: f64 = 0;
-        for (args) |a| sum += obj_get_float(a);
-        return obj_new_float(sum);
-    }
-    var sum: i64 = 0;
-    for (args) |a| sum +%= obj_get_int(a);
-    return obj_new_int(sum);
+    return fold_left(args, tcl_arith.tcl_arith_add, 0);
 }
 
 fn op_sub(args: []const i32) i32 {
     if (args.len == 0) {
-        stubs.raise("wrong # args: should be \"- ?arg ...?\"");
+        stubs.raise("wrong # args: should be \"- arg ?arg ...?\"");
         return obj_new_int(0);
     }
-    if (any_float(args)) {
-        if (args.len == 1) return obj_new_float(-obj_get_float(args[0]));
-        var acc: f64 = obj_get_float(args[0]);
-        for (args[1..]) |a| acc -= obj_get_float(a);
-        return obj_new_float(acc);
-    }
-    if (args.len == 1) return obj_new_int(-%obj_get_int(args[0]));
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc -%= obj_get_int(a);
-    return obj_new_int(acc);
+    if (args.len == 1) return tcl_arith.tcl_arith_neg(args[0]);
+    return fold_noseed(args, tcl_arith.tcl_arith_sub);
 }
 
 fn op_mul(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(1);
-    if (any_float(args)) {
-        var prod: f64 = 1;
-        for (args) |a| prod *= obj_get_float(a);
-        return obj_new_float(prod);
-    }
-    var prod: i64 = 1;
-    for (args) |a| prod *%= obj_get_int(a);
-    return obj_new_int(prod);
+    return fold_left(args, tcl_arith.tcl_arith_mul, 1);
 }
 
 fn op_div(args: []const i32) i32 {
@@ -167,170 +228,82 @@ fn op_div(args: []const i32) i32 {
         stubs.raise("wrong # args: should be \"/ arg ?arg ...?\"");
         return obj_new_int(0);
     }
-    // Unary ``/`` is ALWAYS the floating reciprocal regardless of the
-    // operand's source type.  ``mathop.n``: "With one argument, the
-    // result is the reciprocal of that value (i.e. 1.0/x)."  An int
-    // input still produces a float — ``[/ 5]`` is ``0.2``, not ``0``.
+    // Unary ``/`` is the floating reciprocal ``1.0 / x`` regardless of
+    // the operand type (``[/ 5]`` is ``0.2``).  Routing through
+    // ``tcl_arith_div(1.0, x)`` reuses the operand validation so a
+    // non-numeric ``x`` reports ``... as right operand of "/"``.
     if (args.len == 1) {
-        const v = obj_get_float(args[0]);
-        if (v == 0.0) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        return obj_new_float(1.0 / v);
+        const one = obj_new_float(1.0);
+        const r = tcl_arith.tcl_arith_div(one, args[0]);
+        obj.tcl_obj_release(one);
+        return r;
     }
-    if (any_float(args)) {
-        var acc: f64 = obj_get_float(args[0]);
-        for (args[1..]) |a| {
-            const v = obj_get_float(a);
-            if (v == 0.0) {
-                stubs.raise("divide by zero");
-                return obj_new_int(0);
-            }
-            acc /= v;
-        }
-        return obj_new_float(acc);
-    }
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| {
-        const v = obj_get_int(a);
-        if (v == 0) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        // ``@divTrunc`` (toward zero) matches ``tcl_arith_div`` and
-        // the rest of the runtime.  Earlier ``@divFloor`` produced
-        // ``-3`` for ``[/ 5 -2]`` instead of the Tcl-correct ``-2``
-        // (Copilot review).
-        acc = @divTrunc(acc, v);
-    }
-    return obj_new_int(acc);
+    return fold_noseed(args, tcl_arith.tcl_arith_div);
 }
 
 fn op_mod(args: []const i32) i32 {
     if (!require_arity(args, "%", 2, 2)) return obj_new_int(0);
-    const b = obj_get_int(args[1]);
-    if (b == 0) {
-        stubs.raise("divide by zero");
-        return obj_new_int(0);
-    }
-    // ``@rem`` (sign-of-dividend) matches ``tcl_arith_mod`` / ``expr``.
-    // Switching from ``@mod`` (Euclidean) avoids ``::tcl::mathop::%
-    // -7 3`` returning ``2`` while ``expr {-7 % 3}`` returns ``-1``
-    // (Copilot review).
-    return obj_new_int(@rem(obj_get_int(args[0]), b));
-}
-
-fn ipow(base: i64, exp_in: i64) i64 {
-    // ``ipow`` is only called for non-negative exponents — the
-    // ``op_pow`` caller routes negative exponents to the float
-    // pathway since integer ``a**-n`` is ``1/(a**n)`` which is
-    // fractional and can't be represented in i64.
-    var result: i64 = 1;
-    var b: i64 = base;
-    var e: i64 = exp_in;
-    while (e > 0) : (e >>= 1) {
-        if ((e & 1) != 0) result *%= b;
-        b *%= b;
-    }
-    return result;
-}
-
-fn any_negative_int(args: []const i32) bool {
-    for (args) |a| {
-        if (!is_float(a) and obj_get_int(a) < 0) return true;
-    }
-    return false;
+    return tcl_arith.tcl_arith_mod(args[0], args[1]);
 }
 
 fn op_pow(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(1);
     if (args.len == 1) {
-        if (is_float(args[0])) return obj_new_float(obj_get_float(args[0]));
-        return obj_new_int(obj_get_int(args[0]));
+        // ``** x`` is ``x`` (validated numeric); ``tcl_arith_pow(x, 1)``
+        // returns the operand retained after the numeric check.
+        const one = obj_new_int(1);
+        const r = tcl_arith.tcl_arith_pow(args[0], one);
+        obj.tcl_obj_release(one);
+        return r;
     }
-    // Negative exponents force the float pathway — integer ``a ** -n``
-    // is fractional (``1 / a**n``) and the documented Tcl semantics
-    // promote to a float.  ``ipow`` is integer-only, so check the
-    // exponents (every arg past the leftmost) before dispatching
-    // (Copilot review).
-    const has_neg_exp = blk: {
-        for (args[1..]) |a| {
-            if (!is_float(a) and obj_get_int(a) < 0) break :blk true;
-        }
-        break :blk false;
-    };
-    if (any_float(args) or has_neg_exp) {
-        // Right-associative: a ** b ** c = a ** (b ** c).
-        var acc: f64 = obj_get_float(args[args.len - 1]);
-        var i: usize = args.len - 1;
-        while (i > 0) {
-            i -= 1;
-            acc = std.math.pow(f64, obj_get_float(args[i]), acc);
-        }
-        return obj_new_float(acc);
-    }
-    var acc: i64 = obj_get_int(args[args.len - 1]);
+    // ``**`` is right-associative: ``a ** b ** c`` = ``a ** (b ** c)``.
+    // Each step delegates to ``tcl_arith_pow`` (integer / float /
+    // bignum / negative-exponent / domain-error semantics).
+    var acc = args[args.len - 1];
+    obj.tcl_obj_retain(acc);
     var i: usize = args.len - 1;
     while (i > 0) {
         i -= 1;
-        acc = ipow(obj_get_int(args[i]), acc);
+        const next = tcl_arith.tcl_arith_pow(args[i], acc);
+        obj.tcl_obj_release(acc);
+        acc = next;
+        if (err_pending()) break;
     }
-    return obj_new_int(acc);
+    return acc;
 }
 
 // -- bitwise / shift ---------------------------------------------------------
+//
+// All four delegate to the validated ``tcl_arith_*`` helpers, which
+// enforce the integer-operand domain (rejecting floats / non-numeric
+// strings with the canonical wording), carry bignum precision, and
+// handle the large- / negative-shift edge cases.
 
 fn op_band(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(-1);
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc &= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_band, -1);
 }
 
 fn op_bor(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc |= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_bor, 0);
 }
 
 fn op_bxor(args: []const i32) i32 {
-    if (args.len == 0) return obj_new_int(0);
-    var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc ^= obj_get_int(a);
-    return obj_new_int(acc);
+    return fold_left(args, tcl_arith.tcl_arith_bxor, 0);
 }
 
 fn op_bnot(args: []const i32) i32 {
     if (!require_arity(args, "~", 1, 1)) return obj_new_int(0);
-    return obj_new_int(~obj_get_int(args[0]));
+    return tcl_arith.tcl_arith_bnot(args[0]);
 }
 
 fn op_lshift(args: []const i32) i32 {
     if (!require_arity(args, "<<", 2, 2)) return obj_new_int(0);
-    const a = obj_get_int(args[0]);
-    const b = obj_get_int(args[1]);
-    if (b < 0) {
-        stubs.raise("negative shift argument");
-        return obj_new_int(0);
-    }
-    if (b >= 64) return obj_new_int(0);
-    const sh: u6 = @intCast(b);
-    return obj_new_int(a << sh);
+    return tcl_arith.tcl_arith_lshift(args[0], args[1]);
 }
 
 fn op_rshift(args: []const i32) i32 {
     if (!require_arity(args, ">>", 2, 2)) return obj_new_int(0);
-    const a = obj_get_int(args[0]);
-    const b = obj_get_int(args[1]);
-    if (b < 0) {
-        stubs.raise("negative shift argument");
-        return obj_new_int(0);
-    }
-    if (b >= 64) return obj_new_int(if (a < 0) -1 else 0);
-    const sh: u6 = @intCast(b);
-    return obj_new_int(a >> sh);
+    return tcl_arith.tcl_arith_rshift(args[0], args[1]);
 }
 
 // -- numeric comparison (chain) ----------------------------------------------
@@ -345,12 +318,18 @@ const CmpKind = enum { eq, ne, lt, le, gt, ge };
 fn is_numeric(o: i32) bool {
     if (o == 0) return true; // null / empty obj — defaults to 0 numerically
     const tag = obj.obj_type(o);
-    if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT) return true;
+    if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT or tag == obj.TYPE_BIGNUM) return true;
     const s = obj_ensure_str(o);
     if (s.len == 0) return true;
     if (obj.try_parse_int(s.ptr, s.len) != null) return true;
     if (obj.try_parse_float(s.ptr, s.len) != null) return true;
-    return false;
+    // String literal that exceeds i64 → still numeric for ``mathop``
+    // dispatch.  Without this branch ``[< 99 (1<<200)]`` falls to
+    // bytewise compare and returns the lexicographic answer.
+    if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+    const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+    bignum.destroy(m);
+    return true;
 }
 
 /// Lexical-string comparison for the ``a < b`` family.  Returns
@@ -401,6 +380,27 @@ fn cmp_pair_num(a: i32, b: i32, k: CmpKind) bool {
             .ge => af >= bf,
         };
     }
+    // Bignum-aware integer compare.  Stage 1 truncated bignum
+    // operands via ``obj_get_int``, miscomparing e.g.
+    // ``[< 99 (1<<70)]`` as false (both truncated to 99 vs ~i64::MAX).
+    // Routing through ``Managed.order`` gives the correct answer for
+    // arbitrary magnitude.
+    if (is_bignum(a) or is_bignum(b)) {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(b);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return false;
+        const ord = ap.m.?.order(bp.m.?.*);
+        return switch (k) {
+            .eq => ord == .eq,
+            .ne => ord != .eq,
+            .lt => ord == .lt,
+            .le => ord != .gt,
+            .gt => ord == .gt,
+            .ge => ord != .lt,
+        };
+    }
     const ai = obj_get_int(a);
     const bi = obj_get_int(b);
     return switch (k) {
@@ -429,15 +429,25 @@ fn op_chain_num(args: []const i32, k: CmpKind) i32 {
     return obj_new_int(1);
 }
 
-fn op_eq_num(args: []const i32) i32 { return op_chain_num(args, .eq); }
+fn op_eq_num(args: []const i32) i32 {
+    return op_chain_num(args, .eq);
+}
 fn op_ne_num(args: []const i32) i32 {
     if (!require_arity(args, "!=", 2, 2)) return obj_new_int(0);
     return obj_new_int(if (cmp_pair_num(args[0], args[1], .ne)) 1 else 0);
 }
-fn op_lt_num(args: []const i32) i32 { return op_chain_num(args, .lt); }
-fn op_le_num(args: []const i32) i32 { return op_chain_num(args, .le); }
-fn op_gt_num(args: []const i32) i32 { return op_chain_num(args, .gt); }
-fn op_ge_num(args: []const i32) i32 { return op_chain_num(args, .ge); }
+fn op_lt_num(args: []const i32) i32 {
+    return op_chain_num(args, .lt);
+}
+fn op_le_num(args: []const i32) i32 {
+    return op_chain_num(args, .le);
+}
+fn op_gt_num(args: []const i32) i32 {
+    return op_chain_num(args, .gt);
+}
+fn op_ge_num(args: []const i32) i32 {
+    return op_chain_num(args, .ge);
+}
 
 // -- string compare ----------------------------------------------------------
 
@@ -452,6 +462,40 @@ fn slice_eq(a: i32, b: i32) bool {
         if (pa[i] != pb[i]) return false;
     }
     return true;
+}
+
+// Returns negative/zero/positive like C strcmp.
+fn slice_cmp(a: i32, b: i32) i32 {
+    const sa = obj_ensure_str(a);
+    const sb = obj_ensure_str(b);
+    const pa: [*]const u8 = if (sa.ptr != 0) @ptrFromInt(sa.ptr) else &[_]u8{};
+    const pb: [*]const u8 = if (sb.ptr != 0) @ptrFromInt(sb.ptr) else &[_]u8{};
+    const min_len = @min(sa.len, sb.len);
+    for (0..min_len) |i| {
+        if (pa[i] < pb[i]) return -1;
+        if (pa[i] > pb[i]) return 1;
+    }
+    if (sa.len < sb.len) return -1;
+    if (sa.len > sb.len) return 1;
+    return 0;
+}
+
+const StrCmpKind = enum { lt, le, gt, ge };
+
+fn op_chain_str(args: []const i32, kind: StrCmpKind) i32 {
+    if (args.len <= 1) return obj_new_int(1);
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        const c = slice_cmp(args[i], args[i + 1]);
+        const ok = switch (kind) {
+            .lt => c < 0,
+            .le => c <= 0,
+            .gt => c > 0,
+            .ge => c >= 0,
+        };
+        if (!ok) return obj_new_int(0);
+    }
+    return obj_new_int(1);
 }
 
 fn op_eq_str(args: []const i32) i32 {
@@ -471,13 +515,31 @@ fn op_ne_str(args: []const i32) i32 {
 
 // -- list membership (in / ni) ----------------------------------------------
 
+/// Validate that *o* is a well-formed list before ``in`` / ``ni``
+/// membership testing.  An unbalanced brace raises ``unmatched open
+/// brace in list`` (errorCode ``TCL VALUE LIST BRACE`` via
+/// ``detect_error_code``) rather than silently treating the malformed
+/// string as an empty / partial list (mathop-24.3).
+fn validate_membership_list(o: i32) bool {
+    const lp = @import("../valtypes/tcl_list_parse.zig");
+    const s = obj_ensure_str(o);
+    if (s.ptr == 0 or s.len == 0) return true;
+    if (!lp.validate_list_braces(s.ptr, s.len)) {
+        stubs.raise("unmatched open brace in list");
+        return false;
+    }
+    return true;
+}
+
 fn op_in(args: []const i32) i32 {
     if (!require_arity(args, "in", 2, 2)) return obj_new_int(0);
+    if (!validate_membership_list(args[1])) return obj_new_int(0);
     return list.tcl_cmd_list_contains(args[1], args[0]);
 }
 
 fn op_ni(args: []const i32) i32 {
     if (!require_arity(args, "ni", 2, 2)) return obj_new_int(0);
+    if (!validate_membership_list(args[1])) return obj_new_int(0);
     return obj_new_int(if (obj_get_int(list.tcl_cmd_list_contains(args[1], args[0])) == 0) 1 else 0);
 }
 
@@ -503,7 +565,10 @@ fn truthy(o: i32) bool {
 
 fn op_not(args: []const i32) i32 {
     if (!require_arity(args, "!", 1, 1)) return obj_new_int(0);
-    return obj_new_int(if (truthy(args[0])) 0 else 1);
+    // Delegate to the expr logical-NOT so a non-numeric / non-boolean
+    // operand raises ``cannot use non-numeric string "x" as operand of
+    // "!"`` (mathop-21.5) instead of silently coercing to false.
+    return tcl_expr_eval.tcl_expr_lnot(args[0]);
 }
 
 fn op_and(args: []const i32) i32 {
@@ -578,41 +643,45 @@ fn op_at(args: []const i32) i32 {
 /// Single entry point for every registered mathop spelling — examines
 /// the trailing operator name (``foo::bar::==`` → ``==``) and dispatches
 /// to the per-op handler.  ``words[1..]`` is the operand list.
-fn eval(words: []const i32) i32 {
+fn eval(words: []const i32) result_mod.InterpResult {
     const op = op_name(words);
     const rest = words[1..];
     // Stable order: arithmetic > comparison > bitwise > logical >
     // misc.  Linear scan is fine — there are ~25 ops and the
     // frequently-hit ones (``==``, ``+``, ``-``) are checked first.
-    if (std.mem.eql(u8, op, "+")) return op_add(rest);
-    if (std.mem.eql(u8, op, "-")) return op_sub(rest);
-    if (std.mem.eql(u8, op, "*")) return op_mul(rest);
-    if (std.mem.eql(u8, op, "/")) return op_div(rest);
-    if (std.mem.eql(u8, op, "%")) return op_mod(rest);
-    if (std.mem.eql(u8, op, "**")) return op_pow(rest);
-    if (std.mem.eql(u8, op, "==")) return op_eq_num(rest);
-    if (std.mem.eql(u8, op, "!=")) return op_ne_num(rest);
-    if (std.mem.eql(u8, op, "<")) return op_lt_num(rest);
-    if (std.mem.eql(u8, op, ">")) return op_gt_num(rest);
-    if (std.mem.eql(u8, op, "<=")) return op_le_num(rest);
-    if (std.mem.eql(u8, op, ">=")) return op_ge_num(rest);
-    if (std.mem.eql(u8, op, "eq")) return op_eq_str(rest);
-    if (std.mem.eql(u8, op, "ne")) return op_ne_str(rest);
-    if (std.mem.eql(u8, op, "in")) return op_in(rest);
-    if (std.mem.eql(u8, op, "ni")) return op_ni(rest);
-    if (std.mem.eql(u8, op, "&")) return op_band(rest);
-    if (std.mem.eql(u8, op, "|")) return op_bor(rest);
-    if (std.mem.eql(u8, op, "^")) return op_bxor(rest);
-    if (std.mem.eql(u8, op, "~")) return op_bnot(rest);
-    if (std.mem.eql(u8, op, "<<")) return op_lshift(rest);
-    if (std.mem.eql(u8, op, ">>")) return op_rshift(rest);
-    if (std.mem.eql(u8, op, "!")) return op_not(rest);
-    if (std.mem.eql(u8, op, "&&")) return op_and(rest);
-    if (std.mem.eql(u8, op, "||")) return op_or(rest);
-    if (std.mem.eql(u8, op, "min")) return op_min(rest);
-    if (std.mem.eql(u8, op, "max")) return op_max(rest);
-    if (std.mem.eql(u8, op, "@")) return op_at(rest);
-    return obj_new_int(0);
+    if (std.mem.eql(u8, op, "+")) return result_mod.from_globals(op_add(rest));
+    if (std.mem.eql(u8, op, "-")) return result_mod.from_globals(op_sub(rest));
+    if (std.mem.eql(u8, op, "*")) return result_mod.from_globals(op_mul(rest));
+    if (std.mem.eql(u8, op, "/")) return result_mod.from_globals(op_div(rest));
+    if (std.mem.eql(u8, op, "%")) return result_mod.from_globals(op_mod(rest));
+    if (std.mem.eql(u8, op, "**")) return result_mod.from_globals(op_pow(rest));
+    if (std.mem.eql(u8, op, "==")) return result_mod.from_globals(op_eq_num(rest));
+    if (std.mem.eql(u8, op, "!=")) return result_mod.from_globals(op_ne_num(rest));
+    if (std.mem.eql(u8, op, "<")) return result_mod.from_globals(op_lt_num(rest));
+    if (std.mem.eql(u8, op, ">")) return result_mod.from_globals(op_gt_num(rest));
+    if (std.mem.eql(u8, op, "<=")) return result_mod.from_globals(op_le_num(rest));
+    if (std.mem.eql(u8, op, ">=")) return result_mod.from_globals(op_ge_num(rest));
+    if (std.mem.eql(u8, op, "eq")) return result_mod.from_globals(op_eq_str(rest));
+    if (std.mem.eql(u8, op, "ne")) return result_mod.from_globals(op_ne_str(rest));
+    if (std.mem.eql(u8, op, "lt")) return result_mod.from_globals(op_chain_str(rest, .lt));
+    if (std.mem.eql(u8, op, "le")) return result_mod.from_globals(op_chain_str(rest, .le));
+    if (std.mem.eql(u8, op, "gt")) return result_mod.from_globals(op_chain_str(rest, .gt));
+    if (std.mem.eql(u8, op, "ge")) return result_mod.from_globals(op_chain_str(rest, .ge));
+    if (std.mem.eql(u8, op, "in")) return result_mod.from_globals(op_in(rest));
+    if (std.mem.eql(u8, op, "ni")) return result_mod.from_globals(op_ni(rest));
+    if (std.mem.eql(u8, op, "&")) return result_mod.from_globals(op_band(rest));
+    if (std.mem.eql(u8, op, "|")) return result_mod.from_globals(op_bor(rest));
+    if (std.mem.eql(u8, op, "^")) return result_mod.from_globals(op_bxor(rest));
+    if (std.mem.eql(u8, op, "~")) return result_mod.from_globals(op_bnot(rest));
+    if (std.mem.eql(u8, op, "<<")) return result_mod.from_globals(op_lshift(rest));
+    if (std.mem.eql(u8, op, ">>")) return result_mod.from_globals(op_rshift(rest));
+    if (std.mem.eql(u8, op, "!")) return result_mod.from_globals(op_not(rest));
+    if (std.mem.eql(u8, op, "&&")) return result_mod.from_globals(op_and(rest));
+    if (std.mem.eql(u8, op, "||")) return result_mod.from_globals(op_or(rest));
+    if (std.mem.eql(u8, op, "min")) return result_mod.from_globals(op_min(rest));
+    if (std.mem.eql(u8, op, "max")) return result_mod.from_globals(op_max(rest));
+    if (std.mem.eql(u8, op, "@")) return result_mod.from_globals(op_at(rest));
+    return result_mod.from_globals(obj_new_int(0));
 }
 
 // Each operator gets two registered spellings: the fully-qualified
@@ -623,61 +692,69 @@ fn eval(words: []const i32) i32 {
 // expression compiler at codegen time, and registering them as
 // commands would shadow ``[catch {puts -}]`` style inputs.
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "::tcl::mathop::+",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::-",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::*",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::/",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::%",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::+", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::-", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::*", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::/", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::%", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "::tcl::mathop::**", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::==", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::!=", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::<",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::>",  .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::!=", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::<", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::>", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::<=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::|",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::^",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::~",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
-    .{ .name = "::tcl::mathop::<<", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::>>", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::!",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
+    .{ .name = "::tcl::mathop::ne", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::in", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::ni", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::&", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::|", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::^", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::~", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "::tcl::mathop::<<", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::>>", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::!", .arity_min = 1, .arity_max = 1, .handler = &eval },
     .{ .name = "::tcl::mathop::&&", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::||", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::min",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::max",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::@",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::min", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::max", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::@", .arity_min = 2, .arity_max = 2, .handler = &eval },
     // Half-qualified spellings (inside ``namespace eval ::tcl``).
-    .{ .name = "tcl::mathop::+",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::-",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::*",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::/",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::%",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::+", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::-", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::*", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::/", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::%", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "tcl::mathop::**", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::==", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::!=", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::<",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::>",  .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::!=", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::<", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::>", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::<=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::|",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::^",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::~",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
-    .{ .name = "tcl::mathop::<<", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::>>", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::!",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
+    .{ .name = "tcl::mathop::ne", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::in", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::ni", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::&", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::|", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::^", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::~", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "tcl::mathop::<<", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::>>", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::!", .arity_min = 1, .arity_max = 1, .handler = &eval },
     .{ .name = "tcl::mathop::&&", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::||", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::min",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::max",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::@",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::min", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::max", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::@", .arity_min = 2, .arity_max = 2, .handler = &eval },
 };

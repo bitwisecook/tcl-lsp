@@ -102,7 +102,7 @@ def compare_with_expected(
     # Late import to avoid requiring the full server package for
     # standalone log parsing
     try:
-        from core.commands.registry.namespace_data import FLOW_CHAINS
+        from compiler.registry.namespace_data import FLOW_CHAINS
     except ImportError:
         print(
             "\n[warn] Cannot import flow chains for comparison (run from tcl-lsp/ directory)",

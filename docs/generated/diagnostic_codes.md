@@ -8,6 +8,8 @@
 | E200 | error | Shimmer parse error — internal representation cannot be determined. | ✓ |
 | W001 | warning | Unknown subcommand. | ✓ |
 | W002 | warning | Command is disabled in active dialect profile. | ✓ |
+| W003 | warning | Expression operator not available in active dialect. | ✓ |
+| W004 | warning | Command option is not available in the active dialect. | ✓ |
 | W100 | warning | Unbraced expression argument — prevents byte-compilation and risks double substitution. | ✓ |
 | W104 | warning | String concatenation for list building — use `lappend` instead. | ✓ |
 | W105 | warning | Unbraced code block or missing `variable` declaration in `namespace eval`. | ✓ |
@@ -28,11 +30,14 @@
 | W124 | warning | Invalid IP address literal. | ✓ |
 | W125 | warning | Orphaned control-flow keyword used as standalone command. | ✓ |
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
+| W127 | warning | Value not in the command's allowed set. | ✓ |
+| W128 | warning | Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
 | W231 | warning | Constant list index out of range — lset raises a runtime error. | ✓ |
 | W232 | warning | Constant string index out of range — string index/range/replace/insert silently return empty or no-op. | ✓ |
+| W233 | warning | Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime. | ✓ |
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
 | W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
@@ -40,6 +45,8 @@
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
 | W213 | variable | Variable may not exist — use `unset -nocomplain` to suppress the error. | ✓ |
 | W214 | variable | Unused proc parameter — argument is declared but never read in the procedure body. | ✓ |
+| W215 | variable | Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it). | ✓ |
+| W216 | variable | Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index. | ✓ |
 | W220 | variable | Dead store — variable set but overwritten before use. | ✓ |
 | W101 | security | `eval` with string concatenation — code injection risk. | ✓ |
 | W102 | security | `subst` on variable input — code injection risk. | ✓ |
@@ -55,12 +62,14 @@
 | W309 | security | `eval`/`uplevel` with `subst` — double substitution risk. | ✓ |
 | W313 | security | Destructive file operation with variable path — path-traversal risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
+| I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
+| I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
 | W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✗ |
 | W242 | hint | Loop termination cannot be proven — counter not provably modified by the loop body or step. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
 | S102 | shimmer | Variable oscillates between two types across loop iterations. | ✓ |
-| T100 | taint | Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`). | ✓ |
+| T100 | taint | Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion). | ✓ |
 | T101 | taint | Tainted data flows into an output command (`puts`). | ✓ |
 | T102 | taint | Tainted data in option position without `--` terminator — option injection risk. | ✓ |
 | IRULE1001 | irules | Command invalid or ineffective in this iRules event. | ✓ |

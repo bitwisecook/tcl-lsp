@@ -1,5 +1,8 @@
 # KCS: feature — @tcl Chat Participant
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 VS Code Copilot Chat participant for creating, explaining, fixing, validating, and optimising general Tcl code.

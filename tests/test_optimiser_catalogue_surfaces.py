@@ -17,8 +17,8 @@ import json
 import re
 from pathlib import Path
 
-import core.common.codes_all  # noqa: F401
-from core.common.codes import optimisation_codes
+import server._codes_init  # noqa: F401
+from shared.codes import optimisation_codes
 
 ROOT = Path(__file__).resolve().parents[1]
 ALL_OPT_CODES = optimisation_codes()
@@ -68,11 +68,11 @@ def _extract_skill_codes(rel_path: str) -> list[str]:
 
 
 def test_lsp_server_allowlist_matches_catalogue() -> None:
-    """lsp.settings._ALL_OPTIMISATION_CODES matches the registry."""
-    from lsp.settings import _ALL_OPTIMISATION_CODES
+    """server.settings._ALL_OPTIMISATION_CODES matches the registry."""
+    from server.settings import _ALL_OPTIMISATION_CODES
 
     codes = sorted(_ALL_OPTIMISATION_CODES)
-    _assert_complete_unique(codes, context="lsp/settings.py _ALL_OPTIMISATION_CODES")
+    _assert_complete_unique(codes, context="server/settings.py _ALL_OPTIMISATION_CODES")
 
 
 def test_vscode_settings_match_catalogue() -> None:
@@ -91,7 +91,7 @@ def test_vscode_settings_match_catalogue() -> None:
 
 def test_jetbrains_generated_catalog_is_fresh() -> None:
     """JetBrains DiagnosticCatalog.kt matches generator dry_run output."""
-    from scripts.generate_editor_settings import generate_jetbrains_catalog
+    from scripts.codegen.editor_settings import generate_jetbrains_catalog
 
     path, expected = generate_jetbrains_catalog(dry_run=True)
     assert path.exists(), f"Missing generated file: {path}"

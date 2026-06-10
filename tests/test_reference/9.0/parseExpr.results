@@ -1,0 +1,296 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     parseExpr.test
+DATE     2026-05-06T21:17:20Z
+---
+PASS parseExpr-19.1
+PASS parseExpr-20.1
+PASS parseExpr-20.2
+PASS parseExpr-20.3
+PASS parseExpr-21.1
+PASS parseExpr-21.10
+PASS parseExpr-21.11
+PASS parseExpr-21.12
+PASS parseExpr-21.13
+PASS parseExpr-21.14
+PASS parseExpr-21.15
+PASS parseExpr-21.16
+PASS parseExpr-21.17
+PASS parseExpr-21.18
+PASS parseExpr-21.19
+PASS parseExpr-21.2
+PASS parseExpr-21.20
+PASS parseExpr-21.21
+PASS parseExpr-21.22
+PASS parseExpr-21.23
+PASS parseExpr-21.24
+PASS parseExpr-21.25
+PASS parseExpr-21.26
+PASS parseExpr-21.27
+PASS parseExpr-21.28
+PASS parseExpr-21.29
+PASS parseExpr-21.3
+PASS parseExpr-21.30
+PASS parseExpr-21.31
+PASS parseExpr-21.32
+PASS parseExpr-21.33
+PASS parseExpr-21.34
+PASS parseExpr-21.35
+PASS parseExpr-21.36
+PASS parseExpr-21.37
+PASS parseExpr-21.38
+PASS parseExpr-21.39
+PASS parseExpr-21.4
+PASS parseExpr-21.40
+PASS parseExpr-21.41
+PASS parseExpr-21.42
+PASS parseExpr-21.43
+PASS parseExpr-21.44
+PASS parseExpr-21.45
+PASS parseExpr-21.46
+PASS parseExpr-21.47
+PASS parseExpr-21.48
+PASS parseExpr-21.49
+PASS parseExpr-21.5
+PASS parseExpr-21.50
+PASS parseExpr-21.51
+PASS parseExpr-21.52
+PASS parseExpr-21.53
+PASS parseExpr-21.54
+PASS parseExpr-21.55
+PASS parseExpr-21.56
+PASS parseExpr-21.57
+PASS parseExpr-21.58
+PASS parseExpr-21.59
+PASS parseExpr-21.6
+PASS parseExpr-21.60
+PASS parseExpr-21.61
+PASS parseExpr-21.62
+PASS parseExpr-21.63
+PASS parseExpr-21.7
+PASS parseExpr-21.8
+PASS parseExpr-21.9
+SKIP parseExpr-1.1 testexprparser
+SKIP parseExpr-1.2 testexprparser
+SKIP parseExpr-1.3 testexprparser
+SKIP parseExpr-1.4 testexprparser
+SKIP parseExpr-1.5 testexprparser
+SKIP parseExpr-10.1 testexprparser
+SKIP parseExpr-10.2 testexprparser
+SKIP parseExpr-10.3 testexprparser
+SKIP parseExpr-10.4 testexprparser
+SKIP parseExpr-10.5 testexprparser
+SKIP parseExpr-10.6 testexprparser
+SKIP parseExpr-10.7 testexprparser
+SKIP parseExpr-10.8 testexprparser
+SKIP parseExpr-11.1 testexprparser
+SKIP parseExpr-11.2 testexprparser
+SKIP parseExpr-11.3 testexprparser
+SKIP parseExpr-11.4 testexprparser
+SKIP parseExpr-11.5 testexprparser
+SKIP parseExpr-11.6 testexprparser
+SKIP parseExpr-11.7 testexprparser
+SKIP parseExpr-11.8 testexprparser
+SKIP parseExpr-12.1 testexprparser
+SKIP parseExpr-12.2 testexprparser
+SKIP parseExpr-12.3 testexprparser
+SKIP parseExpr-12.4 testexprparser
+SKIP parseExpr-12.5 testexprparser
+SKIP parseExpr-12.6 testexprparser
+SKIP parseExpr-12.7 testexprparser
+SKIP parseExpr-12.8 testexprparser
+SKIP parseExpr-13.1 testexprparser
+SKIP parseExpr-13.2 testexprparser
+SKIP parseExpr-13.3 testexprparser
+SKIP parseExpr-13.4 testexprparser
+SKIP parseExpr-13.5 testexprparser
+SKIP parseExpr-13.6 testexprparser
+SKIP parseExpr-13.7 testexprparser
+SKIP parseExpr-13.8 testexprparser
+SKIP parseExpr-13.9 testexprparser
+SKIP parseExpr-14.1 testexprparser
+SKIP parseExpr-14.10 testexprparser
+SKIP parseExpr-14.11 testexprparser
+SKIP parseExpr-14.12 testexprparser
+SKIP parseExpr-14.2 testexprparser
+SKIP parseExpr-14.3 testexprparser
+SKIP parseExpr-14.4 testexprparser
+SKIP parseExpr-14.5 testexprparser
+SKIP parseExpr-14.6 testexprparser
+SKIP parseExpr-14.7 testexprparser
+SKIP parseExpr-14.8 testexprparser
+SKIP parseExpr-14.9 testexprparser
+SKIP parseExpr-15.1 testexprparser
+SKIP parseExpr-15.10 testexprparser
+SKIP parseExpr-15.11 testexprparser
+SKIP parseExpr-15.12 testexprparser
+SKIP parseExpr-15.13 testexprparser
+SKIP parseExpr-15.14 testexprparser
+SKIP parseExpr-15.15 testexprparser
+SKIP parseExpr-15.16 testexprparser
+SKIP parseExpr-15.17 testexprparser
+SKIP parseExpr-15.18 testexprparser
+SKIP parseExpr-15.19 testexprparser
+SKIP parseExpr-15.2 testexprparser
+SKIP parseExpr-15.20 testexprparser
+SKIP parseExpr-15.21 testexprparser
+SKIP parseExpr-15.22 testexprparser
+SKIP parseExpr-15.23 testexprparser
+SKIP parseExpr-15.24 testexprparser
+SKIP parseExpr-15.25 testexprparser
+SKIP parseExpr-15.26 testexprparser
+SKIP parseExpr-15.27 testexprparser
+SKIP parseExpr-15.28 testexprparser
+SKIP parseExpr-15.29 testexprparser
+SKIP parseExpr-15.3 testexprparser
+SKIP parseExpr-15.30 testexprparser
+SKIP parseExpr-15.31 testexprparser
+SKIP parseExpr-15.32 testexprparser
+SKIP parseExpr-15.33 testexprparser
+SKIP parseExpr-15.34 testexprparser
+SKIP parseExpr-15.35 testexprparser
+SKIP parseExpr-15.36 testexprparser
+SKIP parseExpr-15.4 testexprparser
+SKIP parseExpr-15.5 testexprparser
+SKIP parseExpr-15.6 testexprparser
+SKIP parseExpr-15.7 testexprparser
+SKIP parseExpr-15.8 testexprparser
+SKIP parseExpr-15.9 testexprparser
+SKIP parseExpr-16.1 testexprparser
+SKIP parseExpr-16.10 testexprparser
+SKIP parseExpr-16.11a testexprparser && !ieeeFloatingPoint
+SKIP parseExpr-16.11b testexprparser && ieeeFloatingPoint
+SKIP parseExpr-16.12 testexprparser
+SKIP parseExpr-16.13 testexprparser
+SKIP parseExpr-16.14 testexprparser
+SKIP parseExpr-16.15 testexprparser
+SKIP parseExpr-16.16 testexprparser
+SKIP parseExpr-16.17 testexprparser
+SKIP parseExpr-16.18 testexprparser
+SKIP parseExpr-16.19 testexprparser
+SKIP parseExpr-16.2 testexprparser
+SKIP parseExpr-16.20 testexprparser
+SKIP parseExpr-16.21 testexprparser
+SKIP parseExpr-16.22 testexprparser
+SKIP parseExpr-16.23 testexprparser
+SKIP parseExpr-16.24 testexprparser
+SKIP parseExpr-16.25 testexprparser
+SKIP parseExpr-16.26 testexprparser
+SKIP parseExpr-16.27 testexprparser
+SKIP parseExpr-16.28 testexprparser
+SKIP parseExpr-16.29 testexprparser
+SKIP parseExpr-16.3 testexprparser
+SKIP parseExpr-16.30 testexprparser
+SKIP parseExpr-16.31 testexprparser
+SKIP parseExpr-16.32 testexprparser
+SKIP parseExpr-16.33 testexprparser
+SKIP parseExpr-16.34 testexprparser
+SKIP parseExpr-16.35 testexprparser
+SKIP parseExpr-16.36 testexprparser
+SKIP parseExpr-16.37 testexprparser
+SKIP parseExpr-16.38 testexprparser
+SKIP parseExpr-16.39 testexprparser
+SKIP parseExpr-16.4 testexprparser
+SKIP parseExpr-16.40 testexprparser
+SKIP parseExpr-16.41 testexprparser
+SKIP parseExpr-16.42 testexprparser
+SKIP parseExpr-16.43 testexprparser
+SKIP parseExpr-16.44 testexprparser
+SKIP parseExpr-16.5 testexprparser
+SKIP parseExpr-16.6 testexprparser
+SKIP parseExpr-16.7 testexprparser
+SKIP parseExpr-16.8 testexprparser
+SKIP parseExpr-16.9 testexprparser
+SKIP parseExpr-17.1 testexprparser
+SKIP parseExpr-18.1 testexprparser
+SKIP parseExpr-2.1 testexprparser
+SKIP parseExpr-2.10 testexprparser
+SKIP parseExpr-2.2 testexprparser
+SKIP parseExpr-2.3 testexprparser
+SKIP parseExpr-2.4 testexprparser
+SKIP parseExpr-2.5 testexprparser
+SKIP parseExpr-2.6 testexprparser
+SKIP parseExpr-2.7 testexprparser
+SKIP parseExpr-2.8 testexprparser
+SKIP parseExpr-2.9 testexprparser
+SKIP parseExpr-22.1 testexprparser
+SKIP parseExpr-22.10 testexprparser
+SKIP parseExpr-22.11 testexprparser
+SKIP parseExpr-22.12 testexprparser
+SKIP parseExpr-22.13 testexprparser
+SKIP parseExpr-22.14 testexprparser
+SKIP parseExpr-22.15 testexprparser
+SKIP parseExpr-22.16 testexprparser
+SKIP parseExpr-22.17 testexprparser
+SKIP parseExpr-22.18 testexprparser
+SKIP parseExpr-22.19 testexprparser
+SKIP parseExpr-22.2 testexprparser
+SKIP parseExpr-22.20 testexprparser
+SKIP parseExpr-22.21 testexprparser
+SKIP parseExpr-22.3 testexprparser
+SKIP parseExpr-22.4 testexprparser
+SKIP parseExpr-22.5 testexprparser
+SKIP parseExpr-22.6 testexprparser
+SKIP parseExpr-22.7 testexprparser
+SKIP parseExpr-22.8 testexprparser
+SKIP parseExpr-22.9 testexprparser
+SKIP parseExpr-23.1 testexprparser
+SKIP parseExpr-23.2 testexprparser
+SKIP parseExpr-3.1 testexprparser
+SKIP parseExpr-3.2 testexprparser
+SKIP parseExpr-3.3 testexprparser
+SKIP parseExpr-3.4 testexprparser
+SKIP parseExpr-3.5 testexprparser
+SKIP parseExpr-3.6 testexprparser
+SKIP parseExpr-3.7 testexprparser
+SKIP parseExpr-4.1 testexprparser
+SKIP parseExpr-4.2 testexprparser
+SKIP parseExpr-4.3 testexprparser
+SKIP parseExpr-4.4 testexprparser
+SKIP parseExpr-4.5 testexprparser
+SKIP parseExpr-4.6 testexprparser
+SKIP parseExpr-4.7 testexprparser
+SKIP parseExpr-5.1 testexprparser
+SKIP parseExpr-5.2 testexprparser
+SKIP parseExpr-5.3 testexprparser
+SKIP parseExpr-5.4 testexprparser
+SKIP parseExpr-5.5 testexprparser
+SKIP parseExpr-5.6 testexprparser
+SKIP parseExpr-5.7 testexprparser
+SKIP parseExpr-6.1 testexprparser
+SKIP parseExpr-6.2 testexprparser
+SKIP parseExpr-6.3 testexprparser
+SKIP parseExpr-6.4 testexprparser
+SKIP parseExpr-6.5 testexprparser
+SKIP parseExpr-6.6 testexprparser
+SKIP parseExpr-6.7 testexprparser
+SKIP parseExpr-7.1 testexprparser
+SKIP parseExpr-7.2 testexprparser
+SKIP parseExpr-7.3 testexprparser
+SKIP parseExpr-7.4 testexprparser
+SKIP parseExpr-7.5 testexprparser
+SKIP parseExpr-7.6 testexprparser
+SKIP parseExpr-7.7 testexprparser
+SKIP parseExpr-8.1 testexprparser
+SKIP parseExpr-8.2 testexprparser
+SKIP parseExpr-8.3 testexprparser
+SKIP parseExpr-8.4 testexprparser
+SKIP parseExpr-8.5 testexprparser
+SKIP parseExpr-8.6 testexprparser
+SKIP parseExpr-8.7 testexprparser
+SKIP parseExpr-8.8 testexprparser
+SKIP parseExpr-9.1 testexprparser
+SKIP parseExpr-9.10 testexprparser
+SKIP parseExpr-9.2 testexprparser
+SKIP parseExpr-9.3 testexprparser
+SKIP parseExpr-9.4 testexprparser
+SKIP parseExpr-9.5 testexprparser
+SKIP parseExpr-9.6 testexprparser
+SKIP parseExpr-9.7 testexprparser
+SKIP parseExpr-9.8 testexprparser
+SKIP parseExpr-9.9 testexprparser
+---
+TOTAL   286
+PASSED  67
+SKIPPED 219
+FAILED  0

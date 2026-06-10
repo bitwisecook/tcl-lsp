@@ -1,0 +1,154 @@
+ByteCode ::top, 103 instructions, 318 bytes, 21 literals, 0 variables
+  Literals:
+    0: "rc"
+    1: "catch"
+    2: "error boom"
+    3: "msg"
+    4: "1"
+    5: "\u0000\u0002rc = "
+    6: "\u0000\u0002 (want 1)"
+    7: ""
+    8: "boom"
+    9: "\u0000\u0002msg = '"
+    10: "\u0000\u0002' (want 'boom')"
+    11: "rc2"
+    12: "error zap"
+    13: "m2"
+    14: "zap"
+    15: "\u0000\u0002second catch leaked: "
+    16: "rc3"
+    17: "noVarCase"
+    18: "0"
+    19: "\u0000\u0002catch-without-var rc = "
+    20: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "rc"
+    (2) push1 1	# "catch"
+    (4) push1 2	# "error boom"
+    (6) push1 3	# "msg"
+    (8) invokeStk1 3
+    (10) storeStk
+    (11) pop
+    (12) startCommand +50 1	# next cmd at pc 62, 1 cmds start here
+    (21) push1 0	# "rc"
+    (23) loadStk
+    (24) push1 4	# "1"
+    (26) neq
+    (27) jumpFalse1 +33	# pc 60
+  # if_then_3:
+    (29) startCommand +29 1	# next cmd at pc 58, 1 cmds start here
+    (38) push1 5	# "rc = "
+    (40) push1 0	# "rc"
+    (42) loadStk
+    (43) push1 6	# " (want 1)"
+    (45) strcat 3
+    (47) push1 7	# ""
+    (49) returnImm +1 0
+  # cmd_end_2:
+    (58) jump1 +4	# pc 62
+  # if_next_4:
+    (60) push1 7	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (62) pop
+    (63) startCommand +50 1	# next cmd at pc 113, 1 cmds start here
+    (72) push1 3	# "msg"
+    (74) loadStk
+    (75) push1 8	# "boom"
+    (77) strneq
+    (78) jumpFalse1 +33	# pc 111
+  # if_then_6:
+    (80) startCommand +29 1	# next cmd at pc 109, 1 cmds start here
+    (89) push1 9	# "msg = '"
+    (91) push1 3	# "msg"
+    (93) loadStk
+    (94) push1 10	# "' (want 'boom')"
+    (96) strcat 3
+    (98) push1 7	# ""
+    (100) returnImm +1 0
+  # cmd_end_4:
+    (109) jump1 +4	# pc 113
+  # if_next_7:
+    (111) push1 7	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (113) pop
+    (114) startCommand +20 1	# next cmd at pc 134, 1 cmds start here
+    (123) push1 11	# "rc2"
+    (125) push1 1	# "catch"
+    (127) push1 12	# "error zap"
+    (129) push1 13	# "m2"
+    (131) invokeStk1 3
+    (133) storeStk
+  # cmd_end_5:
+    (134) pop
+    (135) startCommand +48 1	# next cmd at pc 183, 1 cmds start here
+    (144) push1 13	# "m2"
+    (146) loadStk
+    (147) push1 14	# "zap"
+    (149) strneq
+    (150) jumpFalse1 +31	# pc 181
+  # if_then_9:
+    (152) startCommand +27 1	# next cmd at pc 179, 1 cmds start here
+    (161) push1 15	# "second catch leaked: "
+    (163) push1 13	# "m2"
+    (165) loadStk
+    (166) strcat 2
+    (168) push1 7	# ""
+    (170) returnImm +1 0
+  # cmd_end_7:
+    (179) jump1 +4	# pc 183
+  # if_next_10:
+    (181) push1 7	# ""
+  # if_end_8:
+  # if_cmd_end_6:
+    (183) pop
+    (184) startCommand +61 1	# next cmd at pc 245, 1 cmds start here
+    (193) push1 16	# "rc3"
+    (195) startCommand +49 1	# next cmd at pc 244, 1 cmds start here
+    (204) beginCatch4 0
+    (209) startCommand +22 1	# next cmd at pc 231, 1 cmds start here
+    (218) push1 17	# "noVarCase"
+    (220) push1 7	# ""
+    (222) returnImm +1 0
+  # catch_body_end_10:
+    (231) push1 18	# "0"
+    (233) jump1 +4	# pc 237
+    (235) pushResult
+    (236) pushReturnCode
+  # catch_end_11:
+    (237) endCatch
+    (238) reverse 2
+    (243) pop
+  # catch_subst_end_9:
+    (244) storeStk
+  # cmd_end_8:
+    (245) pop
+    (246) startCommand +48 1	# next cmd at pc 294, 1 cmds start here
+    (255) push1 16	# "rc3"
+    (257) loadStk
+    (258) push1 4	# "1"
+    (260) neq
+    (261) jumpFalse1 +31	# pc 292
+  # if_then_12:
+    (263) startCommand +27 1	# next cmd at pc 290, 1 cmds start here
+    (272) push1 19	# "catch-without-var rc = "
+    (274) push1 16	# "rc3"
+    (276) loadStk
+    (277) strcat 2
+    (279) push1 7	# ""
+    (281) returnImm +1 0
+  # cmd_end_13:
+    (290) jump1 +4	# pc 294
+  # if_next_13:
+    (292) push1 7	# ""
+  # if_end_11:
+  # if_cmd_end_12:
+    (294) pop
+    (295) startCommand +22 1	# next cmd at pc 317, 1 cmds start here
+    (304) push1 20	# "ok"
+    (306) push1 7	# ""
+    (308) returnImm +0 1
+  # ret_end_14:
+    (317) done

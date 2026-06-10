@@ -19,14 +19,44 @@ rules for the KCS/documentation split live in
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference
   patterns for Tcl code importing (package require, sourcing).
+- [incremental-analysis-worker.md](incremental-analysis-worker.md) — the
+  persistent per-document analysis worker model: bounded pool + per-uri
+  single-writer lock for incremental edits, process pool + serialized
+  warm-start seed for the cold build.
 
-## Planning documents
+> Past project-tracking documents (perf reports, phase trackers,
+> migration plans) are kept in [`../archive/`](../archive/) and are
+> not part of the current design surface.
 
-- [kcs-completeness-plan.md](kcs-completeness-plan.md) — the phased plan
-  to bring the knowledge base to 100% coverage of diagnostic,
-  warning, and optimisation codes, with compiler-pass tagging and
-  strong cross-linking between KCS pages, the glossary, and the
-  design docs. Tracks scope, naming, templates, and the quality bar.
+## F5 BIG-IP CLI
+
+- [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
+  reference graph, IP-redaction model, tmsh emitter, file layout, and
+  the recipe for adding a new verb.
+- [f5-query-engine-internals.md](f5-query-engine-internals.md) —
+  internals of the `f5 query` engine: module layout, pipeline,
+  invariants, edit-plan apply order, builtin registration,
+  extension points.  User-facing reference (grammar, every
+  builtin, sample configs, F5 KB cross-references) lives at
+  [`docs/references/f5_query/`](../references/f5_query/); the
+  alphabetical builtin catalogue there is generated from the
+  registry by
+  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py)
+  and asserted up-to-date by CI.
+- [bigip-registry-architecture.md](bigip-registry-architecture.md) —
+  registry contract for object kinds, value specs (parse / project
+  / render / references), source-range fidelity, and the pilot
+  migration table that opts properties into the typed dispatch.
+- [bigip-list-operator-audit.md](bigip-list-operator-audit.md) —
+  every list-valued property without ``list_operators``, classified
+  by emission style (real list / sub-block / uncertain), backing
+  the curated override layer in
+  ``dialects/f5/bigip/registry/specs/_base.py``.
+- [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
+  decorator-based renderer plugin registry that powers
+  ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
+  recovery via ``RENDER_SOURCES`` contextvar, error-mapping rules,
+  and CLI / Python API wiring.
 
 ## tclpkg package manager
 
@@ -51,37 +81,15 @@ See [compiler/README.md](compiler/README.md) for the compiler design-doc
 index — pipeline stages, analyses, codegen, optimisation passes, and
 ownership matrices.
 
-## Rust workspace
-
-- [rust/current-architecture.md](rust/current-architecture.md) —
-  post-cleanup snapshot of the Rust crate graph, ownership rules,
-  authoritative paths, default-on / default-off shims, and the
-  intended `tcl-lsp-core` / `tcl-lsp-server` / `tcl-lsp-py`
-  boundaries. Read this before adding a new Rust crate, hook, or
-  registry fact.
-- [rust/review-findings.md](rust/review-findings.md) —
-  point-in-time review of the Rust workspace ordered by correctness,
-  then performance (time to first semantic tokens), then memory.
-  File:line-anchored findings plus a prioritised roadmap. Snapshot at
-  #542 / #543.
-- [rust/target-architecture.md](rust/target-architecture.md) —
-  forward-looking target the workspace is converging on: zero-copy,
-  parse-once, single CST spine, positions from the tree, demand-driven
-  cascade/invalidation, and MVCC concurrency. Companion to
-  current-architecture.md; the staged route is in review-findings.md.
-- [rust/feasibility.md](rust/feasibility.md) — evidence-based readiness
-  sweep testing each target goal for hard blockers vs. work-items.
-  Verdict: every goal reachable, no hard blockers, the expensive
-  foundations already in place. Carries the determinism prerequisite
-  and the unlock ordering.
-
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for
   the Zig runtime's namespace tree (root, child links, per-ns
   command/variable/path tables) modelled on Tcl 9's `Namespace`
   struct, with per-phase migration plan from the FQN-string
-  fallbacks currently in `tcl_procs.zig` / `tcl_globals.zig`.
+  fallbacks currently in `tcl_procs.zig` / `tcl_ns.zig` (globals
+  were folded into `tcl_ns.zig` in P3.4; `tcl_globals.zig` no longer
+  exists).
 - [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
   for `rename` and single-interp `interp alias`, layered on top of the
   namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch
@@ -102,10 +110,6 @@ ownership matrices.
   TclObj refcount discipline, `OBJ_STR_CAP` ownership, the
   deferred-free queue, parse-cache invalidation, and the
   bump-allocator → libc-malloc routing rationale.
-- [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
-  phased plan for the Zig runtime: allocator hygiene, frame
-  management, string append capacity, tcltest correctness
-  unblockers, and per-phase acceptance gates.
 - [runtime/refcount-contract.md](runtime/refcount-contract.md) —
   ownership categories for every WASM-exported runtime function
   (callee-takes / caller-keeps / borrow), the linter that
@@ -118,13 +122,17 @@ ownership matrices.
   current ``trace add variable`` no-op gap, the design sketch
   (per-Var TraceList + fire hooks on every mutator), and an
   effort estimate for closing it.
-- [runtime/c-extension-abi.md](runtime/c-extension-abi.md) — the ABI
-  for compiling unmodified C Tcl extensions to WASM against the
-  runtime (API- not binary-ABI compatibility): the authored
-  ``tcl.h``/``tclOO.h``/``tclTomMath.h`` surface, the shared
-  memory/table model, static vs dynamic (``dylink.0``) link models,
-  the header scope (``tclInt.h`` out), and the Rust-vs-Zig analysis.
-  Mechanism validated by the spikes under ``runtime/rust-spike/``.
+
+## Optional WASM extensions
+
+- [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
+  contract for shipping optional runtime features the user's
+  program requests via ``package require``. Build-flag variant
+  runtimes today; deferred Stage 2 plan for separately-merged
+  extension WASMs. Includes the file layout for the in-tree
+  ``runtime/zig/tcltest/`` port (every ~107 upstream tcltest
+  command registered, PORTABLE/PARTIAL ones implemented and
+  NOT-PORTABLE ones stubbed with explicit error messages).
 
 ## Compiler staircase (S0–S6)
 
@@ -163,12 +171,15 @@ are its rules, and what are the failure modes". One contract per file.
 
 - [command-registry-event-model.md](contracts/command-registry-event-model.md)
   — command and event registry ownership rules.
-- [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) —
+- [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
   shared helper ownership across core and LSP.
 - [formatter-engine.md](contracts/formatter-engine.md) — formatter
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
   and dependency direction.
+- [release-and-publish.md](contracts/release-and-publish.md) —
+  the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
+  invariant, and the release flow.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) —
   non-diagnostics LSP provider contracts and failure modes.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace
@@ -215,6 +226,43 @@ are its rules, and what are the failure modes". One contract per file.
   detection priority chain.
 - [xdg-config.md](contracts/xdg-config.md) — XDG configuration file
   format reference.
+- [config-precedence.md](contracts/config-precedence.md) — precedence
+  rules between global, project, and editor configuration layers, the
+  survey of how other language servers handle the same question, and
+  the reference implementations we copied each piece of behaviour
+  from.
+
+### First-principles runtime contracts (v2 / "if starting over")
+
+Forward-looking semantic contracts — the models a from-scratch Tcl
+runtime + AOT compiler should commit to *before* writing commands.
+Distilled from the trickiest scars in the WASM runtime history
+(frame aliasing, the parser/interpreter seam, the numeric tower):
+
+- [runtime-variable-frame-model.md](contracts/runtime-variable-frame-model.md)
+  — the cell/frame/namespace resolution algorithm behind `upvar`,
+  `global`, `variable`, arrays, and traces; why locals are not slots.
+- [parser-and-aot-interpret-boundary.md](contracts/parser-and-aot-interpret-boundary.md)
+  — the one canonical grammar, and the AOT-compile vs. runtime-interpret
+  boundary that `eval`/`uplevel`/`source`/`apply`/`{*}` straddle.
+- [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
+  — the small-int→wide→bignum→double tower and `expr` as a separate
+  language with overridable `mathfunc` dispatch.
+- [compiled-scope-and-name-lowering.md](contracts/compiled-scope-and-name-lowering.md)
+  — scope class (local/qualified/global) as an explicit lowering output,
+  the "emits-nothing" trap, token-faithful eval fallback, and why
+  introspection must read live state (`foreach ::v` ran zero times; stale
+  `info exists` after `unset`).
+- [variable-trace-dispatch-and-introspection.md](contracts/variable-trace-dispatch-and-introspection.md)
+  — variable traces as re-entrant interrupts: firing order, the
+  read/write error reshape (`can't read/set "NAME": …`), unset-error
+  ignore, mutation independent of trace outcome, and live `info`/`trace`
+  queries.
+- [command-binding-and-aliasing.md](contracts/command-binding-and-aliasing.md)
+  — the one resolution model behind `rename`, `interp alias`, `namespace
+  import`/`export`/`forget`/`path`, ensembles, and `::tcl::mathop` /
+  `::tcl::mathfunc`; the binding lattice that gates compile-time
+  resolution (the command-layer parallel of the variable-frame model).
 
 ## Templates
 

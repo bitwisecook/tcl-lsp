@@ -1,0 +1,22 @@
+# ooUtil.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '1 of 33 failed'
+# classification: real-mismatch
+# rationale: oo::util behaviour mismatch
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 33
+observed_passed = 32
+observed_failed = 1
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["ooUtil-1.7"]

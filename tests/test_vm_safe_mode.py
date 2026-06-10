@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestSafeModeWhitelist:
@@ -26,8 +26,8 @@ class TestSafeModeWhitelist:
         """Non-specialised commands on the whitelist dispatch normally."""
         interp = TclInterp(safe=True, safe_whitelist=frozenset({"puts"}))
         # ``puts`` reaches ``_invoke_inner`` because it is not a specialised
-        # bytecode opcode; the whitelist allows it through.
-        interp.eval("puts -nonewline {}")
+        # bytecode opcode; the whitelist allows it through and it returns "".
+        assert interp.eval("puts -nonewline {}").value == ""
 
     def test_safe_refuses_non_whitelisted_invoked_command(self) -> None:
         interp = TclInterp(safe=True, safe_whitelist=frozenset({"set"}))
@@ -47,7 +47,7 @@ class TestSafeModeWhitelist:
             interp.eval("puts hello")
 
     def test_safe_whitelist_can_include_custom_commands(self) -> None:
-        from vm.types import TclResult
+        from tooling.vm.types import TclResult
 
         calls: list[list[str]] = []
 

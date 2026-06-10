@@ -1,5 +1,8 @@
 # KCS: feature — Workspace Symbols
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Search symbols across all open files in the workspace.
@@ -19,7 +22,7 @@ Searches the workspace index for procs, namespaces, and variables matching the q
 
 ## File-path anchors
 
-- `lsp/features/workspace_symbols.py`
+- `server/features/workspace_symbols.py`
 
 ## Failure modes
 

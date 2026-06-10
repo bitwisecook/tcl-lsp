@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from tclpkg.errors import ResolutionError
-from tclpkg.resolver import (
+from tooling.tclpkg.errors import ResolutionError
+from tooling.tclpkg.resolver import (
     ExcludeSpec,
     PackageRef,
     ReplaceSpec,
     resolve,
 )
-from tclpkg.version import Version
+from tooling.tclpkg.version import Version
 
 
 def _ref(name: str, ver: str) -> PackageRef:

@@ -7,9 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler import interprocedural as interproc_module
-from core.compiler.compilation_unit import compile_source
-from lsp.workspace.document_state import DocumentState, _build_proc_cache
+from compiler import interprocedural as interproc_module
+from compiler.compilation_unit import compile_source
+from server.workspace.document_state import (
+    DocumentState,
+    _build_proc_cache,
+    _build_reposition_cache,
+)
 
 
 class TestCompileSourceCache:
@@ -43,31 +47,35 @@ class TestCompileSourceCache:
         assert cu2.cfg_module.procedures["::gamma"] is cu1.cfg_module.procedures["::gamma"]
 
     def test_cache_miss_on_changed_proc(self):
-        """When one proc body changes, only that proc should miss the cache."""
+        """A same-length body change to beta misses only beta — alpha and gamma
+        keep their byte offsets, so they still hit the cache."""
         cu1 = compile_source(self.THREE_PROCS)
         cache = _build_proc_cache(cu1)
 
         modified = (
             "proc alpha {} { return 1 }\n"
-            "proc beta {} { return 99 }\n"  # changed
+            "proc beta {} { return 7 }\n"  # changed, same length
             "proc gamma {} { return 3 }\n"
         )
         cu2 = compile_source(modified, proc_cache=cache)
 
-        # alpha and gamma should be cache hits (same object)
+        # alpha and gamma should be cache hits (same object): beta's length is
+        # unchanged, so gamma's absolute offsets did not shift.
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert cu2.procedures["::gamma"] is cu1.procedures["::gamma"]
         # beta should be a new FunctionUnit
         assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
 
     def test_cache_miss_on_renamed_proc(self):
-        """Renaming a proc causes a full cache miss for that name."""
+        """Renaming beta lengthens the text before gamma, shifting gamma's byte
+        offsets; gamma therefore correctly misses the cache (its cached
+        FunctionUnit carries stale absolute offsets)."""
         cu1 = compile_source(self.THREE_PROCS)
         cache = _build_proc_cache(cu1)
 
         renamed = (
             "proc alpha {} { return 1 }\n"
-            "proc beta_v2 {} { return 2 }\n"  # renamed
+            "proc beta_v2 {} { return 2 }\n"  # renamed (longer)
             "proc gamma {} { return 3 }\n"
         )
         cu2 = compile_source(renamed, proc_cache=cache)
@@ -75,7 +83,38 @@ class TestCompileSourceCache:
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert "::beta_v2" in cu2.procedures
         assert "::beta" not in cu2.procedures
+        # gamma's offsets shifted (beta_v2 is longer than beta) → cache miss.
+        assert cu2.procedures["::gamma"] is not cu1.procedures["::gamma"]
+
+    def test_same_length_edit_keeps_neighbours_cached(self):
+        """A same-length edit to beta leaves alpha and gamma byte-offset-stable,
+        so both still hit the cache while beta misses."""
+        cu1 = compile_source(self.THREE_PROCS)
+        cache = _build_proc_cache(cu1)
+        # "return 2" -> "return 5": identical length, so no offset shift below.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 5 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=cache)
+        assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert cu2.procedures["::gamma"] is cu1.procedures["::gamma"]
+        assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
+
+    def test_length_changing_edit_before_gamma_misses_gamma(self):
+        """A length-changing edit to beta shifts gamma's absolute offsets, so
+        gamma must miss the cache even though its body text is byte-identical —
+        its cached CFG/SSA carry the old offsets."""
+        cu1 = compile_source(self.THREE_PROCS)
+        cache = _build_proc_cache(cu1)
+        # "return 2" -> "return 222": two chars longer, shifting everything after.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 222 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=cache)
+        # alpha is before the edit → still cached; gamma is after → missed.
+        assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
+        assert cu2.procedures["::gamma"] is not cu1.procedures["::gamma"]
+        assert cu2.procedures["::beta"] is not cu1.procedures["::beta"]
 
     def test_new_proc_compiled_fresh(self):
         """Adding a proc doesn't break existing cache entries."""
@@ -87,6 +126,43 @@ class TestCompileSourceCache:
 
         assert cu2.procedures["::alpha"] is cu1.procedures["::alpha"]
         assert "::beta" in cu2.procedures
+
+    def _caller_rbs(self, cu):
+        return sorted({r.variable for r in cu.procedures["::caller"].analysis.read_before_set})
+
+    def test_callee_upvar_change_invalidates_caller(self):
+        """A caller's CFG/analysis depends on which callees write back via
+        upvar.  Editing only the callee (caller text unchanged) must not serve a
+        stale cached caller unit — the context fingerprint invalidates it.
+
+        Ground truth (tclsh 9.0.3): with `upvar 1 $name v; set v 1` the callee
+        initialises the caller's `x`, so `helper x; puts $x` is clean; without
+        it `puts $x` errors `can't read "x"`.
+        """
+        caller = "proc caller {} { helper x\n puts $x }\n"
+        no_upvar = "proc helper {name} { return 1 }\n" + caller
+        with_upvar = "proc helper {name} { upvar 1 $name v\n set v 1 }\n" + caller
+
+        # callee gains upvar → caller's read-before-set must clear
+        cache = _build_proc_cache(compile_source(no_upvar))
+        cached = self._caller_rbs(compile_source(with_upvar, proc_cache=cache))
+        fresh = self._caller_rbs(compile_source(with_upvar, proc_cache={}))
+        assert cached == fresh == []
+
+        # callee loses upvar → caller's read-before-set must reappear
+        cache2 = _build_proc_cache(compile_source(with_upvar))
+        cached2 = self._caller_rbs(compile_source(no_upvar, proc_cache=cache2))
+        fresh2 = self._caller_rbs(compile_source(no_upvar, proc_cache={}))
+        assert cached2 == fresh2 == ["x"]
+
+    def test_adding_non_upvar_proc_keeps_caller_cached(self):
+        """Adding an ordinary (non-upvar) proc must not invalidate unrelated
+        cached units — the context fingerprint only tracks upvar procs."""
+        src1 = "proc f {a} { return [expr {$a + 1}] }\n"
+        cu1 = compile_source(src1)
+        cache = _build_proc_cache(cu1)
+        cu2 = compile_source(src1 + "proc g {} { return 2 }\n", proc_cache=cache)
+        assert cu2.procedures["::f"] is cu1.procedures["::f"]
 
     def test_deleted_proc_no_error(self):
         """Removing a proc doesn't cause errors from stale cache entries."""
@@ -214,3 +290,159 @@ class TestDocumentStateProcCache:
         assert state.has_partial_commands
         assert len(state._proc_cache) >= 2
         assert len(state._interproc_cache) >= 2
+
+
+class TestRepositionCache:
+    """A proc whose body is unchanged but which *moved* misses the primary
+    (position-keyed) cache, yet should reuse its position-independent dataflow
+    analysis via the reposition cache while rebuilding only CFG + SSA."""
+
+    THREE_PROCS = (
+        "proc alpha {} { return 1 }\nproc beta {} { return 2 }\nproc gamma {} { return 3 }\n"
+    )
+
+    def test_moved_proc_reuses_analysis_not_whole_unit(self):
+        """A length-changing edit before gamma shifts gamma's offsets, so the
+        primary cache misses (its CFG/SSA carry stale offsets).  With the
+        reposition cache, gamma reuses the cached *analysis* / *execution_intent*
+        object (same identity) but gets a freshly-built CFG (new identity)."""
+        cu1 = compile_source(self.THREE_PROCS)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        # "return 2" -> "return 222": two chars longer, shifting gamma's offsets.
+        edited = (
+            "proc alpha {} { return 1 }\nproc beta {} { return 222 }\nproc gamma {} { return 3 }\n"
+        )
+        cu2 = compile_source(edited, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        g1, g2 = cu1.procedures["::gamma"], cu2.procedures["::gamma"]
+        # Whole-unit primary cache missed: new FunctionUnit, new CFG.
+        assert g2 is not g1
+        assert g2.cfg is not g1.cfg
+        # ...but the expensive position-independent artefacts were reused.
+        assert g2.analysis is g1.analysis
+        assert g2.execution_intent is g1.execution_intent
+
+    def test_moved_proc_has_correct_shifted_ranges(self):
+        """The reused analysis must pair with *correct* (freshly-built) ranges:
+        a moved-proc compile must be byte-identical to a cold rebuild."""
+        src = "set a 1\nproc gamma {x} {\n  if {$x} { set y 1 }\n  return $y\n}\n"
+        cu1 = compile_source(src)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved = "\n\n# pushed down\n" + src
+        cold = compile_source(moved)  # reference: no caches
+        got = compile_source(moved, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        def ranges(cu):
+            fu = cu.procedures["::gamma"]
+            return [
+                (
+                    bn,
+                    s.range.start.line,
+                    s.range.start.character,
+                    s.range.start.offset,
+                    s.range.end.offset,
+                )
+                for bn in sorted(fu.cfg.blocks)
+                for s in fu.cfg.blocks[bn].statements
+                if getattr(s, "range", None) is not None
+            ]
+
+        # Reposition path took effect (analysis reused) yet ranges match cold rebuild.
+        assert got.procedures["::gamma"].analysis is cu1.procedures["::gamma"].analysis
+        assert ranges(got) == ranges(cold)
+
+    def test_reposition_diagnostics_match_cold_rebuild(self):
+        """End-to-end: a read-before-set warning on a moved proc must land on the
+        shifted line, identical to a cold rebuild (no stale positions leak)."""
+        src = "proc gamma {} {\n  puts $undef\n  set undef 1\n}\n"
+        cu1 = compile_source(src)
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved = "\n\n\n" + src  # push gamma down 3 lines
+        cold = compile_source(moved)
+        got = compile_source(moved, proc_cache=proc_cache, reposition_cache=repos_cache)
+
+        # Index-based analysis facts are identical, and the CFG ranges they
+        # resolve against are freshly shifted — so diagnostics co-locate.
+        assert got.procedures["::gamma"].analysis.read_before_set == (
+            cold.procedures["::gamma"].analysis.read_before_set
+        )
+
+    def test_changed_body_does_not_use_reposition(self):
+        """A genuine body edit (not a pure move) must NOT reuse stale analysis —
+        the reposition key includes body text, so it misses and rebuilds."""
+        cu1 = compile_source("proc gamma {} {\n  set x 1\n  return $x\n}\n")
+        repos_cache = _build_reposition_cache(cu1)
+
+        # Different body: introduces a read-before-set that wasn't there before.
+        changed = "proc gamma {} {\n  return $x\n}\n"
+        cu2 = compile_source(changed, proc_cache={}, reposition_cache=repos_cache)
+
+        g2 = cu2.procedures["::gamma"]
+        # Fresh analysis (not the cached one) — it now reports the new RBS.
+        assert g2.analysis is not cu1.procedures["::gamma"].analysis
+        assert any(r.variable == "x" for r in g2.analysis.read_before_set)
+
+
+class TestCallSiteConstantsInvalidation:
+    """SCCP / unreachable-branch facts are seeded from call-site literal args
+    (``_params_constants_from_call_sites``).  A proc whose own text and position
+    are unchanged must still be re-analysed when a caller edits a literal arg —
+    both keys fold in a call-site-constants fingerprint (PR #508 review P2)."""
+
+    @staticmethod
+    def _branches(cu):
+        fu = cu.procedures["::foo"]
+        return tuple(sorted((c.block, c.value) for c in fu.analysis.constant_branches))
+
+    @staticmethod
+    def _doc(call, lead=""):
+        return (
+            lead
+            + "proc foo {x} {\n    if {$x} { set a 1 } else { set dead 2 }\n    return\n}\n"
+            + f"foo {call}\n"
+        )
+
+    def test_reposition_invalidates_on_call_site_constant_change(self):
+        """Proc moves AND its caller flips ``foo 1`` → ``foo 0`` in one edit: the
+        reposition path must NOT serve the stale ``x == 1`` branch facts."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved_changed = self._doc("0", lead="\n")  # moved + call-site const flipped
+        cold = compile_source(moved_changed)
+        got = compile_source(moved_changed, proc_cache=proc_cache, reposition_cache=repos_cache)
+        assert self._branches(got) == self._branches(cold)
+        # The cached (x==1 → True) analysis must not have been reused.
+        assert got.procedures["::foo"].analysis is not cu1.procedures["::foo"].analysis
+
+    def test_primary_cache_invalidates_on_call_site_constant_change(self):
+        """Same-length call edit (``foo 1`` → ``foo 0``) leaves foo's offsets
+        stable, so the *primary* cache would hit — but must still re-analyse."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+
+        changed = self._doc("0")  # foo unmoved, only the caller's literal changed
+        cold = compile_source(changed)
+        got = compile_source(changed, proc_cache=proc_cache)
+        assert self._branches(got) == self._branches(cold)
+
+    def test_unchanged_call_site_still_reuses_fast_path(self):
+        """A pure move with the call site unchanged must still hit the reposition
+        fast-path (the fingerprint only invalidates on an actual const change)."""
+        cu1 = compile_source(self._doc("1"))
+        proc_cache = _build_proc_cache(cu1)
+        repos_cache = _build_reposition_cache(cu1)
+
+        moved_same = self._doc("1", lead="\n")  # moved, call site unchanged
+        got = compile_source(moved_same, proc_cache=proc_cache, reposition_cache=repos_cache)
+        # Reposition reuse: same analysis object identity, fresh CFG.
+        g1, g2 = cu1.procedures["::foo"], got.procedures["::foo"]
+        assert g2.analysis is g1.analysis
+        assert g2.cfg is not g1.cfg

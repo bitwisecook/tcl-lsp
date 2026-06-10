@@ -1,0 +1,618 @@
+{
+  "generated_at": "2026-06-06T07:32:23Z",
+  "schema_version": 1,
+  "stems": {
+    "append": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 52,
+      "skipped": 0,
+      "total": 52
+    },
+    "apply": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 41,
+      "skipped": 0,
+      "total": 42
+    },
+    "basic": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 6,
+      "passed_min": 80,
+      "skipped": 60,
+      "total": 146
+    },
+    "cmdAH": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 20,
+      "passed_min": 14734,
+      "skipped": 147,
+      "total": 14901
+    },
+    "cmdIL": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 165,
+      "skipped": 2,
+      "total": 168
+    },
+    "cmdInfo": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 12,
+      "total": 12
+    },
+    "cmdMZ": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 95,
+      "skipped": 0,
+      "total": 97
+    },
+    "compExpr": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 82,
+      "skipped": 0,
+      "total": 82
+    },
+    "compExpr-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 183,
+      "skipped": 1,
+      "total": 184
+    },
+    "compile": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 4,
+      "passed_min": 152,
+      "skipped": 15,
+      "total": 171
+    },
+    "concat": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 9,
+      "skipped": 0,
+      "total": 9
+    },
+    "error": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 309,
+      "skipped": 8,
+      "total": 317
+    },
+    "eval": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 11,
+      "skipped": 0,
+      "total": 12
+    },
+    "execute": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 79,
+      "skipped": 77,
+      "total": 157
+    },
+    "expr": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 22,
+      "passed_min": 2122,
+      "skipped": 24,
+      "total": 2168
+    },
+    "expr-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 437,
+      "skipped": 24,
+      "total": 461
+    },
+    "for": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 63,
+      "skipped": 24,
+      "total": 88
+    },
+    "for-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 9,
+      "skipped": 0,
+      "total": 9
+    },
+    "foreach": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 43,
+      "skipped": 0,
+      "total": 43
+    },
+    "format": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 250,
+      "skipped": 19,
+      "total": 269
+    },
+    "if": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 73,
+      "skipped": 0,
+      "total": 73
+    },
+    "if-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 33,
+      "skipped": 0,
+      "total": 33
+    },
+    "incr": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 68,
+      "skipped": 0,
+      "total": 69
+    },
+    "incr-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 14,
+      "skipped": 0,
+      "total": 14
+    },
+    "info": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 57,
+      "passed_min": 229,
+      "skipped": 1,
+      "total": 287
+    },
+    "join": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 10,
+      "skipped": 0,
+      "total": 10
+    },
+    "lindex": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 62,
+      "skipped": 22,
+      "total": 84
+    },
+    "linsert": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 28,
+      "skipped": 0,
+      "total": 28
+    },
+    "list": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 78,
+      "skipped": 0,
+      "total": 78
+    },
+    "llength": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 6,
+      "skipped": 0,
+      "total": 6
+    },
+    "lmap": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 66,
+      "skipped": 0,
+      "total": 66
+    },
+    "lpop": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 19,
+      "skipped": 0,
+      "total": 19
+    },
+    "lrange": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 1766,
+      "skipped": 0,
+      "total": 1766
+    },
+    "lrepeat": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 12,
+      "skipped": 0,
+      "total": 12
+    },
+    "lreplace": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 3579,
+      "skipped": 0,
+      "total": 3579
+    },
+    "lsearch": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 165,
+      "skipped": 0,
+      "total": 165
+    },
+    "lseq": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 134,
+      "skipped": 0,
+      "total": 134
+    },
+    "lset": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 1,
+      "skipped": 88,
+      "total": 89
+    },
+    "lsetComp": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 19,
+      "skipped": 0,
+      "total": 19
+    },
+    "mathop": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 383,
+      "skipped": 0,
+      "total": 385
+    },
+    "misc": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 1,
+      "skipped": 299,
+      "total": 301
+    },
+    "namespace": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 15,
+      "passed_min": 298,
+      "skipped": 1,
+      "total": 314
+    },
+    "namespace-old": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 17,
+      "passed_min": 109,
+      "skipped": 0,
+      "total": 126
+    },
+    "parse": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 101,
+      "skipped": 169,
+      "total": 271
+    },
+    "parseExpr": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 140,
+      "skipped": 146,
+      "total": 286
+    },
+    "parseOld": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 7,
+      "passed_min": 151,
+      "skipped": 0,
+      "total": 158
+    },
+    "proc": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 37,
+      "skipped": 0,
+      "total": 38
+    },
+    "proc-old": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 9,
+      "passed_min": 65,
+      "skipped": 0,
+      "total": 74
+    },
+    "regexp": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 253,
+      "skipped": 4,
+      "total": 257
+    },
+    "regexpComp": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 179,
+      "skipped": 0,
+      "total": 179
+    },
+    "rename": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 10,
+      "skipped": 8,
+      "total": 19
+    },
+    "result": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 7,
+      "skipped": 19,
+      "total": 26
+    },
+    "scan": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 182,
+      "skipped": 0,
+      "total": 185
+    },
+    "set": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 64,
+      "skipped": 0,
+      "total": 64
+    },
+    "set-old": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 5,
+      "passed_min": 148,
+      "skipped": 0,
+      "total": 153
+    },
+    "split": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 18,
+      "skipped": 0,
+      "total": 18
+    },
+    "string": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 698,
+      "skipped": 7,
+      "total": 705
+    },
+    "subst": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 59,
+      "skipped": 1,
+      "total": 63
+    },
+    "switch": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 113,
+      "skipped": 0,
+      "total": 113
+    },
+    "trace": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 51,
+      "passed_min": 225,
+      "skipped": 14,
+      "total": 290
+    },
+    "unknown": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 7,
+      "skipped": 0,
+      "total": 7
+    },
+    "uplevel": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 57,
+      "skipped": 0,
+      "total": 57
+    },
+    "upvar": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 62,
+      "skipped": 8,
+      "total": 70
+    },
+    "util": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 432,
+      "skipped": 29,
+      "total": 462
+    },
+    "var": {
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 11,
+      "passed_min": 204,
+      "skipped": 4,
+      "total": 219
+    },
+    "while": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 46,
+      "skipped": 0,
+      "total": 46
+    },
+    "while-old": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 15,
+      "skipped": 0,
+      "total": 15
+    },
+    "word": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 55,
+      "skipped": 0,
+      "total": 55
+    }
+  }
+}

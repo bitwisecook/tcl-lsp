@@ -14,9 +14,9 @@ rendered (post-backslash-subst) string content.  It runs **after SCCP** (so
 constant values are resolved) and **before taint propagation** (so downstream
 consumers can query properties without re-lexing).
 
-Source: [`core/compiler/rendered_properties.py`](../../../core/compiler/rendered_properties.py)
+Source: [`compiler/rendered_properties.py`](../../../compiler/rendered_properties.py)
 
-Primary consumer: [`core/compiler/taint/_path_concat.py`](../../../core/compiler/taint/_path_concat.py) (W201 detection).
+Primary consumer: [`compiler/taint/_path_concat.py`](../../../compiler/taint/_path_concat.py) (W201 detection).
 
 ## Content
 

@@ -13,41 +13,44 @@ const std = @import("std");
 const testing = std.testing;
 
 const reg = @import("dispatch/tcl_cmd_registry.zig");
+const result_mod = @import("interp/tcl_result.zig");
+const InterpResult = result_mod.InterpResult;
 
 // -- Handlers --------------------------------------------------------
 //
 // Each test handler returns a unique sentinel so we can confirm
 // ``lookup`` returned the right ``CmdEntry`` rather than just *some*
 // entry whose name happened to match.  Returning a fresh integer per
-// handler also keeps the test independent of the runtime's TclObj
-// allocator — these are pure i32 returns.
+// handler keeps the test independent of the runtime's TclObj
+// allocator — the sentinel rides the ``InterpResult.value`` field that
+// the dispatcher would otherwise treat as a TclObj handle.
 
-fn h_set(_: []const i32) i32 {
-    return 1;
+fn h_set(_: []const i32) InterpResult {
+    return result_mod.ok(1);
 }
 
-fn h_unset(_: []const i32) i32 {
-    return 2;
+fn h_unset(_: []const i32) InterpResult {
+    return result_mod.ok(2);
 }
 
-fn h_setvar(_: []const i32) i32 {
-    return 3;
+fn h_setvar(_: []const i32) InterpResult {
+    return result_mod.ok(3);
 }
 
-fn h_string(_: []const i32) i32 {
-    return 4;
+fn h_string(_: []const i32) InterpResult {
+    return result_mod.ok(4);
 }
 
-fn h_sub_length(_: []const i32) i32 {
-    return 100;
+fn h_sub_length(_: []const i32) InterpResult {
+    return result_mod.ok(100);
 }
 
-fn h_sub_index(_: []const i32) i32 {
-    return 101;
+fn h_sub_index(_: []const i32) InterpResult {
+    return result_mod.ok(101);
 }
 
-fn h_sub_match(_: []const i32) i32 {
-    return 102;
+fn h_sub_match(_: []const i32) InterpResult {
+    return result_mod.ok(102);
 }
 
 const TABLE = [_]reg.CmdEntry{
@@ -76,7 +79,7 @@ fn ptr_of(s: []const u8) u32 {
 test "lookup returns the registered handler on hit" {
     const name = "set";
     const h = reg.lookup(&TABLE, ptr_of(name), name.len) orelse return error.TestUnexpectedNull;
-    try testing.expectEqual(@as(i32, 1), h(&[_]i32{}));
+    try testing.expectEqual(@as(i32, 1), h(&[_]i32{}).value);
 }
 
 test "lookup returns null on miss" {
@@ -102,8 +105,8 @@ test "lookup distinguishes names that share a prefix" {
     const h_for_set = reg.lookup(&TABLE, ptr_of(set_name), set_name.len) orelse return error.TestUnexpectedNull;
     const h_for_setvar = reg.lookup(&TABLE, ptr_of(setvar_name), setvar_name.len) orelse return error.TestUnexpectedNull;
 
-    try testing.expectEqual(@as(i32, 1), h_for_set(&[_]i32{}));
-    try testing.expectEqual(@as(i32, 3), h_for_setvar(&[_]i32{}));
+    try testing.expectEqual(@as(i32, 1), h_for_set(&[_]i32{}).value);
+    try testing.expectEqual(@as(i32, 3), h_for_setvar(&[_]i32{}).value);
 }
 
 test "lookup is case-sensitive" {
@@ -120,7 +123,7 @@ test "lookup honours name_len boundary — does not over-read" {
     // walked beyond ``name_len``.
     const buf = "setvar";
     const h = reg.lookup(&TABLE, ptr_of(buf), 3) orelse return error.TestUnexpectedNull;
-    try testing.expectEqual(@as(i32, 1), h(&[_]i32{}));
+    try testing.expectEqual(@as(i32, 1), h(&[_]i32{}).value);
 }
 
 test "lookup against an empty table is always null" {
@@ -162,7 +165,7 @@ test "lookup_sub matches a registered sub-command" {
     const s = reg.lookup_sub(&SUBS, ptr_of(name), name.len) orelse return error.TestUnexpectedNull;
     try testing.expectEqual(@as(u32, 1), s.arity_min);
     try testing.expectEqual(@as(?u32, 1), s.arity_max);
-    try testing.expectEqual(@as(i32, 100), s.handler(&[_]i32{}));
+    try testing.expectEqual(@as(i32, 100), s.handler(&[_]i32{}).value);
 }
 
 test "lookup_sub returns null on miss" {
@@ -182,8 +185,8 @@ test "lookup_sub picks the correct entry across length-distinct names" {
     const len_entry = reg.lookup_sub(&SUBS, ptr_of(len_name), len_name.len) orelse return error.TestUnexpectedNull;
     const idx_entry = reg.lookup_sub(&SUBS, ptr_of(idx_name), idx_name.len) orelse return error.TestUnexpectedNull;
 
-    try testing.expectEqual(@as(i32, 100), len_entry.handler(&[_]i32{}));
-    try testing.expectEqual(@as(i32, 101), idx_entry.handler(&[_]i32{}));
+    try testing.expectEqual(@as(i32, 100), len_entry.handler(&[_]i32{}).value);
+    try testing.expectEqual(@as(i32, 101), idx_entry.handler(&[_]i32{}).value);
 }
 
 test "lookup_sub honours sub-arity range" {

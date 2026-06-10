@@ -7,14 +7,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.commands.registry.command_registry import CommandRegistry
-from core.commands.registry.tk import tk_command_specs
+from compiler.registry.command_registry import CommandRegistry
+from dialects.tk.specs import tk_command_specs
 
 
 class TestTkRegistry:
     def test_tk_specs_not_empty(self):
         specs = tk_command_specs()
-        assert len(specs) > 0
+        # Core Tk widget commands must be registered, not just "some" specs.
+        names = {s.name for s in specs}
+        assert {"button", "label", "frame", "pack"} <= names, sorted(names)[:20]
 
     def test_all_specs_require_tk(self):
         for spec in tk_command_specs():

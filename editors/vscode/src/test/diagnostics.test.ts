@@ -80,6 +80,27 @@ suite("Diagnostics", () => {
     }
   });
 
+  test("W128 fires for a call to a command renamed away earlier in the file", async () => {
+    const renameUri = getDocUri("diagnostics-rename.tcl");
+    await activate(renameUri);
+    const diagnostics = await waitForDiagnostics(renameUri, { minCount: 1 });
+
+    const w128 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W128";
+    });
+
+    assert.ok(w128.length >= 1, `Expected at least one W128 diagnostic, got ${w128.length}`);
+    assert.ok(
+      w128.every((d) => d.severity === vscode.DiagnosticSeverity.Warning),
+      "W128 should be a warning",
+    );
+    assert.ok(
+      w128.some((d) => d.message.includes("renamed or deleted")),
+      `Expected W128 message to mention rename/delete, got: ${w128.map((d) => d.message).join("; ")}`,
+    );
+  });
+
   test("W125 does not fire for correctly placed else", async () => {
     const orphanedUri = getDocUri("diagnostics-orphaned.tcl");
     await activate(orphanedUri);
@@ -126,6 +147,22 @@ suite("Diagnostics", () => {
       );
     } finally {
       await config.update("enabled", undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test("no false dead-store / unused diagnostics where variables are read", async () => {
+    const uri = getDocUri("precision-lifecycle.tcl");
+    await activate(uri);
+    // The fixture's last line (unbraced expr) yields W100, proving analysis ran.
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+    const codes = diagnostics.map((d) => (typeof d.code === "object" ? d.code.value : d.code));
+
+    assert.ok(codes.includes("W100"), `expected analysis to run (W100) in [${codes}]`);
+    for (const lifecycle of ["W210", "W211", "W214", "W220"]) {
+      assert.ok(
+        !codes.includes(lifecycle),
+        `unexpected ${lifecycle} (variable is read) in [${codes}]`,
+      );
     }
   });
 });

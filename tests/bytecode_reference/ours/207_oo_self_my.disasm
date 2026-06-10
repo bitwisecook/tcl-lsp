@@ -1,0 +1,71 @@
+ByteCode ::top, 48 instructions, 134 bytes, 12 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "Dog"
+    3: "\n    variable name\n    constructor ..."
+    4: "obj"
+    5: "rex"
+    6: "Rex"
+    7: "result"
+    8: ""
+    9: "who"
+    10: "speak"
+    11: "my_class"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "Dog"
+    (6) push1 3	# "\n    variable name\n    constructor ..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) startCommand +22 1	# next cmd at pc 33, 1 cmds start here
+    (20) push1 4	# "obj"
+    (22) push1 2	# "Dog"
+    (24) push1 1	# "create"
+    (26) push1 5	# "rex"
+    (28) push1 6	# "Rex"
+    (30) invokeStk1 4
+    (32) storeStk
+  # cmd_end_1:
+    (33) pop
+    (34) startCommand +14 1	# next cmd at pc 48, 1 cmds start here
+    (43) push1 7	# "result"
+    (45) push1 8	# ""
+    (47) storeStk
+  # cmd_end_2:
+    (48) pop
+    (49) startCommand +23 1	# next cmd at pc 72, 1 cmds start here
+    (58) push1 7	# "result"
+    (60) push1 5	# "rex"
+    (62) push1 9	# "who"
+    (64) invokeStk1 2
+    (66) list 1
+    (71) lappendListStk
+  # cmd_end_3:
+    (72) pop
+    (73) startCommand +23 1	# next cmd at pc 96, 1 cmds start here
+    (82) push1 7	# "result"
+    (84) push1 5	# "rex"
+    (86) push1 10	# "speak"
+    (88) invokeStk1 2
+    (90) list 1
+    (95) lappendListStk
+  # cmd_end_4:
+    (96) pop
+    (97) startCommand +23 1	# next cmd at pc 120, 1 cmds start here
+    (106) push1 7	# "result"
+    (108) push1 5	# "rex"
+    (110) push1 11	# "my_class"
+    (112) invokeStk1 2
+    (114) list 1
+    (119) lappendListStk
+  # cmd_end_5:
+    (120) pop
+    (121) startCommand +12 1	# next cmd at pc 133, 1 cmds start here
+    (130) push1 7	# "result"
+    (132) loadStk
+  # cmd_end_6:
+  # exit_2:
+    (133) done

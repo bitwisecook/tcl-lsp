@@ -1,5 +1,8 @@
 # KCS: feature — XC Translation
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Translate F5 BIG-IP iRules to F5 Distributed Cloud (XC) routes and service policies.
@@ -30,7 +33,7 @@ The translator maps iRule event handlers and commands to XC route and service po
 
 ## File-path anchors
 
-- `core/xc/translate.py`
+- `dialects/f5/xc/translator.py`
 - `editors/vscode/src/extension.ts`
 
 ## Failure modes
@@ -40,7 +43,7 @@ The translator maps iRule event handlers and commands to XC route and service po
 
 ## Test anchors
 
-- `tests/test_xc_translate.py`
+- `tests/test_xc_translator.py`
 
 ## Example
 

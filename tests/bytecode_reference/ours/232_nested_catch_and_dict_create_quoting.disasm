@@ -1,0 +1,375 @@
+ByteCode ::top, 252 instructions, 783 bytes, 47 literals, 0 variables
+  Literals:
+    0: "rc"
+    1: "catch"
+    2: " catch {error inner} m1 "
+    3: "m2"
+    4: "0"
+    5: "\u0000\u0002outer rc should be 0, got "
+    6: ""
+    7: "m1"
+    8: "inner"
+    9: "\u0000\u0002m1 should be 'inner', got '"
+    10: "\u0000\u0002'"
+    11: "1"
+    12: "\u0000\u0002m2 should be '1' (inner c..."
+    13: "rc3"
+    14: " catch { catch {error x} a } b "
+    15: "c"
+    16: "rc3 should be 0"
+    17: "a"
+    18: "x"
+    19: "b"
+    20: "\u0000\u0002b = "
+    21: "\u0000\u0002c = "
+    22: "rc4"
+    23: "set y 99"
+    24: "m4"
+    25: "99"
+    26: "\u0000\u0002set-body result lost: "
+    27: "k"
+    28: "  key with spaces  "
+    29: "v"
+    30: "  value with spaces  "
+    31: "d"
+    32: "::tcl::dict::create"
+    33: "2"
+    34: "\u0000\u0002dict create dropped white..."
+    35: "dict create mangled value"
+    36: "lreverse"
+    37: "{a b} c"
+    38: "c {a b}"
+    39: "lreverse flattened nested"
+    40: "{a b} d"
+    41: "X"
+    42: "{a b} X d"
+    43: "linsert flattened"
+    44: "{a b} c d"
+    45: "lreplace flattened"
+    46: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "rc"
+    (2) push1 1	# "catch"
+    (4) push1 2	# " catch {error inner} m1 "
+    (6) push1 3	# "m2"
+    (8) invokeStk1 3
+    (10) storeStk
+    (11) pop
+    (12) startCommand +48 1	# next cmd at pc 60, 1 cmds start here
+    (21) push1 0	# "rc"
+    (23) loadStk
+    (24) push1 4	# "0"
+    (26) neq
+    (27) jumpFalse1 +31	# pc 58
+  # if_then_3:
+    (29) startCommand +27 1	# next cmd at pc 56, 1 cmds start here
+    (38) push1 5	# "outer rc should be 0, got "
+    (40) push1 0	# "rc"
+    (42) loadStk
+    (43) strcat 2
+    (45) push1 6	# ""
+    (47) returnImm +1 0
+  # cmd_end_2:
+    (56) jump1 +4	# pc 60
+  # if_next_4:
+    (58) push1 6	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (60) pop
+    (61) startCommand +50 1	# next cmd at pc 111, 1 cmds start here
+    (70) push1 7	# "m1"
+    (72) loadStk
+    (73) push1 8	# "inner"
+    (75) strneq
+    (76) jumpFalse1 +33	# pc 109
+  # if_then_6:
+    (78) startCommand +29 1	# next cmd at pc 107, 1 cmds start here
+    (87) push1 9	# "m1 should be 'inner', got '"
+    (89) push1 7	# "m1"
+    (91) loadStk
+    (92) push1 10	# "'"
+    (94) strcat 3
+    (96) push1 6	# ""
+    (98) returnImm +1 0
+  # cmd_end_4:
+    (107) jump1 +4	# pc 111
+  # if_next_7:
+    (109) push1 6	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (111) pop
+    (112) startCommand +50 1	# next cmd at pc 162, 1 cmds start here
+    (121) push1 3	# "m2"
+    (123) loadStk
+    (124) push1 11	# "1"
+    (126) strneq
+    (127) jumpFalse1 +33	# pc 160
+  # if_then_9:
+    (129) startCommand +29 1	# next cmd at pc 158, 1 cmds start here
+    (138) push1 12	# "m2 should be '1' (inner catch ret), g..."
+    (140) push1 3	# "m2"
+    (142) loadStk
+    (143) push1 10	# "'"
+    (145) strcat 3
+    (147) push1 6	# ""
+    (149) returnImm +1 0
+  # cmd_end_6:
+    (158) jump1 +4	# pc 162
+  # if_next_10:
+    (160) push1 6	# ""
+  # if_end_8:
+  # if_cmd_end_5:
+    (162) pop
+    (163) startCommand +20 1	# next cmd at pc 183, 1 cmds start here
+    (172) push1 13	# "rc3"
+    (174) push1 1	# "catch"
+    (176) push1 14	# " catch { catch {error x} a } b "
+    (178) push1 15	# "c"
+    (180) invokeStk1 3
+    (182) storeStk
+  # cmd_end_7:
+    (183) pop
+    (184) startCommand +43 1	# next cmd at pc 227, 1 cmds start here
+    (193) push1 13	# "rc3"
+    (195) loadStk
+    (196) push1 4	# "0"
+    (198) neq
+    (199) jumpFalse1 +26	# pc 225
+  # if_then_12:
+    (201) startCommand +22 1	# next cmd at pc 223, 1 cmds start here
+    (210) push1 16	# "rc3 should be 0"
+    (212) push1 6	# ""
+    (214) returnImm +1 0
+  # cmd_end_9:
+    (223) jump1 +4	# pc 227
+  # if_next_13:
+    (225) push1 6	# ""
+  # if_end_11:
+  # if_cmd_end_8:
+    (227) pop
+    (228) startCommand +43 1	# next cmd at pc 271, 1 cmds start here
+    (237) push1 17	# "a"
+    (239) loadStk
+    (240) push1 18	# "x"
+    (242) strneq
+    (243) jumpFalse1 +26	# pc 269
+  # if_then_15:
+    (245) startCommand +22 1	# next cmd at pc 267, 1 cmds start here
+    (254) push1 17	# "a"
+    (256) push1 6	# ""
+    (258) returnImm +1 0
+  # cmd_end_11:
+    (267) jump1 +4	# pc 271
+  # if_next_16:
+    (269) push1 6	# ""
+  # if_end_14:
+  # if_cmd_end_10:
+    (271) pop
+    (272) startCommand +48 1	# next cmd at pc 320, 1 cmds start here
+    (281) push1 19	# "b"
+    (283) loadStk
+    (284) push1 11	# "1"
+    (286) strneq
+    (287) jumpFalse1 +31	# pc 318
+  # if_then_18:
+    (289) startCommand +27 1	# next cmd at pc 316, 1 cmds start here
+    (298) push1 20	# "b = "
+    (300) push1 19	# "b"
+    (302) loadStk
+    (303) strcat 2
+    (305) push1 6	# ""
+    (307) returnImm +1 0
+  # cmd_end_13:
+    (316) jump1 +4	# pc 320
+  # if_next_19:
+    (318) push1 6	# ""
+  # if_end_17:
+  # if_cmd_end_12:
+    (320) pop
+    (321) startCommand +48 1	# next cmd at pc 369, 1 cmds start here
+    (330) push1 15	# "c"
+    (332) loadStk
+    (333) push1 11	# "1"
+    (335) strneq
+    (336) jumpFalse1 +31	# pc 367
+  # if_then_21:
+    (338) startCommand +27 1	# next cmd at pc 365, 1 cmds start here
+    (347) push1 21	# "c = "
+    (349) push1 15	# "c"
+    (351) loadStk
+    (352) strcat 2
+    (354) push1 6	# ""
+    (356) returnImm +1 0
+  # cmd_end_15:
+    (365) jump1 +4	# pc 369
+  # if_next_22:
+    (367) push1 6	# ""
+  # if_end_20:
+  # if_cmd_end_14:
+    (369) pop
+    (370) startCommand +20 1	# next cmd at pc 390, 1 cmds start here
+    (379) push1 22	# "rc4"
+    (381) push1 1	# "catch"
+    (383) push1 23	# "set y 99"
+    (385) push1 24	# "m4"
+    (387) invokeStk1 3
+    (389) storeStk
+  # cmd_end_16:
+    (390) pop
+    (391) startCommand +48 1	# next cmd at pc 439, 1 cmds start here
+    (400) push1 24	# "m4"
+    (402) loadStk
+    (403) push1 25	# "99"
+    (405) neq
+    (406) jumpFalse1 +31	# pc 437
+  # if_then_24:
+    (408) startCommand +27 1	# next cmd at pc 435, 1 cmds start here
+    (417) push1 26	# "set-body result lost: "
+    (419) push1 24	# "m4"
+    (421) loadStk
+    (422) strcat 2
+    (424) push1 6	# ""
+    (426) returnImm +1 0
+  # cmd_end_18:
+    (435) jump1 +4	# pc 439
+  # if_next_25:
+    (437) push1 6	# ""
+  # if_end_23:
+  # if_cmd_end_17:
+    (439) pop
+    (440) startCommand +14 1	# next cmd at pc 454, 1 cmds start here
+    (449) push1 27	# "k"
+    (451) push1 28	# "  key with spaces  "
+    (453) storeStk
+  # cmd_end_19:
+    (454) pop
+    (455) startCommand +14 1	# next cmd at pc 469, 1 cmds start here
+    (464) push1 29	# "v"
+    (466) push1 30	# "  value with spaces  "
+    (468) storeStk
+  # cmd_end_20:
+    (469) pop
+    (470) startCommand +31 1	# next cmd at pc 501, 1 cmds start here
+    (479) push1 31	# "d"
+    (481) startCommand +19 1	# next cmd at pc 500, 1 cmds start here
+    (490) push1 32	# "::tcl::dict::create"
+    (492) push1 27	# "k"
+    (494) loadStk
+    (495) push1 29	# "v"
+    (497) loadStk
+    (498) invokeStk1 3
+  # cmd_end_22:
+    (500) storeStk
+  # cmd_end_21:
+    (501) pop
+    (502) startCommand +49 2	# next cmd at pc 551, 2 cmds start here
+    (511) push1 31	# "d"
+    (513) loadStk
+    (514) listLength
+    (515) push1 33	# "2"
+    (517) neq
+    (518) jumpFalse1 +31	# pc 549
+  # if_then_27:
+    (520) startCommand +27 1	# next cmd at pc 547, 1 cmds start here
+    (529) push1 34	# "dict create dropped whitespace: "
+    (531) push1 31	# "d"
+    (533) loadStk
+    (534) strcat 2
+    (536) push1 6	# ""
+    (538) returnImm +1 0
+  # cmd_end_24:
+    (547) jump1 +4	# pc 551
+  # if_next_28:
+    (549) push1 6	# ""
+  # if_end_26:
+  # if_cmd_end_23:
+    (551) pop
+    (552) startCommand +52 2	# next cmd at pc 604, 2 cmds start here
+    (561) push1 31	# "d"
+    (563) loadStk
+    (564) push1 27	# "k"
+    (566) loadStk
+    (567) dictGet 1
+    (572) push1 29	# "v"
+    (574) loadStk
+    (575) strneq
+    (576) jumpFalse1 +26	# pc 602
+  # if_then_30:
+    (578) startCommand +22 1	# next cmd at pc 600, 1 cmds start here
+    (587) push1 35	# "dict create mangled value"
+    (589) push1 6	# ""
+    (591) returnImm +1 0
+  # cmd_end_26:
+    (600) jump1 +4	# pc 604
+  # if_next_31:
+    (602) push1 6	# ""
+  # if_end_29:
+  # if_cmd_end_25:
+    (604) pop
+    (605) startCommand +46 1	# next cmd at pc 651, 1 cmds start here
+    (614) push1 36	# "lreverse"
+    (616) push1 37	# "{a b} c"
+    (618) invokeStk1 2
+    (620) push1 38	# "c {a b}"
+    (622) strneq
+    (623) jumpFalse1 +26	# pc 649
+  # if_then_33:
+    (625) startCommand +22 1	# next cmd at pc 647, 1 cmds start here
+    (634) push1 39	# "lreverse flattened nested"
+    (636) push1 6	# ""
+    (638) returnImm +1 0
+  # cmd_end_28:
+    (647) jump1 +4	# pc 651
+  # if_next_34:
+    (649) push1 6	# ""
+  # if_end_32:
+  # if_cmd_end_27:
+    (651) pop
+    (652) startCommand +52 2	# next cmd at pc 704, 2 cmds start here
+    (661) push1 40	# "{a b} d"
+    (663) push1 11	# "1"
+    (665) push1 41	# "X"
+    (667) lreplace4 3 2
+    (673) push1 42	# "{a b} X d"
+    (675) strneq
+    (676) jumpFalse1 +26	# pc 702
+  # if_then_36:
+    (678) startCommand +22 1	# next cmd at pc 700, 1 cmds start here
+    (687) push1 43	# "linsert flattened"
+    (689) push1 6	# ""
+    (691) returnImm +1 0
+  # cmd_end_30:
+    (700) jump1 +4	# pc 704
+  # if_next_37:
+    (702) push1 6	# ""
+  # if_end_35:
+  # if_cmd_end_29:
+    (704) pop
+    (705) startCommand +54 2	# next cmd at pc 759, 2 cmds start here
+    (714) push1 44	# "{a b} c d"
+    (716) push1 11	# "1"
+    (718) push1 11	# "1"
+    (720) push1 41	# "X"
+    (722) lreplace4 4 1
+    (728) push1 42	# "{a b} X d"
+    (730) strneq
+    (731) jumpFalse1 +26	# pc 757
+  # if_then_39:
+    (733) startCommand +22 1	# next cmd at pc 755, 1 cmds start here
+    (742) push1 45	# "lreplace flattened"
+    (744) push1 6	# ""
+    (746) returnImm +1 0
+  # cmd_end_32:
+    (755) jump1 +4	# pc 759
+  # if_next_40:
+    (757) push1 6	# ""
+  # if_end_38:
+  # if_cmd_end_31:
+    (759) pop
+    (760) startCommand +22 1	# next cmd at pc 782, 1 cmds start here
+    (769) push1 46	# "ok"
+    (771) push1 6	# ""
+    (773) returnImm +0 1
+  # ret_end_33:
+    (782) done

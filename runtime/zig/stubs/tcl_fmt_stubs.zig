@@ -184,7 +184,7 @@ pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
 pub export fn tcl_cmd_regsub(pattern: i32, str: i32) i32 {
     // 2-arg compiled form: subSpec defaults to empty string (deletion mode).
     const regex_mod = @import("../valtypes/tcl_regex.zig");
-    const rt        = @import("../tcl_runtime.zig");
+    const rt = @import("../tcl_runtime.zig");
     return regex_mod.do_regsub(pattern, str, rt.obj_new_string(0, 0), false, false, null);
 }
 

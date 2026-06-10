@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from explorer import tcl_cli
-from explorer.tcl_cli import main
+from tooling.tcl import main as tcl_cli
+from tooling.tcl.main import main
 
 
 def _run(args: list[str], capsys) -> tuple[int, str, str]:
@@ -209,43 +209,6 @@ def test_dataflow_json_reports_summary(capsys):
     assert err == ""
 
 
-def test_event_order_json_reports_events(capsys):
-    source = "when HTTP_RESPONSE { return }\nwhen HTTP_REQUEST { return }\n"
-
-    code, out, err = _run(
-        ["event-order", "--dialect", "f5-irules", "--source", source, "--json"],
-        capsys,
-    )
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["count"] == 2
-    names = [item["name"] for item in payload["events"]]
-    assert "HTTP_REQUEST" in names
-    assert "HTTP_RESPONSE" in names
-    assert err == ""
-
-
-def test_event_info_json_known_event(capsys):
-    code, out, err = _run(["event-info", "HTTP_REQUEST", "--json"], capsys)
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["event"] == "HTTP_REQUEST"
-    assert payload["known"] is True
-    assert payload["validCommandCount"] >= 1
-    assert err == ""
-
-
-def test_event_info_json_dual_transport_event(capsys):
-    code, out, err = _run(["event-info", "CLIENT_ACCEPTED", "--json"], capsys)
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["transport"] == "tcp/udp"
-    assert err == ""
-
-
 def test_command_info_json_known_command(capsys):
     code, out, err = _run(
         ["command-info", "HTTP::uri", "--dialect", "f5-irules", "--json"],
@@ -259,10 +222,10 @@ def test_command_info_json_known_command(capsys):
     assert err == ""
 
 
-def test_convert_json_reports_convertible_diagnostics(capsys):
+def test_find_legacy_json_reports_convertible_diagnostics(capsys):
     source = "set x [expr $y + 1]\n"
 
-    code, out, err = _run(["convert", "--source", source, "--json"], capsys)
+    code, out, err = _run(["find-legacy", "--source", source, "--json"], capsys)
 
     assert code == 0
     payload = json.loads(out)
@@ -540,84 +503,8 @@ def test_help_subcommand_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Search KCS help docs from the bundled SQLite index." in captured.out
+    assert "Full-text search the bundled KCS" in captured.out
     assert "--dialect" in captured.out
-
-
-@pytest.mark.parametrize("verb", ["diag", "lint"])
-def test_irule_prog_defaults_diag_like_verbs_to_f5_irules_dialect(verb):
-    args = tcl_cli.parse_args(
-        [verb, "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_help_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["help", "event"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_prog_name_inference_for_irule_alias():
-    assert tcl_cli._infer_prog_name("/usr/local/bin/irule") == "irule"  # noqa: SLF001
-    assert tcl_cli._default_dialect_for_prog("irule") == "f5-irules"  # noqa: SLF001
-
-
-def test_irule_prog_defaults_diff_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["diff", "left.irule", "right.irule"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_highlight_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["highlight", "--source", "when HTTP_REQUEST { return }", "--no-colour"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_format_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["format", "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_minify_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["minify", "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_callgraph_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["callgraph", "--source", "when HTTP_REQUEST { return }", "--json"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
 
 
 def test_diff_reports_ir_changes(tmp_path, capsys):
@@ -662,7 +549,7 @@ def test_diff_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Diff two sources using AST, IR, and CFG representations." in captured.out
+    assert "Compare *left* and *right* sources at the AST, IR, and CFG layers" in captured.out
     assert "--show" in captured.out
 
 
@@ -672,7 +559,7 @@ def test_highlight_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Emit syntax-highlighted source output." in captured.out
+    assert "Emit the source with token-level syntax highlighting" in captured.out
     assert "--format {ansi,html}" in captured.out
     assert "--colour" in captured.out
 
@@ -683,7 +570,7 @@ def test_format_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Format source and emit rewritten Tcl." in captured.out
+    assert "Pretty-print each input with the canonical style rules" in captured.out
     assert "--output OUTPUT" in captured.out
 
 
@@ -693,7 +580,7 @@ def test_command_info_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Look up command registry metadata." in captured.out
+    assert "Report the registry entry for COMMAND" in captured.out
     assert "--dialect" in captured.out
 
 

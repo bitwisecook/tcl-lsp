@@ -8,9 +8,9 @@ from pathlib import Path
 # Allow imports from the server package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.lexer import TclLexer
-from core.parsing.substitution import backslash_subst
-from core.parsing.tokens import Token, TokenType
+from compiler.parsing.lexer import TclLexer
+from shared.tcl_subst import backslash_subst
+from shared.tokens import Token, TokenType
 
 
 def _tokens(source: str, *, include_sep: bool = False) -> list[Token]:
@@ -405,6 +405,96 @@ class TestBackslashCRLFContinuation:
         toks = _tokens(source)
         comment_tok = next(t for t in toks if t.type == TokenType.COMMENT)
         assert "world" in comment_tok.text
+
+
+class TestBackslashCRPositionConsistency:
+    """A backslash-CR continuation must track line/column consistently.
+
+    The lexer's ``_line_starts`` index (used by ``_pos_at`` and the red CST
+    overlay) only counts ``\\n`` as a line break, while a lone ``\\<CR>``
+    continuation used to bump the incremental ``_line`` counter — so the token
+    *after* a ``\\<CR>`` reported its ``start`` one line below its own ``end``
+    (a backwards range).  A lone CR is therefore *not* a line break for the
+    index; CRLF still breaks the line (the LF is what the index records).
+    """
+
+    @staticmethod
+    def _all_tokens(source: str) -> list[Token]:
+        lexer = TclLexer(source)
+        out = []
+        while (tok := lexer.get_token()) is not None:
+            out.append(tok)
+        return out
+
+    def _assert_no_backwards_range(self, source: str) -> None:
+        for t in self._all_tokens(source):
+            assert (t.start.line, t.start.character) <= (t.end.line, t.end.character), (
+                f"backwards range on {t.type.name} {t.text!r}: "
+                f"start L{t.start.line}C{t.start.character} > end L{t.end.line}C{t.end.character}"
+            )
+
+    def _assert_positions_match_index(self, source: str) -> None:
+        # Every token's start/end must equal what the (\\n-only) line index says.
+        lexer = TclLexer(source)
+        for t in self._all_tokens(source):
+            for pos in (t.start, t.end):
+                want = lexer._pos_at(pos.offset)
+                assert (pos.line, pos.character) == (want.line, want.character), (
+                    f"{t.type.name} {t.text!r} offset {pos.offset}: "
+                    f"lexer says L{pos.line}C{pos.character}, "
+                    f"index says L{want.line}C{want.character}"
+                )
+
+    def test_lone_cr_continuation_no_backwards_range(self):
+        # The minimal #533-fuzz reproducer: backslash, CR, close-brace.
+        self._assert_no_backwards_range("\\\r}")
+        self._assert_positions_match_index("\\\r}")
+
+    def test_lone_cr_keeps_token_on_same_line(self):
+        toks = _tokens("\\\r}", include_sep=True)
+        brace = next(t for t in toks if t.text == "}")
+        # The lone CR is not a line break for the index, so the } stays on line 0.
+        assert brace.start.line == 0
+        assert brace.start.character == 2
+        assert brace.start.line == brace.end.line
+
+    def test_crlf_continuation_still_breaks_line(self):
+        # The LF half of a CRLF *is* a line break (it is in the line index).
+        toks = _tokens("a\\\r\nb", include_sep=True)
+        b = next(t for t in toks if t.text == "b")
+        assert b.start.line == 1
+        assert b.start.character == 0
+        self._assert_positions_match_index("a\\\r\nb")
+
+    def test_position_consistency_across_cr_contexts(self):
+        for source in (
+            "\\\r}",
+            "foo\\\r{bar}",
+            "x\\\ry",
+            "testCmd a \\\r{b}",
+            '"q\\\rr"',
+            "{a\\\rb}",
+            "# c \\\rd\nputs hi",
+            "set x \\\r\n  y",
+            "a\\\rb\\\rc\\\rd",
+            # Command substitutions: a lone-CR continuation inside [...] must not
+            # bump the line for the bytes after the substitution (issue surfaced
+            # in PR #537 review — the _parse_command scanner).
+            "[x\\\ry]\nset z 1",
+            "puts [x\\\ry] w",
+            "[a\\\rb]",
+            "[x\\\r\ny]\nset z 1",
+        ):
+            self._assert_no_backwards_range(source)
+            self._assert_positions_match_index(source)
+
+    def test_cmdsub_lone_cr_following_token_line(self):
+        # The command after `[…\<CR>…]\n` lands on line 1, not line 2 — the lone
+        # CR inside the substitution is not a line break for the index.
+        toks = _tokens("[x\\\ry]\nset z 1", include_sep=True)
+        set_tok = next(t for t in toks if t.text == "set")
+        assert set_tok.start.line == 1
+        assert set_tok.start.character == 0
 
 
 class TestBackslashSubstCRLF:

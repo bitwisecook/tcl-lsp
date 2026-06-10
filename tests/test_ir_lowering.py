@@ -6,12 +6,10 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.expr_ast import ExprNode, expr_text
-from core.compiler.ir import (
+from compiler.expr_ast import ExprNode, expr_text
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -28,7 +26,7 @@ from core.compiler.ir import (
     IRTry,
     IRWhile,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 
 class TestIRLowering:
@@ -162,7 +160,7 @@ class TestIRLowering:
         # back to dispatching the original ``namespace eval`` call
         # via ``source_args``.  The canonical shape has the nested
         # proc lifted (checked above) and the block namespace set.
-        from core.compiler.ir import IRBlock
+        from compiler.ir import IRBlock
 
         assert isinstance(stmts[0], IRBlock)
         assert stmts[0].namespace == "::math"
@@ -178,6 +176,31 @@ class TestIRLowering:
         assert isinstance(loop.condition, ExprNode)
         assert expr_text(loop.condition) == "$i < 10"
         assert any(isinstance(s, IRIncr) and s.name == "i" for s in loop.body.statements)
+
+    def test_command_substitution_body_is_not_descended(self):
+        # A ``[...]`` command-substitution body is substituted at runtime to
+        # *produce* the body string — its inner text is NOT the body script.
+        # Lowering must keep it as the ``[foo bar]`` word (mirroring the
+        # analyser's ``descend_command``, which skips non-``STR`` bodies), not
+        # descend it into a call of ``foo`` (regression: ``_segment_body`` once
+        # admitted ``CMD`` bodies and read ``[foo bar]`` as the script
+        # ``foo bar``).
+        mod = lower_to_ir("while {1} [foo bar]")
+        loop = mod.top_level.statements[0]
+        assert isinstance(loop, IRWhile)
+        (body_stmt,) = loop.body.statements
+        assert isinstance(body_stmt, (IRCall, IRBarrier))
+        assert body_stmt.command == "[foo bar]"
+
+    def test_braced_body_is_descended(self):
+        # The braced counterpart *is* the script, so it is descended normally —
+        # the body command is ``foo``, not the literal ``{foo bar}`` word.
+        mod = lower_to_ir("while {1} {foo bar}")
+        loop = mod.top_level.statements[0]
+        assert isinstance(loop, IRWhile)
+        (body_stmt,) = loop.body.statements
+        assert isinstance(body_stmt, (IRCall, IRBarrier))
+        assert body_stmt.command == "foo"
 
     # Phase 1: Variable-defining commands
 
@@ -435,15 +458,6 @@ class TestProcDynamicNameConstMap:
         # fall through to a runtime dispatch barrier.
         assert any(isinstance(s, IRBarrier) and "dynamic proc name" in s.reason for s in body)
 
-    @pytest.mark.xfail(
-        reason="Disabled by cb7f0f7's 'dynamic proc body or params' barrier — "
-        "any VAR / CMD body or params token bails to a runtime ``proc`` call "
-        "to avoid lifting a literal ``$body`` text that would silently "
-        "re-substitute at every invocation.  Re-enabling the const-map "
-        "lift requires resolving body and name together so the lifted "
-        "IRProcedure carries a real script body, not a ``$body`` placeholder.",
-        strict=False,
-    )
     def test_proc_dollar_name_resolves_when_var_is_literal(self):
         # The const-map only tracks ``set var {braced-literal}`` shapes
         # (see ``_set_literal_body``) — a bare ESC ``set name Verbose``
@@ -484,11 +498,6 @@ class TestProcDynamicNameConstMap:
         # And no synthetic proc was registered.
         assert not any(name.endswith("::Verbose") for name in mod.procedures)
 
-    @pytest.mark.xfail(
-        reason="See test_proc_dollar_name_resolves_when_var_is_literal — "
-        "same dynamic-body barrier blocks the lift.",
-        strict=False,
-    )
     def test_proc_dollar_name_respects_reassignment(self):
         # A re-assignment before the ``proc $name`` swaps the literal —
         # the substitution should pick up the latest value.
@@ -523,7 +532,7 @@ class TestProcDynamicNameConstMap:
         # ``uplevel 1 $body`` inside ``inner`` must remain an
         # IRBarrier (dynamic body) — not a relaxed IRBlock /
         # IRUpFrame containing the outer's ``set z 99`` literal.
-        from core.compiler.ir import IRBarrier, IRBlock, IRUpFrame
+        from compiler.ir import IRBarrier, IRBlock, IRUpFrame
 
         for s in inner.body.statements:
             assert not isinstance(s, IRUpFrame), (
@@ -549,13 +558,6 @@ class TestProcDynamicBodySubstNocommands:
     const-tracked in the enclosing proc.  This is the full tcltest
     ``Option`` factory shape."""
 
-    @pytest.mark.xfail(
-        reason="cb7f0f7's dynamic-body barrier fires before the "
-        "[subst -nocommands {…}] materialisation path, even when every "
-        "$var in the template is const-tracked.  Re-enabling P7.3 needs "
-        "the barrier to defer to the materialisation result first.",
-        strict=False,
-    )
     def test_subst_nocommands_body_materialises_with_const_vars(self):
         # ``Factory`` has two const-tracked locals (``name``,
         # ``default``); ``proc`` uses both in the name AND in the
@@ -574,7 +576,7 @@ class TestProcDynamicBodySubstNocommands:
         verbose = mod.procedures["::Verbose"]
         # The body should now contain a ``return 0`` (the template's
         # ``$default`` was substituted to ``0``).
-        from core.compiler.ir import IRReturn
+        from compiler.ir import IRReturn
 
         body_stmts = verbose.body.statements
         assert any(isinstance(s, IRReturn) for s in body_stmts)
@@ -591,18 +593,15 @@ class TestProcDynamicBodySubstNocommands:
             }
         """)
         mod = lower_to_ir(source)
-        # ``::Verbose`` should NOT appear as a compiled IRProcedure
-        # because the body couldn't be materialised.  (The outer
-        # ``proc $name ...`` might still register the proc, but the
-        # body is unresolved — depends on the downstream lowering
-        # behaviour for unresolvable CMD bodies.)
-        if "::Verbose" in mod.procedures:
-            verbose = mod.procedures["::Verbose"]
-            # If we did register something, the body shouldn't be a
-            # materialised IRReturn — the template stayed dynamic.
-            from core.compiler.ir import IRReturn
+        # The outer ``proc $name ...`` registers ``::Verbose``, but its body
+        # could not be materialised (``$unbound`` isn't constant), so the body
+        # must NOT contain a materialised IRReturn — the template stayed
+        # dynamic.
+        from compiler.ir import IRReturn
 
-            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+        assert "::Verbose" in mod.procedures, list(mod.procedures)
+        verbose = mod.procedures["::Verbose"]
+        assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
 
     def test_subst_nocommands_body_refuses_nobackslashes_flag(self):
         # ``-nobackslashes`` changes semantics (no backslash
@@ -617,34 +616,46 @@ class TestProcDynamicBodySubstNocommands:
             }
         """)
         mod = lower_to_ir(source)
-        if "::Verbose" in mod.procedures:
-            from core.compiler.ir import IRReturn
+        # ``-nobackslashes`` opts out of our evaluator's semantics, so the
+        # body is not materialised: ``::Verbose`` registers but carries no
+        # IRReturn.
+        from compiler.ir import IRReturn
 
-            verbose = mod.procedures["::Verbose"]
-            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+        assert "::Verbose" in mod.procedures, list(mod.procedures)
+        verbose = mod.procedures["::Verbose"]
+        assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
 
 
 class TestNamespaceArrayScalarVariableForms:
     """Variable form edge cases: namespaced + array/scalar distinctions."""
 
-    def test_lowering_marks_braced_array_like_name_as_scalar_read(self):
+    def test_lowering_keeps_braced_array_like_name_for_whole_name_load(self):
+        # Braced ``${a(1)}`` loads the WHOLE literal name ``a(1)`` (the
+        # runtime resolves it as array element ``a(1)``).  The natural
+        # braced spelling is preserved so codegen takes the whole-name
+        # ``push "a(1)"; loadStk`` path, not a split array load.
         mod = lower_to_ir("set out ${a(1)}")
-        stmt = mod.top_level.statements[0]
-        assert isinstance(stmt, IRAssignValue)
-        assert stmt.value == "$={a(1)}"
-
-    def test_lowering_keeps_unbraced_array_ref_as_array_form(self):
-        mod = lower_to_ir("set out $a(1)")
         stmt = mod.top_level.statements[0]
         assert isinstance(stmt, IRAssignValue)
         assert stmt.value == "${a(1)}"
 
-    def test_lowering_preserves_namespaced_braced_scalar_form(self):
+    def test_lowering_keeps_unbraced_array_ref_as_bare_array_form(self):
+        # Bare ``$a(1)`` SPLITS into array ``a`` element ``1``; the natural
+        # bare spelling is kept so codegen emits ``push "a"; push "1";
+        # loadArrayStk``.
+        mod = lower_to_ir("set out $a(1)")
+        stmt = mod.top_level.statements[0]
+        assert isinstance(stmt, IRAssignValue)
+        assert stmt.value == "$a(1)"
+
+    def test_lowering_preserves_namespaced_braced_whole_name_form(self):
+        # Namespaced braced ``${::ns::arr(item)}`` is a whole-name load of
+        # ``::ns::arr(item)`` — keep the braced spelling.
         mod = lower_to_ir("set ::ns::out ${::ns::arr(item)}")
         stmt = mod.top_level.statements[0]
         assert isinstance(stmt, IRAssignValue)
         assert stmt.name == "::ns::out"
-        assert stmt.value == "$={::ns::arr(item)}"
+        assert stmt.value == "${::ns::arr(item)}"
 
     def test_lowering_tracks_namespace_array_defs_by_base_name(self):
         mod = lower_to_ir("unset ::ns::arr(item)")

@@ -5,7 +5,7 @@ runtime (also compiled to WASM), and execute the resulting module
 natively in wasmtime — no Python↔WASM FFI stubs.
 
 Requires: ``wasmtime`` Python package (listed in dev dependencies).
-The Zig runtime is built on demand by ``core.runtime_wasm`` — no
+The Zig runtime is built on demand by ``shared.runtime_wasm`` — no
 prebuilt binary needs to be present in the working tree.
 """
 
@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import WasmModule, wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import WasmModule, wasm_codegen_module
+from compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 # Path to the pre-built Zig WASM runtime — the helper auto-builds
 # on a fresh checkout where the artefact isn't yet on disk.
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 
@@ -717,9 +717,11 @@ class TestCommandDispatch:
 
     def test_puts_executes(self):
         """puts should execute without error via the Zig runtime."""
-        # With the Zig WASM runtime, puts writes to WASI stdout.
-        # Just verify the module executes without trapping.
-        _compile_and_run("puts 42\n")
+        # With the Zig WASM runtime, puts writes to WASI stdout. A trap would
+        # raise; a clean run returns ::top's (empty → 0) result, so assert the
+        # module ran to completion and returned an int.
+        result = _compile_and_run("puts 42\n")
+        assert isinstance(result, int)
 
     def test_global_is_nop(self):
         """global declarations should not generate imports."""
@@ -760,6 +762,13 @@ class TestCommandDispatch:
             "obj_get_int",
             "tcl_arith_add",
             "tcl_cmd_error",
+            # Error-frame scaffolding for the proc body: ``expr`` can
+            # raise (e.g. non-numeric operand), so the prologue stamps
+            # the error frame and the body routes a raised error
+            # through the ``return -code error`` path.  Pulled in for
+            # any compiled proc whose body can error.
+            "proc_stamp_error_frame",
+            "tcl_cmd_error_via_return",
             "tcl_eval",
             "ns_set",
             "ns_restore",
@@ -774,6 +783,21 @@ class TestCommandDispatch:
             # call per proc with a statically-known body (every proc
             # except the synthetic ``when`` shims).
             "proc_set_body_source",
+            # ``proc_set_params_source_raw`` is similarly pulled in by
+            # the prologue alongside ``proc_set_body_source`` so
+            # ``info args`` / ``info default`` can materialise a fresh
+            # TclObj on demand for AOT-compiled procs.
+            "proc_set_params_source_raw",
+            # Rename-aware compiled-dispatch guard helpers, pulled in for
+            # any module with procs.  ``proc_lookup`` + ``proc_get_func_idx``
+            # let a distrusted proc command-substitution verify the name
+            # still maps to this exact compiled proc, and
+            # ``exec_trace_quiescent`` gates the direct call on tracing
+            # being inactive — see ``_emit_distrust_proc_subst``.  Present
+            # but only *called* under builtin distrust in a trace-free unit.
+            "proc_lookup",
+            "proc_get_func_idx",
+            "exec_trace_quiescent",
             "frame_push",
             "frame_pop",
             # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``
@@ -810,6 +834,88 @@ class TestCommandDispatch:
             # the owned-slot wrap can fire on any frame-elided proc.
             "tcl_obj_retain",
             "tcl_obj_release",
+            # Frame-side aliases for ``variable``/``global`` (always
+            # pulled in for any module with procs so interpreter-side
+            # eval inside a compiled proc body sees the same alias the
+            # compiled code uses).
+            "frame_alias_named",
+            "frame_alias_global",
+            # ``upvar N``/``upvar #N`` runtime helpers: install a
+            # caller-frame alias bucket and resolve dynamic ``$level``
+            # tokens.  Pulled in unconditionally whenever a module
+            # has procs because any of them might use ``upvar`` —
+            # see ``_scan.py``.
+            "frame_alias_frame_var",
+            "frame_get_depth",
+            "upvar_resolve_depth",
+            # ``upvar_walk_relative`` is pulled in alongside the rest
+            # of the upvar helpers — it resolves the relative-level
+            # form for the compiled-proc body and walks past foreign
+            # frames pushed by cross-interp alias/invokehidden so
+            # ``upvar 1`` inside a hidden command reaches its
+            # same-interp caller (interp-20.35 .. 20.44).
+            "upvar_walk_relative",
+            # Signal-flag inspectors used by every compiled-proc-call
+            # bridge to absorb ``return`` at the dispatch boundary
+            # and propagate ``error`` past the call.  Always pulled
+            # in for any module with procs since any callee may
+            # raise either flag — see ``_scan.py``'s
+            # always-needed block.
+            "catch_has_error",
+            "flow_check_return",
+            "flow_take_return",
+            # ``flow_check_signal_loop`` is the per-callsite
+            # break/continue probe — also always pulled in once a
+            # module has procs since any callee can ``return -code
+            # break`` / ``-code continue``.
+            "flow_check_signal_loop",
+            # The compiled-proc prologue stamps the ``FrameInfo``
+            # for ``info frame N`` so the new frame surfaces
+            # ``type proc proc <fq-name>`` rather than the generic
+            # ``type eval`` fallback.  Always pulled in for any
+            # module with procs.  ``frame_set_line`` /
+            # ``frame_set_script`` / ``frame_claim_line_codegen``
+            # complete the introspection surface for compiled procs.
+            "frame_set_type_i32",
+            "frame_set_proc_name",
+            "frame_set_line",
+            "frame_set_script",
+            # ``frame_set_params`` records the proc's formal-parameter
+            # spec on the frame so ``info locals`` / ``info vars``
+            # enumerate the formals in declaration order.  Pulled in for
+            # any module with procs (like the other frame-metadata
+            # stamps); the prologue only emits the call when the body
+            # references ``info locals`` / ``info vars`` — so for this
+            # pure-arithmetic proc the import is present but uncalled,
+            # exactly as ``frame_set_script`` is for a body-less proc.
+            "frame_set_params",
+            "frame_claim_line_codegen",
+            # Phase 7 indexed-local accessors.  Pulled in for every
+            # compiled proc so a slot-resolved name can route to the
+            # indexed array regardless of which body references it.
+            "frame_local_at",
+            "frame_local_set_at",
+            # Phase 6 follow-up silent variants of local_set /
+            # local_get used by ``_emit_frame_sync`` /
+            # ``_emit_frame_readback`` so frame syncs at interpreter
+            # boundaries don't fire variable traces.
+            "local_set_silent",
+            "local_get_silent",
+            # Dynamic-name var-write/read path — ``set $x v`` /
+            # ``append ::$n v``.  Always imported so a name token
+            # containing a ``$`` / ``[`` substitution can dispatch
+            # through the unified runtime resolver after the
+            # codegen materialises the substituted name with
+            # ``tcl_append``.  See ``_scan.py``'s always-needed
+            # block.
+            "var_resolve",
+            "var_set",
+            "tcl_cmd_append",
+            # Always imported alongside the dynamic-name trio so the
+            # compiled ``_emit_array_name_obj`` proc-local path can
+            # round-trip a bare unqualified array name through the
+            # eval-fallback's resolved key.
+            "frame_resolve_array_name",
         }
 
 
@@ -863,7 +969,7 @@ class TestNopReduction:
         """puts should emit a call, not a NOP."""
         wasm_mod, _ = _compile_to_wasm("puts 42\n")
         top = wasm_mod.functions[0]
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         nop_count = sum(1 for instr in top.body if instr.op == WasmOp.NOP)
         # puts should be a call, not a NOP
@@ -874,11 +980,11 @@ class TestNopReduction:
         wasm_mod, _ = _compile_to_wasm("proc f {} { global x; return 1 }\n")
         # Find the proc function
         proc_funcs = [f for f in wasm_mod.functions if f.name != "::top"]
-        if proc_funcs:
-            from core.compiler.codegen.wasm import WasmOp
+        assert proc_funcs, "expected proc ::f to be compiled"
+        from compiler.codegen.wasm import WasmOp
 
-            nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
-            assert nop_count == 0
+        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+        assert nop_count == 0
 
 
 # Proc call WAT inspection
@@ -905,7 +1011,7 @@ proc caller {x y} { add $x $y }
         # Find the caller function
         caller_funcs = [f for f in wasm_mod.functions if "caller" in f.name]
         assert len(caller_funcs) == 1
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         call_instrs = [i for i in caller_funcs[0].body if i.op == WasmOp.CALL]
         assert len(call_instrs) >= 1
@@ -1030,7 +1136,7 @@ class TestWasmVsBytecodeVm:
     @classmethod
     def _get_interp(cls):
         if cls._interp is None:
-            from vm.interp import TclInterp
+            from tooling.vm.interp import TclInterp
 
             cls._interp = TclInterp()
         return cls._interp
@@ -1459,6 +1565,71 @@ class TestListOperations:
         )
         assert result == "hello world"
 
+    def test_lseq_basic_count(self):
+        """lseq N -> 0..N-1."""
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 5 }\n",
+            "f",
+            (),
+        )
+        assert result == "0 1 2 3 4"
+
+    def test_lseq_start_end(self):
+        """lseq START END -> START..END (direction inferred)."""
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 3 7 }\n",
+            "f",
+            (),
+        )
+        assert result == "3 4 5 6 7"
+
+    def test_lseq_decreasing(self):
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 10 1 }\n",
+            "f",
+            (),
+        )
+        assert result == "10 9 8 7 6 5 4 3 2 1"
+
+    def test_lseq_large_double_does_not_panic(self):
+        """``lseq`` on float inputs that clamp to i64 extremes must not
+        trip Zig's integer-overflow safety panic.
+
+        Regression test for the WASM-runtime trap surfaced by
+        ``lseq.test`` lseq-1.27, which calls ``lseq 1e50 [expr {1e50+1}]``.
+        Both arguments clamp to ``i64_max``; before the fix the loop
+        body would emit one element and then panic on ``i += step``.
+        We don't yet support arbitrary-precision arith-series, so the
+        result content is intentionally unspecified — what matters is
+        that the bundle does not trap, leaving the rest of the file
+        free to run.
+        """
+        # The body must complete (returning *some* string) rather
+        # than trapping; downstream lseq tests then get to execute.
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 1e50 [expr {1e50+1}] }\n",
+            "f",
+            (),
+        )
+        assert isinstance(result, str)
+
+    def test_lseq_negative_huge_double_step_does_not_panic(self):
+        """``lseq`` with a negative-float step that clamps to
+        ``i64_min`` must not panic on ``-step_val`` when computing
+        ``abs(step)`` for the max-count guard.
+
+        With ``start == end == i64_max`` the span is zero and so
+        cannot bail out via the overflow-on-subtraction path; the
+        next guard takes ``abs(step_val)`` to feed ``@divTrunc`` and
+        ``-i64_min`` is the panic site this test pins down.
+        """
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 1e50 1e50 -1e50 }\n",
+            "f",
+            (),
+        )
+        assert isinstance(result, str)
+
 
 # Dict operations
 
@@ -1710,6 +1881,113 @@ class TestStringOperationsExtended:
         )
         assert result == "hello_world"
 
+    def test_string_insert_start(self):
+        """string insert at index 0 prepends."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 0 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_0123"
+
+    def test_string_insert_middle(self):
+        """string insert at a middle index splits the target."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_string_insert_end_integer(self):
+        """string insert at integer length appends."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 4 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_end_keyword(self):
+        """``string insert`` treats ``end`` as length (one past last
+        char), unlike ``string index``.  string-31.6."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" end "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_end_minus(self):
+        """``string insert s end-N _`` resolves to position ``len-N``.
+        string-31.5."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" end-2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_string_insert_negative_index_clamps_to_zero(self):
+        """Negative indices clamp to 0 (prepend).  string-31.10."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" -1 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_0123"
+
+    def test_string_insert_index_past_end_clamps_to_length(self):
+        """Indices past the end clamp to length (append).
+        string-31.11."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 5 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_empty_target(self):
+        """Inserting into an empty string returns the insert string.
+        string-31.7."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "" 0 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_"
+
+    def test_string_insert_empty_insert(self):
+        """Inserting an empty string is a no-op.  string-31.8."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 0 "" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123"
+
+    def test_tcl_string_insert_relative_qualified(self):
+        """``tcl::string::insert`` (no leading ``::``) resolves to the
+        ensemble dispatch.  Upstream string-31.* tests use this form;
+        without the relative-FQ fallback in the eval-command path they
+        all fail with ``unknown command``."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { tcl::string::insert "0123" 2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_tcl_string_reverse_relative_qualified(self):
+        """``tcl::string::reverse`` from the global namespace resolves
+        like ``::tcl::string::reverse``.  string-24.x guard."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { tcl::string::reverse "abc" }\n',
+            "f",
+            (),
+        )
+        assert result == "cba"
+
     def test_string_is_integer_true(self):
         """string is integer returns 1 for a valid integer."""
         result = _compile_and_run(
@@ -1805,13 +2083,13 @@ class TestBreakContinue:
 
     def test_break_compiles(self):
         """break command emits a br instruction, not a NOP."""
-        from core.compiler.codegen.wasm import WasmOp
+        from compiler.codegen.wasm import WasmOp
 
         wasm_mod, _ = _compile_to_wasm('proc f {} { foreach i "1 2 3" { break } }\n')
         proc_funcs = [f for f in wasm_mod.functions if "f" in f.name]
-        if proc_funcs:
-            has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
-            assert has_br, "break should emit a br instruction"
+        assert proc_funcs, "expected proc ::f to be compiled"
+        has_br = any(i.op in (WasmOp.BR, WasmOp.BR_IF) for i in proc_funcs[0].body)
+        assert has_br, "break should emit a br instruction"
 
 
 # Unknown command traps
@@ -1844,6 +2122,39 @@ class TestUnknownCommandTraps:
             (5,),
         )
         assert result == 6
+
+
+class TestRenamedBuiltinDispatch:
+    """Codegen honours the command-binding lattice: a builtin renamed away is no
+    longer direct-dispatched with its core semantics — it routes through the
+    interpreter (the live, rename-aware runtime command table).  Normal code
+    (empty untrusted set) keeps the builtin fast-path unchanged."""
+
+    def _stdout(self, source: str) -> str:
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _ = _compile_tcl_with_diag(source, "rename")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_unrenamed_builtin_still_folds(self):
+        assert self._stdout("puts [string length hi]\n") == "2"
+        assert self._stdout("puts [llength [list a b c]]\n") == "3"
+
+    def test_renamed_away_builtin_does_not_silently_miscompute(self):
+        # ``rename string ::s`` removes ``string``; the old name must NOT be
+        # direct-dispatched to the builtin (which would print 2).  It routes to
+        # the interpreter, where the now-missing command traps — matching that
+        # ``string length hi`` is an error once ``string`` is gone.
+        with pytest.raises(wasmtime.Trap):
+            self._stdout("rename string ::s\nputs [string length hi]\n")
+
+    def test_renamed_away_builtin_in_expr(self):
+        with pytest.raises(wasmtime.Trap):
+            self._stdout("rename llength ::ll\nputs [expr {[llength {a b}] + 1}]\n")
 
 
 # Interpreter fallback
@@ -2036,6 +2347,103 @@ class TestEvalUplevel:
             (),
         )
         assert result == 99
+
+    def test_uplevel_minus_zero_is_relative_level_zero(self):
+        """``uplevel -0`` is a valid relative level 0 (current frame),
+        matching reference Tcl's ``Tcl_GetIntFromObj`` level path
+        (tcltest uplevel-4.9).  The body runs in the calling frame."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl("puts [apply {{} {uplevel -0 {expr {40 + 2}}}}]\n")
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "42\n"
+
+    def test_uplevel_minus_zero_empty_body(self):
+        """``uplevel -0 {}`` returns the empty string (tcltest uplevel-4.9)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -0 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "rc=0:\n"
+
+    def test_uplevel_hashN_targets_own_frame(self):
+        """``uplevel #N`` where N is the current proc's own level targets
+        that proc's own frame (shift 0), reading its locals — not the
+        global frame (tcltest uplevel-3.4).  Covers both the interpreted
+        proc body (via ``apply``) and a compiled proc."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        # Interpreted lambda body: apply runs at level 1, so `uplevel #1`
+        # is the lambda's own frame.
+        wasm = _compile_tcl("set y zzz\nputs [apply {{} {set y 55; uplevel #1 set y}}]\n")
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "55\n"
+
+        # Compiled proc: a1 is called from the global frame (level 1), so
+        # `uplevel #1` is a1's own frame.
+        wasm2 = _compile_tcl("set y zzz\nproc a1 {} {set y 55; uplevel #1 set y}\nputs [a1]\n")
+        _, out2 = _run_wasm(wasm2, capture_stdout=True)
+        assert out2 == "55\n"
+
+    def test_uplevel_negative_level_is_bad_level_error(self):
+        """``uplevel -1`` (any negative magnitude) is a ``bad level``
+        error, not a body word — matches reference Tcl (uplevel-4.21)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -1 {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == 'rc=1:bad level "-1"\n'
+
+    def test_uplevel_signed_based_level_is_bad_level(self):
+        """A signed based-integer level (``-0xff``) parses as an int and
+        is rejected as ``bad level`` — not treated as a body word
+        (uplevel-4.17)."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl('puts "rc=[catch {apply {{} {uplevel -0xff {}}}} m]:$m"\n')
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == 'rc=1:bad level "-0xff"\n'
+
+
+class TestUpvarTopLevel:
+    """``upvar`` at the script top level (no proc frame) aliases within
+    the global scope, so writes through the alias reach the target
+    global — tcltest upvar-7.1.  The body is evaluated through the
+    interpreter (matching how tcltest runs test bodies)."""
+
+    def test_upvar_global_links_and_relinks(self):
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl(
+            "set x 44\n"
+            "set y 55\n"
+            "catch {unset uv}\n"
+            # ``eval $body`` forces interpreter dispatch (a literal body
+            # would be compiled inline, where top-level upvar isn't wired).
+            "set body {upvar #0 x uv; set uv abc; upvar 0 y uv; set uv xyzzy}\n"
+            "eval $body\n"
+            "puts [list $x $y]\n"
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        assert out == "abc xyzzy\n"
+
+    def test_top_level_upvar_array_element_does_not_link_wrong_storage(self):
+        """Top-level ``upvar #0 arr(k) uv`` must NOT silently link ``uv``
+        to a scalar named ``arr(k)`` (which would diverge from the array
+        storage ``$arr(k)`` uses).  There's no frame to hold an
+        element-alias descriptor here, so the element target is left
+        unaliased rather than wrongly linked — ``arr(k)`` keeps its value."""
+        from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm
+
+        wasm = _compile_tcl(
+            "set arr(k) orig\n"
+            "set body {upvar #0 arr(k) uv; set uv changed}\n"
+            "eval $body\n"
+            "puts $arr(k)\n"
+        )
+        _, out = _run_wasm(wasm, capture_stdout=True)
+        # The array element is untouched (uv did not alias it).
+        assert out == "orig\n"
 
 
 # Global variable scoping
@@ -3416,9 +3824,11 @@ set ::result [info commands]
 """,
             "::result",
         )
+        # Unqualified ``info commands`` returns simple names per
+        # Tcl 9 info-4.3.
         names = set(result.decode("utf-8").split())
-        assert "::alpha" in names
-        assert "::beta" in names
+        assert "alpha" in names
+        assert "beta" in names
 
     def test_info_commands_pattern(self):
         result = self._run_and_read_global(
@@ -3433,12 +3843,11 @@ set ::result [info commands a*]
         # user procs AND builtins — whose name matches the glob.  Our
         # runtime walks the builtin ``cmd_table`` after the namespace
         # tree, so callers see ``array``, ``append``, ``auto_reset``,
-        # … alongside ``::alpha``.  The user-proc presence is the
-        # property under test; the builtin tail confirms the walker
-        # didn't accidentally exclude one of the two contributors.
+        # … alongside ``alpha``.  Unqualified patterns return simple
+        # names (info-4.3 / 4.4).
         names = result.decode("utf-8").split()
-        assert "::alpha" in names
-        assert "::beta" not in names
+        assert "alpha" in names
+        assert "beta" not in names
         for name in names:
             stripped = name.removeprefix("::")
             assert stripped.startswith("a"), f"{name!r} does not match glob 'a*'"
@@ -3583,17 +3992,15 @@ set ::result $msg
         )
         assert result == b'bad level "1"'
 
-    def test_info_default_on_compiled_proc_raises_error(self):
+    def test_info_default_on_compiled_proc_missing_arg(self):
         """End-to-end, user procs reach this path as compiled procs
         (the WASM compiler routes every top-level ``proc`` through
-        ``proc_register_compiled``).  ``info default`` refuses
-        compiled procs with the same ``"X" isn't a procedure``
-        wording it uses for aliases and missing commands — the
-        compiled form has no retrievable params list.  The
-        ``"procedure \"X\" doesn't have an argument \"Y\""`` error
-        shape is still reachable for interpreted procs registered
-        via the runtime ``proc_register`` path (covered in
-        ``tests/runtime/test_tcl_info.py``)."""
+        ``proc_register_compiled``).  ``info default`` resolves
+        compiled procs via the raw-bytes params sidecar
+        (``proc_set_params_source_raw`` stashes the source spec at
+        registration time); a missing argument name surfaces the
+        canonical ``procedure "X" doesn't have an argument "Y"``
+        error rather than treating compiled procs as opaque."""
         result = self._run_and_read_global(
             """\
 proc p1 {a b} {}
@@ -3602,7 +4009,7 @@ set ::result $msg
 """,
             "::result",
         )
-        assert result == b'"p1" isn\'t a procedure'
+        assert result == b'procedure "p1" doesn\'t have an argument "missing_arg"'
 
 
 def _read_global_string(
@@ -4104,7 +4511,7 @@ set ::result $msg
 """,
             "::result",
         )
-        assert result.startswith(b"unknown command")
+        assert result.startswith(b"invalid command name")
 
     # --- Section 7: basic alias creation (child-as-command alias) ---------
 
@@ -4248,11 +4655,13 @@ set ::result $msg
 """,
             "::result",
         )
-        # Our runtime's alias-miss diagnostic is ``unknown command:
-        # <target>`` (see dispatch_alias in tcl_interp.zig).  tclsh
-        # uses ``invalid command name "<target>"`` after the unknown
-        # fallback; we pin our wording here.
-        assert result == b"unknown command: nonexistent"
+        # Our runtime's alias-miss diagnostic now matches reference
+        # Tcl's ``invalid command name "<target>"`` surface — see the
+        # rename-builtin work in ``tcl_catch.error_invalid_command_name``
+        # which unified the two formerly-divergent ``error_unknown_command``
+        # callers under one helper that mirrors tclsh's
+        # ``TclEvalObjvInternal``.
+        assert result == b'invalid command name "nonexistent"'
 
     def test_9_2_alias_late_bound_target(self):
         """interp-9.2: defining the target after the alias still

@@ -19,7 +19,7 @@ unterminated tokens via heuristics, injects `VirtualToken` objects, and
 re-parses to produce clean commands.  Diagnostics (E201–E206) are emitted for
 the user while the rest of the pipeline proceeds on the repaired parse.
 
-Source: [`core/parsing/recovery.py`](../../../core/parsing/recovery.py)
+Source: [`compiler/parsing/recovery.py`](../../../compiler/parsing/recovery.py)
 
 ## Content
 
@@ -72,6 +72,29 @@ set y 42
    - `SegmentedCommand(texts=["set", "x", '[string length "hello"]'])`
    - `SegmentedCommand(texts=["set", "y", "42"])`
 5. Both downstream passes (IR lowering, CFG, SSA, codegen) proceed normally.
+
+## Inert-insertion veto (E201)
+
+The `]` heuristics only fire when their *signal* lives at script level. A
+known-command word (command-break) or `#` (comment-break) that sits **inside a
+balanced brace or quote word** is content, not a command/comment — a `]`
+inserted before it is literal and leaves the command incomplete. So before a
+candidate is accepted, `_bracket_insert_inert` checks the insertion offset and
+**vetoes** any that lands inside an open brace/quote, scanning on until the word
+closes (or declining). This is C-Tcl-9.0.3-grounded:
+
+```tcl
+set x [foo {bar
+puts baz}
+```
+
+Here `puts` is inside the balanced brace word `{bar … baz}`. The old
+command-break inserted `]` after `bar`, yielding `set x [foo {bar]…}`, which
+`info complete` reports as `0` (incomplete) — objectively wrong. With the veto
+that candidate is rejected; a later script-level command yields the end-insert
+(`… baz}]`, complete), and legitimate plain-text recoveries (`set x [foo bar` /
+`puts done`) are unaffected. This realises the "syntactic validates; veto if the
+offset is inert" rule of the [Rust-port design](error-recovery-rust-port.md).
 
 ## Decision rule
 

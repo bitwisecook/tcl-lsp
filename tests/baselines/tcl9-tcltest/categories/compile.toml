@@ -1,0 +1,43 @@
+# Categorisation for compile.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# Many compile.test tests exercise the C bytecode compiler shape via
+# ``tcl::unsupported::disassemble`` — those are bytecode-shape probes
+# that our WASM codegen explicitly does not match.  Listed as ``skip``
+# so the harness's ``tcltest::configure -skip`` keeps them in the
+# Skipped column rather than blocking the sweep.
+skip = [
+  "16.1.0",  # disassemble probe
+  "16.2.0",  # disassemble probe
+  "16.3.0",  # disassemble probe
+  "20.1",    # disassemble probe (infinite-loop check on the BCC's
+             # optimiser)
+  "20.2",    # disassemble probe
+]
+
+good_to_have = [
+  "1.2",    # compile-1.2: ``info commands 3m`` inside a proc body —
+            # the literal ``3m`` is rejected by TclGetLong but the
+            # error result must be reset.  Our compiler propagates
+            # the stale error message into the wrong-#-args diagnostic.
+  "3.3",    # compile-3.3: TclCompileCatchCmd over-aggressive
+            # compilation [bug 219184] — pinned C tcl bug-fix
+            # behaviour that our codegen doesn't replicate.
+  "13.1",   # compile-13.1: 3000-element ``list`` body checks the
+            # bcc's maxStackSize estimate.  Constraint is ``exec`` —
+            # arrives here because the constraint isn't always 0 in
+            # our scaffold.  Real fix is treating maxStackSize as
+            # implementation-defined for WASM.
+  "14.1",   # compile-14.1: pinned error wording for variable-name
+            # parse errors inside ``set a([error])`` shapes.
+  "21.2",   # compile-21.2: stack-balance management inside an
+            # ``apply`` body — checks the bcc tracks operand stack
+            # depth across nested while/lappend.  Our codegen has
+            # its own stack discipline.
+  "21.4",   # compile-21.4: same — variant with ``args`` parameter.
+]
+
+[baseline]
+skip_failing = 5
+good_to_have_failing = 6

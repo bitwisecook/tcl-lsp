@@ -22,7 +22,7 @@ directive does not take effect.
 
 ## File-path anchors
 
-- ``tclpkg/resolver.py`` — ``resolve()``, ``PackageRef``, ``ResolvedPackage``
+- ``tooling/tclpkg/resolver.py`` — ``resolve()``, ``PackageRef``, ``ResolvedPackage``
 
 ## Test anchors
 

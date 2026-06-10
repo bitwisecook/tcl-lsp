@@ -37,7 +37,7 @@ Plain-prose docstrings (no tags) are also supported and displayed verbatim.
 
 ## Shared docstring module
 
-All parsing and rendering lives in `core/formatting/docstring.py`:
+All parsing and rendering lives in `tooling/formatter/docstring.py`:
 
 - `parse_docstring(text) -> DocstringInfo` -- parse raw comment text
 - `render_markdown(info) -> str` -- render for LSP hover display
@@ -61,7 +61,7 @@ Five settings control docstring formatting (under `tclLsp.formatting.*`):
 | `docstringDecorationWidth` | 20-120 | 70 | Border width |
 
 Settings are defined in `FORMATTER_SETTINGS_CATALOGUE` in
-`core/formatting/config.py` and code-generated into editor extensions.
+`tooling/formatter/config.py` and code-generated into editor extensions.
 
 ## Code action
 

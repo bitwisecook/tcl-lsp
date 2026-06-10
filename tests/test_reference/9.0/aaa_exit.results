@@ -1,0 +1,12 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     aaa_exit.test
+DATE     2026-05-06T21:17:45Z
+---
+PASS exit-1.1
+PASS exit-1.2
+---
+TOTAL   2
+PASSED  2
+SKIPPED 0
+FAILED  0

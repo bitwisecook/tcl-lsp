@@ -4,14 +4,10 @@ from __future__ import annotations
 
 import struct
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import (
-    WasmModule,
-    _leb128_signed,
-    _leb128_unsigned,
-    wasm_codegen_module,
-)
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import WasmModule, wasm_codegen_module
+from compiler.codegen.wasm._encoding import _leb128_signed, _leb128_unsigned
+from compiler.lowering import lower_to_ir
 
 # LEB128 encoding
 
@@ -132,7 +128,7 @@ def test_sccp_constprop_inlines_known_int_var():
     # Tagged immediate of 7 = 15.  The SCCP path emits an
     # i32.const for the read of $x; the non-SCCP path would have
     # gone through global_get → unbox → rebox.
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     seen_15 = False
     for instr in fn.body:
@@ -148,8 +144,8 @@ def test_sccp_constprop_inlines_known_int_var():
 def test_inline_string_round_trip_short():
     """A short string returned from a proc should round-trip via the
     inline-string encoding without observable difference."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm import wasm_codegen_module
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm import wasm_codegen_module
 
     # A 5-byte payload fits in MAX_INLINE_STR=8.
     source = 'proc f {} { return [string trimleft "  hi" " "] }\n'
@@ -268,10 +264,16 @@ def test_arithmetic_expr():
 
 
 def test_comparison_expr():
-    """Comparison expressions should produce correct WASM ops."""
+    """Comparison expressions should produce correct WASM ops.
+
+    ``==`` / ``!=`` route through the ``tcl_expr_eq_nan_aware``
+    runtime helper so IEEE-754 NaN unordered semantics are honoured;
+    the older inline ``i64.eq`` path is still emitted for some fast
+    paths so accept either.
+    """
     module = _compile("set x [expr {$a == $b}]\n")
     wat = module.to_wat()
-    assert "i64.eq" in wat
+    assert "i64.eq" in wat or "tcl_expr_eq_nan_aware" in wat
 
 
 def test_logical_and():
@@ -290,10 +292,14 @@ def test_ternary_expr():
 
 
 def test_unary_neg():
-    """Unary negation should produce 0 - x."""
+    """Unary negation routes through ``tcl_arith_neg`` so non-numeric
+    operands raise ``cannot use non-numeric string …`` (expr-old-5.1)
+    and bignum / float tags survive the negate.  Earlier the codegen
+    inlined ``0 - x`` (``i64.sub``); the runtime helper supersedes
+    that path."""
     module = _compile("set x [expr {-$y}]\n")
     wat = module.to_wat()
-    assert "i64.sub" in wat
+    assert "tcl_arith_neg" in wat
 
 
 # Binary validity
@@ -361,8 +367,8 @@ def test_wasm_codegen_function_api():
 
 
 def test_codegen_package_exports_wasm():
-    """WASM symbols should be accessible from the codegen package."""
-    from core.compiler.codegen import (
+    """WASM symbols should be accessible from the wasm codegen subpackage."""
+    from compiler.codegen.wasm import (
         WasmFunction,
         WasmModule,
         wasm_codegen_function,
@@ -408,6 +414,13 @@ def test_no_cmd_imports_for_pure_math():
         "obj_get_int",
         "tcl_arith_add",
         "tcl_cmd_error",
+        # ``tcl_cmd_error_via_return`` is always imported now that
+        # the runtime wires ``return -code error msg`` through a
+        # dedicated entry point (PR #452); the lowering/codegen
+        # doesn't fire it for pure arithmetic but the import
+        # scanner pulls it into the always-on set alongside
+        # ``tcl_cmd_error``.
+        "tcl_cmd_error_via_return",
         "tcl_eval",
         "tcl_obj_retain",
         "tcl_obj_release",
@@ -424,6 +437,20 @@ def test_no_cmd_imports_for_pure_math():
         # reads at least one variable.
         "global_get_or_error",
         "var_unset_error",
+        # Dynamic-name var path — ``set $x v`` / ``append ::$n v``.
+        # Always imported because any name token containing a ``$``
+        # / ``[`` substitution is dispatched through the unified
+        # runtime resolver after the codegen materialises the
+        # substituted name with ``tcl_append``.
+        "var_resolve",
+        "var_set",
+        "tcl_cmd_append",
+        # Always imported alongside ``var_resolve`` / ``var_set`` so
+        # the compiled ``_emit_array_name_obj`` proc-local path can
+        # round-trip a bare unqualified array name through the
+        # eval-fallback's resolved key — see the matching
+        # always-import block in :func:`_scan.scan_for_imports`.
+        "frame_resolve_array_name",
     }
 
 
@@ -454,7 +481,7 @@ def test_shared_imports_deduplication():
 
 def test_puts_no_nop():
     """puts should emit a call instruction, not a NOP."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     module = _compile("puts 42\n")
     top = module.functions[0]
@@ -466,13 +493,13 @@ def test_puts_no_nop():
 
 def test_global_emits_nothing():
     """global should emit no instructions (not even a NOP)."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     module = _compile("proc f {} { global x; return 1 }\n")
     proc_funcs = [f for f in module.functions if f.name != "::top"]
-    if proc_funcs:
-        nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
-        assert nop_count == 0
+    assert proc_funcs, "expected proc ::f to be compiled"
+    nop_count = sum(1 for instr in proc_funcs[0].body if instr.op == WasmOp.NOP)
+    assert nop_count == 0
 
 
 # Proc call codegen
@@ -480,7 +507,7 @@ def test_global_emits_nothing():
 
 def test_proc_call_emits_call():
     """Calling a known proc should emit a WASM call instruction."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     source = "proc add {a b} { expr {$a + $b} }\nproc caller {x y} { add $x $y }\n"
     module = _compile(source)
@@ -505,7 +532,7 @@ def test_proc_index_consistent():
 
 def _retain_release_call_count(module: WasmModule, fn_name: str) -> tuple[int, int]:
     """Return (retain_calls, release_calls) emitted in function ``fn_name``."""
-    from core.compiler.codegen.wasm import WasmOp
+    from compiler.codegen.wasm import WasmOp
 
     fn = next(f for f in module.functions if fn_name in f.name)
     # Resolve import indices for tcl_obj_retain / tcl_obj_release.
@@ -564,8 +591,8 @@ def test_s52_alias_skip_self_assign():
 
 def test_s52_counter_increments():
     """The S5.2 alias-skip counter is bumped each time the peephole fires."""
-    from core.compiler.cfg import build_cfg
-    from core.compiler.codegen.wasm._emitter import _WasmEmitter
+    from compiler.cfg import build_cfg
+    from compiler.codegen.wasm._emitter import _WasmEmitter
 
     counts: list[int] = []
     orig = _WasmEmitter.generate
@@ -575,7 +602,10 @@ def test_s52_counter_increments():
         counts.append(self._s52_alias_skipped)
         return result
 
-    _WasmEmitter.generate = spy  # type: ignore[method-assign]
+    # Intentional monkey-patch: spy wraps the original method to count
+    # per-proc alias elisions.  The signature mismatch is by design — the
+    # spy forwards via ``*a, **kw`` and returns whatever ``orig`` returned.
+    _WasmEmitter.generate = spy  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]
     try:
         ir = lower_to_ir("proc f {x} { set x $x; return $x }\n")
         cfg = build_cfg(ir)

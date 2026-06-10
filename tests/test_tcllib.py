@@ -17,11 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.runtime import SIGNATURES, configure_signatures
-from lsp.features.completion import get_completions
-from lsp.features.diagnostics import get_diagnostics
-from lsp.features.hover import get_hover
+from compiler.registry import REGISTRY
+from compiler.registry.runtime import SIGNATURES, configure_signatures
+from server.features.completion import get_completions
+from server.features.diagnostics import get_diagnostics
+from server.features.hover import get_hover
 
 
 def _hover_text(result: types.Hover) -> str:
@@ -313,6 +313,25 @@ class TestTcllibDiagnostics:
         w120 = [d for d in diags if d.code == "W120"]
         assert len(w120) == 0
 
+    def test_no_w120_in_provider_self_calls(self):
+        """A file that ``package provide``s package X is X's own
+        implementation; calling ``X::foo`` from inside that file is a
+        self-call, not a missing import.  tcllib's ``msgcat.tcl``
+        canonical example: the package provider invokes its own
+        ``msgcat::mcutil`` and ``msgcat::mclocale`` without needing
+        ``package require msgcat``.
+        """
+        source = (
+            "package provide json 1.0\n"
+            "namespace eval json {\n"
+            '    proc json2dict {x} { return "" }\n'
+            "}\n"
+            "json::json2dict $data\n"
+        )
+        diags = get_diagnostics(source)
+        w120 = [d for d in diags if d.code == "W120"]
+        assert w120 == []
+
     def test_w120_multiple_commands_same_package(self):
         source = "json::json2dict $a\njson::dict2json $b"
         diags = get_diagnostics(source)
@@ -402,7 +421,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_suppressed_by_workspace_package(self):
         """W120 suppressed when package is required in another workspace file."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -414,7 +433,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_still_emitted_without_workspace_package(self):
         """W120 still fires when package is not in workspace context."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -426,7 +445,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w123_suppressed_by_workspace_proc(self):
         """W123 suppressed when command exists as a workspace proc."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "my_custom_proc arg1 arg2"
         ws_ctx = WorkspaceDiagnosticContext(
@@ -438,7 +457,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_suppressed_by_source_graph_parent(self):
         """W120 suppressed when parent file (via source graph) has the package."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         parent_uri = "file:///project/main.tcl"
@@ -454,7 +473,7 @@ class TestWorkspaceDiagnosticContext:
 
     def test_w120_not_suppressed_by_unrelated_source_graph(self):
         """W120 still fires when source graph exists but file is not sourced."""
-        from core.analysis.semantic_model import WorkspaceDiagnosticContext
+        from analyser.semantic_model import WorkspaceDiagnosticContext
 
         source = "json::json2dict $data"
         parent_uri = "file:///project/main.tcl"

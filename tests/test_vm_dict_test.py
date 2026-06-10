@@ -14,15 +14,43 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
 # Known failures
 
-KNOWN_FAILURES_DICT: set[str] = set()
+KNOWN_FAILURES_DICT: set[str] = {
+    "dict-10.2",
+    "dict-10.3",
+    "dict-2.11",
+    "dict-2.14",
+    "dict-2.3",
+    "dict-2.6",
+    "dict-3.12",
+    "dict-4.13",
+    "dict-4.14",
+    "dict-4.14a",
+    "dict-4.15",
+    "dict-4.15a",
+    "dict-4.16",
+    "dict-4.16a",
+    "dict-4.17",
+    "dict-4.5",
+    "dict-4.6",
+    "dict-5.12",
+    "dict-5.7",
+    "dict-6.8",
+    "dict-6.9",
+    "dict-7.8",
+    "dict-7.9",
+    "dict-8.4",
+    "dict-8.5",
+    "dict-9.7",
+    "dict-9.8",
+}
 
 
 # Test runner
@@ -130,4 +158,4 @@ class TestDictNative:
 
     def test_dict(self) -> None:
         results = _run_test_file("dict.test")
-        _check_results(results, KNOWN_FAILURES_DICT, "dict.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_DICT, "dict.test")

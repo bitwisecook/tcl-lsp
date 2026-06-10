@@ -1,0 +1,221 @@
+ByteCode ::top, 144 instructions, 270 bytes, 18 literals, 0 variables
+  Literals:
+    0: "hit"
+    1: ""
+    2: "i"
+    3: "0"
+    4: "2"
+    5: "5"
+    6: "0 1 3 4"
+    7: "\u0000\u0002for continue broke: "
+    8: "j"
+    9: "3"
+    10: "4"
+    11: "\u0000\u0002while continue broke: "
+    12: "broke_at"
+    13: "-1"
+    14: "k"
+    15: "10"
+    16: "break broke"
+    17: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "hit"
+    (2) push1 1	# ""
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "i"
+    (8) push1 3	# "0"
+    (10) storeStk
+  # cmd_end_1:
+    (11) pop
+    (12) jump1 +37	# pc 49
+  # for_body_3:
+    (14) push1 2	# "i"
+    (16) loadStk
+    (17) push1 4	# "2"
+    (19) eq
+    (20) jumpFalse1 +9	# pc 29
+  # if_then_7:
+    (22) jump4 +22	# pc 44
+  # cmd_end_4:
+    (27) jump1 +4	# pc 31
+  # if_next_8:
+    (29) push1 1	# ""
+  # if_end_6:
+  # for_body_end_3:
+    (31) pop
+    (32) push1 0	# "hit"
+    (34) push1 2	# "i"
+    (36) loadStk
+    (37) list 1
+    (42) lappendListStk
+  # cmd_end_5:
+    (43) pop
+  # for_step_4:
+    (44) push1 2	# "i"
+    (46) incrStkImm +1
+  # cmd_end_6:
+    (48) pop
+  # for_header_2:
+    (49) push1 2	# "i"
+    (51) loadStk
+    (52) push1 5	# "5"
+    (54) lt
+    (55) jumpTrue1 -41	# pc 14
+  # for_end_5:
+    (57) nop
+    (58) nop
+    (59) nop
+  # loop_break_2:
+    (60) push1 0	# "hit"
+    (62) loadStk
+    (63) push1 6	# "0 1 3 4"
+    (65) strneq
+    (66) jumpFalse1 +22	# pc 88
+  # if_then_10:
+    (68) push1 7	# "for continue broke: "
+    (70) push1 0	# "hit"
+    (72) loadStk
+    (73) strcat 2
+    (75) push1 1	# ""
+    (77) returnImm +1 0
+  # cmd_end_8:
+    (86) jump1 +4	# pc 90
+  # if_next_11:
+    (88) push1 1	# ""
+  # if_end_9:
+  # if_cmd_end_7:
+    (90) pop
+    (91) push1 2	# "i"
+    (93) push1 3	# "0"
+    (95) storeStk
+  # cmd_end_9:
+    (96) pop
+    (97) push1 8	# "j"
+    (99) push1 3	# "0"
+    (101) storeStk
+  # cmd_end_10:
+    (102) pop
+    (103) jump1 +30	# pc 133
+  # while_body_13:
+    (105) push1 2	# "i"
+    (107) incrStkImm +1
+  # cmd_end_12:
+    (109) pop
+    (110) push1 2	# "i"
+    (112) loadStk
+    (113) push1 9	# "3"
+    (115) eq
+    (116) jumpFalse1 +9	# pc 125
+  # if_then_16:
+    (118) jump4 +15	# pc 133
+  # cmd_end_13:
+    (123) jump1 +4	# pc 127
+  # if_next_17:
+    (125) push1 1	# ""
+  # if_end_15:
+    (127) pop
+    (128) push1 8	# "j"
+    (130) incrStkImm +1
+  # cmd_end_14:
+    (132) pop
+  # while_header_12:
+    (133) push1 2	# "i"
+    (135) loadStk
+    (136) push1 5	# "5"
+    (138) lt
+    (139) jumpTrue1 -34	# pc 105
+  # while_end_14:
+    (141) nop
+    (142) nop
+    (143) nop
+  # loop_break_11:
+    (144) push1 8	# "j"
+    (146) loadStk
+    (147) push1 10	# "4"
+    (149) neq
+    (150) jumpFalse1 +22	# pc 172
+  # if_then_19:
+    (152) push1 11	# "while continue broke: "
+    (154) push1 8	# "j"
+    (156) loadStk
+    (157) strcat 2
+    (159) push1 1	# ""
+    (161) returnImm +1 0
+  # cmd_end_16:
+    (170) jump1 +4	# pc 174
+  # if_next_20:
+    (172) push1 1	# ""
+  # if_end_18:
+  # if_cmd_end_15:
+    (174) pop
+    (175) push1 12	# "broke_at"
+    (177) push1 13	# "-1"
+    (179) storeStk
+  # cmd_end_17:
+    (180) pop
+    (181) push1 14	# "k"
+    (183) push1 3	# "0"
+    (185) storeStk
+  # cmd_end_18:
+    (186) pop
+    (187) jump1 +32	# pc 219
+  # for_body_22:
+    (189) push1 14	# "k"
+    (191) loadStk
+    (192) push1 9	# "3"
+    (194) eq
+    (195) jumpFalse1 +16	# pc 211
+  # if_then_26:
+    (197) push1 12	# "broke_at"
+    (199) push1 14	# "k"
+    (201) loadStk
+    (202) storeStk
+  # cmd_end_21:
+    (203) pop
+    (204) jump4 +26	# pc 230
+  # cmd_end_22:
+    (209) jump1 +4	# pc 213
+  # if_next_27:
+    (211) push1 1	# ""
+  # if_end_25:
+  # for_body_end_20:
+    (213) pop
+  # for_step_23:
+    (214) push1 14	# "k"
+    (216) incrStkImm +1
+  # cmd_end_23:
+    (218) pop
+  # for_header_21:
+    (219) push1 14	# "k"
+    (221) loadStk
+    (222) push1 15	# "10"
+    (224) lt
+    (225) jumpTrue1 -36	# pc 189
+  # for_end_24:
+    (227) nop
+    (228) nop
+    (229) nop
+  # loop_break_19:
+    (230) push1 12	# "broke_at"
+    (232) loadStk
+    (233) push1 9	# "3"
+    (235) neq
+    (236) jumpFalse1 +17	# pc 253
+  # if_then_29:
+    (238) push1 16	# "break broke"
+    (240) push1 1	# ""
+    (242) returnImm +1 0
+  # cmd_end_25:
+    (251) jump1 +4	# pc 255
+  # if_next_30:
+    (253) push1 1	# ""
+  # if_end_28:
+  # if_cmd_end_24:
+    (255) pop
+    (256) push1 17	# "ok"
+    (258) push1 1	# ""
+    (260) returnImm +0 1
+  # ret_end_26:
+    (269) done

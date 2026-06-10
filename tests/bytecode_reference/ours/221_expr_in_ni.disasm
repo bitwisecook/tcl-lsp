@@ -1,0 +1,87 @@
+ByteCode ::top, 49 instructions, 129 bytes, 9 literals, 0 variables
+  Literals:
+    0: "1"
+    1: "5 in {...} lost"
+    2: ""
+    3: "0"
+    4: "6 in reported true"
+    5: "6 ni lost"
+    6: "string-in false pos"
+    7: "string-ni false pos"
+    8: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "1"
+    (2) nop
+    (3) jumpTrue1 +17	# pc 20
+  # if_then_3:
+    (5) push1 1	# "5 in {...} lost"
+    (7) push1 2	# ""
+    (9) returnImm +1 0
+  # cmd_end_1:
+    (18) jump1 +4	# pc 22
+  # if_next_4:
+    (20) push1 2	# ""
+  # if_end_2:
+    (22) pop
+    (23) push1 3	# "0"
+    (25) nop
+    (26) jumpFalse1 +17	# pc 43
+  # if_then_6:
+    (28) push1 4	# "6 in reported true"
+    (30) push1 2	# ""
+    (32) returnImm +1 0
+  # cmd_end_3:
+    (41) jump1 +4	# pc 45
+  # if_next_7:
+    (43) push1 2	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (45) pop
+    (46) push1 0	# "1"
+    (48) nop
+    (49) jumpTrue1 +17	# pc 66
+  # if_then_9:
+    (51) push1 5	# "6 ni lost"
+    (53) push1 2	# ""
+    (55) returnImm +1 0
+  # cmd_end_5:
+    (64) jump1 +4	# pc 68
+  # if_next_10:
+    (66) push1 2	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (68) pop
+    (69) push1 3	# "0"
+    (71) nop
+    (72) jumpFalse1 +17	# pc 89
+  # if_then_12:
+    (74) push1 6	# "string-in false pos"
+    (76) push1 2	# ""
+    (78) returnImm +1 0
+  # cmd_end_7:
+    (87) jump1 +4	# pc 91
+  # if_next_13:
+    (89) push1 2	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (91) pop
+    (92) push1 3	# "0"
+    (94) nop
+    (95) jumpFalse1 +17	# pc 112
+  # if_then_15:
+    (97) push1 7	# "string-ni false pos"
+    (99) push1 2	# ""
+    (101) returnImm +1 0
+  # cmd_end_9:
+    (110) jump1 +4	# pc 114
+  # if_next_16:
+    (112) push1 2	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (114) pop
+    (115) push1 8	# "ok"
+    (117) push1 2	# ""
+    (119) returnImm +0 1
+  # ret_end_10:
+    (128) done

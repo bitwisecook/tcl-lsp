@@ -82,8 +82,8 @@ changes.
 - Are AI skills (`ai/claude/skills/`) updated if the change affects
   skill-relevant behaviour (new diagnostics, commands, features)?
 - Is `ai/claude/tcl_ai.py` updated if new analysis capabilities were added?
-- Is the command registry (`core/commands/registry/`) updated if commands
-  were added or changed?
+- Is the command registry (`compiler/registry/` engine + `dialects/` spec
+  packs) updated if commands were added or changed?
 - Are MCP tools updated if applicable?
 
 ### 7. Compiler explorer

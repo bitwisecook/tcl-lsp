@@ -1,0 +1,20 @@
+# foreach.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '8 of 43 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 43
+observed_passed = 35
+observed_failed = 8
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["foreach-1.12", "foreach-1.14", "foreach-2.8", "foreach-5.4", "foreach-5.5", "foreach-6.3", "foreach-6.4", "foreach-9.2"]

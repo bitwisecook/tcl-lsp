@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.common.user_config import (
+from shared.user_config import (
     _cache_dir,
     _config_dir,
     _is_posix_compat_windows,
@@ -22,7 +22,7 @@ from core.common.user_config import (
 def _config_from_string(text: str) -> configparser.ConfigParser:
     """Build a ConfigParser from an INI string (case-preserving, like load_user_config)."""
     config = configparser.ConfigParser()
-    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase
+    config.optionxform = str  # type: ignore[assignment]  # ty: ignore[invalid-assignment]  # preserve camelCase (configparser docs sanction assigning a callable to optionxform)
     config.read_string(text)
     return config
 
@@ -109,12 +109,102 @@ class TestGetAllSettings:
         assert diag["T100"] is False
 
 
+class TestGlobalAndProjectSections:
+    """``[global]`` in config.ini and ``[project]`` in .tcl-lsp.ini.
+
+    Mirrors the location-based safeguard documented in
+    ``docs/design/contracts/config-precedence.md`` — the section name
+    must match the file's role, and a mismatched section is ignored.
+    """
+
+    def test_global_dialect(self):
+        config = _config_from_string("[global]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="global")
+        assert result["dialect"] == "tcl9.0"
+
+    def test_project_dialect(self):
+        config = _config_from_string("[project]\ndialect = tcl8.4\n")
+        result = get_all_settings(config, kind="project")
+        assert result["dialect"] == "tcl8.4"
+
+    def test_global_section_in_project_file_is_ignored(self):
+        config = _config_from_string("[global]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="project")
+        assert "dialect" not in result
+
+    def test_project_section_in_global_file_is_ignored(self):
+        config = _config_from_string("[project]\ndialect = tcl9.0\n")
+        result = get_all_settings(config, kind="global")
+        assert "dialect" not in result
+
+    def test_kind_none_skips_both_sections(self):
+        """Backward-compat: callers without a known origin get neither section."""
+        config = _config_from_string("[global]\ndialect = tcl9.0\n[project]\ndialect = tcl8.4\n")
+        result = get_all_settings(config)
+        assert "dialect" not in result
+
+    def test_extra_commands_comma_separated(self):
+        config = _config_from_string("[global]\nextraCommands = mylib::send, mylib::recv\n")
+        result = get_all_settings(config, kind="global")
+        assert result["extraCommands"] == ["mylib::send", "mylib::recv"]
+
+    def test_extra_commands_multiline(self):
+        config = _config_from_string(
+            "[project]\nextraCommands =\n    mylib::send\n    mylib::recv\n"
+        )
+        result = get_all_settings(config, kind="project")
+        assert result["extraCommands"] == ["mylib::send", "mylib::recv"]
+
+    def test_library_paths_multiline(self):
+        config = _config_from_string(
+            "[global]\nlibraryPaths =\n    /opt/tcl/lib\n    /home/me/stubs\n"
+        )
+        result = get_all_settings(config, kind="global")
+        assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
+
+    def test_library_paths_comma_one_line(self):
+        config = _config_from_string("[project]\nlibraryPaths = /opt/tcl/lib, /home/me/stubs\n")
+        result = get_all_settings(config, kind="project")
+        assert result["libraryPaths"] == ["/opt/tcl/lib", "/home/me/stubs"]
+
+    def test_empty_dialect_is_ignored(self):
+        config = _config_from_string("[global]\ndialect =\n")
+        result = get_all_settings(config, kind="global")
+        assert "dialect" not in result
+
+    def test_wrong_section_logged_at_warning_level(self, caplog):
+        import logging
+
+        caplog.set_level(logging.WARNING, logger="shared.user_config")
+        config = _config_from_string("[project]\ndialect = tcl9.0\n")
+        get_all_settings(config, kind="global")
+        assert any("Ignored [project] section" in rec.message for rec in caplog.records)
+
+    def test_no_arg_path_treats_file_as_global(self, tmp_path, monkeypatch):
+        """``get_all_settings()`` with no arguments parses the global file
+        as ``kind="global"``; the convenience path must not silently
+        drop ``[global]`` top-level keys."""
+        cfg_dir = tmp_path / "tcl-lsp"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.ini").write_text("[global]\ndialect = tcl9.0\n")
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        result = get_all_settings()
+        assert result["dialect"] == "tcl9.0"
+
+    def test_combined_with_other_sections(self):
+        """Top-level keys coexist with the regular nested sections."""
+        config = _config_from_string("[global]\ndialect = tcl9.0\n[diagnostics]\ndisabled = W111\n")
+        result = get_all_settings(config, kind="global")
+        assert result["dialect"] == "tcl9.0"
+        assert result["diagnostics"]["W111"] is False
+
+
 class TestSaveSettings:
     """Tests for save_settings_to_config()."""
 
     def test_roundtrip_disabled_optimisations(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "core.common.user_config._config_path",
+            "shared.user_config._config_path",
             lambda: tmp_path / "config.ini",
         )
 
@@ -212,14 +302,14 @@ class TestPlatformConfigDir:
     def test_linux_default(self, monkeypatch):
         """Linux/BSD uses ~/.config/tcl-lsp when $XDG_CONFIG_HOME is unset."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        monkeypatch.setattr("shared.user_config.sys.platform", "linux")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
 
     def test_macos_default(self, monkeypatch):
         """macOS uses ~/Library/Application Support/tcl-lsp."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "darwin")
+        monkeypatch.setattr("shared.user_config.sys.platform", "darwin")
         result = _config_dir()
         assert result == Path.home() / "Library" / "Application Support" / "tcl-lsp"
 
@@ -227,7 +317,7 @@ class TestPlatformConfigDir:
         """Native Windows uses %APPDATA%/tcl-lsp."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.delenv("MSYSTEM", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.setenv("APPDATA", str(tmp_path))
         result = _config_dir()
         assert result == tmp_path / "tcl-lsp"
@@ -235,7 +325,7 @@ class TestPlatformConfigDir:
     def test_windows_msys2_uses_xdg(self, monkeypatch):
         """Windows with MSYSTEM set (MSYS2 shell) uses XDG default."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.setenv("MSYSTEM", "UCRT64")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
@@ -243,21 +333,21 @@ class TestPlatformConfigDir:
     def test_cygwin_uses_xdg(self, monkeypatch):
         """Cygwin uses XDG default."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "cygwin")
+        monkeypatch.setattr("shared.user_config.sys.platform", "cygwin")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
 
     def test_msys_platform_uses_xdg(self, monkeypatch):
         """MSYS2-native Python (sys.platform == 'msys') uses XDG default."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "msys")
+        monkeypatch.setattr("shared.user_config.sys.platform", "msys")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
 
     def test_freebsd_uses_xdg(self, monkeypatch):
         """FreeBSD uses XDG default."""
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "freebsd13")
+        monkeypatch.setattr("shared.user_config.sys.platform", "freebsd13")
         result = _config_dir()
         assert result == Path.home() / ".config" / "tcl-lsp"
 
@@ -273,14 +363,14 @@ class TestPlatformCacheDir:
     def test_linux_default(self, monkeypatch):
         """Linux/BSD uses ~/.cache/tcl-lsp when $XDG_CACHE_HOME is unset."""
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        monkeypatch.setattr("shared.user_config.sys.platform", "linux")
         result = _cache_dir()
         assert result == Path.home() / ".cache" / "tcl-lsp"
 
     def test_macos_default(self, monkeypatch):
         """macOS uses ~/Library/Caches/tcl-lsp."""
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "darwin")
+        monkeypatch.setattr("shared.user_config.sys.platform", "darwin")
         result = _cache_dir()
         assert result == Path.home() / "Library" / "Caches" / "tcl-lsp"
 
@@ -288,7 +378,7 @@ class TestPlatformCacheDir:
         """Native Windows uses %LOCALAPPDATA%/tcl-lsp/Cache."""
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
         monkeypatch.delenv("MSYSTEM", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
         result = _cache_dir()
         assert result == tmp_path / "tcl-lsp" / "Cache"
@@ -296,7 +386,7 @@ class TestPlatformCacheDir:
     def test_windows_msys2_uses_xdg(self, monkeypatch):
         """Windows with MSYSTEM set (MSYS2 shell) uses XDG default."""
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.setenv("MSYSTEM", "UCRT64")
         result = _cache_dir()
         assert result == Path.home() / ".cache" / "tcl-lsp"
@@ -305,7 +395,7 @@ class TestPlatformCacheDir:
         """Setting XDG_CONFIG_HOME does not affect _cache_dir()."""
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        monkeypatch.setattr("shared.user_config.sys.platform", "linux")
         assert _cache_dir() == Path.home() / ".cache" / "tcl-lsp"
         assert _config_dir() == tmp_path / "cfg" / "tcl-lsp"
 
@@ -314,25 +404,25 @@ class TestIsPosixCompatWindows:
     """Tests for MSYS2/Cygwin detection."""
 
     def test_msys_platform(self, monkeypatch):
-        monkeypatch.setattr("core.common.user_config.sys.platform", "msys")
+        monkeypatch.setattr("shared.user_config.sys.platform", "msys")
         assert _is_posix_compat_windows() is True
 
     def test_cygwin_platform(self, monkeypatch):
-        monkeypatch.setattr("core.common.user_config.sys.platform", "cygwin")
+        monkeypatch.setattr("shared.user_config.sys.platform", "cygwin")
         assert _is_posix_compat_windows() is True
 
     def test_win32_with_msystem(self, monkeypatch):
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.setenv("MSYSTEM", "MINGW64")
         assert _is_posix_compat_windows() is True
 
     def test_win32_without_msystem(self, monkeypatch):
-        monkeypatch.setattr("core.common.user_config.sys.platform", "win32")
+        monkeypatch.setattr("shared.user_config.sys.platform", "win32")
         monkeypatch.delenv("MSYSTEM", raising=False)
         assert _is_posix_compat_windows() is False
 
     def test_linux_not_posix_compat_windows(self, monkeypatch):
-        monkeypatch.setattr("core.common.user_config.sys.platform", "linux")
+        monkeypatch.setattr("shared.user_config.sys.platform", "linux")
         assert _is_posix_compat_windows() is False
 
 
@@ -342,7 +432,7 @@ class TestSaveSettingsRoundtrip:
     def test_roundtrip_disabled_diagnostics(self, tmp_path, monkeypatch):
         """Disabled diagnostics survive a save/load roundtrip."""
         monkeypatch.setattr(
-            "core.common.user_config._config_path",
+            "shared.user_config._config_path",
             lambda: tmp_path / "config.ini",
         )
 
@@ -357,7 +447,7 @@ class TestSaveSettingsRoundtrip:
     def test_save_only_non_default_with_defaults_dict(self, tmp_path, monkeypatch):
         """When defaults are provided, only differing values are written."""
         monkeypatch.setattr(
-            "core.common.user_config._config_path",
+            "shared.user_config._config_path",
             lambda: tmp_path / "config.ini",
         )
 

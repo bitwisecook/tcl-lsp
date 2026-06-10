@@ -1197,6 +1197,14 @@ impl Backend {
         // merge their diagnostics into the published set.  Both need
         // the dialect-aware registry, so resolve it before the
         // blocking hop and move an `Arc` clone in.
+        //
+        // Lifecycle/timing instrumentation routed to the client as
+        // `window/logMessage` (mirrors the Python server's `[timing]` lines so
+        // the same logs appear in editors' LSP output channels — and so the
+        // e2e harness can await the per-URI snapshot-built marker).
+        let started = std::time::Instant::now();
+        let uri_str = uri.to_string();
+        let line_count = text.lines().count();
         let registry = self.registry_for_dialect(&dialect).await;
         let (disabled, na_mode) = self.analyser_config().await;
         let result = tokio::task::spawn_blocking(move || {
@@ -1242,7 +1250,21 @@ impl Backend {
                 // The LSP version is attached to normal analyser
                 // diagnostics, so clients can discard this publish if a
                 // newer edit overtakes it after the cache/index update.
+                let diag_count = diags.len();
                 self.client.publish_diagnostics(uri, diags, version).await;
+                // Snapshot-built marker: emitted once the analysis cache +
+                // workspace index are populated and diagnostics published, so
+                // analysis-backed handlers (hover, definition, …) are ready.
+                let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+                self.client
+                    .log_message(
+                        MessageType::LOG,
+                        format!(
+                            "[timing] workspace_state.update {elapsed_ms:.0}ms \
+                             (uri={uri_str}, lines={line_count}, diags={diag_count})"
+                        ),
+                    )
+                    .await;
             }
             Err(err) => {
                 self.client

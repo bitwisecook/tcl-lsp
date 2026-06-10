@@ -8,6 +8,7 @@ work even when the LSP package is not installed.
 Constraint: runs in Sublime Text's embedded Python 3.10+ (plugin host 38).
 """
 
+import functools
 import os
 import shutil
 import zipfile
@@ -18,7 +19,7 @@ import sublime_plugin  # type: ignore[import-not-found]
 PACKAGE_NAME = "Tcl"
 SETTINGS_KEY = "LSP-Tcl.sublime-settings"
 SERVER_DIR = "server"
-SERVER_ENTRY = "__main__.py"
+SERVER_ENTRY = "tcl-lsp-server.pyz"
 
 # Dialects the server supports, keyed for the quick-panel.
 DIALECTS = [
@@ -66,6 +67,7 @@ _HAS_LSP = False
 
 # Utility helpers
 
+
 def _package_dir():
     # type: () -> str
     """Return the extracted Packages/Tcl directory."""
@@ -108,10 +110,7 @@ def _find_bundled_server():
     if os.path.isfile(pkg_zip):
         try:
             with zipfile.ZipFile(pkg_zip, "r") as zf:
-                server_members = [
-                    n for n in zf.namelist()
-                    if n.startswith(SERVER_DIR + "/")
-                ]
+                server_members = [n for n in zf.namelist() if n.startswith(SERVER_DIR + "/")]
                 if server_members:
                     dest = _cache_dir()
                     for member in server_members:
@@ -128,8 +127,13 @@ def _discover_python():
     # type: () -> str
     """Find a suitable Python 3.10+ interpreter on PATH."""
     candidates = [
-        "python3.15", "python3.14", "python3.14", "python3.12",
-        "python3.11", "python3.10", "python3",
+        "python3.15",
+        "python3.14",
+        "python3.14",
+        "python3.12",
+        "python3.11",
+        "python3.10",
+        "python3",
     ]
     for name in candidates:
         path = shutil.which(name)
@@ -181,9 +185,11 @@ def _check_view_dialect(view):
 # Guarded by try/except so the plugin loads even without the LSP package.
 
 try:
-    from LSP.plugin import AbstractPlugin  # type: ignore[import-not-found]
-    from LSP.plugin import register_plugin  # type: ignore[import-not-found]
-    from LSP.plugin import unregister_plugin  # type: ignore[import-not-found]
+    from LSP.plugin import (
+        AbstractPlugin,  # type: ignore[import-not-found]
+        register_plugin,  # type: ignore[import-not-found]
+        unregister_plugin,  # type: ignore[import-not-found]
+    )
 
     class TclLsp(AbstractPlugin):
         """LSP client configuration for the tcl-lsp server."""
@@ -204,7 +210,7 @@ try:
             Because we bundle the LSP helper inside the ``Tcl`` syntax package
             the resource is actually at ``Packages/Tcl/LSP-Tcl.sublime-settings``.
             """
-            basename = SETTINGS_KEY                     # "LSP-Tcl.sublime-settings"
+            basename = SETTINGS_KEY  # "LSP-Tcl.sublime-settings"
             filepath = "Packages/{}/{}".format(PACKAGE_NAME, basename)
             settings = sublime.load_settings(basename)
             return (settings, filepath)
@@ -265,6 +271,7 @@ except ImportError:
 
 
 # Lifecycle
+
 
 def _check_package_name():
     # type: () -> None
@@ -331,7 +338,7 @@ def plugin_loaded():
         register_plugin(TclLsp)
         print("Tcl: registered LSP server plugin")
     else:
-        sublime.set_timeout(lambda: _suggest_lsp_install(), 3000)
+        sublime.set_timeout(_suggest_lsp_install, 3000)
 
 
 def plugin_unloaded():
@@ -361,6 +368,7 @@ def _suggest_lsp_install():
 
 
 # Commands
+
 
 class TclSelectDialectCommand(sublime_plugin.WindowCommand):
     """Quick panel to choose the Tcl dialect for the LSP server."""
@@ -441,6 +449,28 @@ class TclFixAllSafeIssuesCommand(sublime_plugin.TextCommand):
         return _is_tcl_view(self.view)
 
 
+class TclFormatDocumentCommand(sublime_plugin.TextCommand):
+    """Scope-gated wrapper around lsp_format_document.
+
+    Sublime gates context-menu visibility through a command's
+    is_visible() (the ``context`` key works for key bindings, not menus),
+    so the menu uses this wrapper to keep Format Document out of non-Tcl
+    buffers while the palette can still call lsp_format_document directly.
+    """
+
+    def run(self, edit):
+        # type: (sublime.Edit) -> None
+        self.view.run_command("lsp_format_document")
+
+    def is_enabled(self):
+        # type: () -> bool
+        return _HAS_LSP
+
+    def is_visible(self):
+        # type: () -> bool
+        return _is_tcl_view(self.view)
+
+
 class TclMinifyDocumentCommand(sublime_plugin.TextCommand):
     """Minify the current Tcl document."""
 
@@ -494,6 +524,7 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
     def _on_symbol_map(self, map_path):
         # type: (str) -> None
         import os
+
         map_path = map_path.strip()
         if not map_path or not os.path.isfile(map_path):
             sublime.error_message("Symbol map file not found: " + map_path)
@@ -516,9 +547,14 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
         # type: () -> bool
         return _HAS_LSP
 
+    def is_visible(self):
+        # type: () -> bool
+        return _is_tcl_view(self.window.active_view())
+
 
 # Dialect sync — automatically update the LSP dialect when the user
 # selects a dialect-specific syntax from View > Syntax.
+
 
 class TclDialectSyncListener(sublime_plugin.EventListener):
     """Sync LSP dialect when the user switches to a dialect syntax."""
@@ -542,17 +578,23 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
         if syntax is None or syntax.name not in _SYNTAX_DIALECT_MAP:
             return
         view.settings().set("_tcl_lsp_syn", True)
-        view.settings().add_on_change(
-            "tcl_dialect", lambda: _check_view_dialect(view)
-        )
+        view.settings().add_on_change("tcl_dialect", functools.partial(_check_view_dialect, view))
 
 
 # Helpers
 
+
 def _is_tcl_view(view):
     # type: (sublime.View) -> bool
-    """Return True if the view is a Tcl or iRules file."""
+    """Return True if the view holds one of our package's syntaxes.
+
+    Matches by scope rather than syntax-file path so it covers every
+    dialect the package ships — the EDA, Expect, iApp and Tcl-version
+    grammars all declare ``source.tcl``; iRules use ``source.irule`` and
+    F5 iApp APL uses ``source.apl``.
+    """
     if view is None:
         return False
-    syntax = view.settings().get("syntax", "")
-    return "Tcl" in syntax or "iRule" in syntax
+    sel = view.sel()
+    point = sel[0].b if sel else 0
+    return view.match_selector(point, "source.tcl, source.irule, source.apl")

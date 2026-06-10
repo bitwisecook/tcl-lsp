@@ -6,7 +6,7 @@
 // **Reachability** — same as ``tcl_io_stubs.zig``: each
 // ``pub export fn tcl_cmd_X`` is a WASM import declared by a
 // ``CommandSpec.wasm_runtime_import`` under
-// ``core/commands/registry/tcl/`` (e.g. ``file.py``, ``glob_.py``,
+// ``dialects/tcl/`` (e.g. ``file.py``, ``glob_.py``,
 // ``exec_.py``).  ``_imports.py:import_signature`` resolves those
 // specs and only falls back to ``_INFRASTRUCTURE_IMPORTS`` for
 // helpers with no command owner.  Do not delete an export without

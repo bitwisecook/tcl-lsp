@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import textwrap
 
-from core.compiler.inlining import (
+from compiler.inlining import (
     SMALL_BODY_THRESHOLD,
     apply_inline_catalogue,
     count_statements,
     count_static_calls,
 )
-from core.compiler.ir import InlineDecision
-from core.compiler.lowering import lower_to_ir
-from core.compiler.var_escape import analyse_var_escape
+from compiler.ir import InlineDecision
+from compiler.lowering import lower_to_ir
+from compiler.var_escape import analyse_var_escape
 
 
 def _catalogue(source: str):

@@ -1,0 +1,23 @@
+# Categorisation for linsert.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.10",   # linsert-1.10: ``linsert {} 2 a b c`` — inserting past
+            # the end of an empty list should still yield ``a b c``.
+            # Our impl returns the empty list because it bounds the
+            # insertion position by the source length.
+  "2.2",    # linsert-2.2: index validation — ``linsert a b`` should
+            # raise ``bad index "b"`` (b is not a number or end?[+-]int?).
+            # Our impl silently treats unparsable indices as 0.
+  "2.3",    # linsert-2.3: same — ``12x`` is not a valid index suffix.
+  "2.4",    # linsert-2.4: ``linsert \{ 12 2`` — the list arg is a
+            # bare ``{`` which is an unmatched-brace list error.
+            # We don't run check_list_syntax on the linsert input.
+  "2.6",    # linsert-2.6: TIP 323 — ``linsert L INDEX`` with no
+            # extra items returns L unchanged.  Our impl returns L
+            # only when given exactly 3 args; checks the wrong arity.
+]
+
+[baseline]
+good_to_have_failing = 5

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from tclpkg.errors import ManifestError
-from tclpkg.manifest import ManifestAST, load_manifest, load_manifest_text
-from tclpkg.version import Version
+from tooling.tclpkg.errors import ManifestError
+from tooling.tclpkg.manifest import ManifestAST, load_manifest, load_manifest_text
+from tooling.tclpkg.version import Version
 
 
 class TestMinimalManifest:

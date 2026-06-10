@@ -14,9 +14,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 # Known failures
 #
@@ -34,13 +34,79 @@ from vm.interp import TclInterp
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_REGEXP: set[str] = set(
-    # regexp.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_REGEXP: set[str] = {
+    "regexp-11.4",
+    "regexp-11.5",
+    "regexp-11.6",
+    "regexp-11.8",
+    "regexp-15.10",
+    "regexp-15.6",
+    "regexp-15.9",
+    "regexp-16.20",
+    "regexp-16.21",
+    "regexp-16.22",
+    "regexp-16.4",
+    "regexp-16.7",
+    "regexp-16.8",
+    "regexp-17.7",
+    "regexp-18.10",
+    "regexp-18.12",
+    "regexp-18.7",
+    "regexp-18.8",
+    "regexp-18.9",
+    "regexp-2.10",
+    "regexp-2.9",
+    "regexp-20.2",
+    "regexp-22.4",
+    "regexp-22.5",
+    "regexp-23.2",
+    "regexp-23.3",
+    "regexp-24.1",
+    "regexp-24.10",
+    "regexp-24.2",
+    "regexp-24.3",
+    "regexp-24.4",
+    "regexp-24.5",
+    "regexp-24.6",
+    "regexp-24.7",
+    "regexp-24.8",
+    "regexp-24.9",
+    "regexp-25.1",
+    "regexp-26.10",
+    "regexp-26.11",
+    "regexp-26.12",
+    "regexp-26.13",
+    "regexp-26.8",
+    "regexp-26.9",
+    "regexp-27.8",
+    "regexp-6.10",
+    "regexp-6.4",
+    "regexp-6.5",
+    "regexp-6.9",
+}
 
-KNOWN_FAILURES_REGEXPCOMP: set[str] = set(
-    # regexpComp.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_REGEXPCOMP: set[str] = {
+    "regexpComp-11.4",
+    "regexpComp-11.5",
+    "regexpComp-11.6",
+    "regexpComp-11.8",
+    "regexpComp-15.6",
+    "regexpComp-16.4",
+    "regexpComp-17.7",
+    "regexpComp-18.10",
+    "regexpComp-18.12",
+    "regexpComp-18.7",
+    "regexpComp-18.8",
+    "regexpComp-18.9",
+    "regexpComp-20.2",
+    "regexpComp-21.10",
+    "regexpComp-21.11",
+    "regexpComp-21.6",
+    "regexpComp-21.7",
+    "regexpComp-6.4",
+    "regexpComp-6.5",
+    "regexpComp-6.9",
+}
 
 
 # Test runner
@@ -152,7 +218,7 @@ class TestRegexpNative:
 
     def test_regexp(self) -> None:
         results = _run_test_file("regexp.test")
-        _check_results(results, KNOWN_FAILURES_REGEXP, "regexp.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_REGEXP, "regexp.test")
 
 
 class TestRegexpCompNative:
@@ -160,6 +226,4 @@ class TestRegexpCompNative:
 
     def test_regexpcomp(self) -> None:
         results = _run_test_file("regexpComp.test")
-        _check_results(
-            results, KNOWN_FAILURES_REGEXPCOMP, "regexpComp.test", expect_zero_total=True
-        )
+        _check_results(results, KNOWN_FAILURES_REGEXPCOMP, "regexpComp.test")

@@ -1,0 +1,147 @@
+# Enriched from F5 iRules reference documentation.
+"""ACCESS::acl -- Poll or enforce ACLs in your connections."""
+
+# Introduced: BIG-IP v11+ (Access Policy Manager) (approximate, from F5 documentation)
+
+from __future__ import annotations
+
+from compiler.registry._base import CommandDef, make_av
+from compiler.registry.models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    SubCommand,
+    ValidationSpec,
+)
+from compiler.registry.namespace_models import EventRequires
+from compiler.registry.signatures import Arity
+from compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
+
+from ._base import _IRULES_ONLY, register
+
+_SOURCE = "https://clouddocs.f5.com/api/irules/ACCESS__acl.html"
+
+
+_av = make_av(_SOURCE)
+
+
+@register
+class AccessAclCommand(CommandDef):
+    name = "ACCESS::acl"
+
+    @classmethod
+    def spec(cls) -> CommandSpec:
+        return CommandSpec(
+            name="ACCESS::acl",
+            dialects=_IRULES_ONLY,
+            hover=HoverSnippet(
+                summary="Poll or enforce ACLs in your connections.",
+                synopsis=("ACCESS::acl (result | matched | lookup | (eval ACL_NAME))",),
+                snippet=(
+                    "The ACCESS::acl commands allow you to poll, query or enforce ACLs for a\n"
+                    "given connection.\n"
+                    "\n"
+                    "ACCESS::acl result\n"
+                    "\n"
+                    "     * Returns the result of ACL match for a particular URI in\n"
+                    "       ACCESS_ACL_ALLOWED and ACCESS_ACL_DENIED events.\n"
+                    "     * This result can have one of the following values\n"
+                    "     * - Allow\n"
+                    "     * - Reject\n"
+                    "\n"
+                    "ACCESS::acl lookup\n"
+                    "\n"
+                    "     * Returns the name of all the assigned ACLs for a particular session.\n"
+                    "\n"
+                    "ACCESS::acl eval $acl_name\n"
+                    "\n"
+                    "     * Allows admin to enforce an ACL to a user request from iRule."
+                ),
+                source=_SOURCE,
+                examples=('when ACCESS_ACL_ALLOWED {\n      ACCESS::acl eval "additional_acl"\n}'),
+            ),
+            forms=(
+                FormSpec(
+                    kind=FormKind.DEFAULT,
+                    synopsis="ACCESS::acl <subcommand> ?args?",
+                    arg_values={
+                        0: (
+                            _av("result", "Get ACL match result.", "ACCESS::acl result"),
+                            _av("matched", "Get matched ACL.", "ACCESS::acl matched"),
+                            _av("lookup", "List assigned ACLs.", "ACCESS::acl lookup"),
+                            _av("eval", "Enforce an ACL.", "ACCESS::acl eval <acl_name>"),
+                        )
+                    },
+                ),
+            ),
+            validation=ValidationSpec(
+                arity=Arity(),
+            ),
+            event_requires=EventRequires(profiles=frozenset({"ACCESS"})),
+            side_effect_hints=(
+                SideEffect(
+                    target=SideEffectTarget.APM_STATE,
+                    reads=True,
+                    connection_side=ConnectionSide.BOTH,
+                ),
+            ),
+            subcommands={
+                "result": SubCommand(
+                    name="result",
+                    arity=Arity(0, 0),
+                    detail="Get ACL match result (Allow/Reject).",
+                    synopsis="ACCESS::acl result",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "matched": SubCommand(
+                    name="matched",
+                    arity=Arity(0, 0),
+                    detail="Get matched ACL.",
+                    synopsis="ACCESS::acl matched",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "lookup": SubCommand(
+                    name="lookup",
+                    arity=Arity(0, 0),
+                    detail="List assigned ACLs for the session.",
+                    synopsis="ACCESS::acl lookup",
+                    pure=True,
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+                "eval": SubCommand(
+                    name="eval",
+                    arity=Arity(1, 1),
+                    detail="Enforce an ACL by name.",
+                    synopsis="ACCESS::acl eval <acl_name>",
+                    side_effect_hints=(
+                        SideEffect(
+                            target=SideEffectTarget.APM_STATE,
+                            reads=True,
+                            writes=True,
+                            connection_side=ConnectionSide.BOTH,
+                        ),
+                    ),
+                ),
+            },
+        )

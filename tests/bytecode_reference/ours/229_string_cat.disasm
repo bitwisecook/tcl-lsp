@@ -1,0 +1,117 @@
+ByteCode ::top, 70 instructions, 164 bytes, 16 literals, 0 variables
+  Literals:
+    0: ""
+    1: "cat() != empty"
+    2: "abcdefghi"
+    3: "literal cat wrong"
+    4: "single"
+    5: "one-arg cat wrong"
+    6: "x"
+    7: "hello"
+    8: "y"
+    9: "-world"
+    10: "hello-world"
+    11: "\u0000\u0002mixed cat = '"
+    12: "\u0000\u0002'"
+    13: "  a    b  "
+    14: "cat trimmed whitespace!"
+    15: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) push1 0	# ""
+    (4) strneq
+    (5) jumpFalse1 +17	# pc 22
+  # if_then_3:
+    (7) push1 1	# "cat() != empty"
+    (9) push1 0	# ""
+    (11) returnImm +1 0
+  # cmd_end_1:
+    (20) jump1 +4	# pc 24
+  # if_next_4:
+    (22) push1 0	# ""
+  # if_end_2:
+    (24) pop
+    (25) push1 2	# "abcdefghi"
+    (27) push1 2	# "abcdefghi"
+    (29) strneq
+    (30) jumpFalse1 +17	# pc 47
+  # if_then_6:
+    (32) push1 3	# "literal cat wrong"
+    (34) push1 0	# ""
+    (36) returnImm +1 0
+  # cmd_end_3:
+    (45) jump1 +4	# pc 49
+  # if_next_7:
+    (47) push1 0	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (49) pop
+    (50) push1 4	# "single"
+    (52) push1 4	# "single"
+    (54) strneq
+    (55) jumpFalse1 +17	# pc 72
+  # if_then_9:
+    (57) push1 5	# "one-arg cat wrong"
+    (59) push1 0	# ""
+    (61) returnImm +1 0
+  # cmd_end_5:
+    (70) jump1 +4	# pc 74
+  # if_next_10:
+    (72) push1 0	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (74) pop
+    (75) push1 6	# "x"
+    (77) push1 7	# "hello"
+    (79) storeStk
+  # cmd_end_6:
+    (80) pop
+    (81) push1 8	# "y"
+    (83) push1 6	# "x"
+    (85) loadStk
+    (86) push1 9	# "-world"
+    (88) strcat 2
+    (90) storeStk
+  # cmd_end_7:
+    (91) pop
+    (92) push1 8	# "y"
+    (94) loadStk
+    (95) push1 10	# "hello-world"
+    (97) strneq
+    (98) jumpFalse1 +24	# pc 122
+  # if_then_12:
+    (100) push1 11	# "mixed cat = '"
+    (102) push1 8	# "y"
+    (104) loadStk
+    (105) push1 12	# "'"
+    (107) strcat 3
+    (109) push1 0	# ""
+    (111) returnImm +1 0
+  # cmd_end_9:
+    (120) jump1 +4	# pc 124
+  # if_next_13:
+    (122) push1 0	# ""
+  # if_end_11:
+  # if_cmd_end_8:
+    (124) pop
+    (125) push1 13	# "  a    b  "
+    (127) push1 13	# "  a    b  "
+    (129) strneq
+    (130) jumpFalse1 +17	# pc 147
+  # if_then_15:
+    (132) push1 14	# "cat trimmed whitespace!"
+    (134) push1 0	# ""
+    (136) returnImm +1 0
+  # cmd_end_11:
+    (145) jump1 +4	# pc 149
+  # if_next_16:
+    (147) push1 0	# ""
+  # if_end_14:
+  # if_cmd_end_10:
+    (149) pop
+    (150) push1 15	# "ok"
+    (152) push1 0	# ""
+    (154) returnImm +0 1
+  # ret_end_12:
+    (163) done

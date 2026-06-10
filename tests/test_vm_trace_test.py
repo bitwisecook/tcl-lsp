@@ -17,9 +17,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 # Known failures
 #
@@ -40,12 +40,115 @@ from vm.interp import TclInterp
 # trace.test is deferred — hangs after 3 tests (trace callback
 # recursion or vwait).  Not wired into test runner.
 
-KNOWN_FAILURES_ENCODING: set[str] = set(
-    # encoding.test raises TclError (couldn't read ./tcltests.tcl) at
-    # startup; Total=0 and no tcltest case runs.  All previously-tracked
-    # encoding-*.* entries became 'unexpected passes' once that crash
-    # took hold.  Original catalogue preserved in git history.
-)
+KNOWN_FAILURES_ENCODING: set[str] = {
+    "encoding-1.3",
+    "encoding-10.1",
+    "encoding-11.10",
+    "encoding-11.11",
+    "encoding-11.2",
+    "encoding-11.3",
+    "encoding-11.4",
+    "encoding-11.5",
+    "encoding-11.5.1",
+    "encoding-11.8",
+    "encoding-11.9",
+    "encoding-12.1",
+    "encoding-12.2",
+    "encoding-12.3",
+    "encoding-12.4",
+    "encoding-12.5",
+    "encoding-12.7",
+    "encoding-12.8",
+    "encoding-13.1",
+    "encoding-15.1",
+    "encoding-15.10",
+    "encoding-15.11",
+    "encoding-15.12",
+    "encoding-15.13",
+    "encoding-15.14",
+    "encoding-15.15",
+    "encoding-15.17",
+    "encoding-15.18",
+    "encoding-15.19",
+    "encoding-15.20",
+    "encoding-15.21",
+    "encoding-15.22",
+    "encoding-15.23",
+    "encoding-15.24",
+    "encoding-15.26",
+    "encoding-15.28",
+    "encoding-15.31",
+    "encoding-15.32",
+    "encoding-15.33",
+    "encoding-15.4",
+    "encoding-15.5",
+    "encoding-15.6",
+    "encoding-15.7",
+    "encoding-15.8",
+    "encoding-15.9",
+    "encoding-16.1",
+    "encoding-16.10",
+    "encoding-16.11",
+    "encoding-16.12",
+    "encoding-16.13",
+    "encoding-16.14",
+    "encoding-16.15",
+    "encoding-16.16",
+    "encoding-16.17",
+    "encoding-16.18",
+    "encoding-16.19.strict",
+    "encoding-16.19.tcl8",
+    "encoding-16.2",
+    "encoding-16.20.strict",
+    "encoding-16.20.tcl8",
+    "encoding-16.21.strict",
+    "encoding-16.21.tcl8",
+    "encoding-16.22",
+    "encoding-16.23",
+    "encoding-16.24",
+    "encoding-16.25.strict",
+    "encoding-16.25.tcl8",
+    "encoding-16.3",
+    "encoding-16.4",
+    "encoding-16.5",
+    "encoding-16.6",
+    "encoding-16.7",
+    "encoding-16.8",
+    "encoding-16.9",
+    "encoding-17.1",
+    "encoding-17.10",
+    "encoding-17.11",
+    "encoding-17.12",
+    "encoding-17.2",
+    "encoding-17.3",
+    "encoding-17.4",
+    "encoding-17.5",
+    "encoding-17.6",
+    "encoding-17.7",
+    "encoding-17.8",
+    "encoding-17.9",
+    "encoding-18.1",
+    "encoding-18.2",
+    "encoding-18.3",
+    "encoding-18.4",
+    "encoding-18.5",
+    "encoding-18.6",
+    "encoding-19.3",
+    "encoding-19.4",
+    "encoding-19.5",
+    "encoding-19.6",
+    "encoding-2.1",
+    "encoding-28.0",
+    "encoding-3.1",
+    "encoding-3.2",
+    "encoding-3.3",
+    "encoding-5.1",
+    "encoding-7.1",
+    "encoding-7.2",
+    "encoding-8.1",
+    "encoding-9.1",
+    "encoding-9.2",
+}
 
 
 # Test runner
@@ -157,4 +260,4 @@ class TestEncodingNative:
 
     def test_encoding(self) -> None:
         results = _run_test_file("encoding.test")
-        _check_results(results, KNOWN_FAILURES_ENCODING, "encoding.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_ENCODING, "encoding.test")

@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from explorer.cli import Ansi, load_source, main, parse_args, style
-from explorer.formatters import LineIndex, preview
-from explorer.pipeline import ALL_VIEWS
+from tooling.cli.formatters import LineIndex, preview
+from tooling.explorer.cli import Ansi, load_source, main, parse_args, style
+from tooling.explorer.pipeline import ALL_VIEWS
 
 # Helpers
 
@@ -27,6 +27,261 @@ def _run_source(source: str, capsys, *, extra: list[str] | None = None) -> tuple
     if extra:
         args.extend(extra)
     return _run(args, capsys)
+
+
+class TestGreenTreeView:
+    def test_greentree_view_shows_mode_tagged_regions(self, capsys):
+        code, out = _run_source("proc f {} { puts hi }", capsys, extra=["--show", "greentree"])
+        assert code == 0
+        assert "green-tree" in out
+        assert "root [script]" in out
+        assert "braced [script]" in out  # the proc body region
+
+    def test_greentree_in_all_views(self):
+        assert "greentree" in ALL_VIEWS
+
+
+class TestCstView:
+    def test_cst_view_shows_structural_tree(self, capsys):
+        code, out = _run_source("proc f {} { puts hi }", capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "cst" in out
+        assert "document [0:" in out
+        assert "command [0:" in out
+        assert "word [" in out
+        # the proc body descends into a child CST flagged terminated
+        assert "body [terminated]" in out
+
+    def test_cst_view_flags_word_shape(self, capsys):
+        code, out = _run_source('foo {*}$args "hi $x" {}', capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "{expand,single}" in out  # {*}-expanded word
+        assert "quoted" in out  # the "…" word
+        assert "braced" in out  # the {} word
+
+    def test_cst_view_marks_unterminated_as_recovered(self, capsys):
+        code, out = _run_source("set y [foo {bar", capsys, extra=["--show", "cst"])
+        assert code == 0
+        assert "body [recovered]" in out
+
+    def test_cst_in_all_views(self):
+        assert "cst" in ALL_VIEWS
+
+
+class TestSegmentsView:
+    def test_segments_view_lists_commands_and_words(self, capsys):
+        code, out = _run_source("set x {a b}\nputs $x", capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "segments" in out
+        assert "set [0:" in out
+        assert "puts [" in out
+        assert "{single,braced}" in out  # the {a b} word
+
+    def test_segments_view_renders_word_pieces_and_flags(self, capsys):
+        code, out = _run_source('foo {*}$args "hi $x"', capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "${args}" in out  # _word_piece form of the expanded var
+        assert "{*}" in out  # the expansion flag
+        assert "{quoted}" in out
+
+    def test_segments_view_shows_preceding_comment(self, capsys):
+        code, out = _run_source("# hello\nputs hi", capsys, extra=["--show", "segments"])
+        assert code == 0
+        assert "comment: hello" in out
+
+    def test_segments_in_all_views(self):
+        assert "segments" in ALL_VIEWS
+
+
+class TestLoopsView:
+    def test_loops_view_lists_natural_loop(self, capsys):
+        src = (
+            "proc f {n} { set s 0; "
+            "for {set i 0} {$i < $n} {incr i} { set s [expr {$s + $i}] }; "
+            "return $s }"
+        )
+        code, out = _run_source(src, capsys, extra=["--show", "loops"])
+        assert code == 0
+        assert "loops" in out
+        assert "function ::f" in out
+        assert "header" in out and "block(s)" in out
+
+    def test_loops_view_reports_no_loops(self, capsys):
+        code, out = _run_source("set x 1\nputs $x", capsys, extra=["--show", "loops"])
+        assert code == 0
+        assert "(no loops)" in out
+
+    def test_loops_in_all_views(self):
+        assert "loops" in ALL_VIEWS
+
+
+class TestIntervalsView:
+    def test_intervals_view_shows_bounded_range(self, capsys):
+        src = "proc f {} { set n 5; set m [expr {$n + 3}]; return $m }"
+        code, out = _run_source(src, capsys, extra=["--show", "intervals"])
+        assert code == 0
+        assert "intervals" in out
+        assert "function ::f" in out
+        # n folds to [5,5] and m = n+3 to [8,8].
+        assert "m#1: [8, 8]" in out
+
+    def test_intervals_view_widens_loop_induction(self, capsys):
+        src = "proc f {} { for {set i 0} {$i < 10} {incr i} { puts $i } }"
+        code, out = _run_source(src, capsys, extra=["--show", "intervals"])
+        assert code == 0
+        # The loop-header phi is widened: lower bound stays 0, upper goes +inf
+        # (sound; guard-based narrowing to [0,9] is future work).
+        assert "i#2: [0, +inf]" in out
+
+    def test_intervals_in_all_views(self):
+        assert "intervals" in ALL_VIEWS
+
+
+class TestBoundsView:
+    def test_bounds_view_shows_lset_out_of_range(self, capsys):
+        src = "proc g {v} { set l {a b c}\n for {set j 4} {$j < 9} {incr j} { lset l $j $v } }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "bounds" in out
+        assert "W231" in out
+        assert "past_append" in out
+
+    def test_bounds_view_shows_lindex_out_of_range(self, capsys):
+        src = "proc h {} { set j 5\n set x [lindex {a b} $j] }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "W230" in out
+        assert "past_end" in out
+
+    def test_bounds_view_silent_in_range(self, capsys):
+        src = "proc f {l} { for {set j 0} {$j < [llength $l]} {incr j} { set x [lindex $l $j] } }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "no provable out-of-range" in out
+
+    def test_bounds_view_shows_divide_by_zero(self, capsys):
+        src = "proc f {} { set d 0\n return [expr {10 / $d}] }"
+        code, out = _run_source(src, capsys, extra=["--show", "bounds"])
+        assert code == 0
+        assert "W233" in out
+
+    def test_bounds_in_all_views(self):
+        assert "bounds" in ALL_VIEWS
+
+    def test_types_view_annotates_range(self, capsys):
+        # The types view shows the Phase 3 integer interval inline.
+        src = "proc f {} { set n 5\n set m [expr {$n + 3}]\n return $m }"
+        code, out = _run_source(src, capsys, extra=["--show", "types"])
+        assert code == 0
+        assert "range [8, 8]" in out
+
+
+class TestOptLens:
+    # ``set a 1; set b [expr {$a+2}]; puts $b`` folds to ``puts 3`` with a dead
+    # store removed, so the optimised path differs from the original.
+    SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b"
+
+    def test_opt_off_renders_original_ir(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "off"])
+        assert code == 0
+        assert "assign-const a = 1" in out  # original statements present
+
+    def test_opt_on_renders_optimised_ir(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "on"])
+        assert code == 0
+        assert "puts 3" in out  # constant-folded call
+        assert "assign-const a = 1" not in out  # dead store gone
+
+    def test_opt_diff_shows_unified_diff(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        assert "ir (original)" in out and "ir (optimised)" in out
+        assert "-  ├── assign-const a = 1" in out or "-  └── call puts ${b}" in out
+        assert "+  └── call puts 3" in out
+
+    def test_opt_diff_on_unchanged_source_says_so(self, capsys):
+        # No optimiser rewrites here, so the diff has nothing to show.
+        code, out = _run_source("puts hi", capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        assert "unchanged" in out or "no change" in out
+
+    def test_non_opt_view_ignores_lens(self, capsys):
+        code, out = _run_source(self.SRC, capsys, extra=["--show", "types", "--opt", "on"])
+        assert code == 0  # types view renders normally regardless of lens
+
+    # Folding the first two statements to ``puts 3`` deletes two lines, so the
+    # trailing ``puts done`` slides from line 4 to line 2.  Its IR summary is
+    # byte-for-byte identical — only its source range moved.  A raw text diff
+    # would flag it (the ``[4:1-4:9]`` vs ``[2:1-2:9]`` range differs); the
+    # node-level diff must leave it as quiet context.
+    SHIFT_SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b\nputs done"
+
+    def test_opt_diff_ignores_offset_shift(self, capsys):
+        code, out = _run_source(self.SHIFT_SRC, capsys, extra=["--show", "ir", "--opt", "diff"])
+        assert code == 0
+        # The genuinely rewritten statements are still surfaced.
+        assert "+  ├── call puts 3" in out
+        # ``puts done`` only moved line:col — it must not appear as a +/- line.
+        moved = [line for line in out.splitlines() if line[:1] in "+-" and "puts done" in line]
+        assert moved == [], f"offset-only shift leaked into the diff: {moved}"
+
+
+class TestDiffNormalisation:
+    """Unit tests for the offset-ignoring diff key (``_normalise_diff_line``)."""
+
+    def test_tree_connector_and_range_collapse(self):
+        from tooling.explorer._render import _normalise_diff_line
+
+        # Same node, different sibling position (├── vs └──) and source range.
+        a = _normalise_diff_line("│   ├── call puts ${b} [3:1-3:7]")
+        b = _normalise_diff_line("    └── call puts ${b} [9:9-9:99]")
+        assert a == b
+
+    def test_byte_offset_and_literal_index_collapse(self):
+        from tooling.explorer._render import _normalise_diff_line
+
+        # Same instruction, shifted byte offset and literal-pool index.
+        a = _normalise_diff_line('    (15) push1 4\t# "puts"')
+        b = _normalise_diff_line('    (2) push1 0\t# "puts"')
+        assert a == b
+
+    def test_variable_slot_collapses_but_arity_is_kept(self):
+        from tooling.explorer._render import _normalise_diff_line
+
+        # %vN slot shifts when a variable is dropped — the comment names it.
+        assert _normalise_diff_line('    (4) loadScalar1 %v2\t# var "a"') == _normalise_diff_line(
+            '    (9) loadScalar1 %v1\t# var "a"'
+        )
+        # Arity (invokeStk1 2) is semantic — distinct arities stay distinct.
+        assert _normalise_diff_line("    (4) invokeStk1 2\t# puts") != _normalise_diff_line(
+            "    (4) invokeStk1 3\t# puts"
+        )
+
+    def test_distinct_content_stays_distinct(self):
+        from tooling.explorer._render import _normalise_diff_line
+
+        assert _normalise_diff_line('  └── call puts "a"') != _normalise_diff_line(
+            '  └── call puts "b"'
+        )
+
+    def test_offset_only_difference_reports_no_change(self):
+        # When the two streams differ only in offsets, the diff has nothing to
+        # show: it must print the "no change" line, not bare --- / +++ headers.
+        # (get_grouped_opcodes is a generator, so the emptiness check must
+        # materialise it first.)
+        import contextlib
+        import io
+
+        from tooling.explorer._render import _print_opt_diff
+
+        before = ["  ├── call puts hi [1:1-1:7]"]
+        after = ["  └── call puts hi [9:9-9:15]"]  # same node, only connector + range moved
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_opt_diff("ir", before, after, use_colour=False)
+        out = buf.getvalue()
+        assert "no change under the optimiser" in out
+        assert "--- ir" not in out and "+++ ir" not in out
 
 
 # LineIndex unit tests
@@ -161,7 +416,7 @@ class TestCompilerExplorer:
 
         assert code == 0
         assert "source-callouts" in out
-        assert "+--> O102" in out
+        assert "╰─▶ O102" in out
 
     def test_all_focus_includes_both_sections(self, capsys):
         source = "proc foo {x} { return $x }\nset y [foo 1]"

@@ -1,0 +1,35 @@
+ByteCode 0x559f9a0d76d0, refCt 1, epoch 21, interp 0x559f99ff5350 (epoch 21)
+  Source "# Constructor with variable binding (oo-2.2 equivalent)..."
+  Cmds 5, src 316, inst 52, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-10, src 56-262        2: pc 11-25, src 264-276
+      3: pc 26-38, src 278-303        4: pc 26-33, src 279-298
+      5: pc 39-50, src 305-314
+  Command 1: "oo::class create testClass {\n    constructor {} {\n   ..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "testClass"
+    (6) push1 3 	# "\n    constructor {} {\n        global r..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set result {}..."
+    (11) startCommand +14 1 	# next cmd at pc 25, 1 cmds start here
+    (20) push1 4 	# "result"
+    (22) push1 5 	# ""
+    (24) storeStk 
+    (25) pop 
+  Command 3: "[testClass create foo] bar..."
+  Command 4: "testClass create foo..."
+    (26) push1 2 	# "testClass"
+    (28) push1 1 	# "create"
+    (30) push1 6 	# "foo"
+    (32) invokeStk1 3 
+    (34) push1 7 	# "bar"
+    (36) invokeStk1 2 
+    (38) pop 
+  Command 5: "set result..."
+    (39) startCommand +12 1 	# next cmd at pc 51, 1 cmds start here
+    (48) push1 4 	# "result"
+    (50) loadStk 
+    (51) done 
+

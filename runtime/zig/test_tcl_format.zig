@@ -92,12 +92,14 @@ test "tcl_cmd_format — %o octal" {
     try testing.expectEqualStrings("0", fmt1("%o", i(0)));
 }
 
-test "tcl_cmd_format — %c char from code point (ASCII)" {
+test "tcl_cmd_format — %c char from code point" {
     try testing.expectEqualStrings("A", fmt1("%c", i(65)));
     try testing.expectEqualStrings("z", fmt1("%c", i(122)));
-    // Out-of-range (negative or >127) drops silently.
-    try testing.expectEqualStrings("", fmt1("%c", i(200)));
-    try testing.expectEqualStrings("", fmt1("%c", i(-1)));
+    // Code points above U+10FFFF round to U+FFFD (matches Tcl 9
+    // ``TCL_COMBINE`` handling — see test format-8.28).
+    try testing.expectEqualStrings("\u{fffd}", fmt1("%c", i(-1)));
+    // BMP codepoint above 0x7F → multi-byte UTF-8.
+    try testing.expectEqualStrings("\u{c8}", fmt1("%c", i(0xC8)));
 }
 
 // ---- width + precision ---------------------------------------------
@@ -168,13 +170,25 @@ test "tcl_cmd_format — %N$d positional with int" {
     );
 }
 
-test "tcl_cmd_format — out-of-range positional → empty slot" {
-    // ``%4$s`` indexes past the 3-arg dispatch; the implementation
-    // falls through to the 0 / empty-string sentinel rather than
-    // raising.
+const OutOfRangeCtx = struct {
+    fn inner() void {
+        _ = fmt.tcl_cmd_format(s("[%4$s]"), s("only"), 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
+    }
+};
+
+test "tcl_cmd_format — out-of-range positional raises argument-index error" {
+    // Tcl 9 ``format "[%4$s]" only`` raises ``"%n$" argument index out
+    // of range`` (see tclStringObj.c badIndex[1]).  Earlier revisions
+    // of this test asserted a silent empty slot, but the runtime
+    // correctly mirrors tclsh's strict behaviour.
+    captured_err_msg_len = 0;
+    fixture.with_interp(&OutOfRangeCtx.outer);
     try testing.expectEqualStrings(
-        "[]",
-        fmt1("[%4$s]", s("only")),
+        "\"%n$\" argument index out of range",
+        captured_err_msg[0..captured_err_msg_len],
     );
 }
 
@@ -212,36 +226,89 @@ test "tcl_cmd_format — fmt with no conversions passes through verbatim" {
     try testing.expectEqualStrings("hello world", fmt0("hello world"));
 }
 
-test "tcl_cmd_format — trailing %% with no conversion is dropped" {
-    // ``%`` at the very end falls out of the parse loop without
-    // emitting anything (no spec, no conversion byte).
-    try testing.expectEqualStrings("abc", fmt0("abc%"));
-}
-
-// ---- error paths (need #266 fixture) -------------------------------
-
-const UnknownVerbCtx = struct {
-    var captured: ?i32 = null;
-    fn body() void {
-        captured = fmt.tcl_cmd_format(s("%z"), i(1), 0, 0);
+const TrailingPercentCtx = struct {
+    fn inner() void {
+        _ = fmt.tcl_cmd_format(s("abc%"), 0, 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
     }
 };
 
-test "tcl_cmd_format — unknown conversion raises via stubs.unsupported_sub" {
-    UnknownVerbCtx.captured = null;
-    const msg = fixture.with_catch(&UnknownVerbCtx.body);
-    try testing.expect(msg != null);
-    try testing.expectEqualStrings("unsupported command: format %z", msg.?);
+test "tcl_cmd_format — trailing %% with no conversion raises incomplete-field error" {
+    // Tcl 9 raises ``format string ended in middle of field specifier``
+    // when ``%`` is the last byte of the format string (see
+    // tclStringObj.c case '\0' in the conversion-character switch).
+    captured_err_msg_len = 0;
+    fixture.with_interp(&TrailingPercentCtx.outer);
+    try testing.expectEqualStrings(
+        "format string ended in middle of field specifier",
+        captured_err_msg[0..captured_err_msg_len],
+    );
+}
+
+// ---- error paths (need #266 fixture) -------------------------------
+//
+// ``stubs.unsupported_sub`` routes through ``tcl_cmd_error`` →
+// ``stamp_error_globals`` → ``ns.global_set``, which post-#334 reaches
+// into the xlinks / interp-registry machinery and needs the root
+// namespace to exist.  Each error-path test therefore nests
+// ``with_catch`` inside ``with_interp`` and stashes the captured
+// message in a module-level slot the test body asserts against —
+// the same shape used by ``var_unset_error`` in
+// ``test_tcl_catch.zig``.
+
+var captured_err_msg: [128]u8 = undefined;
+var captured_err_msg_len: usize = 0;
+
+fn capture(_msg: ?[]const u8) void {
+    if (_msg) |m| {
+        captured_err_msg_len = if (m.len > captured_err_msg.len) captured_err_msg.len else m.len;
+        var idx: usize = 0;
+        while (idx < captured_err_msg_len) : (idx += 1) captured_err_msg[idx] = m[idx];
+    } else {
+        captured_err_msg_len = 0;
+    }
+}
+
+const UnknownVerbCtx = struct {
+    fn inner() void {
+        // ``%y`` — not a recognised conversion verb and not in the
+        // C99 length-modifier set (``l h L j z t q``) so it falls
+        // through ``emit_conversion``'s ``else`` arm and raises via
+        // ``stubs.unsupported_sub``.  Earlier revisions of this test
+        // used ``%z`` which is now silently consumed as the size_t
+        // length modifier.
+        _ = fmt.tcl_cmd_format(s("%y"), i(1), 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
+    }
+};
+
+test "tcl_cmd_format — unknown conversion raises bad-field-specifier" {
+    captured_err_msg_len = 0;
+    fixture.with_interp(&UnknownVerbCtx.outer);
+    try testing.expectEqualStrings(
+        "bad field specifier \"y\"",
+        captured_err_msg[0..captured_err_msg_len],
+    );
 }
 
 const UnknownVerbCapsCtx = struct {
-    fn body() void {
+    fn inner() void {
         _ = fmt.tcl_cmd_format(s("%Q"), i(1), 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
     }
 };
 
 test "tcl_cmd_format — unknown uppercase conversion raises with verb" {
-    const msg = fixture.with_catch(&UnknownVerbCapsCtx.body);
-    try testing.expect(msg != null);
-    try testing.expectEqualStrings("unsupported command: format %Q", msg.?);
+    captured_err_msg_len = 0;
+    fixture.with_interp(&UnknownVerbCapsCtx.outer);
+    try testing.expectEqualStrings(
+        "bad field specifier \"Q\"",
+        captured_err_msg[0..captured_err_msg_len],
+    );
 }
