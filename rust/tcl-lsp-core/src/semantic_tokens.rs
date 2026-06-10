@@ -245,11 +245,24 @@ fn classify_command_head(name: &str, registry: &CommandRegistry) -> TokenKind {
     }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&name);
     if is_keyword {
         TokenKind::Keyword
+    } else if is_operator_command(name) {
+        // A bare operator used as a command head (`+ 3 4`, `tcl::mathop`
+        // style) — mirrors Python `_OPERATORS`.
+        TokenKind::Operator
     } else if name.contains("::") {
         TokenKind::Namespace
     } else {
         TokenKind::Function
     }
+}
+
+/// `true` when `name` is one of the operator command heads Python's
+/// `_OPERATORS` set recognises (`+ - * / > >= < <= == !=`).
+fn is_operator_command(name: &str) -> bool {
+    matches!(
+        name,
+        "+" | "-" | "*" | "/" | ">" | ">=" | "<" | "<=" | "==" | "!="
+    )
 }
 
 /// Compute semantic tokens for the entire document.
@@ -1839,6 +1852,13 @@ mod tests {
             .chunks(5)
             .map(|c| c[3])
             .collect()
+    }
+
+    #[test]
+    fn operator_command_head_classified_as_operator() {
+        // `+ 3 4` — the operator head is `operator`, not `function`.
+        let ks = kinds("+ 3 4\n", "tcl", &reg());
+        assert_eq!(ks.first(), Some(&(TokenKind::Operator as u32)), "{ks:?}");
     }
 
     #[test]
