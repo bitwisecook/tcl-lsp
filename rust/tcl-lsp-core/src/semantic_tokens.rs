@@ -1397,7 +1397,11 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             } else if text.contains("::") {
                 Some(TokenKind::Namespace)
             } else {
-                None
+                // Bareword argument words classify as String — mirrors
+                // Python `_classify_token`'s ESC fallback (after the
+                // int/float checks), so `puts hello` emits the `hello`
+                // string token rather than dropping it.
+                Some(TokenKind::String)
             }
         }
         _ => None,
@@ -1616,6 +1620,18 @@ mod tests {
             .chunks(5)
             .map(|c| c[3])
             .collect()
+    }
+
+    #[test]
+    fn bareword_argument_classified_as_string() {
+        // `puts hello` → function head + a `string` token for the bareword
+        // arg (mirrors Python's ESC fallback), not a dropped arg.
+        let ks = kinds("puts hello\n", "tcl", &reg());
+        assert_eq!(ks.len(), 2, "expected head + arg token; got {ks:?}");
+        assert!(
+            ks.contains(&(TokenKind::String as u32)),
+            "bareword arg not classified as string; got {ks:?}"
+        );
     }
 
     #[test]

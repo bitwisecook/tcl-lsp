@@ -351,6 +351,28 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     None
 }
 
+/// Resolve the *name* of a variable whose declaration occupies
+/// `byte_offset` — i.e. the cursor sits on the name token of a
+/// `set` / `variable` / `global` / param declaration rather than
+/// a `$ref`.  Walks the scope chain innermost-first and returns
+/// the first variable whose `definition_span` covers the offset.
+/// Lets the variable-rename / reference paths work from the
+/// definition site, not just `$var` use sites.
+pub(crate) fn var_name_at_definition_offset(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Option<String> {
+    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
+        for v in sc.variables.values() {
+            let span = v.definition_span;
+            if span.start() <= byte_offset && byte_offset < span.end() {
+                return Some(v.name.clone());
+            }
+        }
+    }
+    None
+}
+
 /// Return the chain of scopes from `root` down to the
 /// innermost child whose `body_span` contains `byte_offset`.
 /// The chain is ordered outermost (`root`) to innermost.
