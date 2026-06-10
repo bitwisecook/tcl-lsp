@@ -4302,6 +4302,153 @@ optimiser/_manager,rust_spans}.py`, `core/analysis/signature_scan.py`,
   one reviewable chunk; default-off (and `signature_scan` default-on only
   when the wheel is installed) keeps `make prep-pr` green meanwhile.
 
+### SYNC-JUN10 verification run — both backends + native-server e2e
+
+Post-rebase test run on the branch:
+
+| suite | result |
+|---|---|
+| `cargo test --workspace --all-features` | **3719 passed, 0 failed** (30 crate test binaries) |
+| `runtime/rust` (`cargo test`) | **213 passed, 0 failed** |
+| `tests/lsp_e2e` against the **Python** server | **356 passed** |
+| `tests/lsp_e2e` against the **native Rust** server | **does not pass yet — harness-portability gap, see below** |
+
+**Server-backend selection landed (test infra).**  The e2e harness, the VS
+Code extension, the `lsp-client` skill, and the Makefile now select the
+backend uniformly: `TCL_LSP_SERVER_KIND=python|rust` (+ `TCL_LSP_SERVER_BIN`
+/ `tclLsp.serverKind` / `tclLsp.rustServerPath`), with the native binary
+located at `target/{release,debug}/tcl-lsp-server` or built via `make
+rust-server`.  This is what lets the same JSON-RPC battery drive either
+backend.
+
+### SYNC-JUN10-e2e-harness — make the e2e harness backend-neutral
+
+**The native Rust server handles the core flow correctly** — verified by a
+direct probe: `initialize` → `didOpen` → `publishDiagnostics(version=1)` →
+`hover` returns ```` ```tcl\nproc ::p {a} {...}\n``` ````.  But the **e2e
+suite hangs against it** because the harness's readiness barrier is
+Python-server-specific: `tests/lsp_e2e/harness.py::open_document` blocks in
+`await_log("workspace_state.update", uri)` — a `window/logMessage` timing
+marker the **Python** server emits and the native server does not.  Every
+test that opens a document therefore waits out the timeout.
+
+**Port (harness, not server).**  Replace the `workspace_state.update` log
+barrier with a backend-neutral readiness signal — wait only on the
+version-matched `publishDiagnostics` (both servers emit it), or a `$/progress`
+end / a tiny `tcl-lsp/analysisReady`-style notification both backends send.
+Until then `TCL_LSP_SERVER_KIND=rust` is wired but the suite cannot certify
+the native server.  Separately, the native server reports
+`serverInfo.version = "0.1.0"` (its crate version) rather than the pyz build
+version, so `test_server_version` is python-pyz-specific and should be skipped
+in rust mode.  Tracked as the gating item for native-server e2e parity.
+
+## Testing strategy — porting the 14k-test pytest suite to Rust
+
+Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
+decide, per file, where each belongs after the rewrite.  Four buckets; counts
+are approximate (some files straddle two buckets — `test_checks.py` is the
+canonical split candidate, ~half diagnostic-output → E2E, ~half internal
+bounds/escape analysis → Rust unit):
+
+| bucket | ~files | ~tests | destination |
+|---|---|---|---|
+| **RUST-UNIT** | ~170 | ~6,500 | Rust crate unit tests (source-in → structured-out) |
+| **PY-INTERNAL / VM-INTEGRATION** | ~190 | ~6,000 | Python-product/tooling, or runtime-port + WASM differential |
+| **E2E** | ~70 | ~1,800 | `tests/lsp_e2e` (JSON-RPC; validates *either* backend) |
+| **COVERED / meta** | ~18 | ~250 | already differential (`test_rust_*`) / e2e / catalog meta-tests |
+
+### RUST-UNIT — the bulk; port as crate unit tests
+
+Pure `source → IR / analysis / codegen` logic with no server or Python-only
+API.  Map to crates:
+
+- **`tcl-lexer`** — `test_lexer`, `test_lexer_cursor_state`, `test_expr_lexer`,
+  `test_command_segmenter`, `test_token_scanning*`, `test_parser_edge_cases`
+  (upstream-ported vs C Tcl 9.0), `test_tcl_parse`, `test_recovering_lexer_differential`.
+- **`tcl-syntax`** — `test_green_tree`, `test_syntax_tree`, `test_recovery`,
+  `test_incremental_reparse`.
+- **`tcl-compiler`** — `test_codegen*`, `test_complex_codegen`, `test_ir_lowering`,
+  `test_cfg`, `test_ssa`, `test_core_analyses`, `test_optimiser*` (incl. the
+  O100–O127 coverage + tclsh-equivalence batteries), `test_gvn`, `test_licm`,
+  `test_memory_ssa`, `test_intervals`, `test_interval_bounds`, `test_inline*`,
+  `test_interprocedural`, `test_place*`, `test_shimmer*`, `test_side_effects`,
+  `test_dce`, `test_def_use`, `test_dataflow_graph`, `test_taint` (~291),
+  `test_type_propagation` / `test_type_lattice` / `test_expr_types`,
+  `test_expr_parser` (~216), `test_tcl_expr_eval` (~325), `test_tcl_parse_expr`,
+  `test_scan_format`, `test_proc_arg_traits`, `test_proc_fingerprint`, `test_pgo_*`,
+  `test_specialise_factories`.
+- **`tcl-registry`** — `test_command_registry` (~155), `test_event_registry`,
+  `test_event_tree`, `test_event_flow_chains`, `test_dialect_profiles`,
+  `test_irules_call`, `test_irule_context`, `test_stub_*`, `test_signature_scan`,
+  `test_package_loading` / `test_package_resolver`, `test_detect_dialect`,
+  `test_tcllib` (registry parts), `test_stdlib_registry` (registry parts).
+- **analyser checks (in `tcl-compiler` / `tcl-lsp-core`)** — `test_analyser`
+  (~280), the `test_checks` internal half, `test_semantic_tokens` (token typing),
+  `test_mro`, `test_semantic_graph`, `test_existence_checks`, `test_class_hierarchy`,
+  `test_proc_lookup`, and — **highest value** — the **false-positive / ground-truth
+  battery**: `test_ground_truth_tn_fn` + the twelve `test_fp_*` files (`_obj`,
+  `_ds`, `_nab`, `_inj`, `_opt`, `_bnd`, `_rbs`, `_sty`, `_sh`, `_rch`, `_tnt`,
+  …), all locked against tclsh 9.0.  These are the analyser's correctness
+  contract and the Rust analyser must carry them verbatim.
+
+### E2E — replicate over JSON-RPC (backend-neutral)
+
+LSP-observable behaviour that should move to `tests/lsp_e2e` so it certifies
+*either* server: `test_completion`, `test_diagnostics*` / `test_diagnostic_ranges`
+/ `test_diagnostic_phases`, `test_definition`, `test_declaration`,
+`test_document_symbols`, `test_folding`, `test_inlay_hints`, `test_hover`,
+`test_semantic_tokens*` (incl. delta), `test_selection_range`, `test_refactoring*`
+(code actions), `test_code_lens`, `test_signature_help`, `test_call_hierarchy`,
+`test_rename`, `test_references`, `test_server_commands`, `test_pull_diagnostics`,
+`test_per_folder_config*`, `test_snippet_templates`, `test_suppression_layers`,
+`test_workspace_*`, `test_precision_lifecycle_lsp`, `test_will_save`,
+`test_irules_checks` (the diagnostics half).  Many already have an `*_e2e.py`
+sibling; the white-box variants should fold into the e2e suite once the
+harness is backend-neutral (`SYNC-JUN10-e2e-harness`).
+
+### PY-INTERNAL / VM-INTEGRATION — keep, port-the-behaviour, or drop
+
+- **Python VM** (`test_vm_*`, ~16 files / ~850 tests) — exercise `tooling.vm.interp`
+  (the in-process Python Tcl interpreter).  The **behaviours** they pin are the
+  `runtime/rust` port's job: mirror as `runtime/rust` unit tests (213 today) +
+  the WASM differential-vs-tclsh suite, not as API-for-API ports.
+- **WASM execution / codegen integration** (~49 files / ~1,200 tests) — compile
+  Tcl → WASM and run in wasmtime against the Zig runtime.  Neither unit nor LSP;
+  become Rust-CLI-driven integration tests as the Rust codegen/runtime matures.
+  Their tclsh-differential semantics are critical to preserve.
+- **F5 / BigIP tooling** (~30+ files; `test_f5_query` ~552, `test_irule_test_framework`
+  ~161, BigIP parser/policy/registry, `tmsh` parse/emit, pcap/tshark/UCS-crypto) —
+  Python-product tooling.  The **F5 query DSL** and **BigIP SCF parser** could
+  become Rust crates *if* F5 support ships in Rust (the registry specs already
+  live in `tcl-registry`); the network/pcap/tshark/crypto/MCP/web-explorer halves
+  are Python-product-only with no core Rust analogue.
+- **Formatter / minifier** (`test_formatter` ~181, `test_minifier` ~191) — the
+  pure rule logic (indent/brace/spacing; symbol collection/renaming) is portable
+  to Rust tooling crates; the LSP/CLI request layer stays Python until those
+  subsystems port.
+- **Pure Python-product** (no Rust analogue): compiler-explorer CLI + Flask web
+  app, debugger backends/hooks, fuzzing harness, `tclpkg` CLI / Docker
+  generation (version/manifest logic *could* port), KCS-DB build, MCP/AI tools,
+  `import-linter`, pyz packaging, editor-surface JSON, process pools, progress,
+  rope integration, settings-scope merge.
+
+### Coverage gaps flagged (no Rust tests exist yet)
+
+- **Server config parsing** (`test_user_config` ~56, `test_server_config` ~20):
+  `.tcl-lsp.ini` / `tclLsp.*` schema + merge — **untested in the Rust server**;
+  add `tcl-lsp-core` unit tests.
+- **BigIP dialect** (parser / policy / object-ref index) — no Rust tests at all.
+- **WASM-runtime command dispatch** — only `runtime/rust`'s 213 + the Python VM;
+  no Rust unit coverage of per-builtin dispatch yet.
+- **Tk dialect extraction** (`test_tk_extract`) — confirm a Rust impl + tests exist.
+- **The e2e harness itself** is not yet backend-portable (`SYNC-JUN10-e2e-harness`).
+
+This section is an audit, not a work order: no tests were ported.  The
+port order should follow the crate DAG (lexer → syntax → compiler → registry
+→ analyser → lsp-core), landing each file's Rust unit tests alongside the port
+of the code it covers, with the `test_fp_*` / ground-truth battery as the
+analyser's acceptance gate.
+
 ## CST-CONSUMERS — give the landed CST descent a production caller (candidate a)
 
 **Opened 2026-06-04 (post-CST-PORT; the #538 review's L1 finding).**  The
