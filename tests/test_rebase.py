@@ -66,5 +66,5 @@ class TestDelegationParity:
     def test_conf_wrapped_alias_is_canonical(self):
         from analyser import conf_wrapped
 
-        assert conf_wrapped._shift_position is rebase.shift_position
+        assert conf_wrapped.shift_position is rebase.shift_position
         assert conf_wrapped._shift_range is rebase.shift_range

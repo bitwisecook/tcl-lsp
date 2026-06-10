@@ -55,12 +55,13 @@ def cfg_successors(cfg: CFGFunction, block_name: BlockName) -> tuple[BlockName, 
     match term:
         case None:
             return ()
-        case CFGGoto(target=target):
-            return (target,)
-        case CFGBranch(true_target=true_target, false_target=false_target):
-            return (true_target, false_target)
+        case CFGGoto(target=_target):
+            return (_target,)
+        case CFGBranch(true_target=_true_target, false_target=_false_target):
+            return (_true_target, _false_target)
         case _:
             return ()
+    return ()  # unreachable; satisfies static analysis
 
 
 def cfg_predecessors(

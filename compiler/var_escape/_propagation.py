@@ -39,6 +39,7 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
+from ..parsing.token_scanning import parse_single_command, scan_command_substitutions
 from ..var_refs import VarReferenceScanner
 from ._info_subcommands import (
     is_frame_inspecting_info_subcommand,
@@ -941,14 +942,50 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
         state.record_callee(cmd)
 
 
-# Match the leading command word of a ``[cmd …]`` substitution.
-# ``[a-zA-Z_][\w:]*`` accepts namespace-qualified heads (``::set``,
-# ``::ns::cmd``) as well as bare identifiers; missing them would
-# leave ``[::set …]`` looking like a frameless call and let the codegen
-# elide the frame even though ``set`` is going to dispatch through the
-# eval fallback.  The leading-character class rejects digits so we don't
-# match accidental ``[0`` sequences (which can't be commands anyway).
-_CMD_SUBST_HEAD_RE = re.compile(r"\[\s*((?:::)?[a-zA-Z_][\w:]*)")
+def _leading_cmd_identifier(head: str) -> str | None:
+    """Return the leading ``(?:::)?[a-zA-Z_][\\w:]*`` identifier of *head*.
+
+    Mirrors the former head regex, which matched a literal identifier prefix
+    of the substitution head and ignored any trailing dynamic suffix: ``set``
+    from ``set``, ``ns::cmd`` from ``ns::cmd``, ``foo`` from ``foo$x`` (a
+    later-substituted command name keeps its literal prefix).  Returns ``None``
+    for digit-led / empty / non-identifier heads (``0bad`` matched nothing).
+    """
+    if not head:
+        return None
+    body = head[2:] if head.startswith("::") else head
+    if not body or not (body[0].isalpha() or body[0] == "_"):
+        return None
+    end = 0
+    for ch in body:
+        if ch.isalnum() or ch in "_:":
+            end += 1
+        else:
+            break
+    ident = body[:end]
+    return ("::" + ident) if head.startswith("::") else ident
+
+
+def _cmd_subst_head(cmd_body: str) -> str | None:
+    """Return the literal head command word of a ``[cmd …]`` substitution body.
+
+    *cmd_body* is the inner text of a top-level ``CMD`` token (no brackets).
+    Returns the leading literal identifier of the first word, or ``None`` when
+    the head is dynamic (``[$cmd …]`` — the first token is a VAR/CMD, prefixed
+    with ``$``/``[`` by ``word_piece``) or digit-led — matching the former
+    regex, which only matched a literal identifier head.
+    """
+    parsed = parse_single_command(cmd_body)
+    if parsed is not None:
+        argv_texts = parsed[0]
+        head = argv_texts[0] if argv_texts else ""
+    else:
+        # Multi-command body (``[append x; set x]``) or unparsable: fall back
+        # to the first whitespace-/separator-delimited word, which the flat
+        # regex would have matched as the head of the first command.
+        stripped = cmd_body.strip()
+        head = stripped.split(None, 1)[0].split(";", 1)[0] if stripped else ""
+    return _leading_cmd_identifier(head)
 
 
 def _value_has_multi_command_subst(value: str) -> bool:
@@ -1069,8 +1106,11 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
     # frame-bridge sync/readback never fires around the [Lassign...]
     # call site).
     if "[" in value:
-        for match in _CMD_SUBST_HEAD_RE.finditer(value):
-            head = _normalise_cmd_subst_head(match.group(1))
+        for cmd_tok in scan_command_substitutions(value):
+            raw_head = _cmd_subst_head(cmd_tok.text)
+            if raw_head is None:
+                continue
+            head = _normalise_cmd_subst_head(raw_head)
             if not _is_frameless_runtime(head):
                 state.record_fallback()
                 if head and not _is_dynamic_token(head):

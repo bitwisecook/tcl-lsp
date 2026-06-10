@@ -8,6 +8,7 @@ work even when the LSP package is not installed.
 Constraint: runs in Sublime Text's embedded Python 3.10+ (plugin host 38).
 """
 
+import functools
 import os
 import shutil
 import zipfile
@@ -66,6 +67,7 @@ _HAS_LSP = False
 
 # Utility helpers
 
+
 def _package_dir():
     # type: () -> str
     """Return the extracted Packages/Tcl directory."""
@@ -108,10 +110,7 @@ def _find_bundled_server():
     if os.path.isfile(pkg_zip):
         try:
             with zipfile.ZipFile(pkg_zip, "r") as zf:
-                server_members = [
-                    n for n in zf.namelist()
-                    if n.startswith(SERVER_DIR + "/")
-                ]
+                server_members = [n for n in zf.namelist() if n.startswith(SERVER_DIR + "/")]
                 if server_members:
                     dest = _cache_dir()
                     for member in server_members:
@@ -128,8 +127,13 @@ def _discover_python():
     # type: () -> str
     """Find a suitable Python 3.10+ interpreter on PATH."""
     candidates = [
-        "python3.15", "python3.14", "python3.14", "python3.12",
-        "python3.11", "python3.10", "python3",
+        "python3.15",
+        "python3.14",
+        "python3.14",
+        "python3.12",
+        "python3.11",
+        "python3.10",
+        "python3",
     ]
     for name in candidates:
         path = shutil.which(name)
@@ -181,9 +185,11 @@ def _check_view_dialect(view):
 # Guarded by try/except so the plugin loads even without the LSP package.
 
 try:
-    from LSP.plugin import AbstractPlugin  # type: ignore[import-not-found]
-    from LSP.plugin import register_plugin  # type: ignore[import-not-found]
-    from LSP.plugin import unregister_plugin  # type: ignore[import-not-found]
+    from LSP.plugin import (
+        AbstractPlugin,  # type: ignore[import-not-found]
+        register_plugin,  # type: ignore[import-not-found]
+        unregister_plugin,  # type: ignore[import-not-found]
+    )
 
     class TclLsp(AbstractPlugin):
         """LSP client configuration for the tcl-lsp server."""
@@ -204,7 +210,7 @@ try:
             Because we bundle the LSP helper inside the ``Tcl`` syntax package
             the resource is actually at ``Packages/Tcl/LSP-Tcl.sublime-settings``.
             """
-            basename = SETTINGS_KEY                     # "LSP-Tcl.sublime-settings"
+            basename = SETTINGS_KEY  # "LSP-Tcl.sublime-settings"
             filepath = "Packages/{}/{}".format(PACKAGE_NAME, basename)
             settings = sublime.load_settings(basename)
             return (settings, filepath)
@@ -265,6 +271,7 @@ except ImportError:
 
 
 # Lifecycle
+
 
 def _check_package_name():
     # type: () -> None
@@ -361,6 +368,7 @@ def _suggest_lsp_install():
 
 
 # Commands
+
 
 class TclSelectDialectCommand(sublime_plugin.WindowCommand):
     """Quick panel to choose the Tcl dialect for the LSP server."""
@@ -516,6 +524,7 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
     def _on_symbol_map(self, map_path):
         # type: (str) -> None
         import os
+
         map_path = map_path.strip()
         if not map_path or not os.path.isfile(map_path):
             sublime.error_message("Symbol map file not found: " + map_path)
@@ -546,6 +555,7 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
 # Dialect sync — automatically update the LSP dialect when the user
 # selects a dialect-specific syntax from View > Syntax.
 
+
 class TclDialectSyncListener(sublime_plugin.EventListener):
     """Sync LSP dialect when the user switches to a dialect syntax."""
 
@@ -568,12 +578,11 @@ class TclDialectSyncListener(sublime_plugin.EventListener):
         if syntax is None or syntax.name not in _SYNTAX_DIALECT_MAP:
             return
         view.settings().set("_tcl_lsp_syn", True)
-        view.settings().add_on_change(
-            "tcl_dialect", lambda: _check_view_dialect(view)
-        )
+        view.settings().add_on_change("tcl_dialect", functools.partial(_check_view_dialect, view))
 
 
 # Helpers
+
 
 def _is_tcl_view(view):
     # type: (sublime.View) -> bool

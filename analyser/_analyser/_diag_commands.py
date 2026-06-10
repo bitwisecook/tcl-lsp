@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from compiler.analysis_types import LatticeValue
 from compiler.compilation_unit import CompilationUnit
-from compiler.core_analyses import LatticeValue
 from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,

@@ -10,7 +10,7 @@ the other.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 
@@ -20,7 +20,7 @@ class _VerbSpec:
     configure: Callable
     aliases: tuple[str, ...]
     help: str
-    formatter_class: type = field(default_factory=lambda: argparse.HelpFormatter)
+    formatter_class: type = argparse.HelpFormatter
 
 
 _VERB_REGISTRY: list[_VerbSpec] = []

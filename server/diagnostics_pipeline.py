@@ -487,7 +487,8 @@ async def _publish_diagnostics_inner(
         is_fresh = force_reanalyse or not state.can_analyse_incrementally
         if is_fresh:
             from analyser.checks._style import _non_ascii_mode_var
-            from compiler.registry.runtime import _dialect_var, _extra_commands_var
+            from compiler.dialect_context import _dialect_var
+            from compiler.registry.runtime import _extra_commands_var
             from server.workspace.document_state import _analyse_document_fresh
 
             lane = "cold" if len(source) > _SMALL_BUILD_MAX_BYTES else "small"

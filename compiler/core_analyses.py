@@ -35,7 +35,6 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from compiler.parsing.command_segmenter import segment_commands
@@ -53,7 +52,17 @@ from shared.naming import normalise_var_name as _normalise_var_name
 from shared.naming import split_array_name
 from shared.tokens import TokenType
 
+from .analysis_types import (
+    _MAX_CONSTSET_SIZE,
+    OVERDEFINED,
+    UNKNOWN,
+    LatticeKind,
+    LatticeValue,
+    _join,
+    _to_set,
+)
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, build_cfg
+from .class_names import extract_class_names
 from .command_trust import builtin_is_trusted
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from .expr_ast import (
@@ -104,7 +113,6 @@ from .ssa import (
     build_ssa,
     dynamic_target_name_reads,
     expr_substitution_read_names,
-    is_complexity_guarded,  # noqa: F401  (re-exported for diagnostic-pass guards)
     statement_cmd_sub_write_names,
     statement_read_names,
     value_use_blocks,
@@ -311,84 +319,6 @@ def _expr_has_command(node: ExprNode) -> bool:
 # m = regex Match object, r = Range, p = predecessor block (str).
 
 _COMP_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_:]*)\s*(==|!=|eq|ne|<=|>=|<|>)\s*(.+?)\s*$")
-
-
-class LatticeKind(Enum):
-    UNKNOWN = auto()
-    CONST = auto()
-    CONSTSET = auto()
-    OVERDEFINED = auto()
-
-
-# Maximum number of elements in a CONSTSET before we widen to OVERDEFINED.
-_MAX_CONSTSET_SIZE = 32
-
-
-@dataclass(frozen=True, slots=True)
-class LatticeValue:
-    kind: LatticeKind
-    value: int | float | bool | str | None = None
-    # For CONSTSET: the finite set of possible constant values.
-    values: frozenset[int | float | bool | str] | None = None
-
-    @staticmethod
-    def unknown() -> "LatticeValue":
-        return LatticeValue(LatticeKind.UNKNOWN, None)
-
-    @staticmethod
-    def overdefined() -> "LatticeValue":
-        return LatticeValue(LatticeKind.OVERDEFINED, None)
-
-    @staticmethod
-    def const(value: int | float | bool | str) -> "LatticeValue":
-        return LatticeValue(LatticeKind.CONST, value)
-
-    @staticmethod
-    def constset(vals: frozenset[int | float | bool | str]) -> "LatticeValue":
-        """Create a CONSTSET lattice value from a finite set of constants.
-
-        If the set has exactly one element, returns a CONST instead.
-        If the set exceeds ``_MAX_CONSTSET_SIZE``, returns OVERDEFINED.
-        """
-        if len(vals) == 0:
-            return OVERDEFINED
-        if len(vals) == 1:
-            return LatticeValue.const(next(iter(vals)))
-        if len(vals) > _MAX_CONSTSET_SIZE:
-            return OVERDEFINED
-        return LatticeValue(LatticeKind.CONSTSET, None, vals)
-
-
-UNKNOWN = LatticeValue.unknown()
-OVERDEFINED = LatticeValue.overdefined()
-
-
-def _to_set(lv: LatticeValue) -> frozenset[int | float | bool | str] | None:
-    """Extract the set of possible values from a CONST or CONSTSET."""
-    if lv.kind is LatticeKind.CONST and lv.value is not None:
-        return frozenset((lv.value,))
-    if lv.kind is LatticeKind.CONSTSET and lv.values is not None:
-        return lv.values
-    return None
-
-
-def _join(old: LatticeValue, new: LatticeValue) -> LatticeValue:
-    if new.kind is LatticeKind.UNKNOWN:
-        return old
-    if old.kind is LatticeKind.UNKNOWN:
-        return new
-    if old.kind is LatticeKind.OVERDEFINED or new.kind is LatticeKind.OVERDEFINED:
-        return OVERDEFINED
-    # Both are CONST or CONSTSET — merge the value sets.
-    old_set = _to_set(old)
-    new_set = _to_set(new)
-    if old_set is not None and new_set is not None:
-        merged = old_set | new_set
-        if merged == old_set:
-            return old
-        return LatticeValue.constset(merged)
-    # Fallback (should not happen): widen.
-    return OVERDEFINED
 
 
 @dataclass(frozen=True, slots=True)
@@ -1147,18 +1077,21 @@ def _word_mutation_free(text: str) -> bool:
 def _expr_mutation_free(node: ExprNode) -> bool:
     """True when evaluating expression *node* cannot create/modify/remove a local."""
     match node:
-        case ExprCommand(text=text) | ExprRaw(text=text):
-            return _word_mutation_free(text)
-        case ExprBinary(left=left, right=right):
-            return _expr_mutation_free(left) and _expr_mutation_free(right)
-        case ExprUnary(operand=operand):
-            return _expr_mutation_free(operand)
-        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
-            return _expr_mutation_free(cond) and _expr_mutation_free(tb) and _expr_mutation_free(fb)
+        case ExprCommand(text=_text) | ExprRaw(text=_text):
+            return _word_mutation_free(_text)
+        case ExprBinary(left=_left, right=_right):
+            return _expr_mutation_free(_left) and _expr_mutation_free(_right)
+        case ExprUnary(operand=_operand):
+            return _expr_mutation_free(_operand)
+        case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
+            return (
+                _expr_mutation_free(_cond) and _expr_mutation_free(_tb) and _expr_mutation_free(_fb)
+            )
         case ExprCall(args=args):
             return all(_expr_mutation_free(a) for a in args)
         case _:
             return True
+    return True  # unreachable; satisfies static analysis
 
 
 def _is_existence_transparent(stmt: IRStatement) -> bool:
@@ -4219,7 +4152,5 @@ def analyse_source(source: str) -> ModuleAnalysis:
     the heuristic; now it requires the explicit class set.
     """
     ir_module = lower_to_ir(source)
-    from compiler.compilation_unit import _extract_class_names
-
-    known_classes = _extract_class_names(ir_module)
+    known_classes = extract_class_names(ir_module)
     return analyse_ir_module(ir_module, known_classes=known_classes)

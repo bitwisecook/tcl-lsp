@@ -112,6 +112,18 @@ def extract_scalar_var_name(text: str) -> str | None:
     return name
 
 
+def is_simple_scalar_var_word(text: str) -> bool:
+    """Return ``True`` when *text* is exactly one ``$var`` / ``${var}`` scalar
+    variable reference (no array index), named with the conventional shape.
+
+    Token-based replacement for the simple-var-word regexes: it follows
+    Tcl's real variable-name rules (only ``::`` is a namespace separator, a
+    lone ``:`` ends the name), so it is stricter than the old regex on
+    malformed input and identical on valid input.
+    """
+    return extract_scalar_var_name(text) is not None
+
+
 def scan_command_substitutions(
     text: str,
     base_offset: int = 0,

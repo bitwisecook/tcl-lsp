@@ -20,11 +20,16 @@ from dataclasses import dataclass, field
 from typing import cast
 
 from compiler.parsing.command_segmenter import SegmentedCommand, TopLevelChunk, segment_commands
-from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.expr_parser import parse_expr as _std_parse_expr
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.lexer import TclParseError
 from compiler.parsing.syntax import descend_token, segments_from_tree
+from compiler.parsing.token_scanning import (
+    extract_single_expr_argument,
+)
+from compiler.parsing.token_scanning import (
+    word_piece as _word_piece,
+)
 from compiler.registry import REGISTRY
 from compiler.registry.dialect import active_dialect as _active_dialect
 from compiler.registry.runtime import ArgRole, arg_indices_for_role, is_loop_command
@@ -78,7 +83,6 @@ from .ir import (
     IRWhile,
 )
 from .lowering_hooks import register_all as _register_lowering_hooks
-from .token_helpers import word_piece as _word_piece
 
 _DYNAMIC_BARRIER_COMMANDS = REGISTRY.dynamic_barrier_commands()
 
@@ -2614,7 +2618,7 @@ class _Lowerer:
         caching**: a cached class chunk replays its statements without
         re-lowering, but this pass still sees the ``oo::class`` /
         ``oo::define`` barrier in the assembled ``top_level`` and extracts
-        its methods.  Mirrors ``_extract_class_names``'s walk (top-level +
+        its methods.  Mirrors ``extract_class_names``'s walk (top-level +
         ``namespace eval`` blocks + proc bodies, namespace-tracked).
 
         Method bodies are lowered here for analysis only — codegen never

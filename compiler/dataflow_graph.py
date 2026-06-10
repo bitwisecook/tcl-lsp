@@ -18,7 +18,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from .core_analyses import FunctionAnalysis, LatticeKind
+from .analysis_types import LatticeKind
+from .core_analyses import FunctionAnalysis
 from .def_use import UseKind
 from .ssa import SSAFunction, SSAValueKey
 

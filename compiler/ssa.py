@@ -176,19 +176,11 @@ _DEEP_RMW_VAR_REF_SCANNER = VarReferenceScanner(
     )
 )
 
+
 # EXPR-only deep scanner: descends ``[expr {...}]`` (and other EXPR-role)
 # arguments but NOT BODY scripts, so reads inside command-substituted exprs
 # are captured without attributing deferred/nested-script reads to the
 # enclosing statement.  Used for statement use-tracking in ``_vars_in_word``.
-_EXPR_DEEP_VAR_REF_SCANNER = VarReferenceScanner(
-    VarScanOptions(
-        include_var_read_roles=True,
-        recurse_cmd_substitutions=True,
-        recurse_into_expr_roles=True,
-    )
-)
-
-
 def _vars_in_word(text: str) -> frozenset[str]:
     """Variable reads in a word that executes as part of a statement.
 
@@ -454,13 +446,13 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
     reads_own_def: set[str] = set()
 
     match stmt:
-        case IRExprEval(expr=expr):
-            vars_found |= _vars_in_expr(expr)
-        case IRAssignExpr(expr=expr):
-            vars_found |= _vars_in_expr(expr)
+        case IRExprEval(expr=_expr):
+            vars_found |= _vars_in_expr(_expr)
+        case IRAssignExpr(expr=_expr):
+            vars_found |= _vars_in_expr(_expr)
             reads_own_def = vars_found & {_normalise_var_name(stmt.name)}
-        case IRAssignValue(value=value):
-            vars_found |= _vars_in_word(value)
+        case IRAssignValue(value=_value):
+            vars_found |= _vars_in_word(_value)
             reads_own_def = vars_found & {_normalise_var_name(stmt.name)}
         case IRIncr(name=raw_name, amount=amount):
             name = _normalise_var_name(raw_name)
@@ -579,16 +571,16 @@ def statement_cmd_sub_write_names(stmt: IRStatement) -> frozenset[str]:
     """
     out: set[str] = set()
     match stmt:
-        case IRAssignValue(value=value):
-            out |= command_sub_write_names(value)
-        case IRAssignExpr(expr=expr) | IRExprEval(expr=expr):
-            for cmd_text in command_texts_in_expr_node(expr):
+        case IRAssignValue(value=_value):
+            out |= command_sub_write_names(_value)
+        case IRAssignExpr(expr=_expr) | IRExprEval(expr=_expr):
+            for cmd_text in command_texts_in_expr_node(_expr):
                 out |= command_sub_write_names(cmd_text)
-        case IRReturn(value=value, expr=expr):
-            if value is not None:
-                out |= command_sub_write_names(value)
-            if expr is not None:
-                for cmd_text in command_texts_in_expr_node(expr):
+        case IRReturn(value=_value, expr=_expr):
+            if _value is not None:
+                out |= command_sub_write_names(_value)
+            if _expr is not None:
+                for cmd_text in command_texts_in_expr_node(_expr):
                     out |= command_sub_write_names(cmd_text)
         case IRIncr(amount=amount):
             if amount is not None:
@@ -1001,7 +993,7 @@ _COMPLEXITY_GUARD_BLOCKS = 20000
 # guard decision (``FunctionUnit.complexity_guarded``) is ``blocks > BLOCKS or
 # body_bytes > BODY_BYTES``; this constant is the byte half, shared with the
 # analyser-walk guard (``analyser.compiler_checks``).
-_DEEP_ANALYSIS_BODY_BYTES = 262144
+DEEP_ANALYSIS_BODY_BYTES = 262144  # max body size (bytes) for deep-analysis passes
 
 
 def is_complexity_guarded(cfg: CFGFunction) -> bool:
