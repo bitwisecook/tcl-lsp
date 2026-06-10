@@ -110,6 +110,18 @@ impl Analyser {
                 self.registry.as_ref(),
             );
             self.result.diagnostics.extend(stray);
+            // E201 (unterminated `[`) inside a body — `proc p {} { set y
+            // [foo }`.  The CST auto-closes the bracket so the command isn't
+            // flagged `is_partial`, but the source carries no real `]`, so
+            // it would otherwise go unreported.  Mirror the top-level
+            // `emit_syntax_recovery_diagnostics` E201 detector (the
+            // top-level ghost-recovery doesn't reach into body scripts).
+            let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(e201);
             let mut cmd = cmd_ref.clone();
             // **C41e4.** Repair stray ``]`` (missing ``[``) so
             // downstream handlers see the intended argv shape
