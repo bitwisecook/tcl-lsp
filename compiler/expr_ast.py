@@ -345,15 +345,15 @@ def command_texts_in_expr_node(node: ExprNode) -> list[str]:
 
 def _collect_command_texts(node: ExprNode, out: list[str]) -> None:
     match node:
-        case ExprBinary(left=left, right=right):
-            _collect_command_texts(left, out)
-            _collect_command_texts(right, out)
-        case ExprUnary(operand=operand):
-            _collect_command_texts(operand, out)
-        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
-            _collect_command_texts(cond, out)
-            _collect_command_texts(tb, out)
-            _collect_command_texts(fb, out)
+        case ExprBinary(left=_left, right=_right):
+            _collect_command_texts(_left, out)
+            _collect_command_texts(_right, out)
+        case ExprUnary(operand=_operand):
+            _collect_command_texts(_operand, out)
+        case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
+            _collect_command_texts(_cond, out)
+            _collect_command_texts(_tb, out)
+            _collect_command_texts(_fb, out)
         case ExprCall(args=args):
             for arg in args:
                 _collect_command_texts(arg, out)

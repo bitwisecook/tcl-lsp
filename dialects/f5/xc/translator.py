@@ -41,8 +41,8 @@ from compiler.ir import (
     IRWhile,
 )
 from compiler.lowering import lower_to_ir
+from compiler.parsing.token_scanning import parse_single_command as _parse_command_words
 from compiler.registry import REGISTRY
-from compiler.token_helpers import parse_command_words as _parse_command_words
 from shared.codes import diag
 
 from .mapping import (

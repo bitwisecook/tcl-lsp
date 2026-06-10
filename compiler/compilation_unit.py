@@ -9,13 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-
-from compiler.interprocedural import (
-    InterproceduralAnalysis,
-    ProcLocalSummary,
-    analyse_interprocedural_ir,
-)
-from shared.naming import normalise_qualified_name
+from typing import TYPE_CHECKING
 
 from .cfg import (
     CFGFunction,
@@ -24,88 +18,25 @@ from .cfg import (
     cfg_context_fingerprint,
     prepare_cfg_context,
 )
+from .class_names import extract_class_names
 from .command_trust import command_trust, module_command_trust
 from .connection_scope import ConnectionScope, build_connection_scope
-from .core_analyses import FunctionAnalysis, analyse_function
-from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
-from .ir import IRBarrier, IRBlock, IRCall, IRModule, IRStatement
-from .lowering import lower_to_ir
-from .ssa import _DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
-
-_oo_metaclass_cache: frozenset[str] | None = None
-
-
-def _oo_metaclasses() -> frozenset[str]:
-    global _oo_metaclass_cache
-    if _oo_metaclass_cache is None:
-        from compiler.registry import REGISTRY
-
-        _oo_metaclass_cache = REGISTRY.check_trait_commands("is_oo_metaclass")
-    return _oo_metaclass_cache
-
-
-# snit type-definers (tcllib).  ``snit::type Name body`` makes ``Name`` a
-# class whose instances are created via ``Name create x`` / ``Name %AUTO%`` /
-# (widgets) ``Name .path`` — recognised in ``_return_type_for_command`` so the
-# created object's variable is typed ``OBJECT`` (suppresses W307 dispatch FPs).
-_SNIT_DEFINERS: frozenset[str] = frozenset(
-    {
-        "snit::type",
-        "snit::widget",
-        "snit::widgetadaptor",
-        "::snit::type",
-        "::snit::widget",
-        "::snit::widgetadaptor",
-    }
+from .core_analyses import (
+    _UNKNOWN_ARG,
+    _collect_call_site_constants,
+    _params_constants_from_call_sites,
+    analyse_function,
 )
+from .execution_intent import FunctionExecutionIntent, build_function_execution_intent
+from .interprocedural import analyse_interprocedural_ir
+from .ir import IRModule
+from .lowering import lower_to_ir
+from .ssa import DEEP_ANALYSIS_BODY_BYTES, SSAFunction, build_ssa, is_complexity_guarded
 
+if TYPE_CHECKING:
+    from compiler.interprocedural import InterproceduralAnalysis, ProcLocalSummary
 
-def _extract_class_names(ir_module: IRModule) -> frozenset[str]:
-    """Extract user-defined TclOO / snit class names from IR statements.
-
-    Scans ``oo::class create ClassName`` (and similar metaclass) patterns plus
-    ``snit::type Name`` / ``snit::widget`` / ``snit::widgetadaptor`` in the
-    top-level script and procedure bodies.
-    """
-    names: set[str] = set()
-
-    def _qualify(name: str, namespace: str) -> str:
-        # Absolute names live at the global root; relative names resolve against
-        # the enclosing namespace (mirrors tclsh ``create`` and the analyser's
-        # ``_qualify_oo_name``).  normalise collapses any doubled ``::``.
-        if name.startswith("::"):
-            return normalise_qualified_name(name)
-        return normalise_qualified_name(f"{namespace}::{name}")
-
-    def _scan(stmts: tuple[IRStatement, ...], namespace: str = "::") -> None:
-        for stmt in stmts:
-            if isinstance(stmt, IRBlock):
-                # ``namespace eval ns {…}`` — recurse with the block's namespace
-                # so a relative ``oo::class create Foo`` inside it is recorded as
-                # ``::ns::Foo`` (was ``::Foo``, so a relative ``[Foo new]`` in the
-                # namespace never matched → W307 instead of object typing).
-                _scan(stmt.body.statements, stmt.namespace or namespace)
-                continue
-            cmd: str = ""
-            args: tuple[str, ...] = ()
-            if isinstance(stmt, (IRCall, IRBarrier)):
-                cmd, args = stmt.command, stmt.args
-            if (
-                cmd in _oo_metaclasses()
-                and len(args) >= 2
-                and args[0] in ("create", "createWithNamespace")
-            ):
-                names.add(_qualify(args[1], namespace))
-            elif cmd in _SNIT_DEFINERS and args:
-                names.add(_qualify(args[0], namespace))
-
-    _scan(ir_module.top_level.statements)
-    for qname, proc in ir_module.procedures.items():
-        # A class created in a proc body is named relative to the proc's own
-        # namespace (``proc ::ns::p {} { oo::class create C }`` ⇒ ``::ns::C``).
-        proc_ns = normalise_qualified_name(qname).rsplit("::", 1)[0] or "::"
-        _scan(proc.body.statements, proc_ns)
-    return frozenset(names)
+    from .core_analyses import FunctionAnalysis
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,7 +266,6 @@ def call_site_constants_fingerprint(
     The ``_UNKNOWN_ARG`` sentinel (a bare ``object()`` whose ``repr`` embeds its
     address) is rendered to a fixed token so the fingerprint is reproducible.
     """
-    from compiler.core_analyses import _UNKNOWN_ARG
 
     def _render(v: object) -> tuple[str, str]:
         if v is _UNKNOWN_ARG:
@@ -477,7 +407,7 @@ def _compile_source_inner(
         # Extract TclOO class names from the IR so type propagation can
         # recognise ``[ClassName new]`` as returning an OBJECT instance.
         if not known_classes:
-            known_classes = _extract_class_names(ir_module)
+            known_classes = extract_class_names(ir_module)
         known_classes_fp = known_classes_fingerprint(known_classes)
 
         upvar_procs, all_proc_params = prepare_cfg_context(ir_module)
@@ -507,10 +437,6 @@ def _compile_source_inner(
         # proc-cache / reposition keys below so a proc whose body text and
         # position are unchanged is still re-analysed when a caller edits a
         # literal arg (``foo 1`` → ``foo 0``) that seeds its ``param_constants``.
-        from compiler.core_analyses import (
-            _collect_call_site_constants,
-            _params_constants_from_call_sites,
-        )
 
         call_site_constants = _collect_call_site_constants(ir_module)
         call_site_constants_fps = call_site_constants_fingerprint(call_site_constants)
@@ -545,7 +471,7 @@ def _compile_source_inner(
             # decision in as a skip flag so those passes return trivial results,
             # rather than computing them and discarding via the guard afterwards.
             body_bytes = ir_proc.range.end.offset - ir_proc.range.start.offset
-            byte_guarded = body_bytes > _DEEP_ANALYSIS_BODY_BYTES
+            byte_guarded = body_bytes > DEEP_ANALYSIS_BODY_BYTES
 
             cfg = build_cfg_function(
                 qname,
@@ -623,7 +549,7 @@ def _compile_source_inner(
             m_range = ir_method.range
             m_byte_guarded = bool(
                 m_range is not None
-                and (m_range.end.offset - m_range.start.offset) > _DEEP_ANALYSIS_BODY_BYTES
+                and (m_range.end.offset - m_range.start.offset) > DEEP_ANALYSIS_BODY_BYTES
             )
             m_cfg = build_cfg_function(
                 mqname,

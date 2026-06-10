@@ -30,7 +30,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pytest
 
 from server.features.diagnostics import get_diagnostics
 
@@ -954,6 +953,4 @@ def test_TN_switch_with_default_sets():
 
 
 # pytest is imported in this module for the historical xfail-strict
-# markers; keep the import alive so a future re-introduction of an FN
-# is a one-line edit.
-_pytest_alive = pytest
+# markers.

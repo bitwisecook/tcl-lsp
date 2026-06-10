@@ -1,19 +1,10 @@
-"""Shared token-processing helpers for the compiler pipeline.
+"""Decimal-int literal parser for the compiler pipeline.
 
-A thin façade over :mod:`compiler.parsing.token_scanning` (the canonical home
-for ``word_piece`` and the token/command scanners) plus the decimal-int literal
-parser.  The scanners live under ``compiler.parsing`` so every concern —
-including ``dialects`` — can import them without an import-linter carve-out; the
-re-exports here keep the historical ``compiler.token_helpers`` import paths
-stable.
+Provides :func:`parse_decimal_int`, which canonicalises a decimal integer
+literal to its ``str`` form (returning ``None`` for non-integers).
 """
 
 from __future__ import annotations
-
-from compiler.parsing.token_scanning import (
-    parse_single_command as parse_command_words,  # noqa: F401
-)
-from compiler.parsing.token_scanning import word_piece  # noqa: F401
 
 from .eval_helpers import DECIMAL_INT_RE
 

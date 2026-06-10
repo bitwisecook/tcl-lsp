@@ -6,6 +6,7 @@ import bisect
 import threading
 from contextlib import contextmanager as _contextmanager
 
+from compiler.dialect_context import _dialect_var
 from shared.tokens import SourcePosition, Token, TokenType
 
 try:
@@ -66,8 +67,6 @@ def _expand_syntax_active() -> bool:
     """
     if getattr(_thread_local, "expand_syntax_force_off", False):
         return False
-    from compiler.registry.runtime import _dialect_var
-
     return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
 
 
@@ -92,8 +91,6 @@ def expand_syntax_disabled_scope():
 
 def _irules_brace_separator_active() -> bool:
     """Whether the iRules ``}{`` brace-word boundary is enabled."""
-    from compiler.registry.runtime import _dialect_var
-
     return _dialect_var.get() == "f5-irules"
 
 
@@ -111,9 +108,9 @@ class TclLexer:
       - backslash-newline continuation
       - COMMENT token type
 
-    When :attr:`strict_quoting` is ``True`` (class-level flag), the lexer
+    When strict quoting is enabled (thread-local, via :func:`_strict_quoting`;
+    the VM turns it on during compilation, the LSP leaves it off), the lexer
     raises :class:`TclParseError` for "extra characters after close-quote".
-    The VM sets this flag during compilation; the LSP leaves it ``False``.
 
     ``{*}`` word expansion is decided per-call by :func:`_expand_syntax_active`
     — it reads the active dialect from the registry ContextVar and respects
@@ -142,12 +139,6 @@ class TclLexer:
         "_pending_sep",
         "_line_starts",
     )
-
-    # strict_quoting is now thread-local; see _strict_quoting() below.
-    # Retained as class attribute ONLY for backward-compat reads from non-VM
-    # code; the VM always uses _thread_local.strict_quoting via the helper.
-    strict_quoting: bool = False
-    irules_brace_separator: bool = False
 
     def __init__(
         self,
@@ -1237,21 +1228,3 @@ class TclLexer:
                 break
             tokens.append(tok)
         return tokens
-
-
-def is_simple_scalar_var_word(text: str) -> bool:
-    """Return ``True`` when *text* is exactly one ``$var`` / ``${var}`` scalar
-    variable reference (no array index), named with the conventional shape.
-
-    Token-based replacement for the simple-var-word regexes: it follows
-    Tcl's real variable-name rules (only ``::`` is a namespace separator, a
-    lone ``:`` ends the name), so it is stricter than the old regex on
-    malformed input and identical on valid input.
-
-    Delegates to the canonical :func:`token_scanning.extract_scalar_var_name`
-    (routed through the green-tree tokeniser memo) — the import is deferred to
-    avoid the ``lexer`` ↔ ``green_tree`` ↔ ``token_scanning`` module cycle.
-    """
-    from .token_scanning import extract_scalar_var_name
-
-    return extract_scalar_var_name(text) is not None

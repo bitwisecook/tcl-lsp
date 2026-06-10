@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import logging
 import re
+from operator import attrgetter
 
 from compiler.interprocedural import InterproceduralAnalysis
-from compiler.parsing.command_shapes import extract_single_expr_argument
 from compiler.parsing.green_tree import tokenise
 from compiler.parsing.token_positions import token_content_shift
-from compiler.parsing.token_scanning import parse_single_command
+from compiler.parsing.token_scanning import (
+    extract_single_expr_argument,
+    parse_single_command,
+)
+from compiler.parsing.token_scanning import (
+    parse_single_command as _parse_command_words,
+)
+from compiler.parsing.token_scanning import (
+    word_piece as _word_piece,
+)
 from compiler.registry import REGISTRY
 from shared.diagnostic import Range
 from shared.naming import (
@@ -32,9 +41,7 @@ from ..ir import (
     IRCall,
     IRIncr,
 )
-from ..token_helpers import parse_command_words as _parse_command_words
 from ..token_helpers import parse_decimal_int as _parse_decimal_int
-from ..token_helpers import word_piece as _word_piece
 from ._types import _OPT_PRIORITY, Optimisation
 
 log = logging.getLogger(__name__)
@@ -346,10 +353,6 @@ def _is_plain_literal(text: str) -> bool:
     return "$" not in text and "[" not in text and "{" not in text and "\\" not in text
 
 
-# _parse_command_words is imported from token_helpers and re-exported
-# for backward compatibility with existing callers in this package.
-
-
 def _select_non_overlapping_optimisations(optimisations: list[Optimisation]) -> list[Optimisation]:
     """Apply simple pass-order/invalidation rules for overlapping rewrites."""
     # Hint-only diagnostics never conflict with rewrites — keep them all.
@@ -485,7 +488,7 @@ def _parse_single_command_from_range(
     # range start so the returned tokens keep their absolute document positions.
     return parse_single_command(
         source[start : end + 1],
-        piece=lambda t: t.text,
+        piece=attrgetter("text"),
         base_offset=start,
         base_line=command_range.start.line,
         base_col=command_range.start.character,

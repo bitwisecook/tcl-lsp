@@ -465,7 +465,7 @@ def _reset_process_pool() -> None:
         try:
             pool.shutdown(wait=False, cancel_futures=True)
         except Exception:
-            pass
+            pass  # best-effort pool shutdown; ignore if workers already stopped
 
 
 def _get_deep_pool() -> ProcessPoolExecutor:
@@ -511,7 +511,7 @@ def _reset_small_pool() -> None:
         try:
             pool.shutdown(wait=False, cancel_futures=True)
         except Exception:
-            pass
+            pass  # best-effort small-pool shutdown; ignore if workers already stopped
 
 
 # Tracks which (resolver, package_name) pairs have already had their source

@@ -166,7 +166,6 @@ ignore_imports =
     dialects.f5.xc.translator -> compiler.expr_ast
     dialects.f5.xc.translator -> compiler.ir
     dialects.f5.xc.translator -> compiler.lowering
-    dialects.f5.xc.translator -> compiler.token_helpers
 
 [importlinter:contract:dialects-direction]
 name = dialects/ does not depend on analyser/server/tooling/ai

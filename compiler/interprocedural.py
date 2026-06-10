@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
+from compiler.analysis_types import LatticeKind, LatticeValue
 from compiler.cfg import CFGFunction, CFGReturn, build_cfg
-from compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
 from compiler.core_analyses import _expr_has_command as _expr_has_command_sub
+from compiler.core_analyses import analyse_function
 from compiler.eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
 from compiler.expr_ast import (
     ExprBinary,
@@ -51,7 +53,7 @@ from compiler.ir import (
 )
 from compiler.lowering import lower_to_ir
 from compiler.parsing.green_tree import tokenise
-from compiler.parsing.lexer import is_simple_scalar_var_word
+from compiler.parsing.token_scanning import is_simple_scalar_var_word
 from compiler.proc_arg_traits import (
     infer_param_traits,
     infer_param_traits_deep,
@@ -74,6 +76,9 @@ from shared.naming import (
 )
 from shared.proc_traits import ProcArgTrait
 from shared.tokens import TokenType
+
+if TYPE_CHECKING:
+    from compiler.core_analyses import FunctionAnalysis
 
 log = logging.getLogger(__name__)
 

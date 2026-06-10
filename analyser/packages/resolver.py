@@ -13,7 +13,196 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from compiler.parsing.green_tree import tokenise
+from shared.tokens import Token, TokenType
+
 log = logging.getLogger(__name__)
+
+# A pkgIndex.tcl version token's accepted shape: digits/dots with an optional
+# alpha/beta suffix (e.g. ``1.0``, ``2.1``, ``1.0b1``).  This is a narrow
+# *format* gate on an already-tokenised word — not Tcl structural parsing — so
+# it stays a regex.  Words that fail it are skipped, matching the old behaviour
+# where ``package ifneeded`` lines with an unconventional version were ignored.
+_VERSION_RE = re.compile(r"[\d.]+(?:[ab]\d+)?")
+
+
+def _walk_command_words(text: str) -> list[list[list[Token]]]:
+    """Tokenise *text* and group tokens into commands of words.
+
+    Each command is a list of words; each word is the list of adjacent
+    non-separator tokens between ``SEP`` / ``EOL`` boundaries (so ``a$b[c]`` is
+    one word of three tokens).  ``{*}`` expand markers are treated as word
+    boundaries, matching :func:`parse_single_command`.
+    """
+    tokens, _ = tokenise(text, 0, 0, 0)
+    commands: list[list[list[Token]]] = []
+    words: list[list[Token]] = []
+    word: list[Token] = []
+
+    def end_word() -> None:
+        nonlocal word
+        if word:
+            words.append(word)
+        word = []
+
+    def end_command() -> None:
+        nonlocal words
+        end_word()
+        if words:
+            commands.append(words)
+        words = []
+
+    for tok in tokens:
+        if tok.type is TokenType.COMMENT:
+            continue
+        if tok.type is TokenType.EOL:
+            end_command()
+            continue
+        if tok.type in (TokenType.SEP, TokenType.EXPAND):
+            end_word()
+            continue
+        word.append(tok)
+
+    end_command()
+    return commands
+
+
+def _word_raw(text: str, word: list[Token]) -> str:
+    """Return the verbatim source slice spanning *word* within *text*."""
+    return text[word[0].start.offset : word[-1].end.offset + 1]
+
+
+def _word_unwrap(text: str, word: list[Token]) -> str | None:
+    """Return the inner script text of *word* if it is a single wrapper.
+
+    Handles the three wrappers a pkgIndex ``ifneeded`` body uses:
+
+    * ``[...]`` command substitution — a single ``CMD`` token whose ``.text`` is
+      already the inner script.
+    * ``{...}`` braced literal — a single ``STR`` token whose ``.text`` is the
+      brace-stripped body.
+    * ``"..."`` quoted word — the run of in-quote tokens; the inner text is the
+      source slice from just after the opening quote through the last content
+      token (the closing quote is excluded by construction).
+
+    Returns ``None`` when *word* is not one of these (so the caller does not
+    descend into a bare word) and to break the recursion when unwrapping a
+    quoted word would reproduce it.  Using token kinds rather than raw bracket
+    matching avoids the ``[...]`` span quirk where the ``CMD`` token's end
+    excludes the outer closing bracket.
+    """
+    if len(word) == 1:
+        tok = word[0]
+        if tok.type is TokenType.CMD or tok.type is TokenType.STR:
+            return tok.text
+    open_off = word[0].start.offset
+    if word[0].in_quote and open_off < len(text) and text[open_off] == '"':
+        # A double-quoted word.  The closing quote is not consistently attached
+        # to a token (it may or may not appear as a trailing zero-width token),
+        # so locate it by a backslash-aware forward scan from just after the
+        # opening quote; the inner script is the span between the two quotes.
+        i = open_off + 1
+        while i < len(text):
+            ch = text[i]
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == '"':
+                return text[open_off + 1 : i]
+            i += 1
+        return text[open_off + 1 :]
+    return None
+
+
+def _source_filename(text: str, arg: list[Token]) -> str | None:
+    """Extract the package-relative filename from a ``source`` argument word.
+
+    Accepts the two structural forms the old regexes matched, but via the
+    tokeniser:
+
+    * ``[file join $dir X ...]`` — the words after ``$dir`` joined with a single
+      space (mirroring the old ``[^\\]]+`` capture), with surrounding quotes
+      stripped.
+    * ``$dir/X`` — the path tail after a bare ``$dir/`` prefix.
+
+    Returns ``None`` when *arg* is neither form.
+    """
+    raw = _word_raw(text, arg)
+
+    # ``[file join $dir X]`` — a single command-substitution word.
+    if len(arg) == 1 and arg[0].type is TokenType.CMD:
+        inner = arg[0].text
+        cmds = _walk_command_words(inner)
+        if len(cmds) != 1:
+            return None
+        words = cmds[0]
+        if len(words) < 4:  # file join $dir <tail...>
+            return None
+        if _word_raw(inner, words[0]) != "file" or _word_raw(inner, words[1]) != "join":
+            return None
+        if _word_raw(inner, words[2]) not in ("$dir", "${dir}"):
+            return None
+        tail = " ".join(_word_raw(inner, w) for w in words[3:])
+        return tail.strip().strip('"')
+
+    # ``$dir/X`` — bare variable substitution immediately followed by ``/tail``.
+    for prefix in ("$dir/", "${dir}/"):
+        if raw.startswith(prefix):
+            return raw[len(prefix) :].strip().strip('"')
+    return None
+
+
+def _collect_source_targets(
+    text: str, words_list: list[list[list[Token]]], pkg_dir: str, files: list[str]
+) -> None:
+    """Walk *words_list* (commands of *text*) collecting ``source`` targets.
+
+    For each command, adjacent ``source <arg>`` word pairs are checked against
+    the two structural file forms; matches that resolve to a real file under
+    *pkg_dir* are appended to *files*.  Each word that is itself a wrapper
+    (``[...]`` command substitution, ``{...}`` braced body, or ``"..."`` quoted
+    body) is descended into recursively, so ``[list source [file join $dir X]]``
+    and ``"source $dir/X"`` are reached without text-level pattern matching.
+    """
+    for words in words_list:
+        for i, word in enumerate(words):
+            if _word_raw(text, word) == "source" and i + 1 < len(words):
+                filename = _source_filename(text, words[i + 1])
+                if filename is not None:
+                    full_path = os.path.join(pkg_dir, filename)
+                    if os.path.isfile(full_path):
+                        files.append(full_path)
+        for word in words:
+            inner = _word_unwrap(text, word)
+            if inner is not None:
+                _collect_source_targets(inner, _walk_command_words(inner), pkg_dir, files)
+
+
+def _iter_pkg_ifneeded(content: str) -> list[tuple[str, str, list[list[Token]]]]:
+    """Yield ``(name, version, body_words)`` for each ``package ifneeded`` command.
+
+    Replaces the old ``_PKG_IFNEEDED_RE`` line scan with token-based command
+    parsing: the file is tokenised, every command is walked, and any command
+    whose first two words are ``package ifneeded`` is taken as a declaration.
+    The version word must still match the conventional version *format* (a
+    narrow gate, not Tcl structure); declarations with an unconventional version
+    are skipped, matching the old regex.  *body_words* is the list of remaining
+    words (the ``ifneeded`` body, anchored in *content*) for source extraction.
+    """
+    results: list[tuple[str, str, list[list[Token]]]] = []
+    for words in _walk_command_words(content):
+        if len(words) < 5:
+            continue
+        if _word_raw(content, words[0]) != "package":
+            continue
+        if _word_raw(content, words[1]) != "ifneeded":
+            continue
+        name = _word_raw(content, words[2])
+        version = _word_raw(content, words[3])
+        if not _VERSION_RE.fullmatch(version):
+            continue
+        results.append((name, version, words[4:]))
+    return results
 
 
 @dataclass
@@ -152,19 +341,6 @@ class PackageResolver:
             self.scan_packages()
         return list(self._packages.keys())
 
-    # Pattern: package ifneeded <name> <version> <script>
-    _PKG_IFNEEDED_RE = re.compile(
-        r"package\s+ifneeded\s+"
-        r"(\S+)\s+"  # package name
-        r"([\d.]+(?:[ab]\d+)?)\s+"  # version
-        r"(.*)",  # script (rest of line)
-        re.MULTILINE,
-    )
-
-    # Patterns for extracting source file references from the script body.
-    _SOURCE_JOIN_RE = re.compile(r"source\s+\[file\s+join\s+\$dir\s+([^\]]+)\]")
-    _SOURCE_DIR_RE = re.compile(r"source\s+\$dir/(\S+)")
-
     def _parse_pkg_index(self, pkg_index_path: str, pkg_dir: str) -> None:
         """Parse a pkgIndex.tcl file."""
         try:
@@ -180,12 +356,8 @@ class PackageResolver:
             )
             return
 
-        for match in self._PKG_IFNEEDED_RE.finditer(content):
-            name = match.group(1)
-            version = match.group(2)
-            script = match.group(3).strip()
-
-            source_files = self._extract_source_files(script, pkg_dir)
+        for name, version, body_words in _iter_pkg_ifneeded(content):
+            source_files = self._extract_source_files(content, body_words, pkg_dir)
 
             if source_files:
                 info = PackageInfo(
@@ -196,23 +368,21 @@ class PackageResolver:
                 )
                 self._packages.setdefault(name, []).append(info)
 
-    def _extract_source_files(self, script: str, pkg_dir: str) -> list[str]:
-        """Extract source file paths from a pkgIndex.tcl script."""
+    def _extract_source_files(
+        self, content: str, body_words: list[list[Token]], pkg_dir: str
+    ) -> list[str]:
+        """Extract source file paths from a pkgIndex.tcl ``ifneeded`` body.
+
+        *body_words* are the tokenised words of a ``package ifneeded`` body
+        (anchored in *content*) — typically a ``[list source [file join $dir X]]``
+        or ``"source $dir/X"`` wrapper.  It is walked through the tokeniser (no
+        structural regexes): every nested command is examined and any
+        ``source [file join $dir X]`` or ``source $dir/X`` form is collected,
+        descending through ``[...]`` command substitutions and ``{...}`` /
+        ``"..."`` wrappers.
+        """
         files: list[str] = []
-
-        # source [file join $dir <filename>]
-        for m in self._SOURCE_JOIN_RE.finditer(script):
-            filename = m.group(1).strip().strip('"')
-            full_path = os.path.join(pkg_dir, filename)
-            if os.path.isfile(full_path):
-                files.append(full_path)
-
-        # source $dir/<filename>
-        for m in self._SOURCE_DIR_RE.finditer(script):
-            filename = m.group(1).strip().strip('"')
-            full_path = os.path.join(pkg_dir, filename)
-            if os.path.isfile(full_path):
-                files.append(full_path)
+        _collect_source_targets(content, [body_words], pkg_dir, files)
 
         # Fallback: if no explicit source lines, look for .tcl files in the dir
         if not files:

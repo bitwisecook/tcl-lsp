@@ -266,7 +266,7 @@ def _staged_ciphertext(data: bytes) -> Iterator[str]:
         try:
             os.unlink(tmp)
         except FileNotFoundError:
-            pass
+            pass  # best-effort cleanup; ignore if already removed
 
     atexit.register(_remove)
     print(

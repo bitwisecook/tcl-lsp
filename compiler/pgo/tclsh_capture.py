@@ -125,7 +125,7 @@ def capture_profile(
         try:
             Path(harness_path).unlink()
         except OSError:
-            pass
+            pass  # best-effort temp-file cleanup; ignore permission/FS errors
 
     # The JSON line is the harness' final stdout line.
     payload = proc.stdout.strip().splitlines()

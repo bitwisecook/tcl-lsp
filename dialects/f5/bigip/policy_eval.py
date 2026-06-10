@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from operator import ge, gt, le, lt
 from urllib.parse import urlsplit
 
 from .model import BigipPolicy, BigipPolicyAction, BigipPolicyCondition
@@ -328,13 +329,13 @@ def _apply_operator(
         flags = re.IGNORECASE if case_insensitive else 0
         return any(re.search(v, actual, flags) is not None for v in values)
     if operator == "less":
-        return _numeric_compare(actual, values, lambda x, y: x < y)
+        return _numeric_compare(actual, values, lt)
     if operator == "greater":
-        return _numeric_compare(actual, values, lambda x, y: x > y)
+        return _numeric_compare(actual, values, gt)
     if operator == "less-or-equal":
-        return _numeric_compare(actual, values, lambda x, y: x <= y)
+        return _numeric_compare(actual, values, le)
     if operator == "greater-or-equal":
-        return _numeric_compare(actual, values, lambda x, y: x >= y)
+        return _numeric_compare(actual, values, ge)
     return False
 
 
