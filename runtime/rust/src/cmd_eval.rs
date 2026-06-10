@@ -50,7 +50,9 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"eval arg ?arg ...?");
     }
     let script = join_body(&argv[1..]);
-    let code = interp.eval_str(&script);
+    // `eval` runs its body as its own `info frame` level (inheriting the
+    // enclosing proc/level).
+    let code = interp.eval_body(&script);
     if code == Code::Error {
         // `("eval" body line N)` — a body evaluated through a fresh frame.
         interp.append_body_frame(b"eval");

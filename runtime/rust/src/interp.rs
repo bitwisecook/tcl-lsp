@@ -69,6 +69,64 @@ pub(crate) enum ProcFrame<'a> {
     Lambda(&'a [u8]),
 }
 
+/// What a proc/lambda call contributes to the diagnostic stacks: the errorInfo
+/// frame (PC-4) plus the `info frame` proc FQN and defining-source (PC-5).
+pub(crate) struct CallMeta<'a> {
+    /// The errorInfo `(procedure/lambda ...)` frame.
+    pub err: ProcFrame<'a>,
+    /// The proc's FQN — the `info frame` `proc` key (`None` for a lambda).
+    pub fqn: Option<&'a [u8]>,
+    /// The file the body was defined in (`source`d) — makes its `info frame`
+    /// `type source` with this `file`.
+    pub source: Option<Rc<[u8]>>,
+}
+
+/// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
+/// state `info frame` reports. One is pushed per script-evaluation level Tcl
+/// tracks: the top-level script, a proc call, an `eval`/`uplevel` body, and a
+/// `source`d file — but **not** a `[cmd]` substitution or an inline
+/// `if`/`while`/`for`/`foreach` body (those run in the enclosing frame). The
+/// `cmd`/`line` are updated to the currently-executing command of the
+/// frame-owning script as the eval loop steps through it.
+struct CmdFrame {
+    /// The file this script came from (`source`d / a proc defined in one) →
+    /// `type source` + the `file` key. `None` ⇒ `type proc`/`eval`.
+    file: Option<Rc<[u8]>>,
+    /// The proc FQN this frame runs in (a proc call; `eval`/`uplevel` bodies
+    /// inherit the enclosing proc) → the `proc` key and `type proc`. `None` at
+    /// the global level (`type eval`).
+    proc: Option<Vec<u8>>,
+    /// The proc (call) level this frame runs in; the `level` key is the distance
+    /// from the current level (`current_level - this`).
+    level: usize,
+    /// The currently-executing command at this level (the `cmd` key) and its
+    /// 1-based source line (the `line` key).
+    cmd: Vec<u8>,
+    line: u32,
+}
+
+impl CmdFrame {
+    /// The top-level script frame (`type eval`, global level).
+    fn root() -> Self {
+        CmdFrame {
+            file: None,
+            proc: None,
+            level: 0,
+            cmd: Vec::new(),
+            line: 1,
+        }
+    }
+}
+
+/// The 1-based source line of byte `offset` in `src` — `1 + count('\n' in
+/// src[0..offset])`, C's exact `TclLogCommandInfo` loop (encoding-agnostic).
+fn line_of(src: &[u8], offset: usize) -> u32 {
+    1 + src[..offset.min(src.len())]
+        .iter()
+        .filter(|&&b| b == b'\n')
+        .count() as u32
+}
+
 /// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
 /// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
 /// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
@@ -141,6 +199,12 @@ pub struct ProcDef {
     pub params: Vec<Param>,
     pub body: Vec<u8>,
     pub ns: NsId,
+    /// The proc's fully-qualified name (`::ns::name`) — the `info frame` `proc`
+    /// key, fixed at definition time.
+    pub fqn: Vec<u8>,
+    /// The file the proc was defined in (`source`d), if any — makes its body
+    /// frame `type source` with this `file` (`info frame`).
+    pub source: Option<Rc<[u8]>>,
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -172,6 +236,8 @@ pub struct Interp {
     pub(crate) traces: crate::cmd_trace::TraceTable,
     /// The error stack-trace accumulator (PC-4).
     exc: ExceptionState,
+    /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
+    cmd_frames: Vec<CmdFrame>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -202,6 +268,7 @@ impl Interp {
             return_level: 1,
             traces: crate::cmd_trace::TraceTable::default(),
             exc: ExceptionState::default(),
+            cmd_frames: Vec::new(),
             eval_depth: 0,
             result,
         });
@@ -267,7 +334,24 @@ impl Interp {
             .copied()
             .unwrap_or(name)
             .to_vec();
-        let def = Rc::new(ProcDef { params, body, ns });
+        // The proc's FQN (`info frame` `proc` key): `<ns>::<tail>`, the global ns
+        // contributing just the leading `::`.
+        let qn = self.namespaces.qualified_name(ns);
+        let mut fqn = qn.clone();
+        if qn != b"::" {
+            fqn.extend_from_slice(b"::");
+        }
+        fqn.extend_from_slice(&tail);
+        // A proc defined while a file is being sourced records that file, so its
+        // body frame reports `type source`.
+        let source = self.script_stack.last().map(|f| Rc::from(f.as_slice()));
+        let def = Rc::new(ProcDef {
+            params,
+            body,
+            ns,
+            fqn,
+            source,
+        });
         self.namespaces.bind(ns, &tail, Command::Proc(def));
     }
 
@@ -390,7 +474,11 @@ impl Interp {
     /// return boundary maps `return` → Ok); other codes propagate.
     pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
         self.script_stack.push(name.to_vec());
-        let code = self.eval_str(script);
+        // A `source`d file is its own `info frame` level: `type source` + the
+        // file path, inheriting the enclosing proc/level.
+        let mut frame = self.inherited_cmd_frame();
+        frame.file = Some(Rc::from(name));
+        let code = self.eval_framed(script, frame);
         self.script_stack.pop();
         self.settle_return(code)
     }
@@ -408,7 +496,12 @@ impl Interp {
         let prev_level = self.frames.set_active_level(target_level);
         let prev_ns = self.current_ns;
         self.current_ns = self.frames.frame_ns(target_level);
-        let code = self.eval_str(script);
+        // The `uplevel` body runs at the target call level (its own `info frame`
+        // level); the proc/file context is inherited (an approximation of the
+        // target frame's — exact target-proc resolution is a follow-up).
+        let mut frame = self.inherited_cmd_frame();
+        frame.level = target_level;
+        let code = self.eval_framed(script, frame);
         self.frames.set_active_level(prev_level);
         self.current_ns = prev_ns;
         code
@@ -848,8 +941,7 @@ impl Interp {
             return;
         }
         // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
-        let line = 1 + src[..cmd.start].iter().filter(|&&b| b == b'\n').count() as u32;
-        self.exc.line = line;
+        self.exc.line = line_of(src, cmd.start);
         let started = self.exc.info.is_some();
         if !started {
             // First frame: errorInfo is seeded from the error message (the result).
@@ -945,6 +1037,47 @@ impl Interp {
         self.exc.info.clone().unwrap_or_else(|| self.result_bytes())
     }
 
+    /// `info frame` (no arg): the depth of the source-location stack.
+    pub(crate) fn cmd_frame_depth(&self) -> usize {
+        self.cmd_frames.len()
+    }
+
+    /// The `info frame N` description for stack position `n` (C's level
+    /// arithmetic: `n > 0` is absolute, 1-based from the root; `n <= 0` is
+    /// relative to the current top, `0` = current). Returns the dict's
+    /// (key, value) pairs in C's key order (`type line [file] cmd [proc]
+    /// level`), or `None` if out of range.
+    pub(crate) fn cmd_frame_info(&self, n: i64) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
+        let depth = self.cmd_frames.len() as i64;
+        let pos = if n > 0 { n } else { depth + n };
+        if pos < 1 || pos > depth {
+            return None;
+        }
+        let f = &self.cmd_frames[(pos - 1) as usize];
+        let typ: &[u8] = if f.file.is_some() {
+            b"source"
+        } else if f.proc.is_some() {
+            b"proc"
+        } else {
+            b"eval"
+        };
+        let mut pairs = vec![
+            (b"type".to_vec(), typ.to_vec()),
+            (b"line".to_vec(), f.line.to_string().into_bytes()),
+        ];
+        if let Some(file) = &f.file {
+            pairs.push((b"file".to_vec(), file.to_vec()));
+        }
+        pairs.push((b"cmd".to_vec(), f.cmd.clone()));
+        if let Some(p) = &f.proc {
+            pairs.push((b"proc".to_vec(), p.clone()));
+        }
+        // `level` is the distance from the current call level.
+        let level = self.frames.current_level().saturating_sub(f.level);
+        pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+        Some(pairs)
+    }
+
     /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
     /// or `NONE`.
     pub(crate) fn error_code(&self) -> Vec<u8> {
@@ -981,15 +1114,44 @@ impl Interp {
 
     /// Evaluate a whole script; the result is left in the interp result. Returns
     /// the completion code of the last command (or `Ok` for an empty script).
+    ///
+    /// At the true top level (no `info frame` stack yet) this owns the root
+    /// `CmdFrame`; nested calls (command substitution `[cmd]`) run in the
+    /// enclosing frame and add none — matching C, where `[cmd]` is the same
+    /// `cmdFramePtr` level. A proc body / `eval` / `source` body gets its own
+    /// frame via [`eval_framed`](Self::eval_framed).
     pub fn eval_str(&mut self, src: &[u8]) -> Code {
+        let owned = self.cmd_frames.is_empty().then(CmdFrame::root);
+        self.eval_script(src, owned)
+    }
+
+    /// Evaluate `src` as the body of its own `info frame` level (`frame` is
+    /// pushed for the duration). Used by proc calls, `eval`/`uplevel`, and
+    /// `source`.
+    fn eval_framed(&mut self, src: &[u8], frame: CmdFrame) -> Code {
+        self.eval_script(src, Some(frame))
+    }
+
+    /// The shared command loop. If `owned` is `Some`, it is pushed as this
+    /// script's `CmdFrame` and updated to each command as the loop steps through
+    /// it (so `info frame` sees the live command/line); an unframed call (`None`,
+    /// i.e. command substitution) leaves the enclosing frame untouched.
+    fn eval_script(&mut self, src: &[u8], owned: Option<CmdFrame>) -> Code {
         self.eval_depth += 1;
+        let owns_frame = owned.is_some();
+        if let Some(f) = owned {
+            self.cmd_frames.push(f);
+        }
         let mut last = Code::Ok;
         let commands = parse::parse_script(src);
         for cmd in &commands {
-            last = self.eval_command(src, cmd);
+            last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
                 break; // error/return/break/continue propagate up
             }
+        }
+        if owns_frame {
+            self.cmd_frames.pop();
         }
         self.eval_depth -= 1;
         // The outermost eval publishes the accumulated trace to the globals so
@@ -1001,10 +1163,44 @@ impl Interp {
         last
     }
 
+    /// A `CmdFrame` for an `eval`/`uplevel`/`source` body, inheriting the current
+    /// frame's proc/level/file context (these bodies run in the enclosing
+    /// CallFrame). The caller overrides `file` (`source`) or `level` (`uplevel`).
+    fn inherited_cmd_frame(&self) -> CmdFrame {
+        let top = self.cmd_frames.last();
+        CmdFrame {
+            file: top.and_then(|f| f.file.clone()),
+            proc: top.and_then(|f| f.proc.clone()),
+            level: top.map_or(0, |f| f.level),
+            cmd: Vec::new(),
+            line: 1,
+        }
+    }
+
+    /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
+    /// inherits the enclosing proc/level). The errorInfo `("eval" body line N)`
+    /// frame is appended separately by the caller.
+    pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
+        let frame = self.inherited_cmd_frame();
+        self.eval_framed(script, frame)
+    }
+
     /// Evaluate one parsed command, then — if it errored — append its
     /// `while executing` / `invoked from within` frame to the error trace
     /// (`TclLogCommandInfo`), using the command's source slice and line.
-    fn eval_command(&mut self, src: &[u8], cmd: &parse::Command) -> Code {
+    fn eval_command(&mut self, src: &[u8], cmd: &parse::Command, owns_frame: bool) -> Code {
+        // Update the current `info frame` level to this command — the innermost
+        // command executing at this level. A `[cmd]` substitution (and an inline
+        // control body) shares the enclosing frame and adds no level, so it
+        // updates the `cmd` but keeps the **enclosing** command's `line` (the
+        // line the substitution appears on); only the frame-owning script
+        // advances the line as it steps through its own commands.
+        if let Some(top) = self.cmd_frames.last_mut() {
+            if owns_frame {
+                top.line = line_of(src, cmd.start);
+            }
+            top.cmd = src[cmd.start..cmd.end].to_vec();
+        }
         let code = self.eval_words(&cmd.words);
         if code == Code::Error {
             self.log_command_info(src, cmd);
@@ -1112,7 +1308,11 @@ impl Interp {
             def.ns,
             &argv[1..],
             &name,
-            ProcFrame::Proc(&name),
+            CallMeta {
+                err: ProcFrame::Proc(&name),
+                fqn: Some(&def.fqn),
+                source: def.source.clone(),
+            },
         )
     }
 
@@ -1132,7 +1332,7 @@ impl Interp {
         ns: NsId,
         call_args: &[*mut TclObj],
         usage_called: &[u8],
-        frame: ProcFrame,
+        meta: CallMeta,
     ) -> Code {
         let has_args = params.last().is_some_and(|p| p.name == b"args");
         let positional = if has_args {
@@ -1196,7 +1396,17 @@ impl Interp {
             }
         }
 
-        let code = self.eval_str(body);
+        // The proc body runs as its own `info frame` level: `type proc` (or
+        // `source` if defined in a sourced file), the proc FQN, and the new call
+        // level (set after `frames.push`, so `current_level` is the proc's).
+        let proc_frame = CmdFrame {
+            file: meta.source,
+            proc: meta.fqn.map(<[u8]>::to_vec),
+            level: self.frames.current_level(),
+            cmd: Vec::new(),
+            line: 1,
+        };
+        let code = self.eval_framed(body, proc_frame);
         self.frames.pop();
         self.current_ns = saved_ns;
         self.recursion_depth -= 1;
@@ -1211,7 +1421,7 @@ impl Interp {
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
         // frame and clear `already_logged` so the proc-call command logs next.
         if settled == Code::Error {
-            self.make_proc_error(frame);
+            self.make_proc_error(meta.err);
         }
         settled
     }
