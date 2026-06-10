@@ -1112,6 +1112,136 @@ impl Backend {
         }))
     }
 
+    /// Handle `tcl-lsp.describeIruleEvent`: deterministic registry metadata
+    /// for an iRules event.  Mirrors `server/commands.py::on_describe_irule_event`.
+    /// `validCommandCount` counts the iRules commands (those carrying
+    /// `event_requires`) not excluded from the event.
+    async fn describe_irule_event_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let event = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        let events = tcl_registry::events::EventRegistry::build();
+        let known = !event.is_empty() && events.is_known(&event);
+        let (count, sample, deprecated) = if known {
+            let registry = self.registry_for_dialect("f5-irules").await;
+            let mut names: Vec<&str> = registry
+                .command_names()
+                .filter(|&n| {
+                    registry.get(n).is_some_and(|s| {
+                        s.event_requires.is_some() && !s.excluded_events.iter().any(|&e| event == e)
+                    })
+                })
+                .collect();
+            names.sort_unstable();
+            let count = names.len();
+            let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
+            let deprecated = events.get_props(&event).is_some_and(|p| p.deprecated);
+            (count, sample, deprecated)
+        } else {
+            (0, Vec::new(), false)
+        };
+        Ok(Some(serde_json::json!({
+            "event": event,
+            "known": known,
+            "deprecated": deprecated,
+            "validCommandCount": count,
+            "sampleCommands": sample,
+        })))
+    }
+
+    /// Handle `tcl-lsp.describeIruleCommand`: registry metadata for an iRules
+    /// command (exact match, then case-insensitive).  Mirrors
+    /// `server/commands.py::on_describe_irule_command`.
+    async fn describe_irule_command_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let name = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        let registry = self.registry_for_dialect("f5-irules").await;
+        let resolved = if !name.is_empty() && registry.get(&name).is_some() {
+            Some(name.clone())
+        } else if name.is_empty() {
+            None
+        } else {
+            let lowered = name.to_lowercase();
+            registry
+                .command_names()
+                .find(|c| c.to_lowercase() == lowered)
+                .map(str::to_owned)
+        };
+        let value = match resolved {
+            Some(canonical) => {
+                let summary = registry
+                    .get(&canonical)
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned());
+                serde_json::json!({
+                    "found": true,
+                    "command": canonical,
+                    "summary": summary,
+                })
+            }
+            None => serde_json::json!({ "found": false, "command": name }),
+        };
+        Ok(Some(value))
+    }
+
+    /// Handle `tcl-lsp.listIruleEvents`: all known iRules event names (sorted).
+    /// Mirrors `server/commands.py::on_list_irule_events`.
+    fn list_irule_events_command() -> serde_json::Value {
+        let events = tcl_registry::events::EventRegistry::build();
+        let mut names: Vec<&str> = events.all_event_names();
+        names.sort_unstable();
+        serde_json::json!({ "events": names })
+    }
+
+    /// Handle `tcl-lsp.diagramData`: extract the `when EVENT` event names from
+    /// a source string.  Mirrors `server/commands.py::on_diagram_data`'s event
+    /// extraction (the events slice the e2e test asserts).
+    fn diagram_data_command(args: &[serde_json::Value]) -> Option<serde_json::Value> {
+        let source = args.first().and_then(serde_json::Value::as_str)?;
+        let events: Vec<serde_json::Value> =
+            tcl_lsp_core::irules_context::scan_file_events(source, "f5-irules")
+                .into_iter()
+                .map(|name| serde_json::json!({ "name": name }))
+                .collect();
+        Some(serde_json::json!({ "events": events }))
+    }
+
+    /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config
+    /// (at minimum the active dialect).  Mirrors
+    /// `server/commands.py::on_get_effective_config`.
+    async fn get_effective_config_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let dialect = self
+            .read_document(&uri)
+            .await
+            .map_or_else(|| "tcl".to_owned(), |d| d.dialect);
+        Ok(Some(serde_json::json!({
+            "uri": uri_str,
+            "dialect": dialect,
+        })))
+    }
+
     /// Snapshot the user-configured analyser settings (disabled
     /// diagnostic codes + W108 non-ASCII mode) so a blocking analysis
     /// worker can build its `Analyser` without holding any async mutex.
@@ -2546,6 +2676,17 @@ impl LanguageServer for Backend {
         match params.command.as_str() {
             "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
             "tcl-lsp.unminifyError" => Ok(Self::unminify_error_command(&params.arguments)),
+            "tcl-lsp.describeIruleEvent" => {
+                self.describe_irule_event_command(&params.arguments).await
+            }
+            "tcl-lsp.describeIruleCommand" => {
+                self.describe_irule_command_command(&params.arguments).await
+            }
+            "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
+            "tcl-lsp.diagramData" => Ok(Self::diagram_data_command(&params.arguments)),
+            "tcl-lsp.getEffectiveConfig" => {
+                self.get_effective_config_command(&params.arguments).await
+            }
             _ => Ok(None),
         }
     }
@@ -3536,6 +3677,11 @@ fn build_server_capabilities() -> ServerCapabilities {
             commands: vec![
                 "tcl-lsp.minifyDocument".to_owned(),
                 "tcl-lsp.unminifyError".to_owned(),
+                "tcl-lsp.describeIruleEvent".to_owned(),
+                "tcl-lsp.describeIruleCommand".to_owned(),
+                "tcl-lsp.listIruleEvents".to_owned(),
+                "tcl-lsp.diagramData".to_owned(),
+                "tcl-lsp.getEffectiveConfig".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
