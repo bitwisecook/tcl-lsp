@@ -142,6 +142,13 @@ _FORMATS = [
     ("%X", "255"),
     ("%o", "8"),
     ("%08x", "255"),
+    # version/sign-dependent: must either match tclsh9 exactly or not fold
+    ("%x", "-1"),
+    ("%u", "-1"),
+    ("%o", "-8"),
+    ("%#o", "8"),
+    ("%#X", "255"),
+    ("%u", "5"),
     ("%s", "hi"),
     ("%10s", "hi"),
     ("%-10s", "hi"),
@@ -195,8 +202,18 @@ _E2E = [
     # scan of constant literals (no varName form)
     "puts [scan 42 %d]",
     "puts [scan ff %x]",
+    "puts [scan 0xff %x]",  # optional 0x prefix must be honoured (-> 255)
     "puts [scan {1 2 3} {%d %d %d}]",
     "set n [scan 99 %d]\nputs $n",
+    # Regression guards: format/scan whose value is version- or sign-dependent
+    # must stay unfolded.  Leaving them untouched keeps before==after on tclsh9;
+    # a reintroduced wrong fold (e.g. ``%x -1`` -> ``-1``) would diverge here.
+    "puts [format %x -1]",
+    "puts [format %u -1]",
+    "puts [format %o -8]",
+    "puts [format %#o 8]",
+    "puts [format %#X 255]",
+    "puts [scan -5 %u]",
     # nested builtin command subs fold inside-out (the inner sub becomes a
     # literal, then the outer folds on a later pass)
     "puts [llength [list a b c]]",
