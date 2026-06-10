@@ -393,6 +393,62 @@ pub(crate) fn visible_variable_names(
     names
 }
 
+/// Names of every namespace / global scope in the cursor's lexical chain.
+/// Used by completion to skip cross-namespace candidates already offered as
+/// bare names.  Mirrors `_lexical_namespace_chain`.
+pub(crate) fn lexical_namespace_chain(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> std::collections::HashSet<String> {
+    use tcl_compiler::analyser::ScopeKind;
+    let mut chain = std::collections::HashSet::new();
+    for sc in scope_chain_at(scope, byte_offset) {
+        if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
+            chain.insert(sc.name.clone());
+        }
+    }
+    chain
+}
+
+/// Fully-qualified `::ns::var` form for a var stored in a namespace / global
+/// scope.  Mirrors `_qualified_var_name`.
+fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
+    use tcl_compiler::analyser::ScopeKind;
+    if var.starts_with("::") {
+        var.to_string()
+    } else if scope.kind == ScopeKind::Global {
+        format!("::{var}")
+    } else {
+        format!("{}::{var}", scope.name)
+    }
+}
+
+/// Walk the scope tree and return the fully-qualified names of every
+/// namespace / global variable whose enclosing namespace is not in the
+/// cursor's lexical `chain` (proc locals excluded).  Mirrors
+/// `_collect_cross_namespace_vars`.
+pub(crate) fn cross_namespace_qualified_vars(
+    global: &tcl_compiler::analyser::Scope,
+    chain: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    use tcl_compiler::analyser::{Scope, ScopeKind};
+    fn visit(scope: &Scope, chain: &std::collections::HashSet<String>, out: &mut Vec<String>) {
+        if matches!(scope.kind, ScopeKind::Namespace | ScopeKind::Global)
+            && !chain.contains(&scope.name)
+        {
+            for vname in scope.variables.keys() {
+                out.push(qualified_var_name(scope, vname));
+            }
+        }
+        for child in &scope.children {
+            visit(child, chain, out);
+        }
+    }
+    let mut out = Vec::new();
+    visit(global, chain, &mut out);
+    out
+}
+
 /// Return the chain of scopes from `root` down to the
 /// innermost child whose `body_span` contains `byte_offset`.
 /// The chain is ordered outermost (`root`) to innermost.

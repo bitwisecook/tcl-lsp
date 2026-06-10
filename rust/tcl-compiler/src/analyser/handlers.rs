@@ -165,9 +165,13 @@ impl Analyser {
         }
 
         if cmd_name == "global" {
+            // `global ::ns::v` makes the *unqualified tail* (`v`) a local alias
+            // to the global variable, so define the tail name locally (matches
+            // Tcl + completion's expectation of both `$v` and `$::ns::v`).
             for (i, name) in args.iter().enumerate() {
+                let local = name.rsplit("::").next().unwrap_or(name);
                 if let Some(tok) = arg_tokens.get(i) {
-                    self.define_var(name, *tok, scope_path, false, None);
+                    self.define_var(local, *tok, scope_path, false, None);
                 }
             }
             return;

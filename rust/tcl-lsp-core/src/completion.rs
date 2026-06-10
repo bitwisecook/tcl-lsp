@@ -607,6 +607,47 @@ fn variable_completions(
             documentation: None,
         });
     }
+
+    // Cross-namespace candidates — variables in *other* namespaces, offered in
+    // fully-qualified `::ns::var` form (vars in the cursor's own namespace
+    // chain are already above as bare names).  Mirrors completion.py.
+    let mut seen: std::collections::HashSet<String> =
+        items.iter().map(|i| i.label.clone()).collect();
+    let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
+    let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
+    qnames.sort_unstable();
+    qnames.dedup();
+    for qname in qnames {
+        if !qname.starts_with(partial) || !var_is_substitutable(&qname) {
+            continue;
+        }
+        let label = format!("${qname}");
+        if !seen.insert(label.clone()) {
+            continue;
+        }
+        let use_brace = has_open_brace || !is_bare_var_name(&qname);
+        let new_text = if use_brace {
+            format!("${{{qname}}}")
+        } else {
+            format!("${qname}")
+        };
+        let text_edit = edit_start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: edit_end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label,
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: Some("namespace variable".to_string()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
     items
 }
 
