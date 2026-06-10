@@ -1,8 +1,8 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/tcl-lsp-logo-dark.svg">
-    <img src="docs/tcl-lsp-logo.svg" alt="Tcl LSP" width="128">
-  </picture>
+  <!-- PNG, not SVG: the VS Code Marketplace (vsce) rejects SVG and picky
+       <picture>/srcset image sources in READMEs. Rendered from
+       docs/tcl-lsp-logo.svg by `make logo`. -->
+  <img src="docs/Tcl LSP Logo-8bit-512.png" alt="Tcl LSP" width="128">
 </p>
 
 # tcl-lsp

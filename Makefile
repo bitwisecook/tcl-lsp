@@ -237,8 +237,6 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
-	@# Bundle the SVG logos so the README's <picture> resolves on the Marketplace.
-	cp "$(ROOT)docs/tcl-lsp-logo.svg" "$(ROOT)docs/tcl-lsp-logo-dark.svg" $(STAGE_DIR)/docs/
 	@echo "==> Packaging .vsix (stripped, not obfuscated)"
 	cd $(STAGE_DIR) && $(VSCE) package --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
 	@echo ""
