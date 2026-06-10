@@ -1698,10 +1698,11 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + panic fixes / qualified-name fallback | 110 / 168 | 57 | 7214 / 15345 |
 | + `binary format`/`scan` | 116 / 168 | 51 | 8325 / 17673 |
 | + child interpreters | 118 / 168 | 49 | 8406 / 17855 |
-| + TclOO core | **120 / 168** | 47 | **8415 / 18298** |
+| + TclOO core | 120 / 168 | 47 | 8415 / 18298 |
+| + TclOO expand / info prefix / hidden+safe | **122 / 168** | 45 | **8529 / 18775** |
 
-Cumulative: **+34 files** now run to a tcltest summary, errored-before-summary
-**81 → 47**, **+2843 tests pass**, and **zero panics** (the passed *count*
+Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
+**81 → 45**, **+2957 tests pass**, and **zero panics** (the passed *count*
 matters more than the ~47% rate — the denominator grows as more files run their
 full test sets). The unblocking fixes:
 
@@ -1721,20 +1722,33 @@ full test sets). The unblocking fixes:
 - `binary format`/`binary scan` (the core type codes — see `cmd_binary`);
 - basic child interpreters (`interp create`/`eval`/`exists`/`children`/`delete`
   + the child as a command), each a full `Interp` with startup globals;
-- **TclOO core** (`cmd_oo`): `oo::class`/`oo::object`/`oo::define`, methods,
-  constructor/destructor, single/multiple inheritance with a linearised MRO,
-  `self`/`my`/`next`, and per-object instance variables (auto-linked from the
-  class's `variable` declarations). `package require tcl::oo`/`TclOO` succeed.
+- **TclOO** (`cmd_oo`): `oo::class`/`oo::object`/`oo::define`/`oo::objdefine`/
+  `oo::copy`, methods + `forward`, constructor/destructor, single/multiple
+  inheritance + `mixin` over a linearised dispatch chain, `export`/`unexport`,
+  `self`/`my`/`next`, per-object methods/mixins/instance-variables, and `info
+  object`/`info class` introspection (oo.test 9 → 31). `package require
+  tcl::oo`/`TclOO` succeed.
+- `info` is an ensemble (unambiguous-prefix subcommands) — `info command` →
+  `commands` (unblocks interp.test, 48/354).
+- hidden commands (`interp hide`/`expose`/`invokehidden`/`hidden`, + the
+  `$child` forms) and `interp create -safe` (hides the host-touching commands
+  the runtime has).
 
 Biggest remaining error-before-summary blockers, by file count:
 
 | Blocker | Files | Notes |
 |---|---|---|
-| TclOO meta-object protocol | 3 | `oo`/`ooNext2`/`ooUtil`: classes-as-objects, `info object`/`class`, mixins/filters/forwards, `oo::copy`, `oo::objdefine` |
+| TclOO meta-protocol | 3 | `oo`/`ooNext2`/`ooUtil`: classes-as-objects, filters, private methods (8.7+), full C3 mixin linearisation, the rarer `info object`/`class` subcommands |
 | `zipfs` | 3 | zip virtual filesystem |
 | `tcl::test` package | 2 | the C-tier test commands |
 | `auto_load` in children | 2 | child interps lack the full `init.tcl` |
-| safe interpreters | (in `interp`) | the `-safe` sandbox: hidden commands, limited set |
+
+**Deferred (architectural):** cross-interp aliases — a child alias delegating
+to a *parent* command — and thus the full Safe Base (`source`/`load`/`file`
+re-aliasing that `safe*.test` needs). The parent owns each child as a
+`Box<Interp>`, so a child cannot call back into the parent during a borrowed
+`eval`; this needs the parent threaded through the child eval (or a flat
+interp registry, dropping the ownership tree).
 
 > Per-file detail is in the sweep's `--json` (`scripts/dev/rust_tcltest_sweep.py
 > --json`). Drive these down toward the Zig baseline.
