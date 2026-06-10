@@ -770,7 +770,7 @@ mod tests {
         let h =
             signature_help(src, 3, 2, &analysis, None).expect("expected chained alias resolution");
         assert!(
-            h.signatures[0].label.contains("c"),
+            h.signatures[0].label.contains('c'),
             "expected target `c`; got {label}",
             label = h.signatures[0].label,
         );

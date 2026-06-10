@@ -362,6 +362,11 @@ enum ArgOverride {
     SubcommandKeyword,
     /// The name argument of a `proc` definition → `Function` + `definition`.
     ProcNameDef,
+    /// The braced case-list argument of `switch -regexp … { pat body … }`:
+    /// the pattern elements are sub-tokenised as regexes and the body
+    /// elements recursed as scripts.  Mirrors
+    /// `_collect.py::_collect_switch_case_bodies`.
+    SwitchRegexpCaseList,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -593,6 +598,41 @@ fn special_arg_kinds(
                         .entry(tok.span.start())
                         .or_insert(ArgOverride::SubcommandKeyword);
                 }
+            }
+        }
+    }
+
+    // `switch -regexp … { pat body … }` — the braced case list (the final
+    // word, when option-skipped past `-regexp`/`--`) carries regex patterns.
+    // Tag it so `collect_script` sub-tokenises the patterns as regexes and
+    // recurses the bodies, rather than treating the whole list as one opaque
+    // body.  Mirrors `_collect_switch_case_bodies`.
+    if head == "switch" {
+        let mut i = 1;
+        let mut is_regexp = false;
+        while i < seg.texts.len() && seg.texts[i].starts_with('-') {
+            if seg.texts[i] == "-regexp" {
+                is_regexp = true;
+            }
+            if seg.texts[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        // Skip the switch value/string argument; the case list is the last
+        // word (braced-list form only — the inline `pat body …` form has
+        // more than one trailing word).
+        let case_idx = i + 1;
+        if is_regexp
+            && case_idx == seg.texts.len() - 1
+            && seg
+                .argv
+                .get(case_idx)
+                .is_some_and(|t| matches!(t.kind, TokenType::Str))
+        {
+            if let Some(tok) = seg.argv.get(case_idx) {
+                overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
             }
         }
     }
@@ -1310,6 +1350,77 @@ const MAX_TOKEN_RECURSION: u32 = 32;
 /// `…::` prefix plus a command token for the final segment — mirrors
 /// Python's `_emit_namespace_qualified`.  A bare head is emitted whole,
 /// carrying `defaultLibrary` when it resolves to a registry built-in.
+/// Sub-tokenise the braced case list of `switch -regexp … { pat body … }`.
+///
+/// The inner script is re-segmented into commands; the words are flattened
+/// across all command lines and paired (even index → pattern, odd index →
+/// body), since a Tcl `switch` case list is one flat list whose line breaks
+/// are insignificant whitespace.  Pattern words (except the literal
+/// `default`) are sub-tokenised as regexes; body words are recursed as
+/// scripts.  Mirrors `_collect.py::_collect_switch_case_bodies`.
+#[allow(clippy::too_many_arguments)]
+fn collect_switch_regexp_case_list(
+    full_source: &str,
+    tok: Token,
+    dialect: &str,
+    registry: &CommandRegistry,
+    line_index: &LineIndex,
+    entries: &mut Vec<Entry>,
+    depth: u32,
+) {
+    if depth > MAX_TOKEN_RECURSION {
+        return;
+    }
+    let Some((cstart, inner)) = subspec_content(full_source, tok) else {
+        return;
+    };
+    // Flatten every word across the (possibly multi-line) case list.
+    let mut words: Vec<(Token, String)> = Vec::new();
+    for seg in segment_commands_with_offset_and_config(
+        inner,
+        u32::try_from(cstart).unwrap_or(0),
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    ) {
+        for (i, t) in seg.argv.iter().enumerate() {
+            let text = seg.texts.get(i).cloned().unwrap_or_default();
+            words.push((*t, text));
+        }
+    }
+    for (idx, (word_tok, text)) in words.iter().enumerate() {
+        if idx % 2 == 0 {
+            // Pattern element — regex unless it is the `default` keyword.
+            if text == "default" {
+                if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+                    push_token(line_index, full_source, *word_tok, kind, 0, entries);
+                }
+            } else if !push_regex_subtokens(line_index, full_source, *word_tok, entries) {
+                push_token(
+                    line_index,
+                    full_source,
+                    *word_tok,
+                    TokenKind::Regexp,
+                    0,
+                    entries,
+                );
+            }
+        } else if let Some((bstart, body)) = subspec_content(full_source, *word_tok) {
+            // Body element — recurse as a script.
+            collect_script(
+                full_source,
+                body,
+                u32::try_from(bstart).unwrap_or(0),
+                dialect,
+                registry,
+                line_index,
+                entries,
+                depth + 1,
+            );
+        } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+            push_token(line_index, full_source, *word_tok, kind, 0, entries);
+        }
+    }
+}
+
 fn emit_command_head(
     line_index: &LineIndex,
     full_source: &str,
@@ -1511,6 +1622,17 @@ fn collect_script(
                 }
                 Some(ArgOverride::ExprScript) => {
                     collect_expr(
+                        full_source,
+                        *tok,
+                        dialect,
+                        registry,
+                        line_index,
+                        entries,
+                        depth + 1,
+                    );
+                }
+                Some(ArgOverride::SwitchRegexpCaseList) => {
+                    collect_switch_regexp_case_list(
                         full_source,
                         *tok,
                         dialect,

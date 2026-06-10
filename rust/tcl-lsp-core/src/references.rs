@@ -833,6 +833,14 @@ fn dedup_ranges(ranges: &mut Vec<LspRange>) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl8.6").clone()
+    }
+
     #[test]
     fn references_to_proc_include_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\ngreet\n";
