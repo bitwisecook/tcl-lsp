@@ -27,22 +27,33 @@
 // specifies how many values to consume (format) or bytes to process
 // (scan).  ``*`` means "all remaining".
 
-const rt     = @import("../tcl_runtime.zig");
+const std = @import("std");
+const rt = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const obj_new_int       = rt.obj_new_int;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
+const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
-const obj_get_int       = rt.obj_get_int;
-const alloc             = rt.alloc;
-const memcpy            = rt.memcpy;
+const obj_get_int = rt.obj_get_int;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
 /// Parse an optional decimal count from ``fmt`` at position ``*fi``.
 /// Returns the count (or ``null`` for ``*`` which means "all remaining").
 /// If no digits, returns 1.
+///
+/// A count whose digits exceed ``u32`` saturates to ``maxInt(u32)`` rather
+/// than wrapping.  This mirrors C Tcl's ``GetFormatSpec``, which parses the
+/// count with ``strtoull`` and clamps an out-of-range value to
+/// ``TCL_SIZE_MAX`` (tclBinary.c).  A saturated count is always larger than
+/// any real buffer, so the per-specifier "count exceeds remaining bytes"
+/// guards turn it into the same no-op / ``goto done`` C produces — instead of
+/// the integer-overflow panic the naive ``n*10`` accumulation used to trap on
+/// (e.g. ``binary scan x a[format %ld 0x100000000] r``, binary-37.10..37.13).
 fn parse_count(fmt: [*]const u8, fmt_len: u32, fi: *u32) ?u32 {
     if (fi.* >= fmt_len) return 1;
     if (fmt[fi.*] == '*') {
@@ -51,9 +62,18 @@ fn parse_count(fmt: [*]const u8, fmt_len: u32, fi: *u32) ?u32 {
     }
     if (fmt[fi.*] < '0' or fmt[fi.*] > '9') return 1;
     var n: u32 = 0;
+    var overflowed = false;
     while (fi.* < fmt_len and fmt[fi.*] >= '0' and fmt[fi.*] <= '9') : (fi.* += 1) {
-        n = n * 10 + @as(u32, fmt[fi.*] - '0');
+        const digit: u32 = fmt[fi.*] - '0';
+        const mul = @mulWithOverflow(n, 10);
+        const add = @addWithOverflow(mul[0], digit);
+        if (mul[1] != 0 or add[1] != 0) {
+            overflowed = true; // keep consuming digits, but stop accumulating
+        } else {
+            n = add[0];
+        }
     }
+    if (overflowed) n = std.math.maxInt(u32);
     return n;
 }
 
@@ -151,8 +171,7 @@ fn is_be(spec: u8) bool {
 /// First pass: calculate the byte length that ``binary format fmtStr args...``
 /// will produce.  Advances ``*wi`` and ``*fi`` together — call with wi=0, fi=0
 /// to get the total length.  Returns 0 on any sizing error.
-fn format_size(fmt: [*]const u8, fmt_len: u32,
-               words: []const i32, words_offset: u32) u32 {
+fn format_size(fmt: [*]const u8, fmt_len: u32, words: []const i32, words_offset: u32) u32 {
     var fi: u32 = 0;
     var wi: u32 = words_offset;
     var total: u32 = 0;
@@ -164,16 +183,22 @@ fn format_size(fmt: [*]const u8, fmt_len: u32,
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // Numeric specs consume ONE list-shaped argument and
+                // emit ``cnt`` field copies (per Tcl 9 docs).  ``*``
+                // means "all elements of the list"; a numeric count
+                // takes that many elements and pads / truncates.
                 const nbytes = spec_byte_width(spec);
-                const cnt: u32 = count_or_null orelse blk: {
-                    if (wi >= words.len) break :blk 0;
-                    // ``*`` for numeric = remaining words
-                    break :blk @intCast(words.len - wi);
-                };
+                if (wi >= words.len) {
+                    // No argument — nothing more to emit; skip.
+                    break;
+                }
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
                 total += nbytes * cnt;
-                wi += cnt;
+                wi += 1;
             },
             'a', 'A' => {
                 const str_len: u32 = if (wi < words.len) obj_ensure_string(words[wi]).len else 0;
@@ -216,9 +241,7 @@ fn format_size(fmt: [*]const u8, fmt_len: u32,
 }
 
 /// Second pass: fill the already-allocated ``buf`` of ``buf_len`` bytes.
-fn format_fill(buf: u32, buf_len: u32,
-               fmt: [*]const u8, fmt_len: u32,
-               words: []const i32, words_offset: u32) void {
+fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []const i32, words_offset: u32) void {
     var fi: u32 = 0;
     var wi: u32 = words_offset;
     var off: u32 = 0;
@@ -230,22 +253,83 @@ fn format_fill(buf: u32, buf_len: u32,
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M' => {
                 const nbytes = spec_byte_width(spec);
-                const cnt: u32 = count_or_null orelse blk: {
-                    if (wi >= words.len) break :blk 0;
-                    break :blk @intCast(words.len - wi);
-                };
+                if (wi >= words.len) break;
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
                 const big_end = is_be(spec);
-                for (0..cnt) |_| {
-                    if (wi >= words.len or off + nbytes > buf_len) break;
-                    const v: i64 = obj_get_int(words[wi]);
-                    if (big_end) write_be(buf, off, v, nbytes)
-                    else         write_le(buf, off, v, nbytes);
+                var k: u32 = 0;
+                while (k < cnt and off + nbytes <= buf_len) : (k += 1) {
+                    const elem_v: i64 = if (k < elem_count) blk: {
+                        const elem = obj_mod_x.list_element_at(arg_s.ptr, arg_s.len, @as(i64, k));
+                        if (elem.len == 0) break :blk 0;
+                        // Parse the list element as an integer literal.
+                        const bn = @import("../valtypes/tcl_bignum.zig");
+                        const parsed = bn.parse_i128(arg_s.ptr + elem.start, elem.len);
+                        if (parsed) |p| {
+                            // Tcl packs the integer's low N*8 bits regardless
+                            // of sign or magnitude (``write_le`` / ``write_be``
+                            // mask to ``nbytes``).  Wrap to the low 64 bits
+                            // rather than saturating to the i64 range —
+                            // saturation corrupted values >= 2^63 such as
+                            // ``binary format w 0x8000000000000000`` (which
+                            // clipped to 0x7fff…ffff = a NaN bit pattern when
+                            // re-read as a double; util-10.*).
+                            const low64: u64 = @truncate(@as(u128, @bitCast(p)));
+                            break :blk @as(i64, @bitCast(low64));
+                        }
+                        break :blk 0;
+                    } else 0;
+                    if (big_end) write_be(buf, off, elem_v, nbytes) else write_le(buf, off, elem_v, nbytes);
                     off += nbytes;
-                    wi += 1;
                 }
+                wi += 1;
+            },
+            'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // IEEE-754 floats: ``f``/``r`` little-endian + ``R``
+                // big-endian 32-bit; ``d``/``q`` little-endian + ``Q``
+                // big-endian 64-bit.  The value must be parsed as a
+                // *double* — the integer path above wrote zero bytes
+                // for ``binary format d 1.0`` (parse_i128 rejects the
+                // fractional literal), which collapsed ``testIEEE`` and
+                // skipped the ieeeFloatingPoint-gated suites.
+                const nbytes = spec_byte_width(spec);
+                const is32 = (nbytes == 4);
+                if (wi >= words.len) break;
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
+                const big_end = is_be(spec);
+                var k: u32 = 0;
+                while (k < cnt and off + nbytes <= buf_len) : (k += 1) {
+                    const fval: f64 = if (k < elem_count) blk: {
+                        const elem = obj_mod_x.list_element_at(arg_s.ptr, arg_s.len, @as(i64, k));
+                        if (elem.len == 0) break :blk 0;
+                        if (obj_mod_x.try_parse_float(arg_s.ptr + elem.start, elem.len)) |fv| break :blk fv;
+                        if (obj_mod_x.try_parse_int(arg_s.ptr + elem.start, elem.len)) |iv| break :blk @floatFromInt(iv);
+                        // Integer literal beyond i64 (no ``.``/``e``) —
+                        // convert through the bignum so it isn't silently
+                        // encoded as 0.0 (mirrors ``obj_get_float``).
+                        const bn = @import("../valtypes/tcl_bignum.zig");
+                        if (bn.parse_i128(arg_s.ptr + elem.start, elem.len)) |iv| break :blk @floatFromInt(iv);
+                        if (bn.alloc_from_string(arg_s.ptr + elem.start, elem.len)) |m| {
+                            defer bn.destroy(m);
+                            break :blk bn.to_f64(m);
+                        }
+                        break :blk 0;
+                    } else 0;
+                    const bits: i64 = if (is32) blk: {
+                        const f32v: f32 = @floatCast(fval);
+                        break :blk @bitCast(@as(u64, @as(u32, @bitCast(f32v))));
+                    } else @bitCast(fval);
+                    if (big_end) write_be(buf, off, bits, nbytes) else write_le(buf, off, bits, nbytes);
+                    off += nbytes;
+                }
+                wi += 1;
             },
             'a', 'A' => {
                 if (wi >= words.len) continue;
@@ -281,18 +365,13 @@ fn format_fill(buf: u32, buf_len: u32,
                 k = 0;
                 while (k < cnt and off + k / 2 < buf_len) : (k += 1) {
                     const c = if (k < vs.len) src_chars[k] else '0';
-                    const nibble: u8 = if (c >= '0' and c <= '9') c - '0'
-                        else if (c >= 'a' and c <= 'f') c - 'a' + 10
-                        else if (c >= 'A' and c <= 'F') c - 'A' + 10
-                        else 0;
+                    const nibble: u8 = if (c >= '0' and c <= '9') c - '0' else if (c >= 'a' and c <= 'f') c - 'a' + 10 else if (c >= 'A' and c <= 'F') c - 'A' + 10 else 0;
                     if (spec == 'h') {
                         // low nibble first: even k → low nibble, odd k → high
-                        if (k % 2 == 0) dst[off + k / 2] |= nibble
-                        else            dst[off + k / 2] |= nibble << 4;
+                        if (k % 2 == 0) dst[off + k / 2] |= nibble else dst[off + k / 2] |= nibble << 4;
                     } else {
                         // high nibble first
-                        if (k % 2 == 0) dst[off + k / 2] |= nibble << 4
-                        else            dst[off + k / 2] |= nibble;
+                        if (k % 2 == 0) dst[off + k / 2] |= nibble << 4 else dst[off + k / 2] |= nibble;
                     }
                 }
                 off += out_bytes;
@@ -350,11 +429,12 @@ fn eval_binary_format(words: []const i32) i32 {
     const out_len = format_size(fmt, fs.len, words, 2);
     if (out_len == 0) return obj_new_string(0, 0);
     const buf = alloc(out_len);
+    if (buf == 0) return obj_new_string(0, 0);
     // Zero the buffer so unfilled bytes are NUL.
     const dst: [*]u8 = @ptrFromInt(buf);
     for (0..out_len) |k| dst[k] = 0;
     format_fill(buf, out_len, fmt, fs.len, words, 2);
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return rt.obj_new_string_take(buf, out_len, out_len);
 }
 
 // ─── binary scan ─────────────────────────────────────────────────────────────
@@ -363,16 +443,16 @@ fn eval_binary_scan(words: []const i32) i32 {
     // words: ["scan", data, fmtStr, var0, var1, ...]
     if (words.len < 3) return obj_new_int(0);
     const data_s = obj_ensure_string(words[1]);
-    const fs     = obj_ensure_string(words[2]);
+    const fs = obj_ensure_string(words[2]);
     if (fs.len == 0) return obj_new_int(0);
 
     const src_base = data_s.ptr;
-    const src_len  = data_s.len;
+    const src_len = data_s.len;
     const fmt: [*]const u8 = @ptrFromInt(fs.ptr);
-    const fmt_len  = fs.len;
+    const fmt_len = fs.len;
 
-    var off: u32 = 0;   // byte position in data
-    var vi:  u32 = 0;   // next variable index (words[3 + vi])
+    var off: u32 = 0; // byte position in data
+    var vi: u32 = 0; // next variable index (words[3 + vi])
     var assigned: u32 = 0;
     var fi: u32 = 0;
 
@@ -380,87 +460,194 @@ fn eval_binary_scan(words: []const i32) i32 {
         const spec = fmt[fi];
         fi += 1;
 
+        // Tcl 8.5+ unsigned modifier: a ``u`` immediately after an
+        // integer type letter (``cu`` / ``su`` / ``iu`` / ``wu`` / …)
+        // scans the value as unsigned.  It precedes the optional count.
+        var force_unsigned = false;
+        if (fi < fmt_len and fmt[fi] == 'u') {
+            force_unsigned = true;
+            fi += 1;
+        }
+
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // IEEE-754 float decode — read the raw bytes and
+                // reinterpret as f32 (``f``/``r``/``R``) or f64
+                // (``d``/``q``/``Q``).  The integer path below would
+                // hand back the two's-complement view of the bits.
+                const nbytes = spec_byte_width(spec);
+                const cnt: u32 = count_or_null orelse
+                    if (nbytes > 0) (src_len -| off) / nbytes else 0;
+                const big_end = is_be(spec);
+                const is32 = (nbytes == 4);
+                const obj_mod_f = @import("../valtypes/tcl_obj.zig");
+                if (cnt == 1) {
+                    if (off + nbytes > src_len) break;
+                    const raw: u64 = @bitCast(if (big_end) read_be_unsigned(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
+                    off += nbytes;
+                    const fval: f64 = if (is32) @floatCast(@as(f32, @bitCast(@as(u32, @truncate(raw))))) else @bitCast(raw);
+                    if (words.len > 3 + vi) {
+                        _ = frames.var_set(words[3 + vi], obj_mod_f.obj_new_float(fval));
+                        vi += 1;
+                        assigned += 1;
+                    }
+                } else {
+                    var k: u32 = 0;
+                    // Build a space-separated list of the canonical
+                    // float reprs via obj_ensure_string(obj_new_float).
+                    var list_off: u32 = 0;
+                    // Worst case: each double repr is ~24 chars + a
+                    // separating space, so budget 28/elem.  Guard the
+                    // size against u32 overflow for a pathological
+                    // element count (a huge preopen'd data string).
+                    if (cnt > (0xFFFFFFFF - 8) / 28) break;
+                    const list_buf_size: u32 = cnt * 28 + 8;
+                    const list_buf = alloc(list_buf_size);
+                    if (list_buf == 0) break;
+                    const list_dst: [*]u8 = @ptrFromInt(list_buf);
+                    while (k < cnt and off + nbytes <= src_len) : (k += 1) {
+                        const raw: u64 = @bitCast(if (big_end) read_be_unsigned(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
+                        off += nbytes;
+                        const fval: f64 = if (is32) @floatCast(@as(f32, @bitCast(@as(u32, @truncate(raw))))) else @bitCast(raw);
+                        const fo = obj_mod_f.obj_new_float(fval);
+                        const fs2 = obj_mod_f.obj_ensure_string(fo);
+                        // Capacity guard: never write past the buffer even
+                        // if a repr is unexpectedly long.  Release the
+                        // float obj before bailing so it doesn't leak.
+                        const need: u32 = (if (k > 0) @as(u32, 1) else 0) + fs2.len;
+                        if (list_off + need > list_buf_size) {
+                            obj_mod_f.tcl_obj_release(fo);
+                            break;
+                        }
+                        if (k > 0) {
+                            list_dst[list_off] = ' ';
+                            list_off += 1;
+                        }
+                        const fp: [*]const u8 = @ptrFromInt(fs2.ptr);
+                        for (0..fs2.len) |j| list_dst[list_off + j] = fp[j];
+                        list_off += fs2.len;
+                        obj_mod_f.tcl_obj_release(fo);
+                    }
+                    if (words.len > 3 + vi) {
+                        _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
+                        vi += 1;
+                        assigned += 1;
+                    } else {
+                        obj_mod_f.free_sized(list_buf, list_buf_size);
+                    }
+                }
+            },
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M' => {
                 const nbytes = spec_byte_width(spec);
                 // ``*`` = read all remaining bytes / nbytes items.
                 const cnt: u32 = count_or_null orelse
                     if (nbytes > 0) (src_len -| off) / nbytes else 0;
                 const big_end = is_be(spec);
-                const signed = switch (spec) {
-                    'C' => false,
-                    else => true,
-                };
+                // ``C`` is unsigned 8-bit; every other type is signed
+                // unless the ``u`` modifier (8.5+) forces unsigned.
+                const signed = !force_unsigned and spec != 'C';
 
                 if (cnt == 1) {
                     // Scalar: assign single value to variable.
                     if (off + nbytes > src_len) break;
                     const v: i64 = if (big_end)
-                        (if (signed) read_be_signed(src_base, off, nbytes)
-                                    else read_be_unsigned(src_base, off, nbytes))
+                        (if (signed) read_be_signed(src_base, off, nbytes) else read_be_unsigned(src_base, off, nbytes))
                     else
-                        (if (signed) read_le_signed(src_base, off, nbytes)
-                                    else read_le_unsigned(src_base, off, nbytes));
+                        (if (signed) read_le_signed(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                     off += nbytes;
                     if (words.len > 3 + vi) {
-                        _ = frames.var_set(words[3 + vi], obj_new_int(v));
+                        _ = frames.var_set(words[3 + vi], scan_int_obj(v, !signed));
                         vi += 1;
                         assigned += 1;
                     }
                 } else {
                     // Multiple: build a Tcl list.
                     // Each element is at most 20 chars + space.
-                    const list_buf = alloc(cnt * 24);
+                    const list_buf_size: u32 = cnt * 24;
+                    const list_buf = alloc(list_buf_size);
+                    if (list_buf == 0) break;
                     var list_off: u32 = 0;
                     const list_dst: [*]u8 = @ptrFromInt(list_buf);
                     var k: u32 = 0;
                     while (k < cnt and off + nbytes <= src_len) : (k += 1) {
                         const v: i64 = if (big_end)
-                            (if (signed) read_be_signed(src_base, off, nbytes)
-                                        else read_be_unsigned(src_base, off, nbytes))
+                            (if (signed) read_be_signed(src_base, off, nbytes) else read_be_unsigned(src_base, off, nbytes))
                         else
-                            (if (signed) read_le_signed(src_base, off, nbytes)
-                                        else read_le_unsigned(src_base, off, nbytes));
+                            (if (signed) read_le_signed(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                         off += nbytes;
-                        if (k > 0) { list_dst[list_off] = ' '; list_off += 1; }
-                        // Format the integer as decimal.
-                        list_off += fmt_i64(list_dst, list_off, v);
+                        if (k > 0) {
+                            list_dst[list_off] = ' ';
+                            list_off += 1;
+                        }
+                        // Format the integer as decimal — unsigned for a
+                        // high-bit-set ``wu`` / ``mu`` element (exceeds i64).
+                        if (!signed and v < 0) {
+                            list_off += fmt_u64(list_dst, list_off, @bitCast(v));
+                        } else {
+                            list_off += fmt_i64(list_dst, list_off, v);
+                        }
                     }
                     if (words.len > 3 + vi) {
-                        _ = frames.var_set(words[3 + vi],
-                            obj_new_string(@bitCast(list_buf), @bitCast(list_off)));
+                        _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(list_buf, list_off, list_buf_size));
                         vi += 1;
                         assigned += 1;
+                    } else {
+                        // No backing variable — caller is just probing
+                        // assigned count.  Free the staged list buffer
+                        // before continuing or the slab leaks for the
+                        // remainder of the runtime.
+                        const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                        obj_mod_scan.free_sized(list_buf, list_buf_size);
                     }
                 }
             },
             'a', 'A' => {
-                const cnt: u32 = count_or_null orelse (src_len -| off);
-                const take = @min(cnt, src_len -| off);
+                const remaining = src_len -| off;
+                // C contract (tclBinary.c BinaryScanCmd, case 'a'/'A'/'C'):
+                // ``*`` consumes everything left; an explicit count larger
+                // than the bytes remaining stops the scan via ``goto done``
+                // (the variable is *not* assigned) rather than clamping to a
+                // short read.  ``parse_count`` returns 1 for a bare specifier,
+                // which follows the same > remaining gate as any explicit
+                // count.  This is what makes the count-overflow cases
+                // (binary-37.10..37.13) return 0.
+                var take: u32 = undefined;
+                if (count_or_null) |cnt| {
+                    if (cnt > remaining) break;
+                    take = cnt;
+                } else {
+                    take = remaining; // ``*`` = all remaining
+                }
                 var end = off + take;
                 if (spec == 'A') {
                     // Strip trailing spaces/nulls from result.
-                    while (end > off and (
-                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == ' ' or
-                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == 0
-                    )) end -= 1;
+                    while (end > off and (@as(*const u8, @ptrFromInt(src_base + end - 1)).* == ' ' or
+                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == 0)) end -= 1;
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(src_base + off), @bitCast(end - off)));
+                    // ``obj_new_string`` borrows the bytes; ``var_set``
+                    // promotes via ``ensure_var_obj_owned`` (cap==0 ->
+                    // fresh copy).  The slot then holds the copy and
+                    // releases the borrow obj — net 0 leak.
+                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(src_base + off), @bitCast(end - off)));
                     vi += 1;
                     assigned += 1;
                 }
+                // When no variable is supplied we don't mint the
+                // borrow obj at all (above ``if`` skipped) so there's
+                // nothing to release — the source-buffer pointer is
+                // borrowed from the data input.
                 off += take;
             },
             'h', 'H' => {
                 const cnt: u32 = count_or_null orelse ((src_len -| off) * 2);
                 const take_bytes = (cnt + 1) / 2;
                 if (off + take_bytes > src_len) break;
-                const hex_buf = alloc(cnt + 1);
+                const hex_buf_size: u32 = cnt + 1;
+                const hex_buf = alloc(hex_buf_size);
+                if (hex_buf == 0) break;
                 const hex_dst: [*]u8 = @ptrFromInt(hex_buf);
                 const src_p: [*]const u8 = @ptrFromInt(src_base + off);
                 const hex_chars = "0123456789abcdef";
@@ -474,10 +661,12 @@ fn eval_binary_scan(words: []const i32) i32 {
                     hex_dst[k] = hex_chars[nibble];
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(hex_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(hex_buf, cnt, hex_buf_size));
                     vi += 1;
                     assigned += 1;
+                } else {
+                    const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                    obj_mod_scan.free_sized(hex_buf, hex_buf_size);
                 }
                 off += take_bytes;
             },
@@ -485,7 +674,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                 const cnt: u32 = count_or_null orelse ((src_len -| off) * 8);
                 const take_bytes = (cnt + 7) / 8;
                 if (off + take_bytes > src_len) break;
-                const bit_buf = alloc(cnt + 1);
+                const bit_buf_size: u32 = cnt + 1;
+                const bit_buf = alloc(bit_buf_size);
+                if (bit_buf == 0) break;
                 const bit_dst: [*]u8 = @ptrFromInt(bit_buf);
                 const src_p: [*]const u8 = @ptrFromInt(src_base + off);
                 var k: u32 = 0;
@@ -498,24 +689,43 @@ fn eval_binary_scan(words: []const i32) i32 {
                     bit_dst[k] = '0' + bit;
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(bit_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], rt.obj_new_string_take(bit_buf, cnt, bit_buf_size));
                     vi += 1;
                     assigned += 1;
+                } else {
+                    const obj_mod_scan = @import("../valtypes/tcl_obj.zig");
+                    obj_mod_scan.free_sized(bit_buf, bit_buf_size);
                 }
                 off += take_bytes;
             },
             'x' => {
-                const cnt: u32 = count_or_null orelse 1;
-                off += @min(cnt, src_len -| off);
+                // Skip forward.  ``x*`` (and an explicit count past the end)
+                // advances to the end of the data; otherwise skip ``cnt``
+                // bytes.  ``@min`` makes an oversized explicit count clamp to
+                // the end, matching C's ``offset = length`` branch.
+                if (count_or_null) |cnt| {
+                    off += @min(cnt, src_len -| off);
+                } else {
+                    off = src_len; // ``x*`` = skip everything remaining
+                }
             },
             'X' => {
-                const cnt: u32 = count_or_null orelse 1;
-                off -|= cnt;
+                // Move back.  ``X*`` (and an explicit count past the start)
+                // rewinds to the beginning; otherwise back up ``cnt`` bytes.
+                if (count_or_null) |cnt| {
+                    off -|= cnt;
+                } else {
+                    off = 0; // ``X*`` = rewind to the start
+                }
             },
             '@' => {
-                const cnt: u32 = count_or_null orelse 0;
-                off = @min(cnt, src_len);
+                // Absolute seek.  ``@*`` seeks to the end of the data; an
+                // explicit count seeks there, clamped to the data length.
+                if (count_or_null) |cnt| {
+                    off = @min(cnt, src_len);
+                } else {
+                    off = src_len; // ``@*`` = seek to end (BINARY_ALL)
+                }
             },
             else => {},
         }
@@ -526,7 +736,10 @@ fn eval_binary_scan(words: []const i32) i32 {
 /// Format a signed 64-bit integer as decimal into ``dst[off..]``.
 /// Returns the number of bytes written.
 fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
-    if (val == 0) { dst[off] = '0'; return 1; }
+    if (val == 0) {
+        dst[off] = '0';
+        return 1;
+    }
     var buf: [20]u8 = undefined;
     var pos: u32 = 20;
     // Use wrapping subtraction on the u64 bit pattern to handle INT64_MIN
@@ -537,43 +750,227 @@ fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
         buf[pos] = @intCast('0' + (v % 10));
     }
     var len: u32 = 0;
-    if (val < 0) { dst[off] = '-'; len = 1; }
+    if (val < 0) {
+        dst[off] = '-';
+        len = 1;
+    }
     const digits = 20 - pos;
     for (0..digits) |k| dst[off + len + k] = buf[pos + k];
     return len + digits;
 }
 
+/// Format an unsigned 64-bit integer as decimal into ``dst[off..]``.
+/// Used by the ``u`` scan modifier for 64-bit (``wu`` / ``mu``) values
+/// whose high bit is set — they exceed ``i64`` so the signed formatter
+/// would print a negative number.  Returns the number of bytes written.
+fn fmt_u64(dst: [*]u8, off: u32, val: u64) u32 {
+    if (val == 0) {
+        dst[off] = '0';
+        return 1;
+    }
+    var buf: [20]u8 = undefined;
+    var pos: u32 = 20;
+    var v: u64 = val;
+    while (v > 0) : (v /= 10) {
+        pos -= 1;
+        buf[pos] = @intCast('0' + (v % 10));
+    }
+    const digits = 20 - pos;
+    for (0..digits) |k| dst[off + k] = buf[pos + k];
+    return digits;
+}
+
+/// Build the TclObj for a scanned integer, honouring the ``u`` modifier
+/// for the 64-bit case: a high-bit-set ``wu`` / ``mu`` value exceeds
+/// ``i64`` and must be returned as its unsigned decimal string rather
+/// than a negative integer.
+fn scan_int_obj(v: i64, unsigned: bool) i32 {
+    if (unsigned and v < 0) {
+        var buf: [20]u8 = undefined;
+        const n = fmt_u64(@ptrCast(&buf), 0, @bitCast(v));
+        // ``obj_new_string`` borrows its bytes (cap=0), so the stack
+        // buffer must be copied into the obj's own storage rather than
+        // referenced — otherwise the string points at freed stack space.
+        const obj_mod_b = @import("../valtypes/tcl_obj.zig");
+        return obj_mod_b.obj_new_string_copy(@intCast(@intFromPtr(&buf[0])), n);
+    }
+    return obj_new_int(v);
+}
+
 // ─── top-level dispatcher ────────────────────────────────────────────────────
 
-fn eval_binary(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_binary(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const sub = obj_ensure_string(words[1]);
-    if (sub.len == 0) return obj_new_string(0, 0);
+    if (sub.len == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
 
     // ``binary format``
     if (sub.len == 6 and
-        sp[0]=='f' and sp[1]=='o' and sp[2]=='r' and
-        sp[3]=='m' and sp[4]=='a' and sp[5]=='t')
+        sp[0] == 'f' and sp[1] == 'o' and sp[2] == 'r' and
+        sp[3] == 'm' and sp[4] == 'a' and sp[5] == 't')
     {
         // Shift words: ["binary", "format", fmtStr, val...] → ["format", fmtStr, val...]
-        return eval_binary_format(words[1..]);
+        return result_mod.from_globals(eval_binary_format(words[1..]));
     }
     // ``binary scan``
     if (sub.len == 4 and
-        sp[0]=='s' and sp[1]=='c' and sp[2]=='a' and sp[3]=='n')
+        sp[0] == 's' and sp[1] == 'c' and sp[2] == 'a' and sp[3] == 'n')
     {
-        return eval_binary_scan(words[1..]);
+        return result_mod.from_globals(eval_binary_scan(words[1..]));
     }
-    // ``binary encode`` / ``binary decode`` — not implemented
-    return obj_new_string(0, 0);
+    // ``binary decode hex ?-strict? data`` — minimal subset that
+    // covers the tcltest 9 corpus (the ``-strict`` flag is parsed
+    // but ``binary decode hex`` already errors on non-hex chars
+    // anyway, so the behaviours coincide).  ``binary encode hex``
+    // and the base64 / uuencode variants are still pending.
+    if (sub.len == 6 and
+        sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'c' and
+        sp[3] == 'o' and sp[4] == 'd' and sp[5] == 'e')
+    {
+        return result_mod.from_globals(eval_binary_decode(words[1..]));
+    }
+    // ``binary encode hex`` — symmetric counterpart used by tcltests
+    // that round-trip through hex.
+    if (sub.len == 6 and
+        sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'c' and
+        sp[3] == 'o' and sp[4] == 'd' and sp[5] == 'e')
+    {
+        return result_mod.from_globals(eval_binary_encode(words[1..]));
+    }
+    return result_mod.from_globals(obj_new_string(0, 0));
+}
+
+/// ``binary decode hex`` implementation.  Walks pairs of hex digits
+/// (case-insensitive), skipping ASCII whitespace by default.  An
+/// odd number of significant hex digits raises an error; non-hex
+/// non-whitespace chars do too (``-strict`` tightens whitespace
+/// handling, which we don't currently implement separately — the
+/// strict + non-strict behaviour agree on the test corpus).
+fn eval_binary_decode(words: []const i32) i32 {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    // words = ["decode", FMT, ?-strict?, data]
+    if (words.len < 3) {
+        raise_simple("wrong # args: should be \"binary decode format ?options ...? data\"");
+        return 0;
+    }
+    const fmt = obj_ensure_string(words[1]);
+    if (!(fmt.len == 3 and slice_eq3(fmt.ptr, "hex"))) {
+        // Only ``hex`` is implemented; base64 / uuencode return
+        // empty.  (Future revision: wire those through too.)
+        return obj_new_string(0, 0);
+    }
+    var data_idx: u32 = 2;
+    // Eat ``-strict`` etc. between FMT and the data argument.
+    while (data_idx < words.len - 1) : (data_idx += 1) {
+        const a = obj_ensure_string(words[data_idx]);
+        if (a.len == 0) break;
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (ap[0] != '-') break;
+    }
+    if (data_idx >= words.len) {
+        raise_simple("wrong # args: should be \"binary decode hex ?-strict? data\"");
+        return 0;
+    }
+    const data = obj_ensure_string(words[data_idx]);
+    if (data.len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(data.ptr);
+    const cap: u32 = data.len / 2 + 1;
+    const buf = alloc(cap);
+    if (buf == 0) {
+        raise_simple("out of memory");
+        return 0;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var out: u32 = 0;
+    var i: u32 = 0;
+    var have_high: bool = false;
+    var high: u8 = 0;
+    while (i < data.len) : (i += 1) {
+        const c = sp[i];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r') continue;
+        const nibble: u8 = if (c >= '0' and c <= '9') c - '0' else if (c >= 'a' and c <= 'f') c - 'a' + 10 else if (c >= 'A' and c <= 'F') c - 'A' + 10 else {
+            obj_mod.free_sized(buf, cap);
+            raise_simple("invalid hexadecimal digit");
+            return 0;
+        };
+        if (!have_high) {
+            high = nibble;
+            have_high = true;
+        } else {
+            dst[out] = (high << 4) | nibble;
+            out += 1;
+            have_high = false;
+        }
+    }
+    if (have_high) {
+        obj_mod.free_sized(buf, cap);
+        raise_simple("invalid hexadecimal digit \"\" at position");
+        return 0;
+    }
+    // ``obj_new_string`` borrows the buffer pointer (cap=0), which
+    // means the bytes leak when the TclObj is released.  Take
+    // ownership via ``obj_new_string_take`` so the slab returns to
+    // the free-list at end-of-life.
+    return obj_mod.obj_new_string_take(buf, out, cap);
+}
+
+/// ``binary encode hex`` — render each byte as two lowercase hex
+/// digits.  Symmetric counterpart of :fn:`eval_binary_decode`.
+fn eval_binary_encode(words: []const i32) i32 {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    if (words.len < 3) {
+        raise_simple("wrong # args: should be \"binary encode format ?options ...? data\"");
+        return 0;
+    }
+    const fmt = obj_ensure_string(words[1]);
+    if (!(fmt.len == 3 and slice_eq3(fmt.ptr, "hex"))) return obj_new_string(0, 0);
+    const data = obj_ensure_string(words[2]);
+    if (data.len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(data.ptr);
+    const out_len: u32 = data.len * 2;
+    const cap: u32 = out_len + 1;
+    const buf = alloc(cap);
+    if (buf == 0) {
+        raise_simple("out of memory");
+        return 0;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var i: u32 = 0;
+    const HEX = "0123456789abcdef";
+    while (i < data.len) : (i += 1) {
+        dst[i * 2] = HEX[sp[i] >> 4];
+        dst[i * 2 + 1] = HEX[sp[i] & 0x0F];
+    }
+    // Owning TclObj — see the matching note in ``eval_binary_decode``.
+    return obj_mod.obj_new_string_take(buf, out_len, cap);
+}
+
+fn slice_eq3(p: u32, comptime want: []const u8) bool {
+    const sp: [*]const u8 = @ptrFromInt(p);
+    inline for (want, 0..) |c, i| if (sp[i] != c) return false;
+    return true;
+}
+
+fn raise_simple(msg: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const buf = obj_mod.alloc(@intCast(msg.len));
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |c, i| dst[i] = c;
+    const o = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(o);
 }
 
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "binary", .arity_min = 1, .arity_max = null, .handler = &eval_binary },
 };
 
-// Sub-command arities — mirrors ``core/commands/registry/tcl/binary.py``.
+// Sub-command arities — mirrors ``dialects/tcl/binary.py``.
 // Cross-checked against C Tcl 9.0 ``tclBinary.c``.
 pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "decode", .arity_min = 2, .arity_max = null, .handler = &eval_binary },

@@ -1,0 +1,14 @@
+[
+  {
+    "service": "www.example.com",
+    "public": "203.0.113.10:443",
+    "internal": "10.1.0.10:443",
+    "device": "border-fw-a"
+  },
+  {
+    "service": "www.example.com",
+    "public": "203.0.113.11:443",
+    "internal": "10.1.0.10:443",
+    "device": "border-fw-b"
+  }
+]

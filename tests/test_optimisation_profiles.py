@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import core.common.codes_all  # noqa: F401  # trigger all code registrations
-from core.common.codes import optimisation_codes
-from core.common.optimisation_profiles import (
+import server._codes_init  # noqa: F401  # trigger all code registrations
+from shared.codes import optimisation_codes
+from shared.optimisation_profiles import (
     CODE_MOTION_CODES,
     CONSTANT_FOLDING_CODES,
     DCE_CODES,
@@ -112,7 +112,10 @@ class TestProfileSpec:
 
     def test_standard_code_count(self):
         spec = profile_spec(OptimisationProfile.STANDARD)
-        assert len(spec.enabled_codes) == 17
+        # readability + constant-folding + pattern codes.  O129 added the
+        # general builtin-command-substitution fold (constant_folding); O130
+        # added the lappend list-build-chain fold (pattern).
+        assert len(spec.enabled_codes) == 19
 
 
 # ---------------------------------------------------------------------------

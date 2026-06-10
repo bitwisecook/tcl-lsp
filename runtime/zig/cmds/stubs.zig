@@ -58,24 +58,139 @@
 // the parity classifier will notice the promotion (SILENT_STUB →
 // IMPLEMENTED) without further configuration.
 
-const std   = @import("std");
-const rt    = @import("../tcl_runtime.zig");
-const reg   = @import("../dispatch/tcl_cmd_registry.zig");
+const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
+const rt = @import("../tcl_runtime.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const clock = @import("../io/tcl_clock.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
 
-fn eval_auto_load(words: []const i32) i32 {
+fn eval_auto_load(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return rt.obj_new_int(0);
+    return result_mod.from_globals(rt.obj_new_int(0));
 }
 
-fn eval_auto_noop(words: []const i32) i32 {
+fn eval_auto_noop(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return rt.obj_new_string(0, 0);
+    return result_mod.from_globals(rt.obj_new_string(0, 0));
 }
 
-fn eval_package(words: []const i32) i32 {
-    _ = words;
-    return 0;
+// ``package ifneeded`` registry — the one piece of the package
+// machinery the WASM runtime needs working: ``tcltest``'s
+// ``loadIntoChildInterpreter`` does ``interp eval $child [package
+// ifneeded tcltest $Version]`` to load the framework into a freshly
+// created child interp.  Without a real store the query returns empty
+// and the child never gets ``tcltest::*``.  A small fixed-capacity
+// table keyed by ``name\x00version`` is enough — package data is
+// effectively process-global in a single-program WASM run, and the
+// volume is tiny (a handful of ``ifneeded`` registrations per run).
+const PkgEntry = struct { key_ptr: u32, key_len: u32, script: i32 };
+var pkg_entries: [128]PkgEntry = undefined;
+var pkg_count: u32 = 0;
+
+fn pkg_make_key(name: i32, version: i32) struct { ptr: u32, len: u32 } {
+    const n = rt.obj_ensure_string(name);
+    const v = rt.obj_ensure_string(version);
+    const total: u32 = n.len + 1 + v.len;
+    const buf = rt.alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
+    if (n.len > 0) rt.memcpy(buf, n.ptr, n.len);
+    const sep: [*]u8 = @ptrFromInt(buf + n.len);
+    sep[0] = 0;
+    if (v.len > 0) rt.memcpy(buf + n.len + 1, v.ptr, v.len);
+    return .{ .ptr = buf, .len = total };
+}
+
+fn pkg_key_eq(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) bool {
+    if (a_len != b_len) return false;
+    const a: [*]const u8 = @ptrFromInt(a_ptr);
+    const b: [*]const u8 = @ptrFromInt(b_ptr);
+    var i: u32 = 0;
+    while (i < a_len) : (i += 1) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+fn word_eq(o: i32, lit: []const u8) bool {
+    const s = rt.obj_ensure_string(o);
+    if (s.ptr == 0 or s.len != lit.len) return false;
+    const p = @as([*]const u8, @ptrFromInt(s.ptr))[0..s.len];
+    return std.mem.eql(u8, p, lit);
+}
+
+fn eval_package(words: []const i32) result_mod.InterpResult {
+    if (words.len == 0) return result_mod.from_globals(0);
+    // The handler is shared by the parent ``package`` command and the
+    // ``package <sub>`` subcommand entries; depending on the dispatch
+    // path ``words`` is either ``[package, sub, …]`` or ``[sub, …]``.
+    // Probe both so the sub-word index is correct either way.
+    const base: u32 = if (word_eq(words[0], "package")) 1 else 0;
+    if (words.len <= base) return result_mod.from_globals(0);
+    if (word_eq(words[base], "ifneeded")) {
+        // ``package ifneeded NAME VERSION ?SCRIPT?``
+        const name_i = base + 1;
+        const ver_i = base + 2;
+        const script_i = base + 3;
+        if (words.len > script_i) {
+            const key = pkg_make_key(words[name_i], words[ver_i]);
+            if (key.ptr == 0) return result_mod.from_globals(0);
+            var i: u32 = 0;
+            while (i < pkg_count) : (i += 1) {
+                if (pkg_key_eq(pkg_entries[i].key_ptr, pkg_entries[i].key_len, key.ptr, key.len)) {
+                    obj_mod.tcl_obj_retain(words[script_i]);
+                    obj_mod.tcl_obj_release(pkg_entries[i].script);
+                    pkg_entries[i].script = words[script_i];
+                    // Overwrite: the existing entry keeps its own key, so
+                    // the freshly-built lookup key is unused — free it.
+                    obj_mod.free_sized(key.ptr, key.len);
+                    return result_mod.from_globals(0);
+                }
+            }
+            if (pkg_count < pkg_entries.len) {
+                obj_mod.tcl_obj_retain(words[script_i]);
+                // New entry takes ownership of the key buffer.
+                pkg_entries[pkg_count] = .{ .key_ptr = key.ptr, .key_len = key.len, .script = words[script_i] };
+                pkg_count += 1;
+            } else {
+                // Table full: the key was never stored — don't leak it.
+                obj_mod.free_sized(key.ptr, key.len);
+            }
+            return result_mod.from_globals(0);
+        }
+        if (words.len > ver_i) {
+            const key = pkg_make_key(words[name_i], words[ver_i]);
+            if (key.ptr == 0) return result_mod.from_globals(rt.obj_new_string(0, 0));
+            // Lookup-only key — never stored, so reclaim it on every exit.
+            defer obj_mod.free_sized(key.ptr, key.len);
+            var i: u32 = 0;
+            while (i < pkg_count) : (i += 1) {
+                if (pkg_key_eq(pkg_entries[i].key_ptr, pkg_entries[i].key_len, key.ptr, key.len)) {
+                    const s = rt.obj_ensure_string(pkg_entries[i].script);
+                    return result_mod.from_globals(rt.obj_new_string_copy(s.ptr, s.len));
+                }
+            }
+            return result_mod.from_globals(rt.obj_new_string(0, 0));
+        }
+    }
+    // ``package require Tcl ?reqs?`` / ``package provide Tcl`` return the
+    // interpreter's version so library code that does ``variable version
+    // [package require Tcl 8.5-]`` (tcltest) gets a usable string.  Other
+    // packages have no on-disk presence under WASM, so requiring them is a
+    // silent empty no-op.
+    if (word_eq(words[base], "require") or word_eq(words[base], "provide")) {
+        if (words.len > base + 1 and word_eq(words[base + 1], "Tcl")) {
+            const ver = "9.0.3";
+            return result_mod.from_globals(rt.obj_new_string_copy(@intFromPtr(ver.ptr), ver.len));
+        }
+        return result_mod.from_globals(rt.obj_new_string(0, 0));
+    }
+    // ``package vsatisfies VERSION REQ...`` — the runtime targets Tcl
+    // 9.0.3, so version predicates a 9.0 build satisfies report true.
+    if (word_eq(words[base], "vsatisfies")) {
+        return result_mod.from_globals(rt.obj_new_int(1));
+    }
+    return result_mod.from_globals(0);
 }
 
 // Interpreter-side ``clock`` dispatcher.
@@ -95,20 +210,20 @@ fn eval_package(words: []const i32) i32 {
 // ``format`` / ``scan`` / ``add`` stubbing mirrors ``tcl_time_stubs.zig``
 // (the WASM-export path used by compiled procs).  See that file's
 // header for the deliberate divergence from real Tcl semantics.
-fn eval_clock(words: []const i32) i32 {
-    if (words.len < 2) return clock.clock_seconds();
+fn eval_clock(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(clock.clock_seconds());
     const sub = rt.obj_ensure_string(words[1]);
     const sp: []const u8 = if (sub.ptr == 0) "" else @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
-    if (std.mem.eql(u8, sp, "seconds")) return clock.clock_seconds();
-    if (std.mem.eql(u8, sp, "clicks")) return clock.clock_clicks();
-    if (std.mem.eql(u8, sp, "milliseconds")) return clock.clock_milliseconds();
+    if (std.mem.eql(u8, sp, "seconds")) return result_mod.from_globals(clock.clock_seconds());
+    if (std.mem.eql(u8, sp, "clicks")) return result_mod.from_globals(clock.clock_clicks());
+    if (std.mem.eql(u8, sp, "milliseconds")) return result_mod.from_globals(clock.clock_milliseconds());
     if (std.mem.eql(u8, sp, "microseconds")) {
         // micro = clicks (already microseconds from the fast clock)
-        return clock.clock_clicks();
+        return result_mod.from_globals(clock.clock_clicks());
     }
     if (std.mem.eql(u8, sp, "scan")) {
         // Form: clock scan TEXT ?-base T? ?-format F? ?-gmt 0|1? ?-timezone Z? ?-locale L?
-        if (words.len < 3) return rt.obj_new_int(0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_int(0));
         var zone_obj: i32 = 0;
         var base_obj: i32 = 0;
         var fmt_obj: i32 = 0;
@@ -117,8 +232,7 @@ fn eval_clock(words: []const i32) i32 {
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
             const optn = rt.obj_ensure_string(words[ai]);
-            const op: []const u8 = if (optn.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            const op: []const u8 = if (optn.ptr == 0) "" else @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-timezone")) {
                 zone_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-base")) {
@@ -144,14 +258,14 @@ fn eval_clock(words: []const i32) i32 {
             // an unrecognised locale falls back to plain numeric.
             const f = rt.obj_ensure_string(fmt_obj);
             if (f.ptr != 0 and f.len > 0) {
-                return clock.clock_scan_format(words[2], fmt_obj, gmt, zone_obj, base_obj, locale_obj);
+                return result_mod.from_globals(clock.clock_scan_format(words[2], fmt_obj, gmt, zone_obj, base_obj, locale_obj));
             }
         }
-        return clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj);
+        return result_mod.from_globals(clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj));
     }
     if (std.mem.eql(u8, sp, "format")) {
         // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1? ?-timezone Z? ?-locale L?
-        if (words.len < 3) return rt.obj_new_string(0, 0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_string(0, 0));
         var fmt_obj: i32 = 0;
         var zone_obj: i32 = 0;
         var locale_obj: i32 = 0;
@@ -159,8 +273,7 @@ fn eval_clock(words: []const i32) i32 {
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
             const optn = rt.obj_ensure_string(words[ai]);
-            const op: []const u8 = if (optn.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            const op: []const u8 = if (optn.ptr == 0) "" else @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-format")) {
                 fmt_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-timezone")) {
@@ -192,9 +305,9 @@ fn eval_clock(words: []const i32) i32 {
                 @intCast(@intFromPtr(":GMT".ptr)),
                 4,
             );
-            return clock.clock_format_tz_locale(words[2], fmt_obj, gmt_name, locale_obj);
+            return result_mod.from_globals(clock.clock_format_tz_locale(words[2], fmt_obj, gmt_name, locale_obj));
         }
-        return clock.clock_format_tz_locale(words[2], fmt_obj, zone_obj, locale_obj);
+        return result_mod.from_globals(clock.clock_format_tz_locale(words[2], fmt_obj, zone_obj, locale_obj));
     }
     if (std.mem.eql(u8, sp, "add")) {
         // Form: clock add BASE ?COUNT UNIT?* ?-gmt 0|1? ?-timezone Z?
@@ -203,13 +316,12 @@ fn eval_clock(words: []const i32) i32 {
         // skipped — they affect calendar-month math semantics but the
         // current implementation does month arithmetic in UTC, which
         // matches Tcl's behaviour for non-DST-crossing month adds.
-        if (words.len < 3) return rt.obj_new_int(0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_int(0));
         var acc: i32 = words[2];
         var ai: usize = 3;
         while (ai < words.len) {
             const w = rt.obj_ensure_string(words[ai]);
-            const ws: []const u8 = if (w.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
+            const ws: []const u8 = if (w.ptr == 0) "" else @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
             // Distinguish a real option flag (``-gmt`` / ``-timezone``)
             // from a negative count (``-1 days``).  An option starts
             // with ``-`` followed by an alphabetic character; anything
@@ -225,9 +337,9 @@ fn eval_clock(words: []const i32) i32 {
             acc = clock.clock_add_pair(acc, words[ai], words[ai + 1]);
             ai += 2;
         }
-        return acc;
+        return result_mod.from_globals(acc);
     }
-    return rt.obj_new_string(0, 0);
+    return result_mod.from_globals(rt.obj_new_string(0, 0));
 }
 
 pub const registrations = [_]reg.CmdEntry{
@@ -244,7 +356,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // ``clock <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/clock.py``.  Cross-checked against
+// ``dialects/tcl/clock.py``.  Cross-checked against
 // C Tcl 9.0 ``generic/tclClock.c`` + ``tclClockFmt.c`` (ensemble
 // implementations invoke ``Tcl_WrongNumArgs`` on bad arg counts).
 pub const clock_subcommands: []const reg.SubEntry = &.{
@@ -258,7 +370,7 @@ pub const clock_subcommands: []const reg.SubEntry = &.{
 };
 
 // ``package <sub>`` sub-commands — mirrors
-// ``core/commands/registry/tcl/package.py``.  Cross-checked against
+// ``dialects/tcl/package.py``.  Cross-checked against
 // C Tcl 9.0 ``generic/tclPkg.c``.
 pub const package_subcommands: []const reg.SubEntry = &.{
     .{ .name = "files", .arity_min = 1, .arity_max = 1, .handler = &eval_package },

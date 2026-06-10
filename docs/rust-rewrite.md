@@ -4137,6 +4137,171 @@ the leading `\` byte, covering `\<LF>` and `\<CRLF>`).  Self-contained, off
 the hot keystroke path; pin with a nested-body continuation case + a
 dangling-`\`-at-EOF case.
 
+## SYNC-JUN10 family — full rebase onto main HEAD + whole-workspace audit (2026-06-10)
+
+**This is a `Full rebase` (the heavy catch-up mode documented under
+[Audit workflow](#audit-workflow)).**  The `rust` branch had only been
+kept current via the documentary anchor process since main's May-2026
+seven-concern reorganisation — its working tree still carried the *old*
+Python layout (`core/`, `lsp/`, `vm/`, `fuzzing/`, `explorer/`,
+`debugger/`, `tclpkg/`).  Per the Full-rebase trigger "(b) `main` has had
+a path-renaming refactor", the branch tree was reset onto
+`origin/main`@`0becf577` and the Rust workstream re-applied on top:
+
+- **Kept from `origin/main` (the new base):** the entire seven-concern
+  Python tree (`shared/`, `compiler/`, `dialects/`, `analyser/`,
+  `server/`, `tooling/`), the reorganised `tests/` (which is how the
+  **`tests/lsp_e2e/` end-to-end LSP suite** — #547 + #556 — now rides on
+  the branch), `bench/`, `.importlinter`, and all shared infra.  Main's
+  Makefile/CI were **already Rust-aware** (`test-rust` / `check-rust` /
+  `ensure-rust-deps`, guarded on a top-level `Cargo.toml`; `/target/` +
+  `rust/tcl-lsp-rust/.venv/` already in `.gitignore`; the CI `Set up
+  Rust` step), so no infra merge was needed — the overlaid workspace
+  plugs straight in.
+- **Re-applied from `origin/rust` (the Rust workstream):** the `rust/`
+  Cargo workspace (eight member crates), `runtime/rust` + `runtime/rust-spike`,
+  `Cargo.toml` / `Cargo.lock` / `rust-toolchain.toml` / `deny.toml`, the
+  Rust-only design/perf docs (`docs/design/{rust,runtime}/…`,
+  `docs/perf/wasm-tcl9-parity/…`), `rust-rewrite-registries.md`, and this
+  document.
+- **Conformed to main ("follow main"):** seven shared `docs/design/runtime/*.md`
+  files were restored to main's versions (the branch had stale-or-divergent
+  copies — e.g. a pre-reorg `scripts/check_refcount_contract.py` path).  The
+  Python↔Rust opt-in **shim** was re-threaded onto the new layout rather than
+  dropped — see *Shim re-thread* below.
+
+Advances the anchor from `origin/main`@`08babde2` (SYNC-JUN09) to
+`origin/main`@`0becf577` (#571).  Histories remain unrelated (no
+merge-base) — per-file audit of the **9** intervening commits:
+
+| # | commit | classification |
+|---|---|---|
+| #551 | `186f0fbd` | `{*}` expansion truncation + list scaling O(N²) — **out of scope** (WASM/Zig VM; the Rust CST already models `{*}` as an `Expand` marker, CST-PORT strip 5). |
+| #554 | `63434bb6` | variable-trace error wrapping + qualified `foreach` fallback — **in scope** → `SYNC-JUN10-2`. |
+| #556 | `4d17155f` | migrate in-process tests to end-to-end LSP suite — **test infra**; now present on the branch via the rebase (`tests/lsp_e2e/`).  Closes with the `S*` server port. |
+| #559 | `cf3e7a76` | FD leak in WASM test runner — **out of scope** (Zig/WASM runner). |
+| #558 | `7df56eff` | metadata headers on KCS docs — **out of scope** (pure doc). |
+| #560 | `242406e5` | veto inert close-bracket insertions in E201 recovery — **already landed + improved** in Rust (`rust/tcl-lexer/src/structural_index.rs::is_inert` / `inert_for_insert`); the Rust structural-inert-spans map subsumes Python's per-insert check. |
+| #569 | `c0d40285` | dependency bumps — **mechanical**. |
+| #564 | `504cadda` | variable-trace + `info exists` on unset — **out of scope** (bytecode-VM semantics; mirror lands in the future `tcl-vm` crate, tracked T-FIRE / T-COMMIT). |
+| #571 | `0becf577` | suppress general Tcl diagnostics for `f5-bigip` config files — **in scope** → `SYNC-JUN10-1`. |
+
+### Whole-workspace audit (rust code ⇄ main Python ⇄ this doc)
+
+A five-way parallel audit (frontend, mid-end, registry+dialects,
+LSP+analyser, runtime) cross-checked every "landed" claim against the
+actual Rust code and against main's current Python.  Outcome: **the doc
+is broadly accurate** — all of CST-PORT / CST-CONSUMERS / GAP-A1 (frontend),
+the eleven SYNC-MAY31/JUN02 mid-end rows, the registry parity set
+(timerate, const-fold callback library, stub overlay, ~1016 iRules + iApps
+specs), ~90% of the E/W/O diagnostic catalogue + all eight dialect-aware LSP
+feature modules, and the entire T1.1–T1.5 + M1–M4 runtime port verified
+present in code.  Four doc-staleness corrections and two new drift rows:
+
+**Doc-stale (corrected in place where load-bearing):**
+- **SYNC-JUN09-2 is closed-by-design, not an open gap.** Rust reached
+  closer-geometry parity by *delegation*, not by adding the planned
+  `closer_present_in_region` sibling: `rust/.../syntax/descend.rs::terminated`
+  already calls `word_closer_offset` internally (reads the exact predicted
+  bytes), and `rust/tcl-lexer/src/ranges.rs::word_closer_offset` faithfully
+  ports `shared/ranges.py`.  The "three independent copies" shape #540
+  removed on the Python side never existed in Rust.  No sibling needed unless
+  a substring caller later wants the region-relative `base_offset`.
+- **GAP-D1 (lsort options) is closed.** All twelve `OptionSpec` entries are
+  present in `rust/tcl-registry/src/commands/tcl/lsort_.rs`; only the inline
+  comment claiming they were dropped is stale.
+- **Runtime T1.3** uses `Drop` on `VarTable` rather than the
+  explicit-release the doc describes — a post-doc-write safety improvement,
+  not a gap.
+- **`tcl-registry` has no `f5-bigip` dialect** in `dialects.rs` (the bitflags
+  carry `IRULES`/`IAPPS` only; `parse("f5-bigip")` → `None`; no
+  `commands/bigip/`).  This underlies `SYNC-JUN10-1`.
+
+**New drift rows** (`SYNC-JUN10-1`, `SYNC-JUN10-2`) and re-confirmed
+carry-forward deferrals (`SYNC-JUN09-1`, `SYNC-JUN09-3`) below.
+
+### SYNC-JUN10-1 — suppress general Tcl diagnostics for `f5-bigip` configs (#571)
+
+**In scope, behaviour-preserving filter (LSP-server).**  Python #571
+(`server/diagnostics_pipeline.py`) returns an empty analysis result
+**before running the analyser** when the resolved dialect is `f5-bigip`, so
+encrypted BIG-IP config markers (`$M$…$`) are not misread as Tcl variable
+references and a `bigip.conf` does not light up with spurious Tcl
+diagnostics.
+
+**Rust state.**  `rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`
+(and the `analysis_for` path it calls) run the analyser unconditionally —
+there is **no `dialect == "f5-bigip"` early-return** — so the native server
+publishes the exact spurious diagnostics #571 suppresses.  Confirmed
+independently by the registry and LSP audits.
+
+**Port.**  Add the dialect guard at the top of `publish_analyser_diagnostics`
+(return an empty diagnostic set for `f5-bigip`), mirroring the Python
+pipeline.  Pair it with the missing `f5-bigip` registry dialect (see the
+doc-stale note above) so dialect resolution and diagnostic suppression agree.
+Small; LSP-server only.
+
+### SYNC-JUN10-2 — qualified-`foreach` fallback to `IRBarrier` (#554)
+
+**In scope, lowering correctness.**  Python #554 added a `tokens` field to
+`IRForeach` and routes a namespace-qualified loop variable
+(`foreach ::ns::v $list body`) to an `IRBarrier` instead of a structured
+`IRForeach`, because the structured loop cannot bind a qualified target.
+
+**Rust state.**  `rust/tcl-compiler/src/lowering` has **no `tokens` field on
+`IRForeach`** and **no qualified-foreach check** — a qualified loop var falls
+through to a structured loop that binds nothing and runs zero iterations
+(surfacing downstream as a WASM trap when the never-bound variable is read).
+Confirmed by the mid-end audit.
+
+**Port.**  Add the `tokens` field to the Rust `IRForeach`, detect a
+namespace-qualified loop variable in the foreach lowering, and emit an
+`IRBarrier` fallback in that case (mirroring Python).  Pin with a
+`foreach ::g $l {…}` regression.  Medium; lowering + IR vocabulary.
+
+### SYNC-JUN09-1 / SYNC-JUN09-3 — re-confirmed still open
+
+The two parsing-frontend deferrals from SYNC-JUN09 remain unported and were
+re-verified against the current Rust tree: **SYNC-JUN09-1** (lowering body
+re-parse via `descend_token` — `rust/tcl-compiler/src/lowering/mod.rs::
+{lower_script,lower_body}` still re-segment unconditionally) and
+**SYNC-JUN09-3** (depth-recursive + dangling-tail continuation folding —
+`rust/tcl-lsp-core/src/folding.rs::collect_continuation_folds` is still
+top-level-only).  Both stay open with the port recipes given in the
+SYNC-JUN09 section.
+
+### Shim re-thread — Python↔Rust opt-in delegation onto the seven-concern layout
+
+The branch's opt-in shim (the `TCL_LSP_RUST_*`-gated delegations that route
+Python through the `tcl_lsp_rust` wheel when installed) lived in old-layout
+files (`core/parsing/lexer.py`, `core/compiler/{gvn,interprocedural,
+optimiser/_manager,rust_spans}.py`, `core/analysis/signature_scan.py`,
+`lsp/features/document_symbols.py`).  Re-threaded as part of this rebase:
+
+- **Landed:** `compiler/rust_spans.py` (the shared offset→`Range`
+  resolver + `rust_shim_enabled`), with its imports corrected to the
+  contract-legal `shared.diagnostic.Range` / `shared.tokens.SourcePosition`
+  (the old `analysis.semantic_model` import would now violate the
+  `compiler ↛ analyser` import-linter contract).  And the **lexer
+  fast-path** in `compiler/parsing/lexer.py::tokenise_all` — adapted to
+  main's per-call dialect resolution (`_expand_syntax_active()` /
+  `_irules_brace_separator_active()`) since the class-level `expand_syntax`
+  attribute was removed by `SYNC-MAY19-dialect-contextvar`.  Both are
+  `try/except`-guarded, so a wheel-less environment (CI, the test venv)
+  degrades to pure Python with no behaviour change.
+- **Outstanding (`SYNC-JUN10-shim`):** the remaining five gated
+  delegations — GVN (`compiler/gvn.py`), interprocedural
+  (`compiler/interprocedural.py`), optimiser manager
+  (`compiler/optimiser/_manager.py`), `signature_scan`
+  (`analyser/signature_scan.py`, default-on on the old branch) and
+  `document_symbols` (`server/features/document_symbols.py`) — are **not yet
+  re-threaded**.  Each take main's current implementation as the base
+  (which since the anchor diverged from the old-branch copies), add the
+  `try/except` wheel import + materialiser + the env-gated dispatch, and use
+  `compiler.rust_spans.build_position_resolver` for span conversion.  Land as
+  one reviewable chunk; default-off (and `signature_scan` default-on only
+  when the wheel is installed) keeps `make prep-pr` green meanwhile.
+
 ## CST-CONSUMERS — give the landed CST descent a production caller (candidate a)
 
 **Opened 2026-06-04 (post-CST-PORT; the #538 review's L1 finding).**  The

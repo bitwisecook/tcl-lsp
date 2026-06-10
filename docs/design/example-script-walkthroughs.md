@@ -14,54 +14,55 @@ produced at every stage, with field-level detail.
 
 | Term | Meaning |
 |------|---------|
-| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees ([`expr_ast.py:174`](../../core/compiler/expr_ast.py)). |
-| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by [`CFGBlock`](../../core/compiler/cfg.py) (`cfg.py:374`). |
-| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by [`build_cfg()`](../../core/compiler/cfg.py) (`cfg.py:1058`). |
-| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in [`SSAFunction.idom`](../../core/compiler/ssa.py) (`ssa.py:210`). |
-| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in [`SSAFunction.dominance_frontier`](../../core/compiler/ssa.py) (`ssa.py:210`). |
-| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See [`gvn.py:76`](../../core/compiler/gvn.py). |
-| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in [`ir.py`](../../core/compiler/ir.py); the union type `IRStatement` (`ir.py:265`) covers all statement kinds. |
-| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is [`LatticeValue`](../../core/compiler/core_analyses.py) (`core_analyses.py:111`); the type lattice is [`TypeLattice`](../../core/compiler/types.py) (`types.py:53`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in [`FunctionAnalysis.live_in / live_out`](../../core/compiler/core_analyses.py) (`core_analyses.py:176`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../core/compiler/codegen/_types.py) (`codegen/_types.py:63`). |
-| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by [`SSAPhi`](../../core/compiler/ssa.py) (`ssa.py:168`). |
-| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in [`analyse_function()`](../../core/compiler/core_analyses.py) (`core_analyses.py:1210`). |
-| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:53`). |
-| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by [`build_ssa()`](../../core/compiler/ssa.py) (`ssa.py:359`). |
-| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias [`SSAValueKey`](../../core/compiler/ssa.py) (`ssa.py:50`). |
-| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses [`TaintLattice`](../../core/compiler/taint/_lattice.py) (`taint/_lattice.py:44`). |
-| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in [`TaintColour`](../../core/commands/registry/taint_hints.py) (`taint_hints.py:17`). |
-| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:60`). |
-| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by [`_classify_sink()`](../../core/compiler/taint/_sinks.py) (`taint/_sinks.py:99`). |
-| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See [`gvn.py`](../../core/compiler/gvn.py). |
-| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See [`optimise_static_proc_calls()`](../../core/compiler/optimiser/_propagation.py) (`_propagation.py:271`). |
-| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See [`_code_sinking.py`](../../core/compiler/optimiser/_code_sinking.py). |
-| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See [`_elimination.py`](../../core/compiler/optimiser/_elimination.py). |
-| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See [`_expr_simplify.py`](../../core/compiler/optimiser/_expr_simplify.py). |
-| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See [`models.py:462`](../../core/commands/registry/models.py). |
-| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See [`models.py:319`](../../core/commands/registry/models.py). |
-| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See [`models.py:249`](../../core/commands/registry/models.py). |
+| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees ([`expr_ast.py:174`](../../compiler/expr_ast.py)). |
+| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by [`CFGBlock`](../../compiler/cfg.py) (`cfg.py:473`). |
+| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by [`build_cfg()`](../../compiler/cfg.py) (`cfg.py:1447`). |
+| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in [`SSAFunction.idom`](../../compiler/ssa.py) (`ssa.py:648`). |
+| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in [`SSAFunction.dominance_frontier`](../../compiler/ssa.py) (`ssa.py:648`). |
+| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See [`gvn.py:88`](../../compiler/gvn.py). |
+| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in [`ir.py`](../../compiler/ir.py); the union type `IRStatement` (`ir.py:609`) covers all statement kinds. |
+| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is [`LatticeValue`](../../compiler/core_analyses.py) (`core_analyses.py:328`); the type lattice is [`TypeLattice`](../../compiler/types.py) (`types.py:55`). |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in [`FunctionAnalysis.live_in / live_out`](../../compiler/core_analyses.py) (`core_analyses.py:426`). |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See [`LocalVarTable`](../../compiler/codegen/bytecode/_types.py) (`codegen/bytecode/_types.py:68`). |
+| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by [`SSAPhi`](../../compiler/ssa.py) (`ssa.py:606`). |
+| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in [`analyse_function()`](../../compiler/core_analyses.py) (`core_analyses.py:3964`). |
+| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:55`). |
+| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by [`build_ssa()`](../../compiler/ssa.py) (`ssa.py:1012`). |
+| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias [`SSAValueKey`](../../compiler/ssa.py) (`ssa.py:76`). |
+| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses [`TaintLattice`](../../compiler/taint/_lattice.py) (`taint/_lattice.py:46`). |
+| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in [`TaintColour`](../../compiler/registry/taint_hints.py) (`taint_hints.py:17`). |
+| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:63`). |
+| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by [`_classify_sink()`](../../compiler/taint/_sinks.py) (`taint/_sinks.py:436`). |
+| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See [`gvn.py`](../../compiler/gvn.py). |
+| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See [`optimise_static_proc_calls()`](../../compiler/optimiser/_propagation.py) (`_propagation.py:459`). |
+| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See [`_code_sinking.py`](../../compiler/optimiser/_code_sinking.py). |
+| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See [`_elimination.py`](../../compiler/optimiser/_elimination.py). |
+| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See [`_expr_simplify.py`](../../compiler/optimiser/_expr_simplify.py). |
+| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See [`models.py:616`](../../compiler/registry/models.py). |
+| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See [`models.py:424`](../../compiler/registry/models.py). |
+| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See [`models.py:370`](../../compiler/registry/models.py). |
 
 ---
 
 ## Pipeline stage summary
 
 Every Tcl source string passes through these stages (the orchestrating
-entry point is [`compile_source()`](../../core/compiler/compilation_unit.py)
-at `compilation_unit.py:89`):
+entry point is [`compile_source()`](../../compiler/compilation_unit.py)
+at `compilation_unit.py:376`):
 
 ```
 Source text
   │
   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:494
-│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:390
-│ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:1020
-│ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1058
-│ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:359
-│ 6. Core analyses analyse_function()       → FunctionAnalysis         │  core_analyses.py:1210
-│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/_emitter.py:904
+│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:1183
+│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:344
+│      (derived byte-identically from the red-green CST — syntax/build.py)        │
+│ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:2767
+│ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1447
+│ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:1012
+│ 6. Core analyses analyse_function()       → FunctionAnalysis         │  core_analyses.py:3964
+│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/bytecode/_emitter.py:1194
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,9 +71,9 @@ Source text
 ## Data structure reference
 
 Before diving into examples, here are the key types that appear at each stage.
-All types live under `core/` and are frozen dataclasses unless noted.
+All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses unless noted.
 
-### Stage 1 — Lexer types ([`core/parsing/tokens.py`](../../core/parsing/tokens.py))
+### Stage 1 — Lexer types ([`shared/tokens.py`](../../shared/tokens.py))
 
 ```python
 class TokenType(Enum):              # tokens.py:9
@@ -107,11 +108,18 @@ class Token:                        # tokens.py:33
 - `SourcePosition` tracks the exact location in source text.  `offset` is
   the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
 
-### Stage 2 — Segmenter types ([`core/parsing/command_segmenter.py`](../../core/parsing/command_segmenter.py))
+### Stage 2 — Segmenter types ([`compiler/parsing/command_segmenter.py`](../../compiler/parsing/command_segmenter.py))
+
+> `segment_commands()` builds the canonical lossless **red-green concrete syntax
+> tree** ([`compiler/parsing/syntax/`](../../compiler/parsing/syntax/), see
+> [syntax-tree.md](compiler/syntax-tree.md)) and derives the `SegmentedCommand`
+> list from it.  The output below is byte-identical to the former hand-rolled
+> token loop, so every example's Stage 2 data structure is unchanged — the tree
+> is the new *backing*, not a new shape.
 
 ```python
 @dataclass(slots=True)
-class SegmentedCommand:              # command_segmenter.py:65
+class SegmentedCommand:              # command_segmenter.py:62
     range: Range                         # source span of the entire command
     argv: list[Token]                    # first token of each word
     texts: list[str]                     # concatenated text per word
@@ -129,36 +137,36 @@ class SegmentedCommand:              # command_segmenter.py:65
 - `argv[i]` is the *first* token of word `i`; multi-token words (e.g.
   `$prefix.txt`) are concatenated into `texts[i]`.
 
-### Stage 3 — IR types ([`core/compiler/ir.py`](../../core/compiler/ir.py))
+### Stage 3 — IR types ([`compiler/ir.py`](../../compiler/ir.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
-class IRAssignConst:                     # ir.py:35 — set a 1
+class IRAssignConst:                     # ir.py:65 — set a 1
     range: Range
     name: str                            # variable name
     value: str                           # constant string value
 
 @dataclass(frozen=True, slots=True)
-class IRAssignExpr:                      # ir.py:42 — set x [expr {$a + 1}]
+class IRAssignExpr:                      # ir.py:72 — set x [expr {$a + 1}]
     range: Range
     name: str
     expr: ExprNode                       # parsed expression AST
 
 @dataclass(frozen=True, slots=True)
-class IRAssignValue:                     # ir.py:49 — set x $y, set x "hello $name"
+class IRAssignValue:                     # ir.py:79 — set x $y, set x "hello $name"
     range: Range
     name: str
     value: str                           # interpolated value text
     value_needs_backsubst: bool = False
 
 @dataclass(frozen=True, slots=True)
-class IRIncr:                            # ir.py:57 — incr i, incr i 5
+class IRIncr:                            # ir.py:88 — incr i, incr i 5
     range: Range
     name: str
     amount: str | None = None            # None means +1
 
 @dataclass(frozen=True, slots=True)
-class IRCall:                            # ir.py:76 — generic command invocation (puts, append, etc.)
+class IRCall:                            # ir.py:108 — generic command invocation (puts, append, etc.)
     range: Range
     command: str
     args: tuple[str, ...] = ()
@@ -168,12 +176,12 @@ class IRCall:                            # ir.py:76 — generic command invocati
     tokens: CommandTokens | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRReturn:                          # ir.py:99
+class IRReturn:                          # ir.py:143
     range: Range
     value: str | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRBarrier:                         # ir.py:105 — eval, uplevel, upvar — defeats static analysis
+class IRBarrier:                         # ir.py:151 — eval, uplevel, upvar — defeats static analysis
     range: Range
     reason: str
     command: str = ""
@@ -181,20 +189,20 @@ class IRBarrier:                         # ir.py:105 — eval, uplevel, upvar �
     tokens: CommandTokens | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRIf:                              # ir.py:137
+class IRIf:                              # ir.py:292
     range: Range
     clauses: tuple[IRIfClause, ...]      # one per if/elseif branch
     else_body: IRScript | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRIfClause:                        # ir.py:129
+class IRIfClause:                        # ir.py:284
     condition: ExprNode                  # parsed condition expression
     condition_range: Range
     body: IRScript
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRFor:                             # ir.py:145
+class IRFor:                             # ir.py:300
     range: Range
     init: IRScript                       # {set i 0}
     init_range: Range
@@ -206,7 +214,7 @@ class IRFor:                             # ir.py:145
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRWhile:                           # ir.py:159
+class IRWhile:                           # ir.py:314
     range: Range
     condition: ExprNode
     condition_range: Range
@@ -214,7 +222,7 @@ class IRWhile:                           # ir.py:159
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRForeach:                         # ir.py:171
+class IRForeach:                         # ir.py:326
     range: Range
     iterators: tuple[tuple[tuple[str, ...], str], ...]  # ((var_names, list_arg), ...)
     body: IRScript
@@ -222,16 +230,16 @@ class IRForeach:                         # ir.py:171
     is_lmap: bool = False
 
 @dataclass(frozen=True, slots=True)
-class IRScript:                          # ir.py:124
+class IRScript:                          # ir.py:207
     statements: tuple[IRStatement, ...] = ()
 
 @dataclass
-class IRModule:                          # ir.py:259
+class IRModule:                          # ir.py:504
     top_level: IRScript                  # statements outside any proc
     procedures: dict[str, IRProcedure]   # qualified_name → proc definition
     redefined_procedures: set[str]
 
-# IRStatement is a union type (ir.py:265):
+# IRStatement is a union type (ir.py:609):
 IRStatement = (
     IRAssignConst | IRAssignExpr | IRAssignValue | IRExprEval
     | IRIncr | IRCall | IRReturn | IRBarrier
@@ -246,7 +254,7 @@ IRStatement = (
   can cross them.
 - Expression conditions are parsed into `ExprNode` AST trees at lowering time.
 
-### Expression AST ([`core/compiler/expr_ast.py`](../../core/compiler/expr_ast.py))
+### Expression AST ([`compiler/expr_ast.py`](../../compiler/expr_ast.py))
 
 ```python
 @dataclass(frozen=True)
@@ -282,64 +290,64 @@ class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expression
 # UnaryOp (expr_ast.py:76): NEG, POS, BIT_NOT, NOT
 ```
 
-### Stage 4 — CFG types ([`core/compiler/cfg.py`](../../core/compiler/cfg.py))
+### Stage 4 — CFG types ([`compiler/cfg.py`](../../compiler/cfg.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
-class CFGGoto:         # cfg.py:351 — unconditional jump
+class CFGGoto:         # cfg.py:438 — unconditional jump
     target: str                          # target block name
 
 @dataclass(frozen=True, slots=True)
-class CFGBranch:       # cfg.py:357 — conditional jump
+class CFGBranch:       # cfg.py:444 — conditional jump
     condition: ExprNode                  # condition expression
     true_target: str
     false_target: str
 
 @dataclass(frozen=True, slots=True)
-class CFGReturn:       # cfg.py:365 — procedure exit
+class CFGReturn:       # cfg.py:452 — procedure exit
     value: str | None = None
 
-CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # cfg.py:370
+CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # cfg.py:459
 
 @dataclass(frozen=True, slots=True)
-class CFGBlock:        # cfg.py:374
+class CFGBlock:        # cfg.py:473
     name: str
     statements: tuple[IRStatement, ...]  # straight-line IR statements
     terminator: CFGTerminator | None     # exactly one per block
 
 @dataclass(frozen=True, slots=True)
-class CFGFunction:     # cfg.py:381
+class CFGFunction:     # cfg.py:480
     name: str
     entry: str                           # entry block name
     blocks: dict[str, CFGBlock]          # name → block
     loop_nodes: dict[str, tuple[str, IRFor]]  # for-loop metadata
 
 @dataclass(frozen=True, slots=True)
-class CFGModule:       # cfg.py:389
+class CFGModule:       # cfg.py:543
     top_level: CFGFunction
     procedures: dict[str, CFGFunction]
 ```
 
-### Stage 5 — SSA types ([`core/compiler/ssa.py`](../../core/compiler/ssa.py))
+### Stage 5 — SSA types ([`compiler/ssa.py`](../../compiler/ssa.py))
 
 ```python
-SSAVersion = int               # ssa.py:44 — each definition gets a unique version
-SSAValueKey = tuple[str, int]  # ssa.py:50 — (variable_name, version) — unique SSA value
+SSAVersion = int               # ssa.py:70 — each definition gets a unique version
+SSAValueKey = tuple[str, int]  # ssa.py:76 — (variable_name, version) — unique SSA value
 
 @dataclass(frozen=True, slots=True)
-class SSAPhi:                  # ssa.py:168 — phi node (see Glossary)
+class SSAPhi:                  # ssa.py:606 — phi node (see Glossary)
     name: str                            # variable name
     version: SSAVersion                  # version produced by this phi
     incoming: dict[str, SSAVersion]      # predecessor_block → version
 
 @dataclass(frozen=True, slots=True)
-class SSAStatement:            # ssa.py:181
+class SSAStatement:            # ssa.py:619
     statement: IRStatement               # the original IR statement
     uses: dict[str, SSAVersion]          # variables read → their versions
     defs: dict[str, SSAVersion]          # variables written → new versions
 
 @dataclass(frozen=True, slots=True)
-class SSABlock:                # ssa.py:195
+class SSABlock:                # ssa.py:633
     name: str
     phis: tuple[SSAPhi, ...]             # phi nodes at merge points
     statements: tuple[SSAStatement, ...]
@@ -347,7 +355,7 @@ class SSABlock:                # ssa.py:195
     exit_versions: dict[str, SSAVersion]
 
 @dataclass(frozen=True, slots=True)
-class SSAFunction:             # ssa.py:210
+class SSAFunction:             # ssa.py:648
     name: str
     entry: str
     blocks: dict[str, SSABlock]
@@ -356,33 +364,33 @@ class SSAFunction:             # ssa.py:210
     dominator_tree: dict[str, tuple[str, ...]]
 ```
 
-### Stage 6 — Analysis types ([`core/compiler/core_analyses.py`](../../core/compiler/core_analyses.py))
+### Stage 6 — Analysis types ([`compiler/core_analyses.py`](../../compiler/core_analyses.py))
 
 ```python
-class LatticeKind(Enum):       # core_analyses.py:104 (see Glossary → Lattice)
+class LatticeKind(Enum):       # core_analyses.py:316 (see Glossary → Lattice)
     UNKNOWN      # not yet analysed (bottom)
     CONST        # provably constant
     OVERDEFINED  # multiple possible values (top)
 
 @dataclass(frozen=True, slots=True)
-class LatticeValue:            # core_analyses.py:111
+class LatticeValue:            # core_analyses.py:328
     kind: LatticeKind
     value: int | float | bool | str | None = None
 
 @dataclass(frozen=True, slots=True)
-class FunctionAnalysis:        # core_analyses.py:176 — produced by analyse_function() (line 1210)
+class FunctionAnalysis:        # core_analyses.py:426 — produced by analyse_function() (line 3964)
     live_in: dict[str, set[SSAValueKey]]     # (see Glossary → Liveness)
     live_out: dict[str, set[SSAValueKey]]
-    dead_stores: tuple[DeadStore, ...]       # DeadStore at line 154
+    dead_stores: tuple[DeadStore, ...]       # DeadStore at line 404
     unreachable_blocks: set[str]
-    constant_branches: tuple[ConstantBranch, ...]  # ConstantBranch at line 145
+    constant_branches: tuple[ConstantBranch, ...]  # ConstantBranch at line 395
     values: dict[SSAValueKey, LatticeValue]     # SCCP results (see Glossary → SCCP)
     types: dict[SSAValueKey, TypeLattice]        # type inference results
-    read_before_set: tuple[ReadBeforeSet, ...]   # ReadBeforeSet at line 162
-    unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 169
+    read_before_set: tuple[ReadBeforeSet, ...]   # ReadBeforeSet at line 412
+    unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 419
 ```
 
-#### Type lattice ([`core/compiler/types.py`](../../core/compiler/types.py))
+#### Type lattice ([`compiler/types.py`](../../compiler/types.py))
 
 ```python
 class TclType(Enum):           # types.py:30
@@ -395,14 +403,14 @@ class TclType(Enum):           # types.py:30
     BYTEARRAY = auto()
     NUMERIC = auto()   # abstract join of INT and DOUBLE
 
-class TypeKind(Enum):          # types.py:43
+class TypeKind(Enum):          # types.py:45
     UNKNOWN      # not yet analysed (bottom)
     KNOWN        # concrete type determined
     SHIMMERED    # forced type change detected (see Glossary → Shimmer)
     OVERDEFINED  # multiple incompatible types (top)
 
 @dataclass(frozen=True, slots=True)
-class TypeLattice:             # types.py:53
+class TypeLattice:             # types.py:55
     kind: TypeKind
     tcl_type: TclType | None = None
     from_type: TclType | None = None  # only for SHIMMERED
@@ -410,10 +418,10 @@ class TypeLattice:             # types.py:53
 # Lattice order:  UNKNOWN < KNOWN(t) < SHIMMERED(a,b) < OVERDEFINED
 ```
 
-### Stage 7 — Codegen types ([`core/compiler/codegen/`](../../core/compiler/codegen/))
+### Stage 7 — Codegen types ([`compiler/codegen/`](../../compiler/codegen/))
 
 ```python
-class Op(Enum):        # codegen/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
+class Op(Enum):        # codegen/bytecode/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
     PUSH1, PUSH4, POP, DUP,
     LOAD_SCALAR1, STORE_SCALAR1,
     INVOKE_STK1, INVOKE_STK4,
@@ -422,17 +430,17 @@ class Op(Enum):        # codegen/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcod
     ...
 
 @dataclass(slots=True)
-class Instruction:     # codegen/_types.py:11
+class Instruction:     # codegen/bytecode/_types.py:15
     op: Op
     operands: tuple[int | str, ...]  # int = literal/imm, str = label ref
     comment: str = ""
     offset: int = -1                 # filled by layout pass
 
-class LiteralTable:    # codegen/_types.py:32 — intern pool: string → object-array index
-class LocalVarTable:   # codegen/_types.py:63 — LVT: variable name → slot index (see Glossary)
+class LiteralTable:    # codegen/bytecode/_types.py:37 — intern pool: string → object-array index
+class LocalVarTable:   # codegen/bytecode/_types.py:68 — LVT: variable name → slot index (see Glossary)
 
 @dataclass(slots=True)
-class FunctionAsm:     # codegen/_types.py:91
+class FunctionAsm:     # codegen/bytecode/_types.py:106
     name: str
     literals: LiteralTable
     lvt: LocalVarTable
@@ -440,12 +448,12 @@ class FunctionAsm:     # codegen/_types.py:91
     labels: dict[str, int]           # label → byte offset
 
 @dataclass(slots=True)
-class ModuleAsm:       # codegen/_types.py:105
+class ModuleAsm:       # codegen/bytecode/_types.py:105
     top_level: FunctionAsm
     procedures: dict[str, FunctionAsm]
 ```
 
-### Orchestration ([`core/compiler/compilation_unit.py`](../../core/compiler/compilation_unit.py))
+### Orchestration ([`compiler/compilation_unit.py`](../../compiler/compilation_unit.py))
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -462,8 +470,8 @@ class CompilationUnit:             # compilation_unit.py:37 — produced by comp
     cfg_module: CFGModule
     top_level: FunctionUnit
     procedures: dict[str, FunctionUnit]
-    interproc: InterproceduralAnalysis            # interprocedural.py:83
-    connection_scope: ConnectionScope | None = None  # connection_scope.py:38
+    interproc: InterproceduralAnalysis            # interprocedural.py:121
+    connection_scope: ConnectionScope | None = None  # connection_scope.py:40
 ```
 
 ---
@@ -501,9 +509,9 @@ of that infrastructure and how the pieces connect.
 ```
 
 Every command is defined as a `CommandDef` subclass (`_base.py:48`) whose
-`spec()` classmethod returns a `CommandSpec` (`models.py:462`).  At import
+`spec()` classmethod returns a `CommandSpec` (`models.py:616`).  At import
 time, the `@register` decorator adds each definition to its dialect's
-registry list, and the singleton `CommandRegistry` (`command_registry.py:63`)
+registry list, and the singleton `CommandRegistry` (`command_registry.py:149`)
 merges all dialect lists into a unified lookup table.
 
 ### CommandDef — defining a command
@@ -580,7 +588,7 @@ whether the invocation is pure (a read) or a mutator (a write).
 
 ```python
 @dataclass(frozen=True, slots=True)
-class Arity:                           # signatures.py:34
+class Arity:                           # signatures.py:64
     min: int = 0                       # minimum args (after command name)
     max: int = sys.maxsize             # max args (sys.maxsize = unlimited)
 
@@ -689,11 +697,11 @@ command expects, and what hover/completion information to present.
 
 #### ArgRole — what each argument means
 
-`ArgRole` (`signatures.py:15`) classifies how the compiler should
+`ArgRole` (`signatures.py:16`) classifies how the compiler should
 treat each argument position:
 
 ```python
-class ArgRole(Enum):                   # signatures.py:15
+class ArgRole(Enum):                   # signatures.py:16
     BODY            # Tcl script body — recursively lowered into IR
     EXPR            # Expression — parsed into ExprNode AST
     VAR_NAME        # Variable name written by the command (set, incr)
@@ -802,12 +810,12 @@ uses `render_hover_lean()` for compact hover tooltips and
 
 #### ArgTypeHint — expected types
 
-`ArgTypeHint` (`type_hints.py:16`) declares what Tcl internal
+`ArgTypeHint` (`type_hints.py:17`) declares what Tcl internal
 representation (intrep) a command expects for a given argument:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class ArgTypeHint:                     # type_hints.py:16
+class ArgTypeHint:                     # type_hints.py:17
     expected: TclType | None = None    # expected type (None = any)
     shimmers: bool = False             # True if the command forces conversion
 ```
@@ -852,25 +860,25 @@ Commands and subcommands can be marked as deprecated with a replacement:
 
 ### Side effects and purity
 
-The side-effect model lives in `core/compiler/side_effects.py` and
+The side-effect model lives in `compiler/side_effects.py` and
 classifies what each command invocation reads and writes.
 
 **Enums** describe the vocabulary:
 
 ```python
-class SideEffectTarget(Enum):          # side_effects.py:156
+class SideEffectTarget(Enum):          # side_effects.py:154
     VARIABLE, SESSION_TABLE, HTTP_HEADER, HTTP_BODY, HTTP_URI,
     RESPONSE_COMMIT, POOL_SELECTION, FILE_IO, LOG_IO, ...
 
-class StorageScope(Enum):              # side_effects.py:69
+class StorageScope(Enum):              # side_effects.py:67
     PROC_LOCAL, NAMESPACE, GLOBAL, UPVAR,       # Tcl-universal
     EVENT, CONNECTION, STATIC, SESSION_TABLE,    # F5 iRules-specific
     DATA_GROUP, FILE_SYSTEM, NETWORK_SOCKET, ...
 
-class ConnectionSide(Enum):            # side_effects.py:137
+class ConnectionSide(Enum):            # side_effects.py:135
     CLIENT, SERVER, BOTH, GLOBAL, NONE
 
-class StorageType(Enum):               # side_effects.py:50
+class StorageType(Enum):               # side_effects.py:48
     SCALAR, LIST, DICT, ARRAY, UNKNOWN
 ```
 
@@ -879,7 +887,7 @@ class StorageType(Enum):               # side_effects.py:50
 
 ```python
 @dataclass(frozen=True, slots=True)
-class SideEffect:                      # side_effects.py:365
+class SideEffect:                      # side_effects.py:359
     target: SideEffectTarget           # what resource
     reads: bool = False                # does it read?
     writes: bool = False               # does it write?
@@ -889,7 +897,7 @@ class SideEffect:                      # side_effects.py:365
     key: str | None = None             # literal variable/header name
 
 @dataclass(frozen=True, slots=True)
-class CommandSideEffects:              # side_effects.py:419
+class CommandSideEffects:              # side_effects.py:413
     effects: tuple[SideEffect, ...]    # individual effects
     pure: bool = False                 # no observable side effects
     deterministic: bool = False        # same inputs → same outputs
@@ -897,7 +905,7 @@ class CommandSideEffects:              # side_effects.py:419
 ```
 
 **Classification** — `classify_side_effects(command, args, ...)`
-(`side_effects.py:556`) combines registry hints with runtime arguments:
+(`side_effects.py:561`) combines registry hints with runtime arguments:
 
 1. Check interprocedural summary (for user-defined procs).
 2. Check for dynamic barriers (`eval`, `uplevel`).
@@ -947,12 +955,12 @@ Colours represent *safety properties* of tainted data.  A value with
 `TAINTED | IP_ADDRESS` is tainted but known to be a safe IP address
 format, which may satisfy certain sinks (e.g. connecting to a backend).
 
-**TaintHint** (`taint_hints.py:60`) declares a command's taint sources
+**TaintHint** (`taint_hints.py:63`) declares a command's taint sources
 and sinks:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class TaintHint:                       # taint_hints.py:60
+class TaintHint:                       # taint_hints.py:63
     source: dict[Arity | None, TaintColour] | None  # return value is tainted
     source_subcommands: frozenset[str] | None        # restrict to specific subcmds
     sinks: tuple[TaintSinkSpec, ...]                  # dangerous arg positions
@@ -972,12 +980,12 @@ def taint_hints(cls) -> TaintHint:
 
 ```python
 @dataclass(frozen=True, slots=True)
-class TaintSinkSpec:                   # taint_hints.py:42
+class TaintSinkSpec:                   # taint_hints.py:45
     code: str                          # diagnostic code (e.g. "IRULE3001")
     subcommands: frozenset[str] | None # None = all invocations
 ```
 
-The taint engine (`core/compiler/taint/`) propagates colours through the
+The taint engine (`compiler/taint/`) propagates colours through the
 SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS,
 `IRULE3002` for header injection) when tainted data reaches a sink
 without sufficient safety colours.
@@ -1012,10 +1020,10 @@ Subcommands can have their own `dialects` set that overrides the parent
 command's.  `SubCommand.supports_dialect()` checks the subcommand's own
 set first, falling back to the parent.
 
-**DialectStatus** (`models.py:24`) is the result of a dialect lookup:
+**DialectStatus** (`models.py:25`) is the result of a dialect lookup:
 
 ```python
-class DialectStatus(Enum):             # models.py:24
+class DialectStatus(Enum):             # models.py:25
     EXISTS       # available in this dialect
     DEPRECATED   # available but has a replacement
     DISALLOWED   # exists in some dialect, but not this one
@@ -1026,11 +1034,11 @@ class DialectStatus(Enum):             # models.py:24
 
 In F5 iRules, commands are only valid in certain events (e.g. `HTTP::uri`
 requires an HTTP profile and only works in HTTP events).  This is
-modelled by `EventRequires` (`namespace_models.py:142`):
+modelled by `EventRequires` (`namespace_models.py:146`):
 
 ```python
 @dataclass(frozen=True, slots=True)
-class EventRequires:                   # namespace_models.py:142
+class EventRequires:                   # namespace_models.py:146
     client_side: bool = False          # needs client-side connection
     server_side: bool = False          # needs server-side connection
     transport: str | None = None       # "tcp" or "udp"
@@ -1120,7 +1128,8 @@ Key observations:
 
 ### Stage 2 — Segmenter → SegmentedCommand
 
-The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
+The segmenter builds the red-green CST for the source and derives one
+`SegmentedCommand` per command (split at `EOL`/`EOF` boundaries):
 
 ```python
 SegmentedCommand(
@@ -2194,7 +2203,7 @@ A single straight-line block (no control flow):
 
 ### Taint propagation
 
-The taint engine ([`_propagation.py`](../../core/compiler/taint/_propagation.py))
+The taint engine ([`_propagation.py`](../../compiler/taint/_propagation.py))
 walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 1. **`("host", 1)`** — the `[HTTP::header value Host]` command substitution
@@ -2344,7 +2353,7 @@ for each procedure.  For `::double`:
 ### Optimisation pass — O103
 
 `optimise_static_proc_calls()` in
-[`_propagation.py:271`](../../core/compiler/optimiser/_propagation.py):
+[`_propagation.py:459`](../../compiler/optimiser/_propagation.py):
 
 1. Encounters the `[double 21]` command substitution token.
 2. Resolves `double` → qualified name `::double`.
@@ -2402,7 +2411,7 @@ immediately overwritten.
 ### Optimisation pass — O125
 
 `optimise_code_sinking()` in
-[`_code_sinking.py:514`](../../core/compiler/optimiser/_code_sinking.py):
+[`_code_sinking.py:510`](../../compiler/optimiser/_code_sinking.py):
 
 1. **Sinkability check** (`_is_sinkable()`): `IRAssignConst(name="msg", value="Request denied")`
    is sinkable — it is a simple constant assignment with no command
@@ -2481,7 +2490,7 @@ single event), so the second call is redundant.
 ### GVN pass — O105
 
 `find_redundant_computations()` in
-[`gvn.py`](../../core/compiler/gvn.py):
+[`gvn.py`](../../compiler/gvn.py):
 
 1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
    command registry → `CommandSpec.pure = True`, `cse_candidate = True`.
@@ -2557,7 +2566,7 @@ proc compute {x} {
 ### Elimination passes
 
 `optimise_elimination_passes()` in
-[`_elimination.py`](../../core/compiler/optimiser/_elimination.py):
+[`_elimination.py`](../../compiler/optimiser/_elimination.py):
 
 **O109 — Dead Store Elimination:**
 `unused₁` is assigned but never read.  The assignment `set unused 99` is
@@ -2644,7 +2653,7 @@ SCCP determines `debug₁ = CONST("0")` → the `if` condition is always
 false → the body is unreachable.
 
 `optimise_structure_elimination()` in
-[`_structure_elimination.py`](../../core/compiler/optimiser/_structure_elimination.py)
+[`_structure_elimination.py`](../../compiler/optimiser/_structure_elimination.py)
 replaces the entire `if {$debug} { ... }` block with nothing (O112),
 and a grouped O109 removes the dead `set debug 0`:
 
@@ -2696,7 +2705,7 @@ end of the line without a matching `]`.
 
 ### Stage 0 — Error recovery
 
-[`recovery.py`](../../core/parsing/recovery.py) runs a first-pass parse via
+[`recovery.py`](../../compiler/parsing/recovery.py) runs a first-pass parse via
 `segment_commands()`.  The segmenter detects that the `CMD` token starting
 at `[` is unterminated (the character after the CMD text is not `]`).
 
@@ -2773,7 +2782,7 @@ ExprToken(NUM, "2")
 ```
 
 **Pratt parsing** (`_PrattParser` in
-[`expr_parser.py`](../../core/parsing/expr_parser.py)):
+[`expr_parser.py`](../../compiler/parsing/expr_parser.py)):
 
 The parser uses binding powers to handle precedence:
 - `*` has binding power (22, 23) — higher than `+` at (20, 21).
@@ -2835,7 +2844,7 @@ precedence as their symbolic counterparts:
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
 Shows how `_lower_command()` in
-[`lowering.py`](../../core/compiler/lowering.py) dispatches each command to
+[`lowering.py`](../../compiler/lowering.py) dispatches each command to
 the appropriate IR node using registry metadata.
 
 ### Dispatch hierarchy
@@ -2867,7 +2876,7 @@ _lower_command(cmd)
 ### Example: `lower_set()` — the `set` lowering hook
 
 `set` has a registered lowering hook
-([`_var.py:36`](../../core/compiler/lowering_hooks/_var.py)).
+([`_var.py:53`](../../compiler/lowering_hooks/_var.py)).
 It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
@@ -2950,7 +2959,7 @@ proc process {items} {
 ### Execution intent construction
 
 `build_execution_intent()` in
-[`execution_intent.py`](../../core/compiler/execution_intent.py) walks each
+[`execution_intent.py`](../../compiler/execution_intent.py) walks each
 `IRAssignValue` in the CFG and parses the command substitution:
 
 **`[llength $items]`:**
@@ -3143,7 +3152,7 @@ positives: `W103` (read before set) for `$request_count` and
 ### EventVarSummary construction
 
 `_extract_event_summary()` in
-[`connection_scope.py`](../../core/compiler/connection_scope.py) walks
+[`connection_scope.py`](../../compiler/connection_scope.py) walks
 each event's SSA blocks:
 
 **CLIENT_ACCEPTED:**
@@ -3211,7 +3220,7 @@ mylib::compute 5
 
 ### `normalise_qualified_name()` — the core helper
 
-[`naming.py`](../../core/common/naming.py) provides the canonical form:
+[`naming.py`](../../shared/naming.py) provides the canonical form:
 
 ```python
 normalise_qualified_name("helper")       → "::helper"
@@ -3339,7 +3348,7 @@ _place_label("L_end")         → if_end_2
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
 
-[`layout.py`](../../core/compiler/codegen/layout.py) iterates up to 10
+[`layout.py`](../../compiler/codegen/bytecode/layout.py) iterates up to 10
 times, replacing 4-byte jumps with 1-byte jumps when the relative
 offset fits in [-128, 127]:
 
@@ -3431,7 +3440,7 @@ when HTTP_REQUEST {
 
 ### `classify_side_effects()` for each command
 
-[`side_effects.py:556`](../../core/compiler/side_effects.py):
+[`side_effects.py:561`](../../compiler/side_effects.py):
 
 **`HTTP::uri` (getter form):**
 
@@ -3589,7 +3598,7 @@ appear instantly and others arrive after a brief delay.
 ### Phase 1 — Basic diagnostics (fast, synchronous)
 
 `get_basic_diagnostics()` in
-[`diagnostics.py:487`](../../lsp/features/diagnostics.py) runs on every
+[`diagnostics.py:703`](../../server/features/diagnostics.py) runs on every
 keystroke and returns immediately.  It produces:
 
 ```
@@ -3629,7 +3638,7 @@ the raw source text for formatting issues.
 ### Phase 2 — Deep diagnostics (expensive, background thread)
 
 `get_deep_diagnostics()` in
-[`diagnostics.py:568`](../../lsp/features/diagnostics.py) runs in a
+[`diagnostics.py:883`](../../server/features/diagnostics.py) runs in a
 background thread via `asyncio.to_thread` to avoid blocking the editor.
 It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
 and analysis results).
@@ -3638,7 +3647,7 @@ and analysis results).
 CompilationUnit (shared)
     │
     ├───► Optimiser (find_optimisations)
-    │     → O100–O126: All optimisation suggestions
+    │     → O100–O130: All optimisation suggestions
     │     Groups related edits (e.g. O100+O109 for propagate + dead store)
     │
     ├───► Shimmer detector (find_shimmer_warnings)
@@ -3678,7 +3687,7 @@ CompilationUnit (shared)
 ### Async scheduling and cancellation
 
 The `DiagnosticScheduler` in
-[`async_diagnostics.py`](../../lsp/async_diagnostics.py) manages the
+[`async_diagnostics.py`](../../server/async_diagnostics.py) manages the
 lifecycle of deep diagnostic tasks:
 
 ```
@@ -3804,9 +3813,9 @@ Source text  ──────────────────────�
 
 Each stage transforms the data into a richer representation:
 1. **Tokens** — flat character-level classification (`tokens.py:33`)
-2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:65`)
-3. **IR nodes** — typed, structured command semantics (`ir.py:265`)
-4. **CFG blocks** — explicit control flow with terminators (`cfg.py:374`)
-5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:195`)
-6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`core_analyses.py:176`)
-7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/_types.py:91`)
+2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:62`)
+3. **IR nodes** — typed, structured command semantics (`ir.py:609`)
+4. **CFG blocks** — explicit control flow with terminators (`cfg.py:473`)
+5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:633`)
+6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`core_analyses.py:426`)
+7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/bytecode/_types.py:106`)

@@ -12,7 +12,7 @@ pytest.importorskip("flask", reason="flask not installed")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
-    from explorer.web import app  # noqa: E402
+    from tooling.explorer.web import app  # noqa: E402
 except ModuleNotFoundError:
     pytest.skip("explorer.web module not available", allow_module_level=True)
 
@@ -97,6 +97,125 @@ class TestCompileBasic:
         assert resp.content_type == "application/json"
 
 
+# Green tree / loops / intervals / bounds — views brought over from the CLI.
+
+
+class TestExtraViews:
+    def test_keys_present(self, client):
+        data = _compile(client, "set x 1")
+        for key in ("greentree", "loops", "intervals", "bounds"):
+            assert key in data
+
+    def test_greentree_tokens_carry_detail(self, client):
+        data = _compile(client, "set x 1")
+        gt = data["greentree"]
+        assert gt["kind"] == "ROOT"
+        assert gt["tokens"]
+        tok = gt["tokens"][0]
+        for key in ("type", "text", "startOffset", "endOffset", "startLine", "startCol"):
+            assert key in tok
+
+    def test_greentree_opaque_token_has_child_region(self, client):
+        data = _compile(client, "proc f {} { set y 2 }")
+
+        # Find any token that descended into a child region (the braced body).
+        def has_child(node):
+            for t in node["tokens"]:
+                if "child" in t:
+                    return True
+                # children only hang off opaque tokens, no deeper walk needed
+            return False
+
+        assert has_child(data["greentree"]) or any(
+            "child" in t for t in data["greentree"]["tokens"]
+        )
+
+    def test_cst_segments_keys_present(self, client):
+        data = _compile(client, "set x 1")
+        assert "cst" in data
+        assert "segments" in data
+
+    def test_cst_structural_shape(self, client):
+        data = _compile(client, "proc f {} { set y 2 }")
+        cst = data["cst"]
+        assert cst["kind"] == "DOCUMENT"
+        cmd = cst["children"][0]
+        assert cmd["kind"] == "COMMAND"
+        assert "proc" in cmd["label"]
+        # the proc body word descends into a child document (terminated)
+        body_word = cmd["children"][-1]
+        assert body_word["kind"] == "WORD"
+        assert "braced" in body_word["tags"]
+        body_tok = body_word["children"][0]
+        assert body_tok["child"]["kind"] == "DOCUMENT"
+        assert body_tok["terminated"] is True
+
+    def test_cst_marks_unterminated_recovered(self, client):
+        data = _compile(client, "set y [foo {bar")
+
+        def find_recovered(node):
+            if node.get("terminated") is False:
+                return True
+            for c in node.get("children", []):
+                if find_recovered(c):
+                    return True
+            child = node.get("child")
+            return bool(child and find_recovered(child))
+
+        assert find_recovered(data["cst"])
+
+    def test_segments_words_and_flags(self, client):
+        data = _compile(client, 'foo {*}$args "hi $x" {}')
+        segs = data["segments"]
+        assert len(segs) == 1
+        seg = segs[0]
+        assert seg["name"] == "foo"
+        flags = {w["text"]: w for w in seg["words"]}
+        assert flags["${args}"]["expand"] is True
+        assert flags["hi ${x}"]["quoted"] is True
+        assert any(w["braced"] for w in seg["words"])  # the {} word
+
+    def test_segments_preceding_comment(self, client):
+        data = _compile(client, "# hello\nputs hi")
+        seg = data["segments"][0]
+        assert seg["precedingComment"] == "hello"
+
+    def test_loops_reports_natural_loop(self, client):
+        data = _compile(client, "for {set i 0} {$i < 5} {incr i} { puts $i }")
+        loops = [lp for f in data["loops"] for lp in f["loops"]]
+        assert loops
+        assert "header" in loops[0]
+        assert "blockCount" in loops[0]
+
+    def test_intervals_bounded_range(self, client):
+        data = _compile(client, "proc f {} { set m 8 ; return [lindex {a} $m] }")
+        entries = [e for f in data["intervals"] for e in f["entries"]]
+        assert any(e["lo"] is not None or e["hi"] is not None for e in entries)
+
+    def test_bounds_divide_by_zero(self, client):
+        data = _compile(client, "proc f {} { return [expr {1 / 0}] }")
+        divzero = [d for f in data["bounds"] for d in f["divzero"]]
+        assert any(d["code"] == "W233" for d in divzero)
+
+
+class TestOptLensData:
+    SRC = "set a 1\nset b [expr {$a + 2}]\nputs $b"
+
+    def test_optimised_keys_present_when_rewritten(self, client):
+        data = _compile(client, self.SRC)
+        assert data["irOptimised"] is not None
+        assert data["cfgPreSsaOptimised"] is not None
+        assert data["cfgPostSsaOptimised"] is not None
+        summaries = [n["summary"] for n in data["irOptimised"]["topLevel"]]
+        assert any("puts 3" in s for s in summaries)
+
+    def test_optimised_keys_null_when_unchanged(self, client):
+        data = _compile(client, "puts hi")
+        assert data["irOptimised"] is None
+        assert data["cfgPreSsaOptimised"] is None
+        assert data["cfgPostSsaOptimised"] is None
+
+
 # IR serialisation
 
 
@@ -104,7 +223,8 @@ class TestIR:
     def test_top_level_statements(self, client):
         data = _compile(client, "set x 1\nputs $x")
         ir = data["ir"]
-        assert len(ir["topLevel"]) >= 1
+        # Both top-level statements (set, puts) are present.
+        assert len(ir["topLevel"]) == 2
 
     def test_ir_node_shape(self, client):
         data = _compile(client, "set x 1")
@@ -262,7 +382,8 @@ class TestOptimisations:
 
     def test_optimised_source_present(self, client):
         data = _compile(client, "set a 1\nset b [expr {$a + 2}]")
-        assert data["optimisedSource"] is not None
+        # Constant propagation + folding collapses the pair to ``set b 3``.
+        assert data["optimisedSource"] == "set b 3"
 
     def test_optimised_source_none_when_unchanged(self, client):
         data = _compile(client, "puts hello")
@@ -274,15 +395,18 @@ class TestOptimisations:
 
 class TestShimmer:
     def test_shimmer_warning_shape(self, client):
+        # The previous snippet produced no shimmer at all, so the shape
+        # assertions never ran. Use a string→list intrep change that does
+        # raise an S100 shimmer.
         data = _compile(
             client,
-            "proc test {x} {\n  set len [string length $x]\n  expr {$x + 1}\n}",
+            "set myList {a b c d}\nlindex $myList 1\nputs $myList",
         )
-        if data["shimmer"]:
-            w = data["shimmer"][0]
-            assert "code" in w
-            assert "message" in w
-            assert "range" in w
+        assert data["shimmer"], data
+        w = data["shimmer"][0]
+        assert w["code"] == "S100"
+        assert "message" in w
+        assert "range" in w
 
     def test_no_shimmer_for_safe_code(self, client):
         data = _compile(client, "set x 1\nputs $x")
@@ -300,8 +424,10 @@ class TestAnnotations:
 
     def test_annotation_has_kind(self, client):
         data = _compile(client, "set a 1\nset b [expr {$a + 2}]")
-        if data["annotations"]:
-            ann = data["annotations"][0]
-            assert "kind" in ann
-            assert "label" in ann
-            assert "range" in ann
+        # This snippet is optimised, so annotations must be present and each
+        # must carry the editor-facing fields.
+        assert data["annotations"], data
+        ann = data["annotations"][0]
+        assert "kind" in ann
+        assert "label" in ann
+        assert "range" in ann

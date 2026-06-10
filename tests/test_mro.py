@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.analysis.mro import MROError, build_mro_map, tcloo_linearise
+from analyser.mro import MROError, build_mro_map, tcloo_linearise
 
 
 class TestTclOOMRO:

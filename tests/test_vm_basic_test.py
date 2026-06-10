@@ -7,11 +7,13 @@ test numbering so failures can be cross-referenced.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from vm.commands.interp_cmds import reset_interp_state
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.commands.interp_cmds import reset_interp_state
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +28,52 @@ def _clean_interp_state() -> None:
 def fresh() -> TclInterp:
     """Return a fresh interpreter without init.tcl sourcing."""
     return TclInterp(source_init=False)
+
+
+def _tcltest_counts(interp: TclInterp) -> dict[str, int]:
+    """Return tcltest's running ``Total/Passed/Skipped/Failed`` tally.
+
+    The ``test`` command reports pass/fail into ``::tcltest::numTests``
+    rather than raising, so a test that merely ``eval``s a ``test`` body
+    proves nothing about whether the inner assertion held — callers must
+    inspect this tally.
+    """
+    raw = interp.eval("array get ::tcltest::numTests").value
+    parts = raw.split()
+    return {parts[i]: int(parts[i + 1]) for i in range(0, len(parts), 2)}
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Tcl library resolution
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestTclLibraryResolution:
+    """The VM consumes explicit Tcl library configuration only."""
+
+    def test_tcl_library_comes_from_environment(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        library = tmp_path / "library"
+        library.mkdir()
+        monkeypatch.setenv("TCL_LIBRARY", str(library))
+
+        interp = TclInterp(source_init=False)
+
+        assert interp.eval("info library").value == str(library)
+
+    def test_explicit_tcl_library_overrides_environment(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        env_library = tmp_path / "env"
+        explicit_library = tmp_path / "explicit"
+        env_library.mkdir()
+        explicit_library.mkdir()
+        monkeypatch.setenv("TCL_LIBRARY", str(env_library))
+
+        interp = TclInterp(source_init=False, tcl_library=str(explicit_library))
+
+        assert interp.eval("info library").value == str(explicit_library)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -614,17 +662,21 @@ class TestTcltestFramework:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-1.0 {simple pass} {} {expr {1 + 1}} 2")
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
     def test_run_skipped_test(self) -> None:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("testConstraint myFeature 0")
         interp.eval("test mytest-2.0 {skipped test} {myFeature} {error boom} ok")
+        # A failed constraint must skip (not run/fail) the test body.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 0, "Skipped": 1, "Failed": 0}
 
     def test_new_style_test(self) -> None:
         interp = fresh()
         interp.eval("package require tcltest 2.5; namespace import ::tcltest::*")
         interp.eval("test mytest-3.0 {new style} -body {expr {2 + 3}} -result 5")
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
     def test_new_style_with_setup_cleanup(self) -> None:
         interp = fresh()
@@ -636,6 +688,10 @@ class TestTcltestFramework:
             "-result 15 "
             "-cleanup {unset x}"
         )
+        # -setup ran (x=10) so -body yields 15 and the test passes.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
+        # -cleanup unset x.
+        assert interp.eval("info exists x").value == "0"
 
     def test_new_style_error_return_code(self) -> None:
         interp = fresh()
@@ -646,6 +702,8 @@ class TestTcltestFramework:
             "-returnCodes error "
             "-result {test error}"
         )
+        # -returnCodes error means the raised error is the expected outcome.
+        assert _tcltest_counts(interp) == {"Total": 1, "Passed": 1, "Skipped": 0, "Failed": 0}
 
 
 # ══════════════════════════════════════════════════════════════════

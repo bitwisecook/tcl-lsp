@@ -1,0 +1,75 @@
+name: CodeQL
+
+# Static-analysis for the languages whose source ships in this repo and
+# runs on user machines: Python (LSP server / zipapps) and TypeScript
+# (VS Code extension).  CodeQL's `actions` query pack also lints the
+# workflows themselves, catching expression-injection and similar
+# mistakes before they reach main.
+#
+# Rust (editors/zed) is intentionally excluded.  CodeQL Rust support is
+# still maturing, and the extension cross-compiles to `wasm32-wasip2`
+# (a target the CodeQL build-mode `manual`/`autobuild` paths don't
+# capture cleanly).  The extension itself is ~100 lines of glue around
+# `zed_extension_api`, with a small attack surface; the cost-benefit
+# of fighting CodeQL Rust's wasm-target handling isn't there yet.
+# Revisit when CodeQL Rust supports `build-mode: none` GA.
+#
+# Triggers:
+#   - push to main: continuous analysis of trunk after every merge.
+#     Releases are tag-only (see `scripts/release/tag.sh`); the release
+#     skill (`.claude/skills/release/SKILL.md`) waits for the run on
+#     the tag-candidate commit and refuses to tag if any open alert on
+#     main has security-severity high/critical.  That is the actual
+#     security gate — CodeQL is no longer a pre-merge PR check.
+#   - workflow_dispatch: lets the release skill (or a maintainer) force
+#     a re-run on the current HEAD if the push-triggered run was missed
+#     or cancelled by concurrency.
+#   - schedule: weekly scan picks up newly-published advisories against
+#     dependencies that haven't otherwise changed.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "37 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      packages: read           # CodeQL reads container packages metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          fetch-tags: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: /language:${{ matrix.language }}

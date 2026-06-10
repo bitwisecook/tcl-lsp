@@ -1,0 +1,33 @@
+# Categorisation for while-old.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+just_to_match_ctcl = [
+  "4.4",    # while-old-4.4: arithmetic-error wording — our interp
+            # expr evaluator surfaces ``expected boolean value but
+            # got "a"`` (the first reachable string-coercion check)
+            # where C tcl surfaces ``cannot use non-numeric string
+            # "a" as left operand of "+"`` (the deeper arith check).
+            # Both diagnoses the same input; the test pins the C tcl
+            # wording exactly.
+  "4.6",    # while-old-4.6: errorInfo wording — our runtime appends
+            # an extra ``invoked from within "while {1} {error ...}"``
+            # line at the end of the trace that C tcl omits.  Primary
+            # error message and code (TCL ERROR) match.
+]
+
+good_to_have = [
+  "4.5",    # while-old-4.5: ``while {$x}`` with $x="foo" silently
+            # exits the loop instead of raising ``expected boolean
+            # value but got "foo"``.  The interp ``expr_atom`` ``$var``
+            # path unboxes the variable via ``obj_get_int`` which
+            # returns 0 for non-numeric strings; the boolean check
+            # that C tcl does after the substitution is missing here.
+            # Needs the var-reference path in ``expr_atom`` to validate
+            # the substituted value as a number/bool before treating
+            # 0 as falsy.
+]
+
+[baseline]
+just_to_match_ctcl_failing = 2
+good_to_have_failing = 1

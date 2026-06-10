@@ -1,0 +1,78 @@
+ByteCode 0x55cfca896dc0, refCt 1, epoch 21, interp 0x55cfca775350 (epoch 21)
+  Source "# ``expr {x in list}`` / ``x ni list`` must exact-match..."
+  Cmds 16, src 597, inst 129, litObjs 10, aux 0, stkDepth 2, code/src 0.00
+  Commands 16:
+      1: pc 0-22, src 289-347        2: pc 0-1, src 295-317
+      3: pc 5-17, src 323-346        4: pc 23-45, src 349-409
+      5: pc 23-24, src 354-376        6: pc 28-40, src 382-408
+      7: pc 46-68, src 411-463        8: pc 46-47, src 417-439
+      9: pc 51-63, src 445-462       10: pc 69-91, src 465-524
+     11: pc 69-70, src 470-490       12: pc 74-86, src 496-523
+     13: pc 92-114, src 526-585       14: pc 92-93, src 531-551
+     15: pc 97-109, src 557-584       16: pc 115-127, src 587-595
+  Command 1: "if {![expr {5 in {1 2 3 4 5}}]} { error \"5 in {...} lo..."
+  Command 2: "expr {5 in {1 2 3 4 5}}..."
+    (0) push1 0 	# "1"
+    (2) nop 
+    (3) jumpTrue1 +17 	# pc 20
+  Command 3: "error \"5 in {...} lost\"..."
+    (5) push1 1 	# "5 in {...} lost"
+    (7) push1 2 	# ""
+    (9) returnImm +1 0 
+    (18) jump1 +4 	# pc 22
+    (20) push1 2 	# ""
+    (22) pop 
+  Command 4: "if {[expr {6 in {1 2 3 4 5}}]} { error \"6 in reported ..."
+  Command 5: "expr {6 in {1 2 3 4 5}}..."
+    (23) push1 3 	# "0"
+    (25) nop 
+    (26) jumpFalse1 +17 	# pc 43
+  Command 6: "error \"6 in reported true\"..."
+    (28) push1 4 	# "6 in reported true"
+    (30) push1 2 	# ""
+    (32) returnImm +1 0 
+    (41) jump1 +4 	# pc 45
+    (43) push1 2 	# ""
+    (45) pop 
+  Command 7: "if {![expr {6 ni {1 2 3 4 5}}]} { error \"6 ni lost\"..."
+  Command 8: "expr {6 ni {1 2 3 4 5}}..."
+    (46) push1 0 	# "1"
+    (48) nop 
+    (49) jumpTrue1 +17 	# pc 66
+  Command 9: "error \"6 ni lost\"..."
+    (51) push1 5 	# "6 ni lost"
+    (53) push1 2 	# ""
+    (55) returnImm +1 0 
+    (64) jump1 +4 	# pc 68
+    (66) push1 2 	# ""
+    (68) pop 
+  Command 10: "if {[expr {\"x\" in {a b c}}]} { error \"string-in fals..."
+  Command 11: "expr {\"x\" in {a b c..."
+    (69) push1 3 	# "0"
+    (71) nop 
+    (72) jumpFalse1 +17 	# pc 89
+  Command 12: "error \"string-in false pos\"..."
+    (74) push1 6 	# "string-in false pos"
+    (76) push1 2 	# ""
+    (78) returnImm +1 0 
+    (87) jump1 +4 	# pc 91
+    (89) push1 2 	# ""
+    (91) pop 
+  Command 13: "if {[expr {\"a\" ni {a b c}}]} { error \"string-ni fals..."
+  Command 14: "expr {\"a\" ni {a b c..."
+    (92) push1 3 	# "0"
+    (94) nop 
+    (95) jumpFalse1 +17 	# pc 112
+  Command 15: "error \"string-ni false pos\"..."
+    (97) push1 7 	# "string-ni false pos"
+    (99) push1 2 	# ""
+    (101) returnImm +1 0 
+    (110) jump1 +4 	# pc 114
+    (112) push1 2 	# ""
+    (114) pop 
+  Command 16: "return ok..."
+    (115) push1 8 	# "ok"
+    (117) push1 9 	# ""
+    (119) returnImm +0 1 
+    (128) done 
+

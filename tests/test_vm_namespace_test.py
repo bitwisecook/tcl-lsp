@@ -14,9 +14,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -36,13 +36,60 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_NAMESPACE: set[str] = set(
-    # namespace.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_NAMESPACE: set[str] = {
+    "namespace-52.11",
+    "namespace-52.12",
+    "namespace-53.1",
+    "namespace-53.10",
+    "namespace-53.11",
+    "namespace-53.2",
+    "namespace-53.3",
+    "namespace-53.4",
+    "namespace-53.5",
+    "namespace-53.6",
+    "namespace-53.7",
+    "namespace-53.8",
+    "namespace-53.9",
+    "namespace-55.2",
+    "namespace-56.3",
+    "namespace-56.6",
+    "namespace-57.0",
+}
 
-KNOWN_FAILURES_NAMESPACE_OLD: set[str] = set(
-    # namespace-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_NAMESPACE_OLD: set[str] = {
+    "namespace-old-1.10",
+    "namespace-old-1.3",
+    "namespace-old-1.4",
+    "namespace-old-1.6",
+    "namespace-old-1.7",
+    "namespace-old-2.2",
+    "namespace-old-2.8",
+    "namespace-old-2.9",
+    "namespace-old-3.2",
+    "namespace-old-4.3",
+    "namespace-old-4.4",
+    "namespace-old-5.10",
+    "namespace-old-5.11",
+    "namespace-old-5.16",
+    "namespace-old-5.19",
+    "namespace-old-5.9",
+    "namespace-old-6.16",
+    "namespace-old-6.8",
+    "namespace-old-7.10",
+    "namespace-old-7.11",
+    "namespace-old-7.12",
+    "namespace-old-7.3",
+    "namespace-old-7.4",
+    "namespace-old-7.5",
+    "namespace-old-7.6",
+    "namespace-old-7.7",
+    "namespace-old-8.1",
+    "namespace-old-9.10",
+    "namespace-old-9.2",
+    "namespace-old-9.5",
+    "namespace-old-9.7",
+    "namespace-old-9.8",
+}
 
 
 # Test runner
@@ -153,7 +200,7 @@ class TestNamespaceNative:
 
     def test_namespace(self) -> None:
         results = _run_test_file("namespace.test")
-        _check_results(results, KNOWN_FAILURES_NAMESPACE, "namespace.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_NAMESPACE, "namespace.test")
 
 
 class TestNamespaceOldNative:
@@ -161,6 +208,4 @@ class TestNamespaceOldNative:
 
     def test_namespace_old(self) -> None:
         results = _run_test_file("namespace-old.test")
-        _check_results(
-            results, KNOWN_FAILURES_NAMESPACE_OLD, "namespace-old.test", expect_zero_total=True
-        )
+        _check_results(results, KNOWN_FAILURES_NAMESPACE_OLD, "namespace-old.test")

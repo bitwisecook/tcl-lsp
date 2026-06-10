@@ -1,5 +1,8 @@
 # KCS: feature — Hover
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Command documentation, proc signatures, variable info, and taint status on hover.
@@ -20,7 +23,7 @@ The hover provider resolves the symbol under the cursor and returns documentatio
 
 ## File-path anchors
 
-- `lsp/features/hover.py`
+- `server/features/hover.py`
 
 ## Failure modes
 

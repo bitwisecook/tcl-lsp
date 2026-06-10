@@ -6,8 +6,8 @@ import io
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestVMSet:
@@ -464,8 +464,8 @@ class TestVMDisassemble:
     """Tests for bytecode generation / disassembly."""
 
     def test_simple_set_disassembly(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x 42")
         text = format_module_asm(module_asm)
@@ -482,9 +482,11 @@ class TestVMDisassemble:
 class TestVariableShapeBytecodeIdentity:
     """Variable-shape forms should compile to distinct bytecode paths."""
 
-    def test_braced_scalar_like_array_name_uses_scalar_load(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+    def test_braced_array_like_name_uses_whole_name_load(self) -> None:
+        # Braced ${a(1)} loads the WHOLE name a(1) (runtime resolves the
+        # array element) via push "a(1)"; loadStk — matches tcl 9.
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x ${a(1)}")
         text = format_module_asm(module_asm)
@@ -493,8 +495,8 @@ class TestVariableShapeBytecodeIdentity:
         assert '"a(1)"' in text
 
     def test_unbraced_array_ref_uses_array_load(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
         module_asm, _ = compile_script("set x $a(1)")
         text = format_module_asm(module_asm)
@@ -502,17 +504,19 @@ class TestVariableShapeBytecodeIdentity:
         assert '"a"' in text
         assert '"1"' in text
 
-    def test_namespaced_array_forms_distinguish_scalar_like_vs_array_ref(self) -> None:
-        from core.compiler.codegen import format_module_asm
-        from vm.compiler import compile_script
+    def test_namespaced_array_forms_distinguish_whole_name_vs_array_ref(self) -> None:
+        # Braced ${::ns::arr(k)} → whole-name load of "::ns::arr(k)";
+        # bare $::ns::arr(k) → split into array "::ns::arr" element "k".
+        from compiler.codegen.bytecode import format_module_asm
+        from tooling.vm.compiler import compile_script
 
-        scalar_like, _ = compile_script("set x ${::ns::arr(k)}")
+        whole_name, _ = compile_script("set x ${::ns::arr(k)}")
         array_ref, _ = compile_script("set x $::ns::arr(k)")
-        scalar_text = format_module_asm(scalar_like)
+        whole_name_text = format_module_asm(whole_name)
         array_text = format_module_asm(array_ref)
-        assert "loadStk" in scalar_text and "loadArrayStk" not in scalar_text
+        assert "loadStk" in whole_name_text and "loadArrayStk" not in whole_name_text
         assert "loadArrayStk" in array_text
-        assert '"::ns::arr(k)"' in scalar_text
+        assert '"::ns::arr(k)"' in whole_name_text
         assert '"::ns::arr"' in array_text
         assert '"k"' in array_text
 

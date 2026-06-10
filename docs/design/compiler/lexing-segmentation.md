@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: [`core/parsing/lexer.py`](../../../core/parsing/lexer.py) (`tokenise_all` at line 494),
-[`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
-[`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py) (`segment_commands` at line 390)
+Source: [`compiler/parsing/lexer.py`](../../../compiler/parsing/lexer.py) (`tokenise_all` at line 1183),
+[`shared/tokens.py`](../../../shared/tokens.py),
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py) (`segment_commands` at line 344)
 
 ## Content
 
@@ -56,7 +56,29 @@ consumers that check for stray punctuation must test
 characters from structural delimiters (which are part of `STR` or `CMD`
 tokens).
 
+**Line-tracking convention** — the lexer resolves line/column two ways that
+must agree: a `\n`-only line-start index (`_line_starts`, consumed by
+`_pos_at` and the red [concrete syntax tree](syntax-tree.md) overlay), and an
+incremental `line`/`col` counter advanced per character. **Only `\n` is a line
+break for positions.** A lone carriage return — including a backslash-CR
+*continuation* (`\<CR>`, the old-Mac line ending) — splits the word like any
+continuation but does **not** advance the line, because the index never records
+it; a CRLF advances the line on its `\n`. Treating a lone `\<CR>` as a line
+break in the incremental counter (but not the index) made the token *after* it
+report `start` one line below its own `end` — a backwards range. Any new
+position-tracking path must keep the two mechanisms in lock-step.
+
 ### Stage 2 — Segmentation
+
+`segment_commands()` no longer runs its own hand-rolled token loop: it builds
+the canonical lossless **red-green concrete syntax tree** for the region
+([`compiler/parsing/syntax/`](../../../compiler/parsing/syntax/), see
+[syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
+it.  The derivation is byte-identical to the former loop — `range`, `argv`,
+`texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
+`expand_word` all match field-for-field (verified over the real-world corpus,
+120k randomised differential cases, and nested-body anchoring) — so everything
+below describes the unchanged output shape.
 
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
 
@@ -93,7 +115,7 @@ more runtime args) from a literal `*${list}` word.
 
 The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
 `configure_signatures()` in
-[`core/commands/registry/runtime.py`](../../../core/commands/registry/runtime.py)
+[`compiler/registry/runtime.py`](../../../compiler/registry/runtime.py)
 sets the flag based on the active dialect:
 
 - **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
@@ -104,8 +126,8 @@ sets the flag based on the active dialect:
   braced literal `{*}` concatenated with `$x`.
 
 Arity checks at both the analyser (`_check_proc_call_arity` in
-`core/analysis/analyser.py`) and the IR layer (`_check_simple_arity` in
-`core/compiler/compiler_checks.py`) treat each expanded word as an
+`analyser/_analyser/_proc.py`) and the IR layer (`_check_simple_arity` in
+`analyser/compiler_checks.py`) treat each expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or
@@ -144,6 +166,39 @@ arguments alone exceed the signature maximum.
 3. **Semantic analysis** uses `range` for diagnostic positions and
    `all_tokens` for syntax highlighting/semantic tokens.
 
+### Shared tokenisation memo (now the green token tree)
+
+The analysis pipeline lexes the same source bytes from several independent
+paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
+`compiler_checks`, and `var_refs` each tokenise overlapping regions, and
+nested braced bodies are re-lexed at every level of recursion.
+
+The original per-analysis memo (`compiler/parsing/token_cache.py` /
+`tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
+green token tree** in `compiler/parsing/green_tree.py` — see
+[green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
+analysis-scoped intern index, with the same correctness rules:
+
+- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
+  carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
+  substrings lexed at the same base offset (e.g. two bodies both lexed at
+  base 0) never collide.
+- Tokens are immutable, so the cached stream is shared read-only — consumers
+  build their own derived structures and never mutate it.
+- Regions lexed with error-recovery virtual insertions are never interned
+  (the insertions are request-specific).
+- The index lives in a `contextvars.ContextVar` activated by
+  `green_tree_scope()` (reentrant), opened at `Analyser.analyse` and
+  `lower_to_ir`. It is discarded when the scope exits, so memory is bounded
+  by one analysis and lexer-affecting context (dialect, strict-quoting) is
+  stable for its lifetime.
+
+`var_refs` lexes at base offset 0 (it extracts position-independent variable
+names) and keeps its own text-keyed result-LRU, which shares across the SSA /
+GVN / interprocedural scanner singletons (and across documents) in a way the
+absolute-offset, per-document tree cannot. It consults `green_tree.tokenise()`
+for the leaf tokenisation but keeps that result cache.
+
 ### Worked example — `set y $x`
 
 ```python
@@ -171,6 +226,8 @@ IRAssignValue(name="y", value="${x}")
 
 ## Related docs
 
+- [syntax-tree.md](syntax-tree.md) — the canonical red-green CST the segmenter
+  builds and derives `SegmentedCommand`s from
 - [Examples 1–2 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference](../../../docs/design/example-script-walkthroughs.md#data-structure-reference)
 - [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)

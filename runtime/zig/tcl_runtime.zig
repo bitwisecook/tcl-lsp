@@ -42,6 +42,7 @@ const tcl_rename = @import("cmds/tcl_rename.zig");
 const tcl_alias = @import("cmds/tcl_alias.zig");
 const tcl_hide = @import("cmds/tcl_hide.zig");
 const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
+const tcl_xlinks = @import("interp/tcl_xlinks.zig");
 const interp = @import("interp/tcl_interp.zig");
 const tcl_sched = @import("sched/tcl_sched.zig");
 const tcl_coro = @import("sched/tcl_coro.zig");
@@ -59,6 +60,7 @@ pub const obj_get_int = tcl_obj.obj_get_int;
 pub const obj_new_float = tcl_obj.obj_new_float;
 pub const obj_get_float = tcl_obj.obj_get_float;
 pub const obj_new_string_copy = tcl_obj.obj_new_string_copy;
+pub const obj_new_string_take = tcl_obj.obj_new_string_take;
 pub const obj_ensure_string = tcl_obj.obj_ensure_string;
 pub const list_count_elements = tcl_obj.list_count_elements;
 pub const list_element_at = tcl_obj.list_element_at;
@@ -75,11 +77,16 @@ pub const tcl_cmd_puts_nonewline = tcl_io.tcl_cmd_puts_nonewline;
 
 pub const tcl_cmd_append = tcl_string.tcl_cmd_append;
 pub const string_length = tcl_string.string_length;
+pub const string_codepoint_count = tcl_string.string_codepoint_count;
 pub const string_index = tcl_string.string_index;
 pub const string_range = tcl_string.string_range;
 pub const string_compare = tcl_string.string_compare;
+pub const string_compare_full = tcl_string.string_compare_full;
 pub const tcl_expr_order_cmp = tcl_string.tcl_expr_order_cmp;
+pub const tcl_expr_unordered = tcl_string.tcl_expr_unordered;
+pub const tcl_expr_eq_nan_aware = tcl_string.tcl_expr_eq_nan_aware;
 pub const string_equal = tcl_string.string_equal;
+pub const string_equal_full = tcl_string.string_equal_full;
 pub const string_match = tcl_string.string_match;
 pub const string_map = tcl_string.string_map;
 pub const string_map_nocase = tcl_string.string_map_nocase;
@@ -87,13 +94,19 @@ pub const string_trim = tcl_string.string_trim;
 pub const string_trimleft = tcl_string.string_trimleft;
 pub const string_trimright = tcl_string.string_trimright;
 pub const string_first = tcl_string.string_first;
+pub const string_first_indexed = tcl_string.string_first_indexed;
 pub const string_last = tcl_string.string_last;
+pub const string_last_indexed = tcl_string.string_last_indexed;
 pub const string_toupper = tcl_string.string_toupper;
 pub const string_tolower = tcl_string.string_tolower;
 pub const string_totitle = tcl_string.string_totitle;
+pub const string_toupper_range = tcl_string.string_toupper_range;
+pub const string_tolower_range = tcl_string.string_tolower_range;
+pub const string_totitle_range = tcl_string.string_totitle_range;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
+pub const string_insert = tcl_string.string_insert;
 pub const tcl_cmd_split = tcl_string.tcl_cmd_split;
 pub const tcl_cmd_join = tcl_string.tcl_cmd_join;
 pub const tcl_cmd_concat = tcl_string.tcl_cmd_concat;
@@ -108,6 +121,7 @@ pub const tcl_cmd_list_reverse = tcl_list_mod.tcl_cmd_list_reverse;
 pub const tcl_cmd_list_repeat = tcl_list_mod.tcl_cmd_list_repeat;
 pub const tcl_cmd_list_insert = tcl_list_mod.tcl_cmd_list_insert;
 pub const tcl_cmd_list_replace = tcl_list_mod.tcl_cmd_list_replace;
+pub const tcl_cmd_lreplace_list = tcl_list_mod.tcl_cmd_lreplace_list;
 pub const tcl_cmd_list_set = tcl_list_mod.tcl_cmd_list_set;
 pub const tcl_cmd_list_contains = tcl_list_mod.tcl_cmd_list_contains;
 pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
@@ -129,13 +143,17 @@ pub const catch_has_error = tcl_catch.catch_has_error;
 pub const catch_set_ok_result = tcl_catch.catch_set_ok_result;
 pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
 pub const var_unset_error = tcl_catch.var_unset_error;
-pub const error_flag = &tcl_catch.error_flag;
-pub const return_flag = &tcl_catch.return_flag;
-pub const return_val = &tcl_catch.return_val;
-pub const break_flag = &tcl_catch.break_flag;
-pub const continue_flag = &tcl_catch.continue_flag;
+pub const error_flag = &tcl_catch.state.error_flag;
+pub const return_flag = &tcl_catch.state.return_flag;
+pub const return_val = &tcl_catch.state.return_val;
+pub const break_flag = &tcl_catch.state.break_flag;
+pub const continue_flag = &tcl_catch.state.continue_flag;
 pub const flow_consume_break = tcl_catch.flow_consume_break;
 pub const flow_consume_continue = tcl_catch.flow_consume_continue;
+pub const flow_check_return = tcl_catch.flow_check_return;
+pub const flow_take_return = tcl_catch.flow_take_return;
+pub const flow_for_next_post_check = tcl_catch.flow_for_next_post_check;
+pub const flow_check_any_signal = tcl_catch.flow_check_any_signal;
 
 // Frames
 pub const frame_push = tcl_frames.frame_push;
@@ -144,8 +162,19 @@ pub const frame_set_argv = tcl_frames.frame_set_argv;
 pub const frame_get_argv = tcl_frames.frame_get_argv;
 pub const frame_set_pending_argv0 = tcl_frames.frame_set_pending_argv0;
 pub const frame_take_pending_argv0 = tcl_frames.frame_take_pending_argv0;
+// Phase 8: codegen-callable FrameInfo setters.
+pub const frame_set_type_i32 = tcl_frames.frame_set_type_i32;
+pub const frame_set_script = tcl_frames.frame_set_script;
+pub const frame_set_line = tcl_frames.frame_set_line;
+pub const frame_set_cmd_text = tcl_frames.frame_set_cmd_text;
+pub const frame_set_proc_name = tcl_frames.frame_set_proc_name;
+pub const frame_claim_line_codegen = tcl_frames.frame_claim_line_codegen;
+// Phase 7: codegen-callable indexed local accessors.
+pub const frame_local_at = tcl_frames.frame_local_at;
+pub const frame_local_set_at = tcl_frames.frame_local_set_at;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
+pub const frame_depth_stash_abs = tcl_frames.frame_depth_stash_abs;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
 pub const var_resolve = tcl_frames.var_resolve;
 pub const var_set = tcl_frames.var_set;
@@ -153,6 +182,8 @@ pub const var_exists = tcl_frames.var_exists;
 pub const local_set = tcl_frames.local_set;
 pub const local_get = tcl_frames.local_get;
 pub const local_get_or_error = tcl_frames.local_get_or_error;
+pub const local_set_silent = tcl_frames.local_set_silent;
+pub const local_get_silent = tcl_frames.local_get_silent;
 
 // Procs
 pub const proc_register = tcl_procs.proc_register;
@@ -239,6 +270,8 @@ comptime {
     _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;
     _ = &tcl_string.tcl_expr_order_cmp;
+    _ = &tcl_string.tcl_expr_unordered;
+    _ = &tcl_string.tcl_expr_eq_nan_aware;
     _ = &tcl_string.string_length;
     _ = &tcl_string.string_index;
     _ = &tcl_string.string_range;
@@ -256,8 +289,13 @@ comptime {
     _ = &tcl_string.string_toupper;
     _ = &tcl_string.string_tolower;
     _ = &tcl_string.string_totitle;
+    _ = &tcl_string.string_toupper_range;
+    _ = &tcl_string.string_tolower_range;
+    _ = &tcl_string.string_totitle_range;
     _ = &tcl_string.string_replace;
+    _ = &tcl_string.string_insert;
     _ = &tcl_string.string_is_integer;
+    _ = &tcl_string.string_is_wideinteger;
     _ = &tcl_string.string_is_alpha;
     _ = &tcl_string.string_is_digit;
     _ = &tcl_string.string_is_space;
@@ -275,6 +313,7 @@ comptime {
     _ = &tcl_list_mod.tcl_cmd_list_repeat;
     _ = &tcl_list_mod.tcl_cmd_list_insert;
     _ = &tcl_list_mod.tcl_cmd_list_replace;
+    _ = &tcl_list_mod.tcl_cmd_lreplace_list;
     _ = &tcl_list_mod.tcl_cmd_list_contains;
     _ = &tcl_list_mod.tcl_cmd_list_search;
     // tcl_dict exports
@@ -295,12 +334,17 @@ comptime {
     _ = &tcl_catch.catch_set_ok_result;
     _ = &tcl_catch.flow_consume_break;
     _ = &tcl_catch.flow_consume_continue;
+    _ = &tcl_catch.flow_check_return;
+    _ = &tcl_catch.flow_take_return;
+    _ = &tcl_catch.flow_for_next_post_check;
+    _ = &tcl_catch.flow_check_any_signal;
     _ = &tcl_catch.tcl_cmd_error;
+    _ = &tcl_catch.tcl_return_set;
     _ = &tcl_catch.var_unset_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
     // a silent wrong answer.  Imports of these are wired up in
-    // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
+    // compiler/codegen/wasm/_imports.py's ``_RUNTIME_IMPORTS``; the
     // comptime references here ensure the linker keeps them.
     // Channel commands with real WASI-backed implementations live
     // in tcl_chan.zig; only flush / chan / fileevent / socket remain
@@ -367,7 +411,7 @@ comptime {
     _ = &tcl_time_stubs.tcl_cmd_coroutine;
     _ = &tcl_time_stubs.tcl_cmd_yield;
     _ = &tcl_time_stubs.tcl_cmd_yieldto;
-    _ = &tcl_env_stubs.@"namespace";
+    _ = &tcl_env_stubs.namespace;
     _ = &tcl_env_stubs.tcl_cmd_package_cmd;
     // trace lives in tcl_trace.zig (pass-through impl).
     _ = &tcl_trace.tcl_cmd_trace_cmd;
@@ -385,18 +429,31 @@ comptime {
     _ = &tcl_frames.frame_take_pending_argv0;
     _ = &tcl_frames.frame_get_depth;
     _ = &tcl_frames.frame_depth_stash;
+    _ = &tcl_frames.frame_depth_stash_abs;
     _ = &tcl_frames.frame_depth_restore;
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
     _ = &tcl_frames.local_get_or_error;
+    _ = &tcl_frames.local_set_silent;
+    _ = &tcl_frames.local_get_silent;
     _ = &tcl_frames.local_exists;
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;
     _ = &tcl_frames.var_exists;
+    _ = &tcl_frames.frame_set_type_i32;
+    _ = &tcl_frames.frame_set_script;
+    _ = &tcl_frames.frame_set_line;
+    _ = &tcl_frames.frame_set_cmd_text;
+    _ = &tcl_frames.frame_set_proc_name;
+    _ = &tcl_frames.frame_claim_line_codegen;
+    _ = &tcl_frames.frame_get_line;
+    _ = &tcl_frames.frame_local_at;
+    _ = &tcl_frames.frame_local_set_at;
     // tcl_procs exports
     _ = &tcl_procs.proc_register;
     _ = &tcl_procs.proc_register_compiled;
     _ = &tcl_procs.proc_set_body_source;
+    _ = &tcl_procs.proc_set_params_source_raw;
     _ = &tcl_procs.proc_lookup;
     _ = &tcl_procs.proc_get_func_idx;
     _ = &tcl_procs.proc_get_n_params;
@@ -438,6 +495,7 @@ comptime {
     _ = &tcl_arith.tcl_arith_bxor;
     _ = &tcl_arith.tcl_arith_bnot;
     _ = &tcl_arith.tcl_arith_neg;
+    _ = &tcl_arith.tcl_arith_pow;
     _ = &tcl_arith.tcl_math_double;
     _ = &tcl_arith.tcl_math_int;
     _ = &tcl_arith.tcl_math_round;
@@ -448,6 +506,18 @@ comptime {
     _ = &tcl_arith.tcl_math_sin;
     _ = &tcl_arith.tcl_math_cos;
     _ = &tcl_arith.tcl_math_fabs;
+    _ = &tcl_arith.tcl_math_tan;
+    _ = &tcl_arith.tcl_math_asin;
+    _ = &tcl_arith.tcl_math_acos;
+    _ = &tcl_arith.tcl_math_atan;
+    _ = &tcl_arith.tcl_math_atan2;
+    _ = &tcl_arith.tcl_math_sinh;
+    _ = &tcl_arith.tcl_math_cosh;
+    _ = &tcl_arith.tcl_math_tanh;
+    _ = &tcl_arith.tcl_math_floor;
+    _ = &tcl_arith.tcl_math_ceil;
+    _ = &tcl_arith.tcl_math_fmod;
+    _ = &tcl_arith.tcl_math_hypot;
     // obj float exports
     _ = &tcl_obj.obj_new_float;
     _ = &tcl_obj.obj_get_float;
@@ -486,6 +556,12 @@ comptime {
     _ = &tcl_interp_registry.child_create;
     _ = &tcl_interp_registry.child_lookup;
     _ = &tcl_interp_registry.child_delete;
+    // Phase 9: cross-interp variable link registry exports.
+    _ = &tcl_xlinks.install;
+    _ = &tcl_xlinks.remove;
+    _ = &tcl_xlinks.lookup;
+    _ = &tcl_xlinks.lookup_done;
+    _ = &tcl_xlinks.drop_for_interp;
     _ = &tcl_interp_registry.resolve_path;
     _ = &tcl_interp_registry.enter;
     _ = &tcl_interp_registry.leave;
@@ -576,6 +652,7 @@ pub export fn tcl_test_alias_create(
     n_prefix: i32,
     prefix_args_addr: i32,
 ) i32 {
+    const tcl_interp_reg = @import("interp/tcl_interp_registry.zig");
     const cmd = tcl_alias.alias_alloc(
         @bitCast(dest_ns),
         @bitCast(new_simple_ptr),
@@ -585,6 +662,7 @@ pub export fn tcl_test_alias_create(
         @bitCast(n_prefix),
         @bitCast(prefix_args_addr),
         0, // parent_interp — scaffolding always creates same-interp aliases
+        tcl_interp_reg.interp_current(),
     );
     _ = tcl_ns.ns_cmd_put(
         @bitCast(dest_ns),
@@ -663,7 +741,12 @@ pub export fn tcl_test_hidden_exists(name_ptr: i32, name_len: i32) i32 {
 pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_commands(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_commands(pat);
+    const result = tcl_cmd_info.info_commands(pat);
+    // ``info_commands`` reads the pattern's bytes but doesn't take
+    // ownership — release the +1 here so this test export doesn't
+    // leak one TclObj per call.
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Run ``info procs pattern``.  Same shape as
@@ -671,7 +754,9 @@ pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
 pub export fn tcl_test_info_procs(pattern_ptr: i32, pattern_len: i32) i32 {
     if (pattern_len == 0) return tcl_cmd_info.info_procs(0);
     const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
-    return tcl_cmd_info.info_procs(pat);
+    const result = tcl_cmd_info.info_procs(pat);
+    tcl_obj.tcl_obj_release(pat);
+    return result;
 }
 
 /// Probe ``namespace which -command name`` without routing through
@@ -784,7 +869,13 @@ pub export fn tcl_test_interp_eval_script(
     script_len: i32,
 ) i32 {
     const save = tcl_interp_registry.enter(@bitCast(target_interp));
-    const res = interp.tcl_eval(tcl_obj.obj_new_string(script_ptr, script_len));
+    // Capture the script TclObj so we can release it after tcl_eval
+    // returns — the prior single-expression form leaked one TclObj
+    // header per test invocation (every cross-interp ``eval`` test
+    // in the harness).
+    const script_obj = tcl_obj.obj_new_string(script_ptr, script_len);
+    const res = interp.tcl_eval(script_obj);
+    tcl_obj.tcl_obj_release(script_obj);
     tcl_interp_registry.leave(save);
     return res;
 }
@@ -810,4 +901,85 @@ pub export fn tcl_test_hidden_find_in(
         @bitCast(name_len),
     );
     return if (h != 0) 1 else 0;
+}
+
+/// Evaluate a raw expression source string and return its result
+/// as a TclObj.  Exposed for the WASM codegen's ``ExprRaw`` path
+/// where a backslash-substituted operand needs to be re-parsed
+/// by the runtime expression evaluator (matching reference Tcl's
+/// ``expr X`` behaviour, which treats *X* as expression source
+/// rather than a literal value).
+pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
+    const expr_eval = @import("interp/tcl_expr_eval.zig");
+    return expr_eval.eval(@bitCast(src_ptr), @bitCast(src_len));
+}
+
+/// Canonicalise *obj* through the expression evaluator.  Reference
+/// Tcl 9 semantics: a single-token expression like ``expr {$a}`` /
+/// ``expr $a`` shimmers ``$a``'s string repr to a numeric obj when
+/// it parses as int / hex / octal / binary / float, returning the
+/// canonical decimal form (``0o00123`` ➜ ``83``).  Strings that
+/// contain a full sub-expression (``"1e308**1e10"``, ``"1+2"``)
+/// also re-parse — Tcl substitutes ``$a`` first, then ``expr``
+/// evaluates the resulting source as a fresh expression.  Strings
+/// that don't parse as expressions return verbatim.
+///
+/// Ownership: this helper is **non-consuming** — the input *o*
+/// keeps its existing refcount.  The return is a fresh +1 owned
+/// handle on every path (we retain *o* when returning it verbatim,
+/// matching the freshly-allocated parsed obj on the canonicalised
+/// path).  Callers who handed in a borrowed reference (e.g. an
+/// ``ExprVar`` read from a variable's slot) can safely treat the
+/// result as OWNED without corrupting the source slot's refcount.
+pub export fn tcl_expr_canonicalise(o: i32) i32 {
+    const obj_mod = @import("valtypes/tcl_obj.zig");
+    if (o == 0) return 0;
+    if (obj_mod.is_immediate(o)) return o;
+    const handle: u32 = @bitCast(o);
+    const tag = obj_mod.read_i32(handle + obj_mod.OBJ_TYPE_TAG);
+    // Already-numeric tags are canonical.
+    if (tag == obj_mod.TYPE_INT or tag == obj_mod.TYPE_FLOAT or tag == obj_mod.TYPE_BIGNUM) {
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
+    const s = obj_mod.obj_ensure_string(o);
+    if (s.len == 0) {
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
+    // Route through ``eval_top`` which re-parses the string as a full
+    // expression — handles bare numeric literals, base-prefix forms,
+    // and compound sub-expressions like ``"1e308**1e10"``.
+    const expr_eval = @import("interp/tcl_expr_eval.zig");
+    // Snapshot the error state so a failed sub-parse can fall back
+    // to returning the original obj rather than propagating the
+    // diagnostic from a non-numeric input.
+    const result_mod = @import("interp/tcl_result.zig");
+    const before_code = result_mod.snapshot(0).code;
+    const parsed = expr_eval.eval_top(@bitCast(s.ptr), @bitCast(s.len));
+    const after = result_mod.snapshot(0);
+    if (after.code == .ERROR and before_code != .ERROR) {
+        // Sub-parse raised — clear the error and return the original
+        // (matches Tcl 9 behaviour where ``expr $v`` falls back to
+        // the original string when the value isn't numeric / a valid
+        // expression).
+        result_mod.consume(.ERROR);
+        if (parsed != 0) obj_mod.tcl_obj_release(parsed);
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
+    if (parsed == 0) {
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
+    if (obj_mod.is_immediate(parsed)) {
+        return parsed;
+    }
+    const ptag = obj_mod.read_i32(@as(u32, @bitCast(parsed)) + obj_mod.OBJ_TYPE_TAG);
+    if (ptag == obj_mod.TYPE_INT or ptag == obj_mod.TYPE_FLOAT or ptag == obj_mod.TYPE_BIGNUM) {
+        return parsed;
+    }
+    obj_mod.tcl_obj_release(parsed);
+    obj_mod.tcl_obj_retain(o);
+    return o;
 }

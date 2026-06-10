@@ -9,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.gvn import find_redundant_computations
+from compiler.gvn import find_redundant_computations
 
 
 class TestGVNBasicStraightLine:
@@ -224,6 +224,38 @@ class TestGVNLoopInvariantCodeMotion:
             f"foreach list argument should not be flagged: {lsort_warnings}"
         )
 
+    def test_outer_call_with_impure_inner_subst_not_flagged(self):
+        """``[format %04d [incr testnum]]`` looks like a pure ``format``
+        call to a registry-only check, but ``[incr testnum]`` mutates
+        ``testnum`` so the formatted value differs every iteration —
+        NOT loop-invariant.  The purity check must recurse into command
+        substitutions (the inner ``incr`` is impure, so the whole
+        expression is impure).  Same principle for channel reads
+        (``[read \\$fh 512]`` returns different bytes per call).
+        """
+        source = textwrap.dedent("""\
+            set testnum 0
+            foreach pattern {a b c} {
+                puts [format %04d [incr testnum]]
+            }
+        """)
+        warnings = find_redundant_computations(source)
+        o106 = [w for w in warnings if w.code == "O106"]
+        assert len(o106) == 0, f"format containing impure [incr] must not be flagged: {o106}"
+
+    def test_outer_call_with_pure_inner_subst_still_flagged(self):
+        """TP control: ``[format %s [string toupper hello]]`` IS loop-
+        invariant (both outer ``format`` and inner ``string toupper``
+        are pure on the same inputs).  Must still fire."""
+        source = textwrap.dedent("""\
+            foreach i {1 2 3} {
+                puts [format %s [string toupper hello]]
+            }
+        """)
+        warnings = find_redundant_computations(source)
+        o106 = [w for w in warnings if w.code == "O106"]
+        assert any("format" in w.expression_text for w in o106)
+
 
 class TestGVNProcBodies:
     """Redundancy detection in proc bodies."""
@@ -275,7 +307,7 @@ class TestGVNEdgeCases:
 def _irules_dialect():
     """Context manager to activate f5-irules dialect."""
     return mock.patch(
-        "core.compiler.gvn.active_dialect",
+        "compiler.gvn.active_dialect",
         return_value="f5-irules",
     )
 

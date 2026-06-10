@@ -17,10 +17,10 @@ iRules, iApps, EDA, Expect) are loaded lazily on first access for that
 dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
 side-effects, diagnostics, and code completion.
 
-Source: [`core/commands/registry/models.py`](../../../core/commands/registry/models.py),
-[`core/commands/registry/_base.py`](../../../core/commands/registry/_base.py),
-[`core/commands/registry/signatures.py`](../../../core/commands/registry/signatures.py),
-[`core/commands/registry/taint_hints.py`](../../../core/commands/registry/taint_hints.py)
+Source: [`compiler/registry/models.py`](../../../compiler/registry/models.py),
+[`compiler/registry/_base.py`](../../../compiler/registry/_base.py),
+[`compiler/registry/signatures.py`](../../../compiler/registry/signatures.py),
+[`compiler/registry/taint_hints.py`](../../../compiler/registry/taint_hints.py)
 
 ## Content
 
@@ -281,15 +281,15 @@ analysis layers handle these at different levels:
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
   The parent's `arg_role_resolver` inspects the subcommand word to assign
   roles to the remaining arguments.
-- **Variable scoping** (`core/analysis/var_scoping.py`) has explicit
+- **Variable scoping** (`compiler/var_scoping.py`) has explicit
   handlers for compound forms like `namespace upvar`, `dict set`,
   `dict update`, and `dict with`.
-- **Lowering hooks** (`core/compiler/lowering_hooks/`) have per-command
+- **Lowering hooks** (`compiler/lowering_hooks/`) have per-command
   hooks that understand subcommand structure.
 
 When verifying whether a compound command is handled, search all three
 layers — the feature module closest to the symptom (e.g.
-`lsp/features/declaration.py`) may intentionally delegate to a deeper
+`server/features/declaration.py`) may intentionally delegate to a deeper
 module.
 
 ### OptionSpec and option terminators
@@ -337,7 +337,7 @@ dialect strings:
 | `frozenset({"tcl8.5", "tcl8.6", ...})` | Safe only in listed dialects |
 
 For version-dependent behaviour, use `dialects_since()` from
-`core/commands/registry/dialects.py`:
+`compiler/registry/dialects.py`:
 
 ```python
 from ..dialects import dialects_since

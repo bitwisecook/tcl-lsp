@@ -1,5 +1,8 @@
 # KCS: feature — Inlay Hints
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Inline type and value information displayed alongside code.
@@ -19,7 +22,7 @@ Inlay hints show additional information such as parameter names and inferred typ
 
 ## File-path anchors
 
-- `lsp/features/inlay_hints.py`
+- `server/features/inlay_hints.py`
 
 ## Failure modes
 

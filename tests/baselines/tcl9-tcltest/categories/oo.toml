@@ -1,0 +1,42 @@
+# oo.test categorisation (Tcl 9.0.3 source tree).
+# 347 / 388 passing.  Residual failures cluster around TclOO
+# subsystems we haven't fully wired up:
+#   - 0.x / 1.x / 2.x: initial scaffolding (oo::patchlevel /
+#     version namespace var precedence, oo::define syntax checks)
+#   - 4.x / 6.x: oo::define + filter ordering.
+#   - 8.x / 11.x: method introspection (info object methods /
+#     info class methods + -all / -private flags).
+#   - 12.x / 13.x: copy command + clone semantics.
+#   - 14.x / 15.x: callback evaluation through ``my`` / ``self``.
+#   - 16.x / 17.x: variable scoping through ``oo::objdefine``.
+#   - 18.x: classvariable + objvariable propagation.
+#   - 34.x: lifecycle hooks (constructor / destructor / forward
+#     to a missing target).
+#   - 36.x / 42.x: ``oo::class create`` introspection.
+
+good_to_have = [
+  "0.9",
+  "1.1", "1.3",
+  "2.2",
+  "4.1", "4.2",
+  "6.1",
+  "8.1",
+  "11.1", "11.2", "11.3", "11.4",
+  "12.1",
+  "13.1",
+  "14.1", "14.2",
+  "15.1", "15.2", "15.3",
+  "16.6", "16.8",
+  "17.7",
+  "18.1", "18.2", "18.3", "18.3a", "18.3b",
+  "34.2", "34.3", "34.4", "34.5", "34.6", "34.7", "34.8", "34.9",
+  "36.1",
+  "42.3", "42.6", "42.7",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 39
+just_to_match_ctcl_failing = 0
+skip_failing = 0

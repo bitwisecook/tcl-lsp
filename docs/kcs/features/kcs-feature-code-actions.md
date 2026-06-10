@@ -1,5 +1,8 @@
 # KCS: feature — Code Actions
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Quick fixes for diagnostics and refactoring actions: brace expressions, add
@@ -36,7 +39,7 @@ ignore the command and the user can rename manually.
 
 ## File-path anchors
 
-- `lsp/features/code_actions.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

@@ -1,5 +1,8 @@
 # KCS: feature — Diagnostics
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Errors, warnings, security, taint tracking, and style checks shown as you type.
@@ -22,8 +25,8 @@ The analyser produces diagnostics in categories: errors (E-codes), security (S-c
 
 ## File-path anchors
 
-- `core/analysis/analyser.py`
-- `lsp/features/diagnostics.py`
+- `analyser/_analyser/_diagnostics.py`
+- `server/features/diagnostics.py`
 - `ai/shared/diagnostics.py`
 - `ai/shared/diagnostics.json`
 

@@ -1,0 +1,90 @@
+ByteCode ::top, 58 instructions, 181 bytes, 12 literals, 0 variables
+  Literals:
+    0: "lsort"
+    1: "-integer"
+    2: "3 1 2 10"
+    3: "lsort swallowed the option as the lis..."
+    4: ""
+    5: "r"
+    6: "4"
+    7: "\u0000\u0002lsort -integer produced "
+    8: "3 1 2"
+    9: "1 2 3"
+    10: "plain lsort broken"
+    11: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "lsort"
+    (2) push1 1	# "-integer"
+    (4) push1 2	# "3 1 2 10"
+    (6) invokeStk1 3
+    (8) push1 1	# "-integer"
+    (10) streq
+    (11) jumpFalse1 +26	# pc 37
+  # if_then_3:
+    (13) startCommand +22 1	# next cmd at pc 35, 1 cmds start here
+    (22) push1 3	# "lsort swallowed the option as the lis..."
+    (24) push1 4	# ""
+    (26) returnImm +1 0
+  # cmd_end_1:
+    (35) jump1 +4	# pc 39
+  # if_next_4:
+    (37) push1 4	# ""
+  # if_end_2:
+    (39) pop
+    (40) startCommand +20 1	# next cmd at pc 60, 1 cmds start here
+    (49) push1 5	# "r"
+    (51) push1 0	# "lsort"
+    (53) push1 1	# "-integer"
+    (55) push1 2	# "3 1 2 10"
+    (57) invokeStk1 3
+    (59) storeStk
+  # cmd_end_2:
+    (60) pop
+    (61) startCommand +49 2	# next cmd at pc 110, 2 cmds start here
+    (70) push1 5	# "r"
+    (72) loadStk
+    (73) listLength
+    (74) push1 6	# "4"
+    (76) neq
+    (77) jumpFalse1 +31	# pc 108
+  # if_then_6:
+    (79) startCommand +27 1	# next cmd at pc 106, 1 cmds start here
+    (88) push1 7	# "lsort -integer produced "
+    (90) push1 5	# "r"
+    (92) loadStk
+    (93) strcat 2
+    (95) push1 4	# ""
+    (97) returnImm +1 0
+  # cmd_end_4:
+    (106) jump1 +4	# pc 110
+  # if_next_7:
+    (108) push1 4	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (110) pop
+    (111) startCommand +46 1	# next cmd at pc 157, 1 cmds start here
+    (120) push1 0	# "lsort"
+    (122) push1 8	# "3 1 2"
+    (124) invokeStk1 2
+    (126) push1 9	# "1 2 3"
+    (128) strneq
+    (129) jumpFalse1 +26	# pc 155
+  # if_then_9:
+    (131) startCommand +22 1	# next cmd at pc 153, 1 cmds start here
+    (140) push1 10	# "plain lsort broken"
+    (142) push1 4	# ""
+    (144) returnImm +1 0
+  # cmd_end_6:
+    (153) jump1 +4	# pc 157
+  # if_next_10:
+    (155) push1 4	# ""
+  # if_end_8:
+  # if_cmd_end_5:
+    (157) pop
+    (158) startCommand +22 1	# next cmd at pc 180, 1 cmds start here
+    (167) push1 11	# "ok"
+    (169) push1 4	# ""
+    (171) returnImm +0 1
+  # ret_end_7:
+    (180) done

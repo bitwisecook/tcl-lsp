@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -17,7 +17,7 @@ from core.compiler.expr_ast import (
     render_expr,
     vars_in_expr_node,
 )
-from core.parsing.expr_parser import parse_expr
+from compiler.parsing.expr_parser import parse_expr
 
 
 class TestLiterals:
@@ -472,10 +472,11 @@ class TestVarsInExprNode:
         node = parse_expr("sin($angle)")
         assert vars_in_expr_node(node) == {"angle"}
 
-    def test_raw_no_vars(self):
+    def test_raw_extracts_vars(self):
         node = ExprRaw(text="$x + $y")
-        # ExprRaw is opaque — no variable extraction
-        assert vars_in_expr_node(node) == set()
+        # ExprRaw is opaque to value/type analysis, but use-detection must
+        # still see the variables it reads (over-approximation is sound).
+        assert vars_in_expr_node(node) == {"x", "y"}
 
     def test_repeated_var(self):
         node = parse_expr("$x + $x")

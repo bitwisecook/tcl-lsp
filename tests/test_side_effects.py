@@ -1,10 +1,10 @@
-"""Tests for core.compiler.side_effects — command side-effect classification."""
+"""Tests for compiler.side_effects — command side-effect classification."""
 
 from __future__ import annotations
 
 import pytest
 
-from core.compiler.side_effects import (
+from compiler.side_effects import (
     CommandSideEffects,
     ConnectionSide,
     SideEffect,
@@ -66,7 +66,8 @@ class TestSideEffect:
     def test_frozen(self) -> None:
         e = SideEffect(target=SideEffectTarget.VARIABLE, reads=True)
         with pytest.raises(AttributeError):
-            e.reads = False  # type: ignore[misc, invalid-assignment]
+            # Intentional: this test asserts the frozen-dataclass guard rejects mutation.
+            e.reads = False  # type: ignore[misc]  # ty: ignore[invalid-assignment]
 
 
 class TestCommandSideEffects:
@@ -360,7 +361,7 @@ class TestDialectSpecificHints:
         assert effect.connection_side is ConnectionSide.BOTH
 
     def test_file_io_does_not_kill_unknown_region(self) -> None:
-        from core.compiler.side_effects import EffectRegion
+        from compiler.side_effects import EffectRegion
 
         result = classify_side_effects("puts", ("hello",), dialect="tcl8.6")
         _reads, writes = result.to_effect_regions()

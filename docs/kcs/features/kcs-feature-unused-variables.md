@@ -1,5 +1,8 @@
 # KCS: feature — Unused Variable Detection
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Detects variables that are set but never read, unused procedure parameters, and dead stores where a value is overwritten before use. Offers quick-fix code actions to remove unused assignments.
@@ -199,11 +202,11 @@ O126 runs as a high-priority elimination pass (priority 10, higher than O109 at 
 
 ## File-path anchors
 
-- `core/compiler/core_analyses.py` — `_unused_variables()`, `_unused_parameters()` analysis
-- `core/analysis/analyser.py` — W211/W214 diagnostic emission
-- `core/compiler/optimiser/_elimination.py` — O126 unused variable removal, O109 dead store elimination
-- `core/compiler/optimiser/_types.py` — O126 priority in `_OPT_PRIORITY`
-- `core/compiler/connection_scope.py` — iRules cross-event variable tracking
+- `compiler/core_analyses.py` — `_unused_variables()`, `_unused_parameters()` analysis
+- `analyser/_analyser/_diag_var_lifecycle.py` — W211/W214 diagnostic emission
+- `compiler/optimiser/_elimination.py` — O126 unused variable removal, O109 dead store elimination
+- `compiler/optimiser/_types.py` — O126 priority in `_OPT_PRIORITY`
+- `compiler/connection_scope.py` — iRules cross-event variable tracking
 
 ## Failure modes
 

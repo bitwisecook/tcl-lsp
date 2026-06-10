@@ -1,0 +1,69 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     listObj.test
+DATE     2026-05-06T21:17:20Z
+---
+PASS listobj-2.1
+PASS listobj-2.2
+PASS listobj-2.3
+PASS listobj-3.1
+PASS listobj-3.2
+PASS listobj-3.3
+PASS listobj-3.4
+PASS listobj-3.5
+PASS listobj-4.1
+PASS listobj-4.2
+PASS listobj-4.3
+PASS listobj-4.4
+PASS listobj-4.5
+PASS listobj-5.1
+PASS listobj-5.2
+PASS listobj-5.3
+PASS listobj-5.4
+PASS listobj-5.5
+PASS listobj-5.6
+PASS listobj-5.7
+PASS listobj-5.8
+PASS listobj-6.1
+PASS listobj-6.2
+PASS listobj-6.3
+PASS listobj-6.4
+PASS listobj-6.5
+PASS listobj-6.6
+PASS listobj-7.1
+PASS listobj-7.10
+PASS listobj-7.11
+PASS listobj-7.12
+PASS listobj-7.13
+PASS listobj-7.2
+PASS listobj-7.3
+PASS listobj-7.4
+PASS listobj-7.5
+PASS listobj-7.6
+PASS listobj-7.7
+PASS listobj-7.8
+PASS listobj-7.9
+PASS listobj-8.1
+PASS listobj-9.1
+SKIP listobj-1.1 emptyTest
+SKIP listobj-10.1 testobj
+SKIP listobj-10.2 testobj
+SKIP listobj-10.3 testobj
+SKIP listobj-10.4 testobj
+SKIP listobj-10.5 testobj
+SKIP listobj-11.1 testobj
+SKIP listobj-11.2 testobj
+SKIP listobj-12.1 testobj
+SKIP listobj-12.2 testobj
+SKIP listobj-12.3 testobj
+SKIP listobj-13.1 testobj
+SKIP listobj-13.2 testobj
+SKIP listobj-13.3 testobj
+SKIP listobj-14.1 testobj
+SKIP listobj-14.2 testobj
+SKIP listobj-14.3 bug_30e4e9102f
+---
+TOTAL   59
+PASSED  42
+SKIPPED 17
+FAILED  0

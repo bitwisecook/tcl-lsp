@@ -1,8 +1,7 @@
 [
-    { "caption": "-", "id": "tcl-separator" },
     {
         "caption": "Tcl: Format Document",
-        "command": "lsp_format_document",
+        "command": "tcl_format_document",
         "id": "tcl-format"
     },
     {

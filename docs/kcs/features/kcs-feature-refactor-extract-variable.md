@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: Extract Variable
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Extract a selected expression into a named variable, replacing the selection with `$var`.
@@ -49,8 +52,8 @@ The refactoring inserts a `set var expr` line before the line containing the sel
 
 ## File-path anchors
 
-- `core/refactoring/_extract_variable.py`
-- `lsp/features/code_actions.py`
+- `tooling/refactoring/_extract_variable.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

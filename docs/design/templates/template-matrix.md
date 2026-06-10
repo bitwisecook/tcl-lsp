@@ -22,10 +22,10 @@
 
 ## File-path anchors
 
-- `core/...`
-- `lsp/...`
-- `core/...`
-- `lsp/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
+- `server/...`
+- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
+- `server/...`
 
 ## Failure modes
 

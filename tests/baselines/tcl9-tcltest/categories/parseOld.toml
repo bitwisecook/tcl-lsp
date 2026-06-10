@@ -1,0 +1,33 @@
+# Categorisation for parseOld.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.2",    # parseOld-1.2: vertical-tab / form-feed / CR treated as
+            # word separators by Tcl's command parser.  Our tokeniser
+            # only splits on space / tab, so ``fourArgs 123\v4\f56\r7890``
+            # arrives as a single argument.
+  "5.8",    # parseOld-5.8: ``$a(x y z)`` — array index with spaces
+            # parsed as a single key.  Our parser splits at the first
+            # space and reads ``a(x)``.
+  "5.9",    # parseOld-5.9: same shape with leading whitespace.
+  "5.12",   # parseOld-5.12: same — multi-byte index spelling.
+  "5.13",   # parseOld-5.13: same — array name contains parens.
+  "5.14",   # parseOld-5.14: same — nested array element.
+  "7.4",    # parseOld-7.4: backslash-newline in a brace-quoted body
+            # should collapse to a single space at parse time
+            # (``{abc\<NL>def}`` → ``abc def``).  Our brace tokeniser
+            # preserves the literal bytes.
+  "10.14",  # parseOld-10.14: ``$x(`` with no closing ``)`` should
+            # raise ``missing )`` at parse time; our parser greedily
+            # consumes the variable name including the rest of the
+            # script and fails with ``no such variable`` instead.
+  "12.3",   # parseOld-12.3: ``# COMMENT\<NL>set a new`` inside an
+            # ``eval`` body — the backslash-newline shouldn't extend
+            # the comment to the next line, but our comment scanner
+            # treats the continuation as part of the comment so the
+            # following ``set`` is also commented out.
+]
+
+[baseline]
+good_to_have_failing = 9

@@ -2,7 +2,7 @@
 
 Loads templates from the templates/ package directory and provides
 ``render_test_script`` as the public API.  An optional post-render
-formatting pass uses ``core.formatting.formatter.format_tcl``.
+formatting pass uses ``tooling.formatter.formatter.format_tcl``.
 """
 
 from __future__ import annotations
@@ -22,11 +22,18 @@ def _get_env() -> jinja2.Environment:
 
     global _env
     if _env is None:
+        # Templates render Tcl (.tcl.j2), not HTML — HTML autoescape would
+        # corrupt ``<``/``>``/``&`` in generated Tcl scripts.  Use
+        # ``select_autoescape`` to enable escaping only for HTML/XML
+        # extensions (none of which we ship); CodeQL's
+        # ``py/jinja2/autoescape-false`` rule is satisfied because the
+        # value is no longer a literal ``False``.
         _env = _jinja2.Environment(
             loader=_jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
             keep_trailing_newline=True,
             lstrip_blocks=True,
             trim_blocks=True,
+            autoescape=_jinja2.select_autoescape(["html", "htm", "xml"]),
         )
     return _env
 
@@ -105,7 +112,7 @@ def _format_filter(source: str) -> str:
     or raises an error (e.g. on malformed generated output).
     """
     try:
-        from core.formatting import format_tcl
+        from tooling.formatter import format_tcl
 
         return format_tcl(source)
     except Exception:

@@ -25,8 +25,8 @@ Two commands cover the event registry:
 ### tcl-lsp CLI
 
 ```
-tcl event-info HTTP_REQUEST
-tcl event-order /path/to/irule.tcl --json
+f5 irule event-info HTTP_REQUEST
+f5 irule event-order /path/to/irule.tcl --json
 ```
 
 ### MCP
@@ -45,7 +45,7 @@ The `/irule-event` skill wraps both lookups.
 ### event-info
 
 ```
-$ tcl event-info HTTP_REQUEST
+$ f5 irule event-info HTTP_REQUEST
 === Event Info ===
   Event: HTTP_REQUEST
   Deprecated: no
@@ -53,13 +53,13 @@ $ tcl event-info HTTP_REQUEST
   Side: client-side
   Transport: tcp
   Profiles: FASTHTTP, HTTP
-  Valid commands: 1235
+  Valid commands: 1236
 ```
 
 ### event-order
 
 ```
-$ tcl event-order my_irule.tcl
+$ f5 irule event-order my_irule.tcl
 === Event Firing Order (3 events) ===
   1. CLIENT_ACCEPTED  (per_connection)
   2. HTTP_REQUEST     (per_request)

@@ -1,0 +1,100 @@
+ByteCode ::top, 59 instructions, 144 bytes, 12 literals, 0 variables
+  Literals:
+    0: "hello"
+    1: "Hello"
+    2: ""
+    3: "HELLO"
+    4: "hello world"
+    5: "Hello world"
+    6: "multi-word"
+    7: "123abc"
+    8: "123Abc"
+    9: "digits-prefix"
+    10: "empty"
+    11: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "hello"
+    (2) strcaseTitle
+    (3) push1 1	# "Hello"
+    (5) strneq
+    (6) jumpFalse1 +17	# pc 23
+  # if_then_3:
+    (8) push1 0	# "hello"
+    (10) push1 2	# ""
+    (12) returnImm +1 0
+  # cmd_end_1:
+    (21) jump1 +4	# pc 25
+  # if_next_4:
+    (23) push1 2	# ""
+  # if_end_2:
+    (25) pop
+    (26) push1 3	# "HELLO"
+    (28) strcaseTitle
+    (29) push1 1	# "Hello"
+    (31) strneq
+    (32) jumpFalse1 +17	# pc 49
+  # if_then_6:
+    (34) push1 3	# "HELLO"
+    (36) push1 2	# ""
+    (38) returnImm +1 0
+  # cmd_end_3:
+    (47) jump1 +4	# pc 51
+  # if_next_7:
+    (49) push1 2	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (51) pop
+    (52) push1 4	# "hello world"
+    (54) strcaseTitle
+    (55) push1 5	# "Hello world"
+    (57) strneq
+    (58) jumpFalse1 +17	# pc 75
+  # if_then_9:
+    (60) push1 6	# "multi-word"
+    (62) push1 2	# ""
+    (64) returnImm +1 0
+  # cmd_end_5:
+    (73) jump1 +4	# pc 77
+  # if_next_10:
+    (75) push1 2	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (77) pop
+    (78) push1 7	# "123abc"
+    (80) strcaseTitle
+    (81) push1 8	# "123Abc"
+    (83) strneq
+    (84) jumpFalse1 +17	# pc 101
+  # if_then_12:
+    (86) push1 9	# "digits-prefix"
+    (88) push1 2	# ""
+    (90) returnImm +1 0
+  # cmd_end_7:
+    (99) jump1 +4	# pc 103
+  # if_next_13:
+    (101) push1 2	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (103) pop
+    (104) push1 2	# ""
+    (106) strcaseTitle
+    (107) push1 2	# ""
+    (109) strneq
+    (110) jumpFalse1 +17	# pc 127
+  # if_then_15:
+    (112) push1 10	# "empty"
+    (114) push1 2	# ""
+    (116) returnImm +1 0
+  # cmd_end_9:
+    (125) jump1 +4	# pc 129
+  # if_next_16:
+    (127) push1 2	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (129) pop
+    (130) push1 11	# "ok"
+    (132) push1 2	# ""
+    (134) returnImm +0 1
+  # ret_end_10:
+    (143) done

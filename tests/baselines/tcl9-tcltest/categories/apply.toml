@@ -1,0 +1,82 @@
+# Tcl 9 ``apply.test`` per-case categorisation.
+#
+# Default for unlisted tests: ``must_pass`` — failure here = real bug.
+# See ``tests/baselines/tcl9-tcltest/categories/README.md`` for the
+# bucket semantics and triage workflow.
+#
+# Snapshot: 21 / 42 passing (21 ``good_to_have`` failing,
+# 0 ``just_to_match_ctcl``, 0 ``skip``).
+#
+# All current failures cluster in three real-feature gaps:
+#   * lambda-spec validation at apply-time (apply-2.x)
+#   * apply-frame integration with ``info-*`` introspection (apply-6.x,
+#     apply-8.x) — ``info level`` / ``info locals`` / default-value
+#     enumeration don't see the apply lambda's parameters
+#   * lambda-namespace access semantics (apply-7.x)
+# All three are observable user features we plan to support; bucket
+# them as ``good_to_have`` with the failing-count baselined at the
+# triage-time count so a regression in the OTHER tests still fires.
+
+trap_allowed = false
+
+good_to_have = [
+    # 2.x: lambda parameter-list validation.  Reference Tcl 9 raises
+    # specific diagnostics (``argument with no name``, ``too many
+    # fields in argument specifier "X"``, ``formal parameter "a(1)"
+    # is an array element``, ``formal parameter "a::b" is not a
+    # simple name``) while our impl falls through to runtime dispatch
+    # and reports ``invalid command name "boo"`` (the body's first
+    # word).  Real validation gap in ``runtime/zig/interp/tcl_interp.zig``
+    # ``eval_apply``'s parameter parsing.
+    "2.2",
+    "2.3",
+    "2.4",
+    "2.5",
+    # 5.1: errorInfo stack-frame formatting.  Tcl 9 appends a
+    # ``(lambda term "{} {error foo}" line N)`` frame to ``::errorInfo``
+    # when an error originates inside a lambda body; our log_command_info
+    # path doesn't yet emit that frame.  No bytecode dependency.
+    "5.1",
+    # 6.2 / 6.3: ``info level`` inside an apply lambda should report
+    # ``apply {paramList body}`` as the invocation form, not the
+    # body's first command.  Our ``frame_set_proc_name`` stamp uses
+    # the literal ``"apply"`` placeholder.
+    "6.2",
+    "6.3",
+    # 7.2 / 7.3 / 7.6 / 7.7: lambda body's ``variable x`` / ``set x``
+    # against the lambda's namespace.  ``apply [list args $body ns]``
+    # should resolve unqualified vars against ``ns`` for the body's
+    # lifetime.  Our impl partially does this but mishandles the
+    # ``variable``-then-read pattern (test 7.2 / 7.6 return empty
+    # when the variable was just declared) and a brace-quoting edge
+    # case in 7.6 leaks ``\{`` into the result.
+    "7.2",
+    "7.3",
+    "7.6",
+    "7.7",
+    # 8.x: ``info locals`` inside an apply lambda body should
+    # enumerate the parameter slots (including ``args``) populated
+    # at apply-time.  Currently returns empty because
+    # ``frame_local_keys`` only walks proc-locals defined via the
+    # compiled prologue.  Default-value handling (``{x 1} {y 2}`` →
+    # bind ``y`` to its default when no arg supplied) also leaks
+    # through this gap.
+    "8.1",
+    "8.2",
+    "8.3",
+    "8.4",
+    "8.5",
+    "8.6",
+    "8.7",
+    "8.8",
+    "8.9",
+    "8.10",
+]
+
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 21
+just_to_match_ctcl_failing = 0
+skip_failing = 0

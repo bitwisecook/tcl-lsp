@@ -1,32 +1,116 @@
 [project]
 name = "tcl-lsp"
-version = "1.7.2"
+dynamic = ["version"]
 description = "A Tcl Language Server Protocol implementation"
 requires-python = ">=3.10"
 dependencies = [
-    "pygls>=2.0",
-    "lsprotocol>=2024.0.0",
+    "pygls>=2.1",
+    "lsprotocol>=2025.0.0",
     "jinja2>=3.1",
+    "argcomplete>=3.6",
+    "tomli>=2.0; python_version < '3.11'",
 ]
+
+# Console-script entry points.  Each maps a short shell command to a
+# ``module:function`` pair; installing the wheel (e.g. ``pip install
+# tcl-lsp``) puts these on the user's $PATH.
+#
+# Naming convention:
+#   tcl-lsp    — the LSP server itself (transport: stdio, JSON-RPC).
+#   tcl        — the general-purpose Tcl CLI (compile / run / analyse /
+#                  format / etc.).
+#   f5-query   — the F5 BigIP / iRules query CLI (jq-style DSL over
+#                  bigip.conf, iRules, GTM).
+#   tcl-wasm   — the WebAssembly compiler CLI (Tcl → wasm via the
+#                  compiler's WASM codegen + a Zig-built runtime).
+#   tcl-explorer — the compiler-explorer CLI (verbose dumps of IR,
+#                  CFG, SSA, codegen for a given input).
+#   tcl-vm     — direct access to the bytecode VM (run / disasm /
+#                  test).
+[project.scripts]
+tcl-lsp = "server.__main__:main"
+tcl = "tooling.tcl.main:main"
+f5-query = "tooling.f5.main:main"
+tcl-wasm = "tooling.wasm.main:main"
+tcl-explorer = "tooling.explorer.cli:main"
+tcl-vm = "tooling.vm.__main__:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=6.0",
+    "pytest>=9.0",
+    "pytest-cov>=7.0",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.11",
-    "ty>=0.0.24,<0.0.25",
-    "wasmtime>=20.0",
-    "flask>=3.0",
+    "ruff>=0.15",
+    "ty==0.0.44",
+    # Architectural dependency contracts — see `.importlinter`.  Keeps the
+    # seven-concern Python layout (shared/, compiler/, dialects/, analyser/,
+    # server/, tooling/, ai/) from drifting back into a tangle.
+    "import-linter>=2.11",
+    # Available at runtime so ``scripts/print_version.py`` can compute the
+    # wheel filename the Makefile expects (hatch-vcs is also a
+    # ``[build-system].requires`` entry — listing it here just makes it
+    # importable from the dev env).
+    "hatch-vcs>=0.5",
+    "wasmtime>=44.0",
+    "flask>=3.1",
+    # Textual live TUI for the compiler explorer (``tcl-explorer``).  The CLI
+    # falls back to flat text when it isn't installed, so it stays optional.
+    "textual>=0.80",
+    # Used by the test-slow TLS / x509 suites that spin up an HTTPS
+    # server with a generated self-signed cert and exercise
+    # ``url_get`` / ``tls_handshake`` / ``cert_load`` against it.
+    # Also unlocks PKCS#12 parsing in ``cert_load``.
+    "cryptography>=48.0",
+]
+# Sphinx + autodoc + furo theme — for building the f5q Python API
+# reference (``docs/sphinx/``).  Read the Docs uses this extras
+# group via ``.readthedocs.yaml``; locally, build with
+# ``uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html``.
+docs = [
+    "sphinx>=8.0",
+    "myst-parser>=4.0",
+    "sphinx-autodoc-typehints>=3.0",
+    "furo>=2025.12.19",
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+# Version comes from the latest annotated git tag (e.g. ``v1.10.5`` → ``1.10.5``).
+# Untagged commits get a PEP 440 dev suffix like ``1.10.5.dev3+ga1b2c3d``. The
+# release flow is therefore tag-only: ``git tag -a vX.Y.Z -m ...`` + push, with
+# no source-file edits needed to bump the version.
+[tool.hatch.version]
+source = "vcs"
+# Drop the local ``+gHASH`` suffix so PEP 440 strict consumers (PyPI,
+# VS Code Marketplace, JetBrains Marketplace) accept the version string.
+# ``guess-next-dev`` (the default scheme) produces e.g. ``1.10.5.dev8``
+# on an untagged commit eight past ``v1.10.4`` — i.e. an in-progress
+# preview of the next release rather than a post-release of the last.
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "server/_version.py"
+
 [tool.hatch.build.targets.wheel]
-packages = ["lsp", "core", "explorer", "vm", "tclpkg"]
-exclude = ["explorer/static"]
+packages = [
+    "server",
+    "compiler",
+    "analyser",
+    "dialects",
+    "shared",
+    "tooling",
+    "ai",
+]
+exclude = [
+    "tooling/explorer/static",
+    "dialects/f5/bigip/data/scf_port_names.csv",
+    # Dev-only differential-fuzzer corpus (~15 MB) and its tests — never
+    # part of the shipped wheel.
+    "tooling/fuzzing/findings",
+    "tooling/fuzzing/tests",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -46,12 +130,12 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
-"lsp/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
+"server/features/__init__.py" = ["I001"]  # re-export split across two blocks from same module
 
 [tool.coverage.run]
-source = ["lsp", "core", "explorer"]
+source = ["server", "compiler", "analyser", "dialects", "shared", "tooling", "ai"]
 omit = [
-    "core/_build_info.py",
+    "shared/_build_info.py",
     "*/test_*",
     "*/__pycache__/*",
 ]
@@ -73,5 +157,5 @@ output = "tmp/coverage/python/coverage.xml"
 
 [dependency-groups]
 dev = [
-    "ty>=0.0.24,<0.0.25",
+    "ty==0.0.44",
 ]

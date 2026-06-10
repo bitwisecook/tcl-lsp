@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 
 class TestProcAnalysis:
@@ -166,6 +166,42 @@ class TestDiagnostics:
         result = analyse("puts a b c")
         errors = [d for d in result.diagnostics if d.code == "E003"]
         assert len(errors) >= 1
+
+    def test_switches_not_counted_as_positional(self):
+        # Regression for #455: declared option flags must be skipped before
+        # counting positional args. Commands with a role hint previously
+        # lost their declared switch names during signature merging, so
+        # bounded-arity commands (regsub max 4) tripped a false E003 once
+        # any switch was supplied. These regsub switches exist in every
+        # supported dialect, so the default test dialect (tcl8.6) suffices.
+        for snippet in (
+            "regsub -all -line {\\n} $args {} str",
+            "regsub -all {a} $b {} c",
+            "regsub -nocase -all -- $pat $s {} out",
+        ):
+            result = analyse(snippet)
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert errors == [], f"unexpected E003 for {snippet!r}: {errors}"
+        # Genuine over-arity (5 positional) still fires.
+        result = analyse("regsub a b c d e")
+        errors = [d for d in result.diagnostics if d.code == "E003"]
+        assert len(errors) >= 1
+
+    def test_switch_options_are_dialect_filtered(self):
+        # vwait gained its option switches in Tcl 9.0; under 8.6 they are
+        # not valid, so option-aware arity counting must reject them.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("tcl9.0"):
+            # ``-variable`` is a real switch in 9.0 → skipped, 1 positional.
+            result = analyse("vwait -variable x")
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert errors == [], f"unexpected E003 under tcl9.0: {errors}"
+        with dialect_scope("tcl8.6"):
+            # In 8.6 ``-variable`` is unknown → counted positional (2 > max 1).
+            result = analyse("vwait -variable x")
+            errors = [d for d in result.diagnostics if d.code == "E003"]
+            assert len(errors) >= 1, "expected E003 for tcl9.0-only switch under tcl8.6"
 
     def test_while_too_few_args(self):
         result = analyse("while {1}")
@@ -419,7 +455,7 @@ class TestDiagnostics:
 
     def test_proc_call_arg_expansion_disabled_for_tcl84(self):
         """In Tcl 8.4 dialect ``{*}`` is not expansion — E002 should still fire."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         source = textwrap.dedent("""\
             proc rgbToLab {r g b} { return 1 }
@@ -438,7 +474,7 @@ class TestDiagnostics:
 
     def test_proc_call_arg_expansion_disabled_for_f5_irules(self):
         """iRules is 8.4-based — ``{*}`` is not recognised as expansion."""
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         source = textwrap.dedent("""\
             proc myproc {x y z} { return $x }
@@ -456,24 +492,28 @@ class TestDiagnostics:
             configure_signatures(dialect="tcl8.6")
 
     def test_configure_signatures_sets_lexer_expand_flag(self):
-        """``configure_signatures`` must toggle ``TclLexer.expand_syntax``
-        based on the active dialect's base Tcl version."""
-        from core.commands.registry.runtime import configure_signatures
-        from core.parsing.lexer import TclLexer
+        """The lexer's {*} expansion flag reflects the active dialect.
+
+        Post-#407 the flag is read from the registry's ContextVar via
+        ``_expand_syntax_active()`` rather than a mutable class attribute,
+        so per-folder dialect resolution affects only the current scope.
+        """
+        from compiler.parsing.lexer import _expand_syntax_active
+        from compiler.registry.runtime import configure_signatures
 
         try:
             configure_signatures(dialect="tcl8.4")
-            assert TclLexer.expand_syntax is False
+            assert _expand_syntax_active() is False
             configure_signatures(dialect="f5-irules")
-            assert TclLexer.expand_syntax is False
+            assert _expand_syntax_active() is False
             configure_signatures(dialect="tcl8.5")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="tcl8.6")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="tcl9.0")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="f5-iapps")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
         finally:
             configure_signatures(dialect="tcl8.6")
 
@@ -650,8 +690,8 @@ class TestDiagnostics:
 
     def test_set_dual_shape_role_resolution(self):
         """``set`` resolver returns VAR_READ for 1-arg shape, VAR_WRITE for 2-arg."""
-        from core.commands.registry.runtime import arg_indices_for_role
-        from core.commands.registry.signatures import ArgRole
+        from compiler.registry.runtime import arg_indices_for_role
+        from compiler.registry.signatures import ArgRole
 
         # set x → read
         assert arg_indices_for_role("set", ["x"], ArgRole.VAR_WRITE) == set()
@@ -733,6 +773,21 @@ class TestDiagnostics:
         result = analyse("if {1} { set x 1 } else { set y 2 }")
         unreachable = [d for d in result.diagnostics if d.code == "I230"]
         assert len(unreachable) >= 1
+
+    def test_infinite_loop_idiom_not_flagged(self):
+        # `while 1` / `for {…} 1 {…}` are intentional infinite loops (exit via
+        # break/return); a constant-true loop condition must not be flagged.
+        for src in (
+            "proc f {} { while 1 { if {[g]} break } }",
+            "proc f {} { while true { if {[g]} break } }",
+            "proc f {} { for {set i 0} 1 {incr i} { if {$i > 9} break } }",
+        ):
+            assert [d for d in analyse(src).diagnostics if d.code == "I230"] == []
+
+    def test_dead_while_zero_still_flagged(self):
+        # A constant-*false* loop condition means the body never runs — keep it.
+        result = analyse("proc f {} { while 0 { puts dead } }")
+        assert [d for d in result.diagnostics if d.code == "I230"]
 
     def test_constant_switch_unreachable_arm(self):
         source = "switch 1 {1 {set x 1} 2 {set y 2} default {set z 3}}"
@@ -1902,6 +1957,21 @@ class TestW123UnresolvedCommand:
         diags = self._w123("proc mycommand {x} { puts $x }\nmycommand hello")
         assert len(diags) == 0
 
+    def test_dead_arm_command_sub_no_w123(self):
+        # A command sub in a provably-dead arm of a literal-constant short-
+        # circuit / ternary is never executed by Tcl, so it must not warn W123.
+        # tclsh 9.0.3: `expr {0 && [missingCommand]}` -> 0 (no error).
+        assert self._w123("expr {0 && [missingCommand]}") == []
+        assert self._w123("expr {1 || [missingCommand]}") == []
+        assert self._w123("expr {0 ? [missingCommand] : 7}") == []
+        assert self._w123("expr {1 ? 7 : [missingCommand]}") == []
+
+    def test_live_arm_command_sub_still_w123(self):
+        # Eager / non-constant-guarded arms still run, so W123 must fire.
+        assert len(self._w123("expr {1 && [missingCommand]}")) == 1  # tclsh errors
+        assert len(self._w123("expr {[missingCommand] && 1}")) == 1  # left always runs
+        assert len(self._w123("proc f {c} { expr {$c && [missingCommand]} }")) == 1
+
     def test_forward_defined_proc_no_w123(self):
         """Proc defined after usage should still suppress W123."""
         diags = self._w123("mycommand hello\nproc mycommand {x} { puts $x }")
@@ -2150,7 +2220,7 @@ class TestW123UnresolvedCommand:
             baz x
         """)
         with patch(
-            "core.compiler.lowering.lower_to_ir",
+            "compiler.lowering.lower_to_ir",
             side_effect=RuntimeError("lowering failed"),
         ):
             result = analyse(source)
@@ -2458,6 +2528,109 @@ class TestCanonicalisationMatrix:
         result = analyse(source)
         return sum(1 for d in result.diagnostics if d.code == "W213")
 
+    def test_w215_brace_in_var_name_emits_warning(self):
+        # ``set "weird}name" 1`` creates a variable but no $-substitution
+        # form can read it -- W215 alerts the user.
+        source = 'set "weird}name" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "weird}name" in w215[0].message
+        assert "}" in w215[0].message
+
+    def test_w215_trailing_backslash_in_var_name(self):
+        # ``set "back\\" 1`` creates ``back\`` (5 chars including ``\``).
+        # The brace form ``${back\}`` would read the trailing ``\`` as
+        # an escape and run out of input -- unreachable.
+        # Verified against tclsh 9.0.3 (see kcs-tcl-corner-cases.md).
+        source = 'set "back\\\\" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "trailing" in w215[0].message or "missing close-brace" in w215[0].message
+
+    def test_w215_does_not_fire_on_backslash_mid_name(self):
+        # ``set "back\\slash" 1`` creates ``back\slash`` (10 chars).
+        # The brace form ``${back\slash}`` consumes ``\s`` as a 2-char
+        # escape, both of which stay in the lookup name -- so the
+        # name IS reachable.  No W215.
+        # Verified against tclsh 9.0.3.
+        source = 'set "back\\\\slash" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
+    def test_w215_does_not_fire_on_balanced_inner_braces(self):
+        # ``set "a{b}c" 1`` creates ``a{b}c`` (5 chars).  Tcl 9.0.3's
+        # brace-form parser tracks inner ``{...}`` with depth, so
+        # ``${a{b}c}`` reaches it.  No W215.
+        source = 'set "a{b}c" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
+    def test_w215_close_paren_in_array_index_emits_warning(self):
+        # ``$arr(idx)`` reads up to the matching ``)``; an idx with ``)``
+        # is creatable via ``set "arr(weird)stuff)" 1`` but unreachable.
+        # The message must distinguish "array element index" from
+        # "variable name" so the user knows which part is offending.
+        source = 'set "arr(weird)stuff)" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "array element index contains ')'" in w215[0].message
+
+    def test_w216_brace_then_paren_pattern(self):
+        # ``${arr}(foo)`` parses as scalar ``${arr}`` + literal ``(foo)``.
+        # W216 flags it and the quick fix swaps to ``$arr(foo)``.
+        source = "set arr(name) hello\nputs ${arr}(name)"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes
+        assert w216[0].fixes[0].new_text == "$arr(name)"
+
+    def test_w216_brace_array_with_dollar_index(self):
+        # ``${arr($foo)}`` does NOT substitute ``$foo`` (Tcl(n) docs).
+        # W216 flags it; the fix uses bare ``$arr($foo)`` which does
+        # substitute the index at runtime.
+        source = "set foo bar\nputs ${arr($foo)}"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == "$arr($foo)"
+
+    def test_w216_funny_name_falls_back_to_set_indirection(self):
+        # When the array name has chars the bare form can't carry (here
+        # a space), the fix uses ``[set "name(idx)"]`` -- substitution
+        # still works in ``set``'s argument.
+        source = 'set "funny name" 1\nputs ${funny name($foo)}'
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == '[set "funny name($foo)"]'
+
+    def test_w216_does_not_fire_on_correct_forms(self):
+        # ``${arr(name)}`` (literal index) and ``$arr($foo)`` (bare with
+        # substitution) are both correct -- no W216.
+        for src in [
+            "puts ${arr(name)}",
+            "puts $arr($foo)",
+            "puts ${arr}",
+            "set foo bar\nputs $arr($foo)",
+        ]:
+            result = analyse(src)
+            w216 = [d for d in result.diagnostics if d.code == "W216"]
+            assert w216 == [], f"unexpected W216 for {src!r}: {[d.message for d in w216]}"
+
+    def test_w215_does_not_fire_on_normal_names(self):
+        # Sanity: hyphenated / colon-qualified names are reachable via
+        # ``${...}`` / bare $; only ``}`` and array ``)`` are flagged.
+        source = 'set "foo-bar" 1\nset normal 2\nset ::globalvar 3\nset arr(name) 4'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
     def test_w213_unset_bare(self):
         # ``unset $x`` on a possibly-undefined ``x`` triggers W213.
         # Bare form is the baseline.
@@ -2539,7 +2712,7 @@ class TestCanonicalisationMatrixIRULE4005:
         # — that exclusion uses ``stmt.canonical_command == "::unset"``.
         # We assert the exclusion holds for bare/qualified/aliased
         # spellings.
-        from core.commands.registry.runtime import configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="f5-irules")
         try:

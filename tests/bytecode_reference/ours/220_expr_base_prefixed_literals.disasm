@@ -1,0 +1,120 @@
+ByteCode ::top, 70 instructions, 172 bytes, 16 literals, 0 variables
+  Literals:
+    0: "0x10"
+    1: "16"
+    2: "\u0000\u0002hex 0x10 broke: "
+    3: ""
+    4: "17"
+    5: "hex add broke"
+    6: "2"
+    7: "binary AND broke"
+    8: "0o17"
+    9: "15"
+    10: "octal broke"
+    11: "42"
+    12: "decimal broke"
+    13: "-7"
+    14: "neg decimal broke"
+    15: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "0x10"
+    (2) tryCvtToNumeric
+    (3) push1 1	# "16"
+    (5) neq
+    (6) jumpFalse1 +22	# pc 28
+  # if_then_3:
+    (8) push1 2	# "hex 0x10 broke: "
+    (10) push1 0	# "0x10"
+    (12) tryCvtToNumeric
+    (13) strcat 2
+    (15) push1 3	# ""
+    (17) returnImm +1 0
+  # cmd_end_1:
+    (26) jump1 +4	# pc 30
+  # if_next_4:
+    (28) push1 3	# ""
+  # if_end_2:
+    (30) pop
+    (31) push1 4	# "17"
+    (33) push1 4	# "17"
+    (35) neq
+    (36) jumpFalse1 +17	# pc 53
+  # if_then_6:
+    (38) push1 5	# "hex add broke"
+    (40) push1 3	# ""
+    (42) returnImm +1 0
+  # cmd_end_3:
+    (51) jump1 +4	# pc 55
+  # if_next_7:
+    (53) push1 3	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (55) pop
+    (56) push1 6	# "2"
+    (58) push1 6	# "2"
+    (60) neq
+    (61) jumpFalse1 +17	# pc 78
+  # if_then_9:
+    (63) push1 7	# "binary AND broke"
+    (65) push1 3	# ""
+    (67) returnImm +1 0
+  # cmd_end_5:
+    (76) jump1 +4	# pc 80
+  # if_next_10:
+    (78) push1 3	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (80) pop
+    (81) push1 8	# "0o17"
+    (83) tryCvtToNumeric
+    (84) push1 9	# "15"
+    (86) neq
+    (87) jumpFalse1 +17	# pc 104
+  # if_then_12:
+    (89) push1 10	# "octal broke"
+    (91) push1 3	# ""
+    (93) returnImm +1 0
+  # cmd_end_7:
+    (102) jump1 +4	# pc 106
+  # if_next_13:
+    (104) push1 3	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (106) pop
+    (107) push1 11	# "42"
+    (109) tryCvtToNumeric
+    (110) push1 11	# "42"
+    (112) neq
+    (113) jumpFalse1 +17	# pc 130
+  # if_then_15:
+    (115) push1 12	# "decimal broke"
+    (117) push1 3	# ""
+    (119) returnImm +1 0
+  # cmd_end_9:
+    (128) jump1 +4	# pc 132
+  # if_next_16:
+    (130) push1 3	# ""
+  # if_end_14:
+  # if_cmd_end_8:
+    (132) pop
+    (133) push1 13	# "-7"
+    (135) push1 13	# "-7"
+    (137) neq
+    (138) jumpFalse1 +17	# pc 155
+  # if_then_18:
+    (140) push1 14	# "neg decimal broke"
+    (142) push1 3	# ""
+    (144) returnImm +1 0
+  # cmd_end_11:
+    (153) jump1 +4	# pc 157
+  # if_next_19:
+    (155) push1 3	# ""
+  # if_end_17:
+  # if_cmd_end_10:
+    (157) pop
+    (158) push1 15	# "ok"
+    (160) push1 3	# ""
+    (162) returnImm +0 1
+  # ret_end_12:
+    (171) done

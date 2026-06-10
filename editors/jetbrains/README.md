@@ -17,7 +17,7 @@ interpreter on your system.
 To use a specific Python interpreter, set the **Python path** in
 **Settings > Tools > Tcl Language Server**.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 > Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,
@@ -38,10 +38,19 @@ All features from the tcl-lsp server are supported:
 - **Call hierarchy** (incoming/outgoing)
 - **Code folding**, **inlay hints**, **signature help**
 - **Code actions** (quick fixes)
-- **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer)
+- **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer) — also
+  available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**
 - **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
 
 ## Installation
+
+### From the JetBrains Marketplace (recommended)
+
+Install via **Settings → Plugins → Marketplace → search "Tcl Language
+Support"**, or via the plugin page:
+<https://plugins.jetbrains.com/plugin/31801-tcl-language-support>.
+
+After install, restart the IDE.
 
 ### From Release
 
@@ -54,7 +63,7 @@ All features from the tcl-lsp server are supported:
 
 ```bash
 # Build the plugin
-make jetbrains
+make build-editor-jetbrains
 
 # The .zip is at build/tcl-lsp-jetbrains-VERSION.zip
 ```
@@ -69,7 +78,7 @@ make jetbrains
 - **Feature toggles**: Enable/disable individual LSP features
 - **Formatting**: 20+ style settings (indent, braces, line length, etc.)
 - **Diagnostics**: Toggle individual diagnostic codes (E001–W309)
-- **Optimiser**: Toggle optimisation suggestions (O100–O125)
+- **Optimiser**: Toggle optimisation suggestions (O100–O130)
 
 ## Development
 
@@ -86,7 +95,7 @@ cd editors/jetbrains
 ./gradlew buildPlugin
 
 # Or via the top-level Makefile
-make jetbrains
+make build-editor-jetbrains
 ```
 
 ## Configuration File
@@ -108,5 +117,5 @@ IDE settings (Settings → Tools → Tcl Language Server) override the config
 file — so you can set shared defaults in the config file and per-project
 overrides in the IDE.
 
-See [docs/kcs/kcs-xdg-config.md](../../docs/kcs/kcs-xdg-config.md) for
+See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
 the full reference.

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import random
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.minifier import MinifyResult, SymbolMap, minify_tcl, unminify_error
+from tooling.minifier import MinifyResult, SymbolMap, minify_tcl, unminify_error
 
 
 class TestMinifyBasic:
@@ -244,6 +249,35 @@ class TestMinifyRealWorld:
         assert "#" not in result
         assert "puts nested" in result
 
+    def test_switch_case_list_preserves_braced_quoted_pattern_spans(self):
+        # Regression: a braced ``{a b}`` / quoted ``"c d"`` switch pattern lexes
+        # with ``tok.end`` on its last inner char, so deriving the pattern
+        # raw-span end as ``tok.end + 1`` dropped the closing ``}`` / ``"``.
+        from compiler.registry.runtime import iter_switch_case_list
+
+        cl = '{a b} {puts 1} "c d" {puts 2} default {puts 3}'
+        patterns = [case.pattern for case in iter_switch_case_list(cl)]
+        assert patterns == ["{a b}", '"c d"', "default"]
+
+    def test_switch_braced_quoted_patterns_round_trip(self):
+        # The dropped closer made the minifier re-emit ``{a b`` / ``"c d`` and
+        # collapse the switch to ``switch $x {}``, which tclsh rejects.
+        src = 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+        result = minify_tcl(src)
+        assert result == 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+
+    def test_switch_braced_pattern_minify_accepted_by_tclsh(self):
+        tclsh = shutil.which("tclsh9.0") or shutil.which("tclsh8.6")
+        if tclsh is None:
+            pytest.skip("no tclsh on PATH")
+        src = 'switch $x {{a b} {puts 1} "c d" {puts 2} default {puts 3}}'
+        script = "set x {a b}\n" + minify_tcl(src) + "\n"
+        out = subprocess.run(
+            [tclsh], input=script, capture_output=True, text=True, check=True
+        ).stdout
+        # pattern ``{a b}`` matches ``$x`` → runs ``puts 1``
+        assert out.strip() == "1"
+
     def test_for_loop(self):
         source = "for {set i 0} {$i < 10} {incr i} {\n    puts $i\n}\n"
         result = minify_tcl(source)
@@ -260,7 +294,15 @@ class TestMinifyRealWorld:
             "    }\n"
             "}\n"
         )
-        result = minify_tcl(source)
+        # The ``when`` body is only recursively minified (so its comment is
+        # stripped) when the active dialect recognises ``when`` as an
+        # event-block command.  Body-role detection reads the active dialect
+        # (not the ``dialect=`` argument), so scope it explicitly rather than
+        # relying on leaked global state from an earlier test.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = minify_tcl(source, dialect="f5-irules")
         assert "# Route" not in result  # comment stripped
         assert "pool api_pool" in result
         assert "pool web_pool" in result
@@ -587,10 +629,11 @@ class TestArrayMemberCompaction:
     def test_array_member_preserves_semantics(self):
         source = "set config(server_name) myhost\nputs $config(server_name)\n"
         result, smap = minify_tcl(source, compact_names=True)
-        if smap.array_members:
-            # The short name should appear in both set and reference.
-            short = list(smap.array_members.get("config", {}).values())[0]
-            assert f"config({short})" in result
+        # The array member must be compacted (not left to chance) and the
+        # short name must appear in both the set and the reference.
+        assert smap.array_members.get("config"), smap.array_members
+        short = list(smap.array_members["config"].values())[0]
+        assert f"config({short})" in result
 
     def test_array_member_in_string_not_compacted(self):
         # "foo(bar)" inside a string literal must NOT be treated as an array ref.
@@ -624,10 +667,11 @@ class TestCommandAliasing:
             "}\n"
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.command_aliases:
-            alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
-            assert alias  # Should have been aliased.
-            assert f"${alias}" in result.source
+        # HTTP::uri appears 3× so it must be aliased to a short command var,
+        # and that ``$alias`` must render in the output.
+        alias = result.symbol_map.command_aliases.get("HTTP::uri", "")
+        assert alias, result.symbol_map.command_aliases
+        assert f"${alias}" in result.source
 
     def test_aliasing_not_applied_for_single_use(self):
         source = "HTTP::uri /test\n"
@@ -759,10 +803,12 @@ class TestStringLiteralAliasing:
             'puts "-normalized_long_flag"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.string_aliases:
-            alias = list(result.symbol_map.string_aliases.values())[0]
-            # Quote stripping may remove the quotes, leaving bare $alias.
-            assert f"${alias}" in result.source
+        # Three identical string literals must be aliased, and the alias
+        # reference must render as a valid ``$alias`` substitution.
+        assert result.symbol_map.string_aliases, result.source
+        alias = list(result.symbol_map.string_aliases.values())[0]
+        # Quote stripping may remove the quotes, leaving bare $alias.
+        assert f"${alias}" in result.source
 
     def test_no_collision_with_prior_alias_phases(self):
         source = (
@@ -877,15 +923,15 @@ class TestSubstTemplateAliasing:
             'log local0. "[clock format [clock seconds]] INFO: [HTTP::uri] $timing done"\n'
         )
         result = minify_tcl(source, aggressive=True)
-        # Should parse correctly — no variable name collisions.
-        if "[subst " in result.source:
-            # The subst alias should not collide with command aliases.
-            cmd_aliases = set(result.symbol_map.command_aliases.values())
-            # Extract the subst alias name from [subst $X]
-            import re
+        # The repeated template must be subst-aliased, and that subst alias
+        # must not collide with any command alias from a prior phase.
+        assert "[subst " in result.source, result.source
+        cmd_aliases = set(result.symbol_map.command_aliases.values())
+        import re
 
-            subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
-            assert not cmd_aliases & subst_vars
+        subst_vars = set(re.findall(r"\[subst \$(\w+)\]", result.source))
+        assert subst_vars
+        assert not cmd_aliases & subst_vars
 
     def test_short_dynamic_string_not_aliased(self):
         # Short strings: [subst $a] overhead exceeds savings.
@@ -1134,11 +1180,18 @@ class TestStaticSubstringFolding:
 
     def test_overdefined_var_at_join_not_folded(self):
         """A variable assigned different values on different paths is not folded."""
-        source = 'if {1} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
+        # Use a runtime condition ($c) so the branch can't be const-folded and
+        # ``x`` genuinely stays overdefined at the join.
+        source = 'if {$c} {\n    set x hello\n} else {\n    set x world\n}\nputs "value: $x"\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is overdefined at the puts — should not fold to either value.
-        # (The constant-branch pass may fold the if, but that's a different pass.)
-        assert result is not None
+        # Both branch values survive and the use stays a $-substitution — the
+        # overdefined join must NOT collapse to either literal.
+        assert "hello" in result.source and "world" in result.source
+        assert "$x" in result.source
+        assert not any(
+            "value: hello" in v or "value: world" in v
+            for v in (result.symbol_map.static_folds or {}).values()
+        )
 
     def test_tainted_var_not_folded(self):
         """A variable from tainted source is not folded even if SCCP says constant."""
@@ -1152,20 +1205,35 @@ class TestStaticSubstringFolding:
         assert not any("input:" in v for v in folds.values())
 
     def test_static_folds_in_symbol_map(self):
-        """Static fold details appear in the symbol map."""
-        source = 'set x hello\nputs "greeting: $x"\n'
+        """Static fold details appear in the symbol map.
+
+        Both plain ``$x`` interpolation (O105) and a *space-free* command
+        substitution embedded in a quoted string (``[string length $x]`` → O129
+        / Part B1) are now folded upstream by the optimiser.  This exercises the
+        minifier's *remaining* unique contribution: a command substitution whose
+        result contains whitespace (``[list a b c]`` → ``a b c``).  The optimiser
+        leaves that one intact — splicing a space into a *bare* interpolation
+        word would split it into extra arguments — but the minifier knows the
+        substitution sits inside a double-quoted string, where a space is safe,
+        so its static-substr pass folds it.
+        """
+        source = 'puts "got [list a b c]"\n'
         result = minify_tcl(source, aggressive=True)
-        if result.symbol_map.static_folds:
-            for original, folded in result.symbol_map.static_folds.items():
-                assert "hello" in folded
+        # The command-sub template must be statically folded, and every recorded
+        # fold must carry the resolved list (``a b c``).
+        assert result.symbol_map.static_folds, result.source
+        for _original, folded in result.symbol_map.static_folds.items():
+            assert "a b c" in folded
+        assert "list a b c" not in result.source
 
     def test_no_fold_when_var_not_in_ssa(self):
         """Variables not tracked by SSA (e.g. global) are not folded."""
         source = 'proc test {} {\n    global x\n    puts "value: $x"\n}\n'
         result = minify_tcl(source, aggressive=True)
-        # global barrier prevents SCCP from knowing x's value.
-        # Should not fold.
-        assert result is not None
+        # The global barrier prevents SCCP from knowing x's value, so no fold
+        # happens and the ``$x`` substitution survives verbatim.
+        assert "$x" in result.source
+        assert not result.symbol_map.static_folds
 
     def test_fold_preserves_literal_text(self):
         """Literal text around $var substitutions is preserved."""
@@ -1214,11 +1282,16 @@ class TestStaticSubstringFolding:
         assert "INFO: done" in result.source
 
     def test_dead_set_kept_when_var_still_used(self):
-        """set is NOT removed when the variable is still referenced."""
-        source = 'set x hello\nputs "greeting: $x"\nputs $x\n'
+        """set is NOT removed when the variable is still referenced.
+
+        The minifier folds the ``[string length $x]`` command-sub in the first
+        string but ``x`` is still read (the nested ``$x`` inside that command-sub
+        is hidden from the optimiser's SSA), so the static-substr dead-set pass
+        must conservatively keep ``set x hello`` rather than dropping it.
+        """
+        source = 'set x hello\nputs "len=[string length $x]"\nputs $x\n'
         result = minify_tcl(source, aggressive=True)
-        # $x is used as a bare argument in `puts $x`, so the set must remain.
-        assert result is not None
+        assert "set x hello" in result.source
 
     def test_format_static_folds_in_symbol_map(self):
         """Static fold map records what was folded."""
@@ -1233,7 +1306,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_brace_balance_rejects_mismatched(self):
         """_build_replacement must not brace-quote '}{' (equal counts, bad nesting)."""
-        from core.minifier.static_substr import _build_replacement
+        from tooling.minifier.static_substr import _build_replacement
 
         result = _build_replacement("}{")
         # Should NOT produce {}{} which would be invalid Tcl.
@@ -1243,14 +1316,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_parse_var_ref_rejects_namespace(self):
         """_parse_var_ref rejects $ns::var (namespace-qualified)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         _, name = _parse_var_ref("$ns::var", 0)
         assert name is None
 
     def test_parse_var_ref_allows_colon_after(self):
         """_parse_var_ref allows $var: (single colon is not namespace qualifier)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         end, name = _parse_var_ref("$level: message", 0)
         assert name == "level"
@@ -1258,14 +1331,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_parse_var_ref_rejects_array(self):
         """_parse_var_ref rejects $arr(idx) (array element)."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         _, name = _parse_var_ref("$arr(idx)", 0)
         assert name is None
 
     def test_parse_var_ref_accepts_simple(self):
         """_parse_var_ref accepts simple $varname."""
-        from core.minifier.static_substr import _parse_var_ref
+        from tooling.minifier.static_substr import _parse_var_ref
 
         end, name = _parse_var_ref("$foo bar", 0)
         assert name == "foo"
@@ -1273,14 +1346,14 @@ class TestStaticSubstrEdgeCases:
 
     def test_format_extra_args_not_folded(self):
         """[format %s hi there] should not be folded (extra args)."""
-        from core.minifier.static_substr import _eval_format
+        from tooling.minifier.static_substr import _eval_format
 
         result = _eval_format(["%s", "hi", "there"])
         assert result is None
 
     def test_list_folding_quotes_special_chars(self):
         """[list] folding must brace-quote elements with spaces."""
-        from core.minifier.static_substr import _try_eval_pure_cmd
+        from tooling.minifier.static_substr import _try_eval_pure_cmd
 
         result = _try_eval_pure_cmd("[list a {b c}]", {}, {})
         assert result is not None
@@ -1290,7 +1363,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_dead_set_preserved_when_set_read_exists(self):
         """Dead-set elimination must not remove set when [set var] reads exist."""
-        from core.minifier.static_substr import _eliminate_dead_sets
+        from tooling.minifier.static_substr import _eliminate_dead_sets
 
         source = "set x hello;puts [set x]"
         result, count = _eliminate_dead_sets(source, {"x"})
@@ -1300,7 +1373,7 @@ class TestStaticSubstrEdgeCases:
 
     def test_dead_set_preserved_when_incr_exists(self):
         """Dead-set elimination must not remove set when incr var reads exist."""
-        from core.minifier.static_substr import _eliminate_dead_sets
+        from tooling.minifier.static_substr import _eliminate_dead_sets
 
         source = "set x 0;incr x"
         result, count = _eliminate_dead_sets(source, {"x"})
@@ -1403,3 +1476,61 @@ class TestIRulesBraceSeparatorMinifier:
         result = minify_tcl(source, dialect="f5-irules")
         # set and x are bare words, so space must remain
         assert result == "set x {hello}"
+
+
+class TestMinifierBraceCompressionIdempotent:
+    """``${a}d`` must keep its braces through minification — stripping them to
+    ``$ad`` both changes semantics (variable ``a`` + literal ``d`` becomes
+    variable ``ad``) and breaks idempotency.  A ``$var`` immediately followed by
+    a word-char fragment needs ``${var}`` whether or not the word is quoted."""
+
+    def test_braced_var_followed_by_word_char_survives_reminify(self):
+        # Quoted form strips quotes but keeps the protecting braces...
+        assert minify_tcl('puts "${a}d"\n') == "puts ${a}d"
+        # ...and re-minifying the already-unquoted form must not drop them.
+        assert minify_tcl("puts ${a}d") == "puts ${a}d"
+
+    def test_unquoted_compound_var_keeps_braces(self):
+        for src in ("puts ${a}b", "set x ${v}1", "puts ${a}${b}c"):
+            once = minify_tcl(src)
+            assert minify_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+
+class TestMinifierIdempotency:
+    """``minify_tcl(minify_tcl(x)) == minify_tcl(x)`` for every input, including
+    structurally malformed code (unbalanced delimiters used to grow the output
+    unboundedly on every pass via fabricated closers)."""
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            "[\n{*}{",
+            'set s "a b c"$};',
+            "proc p {a b} { return [expr {$a+$b}] ;",
+            "{",
+            "[",
+            "$",
+            'puts "unterminated',
+            "if {$x} {puts a}}",
+        ],
+    )
+    def test_malformed_input_is_idempotent(self, src):
+        once = minify_tcl(src)
+        assert minify_tcl(once) == once, f"not idempotent: {src!r} -> {once!r}"
+
+    def test_valid_code_idempotent(self):
+
+        snippets = [
+            "set x 1",
+            "proc add {a b} { return [expr {$a + $b}] }",
+            "if {$x} { puts a } else { puts b }",
+            "foreach x $xs { puts $x }",
+            'set s "hello world"',
+            "puts ${a}b",
+            "set v $a$b",
+        ]
+        rng = random.Random(99)
+        for _ in range(2000):
+            src = "\n".join(rng.choice(snippets) for _ in range(rng.randint(1, 5)))
+            once = minify_tcl(src)
+            assert minify_tcl(once) == once, f"valid not idempotent: {src!r}"

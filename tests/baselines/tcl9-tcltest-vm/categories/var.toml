@@ -1,0 +1,20 @@
+# var.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '98 of 219 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 219
+observed_passed = 100
+observed_failed = 98
+observed_skipped = 21
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["var-1.11", "var-1.12", "var-1.13", "var-1.15", "var-1.16", "var-1.17", "var-1.18", "var-1.20", "var-3.5", "var-3.7", "var-3.9", "var-3.11", "var-5.2", "var-5.3", "var-6.1", "var-6.2", "var-6.3", "var-7.14", "var-7.15", "var-8.1", "var-8.2", "var-10.1", "var-10.2", "var-12.1", "var-15.2", "var-17.2", "var-20.9", "var-20.10", "var-20.11", "var-20.12", "var-21.0", "var-23.7", "var-23.9", "var-23.12", "var-23.13", "var-24.13", "var-24.14", "var-24.16", "var-24.19", "var-24.21", "var-24.23", "var-26.4", "var-26.7", "var-26.8", "var-26.9.1", "var-26.9.2", "var-26.10.1", "var-26.10.2", "var-26.12", "var-26.14", "var-26.15", "var-26.16", "var-26.17", "var-27.1", "var-27.2", "var-27.3", "var-27.4", "var-27.5", "var-27.6", "var-27.7", "var-27.8", "var-27.9.1", "var-27.9.2", "var-27.10.1", "var-27.10.2", "var-27.11", "var-27.12", "var-27.14", "var-27.15", "var-27.16", "var-27.17", "var-28.1", "var-28.2", "var-28.3", "var-28.4", "var-28.5", "var-29.2", "var-29.3", "var-29.4", "var-29.5", "var-29.6", "var-29.7", "var-30.1", "var-30.2", "var-30.3", "var-30.4", "var-30.5", "var-30.6", "var-30.7", "var-30.8", "var-30.9", "var-30.10", "var-30.11", "var-30.12", "var-30.13", "var-31.1", "var-31.2", "var-31.3"]

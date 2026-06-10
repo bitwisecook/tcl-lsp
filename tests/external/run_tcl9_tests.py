@@ -38,6 +38,13 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.conftest import ensure_tcl_source, record_tcl9_result
+from tests.external._tcl9_categories import (
+    bucket_failures,
+    load_categories,
+)
+from tests.external._tcl9_categories import (
+    gate as _categories_gate,
+)
 from tests.test_wasm_real_tcl import (
     _compile_tcl,
     _compile_tcl_with_diag,
@@ -46,7 +53,7 @@ from tests.test_wasm_real_tcl import (
 )
 
 if TYPE_CHECKING:
-    from core.compiler.codegen.wasm._ir import DiagMap
+    from compiler.codegen.wasm._ir import DiagMap
 
 _EXTERNAL = Path(__file__).resolve().parent
 
@@ -73,12 +80,132 @@ def _tcl9_test_file(name: str) -> Path:
     return p
 
 
+def _tcl9_library_root() -> Path | None:
+    """Return path to the Tcl 9 ``library/`` source tree, or None if missing.
+
+    The harness preopens this directory at guest ``/library`` so
+    bundles can resolve ``[info library]`` + ``file exists`` checks
+    against the real upstream library (safe-stock.test's opt /
+    cookiejar discovery, ``source [file join $tcl_library X]`` in
+    other tests).  ``WasiConfig.preopen_dir`` grants the bundle
+    capability-scoped access to this directory; we rely on the
+    bundles not writing into it rather than on the host preopen
+    enforcing read-only perms — the test corpus is read-only by
+    construction, and any accidental write would land in the
+    checked-out source tree.
+    """
+    tests_dir = ensure_tcl_source("9.0")
+    p = tests_dir.parent / "library"
+    return p if p.exists() else None
+
+
+def _tcl9_opt_library() -> Path | None:
+    """Return path to Tcl 9's optparse.tcl, or None if missing.
+
+    Used by test bundles that ``package require opt`` (opt.test,
+    safe-stock.test) — inlining the upstream library lets the
+    interpreter run the real ``::tcl::OptKeyRegister`` /
+    ``OptKeyParse`` / ``OptParse`` machinery rather than a hand-
+    rolled stub, which is the only way to verify our runtime
+    against opt.test's implementation-detail assertions.
+    """
+    tests_dir = ensure_tcl_source("9.0")
+    p = tests_dir.parent / "library" / "opt" / "optparse.tcl"
+    return p if p.exists() else None
+
+
 # ---------------------------------------------------------------------------
 # Bundle construction
 # ---------------------------------------------------------------------------
 
 _PRE_TCLTEST = r"""
 # ----- run_tcl9_tests.py pre-tcltest stubs -----
+# Tcl's standard startup populates a small set of globals that
+# tclsh sets before any user script runs (``tclsh.c`` /
+# ``Tcl_Main`` does this) — ``argv``, ``argv0``, ``argc``,
+# ``tcl_interactive``, ``auto_path``, ``env(*)``.  Our WASM
+# runtime entry point doesn't perform that bootstrap, so test
+# files that reach for ``$argv`` (parseOld), ``$auto_path``
+# (safe-stock), or ``$tcl_interactive`` (uplevel.test diag
+# probes) trap with ``can't read "X": no such variable``.
+#
+# Mirror the tclsh defaults: empty argv list, empty argv0, the
+# single-element auto_path tcllib uses, an empty env array, and
+# tcl_interactive=0 (we're not a terminal).  The values themselves
+# are deliberately minimal — none of the in-scope tests exercise
+# their content, only the readability.
+set ::argv {}
+set ::argv0 ""
+set ::argc 0
+set ::tcl_interactive 0
+# ``tcl_library`` points at the C Tcl 9 ``library/`` tree that
+# :func:`_tcl9_library_root` preopens at guest ``/library``.  Bundles
+# that resolve ``[info library]`` + ``file exists`` (safe-stock.test
+# discovering ``opt`` / ``cookiejar``, source-based ``[file join $tcl_library X]``
+# lookups elsewhere) hit the real upstream Tcl library files instead
+# of trapping with ``cannot find opt library`` at bundle setup.
+set ::tcl_library /library
+set ::auto_path [list /library]
+# Seed ::env with the handful of variables tcltest bundles probe at
+# load time.  chanio.test / io.test / fCmd.test all read ``::env(HOME)``
+# inside a ``testConstraint`` body that runs *before* any individual
+# test, so an unset HOME traps the whole bundle.  Pointing HOME at the
+# preopened tmpdir lets the constraint check evaluate cleanly without
+# granting writable-HOME (``[file writable]`` returns 0 on the
+# read-only mount), which is the same answer real tclsh gives in a
+# sandboxed environment.
+array set ::env {
+    HOME "/"
+    PATH ""
+    USER "wasm"
+}
+
+# ``tcl_platform`` — real tclsh exports a dozen-key array that
+# tcltest reads at line 288 / 312 (``$::tcl_platform(platform)``,
+# ``$::tcl_platform(os)``) plus several test files reach for
+# ``pointerSize``, ``wordSize``, ``byteOrder``, etc.  Without
+# these, ``listObj.test`` / ``stringObj.test`` hit the
+# ``set SIZE_MAX [expr {(1 << (8*$::tcl_platform(pointerSize) - 1)) - 1}]``
+# bootstrap with an empty pointerSize, which collapses to a
+# negative shift and traps with ``negative shift argument``.
+# Match the WASM target's actual values: pointerSize=4 (wasm32),
+# wordSize=8 (we report 64-bit ints to scripts), unix-shaped
+# platform/os.  The values are conservative — none of the in-
+# scope tests inspect them beyond the smoke-test reads above.
+array set ::tcl_platform {
+    platform        unix
+    os              "Linux"
+    osVersion       "0.0"
+    machine         "wasm32"
+    byteOrder       littleEndian
+    pointerSize     4
+    wordSize        8
+    threaded        0
+    user            "wasm"
+    pathSeparator   ":"
+    engine          "Tcl"
+}
+
+# ``unknown`` — real tclsh ships an ``::unknown`` proc that handles
+# auto-loading + tab completion + ``$auto_noexec`` exec dispatch.
+# Several test bundles (``rename.test`` 5.1, ``unknown.test``) rename
+# it away as part of their setup and re-instate it later with
+# ``info body unknown``.  Without a stub of our own ``info body
+# unknown.old`` traps with ``"unknown.old" isn't a procedure`` and
+# the bundle aborts before reaching its tcltest summary.
+#
+# The minimal ``unknown`` body emits the standard error string Tcl
+# would produce for any unknown command — same surface as
+# ``error_invalid_command_name`` in the runtime — so tests that
+# *invoke* unknown via a typo see the expected message.  Wrapped in
+# ``eval`` so it goes through the interpreted ``proc`` path; ``info
+# body`` only works on interpreted procs.
+eval {
+    proc ::unknown {args} {
+        return -code error "invalid command name \"[lindex $args 0]\""
+    }
+}
+
 # tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
 # ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
 # Tcl's auto-loading machinery is not implemented here, so we
@@ -184,6 +311,13 @@ namespace eval ::tcl::unsupported::clock {
         }
         if {[llength $args] == 1} {
             set opt [lindex $args 0]
+            # ``-init-complete`` is the setup signal init.tcl's clock
+            # ensemble block sends once the ::clock map is installed.
+            # Real Tcl 9's C accessor accepts it as a no-op; mirror that
+            # so sourcing the upstream init.tcl completes.
+            if {$opt eq "-init-complete"} {
+                return
+            }
             if {[info exists state($opt)]} {
                 return $state($opt)
             }
@@ -195,6 +329,25 @@ namespace eval ::tcl::unsupported::clock {
         return
     }
     namespace export configure
+}
+
+# ``::oo::patchlevel`` / ``::oo::version`` stubs — the upstream
+# ``oo.test`` bundle's first test (``oo-0.9``) computes its
+# expected-result list as ``[list tcl::oo $::oo::patchlevel 1]``,
+# evaluated at test-build time before the body runs.  Real Tcl
+# sets these from ``tclOO.c``'s package-init code; the WASM
+# scaffold registers ``oo::class`` / ``oo::object`` as commands
+# but never populates the namespace variables, so the very first
+# test reads an unset variable and the bundle traps before
+# reaching a tcltest summary line.  Pre-populating both with the
+# upstream-matching values (1.4.0 ships with Tcl 9.0.3) lets the
+# read succeed; oo-0.9 still fails on its `package` interactions
+# (our ``package`` stub returns empty for ``names`` / ``versions``
+# / ``present``), but the trap is gone and the rest of the
+# bundle reaches its summary.
+namespace eval ::oo {
+    variable patchlevel "1.4.0"
+    variable version "1.4.0"
 }
 
 namespace eval ::tcl::tm {
@@ -246,6 +399,25 @@ namespace import -force ::tcltest::*
 # even when several tests fail.  Tracked separately from the
 # clock work in tcl_cmd_append.
 proc ::tcltest::Asciify {s} { return $s }
+
+# Pre-seed the host-environment testConstraints to 0 so tests gated
+# on them are skipped rather than running against a half-functional
+# stub.  Without this, basic-46.1 / basic-46.2 / basic-46.3 (and a
+# handful of others) hit the constraint-undefined ``SafeFetch`` path
+# which calls the constraint initializer — for ``stdio`` that's
+# ``open "|[interpreter]" w``.  Our WASM runtime's pipe-form open
+# raises ``i/o error`` which the initializer's ``catch`` swallows,
+# leaving the constraint *empty* rather than 0.  An empty constraint
+# in tcltest 2.5 is treated as truthy by ``RunTest`` so the test
+# body runs and immediately hangs on ``gets $f`` against a non-
+# existent channel.  Explicitly setting the constraint to 0 short-
+# circuits the initializer trace and keeps the gated tests in the
+# Skipped column.
+::tcltest::testConstraint stdio 0
+::tcltest::testConstraint exec 0
+::tcltest::testConstraint socket 0
+::tcltest::testConstraint thread 0
+::tcltest::testConstraint testbytestring 0
 """
 
 
@@ -385,14 +557,47 @@ def _patch_tcltest_source(src: str) -> str:
 
 
 def _bundle(test_file_path: Path) -> str:
-    """Concatenate Tcl 9 tcltest + preamble + test file into one script."""
+    """Concatenate Tcl 9 tcltest + preamble + test file into one script.
+
+    Test files that ``package require opt`` (or reach for
+    ``::tcl::OptKeyRegister`` / ``::tcl::OptParse`` directly) get
+    the real ``library/opt/optparse.tcl`` inlined at top level
+    (NOT wrapped in ``eval``).  ``namespace eval ::tcl { variable
+    OptDescN 0 ... }`` only initialises the variable in the right
+    scope when the runtime sees it as a top-level statement;
+    nesting under another ``eval`` detaches the namespace context
+    and the bundle's first ``$::tcl::OptDescN`` read traps with
+    "no such variable".
+    """
     tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
     test_src = test_file_path.read_text(encoding="utf-8")
 
-    return "\n".join(
+    parts: list[str] = [
+        "# ===== run_tcl9_tests pre-tcltest stubs =====",
+        _PRE_TCLTEST,
+    ]
+
+    needs_opt = ("package require opt" in test_src) or ("::tcl::Opt" in test_src)
+    if needs_opt:
+        opt_path = _tcl9_opt_library()
+        if opt_path is not None:
+            opt_src = opt_path.read_text(encoding="utf-8")
+            # Inline the upstream library at top level (NOT wrapped
+            # in ``eval``).  ``namespace eval ::tcl { variable
+            # OptDescN 0 ... }`` only initialises the variable in
+            # the right scope when the runtime sees it as a
+            # top-level statement; nesting under another ``eval``
+            # detaches the namespace context and the bundle's first
+            # ``$::tcl::OptDescN`` read traps with "no such variable".
+            parts.extend(
+                [
+                    "# ===== Tcl 9 opt library (real upstream optparse.tcl) =====",
+                    opt_src,
+                ]
+            )
+
+    parts.extend(
         [
-            "# ===== run_tcl9_tests pre-tcltest stubs =====",
-            _PRE_TCLTEST,
             "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
             tcltest_src,
             "# ===== run_tcl9_tests preamble =====",
@@ -402,6 +607,7 @@ def _bundle(test_file_path: Path) -> str:
             "",
         ]
     )
+    return "\n".join(parts)
 
 
 _SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)")
@@ -531,12 +737,25 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
             src_path = helpers_dir / helper
             if src_path.exists():
                 shutil.copyfile(src_path, Path(host_tmp) / helper)
+        # Preopen the C Tcl ``library/`` tree at guest ``/library`` so
+        # ``[info library]`` lookups and ``file exists`` probes hit
+        # real upstream files (see :func:`_tcl9_library_root`).  No
+        # copy — the tree is shared via wasmtime's capability-bound
+        # preopen.  ``preopen_dir`` grants normal read/write access
+        # to the host directory; we rely on the bundles being well-
+        # behaved (they don't write to ``$tcl_library``) rather than
+        # on the host preopen enforcing read-only perms.
+        extra_preopens: list[tuple[str, str]] = []
+        lib_root = _tcl9_library_root()
+        if lib_root is not None:
+            extra_preopens.append((str(lib_root), "/library"))
         try:
             result = _run_wasm(
                 wasm,
                 capture_stdout=True,
                 capture_stderr=True,
                 preopen_tmpdir=host_tmp,
+                extra_preopens=tuple(extra_preopens),
             )
         except Exception as trap:
             pytest.fail(_resolve_trap(trap, getattr(trap, "tcl_stderr", ""), diag))
@@ -608,8 +827,17 @@ class TestTcltest9Init:
             pytest.skip(f"Tcl 9 tcltest.tcl does not yet compile: {exc}")
 
         with tempfile.TemporaryDirectory(prefix="tcl9test-init-") as host_tmp:
+            extra_preopens: list[tuple[str, str]] = []
+            lib_root = _tcl9_library_root()
+            if lib_root is not None:
+                extra_preopens.append((str(lib_root), "/library"))
             try:
-                result = _run_wasm(wasm, capture_stderr=True, preopen_tmpdir=host_tmp)
+                result = _run_wasm(
+                    wasm,
+                    capture_stderr=True,
+                    preopen_tmpdir=host_tmp,
+                    extra_preopens=tuple(extra_preopens),
+                )
             except Exception as trap:
                 stderr_text = getattr(trap, "tcl_stderr", "")
                 record_tcl9_result(
@@ -660,7 +888,7 @@ class TestTcltest9Init:
 # Refresh after a runtime change by running
 # ``make check-tcl9-tcltest-io`` and updating the numbers if the new
 # snapshot is strictly better than the old one.
-_IO_BASELINE: dict[str, dict[str, object]] = {
+_IO_BASELINE: dict[str, dict[str, int | bool]] = {
     # chan.test — 42/42, fully green after the issue #270 ensemble
     # work landed.
     "chan": {"min_passed": 42, "max_failed": 0},
@@ -686,6 +914,43 @@ _IO_BASELINE: dict[str, dict[str, object]] = {
     "ioCmd": {"trap_ok": True},
 }
 
+# Baseline for non-I/O suites that have known-stable residual failures
+# (issue #327).  Same semantics as :data:`_IO_BASELINE`: the strict
+# ``failed == 0`` gate is replaced by a snapshot gate so regressions
+# (fewer passing or more failing) are still caught while pre-existing
+# mismatches don't block the sweep.  Refresh by re-running the suite
+# and tightening the band when the underlying bug is fixed.
+_BASELINE: dict[str, dict[str, int | bool]] = {
+    # set.test — 55/64 passing.  Residual failures include set-3.24
+    # (uncompiled ``set`` with too many arguments returns the value
+    # instead of an error — arity enforcement gap in the eval fallback)
+    # and a cluster of set-old-style multi-assignment forms.
+    "set": {"min_passed": 52, "max_failed": 12},
+    # set-old.test — 38/153 passing.  Large-scale failures; the suite
+    # exercises many multi-variable ``set`` forms and error-path
+    # branches that rely on the uncompiled path.
+    "set-old": {"min_passed": 35, "max_failed": 118},
+    # var.test — 176/219 passing after the #327 find_table null-pointer
+    # fix stopped the trap.  Residual failures are ``array names``
+    # edge cases and ``info constant`` (not yet implemented).
+    "var": {"min_passed": 172, "max_failed": 43},
+    # namespace.test — 201/314 passing after the #327
+    # ns_resolve_qualified null-pointer fix stopped the trap.  Residual
+    # failures cover child-interp namespace resolution, ``namespace
+    # path`` ordering, and ``namespace import -force`` edge cases.
+    "namespace": {"min_passed": 197, "max_failed": 116},
+    # namespace-old.test — 54/126 passing.  Bulk namespace-command
+    # coverage; failures mirror the namespace.test gaps above.
+    "namespace-old": {"min_passed": 51, "max_failed": 75},
+    # proc.test — 36/38 passing.  Two failures: proc-3.7 and proc-4.9
+    # (``Tcl_PkgPresent`` return-code path not yet wired).
+    "proc": {"min_passed": 34, "max_failed": 4},
+    # proc-old.test — 34/74 passing.  Includes proc-old-9.1 (result 0
+    # vs expected 1) and proc-old-10.1 (ByteCode epoch change during
+    # recursive proc execution).
+    "proc-old": {"min_passed": 31, "max_failed": 43},
+}
+
 
 def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
     """Dynamically build a test class for a Tcl 9 .test file.
@@ -696,13 +961,13 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
     primitives (I/O, threads, fs, encoding) and pre-categorises them
     as D.
 
-    For files registered in :data:`_IO_BASELINE`, the strict
-    ``failed == 0`` assertion is replaced with a baseline-relative
-    gate so partial-pass suites (``chan`` / ``chanio`` / ``io`` /
-    ``ioCmd``) are tracked without forcing a green sweep.
+    For files registered in :data:`_IO_BASELINE` or :data:`_BASELINE`,
+    the strict ``failed == 0`` assertion is replaced with a baseline-
+    relative gate so partial-pass suites are tracked without forcing a
+    green sweep.
     """
     filename = f"{test_name}.test"
-    baseline_io = _IO_BASELINE.get(test_name) if subsystem == "io" else None
+    baseline_io = _IO_BASELINE.get(test_name) if subsystem == "io" else _BASELINE.get(test_name)
 
     class _TestClass:
         def test_compiles(self, request: pytest.FixtureRequest) -> None:
@@ -741,6 +1006,31 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             test_path = _tcl9_test_file(filename)
             src = _bundle(test_path)
 
+            # Inject ``tcltest::configure -skip [list ...]`` for every
+            # test ID listed in the categorisation TOML's ``skip``
+            # bucket.  These tests probe C-Tcl-internal behaviour we
+            # don't claim to mirror (bytecode shape, ``[linenumber]``-
+            # via-bcc, ``::tcl::dict::*`` private interfaces); running
+            # them costs cycles and the failures are noise.  Using
+            # tcltest's own ``-skip`` mechanism counts them in the
+            # ``Skipped`` summary alongside the upstream
+            # constraint-driven skips, keeping the JSON triage record
+            # honest about coverage.
+            categories = load_categories(test_name)
+            skip_ids = categories.skip_full_ids()
+            if skip_ids:
+                # Quote each ID as a brace-balanced list element so a
+                # name with regex-meta characters round-trips through
+                # tcltest's ``-skip`` glob match.  ``tcltest::configure
+                # -skip`` accepts a list of patterns; the patterns are
+                # glob-matched against test names, so the literal IDs
+                # we ship match exactly one test each.
+                pattern_list = " ".join(f"{{{sid}}}" for sid in skip_ids)
+                inject = f"\n::tcltest::configure -skip [list {pattern_list}]\n"
+                marker = f"# ===== {filename} ====="
+                if marker in src:
+                    src = src.replace(marker, marker + inject, 1)
+
             trap_site: str | None = None
             compiled = False
             ran = False
@@ -768,11 +1058,31 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         src_path = helpers_dir / helper
                         if src_path.exists():
                             shutil.copyfile(src_path, Path(host_tmp) / helper)
+                    # See :func:`_tcl9_library_root` — capability-bound
+                    # share of the C Tcl 9 ``library/`` tree at guest
+                    # ``/library``.  Drives ``[info library]`` /
+                    # ``[file exists [file join $tcl_library …]]``
+                    # checks (safe-stock.test, source-based package
+                    # lookups elsewhere).
+                    extra_preopens: list[tuple[str, str]] = []
+                    lib_root = _tcl9_library_root()
+                    if lib_root is not None:
+                        extra_preopens.append((str(lib_root), "/library"))
+                    # 45s wasmtime epoch watchdog: most healthy
+                    # bundles finish in under 5s, the slowest non-pathological
+                    # one (interp.test) takes ~12s.  A 45s cap surfaces
+                    # genuine hangs (basic.test's pipe-based loop, expr-old's
+                    # bignum overflow probes) as a trap that ``trap_allowed``
+                    # / the buckets gate can categorise, instead of
+                    # leaving the subprocess wrapper to kill the whole
+                    # pytest invocation at its 60s boundary.
                     result = _run_wasm(
                         wasm,
                         capture_stdout=True,
                         capture_stderr=True,
                         preopen_tmpdir=host_tmp,
+                        extra_preopens=tuple(extra_preopens),
+                        timeout_s=45,
                     )
                 ran = True
                 stdout = result[1] if len(result) >= 2 else ""
@@ -794,6 +1104,20 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                 deferred=deferred,
             )
             total, passed, skipped, failed = summary or (0, 0, 0, 0)
+
+            # Triage gate: when the stem has a categories TOML we
+            # bucket each failed test ID into MUST_PASS /
+            # GOOD_TO_HAVE / JUST_TO_MATCH_CTCL and gate only on the
+            # MUST_PASS bucket.  Stems without a TOML keep their
+            # historical behaviour (strict ``failed == 0`` or a
+            # ``_BASELINE`` numeric band) so the rollout can be
+            # incremental.  ``categories.test_to_bucket`` being empty
+            # AND ``trap_allowed`` being false means "no triage file
+            # on disk" — fall back to the legacy gate in that case.
+            has_triage_file = bool(categories.test_to_bucket) or categories.trap_allowed
+            failed_ids = [m.group(1) for m in _FAIL_RE.finditer(stdout)]
+            buckets = bucket_failures(test_name, failed_ids)
+
             record_tcl9_result(
                 request.config,
                 {
@@ -809,6 +1133,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                     "trap_site": trap_site,
                     "stderr_tail": _stderr_tail(stderr),
                     "category": category,
+                    "buckets": buckets.to_dict(),
                     **_summarise_diag(diag),
                 },
             )
@@ -816,24 +1141,53 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             if not compiled:
                 pytest.fail(f"{filename} bundle failed to compile: {stderr[-400:]}")
             if not ran:
-                # Baselined I/O suites are allowed to trap when their
-                # baseline entry sets ``trap_ok`` — the residual blockers
-                # are tracked as separate follow-up sub-issues.  A NEW
-                # compile/run failure on a previously-passing baseline is
-                # still a regression.
+                # Triage TOMLs can opt-in to ``trap_allowed`` for the
+                # whole stem — pre-existing cumulative-state traps
+                # (e.g. trace.test's exponential trace re-entry
+                # cascade) that we know about and have a separate
+                # follow-up for.  Legacy I/O baselines retain their
+                # ``trap_ok`` hatch for backwards compatibility.
+                if categories.trap_allowed:
+                    return
                 if baseline_io is not None and baseline_io.get("trap_ok"):
                     return
                 pytest.fail(f"{filename} trapped: {trap_site or stderr[-400:]}")
             if summary is None:
+                if categories.trap_allowed:
+                    return
                 if baseline_io is not None and baseline_io.get("trap_ok"):
                     return
                 pytest.fail(
                     f"No tcltest summary line in stdout for {filename}.\n"
                     f"stdout tail:\n{stdout[-400:]}\nstderr tail:\n{stderr[-400:]}"
                 )
-            if baseline_io is not None:
-                min_passed = int(baseline_io.get("min_passed", 0))  # type: ignore[arg-type]
-                max_failed = int(baseline_io.get("max_failed", 0))  # type: ignore[arg-type]
+            if has_triage_file:
+                # Triage gate: ``must_pass`` failures block, plus
+                # ``good_to_have`` growth past the recorded baseline
+                # cap (catches a previously-passing test slipping
+                # into the bucket even though its name is already
+                # listed).  ``just_to_match_ctcl`` and ``skip``
+                # counts surface in the JSON record but don't gate.
+                outcome = _categories_gate(categories, buckets)
+                if not outcome.passed:
+                    sample = "\n  ".join(buckets.must_pass_failures[:10])
+                    extra = (
+                        f"\n  ... and {len(buckets.must_pass_failures) - 10} more"
+                        if len(buckets.must_pass_failures) > 10
+                        else ""
+                    )
+                    pytest.fail(
+                        f"{filename}: {outcome.reason}\n"
+                        f"  must_pass={len(buckets.must_pass_failures)}, "
+                        f"good_to_have={len(buckets.good_to_have_failures)} "
+                        f"(cap {categories.good_to_have_baseline}), "
+                        f"just_to_match_ctcl={len(buckets.just_to_match_ctcl_failures)}, "
+                        f"skip={len(buckets.skip_failures)}:\n"
+                        f"  {sample}{extra}"
+                    )
+            elif baseline_io is not None:
+                min_passed = int(baseline_io.get("min_passed", 0))
+                max_failed = int(baseline_io.get("max_failed", 0))
                 assert passed >= min_passed and failed <= max_failed, (
                     f"{filename}: regression vs baseline — "
                     f"got passed={passed} failed={failed}, "

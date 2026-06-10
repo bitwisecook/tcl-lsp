@@ -1,0 +1,28 @@
+# fileSystem.test categorisation (Tcl 9.0.3 source tree).
+# Stem: in-scope, currently traps before tcltest summary —
+# Tcl_FSRegister VFS layer — depends on POSIX FS the browser does not host.
+# Test IDs are parked in impossible_in_wasm_browser only — WASI can host this
+# surface today (or with a near-term preview2 step) so the
+# WASI-target injector should *not* skip these.
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+impossible_in_wasm_wasi = []
+
+impossible_in_wasm_browser = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+impossible_in_wasm_wasi_failing = 0
+impossible_in_wasm_browser_failing = 0

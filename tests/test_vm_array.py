@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 
 class TestArraySetGet:
@@ -147,8 +147,10 @@ class TestArrayUnset:
 
     def test_unset_nonexistent(self) -> None:
         interp = TclInterp()
-        # Should not error
-        interp.eval("array unset noarray")
+        # Unsetting a non-existent array is a silent no-op (returns "") and
+        # must not bring the array into existence.
+        assert interp.eval("array unset noarray").value == ""
+        assert interp.eval("array exists noarray").value == "0"
 
 
 class TestArraySearch:

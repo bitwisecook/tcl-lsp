@@ -1,0 +1,188 @@
+ByteCode ::top, 109 instructions, 324 bytes, 26 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "p"
+    2: "args"
+    3: " return $args "
+    4: ""
+    5: "p() != empty"
+    6: "hello"
+    7: "p(1 arg) != hello"
+    8: "1"
+    9: "2"
+    10: "3"
+    11: "1 2 3"
+    12: "\u0000\u0002p(3 args) = '"
+    13: "\u0000\u0002' (should be '1 2 3')"
+    14: "q"
+    15: "a args"
+    16: " return \"$a:$args\" "
+    17: "x"
+    18: "x:"
+    19: "\u0000\u0002q(1 fixed) = '"
+    20: "\u0000\u0002'"
+    21: "y"
+    22: "z"
+    23: "x:y z"
+    24: "\u0000\u0002q(1 fixed + 2 tail) = '"
+    25: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "p"
+    (4) push1 2	# "args"
+    (6) push1 3	# " return $args "
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) startCommand +44 1	# next cmd at pc 55, 1 cmds start here
+    (20) push1 1	# "p"
+    (22) invokeStk1 1
+    (24) push1 4	# ""
+    (26) strneq
+    (27) jumpFalse1 +26	# pc 53
+  # if_then_3:
+    (29) startCommand +22 1	# next cmd at pc 51, 1 cmds start here
+    (38) push1 5	# "p() != empty"
+    (40) push1 4	# ""
+    (42) returnImm +1 0
+  # cmd_end_2:
+    (51) jump1 +4	# pc 55
+  # if_next_4:
+    (53) push1 4	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (55) pop
+    (56) startCommand +46 1	# next cmd at pc 102, 1 cmds start here
+    (65) push1 1	# "p"
+    (67) push1 6	# "hello"
+    (69) invokeStk1 2
+    (71) push1 6	# "hello"
+    (73) strneq
+    (74) jumpFalse1 +26	# pc 100
+  # if_then_6:
+    (76) startCommand +22 1	# next cmd at pc 98, 1 cmds start here
+    (85) push1 7	# "p(1 arg) != hello"
+    (87) push1 4	# ""
+    (89) returnImm +1 0
+  # cmd_end_4:
+    (98) jump1 +4	# pc 102
+  # if_next_7:
+    (100) push1 4	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (102) pop
+    (103) startCommand +64 1	# next cmd at pc 167, 1 cmds start here
+    (112) push1 1	# "p"
+    (114) push1 8	# "1"
+    (116) push1 9	# "2"
+    (118) push1 10	# "3"
+    (120) invokeStk1 4
+    (122) push1 11	# "1 2 3"
+    (124) strneq
+    (125) jumpFalse1 +40	# pc 165
+  # if_then_9:
+    (127) startCommand +36 1	# next cmd at pc 163, 1 cmds start here
+    (136) push1 12	# "p(3 args) = '"
+    (138) push1 1	# "p"
+    (140) push1 8	# "1"
+    (142) push1 9	# "2"
+    (144) push1 10	# "3"
+    (146) invokeStk1 4
+    (148) push1 13	# "' (should be '1 2 3')"
+    (150) strcat 3
+    (152) push1 4	# ""
+    (154) returnImm +1 0
+  # cmd_end_6:
+    (163) jump1 +4	# pc 167
+  # if_next_10:
+    (165) push1 4	# ""
+  # if_end_8:
+  # if_cmd_end_5:
+    (167) pop
+    (168) push1 0	# "proc"
+    (170) push1 14	# "q"
+    (172) push1 15	# "a args"
+    (174) push1 16	# " return \"$a:$args\" "
+    (176) invokeStk1 4	# proc
+  # cmd_end_7:
+    (178) pop
+    (179) startCommand +56 1	# next cmd at pc 235, 1 cmds start here
+    (188) push1 14	# "q"
+    (190) push1 17	# "x"
+    (192) invokeStk1 2
+    (194) push1 18	# "x:"
+    (196) strneq
+    (197) jumpFalse1 +36	# pc 233
+  # if_then_12:
+    (199) startCommand +32 1	# next cmd at pc 231, 1 cmds start here
+    (208) push1 19	# "q(1 fixed) = '"
+    (210) push1 14	# "q"
+    (212) push1 17	# "x"
+    (214) invokeStk1 2
+    (216) push1 20	# "'"
+    (218) strcat 3
+    (220) push1 4	# ""
+    (222) returnImm +1 0
+  # cmd_end_9:
+    (231) jump1 +4	# pc 235
+  # if_next_13:
+    (233) push1 4	# ""
+  # if_end_11:
+  # if_cmd_end_8:
+    (235) pop
+    (236) startCommand +64 1	# next cmd at pc 300, 1 cmds start here
+    (245) push1 14	# "q"
+    (247) push1 17	# "x"
+    (249) push1 21	# "y"
+    (251) push1 22	# "z"
+    (253) invokeStk1 4
+    (255) push1 23	# "x:y z"
+    (257) strneq
+    (258) jumpFalse1 +40	# pc 298
+  # if_then_15:
+    (260) startCommand +36 1	# next cmd at pc 296, 1 cmds start here
+    (269) push1 24	# "q(1 fixed + 2 tail) = '"
+    (271) push1 14	# "q"
+    (273) push1 17	# "x"
+    (275) push1 21	# "y"
+    (277) push1 22	# "z"
+    (279) invokeStk1 4
+    (281) push1 20	# "'"
+    (283) strcat 3
+    (285) push1 4	# ""
+    (287) returnImm +1 0
+  # cmd_end_11:
+    (296) jump1 +4	# pc 300
+  # if_next_16:
+    (298) push1 4	# ""
+  # if_end_14:
+  # if_cmd_end_10:
+    (300) pop
+    (301) startCommand +22 1	# next cmd at pc 323, 1 cmds start here
+    (310) push1 25	# "ok"
+    (312) push1 4	# ""
+    (314) returnImm +0 1
+  # ret_end_12:
+    (323) done
+
+ByteCode ::p, 2 instructions, 3 bytes, 0 literals, 1 variables
+  Local variables:
+    %v0: "args"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "args"
+    (2) done
+
+ByteCode ::q, 5 instructions, 9 bytes, 1 literals, 2 variables
+  Literals:
+    0: "\u0000\u0002:"
+  Local variables:
+    %v0: "a"
+    %v1: "args"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "a"
+    (2) push1 0	# ":"
+    (4) loadScalar1 %v1	# var "args"
+    (6) strcat 3
+    (8) done

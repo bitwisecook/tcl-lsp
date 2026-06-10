@@ -1,5 +1,8 @@
 # KCS: feature — iRule Event Skeleton
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Pick iRules events from a list and generate a skeleton iRule with those event handlers.
@@ -29,7 +32,7 @@ The skeleton generator uses the event registry to know which events exist, their
 ## File-path anchors
 
 - `editors/vscode/src/iruleSkeleton.ts`
-- `core/commands/registry/`
+- `compiler/registry/`
 
 ## Failure modes
 

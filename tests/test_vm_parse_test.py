@@ -15,9 +15,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -171,7 +171,7 @@ class TestParseTestNative:
 
     def test_parse_test(self) -> None:
         results = _run_test_file("parse.test")
-        _check_results(results, KNOWN_FAILURES_PARSE, "parse.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PARSE, "parse.test")
 
 
 class TestParseOldTestNative:
@@ -179,4 +179,4 @@ class TestParseOldTestNative:
 
     def test_parse_old_test(self) -> None:
         results = _run_test_file("parseOld.test")
-        _check_results(results, KNOWN_FAILURES_PARSE_OLD, "parseOld.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_PARSE_OLD, "parseOld.test")

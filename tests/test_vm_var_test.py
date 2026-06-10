@@ -15,9 +15,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -37,31 +37,84 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_INCR: set[str] = set(
-    # incr.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_INCR: set[str] = {
+    "incr-1.28",
+    "incr-1.30",
+    "incr-2.28",
+    "incr-2.30",
+    "incr-2.31",
+    "incr-2.32",
+    "incr-2.33",
+}
 
-KNOWN_FAILURES_SET_OLD: set[str] = set(
-    # set-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_SET_OLD: set[str] = {
+    "set-old-8.38.2",
+    "set-old-8.38.3",
+    "set-old-8.38.5",
+    "set-old-8.38.6",
+    "set-old-8.38.7",
+    "set-old-8.49",
+    "set-old-8.56",
+    "set-old-9.10",
+}
 
-KNOWN_FAILURES_UPVAR: set[str] = set(
-    # upvar.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_UPVAR: set[str] = {
+    "upvar-10.1",
+    "upvar-8.8",
+    "upvar-8.9",
+    "upvar-NS-1.3",
+    "upvar-NS-1.4",
+    "upvar-NS-1.9",
+    "upvar-NS-3.1",
+    "upvar-NS-3.2",
+    "upvar-NS-3.3",
+}
 
-KNOWN_FAILURES_UPLEVEL: set[str] = set()
+KNOWN_FAILURES_UPLEVEL: set[str] = {
+    "uplevel-6.1",
+    "uplevel-8.0",
+}
 
-KNOWN_FAILURES_SET: set[str] = set(
-    # set.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_SET: set[str] = {
+    "set-1.15",
+    "set-1.26",
+    "set-2.1",
+    "set-2.4",
+    "set-4.1",
+    "set-4.4",
+}
 
-KNOWN_FAILURES_INCR_OLD: set[str] = set(
-    # incr-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_INCR_OLD: set[str] = {
+    "incr-old-2.10",
+    "incr-old-2.4",
+    "incr-old-2.5",
+    "incr-old-2.6",
+}
 
-KNOWN_FAILURES_VAR: set[str] = set(
-    # var.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
-)
+KNOWN_FAILURES_VAR: set[str] = {
+    "var-29.2",
+    "var-29.3",
+    "var-29.4",
+    "var-29.5",
+    "var-29.6",
+    "var-29.7",
+    "var-30.1",
+    "var-30.10",
+    "var-30.11",
+    "var-30.12",
+    "var-30.13",
+    "var-30.2",
+    "var-30.3",
+    "var-30.4",
+    "var-30.5",
+    "var-30.6",
+    "var-30.7",
+    "var-30.8",
+    "var-30.9",
+    "var-31.1",
+    "var-31.2",
+    "var-31.3",
+}
 
 
 # Test runner
@@ -189,7 +242,7 @@ class TestIncrNative:
 
     def test_incr(self) -> None:
         results = _run_test_file("incr.test")
-        _check_results(results, KNOWN_FAILURES_INCR, "incr.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_INCR, "incr.test")
 
 
 class TestSetOldNative:
@@ -197,7 +250,7 @@ class TestSetOldNative:
 
     def test_set_old(self) -> None:
         results = _run_test_file("set-old.test")
-        _check_results(results, KNOWN_FAILURES_SET_OLD, "set-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_SET_OLD, "set-old.test")
 
 
 class TestUpvarNative:
@@ -205,7 +258,7 @@ class TestUpvarNative:
 
     def test_upvar(self) -> None:
         results = _run_test_file("upvar.test")
-        _check_results(results, KNOWN_FAILURES_UPVAR, "upvar.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_UPVAR, "upvar.test")
 
 
 class TestUplevelNative:
@@ -213,7 +266,7 @@ class TestUplevelNative:
 
     def test_uplevel(self) -> None:
         results = _run_test_file("uplevel.test")
-        _check_results(results, KNOWN_FAILURES_UPLEVEL, "uplevel.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_UPLEVEL, "uplevel.test")
 
 
 class TestSetNative:
@@ -221,7 +274,7 @@ class TestSetNative:
 
     def test_set(self) -> None:
         results = _run_test_file("set.test")
-        _check_results(results, KNOWN_FAILURES_SET, "set.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_SET, "set.test")
 
 
 class TestIncrOldNative:
@@ -229,7 +282,7 @@ class TestIncrOldNative:
 
     def test_incr_old(self) -> None:
         results = _run_test_file("incr-old.test")
-        _check_results(results, KNOWN_FAILURES_INCR_OLD, "incr-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_INCR_OLD, "incr-old.test")
 
 
 class TestVarNative:
@@ -237,4 +290,4 @@ class TestVarNative:
 
     def test_var(self) -> None:
         results = _run_test_file("var.test")
-        _check_results(results, KNOWN_FAILURES_VAR, "var.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_VAR, "var.test")

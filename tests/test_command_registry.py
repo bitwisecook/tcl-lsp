@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.info import lookup_command_info, lookup_event_info
-from core.commands.registry.namespace_data import EVENT_PROPS
-from core.commands.registry.runtime import SIGNATURES, configure_signatures
+from compiler.registry import REGISTRY
+from compiler.registry.info import lookup_command_info, lookup_event_info
+from compiler.registry.namespace_data import EVENT_PROPS
+from compiler.registry.runtime import SIGNATURES, configure_signatures
 
 
 class TestRegistryStructure:
@@ -58,7 +59,11 @@ class TestRegistryStructure:
         spec = REGISTRY.get("ACCESS::acl", "f5-irules")
         assert spec is not None
         assert spec.hover is not None
-        assert "clouddocs.f5.com" in spec.hover.source
+        # Compare the parsed hostname rather than substring-matching the
+        # raw URL — a substring check ("clouddocs.f5.com" in url) would
+        # also accept a hostile URL like ``https://evil.com/clouddocs.f5.com``
+        # (CodeQL ``py/incomplete-url-substring-sanitization``).
+        assert urlparse(spec.hover.source).hostname == "clouddocs.f5.com"
 
     def test_curated_irules_override_wins_over_generated_data(self):
         spec = REGISTRY.get("HTTP::header", "f5-irules")
@@ -142,10 +147,10 @@ class TestCommandsForEvent:
     def test_excluded_events_respected(self):
         # TCP::rcv_scale excludes SERVER_INIT.
         spec = REGISTRY.get("TCP::rcv_scale", "f5-irules")
-        if spec is not None and spec.excluded_events:
-            excluded_event = spec.excluded_events[0]
-            es = REGISTRY.commands_for_event("f5-irules", excluded_event)
-            assert "TCP::rcv_scale" in es.out_of_event_commands
+        assert spec is not None and spec.excluded_events, spec
+        excluded_event = spec.excluded_events[0]
+        es = REGISTRY.commands_for_event("f5-irules", excluded_event)
+        assert "TCP::rcv_scale" in es.out_of_event_commands
 
 
 class TestCommandLegality:
@@ -220,7 +225,7 @@ class TestEventPropsFlags:
     """Tests for deprecated/hot/common flags on EventProps."""
 
     def test_deprecated_events_derived_from_registry(self):
-        from core.commands.registry.namespace_data import deprecated_events
+        from compiler.registry.namespace_data import deprecated_events
 
         deps = deprecated_events()
         assert "ASM_REQUEST_VIOLATION" in deps
@@ -229,7 +234,7 @@ class TestEventPropsFlags:
         assert "HTTP_REQUEST" not in deps
 
     def test_hot_events_derived_from_registry(self):
-        from core.commands.registry.namespace_data import hot_events
+        from compiler.registry.namespace_data import hot_events
 
         hots = hot_events()
         assert "HTTP_REQUEST" in hots
@@ -238,7 +243,7 @@ class TestEventPropsFlags:
         assert "RULE_INIT" not in hots
 
     def test_common_events_derived_from_registry(self):
-        from core.commands.registry.namespace_data import common_events
+        from compiler.registry.namespace_data import common_events
 
         commons = common_events()
         assert len(commons) == 15
@@ -298,7 +303,7 @@ class TestFormKindAndResolveForm:
     """Tests for FormKind enum, resolve_form(), and structured getter/setter forms."""
 
     def test_form_kind_enum_values(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         assert FormKind.DEFAULT.value == "default"
         assert FormKind.GETTER.value == "getter"
@@ -312,7 +317,7 @@ class TestFormKindAndResolveForm:
         assert form is not None
 
     def test_resolve_form_http_uri_getter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::uri", "f5-irules")
         assert spec is not None
@@ -323,7 +328,7 @@ class TestFormKindAndResolveForm:
         assert form.mutator is False
 
     def test_resolve_form_http_uri_setter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::uri", "f5-irules")
         assert spec is not None
@@ -334,7 +339,7 @@ class TestFormKindAndResolveForm:
         assert form.pure is False
 
     def test_resolve_form_http_path_getter_setter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::path", "f5-irules")
         assert spec is not None
@@ -346,7 +351,7 @@ class TestFormKindAndResolveForm:
         assert setter.kind is FormKind.SETTER
 
     def test_resolve_form_http_query_getter_setter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::query", "f5-irules")
         assert spec is not None
@@ -358,7 +363,7 @@ class TestFormKindAndResolveForm:
         assert setter.kind is FormKind.SETTER
 
     def test_resolve_form_http_host_getter_only(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::host", "f5-irules")
         assert spec is not None
@@ -368,7 +373,7 @@ class TestFormKindAndResolveForm:
         assert form.pure is True
 
     def test_resolve_form_returns_none_for_no_forms(self):
-        from core.commands.registry.models import CommandSpec, HoverSnippet
+        from compiler.registry.models import CommandSpec, HoverSnippet
 
         spec = CommandSpec(
             name="test",
@@ -395,7 +400,7 @@ class TestSubCommandResolveForm:
     """Tests for resolve_form() on SubCommand entries."""
 
     def test_http_cookie_version_getter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::cookie", "f5-irules")
         assert spec is not None
@@ -407,7 +412,7 @@ class TestSubCommandResolveForm:
         assert form.pure is True
 
     def test_http_cookie_version_setter(self):
-        from core.commands.registry.models import FormKind
+        from compiler.registry.models import FormKind
 
         spec = REGISTRY.get("HTTP::cookie", "f5-irules")
         assert spec is not None
@@ -420,7 +425,7 @@ class TestSubCommandResolveForm:
 
     def test_http_header_lws_no_forms(self):
         """HTTP::header lws is a simple no-arg query (returns 0/1), no forms."""
-        from core.commands.registry.signatures import Arity
+        from compiler.registry.signatures import Arity
 
         spec = REGISTRY.get("HTTP::header", "f5-irules")
         assert spec is not None
@@ -471,13 +476,13 @@ class TestClassifySideEffectsFormAware:
     """Tests that classify_side_effects uses form resolution."""
 
     def test_http_uri_getter_is_pure(self):
-        from core.compiler.side_effects import classify_side_effects
+        from compiler.side_effects import classify_side_effects
 
         result = classify_side_effects("HTTP::uri", (), dialect="f5-irules")
         assert result.pure is True
 
     def test_http_uri_setter_is_impure(self):
-        from core.compiler.side_effects import classify_side_effects
+        from compiler.side_effects import classify_side_effects
 
         result = classify_side_effects("HTTP::uri", ("/new",), dialect="f5-irules")
         assert result.pure is False
@@ -487,7 +492,7 @@ class TestSideEffectHintsDialectFiltering:
     """Ensure side-effect hints are selected from the active dialect's spec."""
 
     def test_close_hints_differ_by_dialect(self):
-        from core.compiler.side_effects import SideEffectTarget
+        from compiler.side_effects import SideEffectTarget
 
         tcl_hints = REGISTRY.side_effect_hints("close", dialect="tcl8.6")
         irules_hints = REGISTRY.side_effect_hints("close", dialect="f5-irules")
@@ -502,7 +507,7 @@ class TestLazyDialectLoading:
     """Tests for the lazy dialect loading mechanism."""
 
     def _fresh_registry(self):
-        from core.commands.registry.command_registry import CommandRegistry
+        from compiler.registry.command_registry import CommandRegistry
 
         return CommandRegistry.build_default()
 
@@ -579,14 +584,14 @@ class TestRewriteAliasResolution:
     """
 
     def test_rewrite_alias_map_covers_dict_iteration(self):
-        from core.commands.registry.runtime import resolve_rewrite_alias
+        from compiler.registry.runtime import resolve_rewrite_alias
 
         assert resolve_rewrite_alias("::tcl::dict::for") == ("dict", "for")
         assert resolve_rewrite_alias("::tcl::dict::map") == ("dict", "map")
 
     def test_rewrite_alias_is_derived_from_subcommand_property(self):
-        from core.commands.registry import REGISTRY
-        from core.commands.registry.runtime import resolve_rewrite_alias
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import resolve_rewrite_alias
 
         # The rewrite alias is derived from ``SubCommand.cfg_rewrite_name``
         # on the source spec, not a hardcoded table in ``runtime.py``.  The
@@ -604,8 +609,8 @@ class TestRewriteAliasResolution:
         assert resolve_rewrite_alias(map_sub.cfg_rewrite_name) == ("dict", "map")
 
     def test_exported_short_name_resolves_via_registry_property(self):
-        from core.commands.registry import REGISTRY
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # The bare ``test`` name only resolves to ``tcltest::test`` because
         # the latter declares it is exported from its source namespace.
@@ -622,14 +627,14 @@ class TestRewriteAliasResolution:
         )
 
     def test_rewrite_alias_unrecognised_returns_none(self):
-        from core.commands.registry.runtime import resolve_rewrite_alias
+        from compiler.registry.runtime import resolve_rewrite_alias
 
         assert resolve_rewrite_alias("dict") is None
         assert resolve_rewrite_alias("::my::for") is None
         assert resolve_rewrite_alias("foreach") is None
 
     def test_loop_var_list_role_resolves_via_rewrite_alias(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # Rewritten name: subcommand word already consumed, so the role
         # index returned matches the original argument layout 1-for-1.
@@ -641,13 +646,13 @@ class TestRewriteAliasResolution:
         ) == {0}
 
     def test_body_role_resolves_via_rewrite_alias(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         assert arg_indices_for_role("::tcl::dict::for", ["k v", "$d", "body"], ArgRole.BODY) == {2}
         assert arg_indices_for_role("::tcl::dict::map", ["k v", "$d", "body"], ArgRole.BODY) == {2}
 
     def test_ensemble_form_and_rewrite_yield_matching_body_indices(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # The ensemble-form ``dict for`` index is offset by one (subcommand
         # word at args[0]); the rewritten form has no subcommand word so
@@ -662,7 +667,7 @@ class TestRewriteAliasResolution:
         # In each case the body argument is the same final word.
 
     def test_unknown_qualified_name_does_not_alias(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # ``::my::for`` is a user-defined namespaced proc — it must not
         # accidentally pick up ``dict for`` semantics.  This is the
@@ -688,28 +693,28 @@ class TestMultiRoleArguments:
     """
 
     def test_dict_with_var_arg_is_read_and_written(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         args = ["with", "myDict", "body"]
         assert arg_indices_for_role("dict", args, ArgRole.VAR_READ) == {1}
         assert arg_indices_for_role("dict", args, ArgRole.VAR_WRITE) == {1}
 
     def test_dict_update_var_arg_is_read_and_written(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         args = ["update", "myDict", "k", "v", "body"]
         assert arg_indices_for_role("dict", args, ArgRole.VAR_READ) == {1}
         assert arg_indices_for_role("dict", args, ArgRole.VAR_WRITE) == {1}
 
     def test_dict_with_body_index_unaffected_by_var_role(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         args = ["with", "myDict", "body"]
         assert arg_indices_for_role("dict", args, ArgRole.BODY) == {2}
 
     def test_var_read_write_deprecated_alias(self):
         """``VAR_READ_WRITE`` is preserved as a frozenset alias for back-compat."""
-        from core.commands.registry.signatures import VAR_READ_WRITE, ArgRole
+        from compiler.registry.signatures import VAR_READ_WRITE, ArgRole
 
         assert VAR_READ_WRITE == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
 
@@ -724,14 +729,14 @@ class TestResolveArgRoleMap:
     """
 
     def test_dict_with_returns_multi_role_set(self):
-        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+        from compiler.registry.runtime import ArgRole, resolve_arg_role_map
 
         roles = resolve_arg_role_map("dict", ["with", "myDict", "body"])
         assert roles[1] == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
         assert roles[2] == frozenset({ArgRole.BODY})
 
     def test_subcommand_offset_is_applied(self):
-        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+        from compiler.registry.runtime import ArgRole, resolve_arg_role_map
 
         roles = resolve_arg_role_map("dict", ["update", "d", "k", "v", "body"])
         # arg 0 is "update" (subcommand word); the variable is at arg 1.
@@ -739,7 +744,7 @@ class TestResolveArgRoleMap:
         assert ArgRole.BODY in roles[4]
 
     def test_regexp_pattern_index_is_included(self):
-        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+        from compiler.registry.runtime import ArgRole, resolve_arg_role_map
 
         # ``regexp pat string matchVar`` -- arg 0 is the pattern.
         roles = resolve_arg_role_map("regexp", ["pat", "string", "m"])
@@ -748,7 +753,7 @@ class TestResolveArgRoleMap:
         assert ArgRole.VAR_WRITE in roles.get(2, frozenset())
 
     def test_oo_method_body_index_is_included(self):
-        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+        from compiler.registry.runtime import ArgRole, resolve_arg_role_map
 
         # ``oo::define cls method name args body`` -- body is the last arg.
         roles = resolve_arg_role_map("oo::define", ["cls", "method", "m", "{}", "{body}"])
@@ -770,13 +775,13 @@ class TestBodyKind:
     """
 
     def test_proc_body_is_structural(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         assert body_kind_for_command("proc", ["name", "args", "body"]) is BodyKind.STRUCTURAL
 
     def test_when_body_is_structural(self):
-        from core.commands.registry import REGISTRY
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # ``when`` is iRules-only; ensure the dialect is loaded so the
         # spec is visible to ``REGISTRY.get_any``.
@@ -784,7 +789,7 @@ class TestBodyKind:
         assert body_kind_for_command("when", ["HTTP_REQUEST", "body"]) is BodyKind.STRUCTURAL
 
     def test_tcltest_test_body_is_structural(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         assert (
             body_kind_for_command("tcltest::test", ["name", "desc", "-body", "body"])
@@ -792,7 +797,7 @@ class TestBodyKind:
         )
 
     def test_namespace_imported_test_resolves_to_structural(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # ``test`` after ``namespace import ::tcltest::test`` shares the
         # source spec's body kind.
@@ -801,7 +806,7 @@ class TestBodyKind:
         )
 
     def test_dict_iteration_bodies_are_inline(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # The dict iter body shares the caller's scope — variable
         # references inside it must be visible to the enclosing function.
@@ -809,14 +814,14 @@ class TestBodyKind:
         assert body_kind_for_command("::tcl::dict::map", ["k v", "$d", "body"]) is BodyKind.INLINE
 
     def test_unregistered_command_defaults_to_inline(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # Defensive default: unknown commands don't get treated as
         # structural bodies and have their args silently dropped.
         assert body_kind_for_command("::my::custom::cmd", ["body"]) is BodyKind.INLINE
 
     def test_extra_command_registration_shadows_exported_alias(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -843,12 +848,150 @@ class TestBodyKind:
             configure_signatures(dialect="tcl8.6", extra_commands=[])
 
     def test_bare_test_resolves_to_alias_when_no_direct_registration(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # With no ``extra_commands`` registration, the static alias still
         # applies — preserving the behaviour for tcltest-style packages
         # where the bare name is the conventional spelling.
         assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
+
+
+class TestIrulesNestingScriptBody:
+    """iRules ``NESTING_SCRIPT`` arguments resolve to ``ArgRole.BODY``.
+
+    ``clientside`` / ``serverside`` / ``after`` each accept an optional Tcl
+    script body in their synopsis (``(NESTING_SCRIPT)?``) but historically
+    declared no ``ArgRole.BODY``, so the script contents were treated as an
+    opaque value rather than recursively analysed.  ``clientside`` /
+    ``serverside`` run the script synchronously in the caller's scope
+    (``INLINE``); ``after`` defers it to a fresh context (``STRUCTURAL``).
+    """
+
+    def _registry(self):
+        from compiler.registry import REGISTRY
+
+        # These are iRules-only commands; load the dialect so the specs
+        # are visible to the runtime role/body-kind queries.
+        REGISTRY.load_dialect_specs("f5-irules")
+
+    def test_clientside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("clientside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("clientside", args) is BodyKind.INLINE
+
+    def test_serverside_script_is_inline_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{IP::remote_addr}"]
+        assert arg_indices_for_role("serverside", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("serverside", args) is BodyKind.INLINE
+
+    def test_peer_script_is_inline_body(self):
+        from compiler.registry import REGISTRY
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        args = ["{TCP::collect}"]
+        # ``peer`` is the third side-switch — its script is an INLINE body.
+        assert arg_indices_for_role("peer", args, ArgRole.BODY) == {0}
+        assert body_kind_for_command("peer", args) is BodyKind.INLINE
+        assert REGISTRY.is_side_switch("peer")
+
+    def test_clientside_serverside_query_form_has_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Bare ``[clientside]`` / ``[serverside]`` is a context query (1/0),
+        # so there is no body argument to analyse.
+        assert arg_indices_for_role("clientside", [], ArgRole.BODY) == set()
+        assert arg_indices_for_role("serverside", [], ArgRole.BODY) == set()
+
+    def test_after_trailing_script_is_structural_body(self):
+        from compiler.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        self._registry()
+        # after MILLI_SECONDS NESTING_SCRIPT
+        assert arg_indices_for_role("after", ["1000", "{set x 5}"], ArgRole.BODY) == {1}
+        # after MILLI_SECONDS -periodic NESTING_SCRIPT — body follows the flag
+        periodic = arg_indices_for_role("after", ["1000", "-periodic", "{set x 5}"], ArgRole.BODY)
+        assert periodic == {2}
+        assert body_kind_for_command("after", ["1000", "{set x 5}"]) is BodyKind.STRUCTURAL
+
+    def test_after_non_script_forms_have_no_body(self):
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
+
+        self._registry()
+        # Delay-only, the periodic flag without a script, and the
+        # cancel/info subcommand forms carry no script body.
+        assert arg_indices_for_role("after", ["1000"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["1000", "-periodic"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["cancel", "-current"], ArgRole.BODY) == set()
+        assert arg_indices_for_role("after", ["info", "$id"], ArgRole.BODY) == set()
+
+    def test_clientside_serverside_arity_is_zero_or_one(self):
+        from compiler.registry import REGISTRY
+
+        # ``X (NESTING_SCRIPT)?`` — the bare query form (0 args) or a single
+        # optional nesting script, never more.  (Previously unbounded.)
+        for name in ("clientside", "serverside"):
+            validation = REGISTRY.validation(name, "f5-irules")
+            assert validation is not None, name
+            assert validation.arity.min == 0, name
+            assert validation.arity.max == 1, name
+
+        # ``peer`` has no bare query form — the script body is required.
+        peer_validation = REGISTRY.validation("peer", "f5-irules")
+        assert peer_validation is not None
+        assert peer_validation.arity.min == 1
+        assert peer_validation.arity.max == 1
+
+
+class TestClosedValueArgs:
+    """``FormSpec.closed_value_args`` marks an argument's value set exhaustive."""
+
+    def test_http_version_value_arg_is_closed(self):
+        from compiler.registry import REGISTRY
+
+        REGISTRY.load_dialect_specs("f5-irules")
+        assert REGISTRY.closed_value_arg_indices("HTTP::version", "f5-irules") == frozenset({0})
+        # The allowed set is the HTTP/1.x versions and nothing else.
+        allowed = {v.value for v in REGISTRY.argument_values("HTTP::version", 0, "f5-irules")}
+        assert allowed == {"0.9", "1.0", "1.1"}
+
+    def test_unmarked_command_has_no_closed_args(self):
+        from compiler.registry import REGISTRY
+
+        # A command that only suggests values (or none) is not a closed set.
+        assert REGISTRY.closed_value_arg_indices("set", "tcl8.6") == frozenset()
+
+    def test_w127_is_registered(self):
+        from shared.codes import diagnostic_codes
+
+        assert "W127" in diagnostic_codes()
 
 
 class TestTraceAddVariableVarWrite:
@@ -858,18 +1001,18 @@ class TestTraceAddVariableVarWrite:
     SSA must see *name* as a definition site.  Routing this through the
     registry's sub-sub-resolver (dispatching on ``args[1]`` of ``trace add``)
     replaces the literal ``stmt.command == "trace"`` check that previously
-    lived in ``core/compiler/ssa.py``.
+    lived in ``compiler/ssa.py``.
     """
 
     def test_add_variable_marks_name_as_var_write(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # ``trace add variable name ops body`` — ``name`` is at index 2.
         args = ["add", "variable", "x", "write", "watcher"]
         assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == {2}
 
     def test_add_variable_var_write_for_each_op_variant(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # The op (read/write/unset/array) doesn't change the role of name.
         for op in ("read", "write", "unset", "array", "rwu"):
@@ -877,21 +1020,21 @@ class TestTraceAddVariableVarWrite:
             assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == {2}, op
 
     def test_add_command_does_not_mark_name_as_var_write(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # ``trace add command`` is about a command name, not a variable.
         args = ["add", "command", "mycmd", "rename", "onCmd"]
         assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
 
     def test_add_execution_does_not_mark_name_as_var_write(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # ``trace add execution`` is about a command name, not a variable.
         args = ["add", "execution", "mycmd", "enter", "onExec"]
         assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
 
     def test_remove_variable_does_not_mark_name_as_var_write(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # Removing a trace doesn't add a callback, so SSA shouldn't treat
         # the name as a (re-)definition.
@@ -899,14 +1042,14 @@ class TestTraceAddVariableVarWrite:
         assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
 
     def test_info_variable_does_not_mark_name_as_var_write(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # ``trace info`` only inspects.
         args = ["info", "variable", "x"]
         assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
 
     def test_add_variable_truncated_args_yield_empty(self):
-        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+        from compiler.registry.runtime import ArgRole, arg_indices_for_role
 
         # Defensive: a malformed ``trace add variable`` (no name) must not
         # blow up or invent an index.
@@ -929,7 +1072,7 @@ class TestOOAndSnitStructuralBodies:
     """
 
     def test_oo_class_create_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -941,7 +1084,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {2}
 
     def test_oo_class_new_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -953,7 +1096,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {1}
 
     def test_oo_class_create_with_namespace_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -965,7 +1108,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {3}
 
     def test_sister_oo_metaclasses_match_oo_class(self):
-        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+        from compiler.registry.runtime import BodyKind, body_kind_for_command
 
         # All four metaclasses share ``_oo_metaclass_arg_roles`` and must
         # share the structural-body classification — otherwise the same
@@ -975,7 +1118,7 @@ class TestOOAndSnitStructuralBodies:
             assert body_kind_for_command(cmd, ["create", "FOO", "body"]) is BodyKind.STRUCTURAL, cmd
 
     def test_oo_define_method_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -987,7 +1130,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {4}
 
     def test_oo_define_constructor_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -999,7 +1142,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {3}
 
     def test_oo_define_destructor_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1011,7 +1154,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {2}
 
     def test_oo_define_bare_definition_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1024,7 +1167,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {1}
 
     def test_snit_method_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1036,7 +1179,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::method", args, ArgRole.BODY) == {3}
 
     def test_snit_typemethod_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1048,7 +1191,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::typemethod", args, ArgRole.BODY) == {3}
 
     def test_uri_register_handler_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1060,7 +1203,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("uri::register", args, ArgRole.BODY) == {1}
 
     def test_oo_objdefine_method_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1072,7 +1215,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {4}
 
     def test_oo_objdefine_bare_definition_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1085,7 +1228,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {1}
 
     def test_snit_type_definition_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1097,7 +1240,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::type", args, ArgRole.BODY) == {1}
 
     def test_snit_widget_definition_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1109,7 +1252,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::widget", args, ArgRole.BODY) == {1}
 
     def test_snit_widgetadaptor_definition_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1121,7 +1264,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::widgetadaptor", args, ArgRole.BODY) == {1}
 
     def test_snit_compile_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1133,7 +1276,7 @@ class TestOOAndSnitStructuralBodies:
         assert arg_indices_for_role("snit::compile", args, ArgRole.BODY) == {2}
 
     def test_snit_macro_body_is_structural(self):
-        from core.commands.registry.runtime import (
+        from compiler.registry.runtime import (
             ArgRole,
             BodyKind,
             arg_indices_for_role,
@@ -1156,14 +1299,14 @@ class TestCanonicalCommandHelper:
     """
 
     def test_bare_name_qualifies_to_global(self):
-        from core.common.alias import to_canonical_command
+        from shared.alias import to_canonical_command
 
         assert to_canonical_command("unset") == "::unset"
         assert to_canonical_command("dict") == "::dict"
         assert to_canonical_command("set") == "::set"
 
     def test_already_qualified_name_normalises(self):
-        from core.common.alias import to_canonical_command
+        from shared.alias import to_canonical_command
 
         assert to_canonical_command("::unset") == "::unset"
         assert to_canonical_command("::ns::foo") == "::ns::foo"
@@ -1171,7 +1314,7 @@ class TestCanonicalCommandHelper:
         assert to_canonical_command("::ns::::foo") == "::ns::foo"
 
     def test_alias_resolves_to_target(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # interp alias {} = {} expr — calling ``=`` canonicalises to ``::expr``.
         aliases: CommandAliasMap = {"::=": ("expr", ())}
@@ -1179,14 +1322,14 @@ class TestCanonicalCommandHelper:
         assert to_canonical_command("::=", aliases=aliases) == "::expr"
 
     def test_alias_chain_terminates_at_self_loop(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # Self-referential alias: must not loop forever.
         aliases: CommandAliasMap = {"::loop": ("loop", ())}
         assert to_canonical_command("loop", aliases=aliases) == "::loop"
 
     def test_alias_chain_terminates_on_cycle(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # ``a -> b -> a`` cycle — the helper breaks at the first repeat.
         aliases: CommandAliasMap = {"::a": ("b", ()), "::b": ("a", ())}
@@ -1196,7 +1339,7 @@ class TestCanonicalCommandHelper:
         assert result in ("::a", "::b")
 
     def test_namespace_aware_alias_lookup(self):
-        from core.common.alias import CommandAliasMap, to_canonical_command
+        from shared.alias import CommandAliasMap, to_canonical_command
 
         # An alias scoped to ``::ns`` is reachable from a bare call inside
         # that namespace but not from the global scope.
@@ -1219,7 +1362,7 @@ class TestIRCallCanonicalCommand:
 
     @staticmethod
     def _walk(stmts):
-        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+        from compiler.ir import IRBarrier, IRBlock, IRCall
 
         for s in stmts:
             if isinstance(s, (IRCall, IRBarrier)):
@@ -1228,7 +1371,7 @@ class TestIRCallCanonicalCommand:
                 yield from TestIRCallCanonicalCommand._walk(s.body.statements)
 
     def _lower(self, src):
-        from core.compiler.lowering import _Lowerer
+        from compiler.lowering import _Lowerer
 
         return _Lowerer().lower(src)
 
@@ -1288,7 +1431,7 @@ class TestIRCallCanonicalCommand:
         # These synthetic constructs must also carry canonical_command so
         # downstream passes that match on it (e.g. SSA def-use) treat them
         # uniformly with lowering-produced calls.
-        from core.compiler.cfg import build_cfg
+        from compiler.cfg import build_cfg
 
         m = self._lower("foreach x {1 2 3} { puts $x }")
         cfg_module = build_cfg(m)
@@ -1318,37 +1461,37 @@ class TestCanonicalisationAuditMarkers:
     """
 
     AUDITED = (
-        "core/compiler/cfg.py",
-        "core/compiler/core_analyses.py",
-        "core/compiler/compiler_checks.py",
-        "core/compiler/inlining/inline_pass.py",
-        "core/compiler/irules_flow.py",
-        "core/compiler/inline_uplevel.py",
-        "core/compiler/memory_ssa.py",
-        "core/compiler/taint/_uri_split.py",
-        "core/compiler/taint/_sinks.py",
-        "core/compiler/lowering.py",
-        "core/compiler/lowering_hooks/_var.py",
-        "core/compiler/lowering_hooks/_control.py",
-        "core/compiler/source_inliner.py",
-        "core/compiler/optimiser/_pattern_recognition.py",
-        "core/compiler/passes/specialise_factories.py",
-        "core/compiler/interprocedural.py",
-        "core/compiler/codegen/_emitter.py",
-        "core/compiler/codegen/_control_flow.py",
-        "core/compiler/codegen/wasm_link.py",
-        "core/compiler/codegen/wasm/_scan.py",
-        "core/compiler/codegen/wasm/_emitter/_statements.py",
-        "core/compiler/codegen/wasm/_emitter/_optimisation.py",
-        "core/compiler/codegen/wasm/_emitter/_control_flow.py",
-        "core/compiler/codegen/wasm/_emitter/_commands.py",
-        "core/compiler/var_escape/_propagation.py",
-        "core/compiler/var_escape/_cfg_propagation.py",
-        "core/diagram/extract.py",
-        "core/analysis/_analyser/_diag_commands.py",
-        "core/analysis/_analyser/_diag_var_command.py",
-        "core/analysis/_analyser/_diag_var_lifecycle.py",
-        "core/analysis/_analyser/_diag_racy.py",
+        "compiler/cfg.py",
+        "compiler/core_analyses.py",
+        "analyser/compiler_checks.py",
+        "compiler/inlining/inline_pass.py",
+        "compiler/irules_flow.py",
+        "compiler/inline_uplevel.py",
+        "compiler/memory_ssa.py",
+        "compiler/taint/_uri_split.py",
+        "compiler/taint/_sinks.py",
+        "compiler/lowering.py",
+        "compiler/lowering_hooks/_var.py",
+        "compiler/lowering_hooks/_control.py",
+        "compiler/source_inliner.py",
+        "compiler/optimiser/_pattern_recognition.py",
+        "compiler/passes/specialise_factories.py",
+        "compiler/interprocedural.py",
+        "compiler/codegen/bytecode/_emitter.py",
+        "compiler/codegen/bytecode/_control_flow.py",
+        "compiler/codegen/wasm/link.py",
+        "compiler/codegen/wasm/_scan.py",
+        "compiler/codegen/wasm/_emitter/_statements.py",
+        "compiler/codegen/wasm/_emitter/_optimisation.py",
+        "compiler/codegen/wasm/_emitter/_control_flow.py",
+        "compiler/codegen/wasm/_emitter/_commands.py",
+        "compiler/var_escape/_propagation.py",
+        "compiler/var_escape/_cfg_propagation.py",
+        "tooling/diagram/extract.py",
+        "analyser/_analyser/_diag_commands.py",
+        "analyser/_analyser/_diag_var_command.py",
+        "analyser/_analyser/_diag_var_lifecycle.py",
+        "analyser/_analyser/_diag_racy.py",
     )
 
     MARKER = "# canonicalisation: audited #246"
@@ -1421,7 +1564,7 @@ class TestVariableNameAndDisplayHelpers:
     """
 
     def test_to_canonical_var_strips_sigils(self):
-        from core.common.naming import to_canonical_var
+        from shared.naming import to_canonical_var
 
         assert to_canonical_var("x") == "x"
         assert to_canonical_var("$x") == "x"
@@ -1429,7 +1572,7 @@ class TestVariableNameAndDisplayHelpers:
         assert to_canonical_var("arr(key)") == "arr"
 
     def test_to_canonical_var_preserves_qualified_form(self):
-        from core.common.naming import to_canonical_var
+        from shared.naming import to_canonical_var
 
         # Bare locals stay bare; qualified globals stay qualified.
         # The bare/qualified distinction is semantically meaningful
@@ -1438,40 +1581,40 @@ class TestVariableNameAndDisplayHelpers:
         assert to_canonical_var("::ns::v") == "::ns::v"
 
     def test_from_canonical_strips_global_prefix(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         assert from_canonical("::set") == "set"
         assert from_canonical("::unset") == "unset"
 
     def test_from_canonical_preserves_nested_namespace(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         # ``::tcl::dict::for`` from global scope keeps the qualifier
         # so the reader sees the cross-namespace reach.
         assert from_canonical("::tcl::dict::for") == "::tcl::dict::for"
 
     def test_from_canonical_rebases_to_display_namespace(self):
-        from core.common.naming import from_canonical
+        from shared.naming import from_canonical
 
         assert from_canonical("::ns::foo", display_namespace="::ns") == "foo"
         # Sibling namespace: qualified rendering preserved.
         assert from_canonical("::other::foo", display_namespace="::ns") == "::other::foo"
 
     def test_is_canonical_command_accepts_qualified(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         assert is_canonical_command("::set") is True
         assert is_canonical_command("::HTTP::respond") is True
         assert is_canonical_command("::tcl::dict::for") is True
 
     def test_is_canonical_command_rejects_bare(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         assert is_canonical_command("set") is False
         assert is_canonical_command("dict") is False
 
     def test_is_canonical_command_accepts_synthetic(self):
-        from core.common.naming import is_canonical_command
+        from shared.naming import is_canonical_command
 
         # CFG synthetic nodes have no user-source command.
         assert is_canonical_command("") is True
@@ -1489,7 +1632,7 @@ class TestRenameAndNamespaceImportCanonicalisation:
 
     @staticmethod
     def _walk(stmts):
-        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+        from compiler.ir import IRBarrier, IRBlock, IRCall
 
         for s in stmts:
             if isinstance(s, (IRCall, IRBarrier)):
@@ -1498,7 +1641,7 @@ class TestRenameAndNamespaceImportCanonicalisation:
                 yield from TestRenameAndNamespaceImportCanonicalisation._walk(s.body.statements)
 
     def _lower(self, src):
-        from core.compiler.lowering import _Lowerer
+        from compiler.lowering import _Lowerer
 
         return _Lowerer().lower(src)
 

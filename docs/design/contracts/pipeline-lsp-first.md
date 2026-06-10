@@ -31,5 +31,5 @@ In this repository, editor features benefit most from facts that are:
 
 ## Cross-links
 
-- Architecture: `docs/compiler-architecture.md`.
-- Fuzz finding workflow (early-pipeline fix priority): `kcs-fuzz-finding-workflow.md`.
+- Architecture: `docs/design/compiler-architecture.md`.
+- Fuzz finding workflow (early-pipeline fix priority): `docs/kcs/kcs-howto-work-on-fuzz-findings.md`.

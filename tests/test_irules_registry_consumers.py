@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ai.claude.tcl_ai import cmd_command_info, cmd_event_info
 from ai.mcp.tcl_mcp_server import _handle_tools_list, _tool_command_info, _tool_event_info
-from lsp.commands import on_describe_irule_command
+from server.commands import on_describe_irule_command
 
 ROOT = Path(__file__).resolve().parents[1]
 

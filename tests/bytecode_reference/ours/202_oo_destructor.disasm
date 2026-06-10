@@ -1,0 +1,45 @@
+ByteCode ::top, 27 instructions, 66 bytes, 9 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "foo"
+    3: "\n    constructor {} {lappend ::resul..."
+    4: "result"
+    5: ""
+    6: "obj"
+    7: "new"
+    8: "destroy"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "foo"
+    (6) push1 3	# "\n    constructor {} {lappend ::resul..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) startCommand +14 1	# next cmd at pc 25, 1 cmds start here
+    (20) push1 4	# "result"
+    (22) push1 5	# ""
+    (24) storeStk
+  # cmd_end_1:
+    (25) pop
+    (26) startCommand +18 1	# next cmd at pc 44, 1 cmds start here
+    (35) push1 6	# "obj"
+    (37) push1 2	# "foo"
+    (39) push1 7	# "new"
+    (41) invokeStk1 2
+    (43) storeStk
+  # cmd_end_2:
+    (44) pop
+    (45) push1 6	# "obj"
+    (47) loadStk
+    (48) push1 8	# "destroy"
+    (50) invokeStk1 2	# ${obj}
+  # cmd_end_3:
+    (52) pop
+    (53) startCommand +12 1	# next cmd at pc 65, 1 cmds start here
+    (62) push1 4	# "result"
+    (64) loadStk
+  # cmd_end_4:
+  # exit_2:
+    (65) done

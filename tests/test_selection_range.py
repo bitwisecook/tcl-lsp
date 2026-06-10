@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.selection_range import get_selection_ranges
+from server.features.selection_range import get_selection_ranges
 
 
 def _chain_to_list(sr: types.SelectionRange) -> list[types.Range]:
@@ -173,3 +173,32 @@ class TestSelectionRangeChainOrder:
 
 def _fmt(r: types.Range) -> str:
     return f"({r.start.line}:{r.start.character})-({r.end.line}:{r.end.character})"
+
+
+def _same_line_text(source: str, r: types.Range) -> str | None:
+    if r.start.line != r.end.line:
+        return None
+    return source.split("\n")[r.start.line][r.start.character : r.end.character]
+
+
+class TestSelectionRangeBracedWord:
+    def test_braced_condition_selection_includes_closing_brace(self):
+        # Regression: expand-selection over a braced word used to stop one
+        # char short (``{$condition`` instead of ``{$condition}``) because the
+        # word token's end excludes the closer.
+        source = "if {$condition} {\n  set x 1\n}\n"
+        pos = types.Position(line=0, character=6)  # inside the condition
+        chain = _chain_to_list(get_selection_ranges(source, [pos])[0])
+        texts = {_same_line_text(source, r) for r in chain}
+        assert "{$condition}" in texts
+        assert "{$condition" not in texts
+
+    def test_braced_word_selection_is_balanced(self):
+        source = 'set msg "hi"\nputs [string length $msg]\n'
+        pos = types.Position(line=1, character=14)  # inside the [string ...] word
+        chain = _chain_to_list(get_selection_ranges(source, [pos])[0])
+        for r in chain:
+            text = _same_line_text(source, r)
+            if text and text[:1] in "{[":
+                closer = "}" if text[0] == "{" else "]"
+                assert text.endswith(closer), f"unbalanced selection span: {text!r}"

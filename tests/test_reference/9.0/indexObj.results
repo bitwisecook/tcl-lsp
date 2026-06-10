@@ -1,0 +1,75 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     indexObj.test
+DATE     2026-05-06T21:17:44Z
+---
+SKIP indexObj-1.1 testindexobj
+SKIP indexObj-1.2 testindexobj
+SKIP indexObj-1.3 testindexobj
+SKIP indexObj-1.4 testindexobj
+SKIP indexObj-1.5 testindexobj
+SKIP indexObj-1.6 testindexobj
+SKIP indexObj-1.7 testindexobj
+SKIP indexObj-1.8 testindexobj
+SKIP indexObj-1.9 testindexobj
+SKIP indexObj-2.1 testindexobj
+SKIP indexObj-2.2 testindexobj
+SKIP indexObj-2.3 testindexobj
+SKIP indexObj-2.4 testindexobj
+SKIP indexObj-2.5 testindexobj
+SKIP indexObj-2.6 testindexobj
+SKIP indexObj-2.7 testindexobj
+SKIP indexObj-2.8 testindexobj
+SKIP indexObj-2.9 testindexobj
+SKIP indexObj-3.1 testindexobj
+SKIP indexObj-4.1 testindexobj
+SKIP indexObj-5.1 testindexobj
+SKIP indexObj-5.2 testindexobj
+SKIP indexObj-5.3 testindexobj
+SKIP indexObj-5.4 testindexobj
+SKIP indexObj-5.5 testindexobj
+SKIP indexObj-5.6 testindexobj
+SKIP indexObj-5.7 testindexobj
+SKIP indexObj-6.1 testindexobj
+SKIP indexObj-6.2 testindexobj
+SKIP indexObj-6.3 testindexobj
+SKIP indexObj-6.4 testindexobj
+SKIP indexObj-6.5 testindexobj
+SKIP indexObj-6.6 testindexobj
+SKIP indexObj-6.7 testindexobj
+SKIP indexObj-7.1 testparseargs
+SKIP indexObj-7.10 testparseargs
+SKIP indexObj-7.11 testparseargs
+SKIP indexObj-7.12 testparseargs
+SKIP indexObj-7.2 testparseargs
+SKIP indexObj-7.3 testparseargs
+SKIP indexObj-7.4 testparseargs
+SKIP indexObj-7.5 testparseargs
+SKIP indexObj-7.6 testparseargs
+SKIP indexObj-7.7 testparseargs
+SKIP indexObj-7.8 testparseargs
+SKIP indexObj-7.9 testparseargs
+SKIP indexObj-8.1 testgetintforindex
+SKIP indexObj-8.10 testgetintforindex
+SKIP indexObj-8.11 testgetintforindex
+SKIP indexObj-8.12 testgetintforindex
+SKIP indexObj-8.13 testgetintforindex
+SKIP indexObj-8.14 testgetintforindex
+SKIP indexObj-8.15 testgetintforindex
+SKIP indexObj-8.16 testgetintforindex
+SKIP indexObj-8.17 testgetintforindex
+SKIP indexObj-8.18 testgetintforindex
+SKIP indexObj-8.19 testgetintforindex
+SKIP indexObj-8.2 testgetintforindex
+SKIP indexObj-8.3 testgetintforindex
+SKIP indexObj-8.4 testgetintforindex
+SKIP indexObj-8.5 testgetintforindex
+SKIP indexObj-8.6 testgetintforindex
+SKIP indexObj-8.7 testgetintforindex
+SKIP indexObj-8.8 testgetintforindex
+SKIP indexObj-8.9 testgetintforindex
+---
+TOTAL   65
+PASSED  0
+SKIPPED 65
+FAILED  0

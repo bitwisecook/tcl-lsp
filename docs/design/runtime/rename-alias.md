@@ -226,8 +226,8 @@ Three layers, each live:
 
 ## 7. Ship summary
 
-- Two new Zig modules: ``tcl_rename.zig`` (146 LOC) and
-  ``tcl_alias.zig`` (150 LOC).
+- Two new Zig modules: ``tcl_rename.zig`` (365 LOC) and
+  ``tcl_alias.zig`` (481 LOC).
 - One extension to ``tcl_ns.zig``: ``ns_cmd_clear`` helper +
   exposure of ``bump_cmd_ref_epoch`` / ``link_import_ref`` /
   ``unlink_import_ref``.
@@ -236,6 +236,6 @@ Three layers, each live:
 - Wired ``rename`` / ``interp alias`` built-ins in
   ``tcl_interp.zig``.
 - Compiler fallback updates in
-  ``core/compiler/codegen/wasm/_imports.py``.
+  ``compiler/codegen/wasm/_imports.py``.
 - Zig 0.16 build-compat fixes (``build.zig`` new Module API +
   ``callconv(.C)`` → ``callconv(.c)``).

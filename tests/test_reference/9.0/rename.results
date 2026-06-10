@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     rename.test
-DATE     2026-03-03T12:54:05Z
+DATE     2026-05-06T21:17:35Z
 ---
 PASS rename-1.1
 PASS rename-1.2

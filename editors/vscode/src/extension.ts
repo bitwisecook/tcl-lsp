@@ -1,10 +1,13 @@
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
-  readFileSync,
+  mkdtempSync,
+  openSync,
+  readSync,
   realpathSync,
-  statSync,
-  unlinkSync,
+  rmSync,
   writeFileSync,
 } from "fs";
 import * as path from "path";
@@ -146,6 +149,32 @@ interface PythonInfo {
   minor: number;
   patch: number;
   source: string;
+}
+
+interface LspPosition {
+  line: number;
+  character: number;
+}
+
+interface LspRange {
+  start: LspPosition;
+  end: LspPosition;
+}
+
+interface LspTextEdit {
+  range: LspRange;
+  newText?: string;
+  new_text?: string;
+}
+
+interface LspWorkspaceEdit {
+  changes?: Record<string, LspTextEdit[]>;
+}
+
+interface RenamePartitionResult {
+  success: boolean;
+  edit?: LspWorkspaceEdit;
+  error?: string;
 }
 
 let outputChannel: vscode.OutputChannel;
@@ -370,7 +399,8 @@ async function resolvePython(configured: string): Promise<PythonInfo | undefined
 
 function hasServerBundle(dir: string): boolean {
   return (
-    existsSync(path.join(dir, "lsp", "__main__.py")) && existsSync(path.join(dir, "pyproject.toml"))
+    existsSync(path.join(dir, "server", "__main__.py")) &&
+    existsSync(path.join(dir, "pyproject.toml"))
   );
 }
 
@@ -472,7 +502,7 @@ export async function activate(context: ExtensionContext) {
     ch.appendLine(`Dev mode: using uv in ${serverDir}`);
     serverOptions = {
       command: "uv",
-      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "lsp"],
+      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
       options: { cwd: serverDir },
     };
   } else {
@@ -528,7 +558,11 @@ export async function activate(context: ExtensionContext) {
     },
     middleware: {
       workspace: {
-        // Pull path: server requests configuration via workspace/configuration.
+        // Pull path: server requests configuration via workspace/configuration
+        // for each workspace folder (plus an unscoped fallback request).
+        // The default LanguageClient implementation honours scopeUri and
+        // returns the folder's effective settings; we just resolve null
+        // feature toggles to booleans for each item.
         configuration: async (params, token, next) => {
           const result = await next(params, token);
           if (Array.isArray(result)) {
@@ -550,49 +584,13 @@ export async function activate(context: ExtensionContext) {
           }
           return result;
         },
-        // Push path: configurationSection auto-sync sends raw settings
-        // including null defaults that the server's _set_toggle ignores.
-        // We replace the default push with one where feature nulls are
-        // resolved to booleans.  We must send the COMPLETE settings (not
-        // just features) because the server's debounce replaces pending
-        // settings wholesale.
-        didChangeConfiguration: async (_sections, _next) => {
-          if (!client) {
-            return _next(_sections);
-          }
-          // Read the full tclLsp configuration and resolve feature nulls.
-          const allSettings: Record<string, unknown> = {};
-          const cfg = workspace.getConfiguration("tclLsp");
-          // Copy all top-level tclLsp keys.
-          for (const key of [
-            "dialect",
-            "pythonPath",
-            "serverPath",
-            "extraCommands",
-            "libraryPaths",
-            "formatting",
-            "diagnostics",
-            "style",
-            "optimiser",
-            "shimmer",
-            "xcDiagnostics",
-            "runtimeValidation",
-            "ai",
-          ]) {
-            const val = cfg.get(key);
-            if (val !== undefined) allSettings[key] = val;
-          }
-          // Resolve feature toggles.
-          const features = cfg.get<Record<string, unknown>>("features", {});
-          const resolved: Record<string, boolean> = {};
-          for (const [key, val] of Object.entries(features)) {
-            resolved[key] = typeof val === "boolean" ? val : resolveFeatureToggle(key, null);
-          }
-          allSettings.features = resolved;
-          void client.sendNotification("workspace/didChangeConfiguration", {
-            settings: { tclLsp: allSettings },
-          });
-        },
+        // Push path is intentionally NOT overridden.  The default
+        // LanguageClient behaviour sends an empty didChangeConfiguration
+        // notification when settings change, and the server then pulls
+        // per-folder via workspace/configuration — that's what we want for
+        // multi-folder workspaces (issue #230).  A custom push that reads
+        // workspace.getConfiguration("tclLsp") without a scopeUri would
+        // clobber per-folder settings with the workspace-merged value.
       },
     },
   };
@@ -722,6 +720,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.openTkPreview", openTkPreview),
     commands.registerCommand("tclLsp.formatDocument", formatDocument),
     commands.registerCommand("tclLsp.minifyDocument", minifyDocument),
+    commands.registerCommand("tclLsp.minimizeDiagnostic", minimizeDiagnostic),
     commands.registerCommand("tclLsp.unminifyError", unminifyError),
     commands.registerCommand("tclLsp.escapeSelection", escapeSelection),
     commands.registerCommand("tclLsp.unescapeSelection", unescapeSelection),
@@ -765,6 +764,8 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.extractRulePick", extractRulePick),
     commands.registerCommand("tclLsp.extractAllRules", extractAllRules),
     commands.registerCommand("tclLsp.extractLinkedObjects", extractLinkedObjectsAtCursor),
+    commands.registerCommand("tclLsp.bigipCleanup", generateBigipCleanupScript),
+    commands.registerCommand("tclLsp.renamePartition", renamePartition),
     commands.registerCommand(
       "tclLsp.renameSymbolAtPosition",
       async (line: number, startChar: number, endChar: number) => {
@@ -818,7 +819,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient };
+  return { getClient, applyDialectForDocument };
 }
 
 export async function deactivate(): Promise<void> {
@@ -842,6 +843,30 @@ function onActiveEditorChanged(editor: TextEditor | undefined): void {
     dialectStatusBarItem.hide();
     versionStatusBarItem.hide();
   }
+}
+
+function workspaceEditFromLsp(edit: LspWorkspaceEdit): vscode.WorkspaceEdit {
+  const workspaceEdit = new vscode.WorkspaceEdit();
+  for (const [uriString, textEdits] of Object.entries(edit.changes ?? {})) {
+    const uri = Uri.parse(uriString);
+    for (const textEdit of textEdits) {
+      const newText = textEdit.newText ?? textEdit.new_text;
+      if (newText === undefined) {
+        continue;
+      }
+      workspaceEdit.replace(
+        uri,
+        new Range(
+          textEdit.range.start.line,
+          textEdit.range.start.character,
+          textEdit.range.end.line,
+          textEdit.range.end.character,
+        ),
+        newText,
+      );
+    }
+  }
+  return workspaceEdit;
 }
 
 // Command handlers
@@ -1005,7 +1030,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
   });
 }
 
-async function applyDialectForDocument(document: TextDocument): Promise<void> {
+export async function applyDialectForDocument(document: TextDocument): Promise<void> {
   if (!isTclLanguage(document.languageId)) {
     return;
   }
@@ -1018,6 +1043,61 @@ async function applyDialectForEditor(editor: TextEditor | undefined): Promise<vo
     return;
   }
   await applyDialectForDocument(editor.document);
+}
+
+async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {
+  if (!client) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return;
+  }
+  const editor = window.activeTextEditor;
+  const targetUri = uriString ?? editor?.document.uri.toString();
+  const currentName = (oldPartition ?? "").trim();
+  if (!targetUri || !currentName) {
+    window.showWarningMessage("Place the cursor on a BIG-IP partition stanza first.");
+    return;
+  }
+
+  const newNameInput = await window.showInputBox({
+    title: "Rename BIG-IP Partition",
+    prompt: `New name for ${currentName}`,
+    value: currentName,
+    valueSelection: [0, currentName.length],
+    validateInput: (value) => {
+      const trimmed = value.trim().replace(/^\/+/, "");
+      if (!trimmed) {
+        return "Enter a partition name.";
+      }
+      if (trimmed === "Common") {
+        return "Renaming to or from /Common is not supported.";
+      }
+      if (!/^[A-Za-z0-9_.-]+$/.test(trimmed)) {
+        return "Use letters, digits, underscore, dot, or hyphen.";
+      }
+      return undefined;
+    },
+  });
+  if (newNameInput === undefined) {
+    return;
+  }
+
+  const newName = newNameInput.trim().replace(/^\/+/, "");
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.renamePartition",
+    arguments: [targetUri, currentName, newName],
+  })) as RenamePartitionResult | null;
+
+  if (!result?.success || !result.edit) {
+    window.showErrorMessage(result?.error ?? "Partition rename did not produce any edits.");
+    return;
+  }
+
+  const applied = await workspace.applyEdit(workspaceEditFromLsp(result.edit));
+  if (!applied) {
+    window.showErrorMessage("VS Code rejected the partition rename workspace edit.");
+    return;
+  }
+  window.showInformationMessage(`Renamed partition ${currentName} to ${newName}.`);
 }
 
 async function optimiseDocument(): Promise<void> {
@@ -1052,6 +1132,49 @@ async function optimiseDocument(): Promise<void> {
     });
     window.showInformationMessage(`Applied ${count} optimisation${count === 1 ? "" : "s"}.`);
   }
+}
+
+async function minimizeDiagnostic(uri?: string, code?: string): Promise<void> {
+  // Invoked from the "Create minimal repro for <code>" code action with
+  // (uri, code) arguments.  Round-trips to the server's minimizer and opens
+  // the minimal reproducer in a new buffer for pasting into a bug report.
+  if (!client) {
+    return;
+  }
+  const editor = window.activeTextEditor;
+  const docUri = uri ?? editor?.document.uri.toString();
+  if (!docUri || !code) {
+    window.showWarningMessage("Create minimal repro: missing document or diagnostic code.");
+    return;
+  }
+
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.minimizeDiagnostic",
+    arguments: [docUri, code],
+  })) as {
+    code: string;
+    source: string;
+    originalLines: number;
+    reducedLines: number;
+    renamed: boolean;
+    reproduces: boolean;
+  } | null;
+
+  if (!result || !result.source) {
+    window.showInformationMessage(`Could not build a minimal repro for ${code}.`);
+    return;
+  }
+
+  const header =
+    `# Minimal reproducer for ${result.code}\n` +
+    `# ${result.originalLines} → ${result.reducedLines} lines` +
+    `${result.renamed ? ", identifiers renamed" : ""}` +
+    `${result.reproduces ? "" : " (WARNING: does not reproduce)"}\n`;
+  const doc = await workspace.openTextDocument({
+    content: header + result.source,
+    language: "tcl",
+  });
+  await window.showTextDocument(doc, { preview: false });
 }
 
 async function minifyDocument(): Promise<void> {
@@ -1686,12 +1809,17 @@ async function runRuntimeValidationForDocument(
   const dialect = detectDialectFromDocument(document);
   const adapter = resolveRuntimeValidationAdapter(adapterMode, dialect);
   const adapterLabel = runtimeValidationAdapterLabel(adapter);
-  const base = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-  const checkerPath = path.join(tmpdir(), `tcl-lsp-checker-${base}.tcl`);
+  // Per-invocation temp dir — replaces the previous shape where two
+  // sibling files lived directly in the shared OS temp dir under a
+  // ``Date.now() + Math.random()`` suffix.  ``mkdtempSync`` guarantees
+  // a fresh, attacker-unwriteable directory and lets us tear the whole
+  // thing down with a single ``rmSync`` (CodeQL
+  // ``js/insecure-temporary-file``).
+  const tmpDir = mkdtempSync(path.join(tmpdir(), "tcl-lsp-runtime-validate-"));
+  const checkerPath = path.join(tmpDir, "checker.tcl");
   const checkerScript = buildRuntimeValidationChecker(adapter);
-
-  const targetPath = path.join(tmpdir(), `tcl-lsp-target-${base}.tcl`);
+  const targetPath = path.join(tmpDir, "target.tcl");
 
   try {
     writeFileSync(checkerPath, checkerScript, "utf8");
@@ -1718,12 +1846,7 @@ async function runRuntimeValidationForDocument(
     }
   } finally {
     try {
-      unlinkSync(checkerPath);
-    } catch {
-      // ignore cleanup errors
-    }
-    try {
-      unlinkSync(targetPath);
+      rmSync(tmpDir, { recursive: true, force: true });
     } catch {
       // ignore cleanup errors
     }
@@ -1859,31 +1982,58 @@ async function base64DecodeSelection(): Promise<void> {
 
 const MAX_FILE_BYTES = 8192;
 
-async function copyFileAsBase64(uri: vscode.Uri): Promise<void> {
-  const fsPath = uri.fsPath;
-  const size = statSync(fsPath).size;
-  if (size > MAX_FILE_BYTES) {
-    window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
-    return;
+/**
+ * Read up to ``MAX_FILE_BYTES`` from ``fsPath`` via an open fd so the
+ * size check and the read both observe the *same* inode.  A raw
+ * ``statSync`` → ``readFileSync`` pair is a TOCTOU window (CodeQL
+ * ``js/file-system-race``): an attacker who controls the path could
+ * swap a small placeholder for a huge file between the two calls and
+ * defeat the limit.
+ *
+ * Returns ``undefined`` when the file exceeds the cap (caller surfaces
+ * a warning to the user).
+ */
+function readCappedSync(fsPath: string): Buffer | undefined {
+  const fd = openSync(fsPath, "r");
+  try {
+    const size = fstatSync(fd).size;
+    if (size > MAX_FILE_BYTES) {
+      window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
+      return undefined;
+    }
+    const buf = Buffer.allocUnsafe(size);
+    let read = 0;
+    while (read < size) {
+      const n = readSync(fd, buf, read, size - read, read);
+      if (n === 0) break;
+      read += n;
+    }
+    return buf.subarray(0, read);
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      // ignore close errors
+    }
   }
-  const encoded = readFileSync(fsPath).toString("base64");
+}
+
+async function copyFileAsBase64(uri: vscode.Uri): Promise<void> {
+  const raw = readCappedSync(uri.fsPath);
+  if (raw === undefined) return;
+  const encoded = raw.toString("base64");
   await vscode.env.clipboard.writeText(encoded);
-  window.showInformationMessage(`Copied ${size} bytes as base64 (${encoded.length} chars).`);
+  window.showInformationMessage(`Copied ${raw.length} bytes as base64 (${encoded.length} chars).`);
 }
 
 async function copyFileAsGzipBase64(uri: vscode.Uri): Promise<void> {
-  const fsPath = uri.fsPath;
-  const size = statSync(fsPath).size;
-  if (size > MAX_FILE_BYTES) {
-    window.showWarningMessage(`File is ${size} bytes — exceeds ${MAX_FILE_BYTES} byte limit.`);
-    return;
-  }
-  const raw = readFileSync(fsPath);
+  const raw = readCappedSync(uri.fsPath);
+  if (raw === undefined) return;
   const compressed = gzipSync(raw, { level: 9 });
   const encoded = compressed.toString("base64");
   await vscode.env.clipboard.writeText(encoded);
   window.showInformationMessage(
-    `Copied ${size} → ${compressed.length} bytes gzipped as base64 (${encoded.length} chars).`,
+    `Copied ${raw.length} → ${compressed.length} bytes gzipped as base64 (${encoded.length} chars).`,
   );
 }
 
@@ -2113,6 +2263,62 @@ async function extractLinkedObjectsAtCursor(): Promise<void> {
     content: JSON.stringify(result, null, 2),
   });
   await vscode.window.showTextDocument(doc, { preview: false });
+}
+
+/**
+ * Generate a tmsh script that deletes BIG-IP objects unreferenced by any
+ * virtual server.  Walks the active config, opens the resulting script
+ * (and a JSON metadata report) side-by-side for review.
+ */
+interface BigipCleanupResult {
+  candidates: Array<{
+    fullPath: string;
+    kind: string | null;
+    deleteCommand: string;
+    [key: string]: unknown;
+  }>;
+  summary: Record<string, number>;
+  tmshScript: string;
+  [key: string]: unknown;
+}
+
+async function generateBigipCleanupScript(): Promise<void> {
+  const editor = window.activeTextEditor;
+  if (!editor || !client) {
+    window.showWarningMessage("Open a BIG-IP configuration file first.");
+    return;
+  }
+
+  const uri = editor.document.uri.toString();
+  const result: BigipCleanupResult | null = await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.bigipCleanup",
+    arguments: [[uri], null, false],
+  });
+
+  if (!result) {
+    window.showWarningMessage(
+      "No BIG-IP configuration loaded in the workspace.  Open a bigip.conf and try again.",
+    );
+    return;
+  }
+
+  const scriptDoc = await vscode.workspace.openTextDocument({
+    language: "tcl-bigip",
+    content: result.tmshScript,
+  });
+  await vscode.window.showTextDocument(scriptDoc, {
+    preview: false,
+    viewColumn: vscode.ViewColumn.One,
+  });
+
+  const reportDoc = await vscode.workspace.openTextDocument({
+    language: "json",
+    content: JSON.stringify(result, null, 2),
+  });
+  await vscode.window.showTextDocument(reportDoc, {
+    preview: false,
+    viewColumn: vscode.ViewColumn.Beside,
+  });
 }
 
 // Listen for saves on scratch documents and write changes back to the

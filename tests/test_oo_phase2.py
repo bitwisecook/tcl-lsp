@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from vm.interp import TclInterp
-from vm.types import TclError
+from tooling.vm.interp import TclInterp
+from tooling.vm.types import TclError
 
 # ---------------------------------------------------------------------------
 # oo-13.x: Filters

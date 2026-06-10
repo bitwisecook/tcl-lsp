@@ -23,12 +23,14 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 # Pinned toolchain versions. Bump these when new stable releases land.
 ZIG_VERSION="0.16.0"
 WASMTIME_VERSION="43.0.1"
+BINARYEN_VERSION="123"
 RUST_VERSION="1.95.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
 ZIG_PREFIX="/opt/zig-${ZIG_VERSION}"
 WASMTIME_PREFIX="/opt/wasmtime-${WASMTIME_VERSION}"
+BINARYEN_PREFIX="/opt/binaryen-${BINARYEN_VERSION}"
 
 # ---------------------------------------------------------------------------
 # 1. System packages (apt).
@@ -242,6 +244,65 @@ install_wasmtime() {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. Binaryen — provides ``wasm-merge`` (post-codegen bundler that fuses
+#     runtime + user code + optional extensions into a single .wasm) and
+#     ``wasm-opt`` (asyncify post-pass for the coroutine build).  Skipped
+#     when both binaries already point at the pinned prefix.
+# ---------------------------------------------------------------------------
+install_binaryen() {
+    if [ -x "${BINARYEN_PREFIX}/bin/wasm-merge" ] \
+       && [ -L /usr/local/bin/wasm-merge ] \
+       && [ "$(readlink -f /usr/local/bin/wasm-merge)" = "${BINARYEN_PREFIX}/bin/wasm-merge" ]; then
+        echo "session-start: binaryen v${BINARYEN_VERSION} already installed"
+        return 0
+    fi
+
+    case "$ARCH" in
+        x86_64)  local bin_arch="x86_64-linux" ;;
+        aarch64) local bin_arch="aarch64-linux" ;;
+        *) echo "session-start: unsupported arch for binaryen: $ARCH" >&2; return 1 ;;
+    esac
+
+    local tarball="binaryen-version_${BINARYEN_VERSION}-${bin_arch}.tar.gz"
+    local url="https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/${tarball}"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "session-start: fetching binaryen v${BINARYEN_VERSION}"
+    if ! fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
+        echo "session-start: failed to download binaryen v${BINARYEN_VERSION}" >&2
+        return 1
+    fi
+
+    # Binaryen releases do not publish SHA-256 sidecars; pin alongside
+    # the version like wasmtime above.  Re-compute when bumping
+    # BINARYEN_VERSION.
+    local expected_sha=""
+    case "$bin_arch" in
+        x86_64-linux)
+            expected_sha="e959f2170af4c20c552e9de3a0253704d6a9d2766e8fdb88e4d6ac4bae9388fe" ;;
+        aarch64-linux)
+            expected_sha="" ;; # fill on first aarch64 cold-start
+    esac
+    if [ -n "$expected_sha" ]; then
+        local actual_sha
+        actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+        if [ "$actual_sha" != "$expected_sha" ]; then
+            echo "session-start: binaryen sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
+            return 1
+        fi
+    fi
+
+    rm -rf "$BINARYEN_PREFIX"
+    mkdir -p "$BINARYEN_PREFIX"
+    tar -xzf "${tmpdir}/${tarball}" -C "$BINARYEN_PREFIX" --strip-components=1
+    ln -sfn "${BINARYEN_PREFIX}/bin/wasm-merge" /usr/local/bin/wasm-merge
+    ln -sfn "${BINARYEN_PREFIX}/bin/wasm-opt"   /usr/local/bin/wasm-opt
+    echo "session-start: binaryen $(${BINARYEN_PREFIX}/bin/wasm-merge --version | head -n1) installed at ${BINARYEN_PREFIX}"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Tcl source trees (8.4, 8.5, 8.6, 9.0) — delegate to the existing skill.
 #    Idempotent: skips versions already fetched into tmp/.
 # ---------------------------------------------------------------------------
@@ -291,6 +352,23 @@ install_tcllib() {
     local size
     size=$(du -sh "$target_dir" | awk '{print $1}')
     echo "session-start: tcllib ${TCLLIB_VERSION} extracted to ${target_dir} (${size})"
+}
+
+# ---------------------------------------------------------------------------
+# 5c. Tcl regex engine sources — vendored at runtime/zig/vendor/tcl-regex/.
+#     The WASM runtime build expects these files to be present (they're
+#     compiled into the runtime); fetching once here keeps ``zig build``
+#     hermetic and avoids the xdist race we'd otherwise hit if four
+#     parallel worker processes each tried to fetch into the same dir.
+# ---------------------------------------------------------------------------
+install_tcl_regex() {
+    local fetcher="${REPO_ROOT}/scripts/fetch_tcl_regex.sh"
+    if [ ! -f "$fetcher" ]; then
+        echo "session-start: fetch_tcl_regex.sh missing at $fetcher" >&2
+        return 1
+    fi
+    echo "session-start: ensuring Tcl regex engine sources"
+    bash "$fetcher"
 }
 
 # ---------------------------------------------------------------------------
@@ -386,6 +464,25 @@ install_rust() {
     done
     "$rustup_bin" default "${RUST_VERSION}"
 
+    # The Zed extension's clippy check (`make check-rust`, used by
+    # `make test-slow`) cross-compiles to wasm32-wasip2, so the target
+    # has to be present in the toolchain.  Idempotent — rustup skips
+    # already-installed targets.
+    for attempt in 1 2 3 4; do
+        if "$rustup_bin" target add wasm32-wasip2 \
+                --toolchain "${RUST_VERSION}"; then
+            break
+        fi
+        if [ "$attempt" -lt 4 ]; then
+            local wait=$((2 ** attempt))
+            echo "session-start: rustup target retry $attempt (waiting ${wait}s) ..."
+            sleep "$wait"
+        else
+            echo "session-start: failed to install wasm32-wasip2 target after 4 attempts" >&2
+            return 1
+        fi
+    done
+
     # Resolve the cargo/rustc binaries the active rustup is configured
     # to front so symlinks always match the toolchain we just installed.
     local cargo_bin rustc_bin rustfmt_bin clippy_bin
@@ -404,10 +501,112 @@ install_rust() {
     echo "session-start: rust $("$rustc_bin" --version) ready"
 }
 
+# ---------------------------------------------------------------------------
+# 6. Remaining test-slow host tools (tclsh, node, kotlinc, emacs, xvfb,
+#    tshark, openssl, ping, rgxg, uv).  Delegated to the shared
+#    cross-platform installer so there's a single source of truth; the
+#    toolchains this hook installs bespoke above (with pinned versions +
+#    checksums) are skipped to avoid double work.
+# ---------------------------------------------------------------------------
+install_remaining_test_deps() {
+    local installer="${REPO_ROOT}/scripts/dev/ensure-test-deps.sh"
+    if [ ! -f "$installer" ]; then
+        echo "session-start: ensure-test-deps.sh missing at $installer" >&2
+        return 1
+    fi
+    echo "session-start: installing remaining test-slow host tools"
+    env \
+        SKIP_ZIG=1 \
+        SKIP_WASMTIME=1 \
+        SKIP_BINARYEN=1 \
+        SKIP_RUST=1 \
+        SKIP_TCLLIB=1 \
+        SKIP_TCL_REGEX=1 \
+        bash "$installer"
+}
+
+# ---------------------------------------------------------------------------
+# 7. Python venv — create the single well-known environment (.venv at the
+#    repo root, the path uv and the Makefile already assume) and activate
+#    it for this and every subsequent shell in the session.
+# ---------------------------------------------------------------------------
+setup_python_venv() {
+    # uv was just installed by install_remaining_test_deps (Astral
+    # installer drops it in ~/.local/bin); make sure it's reachable.
+    export PATH="${HOME}/.local/bin:${PATH}"
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "session-start: uv not found after install — skipping venv setup" >&2
+        return 1
+    fi
+
+    echo "session-start: creating Python venv at ${REPO_ROOT}/.venv (uv sync)"
+    ( cd "$REPO_ROOT" && uv sync --extra dev )
+
+    local activate="${REPO_ROOT}/.venv/bin/activate"
+    if [ ! -f "$activate" ]; then
+        echo "session-start: expected venv activate script missing at $activate" >&2
+        return 1
+    fi
+
+    # Activate for the rest of this hook.
+    # shellcheck disable=SC1090
+    . "$activate"
+
+    # Persist activation for every subsequent Bash tool-call shell, which
+    # are spawned fresh from the user's profile.  Idempotent: the guard
+    # comment keeps re-runs on warm containers from stacking duplicates.
+    local marker="# tcl-lsp: auto-activate project venv"
+    if [ -n "${HOME:-}" ] && ! grep -qsF "$marker" "${HOME}/.bashrc" 2>/dev/null; then
+        {
+            printf '\n%s\n' "$marker"
+            printf 'export PATH="%s/.local/bin:$PATH"\n' "$HOME"
+            printf '[ -f "%s/.venv/bin/activate" ] && . "%s/.venv/bin/activate"\n' \
+                "$REPO_ROOT" "$REPO_ROOT"
+        } >> "${HOME}/.bashrc"
+        echo "session-start: venv auto-activation added to ~/.bashrc"
+    fi
+    echo "session-start: venv ready (VIRTUAL_ENV=${VIRTUAL_ENV:-unset})"
+}
+
+# ---------------------------------------------------------------------------
+# 8. TCL_LIBRARY — point it at the fetched Tcl 9 script library.
+#
+# ensure-test-deps builds tclsh9.0 with ``--disable-shared`` and installs
+# only the ``tclsh`` binary (no ``make install``), so the script library
+# is never laid down at the binary's compiled-in prefix.  Exporting
+# TCL_LIBRARY to the source ``library/`` lets the moved binary find
+# init.tcl etc.  Verified harmless to tclsh8.6 — Tcl falls back to its
+# own bootstrap when the pointed-at library version mismatches.
+# ---------------------------------------------------------------------------
+setup_tcl_library() {
+    local tcl_lib="${REPO_ROOT}/tmp/tcl9.0.3/library"
+    if [ ! -f "${tcl_lib}/init.tcl" ]; then
+        echo "session-start: Tcl 9 library not found at ${tcl_lib} — skipping TCL_LIBRARY" >&2
+        return 0
+    fi
+
+    export TCL_LIBRARY="$tcl_lib"
+
+    local marker="# tcl-lsp: point TCL_LIBRARY at the fetched Tcl 9 library"
+    if [ -n "${HOME:-}" ] && ! grep -qsF "$marker" "${HOME}/.bashrc" 2>/dev/null; then
+        {
+            printf '\n%s\n' "$marker"
+            printf 'export TCL_LIBRARY="%s"\n' "$tcl_lib"
+        } >> "${HOME}/.bashrc"
+        echo "session-start: TCL_LIBRARY export added to ~/.bashrc"
+    fi
+    echo "session-start: TCL_LIBRARY=${TCL_LIBRARY}"
+}
+
 install_zig
 install_wasmtime
+install_binaryen
 install_rust
 install_tcl_sources
 install_tcllib
+install_tcl_regex
+install_remaining_test_deps
+setup_python_venv
+setup_tcl_library
 
 echo "session-start: done"

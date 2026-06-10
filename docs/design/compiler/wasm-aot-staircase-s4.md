@@ -12,7 +12,7 @@ runtime never even sees the proc-call boundary.
 
 The deliverable is a measurable wall-time reduction on a workload
 that is dominated by short proc calls. The benchmark target is
-`scripts/perf_microbench.py` — a `proc add {a b} { return [expr {$a +
+`scripts/dev/perf_microbench.py` — a `proc add {a b} { return [expr {$a +
 $b}] }` invoked in a loop should run within 2× of an inline `expr {$a
 + $b}` after S4.
 
@@ -39,7 +39,7 @@ benefit). The catalogue separates the policy from the mechanism.
 **Tasks**:
 
 - [ ] Add a `InlineDecision` enum to
-  `core/compiler/ir.py`: `NEVER` | `ALWAYS` | `IF_SINGLE_CALL` |
+  `compiler/ir.py`: `NEVER` | `ALWAYS` | `IF_SINGLE_CALL` |
   `IF_HOT`.
 - [ ] Compute `inline_decision` per proc on `IRProcedure`:
   - `NEVER` if `not pure_leaf` or body size > threshold or has
@@ -59,9 +59,9 @@ benefit). The catalogue separates the policy from the mechanism.
 
 **Files**:
 
-- Modify: `core/compiler/ir.py` (add the enum + fields to
+- Modify: `compiler/ir.py` (add the enum + fields to
   `IRProcedure`)
-- New: `core/compiler/inlining/decision.py` for the policy logic.
+- New: `compiler/inlining/decision.py` for the policy logic.
 
 **Test plan**:
 
@@ -94,7 +94,7 @@ proofs in the caller's body.
 
 **Tasks**:
 
-- [ ] New module `core/compiler/inlining/inline_pass.py` that
+- [ ] New module `compiler/inlining/inline_pass.py` that
   walks the IR module post-lowering, pre-codegen.
 - [ ] For each `IRCall(command=…)` where the resolved
   `IRProcedure.inline_decision` is `ALWAYS` or `IF_SINGLE_CALL`:
@@ -116,11 +116,11 @@ proofs in the caller's body.
 
 **Files**:
 
-- New: `core/compiler/inlining/inline_pass.py`
-- Modify: `core/compiler/lowering.py` or
-  `core/compiler/codegen/wasm/__init__.py` to invoke the pass at
+- New: `compiler/inlining/inline_pass.py`
+- Modify: `compiler/lowering.py` or
+  `compiler/codegen/wasm/__init__.py` to invoke the pass at
   the right point in the pipeline.
-- Modify: `core/compiler/var_escape/__init__.py` so the pass can
+- Modify: `compiler/var_escape/__init__.py` so the pass can
   re-run after inlining.
 
 **Test plan**:

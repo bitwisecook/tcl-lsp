@@ -1,0 +1,49 @@
+ByteCode ::top, 29 instructions, 53 bytes, 11 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "parent"
+    3: "A"
+    4: "\n    superclass parent\n    method e..."
+    5: "B"
+    6: "\n    superclass parent\n    mixin A\..."
+    7: "C"
+    8: "\n    superclass parent\n    mixin B\..."
+    9: "new"
+    10: "foo"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "parent"
+    (6) invokeStk1 3	# oo::class
+    (8) pop
+    (9) push1 0	# "oo::class"
+    (11) push1 1	# "create"
+    (13) push1 3	# "A"
+    (15) push1 4	# "\n    superclass parent\n    method e..."
+    (17) invokeStk1 4	# oo::class
+  # cmd_end_1:
+    (19) pop
+    (20) push1 0	# "oo::class"
+    (22) push1 1	# "create"
+    (24) push1 5	# "B"
+    (26) push1 6	# "\n    superclass parent\n    mixin A\..."
+    (28) invokeStk1 4	# oo::class
+  # cmd_end_2:
+    (30) pop
+    (31) push1 0	# "oo::class"
+    (33) push1 1	# "create"
+    (35) push1 7	# "C"
+    (37) push1 8	# "\n    superclass parent\n    mixin B\..."
+    (39) invokeStk1 4	# oo::class
+  # cmd_end_3:
+    (41) pop
+    (42) push1 7	# "C"
+    (44) push1 9	# "new"
+    (46) invokeStk1 2
+    (48) push1 10	# "foo"
+    (50) invokeStk1 2	# [C new]
+  # cmd_end_4:
+  # exit_2:
+    (52) done

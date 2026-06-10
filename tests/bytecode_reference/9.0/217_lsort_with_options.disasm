@@ -1,0 +1,81 @@
+ByteCode 0x562a03b235a0, refCt 1, epoch 21, interp 0x562a03a08350 (epoch 21)
+  Source "# ``lsort ?-switches? list`` \u00e2\u0080\u0094 the run..."
+  Cmds 12, src 639, inst 181, litObjs 13, aux 0, stkDepth 4, code/src 0.00
+  Commands 12:
+      1: pc 0-39, src 270-388        2: pc 0-7, src 275-299
+      3: pc 13-34, src 323-386        4: pc 40-60, src 470-502
+      5: pc 51-58, src 477-501        6: pc 61-110, src 504-564
+      7: pc 70-73, src 509-518        8: pc 79-105, src 529-563
+      9: pc 111-157, src 566-627       10: pc 120-125, src 571-583
+     11: pc 131-152, src 600-626       12: pc 158-179, src 629-637
+  Command 1: "if {[lsort -integer {3 1 2 10}] eq \"-integer\"} {\n   ..."
+  Command 2: "lsort -integer {3 1 2 10}..."
+    (0) push1 0 	# "lsort"
+    (2) push1 1 	# "-integer"
+    (4) push1 2 	# "3 1 2 10"
+    (6) invokeStk1 3 
+    (8) push1 1 	# "-integer"
+    (10) streq 
+    (11) jumpFalse1 +26 	# pc 37
+  Command 3: "error \"lsort swallowed the option as the list \u00e2\u0080..."
+    (13) startCommand +22 1 	# next cmd at pc 35, 1 cmds start here
+    (22) push1 3 	# "lsort swallowed the option as the list \u00e2..."
+    (24) push1 4 	# ""
+    (26) returnImm +1 0 
+    (35) jump1 +4 	# pc 39
+    (37) push1 4 	# ""
+    (39) pop 
+  Command 4: "set r [lsort -integer {3 1 2 10}]..."
+    (40) startCommand +20 1 	# next cmd at pc 60, 1 cmds start here
+    (49) push1 5 	# "r"
+  Command 5: "lsort -integer {3 1 2 10}..."
+    (51) push1 0 	# "lsort"
+    (53) push1 1 	# "-integer"
+    (55) push1 2 	# "3 1 2 10"
+    (57) invokeStk1 3 
+    (59) storeStk 
+    (60) pop 
+  Command 6: "if {[llength $r] != 4} { error \"lsort -integer produce..."
+    (61) startCommand +49 2 	# next cmd at pc 110, 2 cmds start here
+  Command 7: "llength $r..."
+    (70) push1 5 	# "r"
+    (72) loadStk 
+    (73) listLength 
+    (74) push1 6 	# "4"
+    (76) neq 
+    (77) jumpFalse1 +31 	# pc 108
+  Command 8: "error \"lsort -integer produced $r\"..."
+    (79) startCommand +27 1 	# next cmd at pc 106, 1 cmds start here
+    (88) push1 7 	# "lsort -integer produced "
+    (90) push1 5 	# "r"
+    (92) loadStk 
+    (93) strcat 2 
+    (95) push1 4 	# ""
+    (97) returnImm +1 0 
+    (106) jump1 +4 	# pc 110
+    (108) push1 4 	# ""
+    (110) pop 
+  Command 9: "if {[lsort {3 1 2}] ne \"1 2 3\"} { error \"plain lsort..."
+    (111) startCommand +46 1 	# next cmd at pc 157, 1 cmds start here
+  Command 10: "lsort {3 1 2}..."
+    (120) push1 0 	# "lsort"
+    (122) push1 8 	# "3 1 2"
+    (124) invokeStk1 2 
+    (126) push1 9 	# "1 2 3"
+    (128) strneq 
+    (129) jumpFalse1 +26 	# pc 155
+  Command 11: "error \"plain lsort broken\"..."
+    (131) startCommand +22 1 	# next cmd at pc 153, 1 cmds start here
+    (140) push1 10 	# "plain lsort broken"
+    (142) push1 4 	# ""
+    (144) returnImm +1 0 
+    (153) jump1 +4 	# pc 157
+    (155) push1 4 	# ""
+    (157) pop 
+  Command 12: "return ok..."
+    (158) startCommand +22 1 	# next cmd at pc 180, 1 cmds start here
+    (167) push1 11 	# "ok"
+    (169) push1 12 	# ""
+    (171) returnImm +0 1 
+    (180) done 
+

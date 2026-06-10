@@ -1,5 +1,8 @@
 # KCS: feature — iRule Extraction
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Extract iRules from BIG-IP configuration files into individual editor tabs or files.
@@ -29,7 +32,7 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 ## File-path anchors
 
 - `editors/vscode/src/extension.ts`
-- `core/bigip/`
+- `dialects/f5/bigip/`
 
 ## Failure modes
 
@@ -38,7 +41,8 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 
 ## Test anchors
 
-- `tests/test_bigip_extraction.py`
+- `tests/test_bigip_link_extract.py`
+- `tests/test_bigip_rule_extract.py`
 
 ## Example
 

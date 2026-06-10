@@ -2,7 +2,7 @@
 
 import math
 
-from core.compiler.tcl_expr_eval import (
+from compiler.tcl_expr_eval import (
     eval_tcl_expr_str,
     format_tcl_value,
 )
@@ -132,7 +132,11 @@ class TestExponentiation:
         assert _eval("2.0 ** -1") == 0.5
 
     def test_huge_exponent_guard(self):
-        assert _eval("2 ** 100000") is None
+        # Guard triggers at exponent >= 2**28 (268435456) — matches
+        # reference Tcl's INST_EXPON limit.  Values below the limit are
+        # valid bignum operations that must be allowed.
+        assert _eval("2 ** 268435456") is None  # at the limit → guarded
+        assert _eval("2 ** 268435455") is not None  # one below → allowed
 
 
 class TestComparisons:
@@ -901,7 +905,7 @@ class TestTcl9EdgeCases:
         assert _eval("0 ** -1") is None
 
     def test_huge_exponent(self):
-        assert _eval("2 ** 100000") is None
+        assert _eval("2 ** 268435456") is None  # at Tcl's INST_EXPON limit → guarded
 
     def test_rshift_large(self):
         """Large shift amounts should be handled safely."""
@@ -1218,3 +1222,30 @@ class TestIRulesCombinedExpressions:
             )
             == 1
         )
+
+
+class TestStringComparisonFolding:
+    """`eq`/`ne`/`lt`/`gt`/`le`/`ge` compare operands AS STRINGS, so the
+    constant evaluator must extract string operands (not just numeric)."""
+
+    def test_string_eq(self):
+        assert _eval('"x" eq "x"') == 1
+        assert _eval('"x" eq "y"') == 0
+        assert _eval('"abc" eq "abc"') == 1
+
+    def test_string_ne(self):
+        assert _eval('"x" ne "y"') == 1
+        assert _eval('"x" ne "x"') == 0
+
+    def test_string_ordering(self):
+        assert _eval('"a" lt "b"') == 1
+        assert _eval('"b" gt "a"') == 1
+        assert _eval('"a" le "a"') == 1
+        assert _eval('"b" ge "b"') == 1
+
+    def test_eq_is_string_not_numeric(self):
+        # `eq` is a *string* compare: "5" and "5.0" differ as strings even
+        # though they are numerically equal (matches C Tcl 9).
+        assert _eval("5 eq 5") == 1
+        assert _eval("5 eq 5.0") == 0
+        assert _eval('5 eq "5"') == 1

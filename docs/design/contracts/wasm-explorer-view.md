@@ -4,20 +4,20 @@
 
 The compiler explorer renders the output of `wasm_codegen_module` as a
 per-instruction interactive disassembly.  The JSON shape that
-[`explorer/serialise.py`](../../../explorer/serialise.py) produces and
-that [`explorer/static/explorer-core.js`](../../../explorer/static/explorer-core.js)
+[`tooling/cli/serialise.py`](../../../tooling/cli/serialise.py) produces and
+that [`tooling/explorer/static/explorer-core.js`](../../../tooling/explorer/static/explorer-core.js)
 consumes is fixed by this contract.  Both the standalone web panel
-(`explorer/static/index.html`) and the VS Code webview
+(`tooling/explorer/static/index.html`) and the VS Code webview
 (`editors/vscode/src/compilerExplorerHtml.ts`) read the same shape.
 
 ## Producer
 
-- [`core/compiler/codegen/wasm/_ir.py`](../../../core/compiler/codegen/wasm/_ir.py)
+- [`compiler/codegen/wasm/_ir.py`](../../../compiler/codegen/wasm/_ir.py)
   — `WasmModule.to_explorer_json()` returns a list of function entries
   (plus a synthetic module header).  Each instruction carries a decoded
   target (`call` → function name, `br` / `br_if` → matching structural
   open/close), a source range, an indent level, and an explorer label.
-- [`explorer/serialise.py`](../../../explorer/serialise.py) —
+- [`tooling/cli/serialise.py`](../../../tooling/cli/serialise.py) —
   `_serialise_wasm` calls `to_explorer_json()`, attaches a WAT text
   snippet per entry for legacy consumers, and returns the list as
   `data.wasm` / `data.wasmOptimised`.

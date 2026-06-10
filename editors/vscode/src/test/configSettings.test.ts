@@ -1,6 +1,17 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, sleep, waitForDiagnostics, setTestContent } from "./helper";
+import {
+  getDocUri,
+  activate,
+  getServerLogSize,
+  nextDiagnosticsPublish,
+  pollUntil,
+  waitForDeepDiagnostics,
+  waitForDiagnostics,
+  waitForEffectiveConfig,
+  waitForFeatureToggle,
+  setTestContent,
+} from "./helper";
 
 suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
@@ -110,7 +121,7 @@ suite("Configuration Settings", () => {
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("hover.enabled", false, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "hover", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeHoverProvider",
@@ -123,7 +134,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(1000);
+      await waitForFeatureToggle(docUri, "hover", true);
     }
   });
 
@@ -137,7 +148,7 @@ suite("Configuration Settings", () => {
     try {
       await editorCfg.update("hover.enabled", false, undefined);
       await featureCfg.update("hover", true, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "hover", true);
 
       const result = (await vscode.commands.executeCommand(
         "vscode.executeHoverProvider",
@@ -151,7 +162,7 @@ suite("Configuration Settings", () => {
     } finally {
       await featureCfg.update("hover", undefined, undefined);
       await editorCfg.update("hover.enabled", undefined, undefined);
-      await sleep(1000);
+      await waitForFeatureToggle(docUri, "hover", true);
     }
   });
 
@@ -170,7 +181,7 @@ suite("Configuration Settings", () => {
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("folding", false, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "folding", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeFoldingRangeProvider",
@@ -182,7 +193,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await editorCfg.update("folding", undefined, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "folding", true);
     }
   });
 
@@ -191,19 +202,24 @@ suite("Configuration Settings", () => {
   test("editor.codeLens=false suppresses code lenses via null inheritance", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
-    await sleep(500); // let initial code lenses populate
 
-    const before = (await vscode.commands.executeCommand(
-      "vscode.executeCodeLensProvider",
-      docUri,
-      100,
-    )) as vscode.CodeLens[] | undefined;
+    // Poll until the server publishes its initial code lens batch —
+    // ``activate()`` returns after didOpen but before the LSP
+    // codeLens/* round-trip completes, so a fixed sleep here would race.
+    const before = await pollUntil<vscode.CodeLens[] | undefined>(
+      () =>
+        vscode.commands.executeCommand("vscode.executeCodeLensProvider", docUri, 100) as Thenable<
+          vscode.CodeLens[] | undefined
+        >,
+      (r) => Array.isArray(r) && r.length > 0,
+      { label: "initial code lens batch" },
+    );
     assert.ok(before && before.length > 0, "Code lenses should work with default editor globals");
 
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("codeLens", false, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "codeLens", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeCodeLensProvider",
@@ -216,7 +232,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await editorCfg.update("codeLens", undefined, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "codeLens", true);
     }
   });
 
@@ -238,7 +254,7 @@ suite("Configuration Settings", () => {
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("parameterHints.enabled", false, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "signatureHelp", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeSignatureHelpProvider",
@@ -253,7 +269,7 @@ suite("Configuration Settings", () => {
       }
     } finally {
       await editorCfg.update("parameterHints.enabled", undefined, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "signatureHelp", true);
     }
   });
 
@@ -275,7 +291,7 @@ suite("Configuration Settings", () => {
     const editorCfg = vscode.workspace.getConfiguration("editor");
     try {
       await editorCfg.update("semanticHighlighting.enabled", false, undefined);
-      await sleep(800);
+      await waitForFeatureToggle(docUri, "semanticTokens", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.provideDocumentSemanticTokens",
@@ -287,7 +303,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await editorCfg.update("semanticHighlighting.enabled", undefined, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "semanticTokens", true);
     }
   });
 
@@ -621,7 +637,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("hover", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "hover", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeHoverProvider",
@@ -634,6 +650,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("hover", undefined, undefined);
+      await waitForFeatureToggle(docUri, "hover", true);
     }
   });
 
@@ -658,7 +675,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("completion", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "completion", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeCompletionItemProvider",
@@ -673,6 +690,7 @@ suite("Configuration Settings", () => {
       assert.ok(!lspPuts, "LSP 'puts' completion with detail should be suppressed when disabled");
     } finally {
       await config.update("completion", undefined, undefined);
+      await waitForFeatureToggle(docUri, "completion", true);
     }
   });
 
@@ -693,7 +711,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("documentSymbols", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "documentSymbols", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeDocumentSymbolProvider",
@@ -710,6 +728,7 @@ suite("Configuration Settings", () => {
       }
     } finally {
       await config.update("documentSymbols", undefined, undefined);
+      await waitForFeatureToggle(docUri, "documentSymbols", true);
     }
   });
 
@@ -729,7 +748,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("definition", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "definition", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeDefinitionProvider",
@@ -742,6 +761,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("definition", undefined, undefined);
+      await waitForFeatureToggle(docUri, "definition", true);
     }
   });
 
@@ -761,7 +781,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("references", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "references", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeReferenceProvider",
@@ -774,6 +794,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("references", undefined, undefined);
+      await waitForFeatureToggle(docUri, "references", true);
     }
   });
 
@@ -795,7 +816,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("signatureHelp", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "signatureHelp", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeSignatureHelpProvider",
@@ -810,6 +831,7 @@ suite("Configuration Settings", () => {
       }
     } finally {
       await config.update("signatureHelp", undefined, undefined);
+      await waitForFeatureToggle(docUri, "signatureHelp", true);
     }
   });
 
@@ -826,7 +848,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("folding", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "folding", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeFoldingRangeProvider",
@@ -838,6 +860,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("folding", undefined, undefined);
+      await waitForFeatureToggle(docUri, "folding", true);
     }
   });
 
@@ -892,7 +915,7 @@ suite("Configuration Settings", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("selectionRange", false, undefined);
-      await sleep(500);
+      await waitForFeatureToggle(docUri, "selectionRange", false);
 
       const after = (await vscode.commands.executeCommand(
         "vscode.executeSelectionRangeProvider",
@@ -949,33 +972,31 @@ suite("Configuration Settings", () => {
     const docUri = getDocUri("diagnostics.tcl");
     await activate(docUri);
 
-    // Baseline: W100 should be present
-    const before = await waitForDiagnostics(docUri, { minCount: 1 });
+    // Baseline: wait for the specific code we are about to disable
+    // rather than the first publish that happens to have any
+    // diagnostic — that way a fixture change that no longer triggers
+    // W100 fails the wait directly rather than racing the assertion
+    // below.
     const codeOf = (d: vscode.Diagnostic) => (typeof d.code === "object" ? d.code.value : d.code);
+    const before = await waitForDiagnostics(docUri, {
+      predicate: (diags) => diags.some((d) => codeOf(d) === "W100"),
+    });
     const hasW100Before = before.some((d) => codeOf(d) === "W100");
     assert.ok(hasW100Before, `W100 should be present by default, got [${before.map(codeOf)}]`);
 
     const config = vscode.workspace.getConfiguration("tclLsp.diagnostics");
     try {
       await config.update("W100", false, undefined);
-      await sleep(1000);
+      await waitForEffectiveConfig(docUri, (c) => c.disabled_diagnostics.includes("W100"), {
+        label: "W100 disabled",
+      });
 
       // Re-trigger: touch the document so the server re-analyses.
-      // Then wait for a *fresh* diagnostics publish (onDidChangeDiagnostics)
-      // to avoid reading stale pre-toggle results.
+      // Register the publish listener *before* the edit so the fresh
+      // publish event is not missed and we do not read stale
+      // pre-toggle results.
       const editor = vscode.window.activeTextEditor!;
-      const freshDiags = new Promise<vscode.Diagnostic[]>((resolve) => {
-        const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
-          if (e.uris.some((u) => u.toString() === docUri.toString())) {
-            disposable.dispose();
-            resolve(vscode.languages.getDiagnostics(docUri));
-          }
-        });
-        setTimeout(() => {
-          disposable.dispose();
-          resolve(vscode.languages.getDiagnostics(docUri));
-        }, 5000);
-      });
+      const freshDiags = nextDiagnosticsPublish(docUri);
       await setTestContent(editor, editor.document.getText() + " ");
       const after = await freshDiags;
       const hasW100After = after.some((d) => codeOf(d) === "W100");
@@ -985,32 +1006,46 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("W100", undefined, undefined);
+      await waitForEffectiveConfig(docUri, (c) => !c.disabled_diagnostics.includes("W100"), {
+        label: "W100 re-enabled",
+      });
     }
   });
 
   // ── Optimiser enabled toggle behavioral test ─────────────────────
   test("disabling optimiser.enabled suppresses O1xx diagnostics", async () => {
     const docUri = getDocUri("diagnostics.tcl");
+    // Snapshot the server log index before activating so the
+    // ``waitForDeepDiagnostics`` calls below only match this test's
+    // deep-pass log lines, not stale ones from earlier tests.
+    const sinceOpen = getServerLogSize();
     await activate(docUri);
-    await sleep(500);
 
     const codeOf = (d: vscode.Diagnostic) =>
       String(typeof d.code === "object" ? d.code.value : d.code);
     const isO1xx = (code: string) => /^O1\d\d$/.test(code);
 
-    // Baseline: check for any O1xx hints (optimiser is enabled by default)
-    const before = await waitForDiagnostics(docUri, { timeout: 5000, minCount: 1 });
+    // Wait for the server to publish its ``[timing] deep diagnostics``
+    // log line for this URI — that's the direct signal that the deep
+    // pass (where O1xx hints come from) has finished and published.
+    await waitForDeepDiagnostics(docUri, { since: sinceOpen });
+    const before = vscode.languages.getDiagnostics(docUri);
     const o1xxBefore = before.filter((d) => isO1xx(codeOf(d)));
 
     const config = vscode.workspace.getConfiguration("tclLsp.optimiser");
     try {
       await config.update("enabled", false, undefined);
-      await sleep(1000);
+      await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === false, {
+        label: "optimiser disabled",
+      });
 
-      // Re-trigger analysis
+      // Re-trigger analysis with a noop edit; snapshot the log
+      // index so the follow-up wait only matches the post-edit run.
+      const sinceEdit = getServerLogSize();
       const editor = vscode.window.activeTextEditor!;
       await setTestContent(editor, editor.document.getText() + " ");
-      const after = await waitForDiagnostics(docUri, { timeout: 5000, minCount: 1 });
+      await waitForDeepDiagnostics(docUri, { since: sinceEdit });
+      const after = vscode.languages.getDiagnostics(docUri);
       const o1xxAfter = after.filter((d) => isO1xx(codeOf(d)));
 
       if (o1xxBefore.length > 0) {
@@ -1022,26 +1057,36 @@ suite("Configuration Settings", () => {
       }
     } finally {
       await config.update("enabled", undefined, undefined);
+      await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === true, {
+        label: "optimiser re-enabled",
+      });
     }
   });
 
   // ── Regression: #104 — diagnostics master switch must clear all
   //    diagnostics even for files opened/analysed after the toggle.
   test("features.diagnostics=false clears all diagnostics (#104)", async () => {
+    const docUri = getDocUri("diagnostics.tcl");
     const config = vscode.workspace.getConfiguration("tclLsp.features");
 
     // Disable the master switch *before* opening the file, simulating
     // the scenario where VS Code restarts with the setting already off.
     try {
       await config.update("diagnostics", false, undefined);
-      await sleep(500);
+      // ``waitForFeatureToggle`` resolves ``docUri`` to its workspace
+      // folder even before the document is opened — the URI is only
+      // used to pick the right per-folder FeatureConfig.
+      await waitForFeatureToggle(docUri, "diagnostics", false);
 
-      // Open a file that normally produces many diagnostics.
-      const docUri = getDocUri("diagnostics.tcl");
+      // Register the listener *before* opening the file so the
+      // server's first publish for this URI is not missed.  When the
+      // master switch is off, ``_publish_diagnostics`` skips both
+      // passes and emits a single empty publish — there is no
+      // ``[timing]`` server log on this path, so the publish event
+      // itself is the signal.
+      const firstPublish = nextDiagnosticsPublish(docUri, { timeout: 3000 });
       await activate(docUri);
-
-      // Give the server time to analyse and (incorrectly) publish.
-      const diags = await waitForDiagnostics(docUri, { timeout: 3000, minCount: 1 });
+      const diags = await firstPublish;
       assert.strictEqual(
         diags.length,
         0,
@@ -1049,6 +1094,7 @@ suite("Configuration Settings", () => {
       );
     } finally {
       await config.update("diagnostics", undefined, undefined);
+      await waitForFeatureToggle(docUri, "diagnostics", true);
     }
   });
 

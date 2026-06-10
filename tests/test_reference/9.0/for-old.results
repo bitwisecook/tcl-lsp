@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     for-old.test
-DATE     2026-03-03T12:54:04Z
+DATE     2026-05-06T21:17:33Z
 ---
 PASS for-old-1.1
 PASS for-old-1.2

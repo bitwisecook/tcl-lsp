@@ -101,8 +101,14 @@ async function main() {
     console.log(`[runScreenshots] User data dir: ${userDataDir}`);
     console.log(`[runScreenshots] Profile: ${screenshotProfile}`);
     console.log(`[runScreenshots] Extensions dir: ${extensionsDir}`);
+    // The env var holds the backend *name* (``gnome-libsecret``,
+    // ``kwallet``, ``basic``…), not a credential — but CodeQL's
+    // ``js/clear-text-logging`` rule keys off the ``PASSWORD_STORE``
+    // suffix.  Log "set"/"(default)" instead so the audit logs stay
+    // useful without echoing a value whose semantics CodeQL can't
+    // statically classify.
     console.log(
-      `[runScreenshots] Password store: ${passwordStore || "(default)"}; reuseMachineInstall=${reuseMachineInstall}`,
+      `[runScreenshots] Password store: ${passwordStore ? "set" : "(default)"}; reuseMachineInstall=${reuseMachineInstall}`,
     );
 
     const options: Parameters<typeof runTests>[0] = {

@@ -1,0 +1,143 @@
+ByteCode 0x55d7d32c9dc0, refCt 1, epoch 21, interp 0x55d7d31a8350 (epoch 21)
+  Source "# ``dict create k1 v1 k2 v2 ...`` must return the k/v p..."
+  Cmds 22, src 716, inst 341, litObjs 20, aux 0, stkDepth 4, code/src 0.00
+  Commands 22:
+      1: pc 0-50, src 205-289        2: pc 0-3, src 210-228
+      3: pc 9-45, src 247-288        4: pc 20-32, src 267-285
+      5: pc 51-95, src 291-354        6: pc 60-63, src 296-306
+      7: pc 69-90, src 318-353        8: pc 96-121, src 356-384
+      9: pc 107-119, src 363-383       10: pc 122-172, src 386-457
+     11: pc 131-140, src 391-403       12: pc 146-167, src 415-456
+     13: pc 173-220, src 459-510       14: pc 182-188, src 464-475
+     15: pc 194-215, src 486-509       16: pc 221-235, src 603-613
+     17: pc 236-266, src 615-639       18: pc 247-264, src 623-638
+     19: pc 267-317, src 641-704       20: pc 276-285, src 646-663
+     21: pc 291-312, src 674-703       22: pc 318-339, src 706-714
+  Command 1: "if {[dict create a 1 b 2] ne \"a 1 b 2\"} { error \"lit..."
+  Command 2: "dict create a 1 b 2..."
+    (0) push1 0 	# "a 1 b 2"
+    (2) dup 
+    (3) verifyDict 
+    (4) push1 0 	# "a 1 b 2"
+    (6) strneq 
+    (7) jumpFalse1 +41 	# pc 48
+  Command 3: "error \"literal kv: [dict create a 1 b 2]\"..."
+    (9) startCommand +37 1 	# next cmd at pc 46, 1 cmds start here
+    (18) push1 1 	# "literal kv: "
+  Command 4: "dict create a 1 b 2..."
+    (20) startCommand +13 1 	# next cmd at pc 33, 1 cmds start here
+    (29) push1 0 	# "a 1 b 2"
+    (31) dup 
+    (32) verifyDict 
+    (33) strcat 2 
+    (35) push1 2 	# ""
+    (37) returnImm +1 0 
+    (46) jump1 +4 	# pc 50
+    (48) push1 2 	# ""
+    (50) pop 
+  Command 5: "if {[dict create] ne \"\"} { error \"empty dict create ..."
+    (51) startCommand +44 2 	# next cmd at pc 95, 2 cmds start here
+  Command 6: "dict create..."
+    (60) push1 2 	# ""
+    (62) dup 
+    (63) verifyDict 
+    (64) push1 2 	# ""
+    (66) strneq 
+    (67) jumpFalse1 +26 	# pc 93
+  Command 7: "error \"empty dict create not empty\"..."
+    (69) startCommand +22 1 	# next cmd at pc 91, 1 cmds start here
+    (78) push1 3 	# "empty dict create not empty"
+    (80) push1 2 	# ""
+    (82) returnImm +1 0 
+    (91) jump1 +4 	# pc 95
+    (93) push1 2 	# ""
+    (95) pop 
+  Command 8: "set d [dict create x 10 y 20]..."
+    (96) startCommand +25 1 	# next cmd at pc 121, 1 cmds start here
+    (105) push1 4 	# "d"
+  Command 9: "dict create x 10 y 20..."
+    (107) startCommand +13 1 	# next cmd at pc 120, 1 cmds start here
+    (116) push1 5 	# "x 10 y 20"
+    (118) dup 
+    (119) verifyDict 
+    (120) storeStk 
+    (121) pop 
+  Command 10: "if {[dict get $d y] != 20} { error \"round-trip through..."
+    (122) startCommand +50 2 	# next cmd at pc 172, 2 cmds start here
+  Command 11: "dict get $d y..."
+    (131) push1 4 	# "d"
+    (133) loadStk 
+    (134) push1 6 	# "y"
+    (136) dictGet 1 
+    (141) push1 7 	# "20"
+    (143) neq 
+    (144) jumpFalse1 +26 	# pc 170
+  Command 12: "error \"round-trip through dict get broke\"..."
+    (146) startCommand +22 1 	# next cmd at pc 168, 1 cmds start here
+    (155) push1 8 	# "round-trip through dict get broke"
+    (157) push1 2 	# ""
+    (159) returnImm +1 0 
+    (168) jump1 +4 	# pc 172
+    (170) push1 2 	# ""
+    (172) pop 
+  Command 13: "if {[dict size $d] != 2} { error \"dict size wrong\"..."
+    (173) startCommand +47 2 	# next cmd at pc 220, 2 cmds start here
+  Command 14: "dict size $d..."
+    (182) push1 9 	# "::tcl::dict::size"
+    (184) push1 4 	# "d"
+    (186) loadStk 
+    (187) invokeStk1 2 
+    (189) push1 10 	# "2"
+    (191) neq 
+    (192) jumpFalse1 +26 	# pc 218
+  Command 15: "error \"dict size wrong\"..."
+    (194) startCommand +22 1 	# next cmd at pc 216, 1 cmds start here
+    (203) push1 11 	# "dict size wrong"
+    (205) push1 2 	# ""
+    (207) returnImm +1 0 
+    (216) jump1 +4 	# pc 220
+    (218) push1 2 	# ""
+    (220) pop 
+  Command 16: "set k apple..."
+    (221) startCommand +14 1 	# next cmd at pc 235, 1 cmds start here
+    (230) push1 12 	# "k"
+    (232) push1 13 	# "apple"
+    (234) storeStk 
+    (235) pop 
+  Command 17: "set d2 [dict create $k 7]..."
+    (236) startCommand +30 1 	# next cmd at pc 266, 1 cmds start here
+    (245) push1 14 	# "d2"
+  Command 18: "dict create $k 7..."
+    (247) startCommand +18 1 	# next cmd at pc 265, 1 cmds start here
+    (256) push1 15 	# "::tcl::dict::create"
+    (258) push1 12 	# "k"
+    (260) loadStk 
+    (261) push1 16 	# "7"
+    (263) invokeStk1 3 
+    (265) storeStk 
+    (266) pop 
+  Command 19: "if {[dict get $d2 apple] != 7} { error \"non-literal ke..."
+    (267) startCommand +50 2 	# next cmd at pc 317, 2 cmds start here
+  Command 20: "dict get $d2 apple..."
+    (276) push1 14 	# "d2"
+    (278) loadStk 
+    (279) push1 13 	# "apple"
+    (281) dictGet 1 
+    (286) push1 16 	# "7"
+    (288) neq 
+    (289) jumpFalse1 +26 	# pc 315
+  Command 21: "error \"non-literal key broke\"..."
+    (291) startCommand +22 1 	# next cmd at pc 313, 1 cmds start here
+    (300) push1 17 	# "non-literal key broke"
+    (302) push1 2 	# ""
+    (304) returnImm +1 0 
+    (313) jump1 +4 	# pc 317
+    (315) push1 2 	# ""
+    (317) pop 
+  Command 22: "return ok..."
+    (318) startCommand +22 1 	# next cmd at pc 340, 1 cmds start here
+    (327) push1 18 	# "ok"
+    (329) push1 19 	# ""
+    (331) returnImm +0 1 
+    (340) done 
+

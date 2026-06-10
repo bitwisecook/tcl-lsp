@@ -14,9 +14,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 # Known failures
 #
@@ -34,7 +34,71 @@ from vm.interp import TclInterp
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_COMPILE: set[str] = set()
+KNOWN_FAILURES_COMPILE: set[str] = {
+    "compile-17.2",
+    "compile-18.1",
+    "compile-18.10",
+    "compile-18.11",
+    "compile-18.12",
+    "compile-18.13",
+    "compile-18.14",
+    "compile-18.15",
+    "compile-18.16",
+    "compile-18.17",
+    "compile-18.18",
+    "compile-18.19",
+    "compile-18.2",
+    "compile-18.21",
+    "compile-18.22",
+    "compile-18.23",
+    "compile-18.24",
+    "compile-18.25",
+    "compile-18.26",
+    "compile-18.27",
+    "compile-18.28",
+    "compile-18.28.1",
+    "compile-18.28.2",
+    "compile-18.28.3",
+    "compile-18.28.4",
+    "compile-18.29",
+    "compile-18.3",
+    "compile-18.30",
+    "compile-18.31",
+    "compile-18.32",
+    "compile-18.33",
+    "compile-18.34",
+    "compile-18.35",
+    "compile-18.36",
+    "compile-18.37",
+    "compile-18.38",
+    "compile-18.39",
+    "compile-18.4",
+    "compile-18.40",
+    "compile-18.41",
+    "compile-18.42",
+    "compile-18.43",
+    "compile-18.44",
+    "compile-18.45",
+    "compile-18.46",
+    "compile-18.47",
+    "compile-18.48",
+    "compile-18.5",
+    "compile-18.50",
+    "compile-18.51",
+    "compile-18.52",
+    "compile-18.53",
+    "compile-18.54",
+    "compile-18.55",
+    "compile-18.56",
+    "compile-18.57",
+    "compile-18.58",
+    "compile-18.6",
+    "compile-18.7",
+    "compile-18.8",
+    "compile-18.9",
+    "compile-20.1",
+    "compile-20.2",
+}
 # compile.test crashes at startup in the Python VM (Total=0); the
 # tcltest runner never reaches individual cases.  The caller below
 # passes ``expect_zero_total=True`` so the guard surfaces any
@@ -150,7 +214,7 @@ class TestCompileNative:
 
     def test_compile(self) -> None:
         results = _run_test_file("compile.test")
-        _check_results(results, KNOWN_FAILURES_COMPILE, "compile.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_COMPILE, "compile.test")
 
 
 class TestExecuteNative:
@@ -158,4 +222,4 @@ class TestExecuteNative:
 
     def test_execute(self) -> None:
         results = _run_test_file("execute.test")
-        _check_results(results, KNOWN_FAILURES_EXECUTE, "execute.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_EXECUTE, "execute.test")

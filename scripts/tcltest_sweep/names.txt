@@ -6,6 +6,8 @@ apply
 assocd
 basic
 brodnik
+chan
+chanio
 cmdAH
 cmdIL
 cmdMZ
@@ -34,6 +36,8 @@ incr-old
 indexObj
 info
 interp
+io
+ioCmd
 join
 lindex
 linsert

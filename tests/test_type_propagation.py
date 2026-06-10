@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.compiler.types import TclType, TypeKind, TypeLattice
+from compiler.types import TclType, TypeKind, TypeLattice
 
 from .helpers import analyse_types as _analyse
 from .helpers import var_type as _var_type
@@ -148,6 +148,7 @@ set x 1
 if {$cond} {
     set x hello
 }
+puts $x
 """
         analysis = _analyse(source)
         # After the if, x could be INT (from before) or STRING (from body)
@@ -838,7 +839,9 @@ class TestVariableShapeTypePropagation:
         assert t.kind is TypeKind.KNOWN
         assert t.tcl_type is TclType.STRING
 
-    def test_braced_scalar_like_array_name_normalises_to_scalar_symbol(self):
+    def test_braced_array_like_name_flows_under_base_array_symbol(self):
+        # Braced ${a(1)} is a whole-name load of array element a(1); the
+        # type flows under the base array symbol "a".
         analysis = _analyse('set {a(1)} "alpha beta"\nset n [llength ${a(1)}]')
         t = _var_type(analysis, "a")
         assert t is not None

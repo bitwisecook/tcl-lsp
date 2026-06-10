@@ -1,5 +1,8 @@
 # KCS: feature — Selection Range
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Smart expand/shrink selection by syntactic structure.
@@ -19,7 +22,7 @@ Selection ranges are computed from the AST, expanding from the innermost express
 
 ## File-path anchors
 
-- `lsp/features/selection_range.py`
+- `server/features/selection_range.py`
 
 ## Failure modes
 

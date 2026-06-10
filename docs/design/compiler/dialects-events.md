@@ -14,9 +14,9 @@ Dialects partition command availability.  Every `CommandSpec` has an optional
 commands are further restricted by event context — `EventRequires` declares
 transport, profile, and connection-side requirements.
 
-Source: [`core/commands/registry/dialects.py`](../../../core/commands/registry/dialects.py),
-[`core/commands/registry/models.py`](../../../core/commands/registry/models.py),
-[`core/commands/registry/namespace_models.py`](../../../core/commands/registry/namespace_models.py)
+Source: [`compiler/registry/dialects.py`](../../../compiler/registry/dialects.py),
+[`compiler/registry/models.py`](../../../compiler/registry/models.py),
+[`compiler/registry/namespace_models.py`](../../../compiler/registry/namespace_models.py)
 
 ## Content
 
@@ -69,7 +69,7 @@ is >= `min_version`.  Use this for version-dependent `CommandSpec` fields
 instead of manually listing dialect names:
 
 ```python
-from core.commands.registry.dialects import dialects_since
+from compiler.registry.dialects import dialects_since
 
 # Returns {"tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "f5-tmsh",
 #          "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl",

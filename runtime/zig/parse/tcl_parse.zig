@@ -29,19 +29,43 @@
 // specially (not whitespace per-se, but command terminators), so
 // importing ``chars.is_space`` wouldn't be a drop-in swap.
 
-pub const MAX_WORDS: u32 = 32;
+// Maximum number of words a single command can have when parsed
+// through the stack-array fast path.  Tcl 9 has no hard limit — it
+// grows its argument buffer dynamically — but our parser uses
+// fixed-size stack arrays for the common case to avoid per-command
+// allocation traffic.  Bumped from 128 to handle ``string cat``
+// invocations with hundreds of args (string-29.4: 260 ``$x`` tokens
+// after ``string repeat``).  Per-frame stack cost at 512 is ~30 KB
+// across the various ``[MAX_WORDS]`` arrays in tcl_interp /
+// tcl_subst / tcl_expr_eval; well under the wasm32-wasi default
+// 1 MB stack with the usual 3-4 frame eval depth.
+pub const MAX_WORDS: u32 = 512;
 
 // ---------------------------------------------------------------------
 // Flat-array API — legacy.  Kept here so callers don't have to migrate
 // in the same commit as the file move.
 // ---------------------------------------------------------------------
 
-pub const BracedRange = struct { end: u32, start: u32, wlen: u32 };
+pub const BracedRange = struct {
+    end: u32,
+    start: u32,
+    wlen: u32,
+    /// ``parse_braced`` / ``parse_quoted`` set this when they ran
+    /// off the end of input without seeing a matching close
+    /// delimiter.  Callers can read it to surface ``missing
+    /// close-brace`` / ``missing "`` diagnostics (parseOld-10.x).
+    unterminated: bool = false,
+};
 
 pub fn skip_space(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos;
     while (p < len) {
-        if (src[p] == ' ' or src[p] == '\t') {
+        // Tcl's command tokeniser (tclParse.c TYPE_SPACE) treats
+        // vertical tab (0x0B) and form feed (0x0C) as inter-word
+        // whitespace alongside space / tab.  Form-feed page separators
+        // appear between sections of upstream test files (init.test),
+        // so a ``\f``-only line must skip rather than parse as a word.
+        if (src[p] == ' ' or src[p] == '\t' or src[p] == 0x0B or src[p] == 0x0C) {
             p += 1;
         } else if (src[p] == '\\' and p + 1 < len and src[p + 1] == '\n') {
             // Tcl line continuation: ``\<newline>`` collapses to a
@@ -82,7 +106,7 @@ pub fn parse_braced(src: [*]const u8, pos: u32, len: u32) BracedRange {
     // content runs all the way to ``p`` (== len) — skipping this
     // guard would u32-underflow when the source is a single ``{``.
     const wlen = if (depth == 0) p - 1 - start else p - start;
-    return .{ .end = p, .start = start, .wlen = wlen };
+    return .{ .end = p, .start = start, .wlen = wlen, .unterminated = depth > 0 };
 }
 
 pub fn parse_quoted(src: [*]const u8, pos: u32, len: u32) BracedRange {
@@ -92,8 +116,9 @@ pub fn parse_quoted(src: [*]const u8, pos: u32, len: u32) BracedRange {
         if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
     }
     const wlen = p - start;
+    const closed: bool = p < len;
     if (p < len) p += 1;
-    return .{ .end = p, .start = start, .wlen = wlen };
+    return .{ .end = p, .start = start, .wlen = wlen, .unterminated = !closed };
 }
 
 pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
@@ -137,22 +162,88 @@ pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
 /// ``]``.  Shared helper for :func:`parse_bare` and the substitution
 /// path (``tcl_interp.subst_flagged``) so both use the same nesting
 /// / backslash-escape semantics.
+///
+/// Tracks ``{...}`` braces and ``"..."`` quotes inside the bracket
+/// content so a ``]`` inside a brace-quoted word or quoted string is
+/// treated literally — matching reference Tcl's parser.  Without
+/// this, ``[catch {subst {[set a 1}} msg]`` would scan the inner ``[``
+/// as a depth bump and the outer ``]`` as depth-1 (not 0), causing the
+/// caller to consume the rest of the source into one giant "word".
+///
+/// Brace and quote skipping ONLY fires at word-start positions
+/// (after whitespace, ``;``, ``\n``, or the bracket open) — a ``{``
+/// mid-word (e.g. inside ``${foo}``) is not a brace-quoted word and
+/// must not consume the trailing ``]`` looking for a missing ``}``.
 pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos + 1;
     var depth: u32 = 1;
+    var at_word_start: bool = true;
     while (p < len and depth > 0) {
-        if (src[p] == '\\' and p + 1 < len) {
+        const c = src[p];
+        if (c == '\\' and p + 1 < len) {
             p += 2;
             continue;
         }
-        if (src[p] == '[') depth += 1;
-        if (src[p] == ']') depth -= 1;
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+            at_word_start = true;
+            p += 1;
+            continue;
+        }
+        if (at_word_start and c == '{') {
+            p += 1;
+            var bdepth: u32 = 1;
+            while (p < len and bdepth > 0) {
+                if (src[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                    continue;
+                }
+                if (src[p] == '{') bdepth += 1 else if (src[p] == '}') bdepth -= 1;
+                p += 1;
+            }
+            at_word_start = false;
+            continue;
+        }
+        if (at_word_start and c == '"') {
+            p += 1;
+            while (p < len and src[p] != '"') {
+                if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+            }
+            if (p < len) p += 1;
+            at_word_start = false;
+            continue;
+        }
+        at_word_start = false;
+        if (c == '[') depth += 1 else if (c == ']') depth -= 1;
         p += 1;
     }
     return p;
 }
 
-pub const CommandResult = struct { count: u32, next: u32 };
+pub const CommandResult = struct {
+    count: u32,
+    next: u32,
+    /// Set when ``parse_command`` saw a brace-quoted or quoted-string
+    /// word followed immediately by a non-separator byte
+    /// (``set {} {}{}`` or ``foo "bar"baz``).  Reference Tcl raises
+    /// ``extra characters after close-brace`` for braces and
+    /// ``extra characters after close-quote`` for quoted strings;
+    /// we can't raise from this pure-parser module so eval_script
+    /// picks up the flag and routes it through ``tcl_cmd_error``.
+    extra_chars_after_close: bool = false,
+    /// True when the error was after a ``"`` quoted word (vs a
+    /// braced word).  Distinguishes the two error messages
+    /// (set-1.3 expects "close-quote", parse-18.19 expects
+    /// "close-brace").
+    extra_chars_after_quote: bool = false,
+    /// Set when a braced word ran off the end of the input
+    /// without a matching ``}``.  Reference Tcl raises
+    /// ``missing close-brace`` (parseOld-10.1 / 10.2).
+    unterminated_brace: bool = false,
+    /// Set when a ``"``-quoted word ran off the end of the input
+    /// without a matching ``"``.  Reference Tcl raises
+    /// ``missing "`` (parseOld-10.3 / 10.4).
+    unterminated_quote: bool = false,
+};
 
 pub fn parse_command(
     src: [*]const u8,
@@ -172,7 +263,11 @@ pub fn parse_command(
     // parser on a lonely backslash.
     while (p < len) {
         const c = src[p];
-        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+        // ``0x0B`` (VT) / ``0x0C`` (FF) are whitespace in Tcl's command
+        // tokeniser; skip them between commands so a form-feed-only line
+        // (page separators in init.test et al.) doesn't strand the
+        // parser on a bare ``\f`` word.
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';' or c == 0x0B or c == 0x0C) {
             p += 1;
         } else if (c == '\\' and p + 1 < len and src[p + 1] == '\n') {
             p += 2;
@@ -200,30 +295,31 @@ pub fn parse_command(
         }
 
         // Detect ``{*}`` argument-expansion prefix (Tcl 8.5+).  The
-        // three-character sequence ``{*}`` immediately before a word
-        // signals that the word should be evaluated and then split as
-        // a Tcl list, with each element inserted as a separate
-        // argument.  Strip the prefix here and record the expansion
-        // flag; the actual splitting happens in eval_script.
+        // three-character sequence ``{*}`` signals that the *immediately
+        // following* word should be evaluated and split as a Tcl list,
+        // each element inserted as a separate argument.  Per
+        // ``tclParse.c`` the prefix only triggers expansion when a
+        // *non-whitespace, non-terminator* character follows with no
+        // intervening space: a standalone ``{*}`` (at end-of-command or
+        // followed by whitespace / ``\n`` / ``;``) is the ordinary
+        // brace-quoted literal word ``*``.
         var expand = false;
         if (src[p] == '{' and p + 2 < len and src[p + 1] == '*' and src[p + 2] == '}') {
-            expand = true;
-            p += 3;
-            // Skip any whitespace between {*} and the word (rare but
-            // valid in Tcl: ``cmd {*} $args`` is the same as
-            // ``cmd {*}$args``).
-            p = skip_space(src, p, len);
-            if (p >= len or src[p] == '\n' or src[p] == ';') {
-                // bare {*} with nothing following — treat as empty expansion
-                word_ptrs[count] = 0;
-                word_lens[count] = 0;
-                word_braced[count] = false;
-                word_expand[count] = true;
-                count += 1;
-                break;
+            const after = p + 3;
+            const expands = after < len and !(src[after] == ' ' or src[after] == '\t' or
+                src[after] == 0x0B or src[after] == 0x0C or src[after] == '\n' or
+                src[after] == '\r' or src[after] == ';' or
+                (src[after] == '\\' and after + 1 < len and src[after + 1] == '\n'));
+            if (expands) {
+                expand = true;
+                p += 3;
             }
+            // Otherwise fall through and parse ``{*}`` as a literal
+            // braced word below.
         }
 
+        var word_kind_brace_or_quote = false;
+        var word_kind_quoted = false;
         if (src[p] == '{') {
             const r = parse_braced(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -232,6 +328,14 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
+            if (r.unterminated) {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .unterminated_brace = true,
+                };
+            }
         } else if (src[p] == '"') {
             const r = parse_quoted(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -240,6 +344,15 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
+            word_kind_quoted = true;
+            if (r.unterminated) {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .unterminated_quote = true,
+                };
+            }
         } else {
             const r = parse_bare(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -248,6 +361,29 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+        }
+        // After a brace-quoted or ``"..."``-quoted word, the next
+        // byte must be a word separator (whitespace, ``;``, ``\n``,
+        // ``\r``) or end-of-source.  ``\<NL>`` is also acceptable —
+        // reference Tcl treats backslash-newline as a whitespace
+        // replacement everywhere (parseOld-7.4, var-7.9 trap fix:
+        // ``-result [list ... \<NL> ...]`` after braced ``{...}``).
+        // Anything else is a syntax error — reference Tcl raises
+        // ``extra characters after close-brace`` (parse-18.19 /
+        // 18.20 / 18.21).  Surface it via the
+        // ``extra_chars_after_close`` flag so the caller
+        // (eval_script) can route the error through tcl_cmd_error.
+        if (word_kind_brace_or_quote and p < len) {
+            const c = src[p];
+            const is_bs_nl = c == '\\' and p + 1 < len and src[p + 1] == '\n';
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';' and !is_bs_nl) {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .extra_chars_after_close = true,
+                    .extra_chars_after_quote = word_kind_quoted,
+                };
+            }
         }
     }
     return .{ .count = count, .next = p };
@@ -343,6 +479,14 @@ pub const Parse = struct {
     /// Count of top-level words (``.WORD`` / ``.SIMPLE_WORD``
     /// entries) — convenience for consumers.
     n_words: u32,
+    /// Surfaces the "extra characters after close-brace" parse error.
+    /// See :data:`CommandResult.extra_chars_after_close`.
+    extra_chars_after_close: bool = false,
+    extra_chars_after_quote: bool = false,
+    /// Surfaces ``missing close-brace`` / ``missing "`` from
+    /// :data:`CommandResult.unterminated_brace` / ``_quote``.
+    unterminated_brace: bool = false,
+    unterminated_quote: bool = false,
 };
 
 /// Token-tree form of :func:`parse_command`.  Writes at most
@@ -411,5 +555,9 @@ pub fn ParseCommand(
         .command_len = r.next - pos,
         .next = r.next,
         .n_words = r.count,
+        .extra_chars_after_close = r.extra_chars_after_close,
+        .extra_chars_after_quote = r.extra_chars_after_quote,
+        .unterminated_brace = r.unterminated_brace,
+        .unterminated_quote = r.unterminated_quote,
     };
 }

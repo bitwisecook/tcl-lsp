@@ -15,15 +15,20 @@ and communicates over stdio, making it compatible with any LSP client.
 
 ## Editor support
 
-> **[Installation Guide](INSTALL.md)** — step-by-step instructions for
-> installing from GitHub Releases on macOS and Windows.
+> **Installation guides:**
+> [INSTALL-editors.md](INSTALL-editors.md) — step-by-step setup for
+> VS Code, Neovim, Zed, Emacs, Helix, Sublime Text, and JetBrains on
+> macOS (Homebrew), Linux (Debian/Ubuntu, RHEL/CentOS, Fedora), and
+> Windows.
+> [INSTALL-cli.md](INSTALL-cli.md) — the `tcl` and `f5` CLIs,
+> including a one-line `curl | sh` installer.
 
 ### All editors
 
 | Editor | Type | Setup | Unique extras |
 |--------|------|-------|---------------|
 | [VS Code](editors/vscode/) | Full extension (.vsix) | Install `.vsix` from Releases | Compiler explorer panel, Tk preview, `@irule`/`@tcl`/`@tk` Copilot chat, 25+ commands |
-| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
+| [Neovim](editors/neovim/) | Config snippet (Lua) | Copy `tcl_lsp.lua` to `~/.config/nvim/server/` | Zero-plugin on 0.11+; also supports nvim-lspconfig |
 | [Zed](editors/zed/) | Full extension (TOML + Rust) | Install from Zed extension registry | 16 built-in snippets, MCP context server, `/tcl-doc` and `/irule-event` slash commands |
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
@@ -33,6 +38,15 @@ and communicates over stdio, making it compatible with any LSP client.
 All editors connect to the same Python LSP server over stdio.  The server can
 be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
+
+**Also documented in [INSTALL-editors.md](INSTALL-editors.md):**
+
+- *VS Code-compatible editors* (load the same `.vsix` unchanged) —
+  Cursor, Windsurf, VSCodium, code-server / Coder, GitHub Codespaces,
+  Gitpod, and Eclipse Theia.
+- *Other LSP-capable editors* (point a generic LSP client at the
+  `.pyz`) — Vim (vim-lsp or coc.nvim), Kate, Kakoune, Notepad++, Geany,
+  Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
 
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
 `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
@@ -46,7 +60,7 @@ The full-featured extension, distributed as a `.vsix`, bundles the LSP server
 and provides the richest integration.
 
 **25+ commands** including: Restart Server, Select Dialect, Apply Safe Quick
-Fixes, Apply All Optimisations, Open Compiler Explorer, Open Tk Preview,
+Fixes, Apply All Optimisations, Open in Tcl Compiler Explorer, Open Tk Preview,
 Format Document, Minify Document, Insert iRule Event Skeleton, Scaffold Tcl
 Package Starter, Insert `package require`, Run Runtime Validation, Translate
 iRule to F5 XC, Extract iRule from Config, Escape/Unescape Selection, Base64
@@ -58,10 +72,7 @@ Ctrl+Alt+E (compiler explorer).
 **Status bar:** shows the active dialect (clickable to change) and the
 extension version.
 
-```sh
-# Install from release
-code --install-extension tcl-lsp-0.1.0.vsix
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#vs-code).
 
 ### Neovim
 
@@ -69,7 +80,7 @@ Zero-plugin setup on Neovim 0.11+ using the native LSP client.  Also works
 with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 
 ```lua
--- ~/.config/nvim/lsp/tcl_lsp.lua  (Neovim 0.11+)
+-- ~/.config/nvim/server/tcl_lsp.lua  (Neovim 0.11+)
 return {
   cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
@@ -93,19 +104,10 @@ on first use and auto-discovers Python 3.10+ on your PATH.
 
 Includes 16 built-in snippets (`tcl-proc`, `tcl-namespace`, `tcl-if`,
 `irule-http-request`, `irule-collect-release`, etc.), an MCP context server
-exposing all 23 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
+exposing all 44 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
 `/tcl-validate`).
 
-```sh
-# Install from the Zed extension registry (search "Tcl")
-# Or install from a release artifact (no Rust required):
-#   1. Download tcl-lsp-zed-*.zip from the GitHub Releases page
-#   2. unzip tcl-lsp-zed-*.zip -d /tmp/tcl-lsp-zed
-#   3. Command Palette (Cmd+Shift+P) > "zed: install dev extension" > select /tmp/tcl-lsp-zed
-# Or build from source (requires Rust via rustup — https://rustup.rs):
-#   1. make zed
-#   2. Command Palette > "zed: install dev extension" > select editors/zed/
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
 
 ### Emacs
 
@@ -151,14 +153,7 @@ enhanced (full LSP features when the LSP package is installed).
 
 Auto-discovers the bundled `.pyz` server from the package archive.
 
-```sh
-# Install via Package Control:
-#   Command Palette > Package Control: Install Package > Tcl
-
-# Or manual install:
-#   Download Tcl.sublime-package from Releases
-#   Place in ~/Library/Application Support/Sublime Text/Installed Packages/
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#sublime-text).
 
 **Commands:** Select Dialect, Restart Language Server, Format Document, Minify
 Document, Apply Safe Quick Fixes, Apply All Optimisations.
@@ -173,13 +168,8 @@ formatting option.
 Features a **Compiler Explorer tool window** with JCEF browser for inspecting
 IR, CFG, SSA, and optimiser output directly inside the IDE.
 
-```sh
-# Install from release:
-#   Settings > Plugins > ⚙️ > Install Plugin from Disk > tcl-lsp-jetbrains.zip
-
-# Build from source:
-make jetbrains
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#jetbrains).
+Build from source: `make build-editor-jetbrains`.
 
 ## Features
 
@@ -203,7 +193,7 @@ string length "a" "b"   ;# E003: too many arguments
 
 Variables, procs, keywords, and strings are classified using SSA-informed type
 information, giving richer highlighting than a TextMate grammar alone.  The
-server provides 43 token types beyond the standard LSP set, including
+server provides 44 token types beyond the standard LSP set, including
 sub-token highlighting inside strings.  Tokens are cached per top-level chunk
 so only dirty regions are recomputed after an edit, and the server supports
 `textDocument/semanticTokens/full/delta` for bandwidth-efficient incremental
@@ -235,8 +225,9 @@ domain-specific token types:
 ### Diagnostics
 
 Arity errors, unknown subcommands, best-practice violations, and security
-issues are reported with precise ranges.  All diagnostics support inline
-suppression with `# noqa: CODE` comments.
+issues are reported with precise ranges.  Diagnostics can be suppressed
+inline, per-file, per-project, per-editor, or globally — see
+[Suppressing diagnostics](#suppressing-diagnostics).
 
 ```tcl
 string frobulate $x          ;# W001: unknown subcommand 'frobulate'
@@ -412,7 +403,7 @@ source lib/utils.tcl        ;# click → opens lib/utils.tcl
 
 ### Formatting
 
-Full-document and range formatting with 24 configurable options.  Defaults
+Full-document and range formatting with 25 configurable options.  Defaults
 follow the F5 iRules Style Guide.  Supports full-document
 (`textDocument/formatting`) and range (`textDocument/rangeFormatting`)
 requests.
@@ -662,6 +653,15 @@ labelled `block` / `loop` / `if` for each Tcl construct (`foreach`,
 above every instruction group, and orthogonal control-flow arrows in the
 left gutter.
 
+The IR, CFG, SSA, bytecode, and WASM tabs each carry an **optimiser lens**
+(`off` / `on` / `diff`).  The `diff` mode compares the relevant node — IR
+statement, CFG block, or bytecode instruction — rather than raw text, so
+byte offsets, source ranges, sequence indices, and tree-connector glyphs
+that merely shift when the optimiser adds or removes a node are ignored.
+A single rewrite then shows as a single localised change instead of every
+following line being flagged.  The `tcl-explorer` CLI and TUI render the
+same offset-free diff via `--opt diff`.
+
 ```
 ┌─────────────────────────────────────────────────┐
 │  IR  │  CFG  │  SSA  │  Optimiser  │  Bytecode  │
@@ -717,6 +717,228 @@ ltm virtual /Common/my_vs {
 }
 # "Extract All iRules to Files..." exports every iRule to separate .tcl files
 ```
+
+**`f5` CLI tool with a `cleanup` verb** — find every object the
+configuration defines but no virtual server (or wide-IP) references,
+and emit a `tmsh delete` script in reverse-topological order so each
+delete runs only after the objects that reference its target have
+already been removed.  iRule bodies are scanned too (`pool …`,
+`SSL::profile …`, `class match …`, `persist …`, `snatpool …`,
+`virtual …`, `node …`, `LSN::pool …`, `STATS::*`, `ifile …`,
+`HTTP::respond ifile …`, plus every other iRule command that names a
+BIG-IP object).  Constant-string variables are tracked through `set
+var /Common/foo; pool $var` linear copy-propagation, so refs written
+through local bindings are caught.
+
+```
+f5 cleanup samples/bigip/bigip.conf
+f5 cleanup --keep /Common/critical_pool bigip.conf
+f5 cleanup --json bigip.conf > report.json
+```
+
+**`f5 grep` verb** — find every BIG-IP object related to a given
+object name (or regex, or CIDR) by walking the same
+forward-and-reverse reference graph the cleanup analysis uses.  By
+default the BFS traverses both directions, so a single command
+surfaces the seed's full neighbourhood: forward edges (objects the
+seed depends on) and reverse edges (objects that depend on the seed).
+
+`--cidr` switches the seed selector from "match the object's full
+path" to "match an IP address or CIDR mentioned anywhere inside the
+object — header, body, or iRule script".  Multiple networks may be
+passed at once as a comma- or whitespace-separated list, and an
+object qualifies when any IP/CIDR token in its text overlaps any
+requested network.  This catches addresses buried deep inside iRule
+bodies (`if { [IP::addr [IP::client_addr] equals "10.0.0.5"] }`,
+`class match … "10.0.0.0/8"`, …) that a plain path grep can't reach.
+
+```
+f5 grep /Common/web_pool bigip.conf
+f5 grep --direction reverse /Common/web1 bigip.conf
+f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
+f5 grep --json --max-depth 2 web_pool bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
+f5 grep --no-recurse --cidr 10.0.0.0/8 bigip.conf
+```
+
+The related-object BFS is on by default; pass `--no-recurse` to
+skip it and return only the objects that directly match the
+pattern (`-r` / `--recurse` toggle it explicitly back on).  This
+applies to every match mode: substring, `--regex`, and `--cidr`.
+
+**`f5 irule` verb group** — iRules-specific analysis with
+`event-order` and `event-info` sub-actions, defaulting to the
+`f5-irules` dialect:
+
+```sh
+f5 irule event-order samples/irules/policy.irule
+f5 irule event-info HTTP_REQUEST --json
+```
+
+`f5` is a separate CLI from `tcl`.  The full verb list (today):
+
+| Group | Verbs |
+| --- | --- |
+| Acquisition | `fetch`, `extract` (UCS → SCF) |
+| Analysis | `stats`, `graph`, `explain`, `diff`, `grep`, `cleanup`, `validate` |
+| Transformation | `rename`, `redact`, `unredact`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
+| Round-trip | `pull`, `push` |
+| iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract` |
+| Misc | `completion` |
+
+Highlights of the newer verbs:
+
+- **`f5 fetch`** — pull SCF/UCS from a live BIG-IP via iControl REST or
+  SSH (system `ssh`/`scp`).  Credentials resolve from CLI flags, env
+  vars, an XDG `hosts.toml`, or interactive prompt.
+- **Encrypted UCS** — archives saved with `tmsh save sys ucs <name>
+  passphrase <pass>` are GnuPG symmetric (AES-128) OpenPGP messages (F5
+  KB K5437).  Every verb that reads a `.ucs` — `extract`,
+  `convert ucs2scf`, `query`, `grep`, `cleanup`, `diff`, `irule …` —
+  decrypts them transparently and entirely **in memory**; the decrypted archive
+  (which holds SSL private keys) never touches disk.  The passphrase is
+  read from `$F5_UCS_PASSPHRASE` or a secure terminal prompt; `extract`
+  and `convert` also accept `--passphrase-env VAR` / `--no-passphrase-prompt`.
+  Decryption shells out to `gpg`/`gpg2` when present (exactly what BIG-IP
+  uses) and otherwise falls back to a bundled, dependency-free
+  pure-Python OpenPGP decryptor, so it works even in the zipapp on a host
+  with no GnuPG installed.
+
+  ```sh
+  export F5_UCS_PASSPHRASE='…'        # or be prompted on a TTY
+  f5 extract encrypted.ucs -o prod.scf
+  f5 query '.ltm.virtual[].name' encrypted.ucs
+  ```
+- **`f5 explain {virtual|pool} <name>`** — print the resolved profile
+  chain, iRule chain, persistence, SNAT, default pool, and members for
+  one object: the operator's "what actually happens to this VIP?"
+  question, answered in one command.
+- **`f5 diff old.scf new.scf`** — semantic, object-aware diff that
+  ignores property ordering and iRule whitespace.  Each side may be an
+  SCF / `bigip.conf` stanza dump *or* a tmsh command script
+  (`tmsh create` / `tmsh modify` lines, as emitted by `f5 tmsh` or
+  pasted from a BIG-IP shell), and the two formats may be mixed.  Every
+  config-producing verb (`extract`, `pull`, `grep`, `split`, `merge`,
+  `rename`, `redact`, `unredact`) also takes `--format scf|tmsh` so the
+  same artefact can be replayed either way.
+- **`f5 redact` + `f5 unredact`** — strip secrets and remap public IPs
+  while preserving CIDR relationships (a /24 of real IPs lands in a /24
+  of redacted IPs).  A sidecar map file makes the redaction reversible
+  *and stable across runs* — re-running `redact` with the same map
+  reuses every prior assignment, so iterative work with F5 support
+  stays consistent.  `unredact` walks the map in reverse over any text,
+  including support emails and log snippets.
+- **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
+  IPv4/IPv6 src/dst, recomputes IP and TCP/UDP/ICMP checksums, and
+  *parses* the F5 Ethernet trailer (legacy + DPT formats; `tcpdump -i
+  0.0:nnnp`) to rewrite peer IPs at schema-known offsets.  Schema
+  ported from Wireshark's `packet-f5ethtrailer.c`; `--schema FILE`
+  layers in fleet-specific extensions; `--on-unknown=error|preserve|sweep`
+  picks the policy when a TLV has no registered layout.
+- **`f5 tmsh`** — emit `tmsh create` (or `--modify`) commands for every
+  object in a config, in dependency order so the script can be pasted
+  into a BIG-IP shell unchanged.
+- **`f5 query` (alias `f5 q`)** — small jq-flavoured DSL for inspecting
+  and rewriting BIG-IP configs.  Built-in **renderer plugins** turn
+  query output into a Mermaid diagram, an ASCII Gantt timeline of
+  monitor up/down transitions, or a Unicode line-art block diagram —
+  no sidecar Python scripts required.  Run
+  `f5 q --help-renderers` for the catalogue:
+
+  ```sh
+  # ASCII Gantt of pool-member up/down events from a BIG-IP log
+  f5 q --render gantt '
+      f5log_load("ltm.log")[]
+      | select(.module == "01340011" or .module == "01340012")
+      | tsv(.timestamp,
+            (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
+            (if .module == "01340011" then "DOWN" else "UP" end))
+  ' bigip.conf
+
+  # Mermaid diagram of every web virtual server and its references
+  f5 q --render mermaid '.ltm.virtual["~/web_"]' bigip.conf
+  ```
+
+**Use the query engine from Python** — the same engine is importable
+as `f5q` so external scripts can drive queries, build them up
+progressively, render results through plugins or inline callables,
+and ship reusable extensions via one-line decorators:
+
+```python
+from f5q import q, load, renderer, builtin, input_format
+
+# One-liner: q() takes (expression, *inputs).
+for name in q(".ltm.virtual[] | .name", "bigip.conf"):
+    print(name)
+
+# Progressive — chain queries on top of each other (typed wrapper, immutable).
+filtered = (
+    q(".ltm.virtual[]", "bigip.conf")
+    .q('.[] | select(.pool != null)')
+    .q('.[] | .name')
+)
+
+# Render via a registered plugin OR an inline callable.
+filtered.render("ascii-blocks")
+filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
+
+# Coerce to plain JSON-friendly Python.
+data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
+
+# Pre-stage once, query many times. Custom file formats? Pass an inline parser.
+corpus = load("ltm.conf", "gtm.conf")
+routes = load("routes.xml", parser=my_xml_parser)
+
+# Ship a custom renderer the f5 CLI can dispatch via --render NAME.
+@renderer("md-table", summary="Markdown table of results.", accepts="any")
+def _render(values, **opts):
+    return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
+
+# Ship a custom DSL function the query language can call.
+@builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
+def _u(s):
+    return str(s).upper()
+
+# Ship a custom side-input format `--input KIND NAME=PATH` can load.
+@input_format("yaml", summary="YAML side-input.")
+def _parse_yaml(source, *, uri, options=()):
+    import yaml
+    return yaml.safe_load(source)
+```
+
+**Auto-discovered plugins** — drop any of the above into
+`$XDG_CONFIG_HOME/dialects/f5/query/plugins/*.py` (default
+`~/.config/dialects/f5/query/plugins/*.py`) and the engine picks them up on the
+first registry access, no import dance required.  Broken plugins
+warn to stderr and are skipped; `f5 q --help-plugins` shows what
+loaded.
+
+**Documentation**:
+
+- **Python API reference** — autodoc-generated, every public
+  symbol with full signature, docstring, and `[source]` links.
+  Build locally with `make docs-html` (output at
+  `docs/sphinx/_build/html/index.html`); the same Sphinx tree
+  builds on Read the Docs via [`.readthedocs.yaml`](.readthedocs.yaml).
+- [KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
+  — task-oriented walkthrough.
+- [KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
+  — built-in plugin catalogue and CLI flag reference.
+- [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
+  — formal contracts, registration lifecycle, error mapping.
+
+**Install the `f5` CLI** — the released artefact is a single-file
+zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
+See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
+installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
+Fedora, shell completion setup, and source-build instructions.
+
+In VS Code, run the command palette entry **Tcl: Generate BIG-IP
+Cleanup Script** while a `bigip.conf` is open; the script and its JSON
+metadata report open side-by-side.  See
+[KCS: feature — BIG-IP Config Cleanup](docs/kcs/features/kcs-feature-bigip-cleanup.md)
+for the full options reference.
 
 ### APL (iApp Presentation Language)
 
@@ -871,7 +1093,7 @@ domain-specific AI assistance backed by the LSP's static analysis.
 | `/fix` | Iteratively fix all LSP diagnostics in the current iRule |
 | `/validate` | Run full LSP validation and show a categorised report |
 | `/review` | Deep security and safety review (injection, DoS, races) |
-| `/convert` | Modernise legacy patterns (unbraced expr, matchclass, etc.) |
+| `/find-legacy` | Find and modernise legacy patterns (unbraced expr, matchclass, etc.) |
 | `/optimise` | Apply optimiser suggestions with explanations |
 | `/scaffold` | Generate an iRule skeleton from selected events |
 | `/datagroup` | Suggest data-group extraction for inline lookups |
@@ -887,11 +1109,11 @@ Copilot: generates a complete iRule with HTTP_REQUEST handler, table-based
          counting, and HTTP::respond 429 — validated against the LSP
 ```
 
-![AI — create iRule](docs/screenshots/15-ai-create.png)
+![AI — create iRule](docs/screenshots/26-ai-create.png)
 
-![AI — explain iRule](docs/screenshots/16-ai-explain.png)
+![AI — explain iRule](docs/screenshots/27-ai-explain.png)
 
-![AI — diagram iRule](docs/screenshots/17-ai-diagram.png)
+![AI — diagram iRule](docs/screenshots/28-ai-diagram.png)
 
 #### `@tcl` — Tcl assistant
 
@@ -971,7 +1193,7 @@ any MCP-compatible client (Claude Desktop, custom agents, etc.).
 | `analyze` | Full analysis: diagnostics, symbols, events, and metadata |
 | `validate` | Categorised validation report |
 | `review` | Security-focused diagnostic report |
-| `convert` | Detect legacy patterns for modernisation |
+| `find-legacy` | Detect legacy patterns eligible for modernisation |
 | `optimize` | Optimisation suggestions with rewritten source |
 | `hover` | Hover information at a position |
 | `complete` | Completions at a position |
@@ -1066,10 +1288,8 @@ A single verb-based CLI that aggregates common local workflows:
 - `callgraph` — build procedure call graph data
 - `symbolgraph` — build symbol relationship graph data
 - `dataflow` — build taint/effect data-flow graph data
-- `event-order` — show iRules events in canonical firing order
-- `event-info` — look up iRules event metadata and valid commands
 - `command-info` — look up command registry metadata
-- `convert` — detect legacy modernisation patterns
+- `find-legacy` — detect legacy modernisation patterns (detection only)
 - `dis` — bytecode disassembly
 - `compwasm` — compile input to a WASM binary
 - `highlight` — emit syntax-highlighted source (`ansi` or `html`)
@@ -1104,16 +1324,18 @@ python tcl.pyz minify script.tcl -o minified.tcl
 # Aggressive minify (optimise + static substring folding via SCCP + name compaction)
 python tcl.pyz minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
 
-# Symbol/graph/event/convert analysis verbs
+# Symbol/graph/find-legacy analysis verbs
 python tcl.pyz symbols script.tcl --json
 python tcl.pyz diagram script.tcl --json
 python tcl.pyz callgraph script.tcl --json
 python tcl.pyz symbolgraph script.tcl --json
 python tcl.pyz dataflow script.tcl --json
-python tcl.pyz event-order rule.irule --dialect f5-irules --json
-python tcl.pyz event-info HTTP_REQUEST --json
 python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
-python tcl.pyz convert rule.irule --json
+python tcl.pyz find-legacy rule.irule --json
+
+# iRules-specific lookups live on the f5 CLI:
+python f5.pyz irule event-order rule.irule --json
+python f5.pyz irule event-info HTTP_REQUEST --json
 
 # Emit bytecode disassembly
 python tcl.pyz dis script.tcl
@@ -1140,17 +1362,26 @@ python tcl.pyz help --help
 python tcl.pyz help taint --json
 ```
 
-You can symlink the same zipapp as `irule`:
+For iRules input, pass `--dialect f5-irules` explicitly:
 
 ```sh
-ln -sf ./tcl.pyz ./irule
-./irule lint rules/
+tcl.pyz lint rules/ --dialect f5-irules
 ```
 
-When invoked as `irule`, the CLI uses `f5-irules` as the default dialect.
+iRules-specific verbs (`event-order`, `event-info`) live on the separate
+`f5` CLI under the `irule` verb group — see the F5 BIG-IP CLI section.
 
 For source builds, run `make kcs-db` before packaging zipapps so `tcl.pyz help`
 can query the bundled KCS SQLite database.
+
+**Install the `tcl` CLI** — the released artefact is a single-file
+zipapp (`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.
+See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
+installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
+Fedora, source builds, and shell completion (`bash`, `zsh`, `fish`)
+that covers every verb, dialect, optimiser profile, and source-path
+glob (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
+`*.iapp`, `*.iappimpl`).
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 
@@ -1161,19 +1392,19 @@ rewrites, shimmer warnings, taint analysis, and bytecode.
 
 ```sh
 # Full exploration of a Tcl file
-uv run python -m explorer script.tcl
+uv run python -m tooling.explorer script.tcl
 
 # Focus on optimiser rewrites only
-uv run python -m explorer script.tcl --show opt
+uv run python -m tooling.explorer script.tcl --show opt
 
 # Inline source with optimised output
-uv run python -m explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
+uv run python -m tooling.explorer --source 'set a 1; set b [expr {$a + 2}]' --show-optimised-source
 
 # Show only IR and CFG
-uv run python -m explorer script.tcl --show ir,cfg
+uv run python -m tooling.explorer script.tcl --show ir,cfg
 
 # iRules dialect with flow analysis
-uv run python -m explorer irule.tcl --dialect bigip --show irules
+uv run python -m tooling.explorer irule.tcl --dialect bigip --show irules
 ```
 
 Available views: `ir`, `cfg`, `ssa`, `interproc`, `types`, `opt`, `gvn`,
@@ -1219,13 +1450,13 @@ Compile Tcl scripts to WebAssembly (WAT text or binary WASM format).
 
 ```sh
 # Compile to human-readable WAT
-uv run python -m explorer.wasm_cli script.tcl --format wat
+uv run python -m tooling.wasm.main script.tcl --format wat
 
 # Compile to WASM binary with optimisations
-uv run python -m explorer.wasm_cli script.tcl -O --format wasm -o out.wasm
+uv run python -m tooling.wasm.main script.tcl -O --format wasm -o out.wasm
 
 # Compare optimised vs. unoptimised output
-uv run python -m explorer.wasm_cli --source 'set x [expr {1+2}]' --format both
+uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
 ```
 
 ### Compiler explorer (web GUI)
@@ -1251,16 +1482,16 @@ against Tcl 9.0.3 native test suites.
 
 ```sh
 # Execute a script
-uv run python -m vm script.tcl arg1 arg2
+uv run python -m tooling.vm script.tcl arg1 arg2
 
 # Interactive REPL
-uv run python -m vm
+uv run python -m tooling.vm
 
 # Inline evaluation
-uv run python -m vm -e 'puts [expr {6 * 7}]'
+uv run python -m tooling.vm -e 'puts [expr {6 * 7}]'
 
 # Show bytecode disassembly without executing
-uv run python -m vm --disassemble script.tcl
+uv run python -m tooling.vm --disassemble script.tcl
 ```
 
 ### Tcl debugger
@@ -1486,10 +1717,51 @@ body) are supported as a fallback when no preceding comment exists.
 All options are exposed through `tclLsp.formatting.*` settings (see
 [Configuration](#formatter-settings) below).
 
-## Diagnostic codes
+## Suppressing diagnostics
 
-All diagnostics support inline suppression with `# noqa: CODE1,CODE2` comments.
-Use `# noqa: *` to suppress all diagnostics on a line.
+Diagnostics can be suppressed at five different scopes.  Smaller scope is
+always better — turning a code off globally hides real problems in future
+projects.
+
+| Scope | How |
+|-------|-----|
+| One command | `# noqa: CODE` on the line before the command |
+| One file | `# tcl-lsp: disable=CODE,CODE` near the top of the file |
+| One project | `[diagnostics]\ndisabled = CODE` in `.tcl-lsp.ini` at the workspace root |
+| One editor | `tclLsp.diagnostics.CODE: false` in editor settings |
+| Everywhere | `[diagnostics]\ndisabled = CODE` in the [global config file](#configuration-file) |
+
+**Inline** — put on the line *before* the command:
+
+```tcl
+# noqa: W100
+expr $x + 1
+
+# noqa: *
+eval $user_input
+```
+
+**Top-of-file** — before the first non-comment line:
+
+```tcl
+#!/usr/bin/env tclsh
+# tcl-lsp: disable=W100,O111
+```
+
+**Project config** — `.tcl-lsp.ini` at the workspace root (commit with source):
+
+```ini
+[diagnostics]
+disabled = W111, IRULE1005
+
+[optimiser]
+disabled = O109
+```
+
+For the complete reference, see
+[`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
+
+## Diagnostic codes
 
 ### Errors
 
@@ -1512,6 +1784,8 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 |------|-------------|-----------|
 | W001 | Unknown subcommand | |
 | W002 | Command is disabled in active dialect profile | |
+| W003 | Expression operator not available in the active dialect | |
+| W004 | Command option not available in the active dialect | |
 | W100 | Unbraced `expr`/`if`/`while`/`for` expression (double substitution risk) | Wrap in braces |
 | W104 | `append` with space-separated values (use `lappend` for lists) | |
 | W105 | Unbraced code block or missing `variable` declaration in `namespace eval` | Wrap in braces |
@@ -1523,23 +1797,37 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | W113 | Procedure shadows a built-in command | |
 | W114 | Redundant nested `[expr]` -- already in expression context | |
 | W115 | Backslash-newline in comment silently swallows the next line | Convert to per-line comments |
+| W116 | Stub command shadows a built-in command | |
+| W117 | Stub expression definition shadows a built-in function or operator | |
+| W118 | Inconsistent line endings | |
 | W120 | Package-gated command used without `package require` | Insert `package require` |
 | W121 | Subnet mask has non-contiguous bits | Replace with nearest valid mask |
 | W122 | Mistyped IPv4 address (octet > 255 or leading zero) | |
 | W123 | Unknown command — not found in registry, user procs, or `unknown` handler (opt-in) | Replace with suggestion |
+| W124 | Invalid IP address literal | |
+| W125 | Orphaned control-flow keyword used as a standalone command | |
+| W126 | Non-channel value in channel argument position | |
+| W127 | Value not in the command's allowed set (e.g. `HTTP::version "2.0"`) | Use one of the listed values |
 | W200 | Binary format modifier requires newer Tcl | |
 | W201 | Manual path concatenation — uses rendered value properties and taint suppression (use `file join`) | Rewrite as `[file join]` |
+| W230 | Constant list index out of range -- `lindex`/`lrange`/`lreplace` silently return empty or clamp | |
+| W231 | Constant list index out of range -- `lset` raises a runtime error | |
+| W232 | Constant string index out of range -- `string index`/`range`/`replace`/`insert` silently no-op | |
+| W240 | Loop condition is constant false -- body never executes | |
+| W241 | Loop is provably infinite -- constant-true condition with no `break`/`return` | |
 
 ### Warnings -- Variables
 
 | Code | Description | Quick-fix |
 |------|-------------|-----------|
 | H300 | Possible paste error -- repeated assignment to same variable with same value | |
-| W210 | Variable read before set (with case-mismatch suggestion when applicable) | |
+| W210 | Variable read before set (with case-mismatch suggestion when applicable; `info exists`/`array exists` are existence tests, not reads, so they are excluded and instead fold to a constant branch where provable) | |
 | W211 | Variable set but never used (with case-mismatch suggestion when applicable) | |
 | W212 | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.) | |
 | W213 | `unset` on variable that may not exist -- use `unset -nocomplain` | |
 | W214 | Unused proc parameter -- argument declared but never read in the body | |
+| W215 | Variable name unreachable via `$`-substitution (creatable, but no `$`-form can read it) | |
+| W216 | Broken brace-form array element reference (`${arr}(x)` parses as scalar + literal) | |
 | W220 | Dead store -- variable set but overwritten before use (with case-mismatch suggestion when applicable) | |
 
 ### Warnings -- Security
@@ -1562,10 +1850,21 @@ Use `# noqa: *` to suppress all diagnostics on a line.
 | W312 | `interp eval`/`interp invokehidden` with dynamic script (injection risk) | |
 | W313 | Destructive `file` operations (`delete`/`rename`/`mkdir`) with variable path | |
 
+### Warnings -- Packages
+
+| Code | Description | Quick-fix |
+|------|-------------|-----------|
+| W130 | `tclpkg.tcl` requires a package not in `tclpkg.lock` | Run `tcl pkg install` |
+| W131 | `tclpkg.lock` is out of sync with `tclpkg.tcl` | Run `tcl pkg install` |
+| W132 | `tclpkg.lock` integrity mismatch -- CAS hash differs from lockfile | |
+| W133 | `tclpkg.tcl` directive not permitted in safe mode | |
+| W134 | Package resolved but no `pkgIndex.tcl` found -- `package require` will fail at runtime | |
+
 ### Hints
 
 | Code | Description | Quick-fix |
 |------|-------------|-----------|
+| W242 | Loop termination cannot be proven -- counter not provably modified by the body or step | |
 | W302 | `catch` without a result variable (silently swallows errors) | Add result variable |
 
 ### Shimmer detection
@@ -1596,7 +1895,7 @@ normalised via `file normalize`, `PATH_JOINED` for values assembled via
 `file join`).  At join points, colours are intersected so only properties
 shared by all paths survive -- this suppresses false positives.
 
-The **Rendered Value Properties** pass (`core/compiler/rendered_properties.py`)
+The **Rendered Value Properties** pass (`compiler/rendered_properties.py`)
 runs before taint propagation and computes per-SSA-value string content
 properties after Tcl backslash substitution.  This enables precise detection
 of path separators (resolving escape sequences like `\x2f` to `/` before
@@ -1670,6 +1969,8 @@ These diagnostics fire only in the `f5-irules` dialect.
 | IRULE5003 | Hint | Loop condition `$var != 0` can miss zero if decremented past it | |
 | IRULE5004 | Warning | `DNS::return` without `return` | Add `return` |
 | IRULE5005 | Error | Direct proc invocation without `call` in iRules | Prefix with `call` |
+| IRULE5006 | Warning | Top-level-only command used inside a nested body | |
+| IRULE5007 | Warning | Event-context command used at top level outside a `when` block | |
 
 ## Optimiser codes
 
@@ -1735,7 +2036,7 @@ cd tcl-lsp
 make test
 
 # Build the .vsix
-make vsix
+make build-editor-vsix
 
 # Install in VS Code
 code --install-extension tcl-lsp-vscode-0.1.0.vsix
@@ -1747,8 +2048,8 @@ Run `make help` to see all targets:
 
 | Target | Description |
 |--------|-------------|
-| `make test-pr` | **Full CI gate** — lint + Python tests + extension tests + smoke tests |
-| `make vsix` | Build the .vsix (tests must pass first) |
+| `make ci-fast` | **Full CI gate** — lint + Python tests + extension tests + smoke tests |
+| `make build-editor-vsix` | Build the .vsix (tests must pass first) |
 | `make install` | Build and install the .vsix into VS Code |
 | `make package-vsix` | Package VSIX (skip lint/test, for CI) |
 | `make test` | Run all tests (Python + VS Code extension) |
@@ -1761,19 +2062,19 @@ Run `make help` to see all targets:
 | `make format-py` | Format and auto-fix Python code with Ruff |
 | `make npm-env` | Install/update npm dependencies |
 | `make compile` | Compile the TypeScript extension |
-| `make zipapps` | Build all zipapps (Tcl, CLI, GUI, GUI-CDN, LSP, AI, MCP, WASM) |
+| `make zipapps` | Build all zipapps (Tcl, explorer-cli, explorer-gui, explorer-gui-cdn, LSP, AI, MCP, WASM) |
 | `make zipapp-tcl` | Build the unified Tcl tools zipapp |
-| `make zipapp-cli` | Build the CLI compiler explorer zipapp |
-| `make zipapp-gui` | Build the standalone GUI zipapp (bundles Pyodide) |
-| `make zipapp-gui-cdn` | Build the CDN GUI zipapp (loads Pyodide from CDN) |
+| `make zipapp-explorer-cli` | Build the compiler-explorer CLI zipapp |
+| `make zipapp-explorer-gui` | Build the standalone explorer GUI zipapp (bundles Pyodide) |
+| `make zipapp-explorer-gui-cdn` | Build the CDN explorer GUI zipapp (loads Pyodide from CDN) |
 | `make zipapp-lsp` | Build the LSP server zipapp |
 | `make zipapp-ai` | Build the AI analysis zipapp |
 | `make zipapp-mcp` | Build the MCP server zipapp |
 | `make zipapp-wasm` | Build the WASM compiler zipapp |
 | `make claude-skills` | Build Claude Code skills release zip |
-| `make jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
-| `make sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
-| `make zed` | Build the Zed extension (.tar.gz WASM artifact) | <!-- editors:Zed -->
+| `make build-editor-jetbrains` | Build the JetBrains plugin (.zip) | <!-- editors:JetBrains -->
+| `make build-editor-sublime` | Build the Sublime Text package (.sublime-package) | <!-- editors:Sublime Text -->
+| `make build-editor-zed` | Build the Zed extension (.tar.gz WASM artifact) | <!-- editors:Zed -->
 | `make screenshot` | Alias of `make screenshots` |
 | `make screenshots` | Capture extension screenshots and build demo GIF (macOS) |
 | `make release` | Build all release artifacts (parity with tagged CI release jobs) |
@@ -1785,7 +2086,7 @@ Artifact version strings are derived from `git describe` (with `v` stripped).
 If Git metadata is unavailable, builds fall back to `dev` (and semver-constrained
 manifest fields use `0.0.0-dev`).
 
-`make vsix` is the main entry point.  It runs the test suite first and will
+`make build-editor-vsix` is the main entry point.  It runs the test suite first and will
 not package a .vsix if any test fails.  Packaging uses an isolated staging
 directory under `build/vsix-stage/`, and the output file lands under
 `build/` as `tcl-lsp-<version>.vsix`.
@@ -1822,7 +2123,7 @@ Useful overrides:
 tcl-lsp/
   Makefile                Build system
   pyproject.toml          Python project metadata (hatchling)
-  lsp/                    Python LSP server
+  server/                    Python LSP server
     __main__.py           Entry point (python -m server)
     server.py             pygls server, handler wiring
     async_diagnostics.py  Background diagnostic scheduler (tiered publishing)
@@ -1912,10 +2213,11 @@ tcl-lsp/
       lexer.py            Tcl lexer with position tracking
       tokens.py           Token and position types
       command_segmenter.py Command segmentation from token stream
+      token_scanning.py   Shared token-stream scanning helpers
       recovery.py         Centralised error recovery via virtual tokens
       expr_lexer.py       Expression sub-lexer
       expr_parser.py      Expression sub-parser
-      substitution.py     Tcl backslash substitution helpers
+      subst_nocommands.py Compile-time `[subst -nocommands]` evaluator
     tk/
       detection.py        Tk widget auto-detection
       diagnostics.py      Tk-specific diagnostics
@@ -1931,7 +2233,7 @@ tcl-lsp/
       terraform.py        Terraform HCL generation
       json_api.py         JSON API for XC translation
       diagnostics.py      Migration diagnostics
-  explorer/               Compiler explorer (CLI + web GUI)
+  tooling/explorer/               Compiler explorer (CLI + web GUI)
     cli.py                CLI interface
     pipeline.py           Compilation pipeline wrapper
     serialise.py          Output serialisation (IR, CFG, SSA, optimiser)
@@ -2051,11 +2353,11 @@ source take effect on the next editor reload.
 
 ### Adding a new diagnostic check
 
-1. Add a check function to the appropriate submodule in `core/analysis/checks/`
+1. Add a check function to the appropriate submodule in `analyser/checks/`
    (e.g. `_security.py`, `_style.py`, `_domain.py`, `_syntax.py`) following
    the existing pattern -- each check receives the command name, argument
    texts, argument tokens, all tokens, and the source string.
-2. Register it in the `ALL_CHECKS` list in `core/analysis/checks/_orchestrator.py`.
+2. Register it in the `ALL_CHECKS` list in `analyser/checks/_orchestrator.py`.
 3. If the check can be auto-fixed, include a `CodeFix` in the diagnostic's
    `fixes` tuple.
 4. Add tests to `tests/test_checks.py`.
@@ -2063,14 +2365,12 @@ source take effect on the next editor reload.
 
 ### Adding a new formatter option
 
-1. Add the field to `FormatterConfig` in `core/formatting/config.py`.
-2. Handle it in `core/formatting/engine.py`.
+1. Add the field to `FormatterConfig` in `tooling/formatter/config.py`.
+2. Handle it in `tooling/formatter/engine.py`.
 3. Add `to_dict`/`from_dict` support if the field uses a non-primitive type.
 4. Add tests to `tests/test_formatter.py`.
-5. Keep consumers on core imports (`core/formatting/*`) and delete legacy
-   import paths in the same change.
-6. Run `tests/test_core_lift_consumers.py` to verify no downstream consumer is
-   importing shim modules.
+5. Import the formatter through its public API (`tooling.formatter`), then run
+   `make test` to verify.
 
 ## Configuration
 
@@ -2147,27 +2447,30 @@ All diagnostic codes can be toggled individually via
 
 ### Configuration File
 
-Settings can be stored in an INI file that follows platform-native
-conventions.  This is useful for editor-agnostic defaults that apply
-across all workspaces and editors.
+Settings can be stored in INI files.  Two files are read:
 
-| Platform | Default path |
-|----------|-------------|
-| **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` |
-| **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` |
-| **Windows** | `%APPDATA%\tcl-lsp\config.ini` |
-| **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` |
+- **Global** — user-wide defaults, platform-native location:
 
-Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
+  | Platform | Default path |
+  |----------|-------------|
+  | **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` |
+  | **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` |
+  | **Windows** | `%APPDATA%\tcl-lsp\config.ini` |
+  | **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` |
+
+  Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
+
+- **Project** — `.tcl-lsp.ini` at the workspace root, committed with the
+  source so every contributor picks up the same rules automatically.
 
 **Precedence** (applied in order — later entries override earlier):
 
 1. Built-in defaults
-2. Config file
+2. Global config file
 3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
+4. Project config file (`.tcl-lsp.ini` — highest server-level priority)
 
-The file uses INI format with section names matching the `tclLsp.*`
-namespace:
+Both files use the same INI schema:
 
 ```ini
 [diagnostics]
@@ -2186,7 +2489,7 @@ inlayHints = false
 indent_size = 2
 ```
 
-See [`docs/kcs/kcs-xdg-config.md`](docs/kcs/kcs-xdg-config.md) for the
+See [`docs/design/contracts/xdg-config.md`](docs/design/contracts/xdg-config.md) for the
 full reference, including how settings interact with each editor.
 
 ### Export Settings

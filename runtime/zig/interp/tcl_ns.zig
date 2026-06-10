@@ -105,6 +105,55 @@ pub const Namespace = extern struct {
 /// Zero before the first ``ns_root()`` call (lazy allocation).
 pub var root_addr: u32 = 0;
 
+// ``namespace unknown`` per-namespace handler registry.  Maps a
+// namespace address to its explicit unknown-command handler (a Tcl
+// command prefix).  Small linear table — namespaces with a custom
+// handler are rare.  An absent entry means "no explicit handler", in
+// which case command dispatch falls back to the global ``::unknown``
+// machinery (auto-loading) and ``namespace unknown`` queries report
+// ``::unknown`` for the root and ``{}`` elsewhere.
+const NsUnknownEntry = struct { ns: u32, handler: i32 };
+var ns_unknown_entries: [64]NsUnknownEntry = undefined;
+var ns_unknown_count: u32 = 0;
+
+/// Set (or, with an empty handler, clear) the explicit unknown handler
+/// for namespace ``ns``.
+pub fn ns_unknown_set(ns: u32, handler: i32) void {
+    if (ns == 0) return;
+    var is_empty = handler == 0;
+    if (!is_empty) {
+        const hs = obj.obj_ensure_string(handler);
+        if (hs.len == 0) is_empty = true;
+    }
+    var i: u32 = 0;
+    while (i < ns_unknown_count) : (i += 1) {
+        if (ns_unknown_entries[i].ns == ns) {
+            obj.tcl_obj_release(ns_unknown_entries[i].handler);
+            if (is_empty) {
+                ns_unknown_count -= 1;
+                if (i != ns_unknown_count) ns_unknown_entries[i] = ns_unknown_entries[ns_unknown_count];
+            } else {
+                obj.tcl_obj_retain(handler);
+                ns_unknown_entries[i].handler = handler;
+            }
+            return;
+        }
+    }
+    if (is_empty or ns_unknown_count >= ns_unknown_entries.len) return;
+    obj.tcl_obj_retain(handler);
+    ns_unknown_entries[ns_unknown_count] = .{ .ns = ns, .handler = handler };
+    ns_unknown_count += 1;
+}
+
+/// The explicit unknown handler for ``ns`` (a borrowed TclObj), or 0.
+pub fn ns_unknown_get(ns: u32) i32 {
+    var i: u32 = 0;
+    while (i < ns_unknown_count) : (i += 1) {
+        if (ns_unknown_entries[i].ns == ns) return ns_unknown_entries[i].handler;
+    }
+    return 0;
+}
+
 /// Currently-active namespace handle.  Zero means "no explicit
 /// context set" — readers should treat that as root.  Compiled
 /// procs flip this via ``ns_set`` / ``ns_restore`` (in
@@ -138,6 +187,7 @@ pub fn ns_alloc_root() u32 {
 fn alloc_namespace() u32 {
     const size: u32 = @sizeOf(Namespace);
     const addr = alloc(size);
+    if (addr == 0) return 0;
     // ``alloc`` doesn't zero, so wipe the whole struct.  This is
     // important for the sub-table ``buf`` fields — a non-zero ``buf``
     // would make ``Table.init`` skip allocation and the
@@ -159,6 +209,7 @@ fn install_name(ns_addr: u32, name_ptr: u32, name_len: u32) void {
         return;
     }
     const buf = alloc(name_len);
+    if (buf == 0) return;
     memcpy(buf, name_ptr, name_len);
     ns.name_ptr = buf;
     ns.name_len = name_len;
@@ -270,6 +321,7 @@ pub fn ns_build_fqn(target_ns: u32, simple_ptr: u32, simple_len: u32) struct { p
     const parent_is_root = parent_full.len == 2;
     const total: u32 = if (parent_is_root) 2 + simple_len else parent_full.len + 2 + simple_len;
     const buf = alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     if (parent_is_root) {
@@ -302,6 +354,7 @@ pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
     if (ns.parent == 0) {
         // Root namespace: full name is the literal ``::``.
         const buf = alloc(2);
+        if (buf == 0) return .{ .ptr = 0, .len = 0 };
         const dst: [*]u8 = @ptrFromInt(buf);
         dst[0] = ':';
         dst[1] = ':';
@@ -323,6 +376,7 @@ pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
         break :blk parent_full.len + 2 + ns.name_len;
     };
     const buf = alloc(total);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
     if (parent_full.len == 2) {
@@ -392,6 +446,15 @@ pub fn ns_resolve_qualified(cxt: u32, name_ptr: u32, name_len: u32) QualifiedRes
         .simple_len = 0,
         .alt_ns = 0,
     };
+
+    // Null name_ptr guard: obj_ensure_string(0) returns (ptr=0, len=0)
+    // so callers that forward a null TclObj's bytes can reach here with
+    // name_ptr == 0.  @ptrFromInt(0) panics in safety mode; short-
+    // circuit before the first cast (issue #327, namespace.test).
+    if (name_ptr == 0) {
+        result.target_ns = if (cxt != 0) cxt else ns_root();
+        return result;
+    }
 
     const root = ns_root();
 
@@ -690,7 +753,16 @@ pub fn ns_find_command(cxt: u32, name_ptr: u32, name_len: u32) u32 {
 
     if (has_colons) {
         const r = ns_resolve_qualified(start, name_ptr, name_len);
-        if (r.simple_len == 0) return 0; // ``::``-only or trailing ``::``
+        // Trailing ``::`` on a qualified name (e.g. ``test_ns::``)
+        // refers to a command named ``""`` inside the target ns —
+        // not a namespace lookup.  Tcl 9 distinguishes this from a
+        // ``::``-only lookup at the C level (``simpleName`` set to
+        // the empty string vs ``NULL``); we mirror by allowing the
+        // probe to proceed when the last byte of the input is ``:``
+        // (the trailing-separator signature).  Pure ``::`` input
+        // still has its last byte set to ``:`` so it can also probe
+        // root for an empty-name command — harmless when nothing is
+        // registered there.
         if (r.target_ns != 0) {
             const v = ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return v;
@@ -804,6 +876,7 @@ pub fn ns_var_create(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
     const bucket = ns.var_table.insert_header(name_ptr, name_len, hash);
 
     const var_addr = alloc(VAR_SIZE);
+    if (var_addr == 0) return 0;
     const v: *Var = @ptrFromInt(var_addr);
     v.flags = VAR_IN_HASHTABLE | VAR_NAMESPACE_VAR;
     v.value = 0;
@@ -853,6 +926,18 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // now".  Real callers won't flip a real array into a scalar;
     // this is just for the simple-globals replacement in P3.2.
     v.flags &= ~VAR_ARRAY;
+    // Promote borrowed TclObjs (cap == 0) to owning copies before
+    // storing.  Parser-produced TclObjs borrow their bytes from the
+    // surrounding script's source buffer; when the script TclObj
+    // eventually releases (drain after the outermost eval) the
+    // buffer goes back to libc malloc and any variable that still
+    // references those bytes reads garbage.  Surfaces as
+    // ``$::encDefaultProfile`` returning ``\x00\x00\x00\x00\x00\x00``
+    // instead of ``strict`` mid-bundle when a layout shift pushes
+    // the freed buffer into a position the allocator zeroes — the
+    // cmdAH cascade.  Mirrors :func:`proc_register`'s
+    // ``ensure_owned`` discipline for body / params.
+    const stored: u32 = @bitCast(ensure_var_obj_owned(@bitCast(obj_handle)));
     // MM-B.2 refcount discipline: the var slot holds a reference to
     // the value, so retain the incoming obj and release whatever was
     // there before.  Without this the slot's hold is "free" (no
@@ -860,10 +945,151 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // (MM-B.4) frees the value out from under us.  With both in
     // place, every TclObj eventually drops to refcount 0 when no
     // var, frame, or list/dict element holds it any more.
+    //
+    // When ``ensure_var_obj_owned`` minted a fresh copy, that copy
+    // arrives at rc=1 from :func:`obj_new_string_copy` — already
+    // exactly the slot's share.  Retaining again would leave a
+    // dangling +1 that nothing releases.  Only retain when we kept
+    // the caller's original handle (parser will drop its own rc at
+    // end-of-statement, balancing this retain).
     const old: u32 = @bitCast(v.value);
-    v.value = obj_handle;
-    if (obj_handle != 0) obj.tcl_obj_retain(@bitCast(obj_handle));
-    if (old != 0 and old != obj_handle) obj.tcl_obj_release(@bitCast(old));
+    v.value = stored;
+    if (stored != 0 and stored == obj_handle) obj.tcl_obj_retain(@bitCast(stored));
+    if (old != 0 and old != stored) obj.tcl_obj_release(@bitCast(old));
+}
+
+/// True when *name* (``ptr``/``len``) has array-element shape
+/// ``base(index)`` — a ``(`` after position 0 and a trailing ``)``.
+fn is_array_element_name(ptr: u32, len: u32) bool {
+    if (len < 3 or ptr == 0) return false;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    if (p[len - 1] != ')') return false;
+    var i: u32 = 1;
+    while (i < len) : (i += 1) {
+        if (p[i] == '(') return true;
+    }
+    return false;
+}
+
+/// Create a global-scope ``upvar`` alias: make ``local`` a ``VAR_LINK``
+/// to the global variable ``target`` in the root namespace.  Used when
+/// ``upvar #0`` / ``upvar 0`` runs at the script top level (no proc
+/// frame), where there is no frame hash to hold an ALIAS_EXT descriptor
+/// — the link lives in the global ``Var`` table instead, and
+/// ``var_get_scalar`` / ``var_set_scalar`` chase it via
+/// ``var_resolve_link`` (tcltest upvar-7.1).  Re-aliasing an existing
+/// link simply re-points it.
+pub fn global_alias_link(local: i32, target: i32) void {
+    const ln = obj.obj_ensure_string(local);
+    const tn = obj.obj_ensure_string(target);
+    if (ln.len == 0 or ln.ptr == 0 or tn.len == 0 or tn.ptr == 0) return;
+    const lk = strip_global_prefix(ln.ptr, ln.len);
+    const tk = strip_global_prefix(tn.ptr, tn.len);
+    // ``upvar #0 arr(k) uv`` aliases an array *element*.  A scalar
+    // ``VAR_LINK`` to a Var literally named ``arr(k)`` would diverge from
+    // the array directory that ``$arr(k)`` reads/writes go through, so
+    // don't create a misleading link.  At the script top level there is
+    // no frame to hold the element-alias descriptor the in-proc path
+    // uses, so element targets are left unaliased here (the pre-feature
+    // behaviour) rather than silently linked to the wrong storage.
+    // Scalar targets — the common ``upvar #0 x uv`` (upvar-7.1) — work.
+    if (is_array_element_name(tk.ptr, tk.len)) return;
+    const target_var = ns_var_create(ns_root(), tk.ptr, tk.len);
+    if (target_var == 0) return;
+    const local_var = ns_var_create(ns_root(), lk.ptr, lk.len);
+    if (local_var == 0 or local_var == target_var) return;
+    const v: *Var = @ptrFromInt(local_var);
+    // If the slot currently holds a real scalar value (not already a
+    // link), release it before repurposing the slot as a redirect.
+    if ((v.flags & VAR_LINK) == 0 and (v.flags & VAR_ARRAY) == 0 and v.value != 0) {
+        obj.tcl_obj_release(@bitCast(v.value));
+    }
+    v.flags = (v.flags & ~VAR_ARRAY) | VAR_LINK;
+    v.value = target_var;
+}
+
+/// Reverse-lookup: find the simple name a root-namespace ``*Var``
+/// (``target_addr``) is stored under in the root var table.  Returns a
+/// fresh bare-name TclObj (``aVaRnAmE``, not ``::aVaRnAmE``) so it keys
+/// the array directory the same way an un-aliased top-level array does,
+/// or 0 when the address isn't found.
+fn root_var_name_obj(target_addr: u32) i32 {
+    if (target_addr == 0) return 0;
+    const root: *Namespace = @ptrFromInt(ns_root());
+    if (root.var_table.buf == 0) return 0;
+    const Ctx = struct {
+        want: u32,
+        found_ptr: u32 = 0,
+        found_len: u32 = 0,
+    };
+    var ctx = Ctx{ .want = target_addr };
+    root.var_table.each(&ctx, struct {
+        fn visit(c: *Ctx, base: u32) void {
+            if (c.found_ptr != 0) return;
+            const h: u32 = @bitCast(read_i32(base + OFF_HANDLE));
+            if (h == c.want) {
+                c.found_ptr = @bitCast(read_i32(base));
+                c.found_len = @bitCast(read_i32(base + 4));
+            }
+        }
+    }.visit);
+    if (ctx.found_ptr == 0 or ctx.found_len == 0) return 0;
+    return obj.obj_new_string_copy(ctx.found_ptr, ctx.found_len);
+}
+
+/// If *name* resolves to a top-level (root-namespace) ``upvar`` link,
+/// return the bare name of the link's terminal target; else 0.  This
+/// lets array operations (``array set`` / ``names`` / ``exists``)
+/// follow a ``upvar 0`` / ``upvar #0`` alias created at the script top
+/// level — where the link lives in the root Var table as a ``VAR_LINK``
+/// rather than in a frame's ALIAS_EXT descriptor.  Without it
+/// ``array set anAliAs …`` through such an alias creates a *separate*
+/// array under the alias name instead of populating the target
+/// (set-old-8.38.2).
+pub fn global_link_target_name(name: i32) i32 {
+    const sn = obj.obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return 0;
+    const key = strip_global_prefix(sn.ptr, sn.len);
+    const local_var = ns_var_find(ns_root(), key.ptr, key.len);
+    if (local_var == 0) return 0;
+    const v: *const Var = @ptrFromInt(local_var);
+    if ((v.flags & VAR_LINK) == 0) return 0;
+    const terminal = var_resolve_link(local_var);
+    if (terminal == 0 or terminal == local_var) return 0;
+    return root_var_name_obj(terminal);
+}
+
+/// Promote a possibly-borrowing TclObj to an owning copy.  Mirrors
+/// :func:`tcl_procs.ensure_owned` — when the input's
+/// ``OBJ_STR_CAP == 0`` the buffer bytes belong to *someone else*
+/// (typically the surrounding script's source TclObj), so a
+/// long-lived store (variable slot, list element, dict value)
+/// must materialise its own copy.  Non-string TclObjs (cap field
+/// also default-zeroes but ``OBJ_STR_PTR == 0``) and already-
+/// owning ones pass through unchanged.
+fn ensure_var_obj_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    // S6.4 — tagged immediates have no header to read.  Their handles
+    // encode the value directly with bit 0 set; dereferencing them as
+    // pointers would read unrelated memory (or trap above 2 GiB).
+    if (obj.is_immediate(o)) return o;
+    const addr: u32 = @bitCast(o);
+    // String AND list objs keep their primary bytes in the OBJ_STR_*
+    // slots, so both carry the borrowed-buffer concern and must reach
+    // the cap check below.  A TYPE_LIST is a canonical list string; it
+    // is currently always created owning its buffer (cap > 0), but
+    // routing it through the cap check — rather than relying on that
+    // (load-bearing) invariant — keeps this helper correct even if a
+    // borrowing (cap == 0) TYPE_LIST is ever introduced.  Int / float /
+    // dict objs carry their payload in the value slot and pass through.
+    const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+    if (tag != obj.TYPE_STRING and tag != obj.TYPE_LIST) return o;
+    const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_LEN));
+    if (sptr == 0 or slen == 0) return o; // null / empty — no buffer to worry about
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 // -- Namespace export patterns (P4.1) --------------------------------------
@@ -898,10 +1124,12 @@ pub fn ns_export(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) void {
     // bump allocator can't free, but namespace export lists are
     // tiny so the leakage is bounded.
     const new_buf = alloc(new_count * 8);
+    if (new_buf == 0) return;
     if (old_count > 0) {
         memcpy(new_buf, ns.export_patterns, old_count * 8);
     }
     const pat_copy = alloc(pattern_len);
+    if (pat_copy == 0) return;
     memcpy(pat_copy, pattern_ptr, pattern_len);
     write_i32(new_buf + old_count * 8, @bitCast(pat_copy));
     write_i32(new_buf + old_count * 8 + 4, @bitCast(pattern_len));
@@ -991,6 +1219,11 @@ pub fn ns_set_path(ns_addr: u32, targets_buf: u32, targets_count: u32) void {
         return;
     }
     const buf = alloc(nonzero_count * PATH_ENTRY_SIZE);
+    if (buf == 0) {
+        ns.path_array = 0;
+        ns.path_len = 0;
+        return;
+    }
     var slot: u32 = 0;
     var j: u32 = 0;
     while (j < targets_count) : (j += 1) {
@@ -1095,7 +1328,7 @@ pub const ImportedCmdData = extern struct {
 /// ``comptime`` block that asserts these values stay in sync with its
 /// own canonical ``pub const``s, so any drift becomes a compile error.
 pub const tcl_procs_constants = struct {
-    pub const COMMAND_SIZE: u32 = 44;
+    pub const COMMAND_SIZE: u32 = 52;
     pub const OFF_FLAGS: u32 = 8;
     pub const OFF_PARAMS_OBJ: u32 = 12;
     pub const OFF_IMPORT_REF_HEAD: u32 = 32;
@@ -1119,15 +1352,18 @@ pub const ImportRef = extern struct {
 fn alloc_import_redirect(name_ptr: u32, name_len: u32, source_cmd: u32) u32 {
     const c = tcl_procs_constants;
     const cmd = alloc(c.COMMAND_SIZE);
+    if (cmd == 0) return 0;
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..c.COMMAND_SIZE], 0);
     const nbuf = alloc(name_len);
+    if (nbuf == 0) return 0;
     if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
     write_i32(cmd, @bitCast(nbuf));
     write_i32(cmd + 4, @bitCast(name_len));
     write_i32(cmd + c.OFF_FLAGS, @bitCast(c.CMD_IMPORTED));
 
     const desc = alloc(@sizeOf(ImportedCmdData));
+    if (desc == 0) return 0;
     const d: *ImportedCmdData = @ptrFromInt(desc);
     d.real_cmd = source_cmd;
     d.self_cmd = cmd;
@@ -1209,7 +1445,14 @@ fn unwrap_imports_chain(cmd_in: u32) u32 {
         const desc: u32 = @bitCast(read_i32(cur + c.OFF_PARAMS_OBJ));
         if (desc == 0) return cur;
         const real: u32 = @bitCast(read_i32(desc));
-        if (real == 0) return cur;
+        // ``real == 0`` is the tombstone ``ns_forget`` leaves behind
+        // when an import alias is removed.  Returning ``cur`` here
+        // would leak the dead redirect out to lookups — and to
+        // ``rename ... ::puts`` which checks "does ::puts already
+        // exist?" via this same walker — so the alias acts like it's
+        // still in place.  Return 0 instead so the name reads as
+        // genuinely gone (mirrors the comment in ``ns_forget``).
+        if (real == 0) return 0;
         cur = real;
     }
     return cur;
@@ -1224,6 +1467,7 @@ pub fn link_import_ref(source_cmd: u32, redirect: u32) void {
     const c = tcl_procs_constants;
     const prev_head: u32 = @bitCast(read_i32(source_cmd + c.OFF_IMPORT_REF_HEAD));
     const node = alloc(@sizeOf(ImportRef));
+    if (node == 0) return;
     const r: *ImportRef = @ptrFromInt(node);
     r.imported_cmd = redirect;
     r.next = prev_head;
@@ -1283,18 +1527,92 @@ pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
     const c = tcl_procs_constants;
     const bucket_size: u32 = 16;
     var forgotten: u32 = 0;
+    // Tcl 9 ``Tcl_ForgetImport`` splits a qualified pattern
+    // (``::src::pat``) into the source-ns prefix + simple pattern
+    // and removes redirects in *this* namespace whose source
+    // matches.  An unqualified pattern matches the dest bucket
+    // name directly (used by ``foreach`` cleanup loops that pass
+    // bare globs).
+    const ssp: [*]const u8 = @ptrFromInt(pattern_ptr);
+    var match_simple_ptr: u32 = pattern_ptr;
+    var match_simple_len: u32 = pattern_len;
+    var require_src_ns: u32 = 0;
+    var has_ns_prefix: bool = false;
+    {
+        // Find the last ``::`` in the pattern.
+        var last_sep: i32 = -1;
+        var k: u32 = 0;
+        while (k + 1 < pattern_len) : (k += 1) {
+            if (ssp[k] == ':' and ssp[k + 1] == ':') {
+                last_sep = @intCast(k);
+                k += 1;
+            }
+        }
+        if (last_sep >= 0) {
+            has_ns_prefix = true;
+            const sep_at: u32 = @intCast(last_sep);
+            if (sep_at == 0) {
+                require_src_ns = ns_root();
+            } else {
+                const r = ns_resolve_qualified(ns_addr, pattern_ptr, sep_at);
+                if (r.simple_len == 0) {
+                    require_src_ns = if (r.target_ns != 0) r.target_ns else 0;
+                } else {
+                    require_src_ns = if (r.target_ns != 0)
+                        ns_lookup(r.target_ns, r.simple_ptr, r.simple_len)
+                    else
+                        0;
+                }
+            }
+            match_simple_ptr = pattern_ptr + sep_at + 2;
+            match_simple_len = pattern_len - sep_at - 2;
+        }
+    }
+    // Build the set of source-Command addresses that match the
+    // pattern in ``require_src_ns``.  Used to filter the dest
+    // ns's redirect buckets so a same-named redirect from a
+    // *different* source ns isn't accidentally forgotten.
+    const src_ns_addr: u32 = if (has_ns_prefix) require_src_ns else 0;
+    _ = src_ns_addr;
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
         const bucket = ns.cmd_table.buf + i * bucket_size;
         const name_ptr: u32 = @bitCast(read_i32(bucket));
         if (name_ptr == 0) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        if (!tcl_string.glob_match(pattern_ptr, pattern_len, name_ptr, name_len)) continue;
+        if (!tcl_string.glob_match(match_simple_ptr, match_simple_len, name_ptr, name_len)) continue;
 
         const redirect: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
         if (redirect == 0) continue;
         const flags: u32 = @bitCast(read_i32(redirect + c.OFF_FLAGS));
         if ((flags & c.CMD_IMPORTED) == 0) continue; // not an import; leave alone
+
+        // When the pattern carried a namespace qualifier, also
+        // confirm the redirect's source command lives in the
+        // qualifier's namespace by probing the source ns's
+        // cmd_table for a matching real_cmd entry.  Without a
+        // back-reference on the Command itself this is O(N) over
+        // the source ns's table, but namespace.forget is rare.
+        if (has_ns_prefix and require_src_ns != 0) {
+            const desc_check: u32 = @bitCast(read_i32(redirect + c.OFF_PARAMS_OBJ));
+            if (desc_check == 0) continue;
+            const dcheck: *ImportedCmdData = @ptrFromInt(desc_check);
+            const src_cmd = dcheck.real_cmd;
+            if (src_cmd == 0) continue;
+            const src_ns: *const Namespace = @ptrFromInt(require_src_ns);
+            if (src_ns.cmd_table.buf == 0) continue;
+            var found_src_cmd: bool = false;
+            var sj: u32 = 0;
+            while (sj < src_ns.cmd_table.cap) : (sj += 1) {
+                const sbucket = src_ns.cmd_table.buf + sj * bucket_size;
+                const scmd: u32 = @bitCast(read_i32(sbucket + OFF_HANDLE));
+                if (scmd == src_cmd) {
+                    found_src_cmd = true;
+                    break;
+                }
+            }
+            if (!found_src_cmd) continue;
+        }
 
         const desc: u32 = @bitCast(read_i32(redirect + c.OFF_PARAMS_OBJ));
         if (desc == 0) continue;
@@ -1308,8 +1626,20 @@ pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
         // for ``real_cmd == 0``, so ``proc_lookup`` will start
         // returning 0 on this name.
         d.real_cmd = 0;
+        // Tombstone the cmd_table bucket too: leaving the dead
+        // redirect's address in ``OFF_HANDLE`` makes
+        // ``ns_cmd_find`` (and through it ``rename``'s "is the
+        // destination occupied?" probe) report the alias as still
+        // present.  Reference Tcl removes the entry outright on
+        // ``namespace forget``; mirror that by writing 0 into the
+        // bucket so downstream code treats the slot as vacant —
+        // which is what the existing ``ns_cmd_find`` callers
+        // already expect for tombstones (see the
+        // ``ns_cmd_clear`` doc-comment).
+        write_i32(bucket + OFF_HANDLE, 0);
         forgotten += 1;
     }
+    if (forgotten > 0) bump_cmd_ref_epoch(ns_addr);
     return forgotten;
 }
 
@@ -1353,6 +1683,20 @@ fn strip_global_prefix(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
 var conflict_check_active: bool = false;
 
 pub export fn global_set(name: i32, value: i32) i32 {
+    // Phase 9: cross-interp variable link probe.  Top-level
+    // compiled code routes writes via ``global_set``, so we need
+    // the same xlink foothold the read path has.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) return value;
+        const save = interp_reg.enter(lk.target_interp);
+        const v = global_set(lk.target_name, value);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj.obj_ensure_string(name);
     const k = strip_global_prefix(sn.ptr, sn.len);
     // Scalar/array name-conflict detection.  Real Tcl raises
@@ -1373,8 +1717,32 @@ pub export fn global_set(name: i32, value: i32) i32 {
     if (!conflict_check_active and tcl_array.array_exists_raw(k.ptr, k.len)) {
         conflict_check_active = true;
         defer conflict_check_active = false;
-        const stubs = @import("../stubs/tcl_stubs.zig");
-        stubs.raise("can't set: variable is array");
+        const catch_mod = @import("tcl_catch.zig");
+        const prefix: []const u8 = "can't set \"";
+        const suffix: []const u8 = "\": variable is array";
+        const total: u32 = @intCast(prefix.len + k.len + suffix.len);
+        const buf_addr: u32 = obj.alloc(total);
+        if (buf_addr != 0) {
+            const buf: [*]u8 = @ptrFromInt(buf_addr);
+            var off: usize = 0;
+            for (prefix) |c| {
+                buf[off] = c;
+                off += 1;
+            }
+            if (k.len > 0) {
+                const kp: [*]const u8 = @ptrFromInt(k.ptr);
+                for (0..k.len) |i| {
+                    buf[off] = kp[i];
+                    off += 1;
+                }
+            }
+            for (suffix) |c| {
+                buf[off] = c;
+                off += 1;
+            }
+            const msg = obj.obj_new_string_take(buf_addr, total, total);
+            catch_mod.tcl_cmd_error(msg);
+        }
         return 0;
     }
     const v = ns_var_create(ns_root(), k.ptr, k.len);
@@ -1384,7 +1752,53 @@ pub export fn global_set(name: i32, value: i32) i32 {
     // vwait is active.
     const sched = @import("../sched/tcl_sched.zig");
     sched.note_var_write(k.ptr, k.len);
+    // Phase 6 follow-up: fire any matching scalar variable trace.
+    // The directory-keyed registry probes for both the bare name
+    // (``g``) and the FQ form (``::g``) so callers that installed
+    // via either spelling resolve to the same record.
+    fire_scalar_trace(sn.ptr, sn.len, value);
     return value;
+}
+
+/// Fire the ``read`` / ``write`` / ``unset`` callback on the scalar
+/// (non-array) trace registry for ``name``.  ``value == 0`` is the
+/// runtime's "unset" sentinel; non-zero values fire ``write``.  Probes
+/// both the as-passed-in form and the FQ ``::name`` form so callers
+/// who installed a trace under either spelling resolve.  Fires once
+/// per matching record; the per-record ``active`` flag in the trace
+/// module guards against re-entrancy.
+fn fire_scalar_trace(name_ptr: u32, name_len: u32, value: i32) void {
+    const var_trace = @import("tcl_var_trace.zig");
+    const op: u32 = if (value == 0) var_trace.OP_UNSET else var_trace.OP_WRITE;
+    const op_char: u8 = if (value == 0) 'u' else 'w';
+    fire_scalar_trace_op(name_ptr, name_len, op, op_char);
+}
+
+fn fire_scalar_trace_op(name_ptr: u32, name_len: u32, op: u32, op_char: u8) void {
+    const var_trace = @import("tcl_var_trace.zig");
+    if (name_ptr == 0 or name_len == 0) return;
+    // First probe: as-passed-in.
+    var_trace.fire(name_ptr, name_len, 0, 0, op, op_char);
+    // If the caller passed a non-FQ name (no leading ``::``), probe
+    // the FQ form as well so a trace installed via ``::name``
+    // resolves on a write through ``set name`` (and vice versa).
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    const has_fq_prefix = name_len >= 2 and sp[0] == ':' and sp[1] == ':';
+    if (!has_fq_prefix) {
+        const total: u32 = name_len + 2;
+        const buf = obj.alloc(total);
+        if (buf == 0) return;
+        const dst: [*]u8 = @ptrFromInt(buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        for (0..name_len) |i| dst[2 + i] = sp[i];
+        var_trace.fire(buf, total, 0, 0, op, op_char);
+        obj.free_sized(buf, total);
+    } else if (name_len > 2) {
+        // Caller passed FQ; also probe the bare form for traces
+        // installed without the ``::`` prefix.
+        var_trace.fire(name_ptr + 2, name_len - 2, 0, 0, op, op_char);
+    }
 }
 
 /// Probe used by ``tcl_array.find_or_create`` to detect a
@@ -1420,11 +1834,68 @@ pub export fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32 {
 /// Get a global variable.  Returns 0 (a NULL TclObj handle) if the
 /// var has never been set.
 pub export fn global_get(name: i32) i32 {
+    // Phase 9: cross-interp variable link probe — same shape as
+    // ``var_resolve``'s probe.  The codegen at top-level bypasses
+    // ``var_resolve`` and routes directly through ``global_get`` /
+    // ``global_get_or_error``, so the xlink hook needs a foothold
+    // here too.  The re-entry guard keeps a self-cycle from
+    // looping.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) return 0;
+        const save = interp_reg.enter(lk.target_interp);
+        const v = global_get(lk.target_name);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj.obj_ensure_string(name);
     const k = strip_global_prefix(sn.ptr, sn.len);
     const v = ns_var_find(ns_root(), k.ptr, k.len);
     if (v == 0) return 0;
+    // Phase 6 follow-up: fire READ trace before returning the
+    // value.  Trace bodies can mutate the slot, so re-read after
+    // firing.  Fast path: skip the fire entirely when no scalar
+    // trace is registered for either form of this name.
+    const var_trace = @import("tcl_var_trace.zig");
+    if (var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_READ) or
+        scalar_has_fq_or_bare_trace(sn.ptr, sn.len, var_trace.OP_READ))
+    {
+        fire_scalar_trace_op(sn.ptr, sn.len, var_trace.OP_READ, 'r');
+        // Re-fetch in case the trace body modified the slot.
+        const v2 = ns_var_find(ns_root(), k.ptr, k.len);
+        if (v2 == 0) return 0;
+        return @bitCast(var_get_scalar(v2));
+    }
     return @bitCast(var_get_scalar(v));
+}
+
+/// Probe for a scalar trace under either the bare or FQ form of
+/// ``(name_ptr, name_len)``.  Used by :func:`global_get` to skip the
+/// fire side-effects when no read trace exists in either form.
+fn scalar_has_fq_or_bare_trace(name_ptr: u32, name_len: u32, op: u32) bool {
+    const var_trace = @import("tcl_var_trace.zig");
+    if (var_trace.has_trace(name_ptr, name_len, op)) return true;
+    if (name_ptr == 0 or name_len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    const has_fq_prefix = name_len >= 2 and sp[0] == ':' and sp[1] == ':';
+    if (!has_fq_prefix) {
+        const total: u32 = name_len + 2;
+        const buf = obj.alloc(total);
+        if (buf == 0) return false;
+        const dst: [*]u8 = @ptrFromInt(buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        for (0..name_len) |i| dst[2 + i] = sp[i];
+        const hit = var_trace.has_trace(buf, total, op);
+        obj.free_sized(buf, total);
+        return hit;
+    } else if (name_len > 2) {
+        return var_trace.has_trace(name_ptr + 2, name_len - 2, op);
+    }
+    return false;
 }
 
 /// Strict variant of :func:`global_get` for codegen-emitted reads of
@@ -1487,24 +1958,46 @@ pub export fn tcl_incr(o: i32, amount: i32) i32 {
     // errored — don't clobber that diagnostic with an
     // ``expected integer`` follow-on.  Match reference Tcl's
     // "first error wins" semantics for a single command.
-    if (@import("tcl_catch.zig").error_flag != 0) return obj_new_int_pub(0);
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return obj_new_int_pub(0);
     if (!incr_is_strict_int(o)) {
-        raise_expected_integer(o);
+        // The variable's current value is the non-integer — no
+        // ``(reading increment)`` frame (incr-old-2.4).
+        raise_expected_integer(o, false);
         return obj_new_int_pub(0);
     }
     if (!incr_is_strict_int(amount)) {
-        raise_expected_integer(amount);
+        // The explicit increment argument is the non-integer — add the
+        // ``(reading increment)`` frame (incr-old-2.5, incr-2.30..2.33).
+        raise_expected_integer(amount, true);
         return obj_new_int_pub(0);
+    }
+    // Bignum-aware addition: promote to ``*BigInt`` whenever either
+    // operand is bignum-shaped so a wide variable counter (or a wide
+    // increment delta — used by ``incr x [expr {1<<63}]``) keeps
+    // full precision.  The pre-bignum path silently truncated to i64.
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    if (obj.obj_type(o) == obj.TYPE_BIGNUM or obj.obj_type(amount) == obj.TYPE_BIGNUM) {
+        const ap = obj.obj_promote_to_bignum(o);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(amount);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return obj_new_int_pub(0);
+        const r = bignum.alloc_add(ap.m.?, bp.m.?) orelse return obj_new_int_pub(0);
+        return obj.obj_new_bignum_take(r);
     }
     const val = obj_get_int_pub(o);
     const amt = obj_get_int_pub(amount);
-    return obj_new_int_pub(val + amt);
+    const r = @addWithOverflow(val, amt);
+    if (r[1] == 0) return obj_new_int_pub(r[0]);
+    // i64 overflow → promote to bignum.
+    return obj.obj_new_bignum(@as(i128, val) + @as(i128, amt));
 }
 
 fn incr_is_strict_int(o: i32) bool {
     if (o == 0) return true;
     const tag = obj.obj_type(o);
     if (tag == obj.TYPE_INT) return true;
+    if (tag == obj.TYPE_BIGNUM) return true;
     if (tag == obj.TYPE_FLOAT) return false;
     // String / inline string — delegate to the canonical strict-decimal
     // parser used by ``obj_get_int``.  Keeping the validation and the
@@ -1534,39 +2027,201 @@ fn incr_is_strict_int(o: i32) bool {
     // separately and out of scope for the bitwise/shift/incr domain
     // fixes covered by issues #260–#262.
     const s = obj.obj_ensure_string(o);
-    return obj.try_parse_int(s.ptr, s.len) != null;
+    if (obj.try_parse_int(s.ptr, s.len) != null) return true;
+    // Accept bignum-shaped string literals so ``incr x 9223372036854775808``
+    // doesn't reject the wide delta as ``expected integer``.  Match the
+    // i128 / Managed parse discipline the arithmetic helpers use.
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+    const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+    bignum.destroy(m);
+    return true;
 }
 
-fn raise_expected_integer(o: i32) void {
+fn raise_expected_integer(o: i32, reading_increment: bool) void {
     // Preserve the first error in a chain — see ``tcl_incr`` for
     // the rationale.  Without this, a missing-variable read on the
     // increment expression that already set ``error_flag`` would be
     // overwritten by the follow-on ``expected integer`` diagnostic.
-    if (@import("tcl_catch.zig").error_flag != 0) return;
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
-    const prefix: []const u8 = "expected integer but got \"";
-    const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    // Tcl 9 ``TclParseNumber`` says ``got a list`` (not ``got "X"``)
+    // when the offending operand parses as a list with more than one
+    // element — incr-2.32 / incr-2.33 cover this for ``incr x [list 1
+    // 2]`` / ``incr x [dict create 1 2]``.  Match the ``Tcl_SplitList``
+    // probe by counting non-quoted whitespace runs in the string repr.
+    const looks_like_list = looks_like_tcl_list(s.ptr, s.len);
+    const prefix: []const u8 = "expected integer but got ";
+    const list_suffix: []const u8 = "a list";
+    const open_quote: []const u8 = "\"";
+    const close_quote: []const u8 = "\"";
+    const total: u32 = if (looks_like_list)
+        @intCast(prefix.len + list_suffix.len)
+    else
+        @intCast(prefix.len + open_quote.len + s.len + close_quote.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM building the diagnostic — bail without raising further.
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| {
         buf[off] = c;
         off += 1;
     }
-    if (s.len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| {
-            buf[off] = sp[i];
+    if (looks_like_list) {
+        for (list_suffix) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+    } else {
+        for (open_quote) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+        if (s.len > 0) {
+            const sp: [*]const u8 = @ptrFromInt(s.ptr);
+            for (0..s.len) |i| {
+                buf[off] = sp[i];
+                off += 1;
+            }
+        }
+        for (close_quote) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+    }
+    // ``obj_new_string_take`` (not the borrow-form ``obj_new_string``)
+    // transfers ownership of ``buf_addr`` to the resulting TclObj so
+    // the slab is reclaimed when the error message is released.  The
+    // old borrow form left ``OBJ_STR_CAP = 0`` and the buffer slab
+    // leaked permanently — one ``total``-byte slab per
+    // ``expected integer`` diagnostic.
+    const msg = obj.obj_new_string_take(buf_addr, @intCast(off), total);
+    const tcl_catch = @import("tcl_catch.zig");
+    tcl_catch.tcl_cmd_error(msg);
+    // Tcl 9 adds a ``(reading increment)`` frame between the error
+    // message and the surrounding command frame in ``::errorInfo``
+    // ONLY when the explicit increment operand fails to parse
+    // (``incr x 1a`` — incr-2.30/2.31/2.32/2.33, incr-old-2.5).
+    // Reference Tcl emits this via ``Tcl_AddObjErrorInfo`` from
+    // ``TclCompileIncrCmd`` / ``Tcl_IncrObjCmd`` after
+    // ``Tcl_GetIntFromObj`` rejects the increment argument.  When the
+    // *variable's own value* is the non-integer (``incr x`` with x set
+    // to "abc" — incr-old-2.4) there is no increment being read, so the
+    // frame must be omitted and the enclosing log stays ``while
+    // executing``.  Priming ``last_log_script`` (via
+    // ``append_errinfo_frame``) is likewise gated on this.
+    if (reading_increment) {
+        append_errinfo_frame("\n    (reading increment)");
+    }
+}
+
+/// Append a literal string to the current ``::errorInfo`` global
+/// (no quoting / wrapping).  Sets ``last_log_script != 0`` so the
+/// next ``log_command_info`` call uses the ``invoked from within``
+/// preamble instead of ``while executing``.
+pub fn append_errinfo_frame(suffix: []const u8) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    const ec_name = obj.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    defer obj.tcl_obj_release(ec_name);
+    const cur = global_get(ec_name);
+    var cur_ptr: u32 = 0;
+    var cur_len: u32 = 0;
+    if (cur != 0) {
+        const cs = obj.obj_ensure_string(cur);
+        cur_ptr = cs.ptr;
+        cur_len = cs.len;
+    }
+    const total: u32 = cur_len + @as(u32, @intCast(suffix.len));
+    const buf_addr = obj.alloc(total);
+    if (buf_addr == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf_addr);
+    var off: u32 = 0;
+    if (cur_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(cur_ptr);
+        for (0..cur_len) |i| {
+            dst[off] = sp[i];
             off += 1;
         }
     }
     for (suffix) |c| {
-        buf[off] = c;
+        dst[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
-    @import("tcl_catch.zig").tcl_cmd_error(msg);
+    const new_info = obj.obj_new_string_take(buf_addr, total, total);
+    _ = global_set(ec_name, new_info);
+    // Sentinel: any non-zero value forces ``invoked from within``
+    // on the next ``log_command_info`` call (see the prefix
+    // selector in ``tcl_interp.log_command_info``).  ``1`` is
+    // an arbitrary non-zero — we never read this back as a
+    // pointer, the script-pos dedup probe is the only consumer.
+    tcl_catch.state.last_log_script = 1;
+    tcl_catch.state.last_log_pos = 0;
+}
+
+/// True if *o* parses as a Tcl list with more than one element.
+/// Used by :func:`raise_expected_integer` to match upstream's
+/// ``got a list`` wording for compound list / dict values
+/// (incr-2.32 / 2.33).  Implementation is a conservative
+/// whitespace-run counter that matches the reference
+/// ``Tcl_SplitList`` element boundary — quoted strings (``"..."``)
+/// and braced strings (``{...}``) count as a single element, every
+/// other whitespace run separates two elements.
+fn looks_like_tcl_list(ptr: u32, len: u32) bool {
+    if (len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var elements: u32 = 0;
+    while (i < len) {
+        // Skip whitespace.
+        while (i < len) : (i += 1) {
+            const c = sp[i];
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r') break;
+        }
+        if (i >= len) break;
+        elements += 1;
+        if (elements > 1) return true;
+        // Walk one element (handle quotes / braces conservatively).
+        if (sp[i] == '"') {
+            i += 1;
+            while (i < len and sp[i] != '"') {
+                if (sp[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            if (i < len) i += 1;
+        } else if (sp[i] == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (sp[i] == '\\' and i + 1 < len) {
+                    i += 1;
+                    continue;
+                }
+                if (sp[i] == '{') depth += 1 else if (sp[i] == '}') depth -= 1;
+            }
+        } else {
+            while (i < len) {
+                const c = sp[i];
+                // ``Tcl_SplitList`` treats ``\<char>`` as a literal
+                // 2-byte unit inside an unquoted element, so an
+                // escaped space (``a\ b``) stays a single element.
+                // Without this skip, our walker counted the post-
+                // backslash space as a separator and misclassified
+                // the string as a multi-element list — "got a list"
+                // surfaced where reference Tcl emits "got \"a\\ b\""
+                // (Codex review on PR #346, P2).
+                if (c == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r') break;
+                i += 1;
+            }
+        }
+    }
+    return elements > 1;
 }
 
 // -- Test scaffolding -------------------------------------------------------

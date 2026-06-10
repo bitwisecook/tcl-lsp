@@ -1,0 +1,20 @@
+# namespace.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '140 of 314 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 314
+observed_passed = 171
+observed_failed = 140
+observed_skipped = 3
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["namespace-3.1", "namespace-6.1", "namespace-6.2", "namespace-6.3", "namespace-6.4", "namespace-7.7", "namespace-7.9", "namespace-8.1", "namespace-8.3", "namespace-8.4", "namespace-8.5", "namespace-8.6", "namespace-9.1", "namespace-9.3", "namespace-9.4", "namespace-9.5", "namespace-9.7", "namespace-9.8", "namespace-9.9", "namespace-10.1", "namespace-10.2", "namespace-10.3", "namespace-10.4", "namespace-10.8", "namespace-11.1", "namespace-11.2", "namespace-11.3", "namespace-12.1", "namespace-13.1", "namespace-14.1", "namespace-14.2", "namespace-14.3", "namespace-14.4", "namespace-14.5", "namespace-14.6", "namespace-14.7", "namespace-14.8", "namespace-14.12", "namespace-14.13", "namespace-15.4", "namespace-18.1", "namespace-18.2", "namespace-19.3", "namespace-20.2", "namespace-20.3", "namespace-21.4", "namespace-21.5", "namespace-21.7", "namespace-22.3", "namespace-22.7", "namespace-25.1", "namespace-25.2", "namespace-25.6", "namespace-25.7", "namespace-25.8", "namespace-25.9", "namespace-26.3", "namespace-26.4", "namespace-26.5", "namespace-26.6", "namespace-26.7", "namespace-27.1", "namespace-27.2", "namespace-27.3", "namespace-28.1", "namespace-28.3", "namespace-29.1", "namespace-29.2", "namespace-29.3", "namespace-29.6", "namespace-30.5", "namespace-31.4", "namespace-32.6", "namespace-32.7", "namespace-32.8", "namespace-34.5", "namespace-34.6", "namespace-34.7", "namespace-39.3", "namespace-41.1", "namespace-41.2", "namespace-41.3", "namespace-42.3", "namespace-42.9", "namespace-42.11", "namespace-44.5", "namespace-47.1", "namespace-47.2", "namespace-47.3", "namespace-47.4", "namespace-47.5", "namespace-47.6", "namespace-47.7", "namespace-47.8", "namespace-48.1", "namespace-48.2", "namespace-48.3", "namespace-49.1", "namespace-50.1", "namespace-50.2", "namespace-50.3", "namespace-50.4", "namespace-50.5", "namespace-50.6", "namespace-50.7", "namespace-50.8", "namespace-50.9", "namespace-51.3", "namespace-51.7", "namespace-51.8", "namespace-51.9", "namespace-51.10", "namespace-51.13", "namespace-51.14", "namespace-51.17", "namespace-51.18", "namespace-52.1", "namespace-52.4", "namespace-52.5", "namespace-52.6", "namespace-52.7", "namespace-52.8", "namespace-52.9", "namespace-52.11", "namespace-52.12", "namespace-53.1", "namespace-53.2", "namespace-53.3", "namespace-53.4", "namespace-53.5", "namespace-53.6", "namespace-53.7", "namespace-53.8", "namespace-53.9", "namespace-53.10", "namespace-53.11", "namespace-55.2", "namespace-56.3", "namespace-56.6", "namespace-57.0"]

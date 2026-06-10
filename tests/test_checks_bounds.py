@@ -1,7 +1,7 @@
 """Tests for index-bounds and loop-termination checks (W230-W242).
 
 Semantics validated against Tcl 9.0.3 (built from source) — see
-``core/analysis/checks/_bounds.py`` for the reference notes.
+``analyser/checks/_bounds.py`` for the reference notes.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
+from analyser import analyse
+from analyser.semantic_model import Severity
 
 
 def _diag_with_code(source: str, code: str):
@@ -211,10 +211,11 @@ class TestStringIndexOutOfRange:
         assert len(diags) == 1
         assert "no-op" in diags[0].message
 
-    def test_string_insert_negative_literal(self):
-        diags = _diag_with_code("string insert abc -5 X", "W232")
-        assert len(diags) == 1
-        assert "negative" in diags[0].message
+    def test_string_insert_negative_literal_not_flagged(self):
+        # tclsh 9.0.3: `string insert abc -5 X` -> `Xabc` (a negative index
+        # prepends).  It is not empty or a no-op, so W232 must not fire.
+        assert _diag_with_code("string insert abc -5 X", "W232") == []
+        assert _diag_with_code("string insert abc -1 X", "W232") == []
 
     def test_string_insert_overshoot_not_flagged(self):
         # Positive overshoot always appends — sensible, no warning.
@@ -397,3 +398,21 @@ class TestLoopTerminationUnprovable:
             "W242",
         )
         assert len(diags) == 1
+
+    # A command substitution in the condition can drive termination via side
+    # effects (EOF, stream drain) or mutate the counter through an alias, so
+    # W242 must not fire — these are not unbounded loops.
+
+    def test_gets_loop_clean(self):
+        # Canonical line-reading loop: terminates at EOF (gets returns -1).
+        assert _diag_with_code("while {[gets $ch line] >= 0} { puts $line }", "W242") == []
+
+    def test_stream_drain_loop_clean(self):
+        assert _diag_with_code("while {[$s get] ne {}} { incr n }", "W242") == []
+
+    def test_command_built_condition_clean(self):
+        # args is consumed in the body via an alias the shallow scan can't see.
+        src = (
+            "while {[llength $args] > 1} { set a [lindex $args 0]; set args [lrange $args 1 end] }"
+        )
+        assert _diag_with_code(src, "W242") == []

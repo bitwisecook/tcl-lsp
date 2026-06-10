@@ -1,0 +1,392 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     ioCmd.test
+DATE     2026-05-06T21:18:32Z
+---
+PASS ioCmd-13.11
+PASS ioCmd-13.12
+PASS iocmd-1.1
+PASS iocmd-1.2
+PASS iocmd-1.3
+PASS iocmd-1.4
+PASS iocmd-1.5
+PASS iocmd-1.6
+PASS iocmd-1.7
+PASS iocmd-1.8
+PASS iocmd-10.1
+PASS iocmd-10.2
+PASS iocmd-10.3
+PASS iocmd-10.4
+PASS iocmd-10.5
+PASS iocmd-11.1
+PASS iocmd-11.2
+PASS iocmd-11.3
+PASS iocmd-11.4
+PASS iocmd-12.1
+PASS iocmd-12.10
+PASS iocmd-12.10.1
+PASS iocmd-12.11
+PASS iocmd-12.12
+PASS iocmd-12.13
+PASS iocmd-12.14
+PASS iocmd-12.2
+PASS iocmd-12.3
+PASS iocmd-12.4
+PASS iocmd-12.5
+PASS iocmd-12.6
+PASS iocmd-12.7
+PASS iocmd-12.8
+PASS iocmd-12.9
+PASS iocmd-13.1
+PASS iocmd-13.10.1
+PASS iocmd-13.10.2
+PASS iocmd-13.2
+PASS iocmd-13.3
+PASS iocmd-13.4
+PASS iocmd-13.5
+PASS iocmd-13.6
+PASS iocmd-13.7
+PASS iocmd-13.8
+PASS iocmd-13.9
+PASS iocmd-14.1
+PASS iocmd-14.10
+PASS iocmd-14.2
+PASS iocmd-14.3
+PASS iocmd-14.4
+PASS iocmd-14.5
+PASS iocmd-14.6
+PASS iocmd-14.7
+PASS iocmd-14.8
+PASS iocmd-14.9
+PASS iocmd-15.1
+PASS iocmd-15.10
+PASS iocmd-15.11
+PASS iocmd-15.12
+PASS iocmd-15.2
+PASS iocmd-15.3
+PASS iocmd-15.4
+PASS iocmd-15.5
+PASS iocmd-15.6
+PASS iocmd-15.7
+PASS iocmd-15.8
+PASS iocmd-15.9
+PASS iocmd-2.1
+PASS iocmd-2.2
+PASS iocmd-2.3
+PASS iocmd-2.4
+PASS iocmd-20.0
+PASS iocmd-20.1
+PASS iocmd-21.0
+PASS iocmd-21.1
+PASS iocmd-21.10
+PASS iocmd-21.11
+PASS iocmd-21.12
+PASS iocmd-21.13
+PASS iocmd-21.14
+PASS iocmd-21.15
+PASS iocmd-21.16
+PASS iocmd-21.17
+PASS iocmd-21.2
+PASS iocmd-21.20
+PASS iocmd-21.21
+PASS iocmd-21.22
+PASS iocmd-21.23
+PASS iocmd-21.24
+PASS iocmd-21.3
+PASS iocmd-21.4
+PASS iocmd-21.5
+PASS iocmd-21.6
+PASS iocmd-21.7
+PASS iocmd-21.8
+PASS iocmd-21.9
+PASS iocmd-22.4
+PASS iocmd-22.5
+PASS iocmd-22.6
+PASS iocmd-22.7
+PASS iocmd-22.8
+PASS iocmd-22.9
+PASS iocmd-23.1
+PASS iocmd-23.10
+PASS iocmd-23.11
+PASS iocmd-23.2
+PASS iocmd-23.3
+PASS iocmd-23.4
+PASS iocmd-23.5
+PASS iocmd-23.6
+PASS iocmd-23.7
+PASS iocmd-23.8
+PASS iocmd-23.9
+PASS iocmd-24.1
+PASS iocmd-24.10
+PASS iocmd-24.11
+PASS iocmd-24.12
+PASS iocmd-24.13
+PASS iocmd-24.14
+PASS iocmd-24.15
+PASS iocmd-24.2
+PASS iocmd-24.3
+PASS iocmd-24.4
+PASS iocmd-24.5
+PASS iocmd-24.6
+PASS iocmd-24.7
+PASS iocmd-24.8
+PASS iocmd-24.9
+PASS iocmd-25.1
+PASS iocmd-25.10
+PASS iocmd-25.2
+PASS iocmd-25.3
+PASS iocmd-25.4
+PASS iocmd-25.5
+PASS iocmd-25.6
+PASS iocmd-25.7
+PASS iocmd-25.8
+PASS iocmd-25.9
+PASS iocmd-26.1
+PASS iocmd-26.2
+PASS iocmd-26.3
+PASS iocmd-26.4
+PASS iocmd-26.5
+PASS iocmd-26.6
+PASS iocmd-26.7
+PASS iocmd-27.1
+PASS iocmd-27.2
+PASS iocmd-27.3
+PASS iocmd-27.4
+PASS iocmd-27.5
+PASS iocmd-27.6
+PASS iocmd-28.1
+PASS iocmd-28.10
+PASS iocmd-28.11
+PASS iocmd-28.12
+PASS iocmd-28.13
+PASS iocmd-28.14
+PASS iocmd-28.15
+PASS iocmd-28.16
+PASS iocmd-28.17
+PASS iocmd-28.18
+PASS iocmd-28.19.0
+PASS iocmd-28.19.1
+PASS iocmd-28.19.2
+PASS iocmd-28.2
+PASS iocmd-28.3
+PASS iocmd-28.4
+PASS iocmd-28.5
+PASS iocmd-28.6
+PASS iocmd-28.7
+PASS iocmd-28.8
+PASS iocmd-28.9
+PASS iocmd-29.1
+PASS iocmd-29.10
+PASS iocmd-29.11
+PASS iocmd-29.2
+PASS iocmd-29.3
+PASS iocmd-29.4
+PASS iocmd-29.5
+PASS iocmd-29.6
+PASS iocmd-29.7
+PASS iocmd-29.8
+PASS iocmd-29.9
+PASS iocmd-3.1
+PASS iocmd-3.2
+PASS iocmd-3.3
+PASS iocmd-3.4
+PASS iocmd-3.5
+PASS iocmd-30.1
+PASS iocmd-30.2
+PASS iocmd-30.3
+PASS iocmd-30.4
+PASS iocmd-31.1
+PASS iocmd-31.2
+PASS iocmd-31.3
+PASS iocmd-31.4
+PASS iocmd-31.5
+PASS iocmd-31.6
+PASS iocmd-31.7
+PASS iocmd-31.8
+PASS iocmd-32.2
+PASS iocmd-32.3.0
+PASS iocmd-32.3.1
+PASS iocmd-4.1
+PASS iocmd-4.10
+PASS iocmd-4.11
+PASS iocmd-4.12
+PASS iocmd-4.2
+PASS iocmd-4.3
+PASS iocmd-4.4
+PASS iocmd-4.5
+PASS iocmd-4.6
+PASS iocmd-4.7
+PASS iocmd-4.8
+PASS iocmd-4.9
+PASS iocmd-5.1
+PASS iocmd-5.2
+PASS iocmd-5.3
+PASS iocmd-5.4
+PASS iocmd-6.1
+PASS iocmd-6.2
+PASS iocmd-6.3
+PASS iocmd-7.1
+PASS iocmd-7.2
+PASS iocmd-7.3
+PASS iocmd-7.4
+PASS iocmd-7.5
+PASS iocmd-8.1
+PASS iocmd-8.10
+PASS iocmd-8.11
+PASS iocmd-8.12
+PASS iocmd-8.13
+PASS iocmd-8.14
+PASS iocmd-8.15
+PASS iocmd-8.16
+PASS iocmd-8.2
+PASS iocmd-8.23
+PASS iocmd-8.3
+PASS iocmd-8.4
+PASS iocmd-8.5
+PASS iocmd-8.6
+PASS iocmd-8.7
+PASS iocmd-8.8
+PASS iocmd-8.9
+PASS iocmd-9.1
+PASS iocmd-9.2
+PASS iocmd-9.3
+PASS iocmd.foreachLine-1.1
+PASS iocmd.foreachLine-1.2
+PASS iocmd.foreachLine-1.3
+PASS iocmd.foreachLine-1.4
+PASS iocmd.foreachLine-2.1
+PASS iocmd.foreachLine-2.2
+PASS iocmd.foreachLine-2.3
+PASS iocmd.foreachLine-2.4
+PASS iocmd.foreachLine-2.5
+PASS iocmd.readFile-1.1
+PASS iocmd.readFile-1.2
+PASS iocmd.readFile-1.3
+PASS iocmd.readFile-2.1
+PASS iocmd.readFile-2.2
+PASS iocmd.readFile-2.3
+PASS iocmd.readFile-2.4
+PASS iocmd.writeFile-1.1
+PASS iocmd.writeFile-1.2
+PASS iocmd.writeFile-1.3
+PASS iocmd.writeFile-2.1
+PASS iocmd.writeFile-2.2
+PASS iocmd.writeFile-2.3
+SKIP iocmd-32.0 testchannel
+SKIP iocmd-32.1 testchannel
+SKIP iocmd-8.17 nonPortable
+SKIP iocmd-8.18 nonPortable
+SKIP iocmd-8.19 nonPortable
+SKIP iocmd-8.20 nonPortable
+SKIP iocmd.tf-22.2 testchannel
+SKIP iocmd.tf-22.3 testchannel
+SKIP iocmd.tf-22.4 testchannel
+SKIP iocmd.tf-22.5 testchannel
+SKIP iocmd.tf-22.6 testchannel
+SKIP iocmd.tf-22.7 testchannel
+SKIP iocmd.tf-22.8 testchannel
+SKIP iocmd.tf-22.9 testchannel
+SKIP iocmd.tf-23.1 testchannel
+SKIP iocmd.tf-23.10 testchannel
+SKIP iocmd.tf-23.2 testchannel
+SKIP iocmd.tf-23.3 testchannel
+SKIP iocmd.tf-23.4 testchannel
+SKIP iocmd.tf-23.5 testchannel
+SKIP iocmd.tf-23.6 testchannel
+SKIP iocmd.tf-23.7 testchannel
+SKIP iocmd.tf-23.8 testchannel
+SKIP iocmd.tf-23.9 testchannel
+SKIP iocmd.tf-24.1 testchannel
+SKIP iocmd.tf-24.10 testchannel
+SKIP iocmd.tf-24.11 testchannel
+SKIP iocmd.tf-24.12 testchannel
+SKIP iocmd.tf-24.13 testchannel
+SKIP iocmd.tf-24.14 testchannel
+SKIP iocmd.tf-24.15 testchannel
+SKIP iocmd.tf-24.16 testchannel
+SKIP iocmd.tf-24.17.bug3522560 testchannel
+SKIP iocmd.tf-24.2 testchannel
+SKIP iocmd.tf-24.3 testchannel
+SKIP iocmd.tf-24.4 testchannel
+SKIP iocmd.tf-24.5 testchannel
+SKIP iocmd.tf-24.6 testchannel
+SKIP iocmd.tf-24.7 testchannel
+SKIP iocmd.tf-24.8 testchannel
+SKIP iocmd.tf-24.9 testchannel
+SKIP iocmd.tf-25.1 testchannel
+SKIP iocmd.tf-25.10 testchannel
+SKIP iocmd.tf-25.2 testchannel
+SKIP iocmd.tf-25.3 testchannel
+SKIP iocmd.tf-25.4 testchannel
+SKIP iocmd.tf-25.5 testchannel
+SKIP iocmd.tf-25.6 testchannel
+SKIP iocmd.tf-25.7 testchannel
+SKIP iocmd.tf-25.8 testchannel
+SKIP iocmd.tf-25.9 testchannel
+SKIP iocmd.tf-26.1 testchannel
+SKIP iocmd.tf-26.2 testchannel
+SKIP iocmd.tf-26.3 testchannel
+SKIP iocmd.tf-26.4 testchannel
+SKIP iocmd.tf-26.5 testchannel
+SKIP iocmd.tf-26.6 testchannel
+SKIP iocmd.tf-26.7 testchannel
+SKIP iocmd.tf-27.1 testchannel
+SKIP iocmd.tf-27.2 testchannel
+SKIP iocmd.tf-27.3 testchannel
+SKIP iocmd.tf-27.4 testchannel
+SKIP iocmd.tf-27.5 testchannel
+SKIP iocmd.tf-27.6 testchannel
+SKIP iocmd.tf-28.1 testchannel
+SKIP iocmd.tf-28.10 testchannel
+SKIP iocmd.tf-28.11 testchannel
+SKIP iocmd.tf-28.12 testchannel
+SKIP iocmd.tf-28.13 testchannel
+SKIP iocmd.tf-28.14 testchannel
+SKIP iocmd.tf-28.15 testchannel
+SKIP iocmd.tf-28.16 testchannel
+SKIP iocmd.tf-28.17 testchannel
+SKIP iocmd.tf-28.18 testchannel
+SKIP iocmd.tf-28.19.0 testchannel
+SKIP iocmd.tf-28.19.1 testchannel
+SKIP iocmd.tf-28.19.2 testchannel
+SKIP iocmd.tf-28.2 testchannel
+SKIP iocmd.tf-28.3 testchannel
+SKIP iocmd.tf-28.4 testchannel
+SKIP iocmd.tf-28.5 testchannel
+SKIP iocmd.tf-28.6 testchannel
+SKIP iocmd.tf-28.7 testchannel
+SKIP iocmd.tf-28.8 testchannel
+SKIP iocmd.tf-28.9 testchannel
+SKIP iocmd.tf-29.1 testchannel
+SKIP iocmd.tf-29.10 testchannel
+SKIP iocmd.tf-29.11 testchannel
+SKIP iocmd.tf-29.2 testchannel
+SKIP iocmd.tf-29.3 testchannel
+SKIP iocmd.tf-29.4 testchannel
+SKIP iocmd.tf-29.5 testchannel
+SKIP iocmd.tf-29.6 testchannel
+SKIP iocmd.tf-29.7 testchannel
+SKIP iocmd.tf-29.8 testchannel
+SKIP iocmd.tf-29.9 testchannel
+SKIP iocmd.tf-30.1 testchannel
+SKIP iocmd.tf-30.2 testchannel
+SKIP iocmd.tf-30.3 testchannel
+SKIP iocmd.tf-30.4 testchannel
+SKIP iocmd.tf-31.8 testchannel
+SKIP iocmd.tf-32.0 testchannel
+SKIP iocmd.tf-32.1 testchannel
+FAIL iocmd-21.18
+FAIL iocmd-21.18 chan create, initialize ok, creates channel
+FAIL iocmd-21.19
+FAIL iocmd-21.19 chan create, init failure -> no channel, no finalize
+FAIL iocmd-22.1
+FAIL iocmd-22.1 chan finalize, handler destruction has no effect on channel
+FAIL iocmd-22.2
+FAIL iocmd-22.2 chan finalize, for close
+FAIL iocmd-22.3
+FAIL iocmd-22.3 chan finalize, for close, error, close error
+---
+TOTAL   382
+PASSED  269
+SKIPPED 103
+FAILED  10

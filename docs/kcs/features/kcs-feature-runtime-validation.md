@@ -1,5 +1,8 @@
 # KCS: feature — Runtime Validation
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Validate Tcl code against a real tclsh interpreter if available on the system.

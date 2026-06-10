@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.call_hierarchy import (
+from server.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
     prepare_call_hierarchy,
@@ -63,6 +63,34 @@ class TestIncomingCalls:
         caller_names = {c.from_.name for c in calls}
         assert "main" in caller_names or "<top-level>" in caller_names
 
+    def test_cross_document_callers_included(self):
+        from analyser import analyse
+
+        # The proc is defined in one file and called from another.
+        def_uri = "file:///lib.tcl"
+        def_source = "proc greet {} { return }\n"
+        caller_uri = "file:///app.tcl"
+        caller_source = "proc main {} { greet }\n"
+
+        items = prepare_call_hierarchy(def_source, def_uri, 0, 6)
+        assert len(items) == 1
+
+        # Without the other document, the cross-file caller is missing.
+        local_only = incoming_calls(items[0], def_source, def_uri)
+        assert all(c.from_.name != "main" for c in local_only)
+
+        # Supplying the other document surfaces its caller, attributed to
+        # that file's URI.
+        with_extra = incoming_calls(
+            items[0],
+            def_source,
+            def_uri,
+            extra_documents=[(caller_uri, analyse(caller_source))],
+        )
+        main_calls = [c for c in with_extra if c.from_.name == "main"]
+        assert len(main_calls) == 1
+        assert main_calls[0].from_.uri == caller_uri
+
 
 class TestOutgoingCalls:
     def test_find_callees(self):
@@ -87,3 +115,63 @@ class TestOutgoingCalls:
         assert len(items) == 1
         calls = outgoing_calls(items[0], source, TEST_URI)
         assert len(calls) == 0
+
+
+class TestNamespaceFormsCallHierarchy:
+    """Call hierarchy must resolve procs across namespace forms, including
+    nested ``namespace eval`` blocks (regression: nested procs qualified as
+    ``::b::proc`` instead of ``::a::b::proc``)."""
+
+    def _incoming_names(self, source: str, line: int, char: int) -> set[str]:
+        items = prepare_call_hierarchy(source, TEST_URI, line, char)
+        assert items, "expected a call hierarchy item"
+        return {c.from_.name for c in incoming_calls(items[0], source, TEST_URI)}
+
+    def test_single_namespace_caller(self):
+        source = textwrap.dedent("""\
+            namespace eval ns {
+                proc helper {} {return 1}
+            }
+            proc caller {} {
+                ns::helper
+            }
+        """)
+        assert "caller" in self._incoming_names(source, 1, 9)
+
+    def test_nested_namespace_caller(self):
+        source = textwrap.dedent("""\
+            namespace eval a {
+              namespace eval b {
+                proc deep {} {return 1}
+              }
+            }
+            proc top {} {
+              a::b::deep
+            }
+        """)
+        assert "top" in self._incoming_names(source, 2, 9)
+
+    def test_global_qualified_caller(self):
+        source = textwrap.dedent("""\
+            proc g {} {return 1}
+            proc h {} {
+              ::g
+            }
+        """)
+        assert "h" in self._incoming_names(source, 0, 5)
+
+
+class TestNestedNamespaceQualification:
+    def test_nested_proc_qualified_with_full_path(self):
+        from analyser import analyse
+
+        source = textwrap.dedent("""\
+            namespace eval a {
+              namespace eval b {
+                proc deep {} {return 1}
+              }
+            }
+        """)
+        qnames = set(analyse(source).all_procs)
+        assert "::a::b::deep" in qnames
+        assert "::b::deep" not in qnames

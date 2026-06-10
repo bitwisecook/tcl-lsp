@@ -1,0 +1,27 @@
+# Categorisation for lsearch.test (Tcl 9.0.3 source tree).
+# Bundle reaches 145 / 165 passing after the -index PATH and
+# -subindices multi-level support landed.  Residual failures are
+# ascii-string ordering with mixed-numeric tokens (9.x), end-relative
+# -start (10.3), -bisect (binary-search return mode), and
+# -stride + -subindices ordering rules where the stride consumes the
+# first path index in the returned sub-position list.
+
+good_to_have = [
+  # 9.x — ascii sort + lsearch on numeric-looking strings.
+  "9.1", "9.2", "9.3", "9.4",
+  # 10.3 — end-relative -start argument.
+  "10.3",
+  # 19.7, 19.8 — -subindices edge cases beyond {0 0} path.
+  "19.7", "19.8",
+  # 22.5 — -bisect mode.
+  "22.5",
+  # 26.x, 27.x — -stride + -subindices ordering: with stride the
+  # outer position already encodes the first -index path element,
+  # so the returned sub-position list should be outer + path[1:],
+  # not outer + path.  Our implementation appends the full path.
+  "26.1", "26.2", "26.3", "26.4", "26.5", "26.6",
+  "27.2", "27.3", "27.4", "27.6", "27.7", "27.8",
+]
+
+[baseline]
+good_to_have_failing = 20

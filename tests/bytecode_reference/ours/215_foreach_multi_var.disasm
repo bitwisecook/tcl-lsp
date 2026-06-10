@@ -1,0 +1,130 @@
+ByteCode ::top, 85 instructions, 239 bytes, 20 literals, 0 variables
+  Literals:
+    0: "pairs"
+    1: ""
+    2: "foreach"
+    3: "a b"
+    4: "1 2 3 4 5 6"
+    5: "lappend pairs $a-$b"
+    6: "1-2 3-4 5-6"
+    7: "\u0000\u0002multi-var foreach pairs w..."
+    8: "triples"
+    9: "a b c"
+    10: "1 2 3 4 5 6 7"
+    11: "lappend triples $a-$b-$c"
+    12: "1-2-3 4-5-6 7--"
+    13: "\u0000\u0002triples wrong: "
+    14: "single"
+    15: "x"
+    16: "A B C"
+    17: "lappend single $x"
+    18: "\u0000\u0002single-var foreach wrong: "
+    19: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "pairs"
+    (2) push1 1	# ""
+    (4) storeStk
+    (5) pop
+    (6) push1 2	# "foreach"
+    (8) push1 3	# "a b"
+    (10) push1 4	# "1 2 3 4 5 6"
+    (12) push1 5	# "lappend pairs $a-$b"
+    (14) invokeStk1 4	# foreach
+  # cmd_end_1:
+    (16) pop
+    (17) startCommand +48 1	# next cmd at pc 65, 1 cmds start here
+    (26) push1 0	# "pairs"
+    (28) loadStk
+    (29) push1 6	# "1-2 3-4 5-6"
+    (31) strneq
+    (32) jumpFalse1 +31	# pc 63
+  # if_then_3:
+    (34) startCommand +27 1	# next cmd at pc 61, 1 cmds start here
+    (43) push1 7	# "multi-var foreach pairs wrong: "
+    (45) push1 0	# "pairs"
+    (47) loadStk
+    (48) strcat 2
+    (50) push1 1	# ""
+    (52) returnImm +1 0
+  # cmd_end_3:
+    (61) jump1 +4	# pc 65
+  # if_next_4:
+    (63) push1 1	# ""
+  # if_end_2:
+  # if_cmd_end_2:
+    (65) pop
+    (66) startCommand +14 1	# next cmd at pc 80, 1 cmds start here
+    (75) push1 8	# "triples"
+    (77) push1 1	# ""
+    (79) storeStk
+  # cmd_end_4:
+    (80) pop
+    (81) push1 2	# "foreach"
+    (83) push1 9	# "a b c"
+    (85) push1 10	# "1 2 3 4 5 6 7"
+    (87) push1 11	# "lappend triples $a-$b-$c"
+    (89) invokeStk1 4	# foreach
+  # cmd_end_5:
+    (91) pop
+    (92) startCommand +48 1	# next cmd at pc 140, 1 cmds start here
+    (101) push1 8	# "triples"
+    (103) loadStk
+    (104) push1 12	# "1-2-3 4-5-6 7--"
+    (106) strneq
+    (107) jumpFalse1 +31	# pc 138
+  # if_then_6:
+    (109) startCommand +27 1	# next cmd at pc 136, 1 cmds start here
+    (118) push1 13	# "triples wrong: "
+    (120) push1 8	# "triples"
+    (122) loadStk
+    (123) strcat 2
+    (125) push1 1	# ""
+    (127) returnImm +1 0
+  # cmd_end_7:
+    (136) jump1 +4	# pc 140
+  # if_next_7:
+    (138) push1 1	# ""
+  # if_end_5:
+  # if_cmd_end_6:
+    (140) pop
+    (141) startCommand +14 1	# next cmd at pc 155, 1 cmds start here
+    (150) push1 14	# "single"
+    (152) push1 1	# ""
+    (154) storeStk
+  # cmd_end_8:
+    (155) pop
+    (156) push1 2	# "foreach"
+    (158) push1 15	# "x"
+    (160) push1 16	# "A B C"
+    (162) push1 17	# "lappend single $x"
+    (164) invokeStk1 4	# foreach
+  # cmd_end_9:
+    (166) pop
+    (167) startCommand +48 1	# next cmd at pc 215, 1 cmds start here
+    (176) push1 14	# "single"
+    (178) loadStk
+    (179) push1 16	# "A B C"
+    (181) strneq
+    (182) jumpFalse1 +31	# pc 213
+  # if_then_9:
+    (184) startCommand +27 1	# next cmd at pc 211, 1 cmds start here
+    (193) push1 18	# "single-var foreach wrong: "
+    (195) push1 14	# "single"
+    (197) loadStk
+    (198) strcat 2
+    (200) push1 1	# ""
+    (202) returnImm +1 0
+  # cmd_end_11:
+    (211) jump1 +4	# pc 215
+  # if_next_10:
+    (213) push1 1	# ""
+  # if_end_8:
+  # if_cmd_end_10:
+    (215) pop
+    (216) startCommand +22 1	# next cmd at pc 238, 1 cmds start here
+    (225) push1 19	# "ok"
+    (227) push1 1	# ""
+    (229) returnImm +0 1
+  # ret_end_12:
+    (238) done

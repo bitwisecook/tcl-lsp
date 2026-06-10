@@ -7,10 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.settings as _lsp_settings
-import lsp.state as _lsp_state
-from lsp.feature_config import FeatureConfig
-from lsp.settings import _extract_tcl_lsp_settings
+import server.settings as _lsp_settings
+import server.state as _lsp_state
+from server.feature_config import FeatureConfig
+from server.settings import _extract_tcl_lsp_settings
 
 
 def test_optimiser_filters_include_o103_o104():

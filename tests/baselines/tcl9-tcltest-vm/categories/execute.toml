@@ -1,0 +1,20 @@
+# execute.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '29 of 157 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 157
+observed_passed = 51
+observed_failed = 29
+observed_skipped = 77
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["execute-4.1", "execute-4.2", "execute-6.2", "execute-6.3", "execute-6.4", "execute-6.5", "execute-6.6", "execute-6.7", "execute-6.8", "execute-6.9", "execute-6.11", "execute-6.13", "execute-6.14", "execute-6.15", "execute-6.16", "execute-6.17", "execute-6.18", "execute-7.8", "execute-7.14", "execute-7.15", "execute-7.16", "execute-8.2", "execute-8.3", "execute-8.4", "execute-8.5", "execute-8.6", "execute-8.7", "execute-10.1", "execute-10.3"]

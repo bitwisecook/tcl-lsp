@@ -1,0 +1,156 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     basic.test
+DATE     2026-05-06T21:17:36Z
+---
+PASS basic-1.1
+PASS basic-10.1
+PASS basic-11.1
+PASS basic-12.1
+PASS basic-12.2
+PASS basic-13.1
+PASS basic-13.2
+PASS basic-15.1
+PASS basic-15.2
+PASS basic-18.1
+PASS basic-18.2
+PASS basic-18.3
+PASS basic-18.4
+PASS basic-18.5
+PASS basic-18.6
+PASS basic-22.1
+PASS basic-24.1
+PASS basic-24.2
+PASS basic-24.3
+PASS basic-26.1
+PASS basic-26.2
+PASS basic-26.3
+PASS basic-36.1
+PASS basic-46.1
+PASS basic-46.2
+PASS basic-46.3
+PASS basic-46.4
+PASS basic-46.5
+PASS basic-47.10.0
+PASS basic-47.11.0
+PASS basic-47.12.0
+PASS basic-47.13.0
+PASS basic-47.14.0
+PASS basic-47.15.0
+PASS basic-47.16.0
+PASS basic-47.17.0
+PASS basic-47.2.0
+PASS basic-47.3.0
+PASS basic-47.4.0
+PASS basic-47.5.0
+PASS basic-47.6.0
+PASS basic-47.7.0
+PASS basic-47.8.0
+PASS basic-47.9.0
+PASS basic-48.1.0
+PASS basic-48.10.0
+PASS basic-48.11.0
+PASS basic-48.12.0
+PASS basic-48.13.0
+PASS basic-48.14.0
+PASS basic-48.15.0
+PASS basic-48.17.0
+PASS basic-48.18.0
+PASS basic-48.19.0
+PASS basic-48.2.0
+PASS basic-48.20.0
+PASS basic-48.21.0
+PASS basic-48.22.0
+PASS basic-48.23.0
+PASS basic-48.24.0
+PASS basic-48.25.0
+PASS basic-48.3.0
+PASS basic-48.4.0
+PASS basic-48.5.0
+PASS basic-48.6.0
+PASS basic-48.7.0
+PASS basic-48.8.0
+PASS basic-48.9.0
+PASS basic-50.1
+SKIP basic-14.1 testcreatecommand
+SKIP basic-14.2 testcreatecommand
+SKIP basic-16.1 emptyTest
+SKIP basic-17.1 emptyTest
+SKIP basic-19.1 emptyTest
+SKIP basic-2.1 emptyTest
+SKIP basic-20.1 testcmdtoken
+SKIP basic-20.2 testcmdtoken
+SKIP basic-20.3 testcmdtoken
+SKIP basic-21.1 emptyTest
+SKIP basic-23.1 emptyTest
+SKIP basic-25.1 emptyTest
+SKIP basic-27.1 emptyTest
+SKIP basic-28.1 emptyTest
+SKIP basic-29.1 emptyTest
+SKIP basic-3.1 emptyTest
+SKIP basic-30.1 emptyTest
+SKIP basic-31.1 emptyTest
+SKIP basic-32.1 emptyTest
+SKIP basic-37.1 emptyTest
+SKIP basic-38.1 emptyTest
+SKIP basic-4.1 emptyTest
+SKIP basic-41.1 emptyTest
+SKIP basic-42.1 emptyTest
+SKIP basic-43.1 emptyTest
+SKIP basic-44.1 emptyTest
+SKIP basic-45.1 emptyTest
+SKIP basic-47.1 testevalex
+SKIP basic-47.10.1 testevalex
+SKIP basic-47.11.1 testevalex
+SKIP basic-47.12.1 testevalex
+SKIP basic-47.13.1 testevalex
+SKIP basic-47.14.1 testevalex
+SKIP basic-47.15.1 testevalex
+SKIP basic-47.16.1 testevalex
+SKIP basic-47.17.1 testevalex
+SKIP basic-47.2.1 testevalex
+SKIP basic-47.3.1 testevalex
+SKIP basic-47.4.1 testevalex
+SKIP basic-47.5.1 testevalex
+SKIP basic-47.6.1 testevalex
+SKIP basic-47.7.1 testevalex
+SKIP basic-47.8.1 testevalex
+SKIP basic-47.9.1 testevalex
+SKIP basic-48.1.1 testevalex
+SKIP basic-48.10.1 testevalex
+SKIP basic-48.11.1 testevalex
+SKIP basic-48.12.1 testevalex
+SKIP basic-48.13.1 testevalex
+SKIP basic-48.14.1 testevalex
+SKIP basic-48.15.1 testevalex
+SKIP basic-48.16.0 memory
+SKIP basic-48.16.1 memory
+SKIP basic-48.17.1 testevalex
+SKIP basic-48.18.1 testevalex
+SKIP basic-48.19.1 testevalex
+SKIP basic-48.2.1 testevalex
+SKIP basic-48.20.1 testevalex
+SKIP basic-48.21.1 testevalex
+SKIP basic-48.22.1 testevalex
+SKIP basic-48.23.1 testevalex
+SKIP basic-48.24.1 testevalex
+SKIP basic-48.25.1 testevalex
+SKIP basic-48.3.1 testevalex
+SKIP basic-48.4.1 testevalex
+SKIP basic-48.5.1 testevalex
+SKIP basic-48.6.1 testevalex
+SKIP basic-48.7.1 testevalex
+SKIP basic-48.8.1 testevalex
+SKIP basic-48.9.1 testevalex
+SKIP basic-49.1 testevalex
+SKIP basic-49.2 testevalex
+SKIP basic-5.1 emptyTest
+SKIP basic-6.1 emptyTest
+SKIP basic-7.1 emptyTest
+SKIP basic-8.1 emptyTest
+SKIP basic-9.1 emptyTest
+---
+TOTAL   146
+PASSED  69
+SKIPPED 77
+FAILED  0

@@ -93,12 +93,19 @@ pub fn slice_eq(a: []const u8, b: []const u8) bool {
 /// matching `memcmp` / `Tcl_CmpObj` conventions.  Used by list sort
 /// paths and string comparison commands.
 pub fn str_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
-    const pa: [*]const u8 = @ptrFromInt(a_ptr);
-    const pb: [*]const u8 = @ptrFromInt(b_ptr);
+    // ``@ptrFromInt(0)`` panics on a non-optional pointer in
+    // ReleaseSafe; treat null/zero pointers with len=0 as the
+    // empty string.  Callers like ``tcl_cmd_list_contains`` reach
+    // here with a null TclObj value (``obj_ensure_string(0)``
+    // returns ptr=0, len=0).
     const min_len = if (a_len < b_len) a_len else b_len;
-    for (0..min_len) |k| {
-        if (pa[k] < pb[k]) return -1;
-        if (pa[k] > pb[k]) return 1;
+    if (min_len > 0) {
+        const pa: [*]const u8 = @ptrFromInt(a_ptr);
+        const pb: [*]const u8 = @ptrFromInt(b_ptr);
+        for (0..min_len) |k| {
+            if (pa[k] < pb[k]) return -1;
+            if (pa[k] > pb[k]) return 1;
+        }
     }
     if (a_len < b_len) return -1;
     if (a_len > b_len) return 1;

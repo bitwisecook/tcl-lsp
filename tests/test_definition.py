@@ -1,4 +1,11 @@
-"""Tests for the go-to-definition provider."""
+"""BigIP go-to-definition internals.
+
+The Tcl proc/variable go-to-definition behaviour is exercised end-to-end against
+the packaged server in ``tests/lsp_e2e/test_definition_e2e.py``.  What remains
+here is ``get_bigip_definition`` — driven through the internal BigIP-config API
+(parsed ``current_config`` / ``workspace_configs``) with no plain
+``textDocument/definition`` surface in the default Tcl path.
+"""
 
 from __future__ import annotations
 
@@ -8,78 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.parser import parse_bigip_conf
-from lsp.features.definition import get_bigip_definition, get_definition
-
-TEST_URI = "file:///test.tcl"
-
-
-class TestProcDefinition:
-    def test_jump_to_proc(self):
-        source = textwrap.dedent("""\
-            proc greet {name} { puts "Hello $name" }
-            greet World
-        """)
-        locations = get_definition(source, TEST_URI, 1, 2)
-        assert len(locations) >= 1
-        loc = locations[0]
-        assert loc.uri == TEST_URI
-        # Should point to proc name on line 0
-        assert loc.range.start.line == 0
-
-    def test_no_definition_for_builtin(self):
-        locations = get_definition("puts hello", TEST_URI, 0, 2)
-        # Built-in commands don't have definitions in the file
-        assert len(locations) == 0
-
-    def test_proc_in_namespace(self):
-        source = textwrap.dedent("""\
-            namespace eval myns {
-                proc helper {} { return 1 }
-            }
-            myns::helper
-        """)
-        # Try to find definition of 'helper'
-        locations = get_definition(source, TEST_URI, 3, 7)
-        # Should find the proc definition
-        assert len(locations) >= 1
-
-
-class TestVariableDefinition:
-    def test_jump_to_var_definition(self):
-        source = "set x 42\nputs $x"
-        locations = get_definition(source, TEST_URI, 1, 7)
-        assert len(locations) >= 1
-        loc = locations[0]
-        assert loc.uri == TEST_URI
-        # Should point to first 'set x' on line 0
-        assert loc.range.start.line == 0
-
-    def test_var_in_proc(self):
-        source = textwrap.dedent("""\
-            proc foo {} {
-                set local 42
-                puts $local
-            }
-        """)
-        # $local starts at col 9 (4 spaces + "puts "), cursor on 'l' at col 11
-        locations = get_definition(source, TEST_URI, 2, 11)
-        assert len(locations) >= 1
-
-    def test_no_definition_for_unknown_var(self):
-        locations = get_definition("puts $unknown", TEST_URI, 0, 8)
-        assert len(locations) == 0
-
-    def test_namespace_var_definition(self):
-        source = textwrap.dedent("""\
-            namespace eval myns {
-                variable nsVar 1
-                puts $nsVar
-            }
-        """)
-        locations = get_definition(source, TEST_URI, 2, 10)
-        assert len(locations) >= 1
-        assert locations[0].range.start.line == 1
+from dialects.f5.bigip.parser import parse_bigip_conf
+from server.features.definition import get_bigip_definition
 
 
 class TestBigipDefinition:

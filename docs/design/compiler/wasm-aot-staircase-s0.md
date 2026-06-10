@@ -42,13 +42,13 @@ we can't tell a fast-path safety violation from a real refcount bug.
   once compile-side discipline lands.
 - [ ] Cross-reference each `tcl_obj_retain` and `tcl_obj_release` site in
   `runtime/zig/` to the contract entry that justifies it.
-- [ ] Add a CI lint script `scripts/check_refcount_contract.py` that
+- [ ] Add a CI lint script `scripts/check/refcount_contract.py` that
   warns when a new `pub export fn` is added without a contract row.
 
 **Files**:
 
 - New: `docs/design/runtime/refcount-contract.md`
-- New: `scripts/check_refcount_contract.py`
+- New: `scripts/check/refcount_contract.py`
 - Reference (read-only): `runtime/zig/**/*.zig`
 
 **Test plan**: This is documentation; the test is the lint script
@@ -204,12 +204,12 @@ surface.
 
 **Tasks**:
 
-- [ ] New script `scripts/leak_sweep.py` that runs every in-scope test
+- [ ] New script `scripts/dev/leak_sweep.py` that runs every in-scope test
   through the leakcheck binary and dumps `(stem, alloc_count,
   free_count, type_tag_residuals)` to JSON.
 - [ ] Baseline file `tests/baselines/wasm_leak_baseline.json`.
-- [ ] Diff script `scripts/diff_leak_sweep.py` (mirrors
-  `scripts/diff_tcl9_tcltest.py`) that compares a fresh sweep
+- [ ] Diff script `scripts/dev/diff_leak_sweep.py` (mirrors
+  `scripts/dev/diff_tcl9_tcltest.py`) that compares a fresh sweep
   against baseline and fails CI on regression.
 - [ ] Snapshot target `make snapshot-leak-baseline` for intentional
   changes.
@@ -217,8 +217,8 @@ surface.
 
 **Files**:
 
-- New: `scripts/leak_sweep.py`
-- New: `scripts/diff_leak_sweep.py`
+- New: `scripts/dev/leak_sweep.py`
+- New: `scripts/dev/diff_leak_sweep.py`
 - New: `tests/baselines/wasm_leak_baseline.json` (initially mostly
   non-zero; ratcheted down as MM-B completes)
 - Modify: `Makefile` (add `leakcheck` and `snapshot-leak-baseline`

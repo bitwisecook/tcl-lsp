@@ -11,168 +11,109 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job: read-only.  Jobs that need to
+# write to the repo (releases, artefact uploads, attestations) escalate
+# explicitly in their own `permissions:` block.  A compromised step in
+# `pr-gate` / `test-py` / `test-ext` therefore cannot push commits or
+# create releases even if the repo-level default is "Read and write".
+permissions:
+  contents: read
+
 jobs:
-  # Lint: fast feedback on code quality
-  lint:
-    runs-on: ubuntu-latest
+  # Fast PR gate (target wall-clock < 20s).  Runs on every PR and every push.
+  # Covers: lint + typecheck + structural invariants + a tightly scoped pytest
+  # subset that exercises the LSP server end-to-end.  Everything else is the
+  # responsibility of `make test-slow` locally (enforced by the pre-push
+  # hook installed via `make install-hooks`).  See AGENTS.md for the rule
+  # that agents must run test-slow before opening a PR.
+  pr-gate:
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Log commit info
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
-          echo "::endgroup::"
+      - uses: ./.github/actions/setup-build
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      # Note: no wasmtime CLI setup here — the Python tests in ci-fast
+      # use the `wasmtime` Python package (already a uv dep) for any
+      # wasm execution, and `make test-zig` (which needs the CLI) is a
+      # test-slow target that runs locally, not in CI.  If a CI job for
+      # `test-zig` is ever added, the optimal action is
+      # `bytecodealliance/actions/wasmtime/setup@v1`.
+      - name: Run fast CI gate (make ci-fast)
+        run: make ci-fast
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: KCS docs checks
-        run: python scripts/check_kcs_index_links.py
-
-      - name: WASM command parity check
-        run: python scripts/check_wasm_command_parity.py --check
-
-      - name: Ruff check
-        run: uv run --extra dev ruff check .
-
-      - name: Ruff format check
-        run: uv run --extra dev ruff format --check .
-
-      - name: Generate build info (needed by ty)
-        run: make build-info
-
-      - name: Type-check with ty
-        run: uv run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tests scripts/tcl_test_client.py
-
-  # Rust: workspace lint + test + dep audit + doc-link check + doctests.
-  # Mirrors `make rust-lint rust-test rust-doctest rust-deny` so the
-  # local fast-path and CI share one ground truth.
-  rust:
-    runs-on: ubuntu-latest
+  # PR gate: the committed `.test-slow.stamp` must match the code under
+  # test.  `make test-slow` rewrites that stamp on success with a content
+  # fingerprint of every tracked file (the stamp excepted), so a matching
+  # stamp proves the full local gate was run against exactly this tree.
+  # Content-addressed, hence reliable even though `actions/checkout`
+  # resets file mtimes — a timestamp comparison could not work here.
+  # Fails loudly with remediation steps; see AGENTS.md for the rule that
+  # agents must run test-slow before opening a PR.
+  test-slow-stamp:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          components: rustfmt, clippy
+          # Verify the PR's OWN head, not the default merge commit: the
+          # stamp records the fingerprint the agent ran test-slow against
+          # on their branch, so checking the merge-with-main tree would
+          # fail spuriously whenever main advanced.  Only tracked-file
+          # content is hashed, so a shallow checkout is enough.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
 
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@v2
+      - name: Verify test-slow stamp matches the code under test
+        run: bash scripts/test-slow-stamp.sh check
 
-      - name: Lint (fmt + clippy + doc-link check)
-        run: make rust-lint
-
-      - name: Test (cargo test --workspace)
-        run: make rust-test
-
-      - name: Doctests
-        run: make rust-doctest
-
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-
-      - name: Audit dependencies (advisories + licenses + sources)
-        run: make rust-deny
-
-  # Coverage: Rust workspace coverage with cargo-llvm-cov.  Runs on
-  # main branch pushes and on PRs touching Rust code; result is an
-  # uploaded HTML report artefact for review.
-  rust-coverage:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || contains(github.event.pull_request.changed_files, 'rust/')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov
-
-      - name: Run coverage
-        run: |
-          cargo llvm-cov --workspace --lcov --output-path tmp/coverage/rust.lcov
-          cargo llvm-cov --workspace --summary-only
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-coverage-lcov
-          path: tmp/coverage/rust.lcov
-          if-no-files-found: error
-
-  # Test: Python test suite
+  # Backstop: full Python test suite — runs only on push to main and on tags.
+  # PRs are gated by pr-gate; this job catches anything pr-gate missed once
+  # the change has merged, so a regression is loud but doesn't block PRs.
   test-py:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.10"]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Log commit info
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
-          echo "::endgroup::"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-build
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up Zig (needed for runtime auto-build)
-        run: |
-          set -eu
-          ZIG_VERSION=0.16.0
-          curl -fsSLo /tmp/zig.tar.xz \
-            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
-          mkdir -p /opt/zig
-          tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1
-          echo "/opt/zig" >> "$GITHUB_PATH"
-          /opt/zig/zig version
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+          # Explicit: setup-zig defaults to use-cache=true, but be loud
+          # about it so a future bump can't silently flip the default.
+          # Caches both the zig toolchain download and the zig-cache dir
+          # keyed on build.zig{,.zon} when present.
+          use-cache: true
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
+        run: bash scripts/fetch_tcl_regex.sh
 
       - name: Run Python tests
         run: >-
@@ -186,43 +127,43 @@ jobs:
           --ignore=tests/test_bigip_parser.py
           --ignore=tests/test_bigip_validator.py
           -k 'not TestUnusedIruleProcs and not TestMockStubsIntegration and not test_generated_command_hover_marks_refinement_status and not test_generated_irules_hover_marks_refinement_status and not test_cookbook_tcp_collect_has_no_warnings'
-  # Test: VS Code extension
+  # Backstop: VS Code extension tests — runs only on push to main and on tags.
+  # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
   test-ext:
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Log commit info
-        run: |
-          echo "::group::Commit info"
-          echo "github.sha       = ${{ github.sha }}"
-          echo "github.event_name = ${{ github.event_name }}"
-          echo "github.ref        = ${{ github.ref }}"
-          echo "github.head_ref   = ${{ github.head_ref }}"
-          echo "github.run_id     = ${{ github.run_id }}"
-          echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
-          echo "::endgroup::"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          python-version: "3.12"
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "lts/*"
 
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
+      - name: Cache npm registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install npm dependencies
-        run: cd editors/vscode && npm install
+        run: cd editors/vscode && npm ci
 
       - name: Lint TypeScript
         run: cd editors/vscode && npm run lint
@@ -241,295 +182,287 @@ jobs:
   # build blocks the others.
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test-py]
-    runs-on: ubuntu-latest
+    needs: [pr-gate, test-py]
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          if ! gh release view "$tag" > /dev/null 2>&1; then
-            if [ -f RELEASE_NOTES.md ]; then
-              gh release create "$tag" \
-                --title "$tag" \
-                --notes-file RELEASE_NOTES.md
-            else
-              gh release create "$tag" \
-                --title "$tag" \
-                --generate-notes
-            fi
+          if gh release view "$tag" > /dev/null 2>&1; then
+            exit 0
           fi
+          # Require curated release notes.  The previous fallback to
+          # `gh release create --generate-notes` builds the changelog
+          # from commit messages and PR titles, both attacker-influenced
+          # — anyone whose PR merged since the last release can land
+          # text inside our official release notes.  Failing closed
+          # forces the maintainer to commit RELEASE_NOTES.md before
+          # tagging.
+          if [ ! -f RELEASE_NOTES.md ]; then
+            echo "ERROR: RELEASE_NOTES.md is missing for tag $tag." >&2
+            echo "Commit curated notes to RELEASE_NOTES.md before pushing the tag." >&2
+            exit 1
+          fi
+          gh release create "$tag" \
+            --title "$tag" \
+            --notes-file RELEASE_NOTES.md
+
+      - name: Stamp + upload installer script to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          sha="$(git rev-parse --short HEAD)"
+          # Replace the @@INSTALLER_VERSION_*@@ placeholders so a user
+          # running --version on the published asset sees the actual
+          # release. The in-tree script on main stays unstamped so
+          # contributors don't see misleading version strings locally.
+          tmp="$(mktemp)"
+          sed \
+            -e "s/@@INSTALLER_VERSION_TAG@@/${tag}/" \
+            -e "s/@@INSTALLER_VERSION_SHA@@/(${sha})/" \
+            scripts/install/install.sh > "$tmp"
+          # Sanity-check that both placeholders were actually replaced
+          # before we upload — failing loudly here beats publishing a
+          # script that reports itself as "dev (unstamped)".
+          if grep -q '@@INSTALLER_VERSION_' "$tmp"; then
+              echo "ERROR: installer placeholder was not stamped" >&2
+              grep '@@INSTALLER_VERSION_' "$tmp" >&2
+              exit 1
+          fi
+          install -m 0755 "$tmp" install.sh
+          rm -f "$tmp"
+
+      - name: Attest installer script build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: "install.sh"
+
+      - name: Upload installer script to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" install.sh --clobber
 
   # Build: VSIX package
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release, test-ext]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "lts/*"
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
+      - name: Cache npm registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
       - name: Install npm dependencies
-        run: cd editors/vscode && npm install
+        run: cd editors/vscode && npm ci
 
       - name: Build and verify VSIX
         run: make package-vsix
 
-      - name: Upload VSIX
-        uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/sign-and-upload
         with:
-          name: vsix
-          path: "build/*.vsix"
-          retention-days: 7
+          artefact-glob: "build/*.vsix"
+          artefact-name: vsix
 
-      - name: Upload VSIX to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/*.vsix --clobber
-
-  # Build: CLI zipapp
-  build-zipapp-cli:
+  # ---------------------------------------------------------------------
+  # build-zipapp — one matrix job that replaces what used to be eight
+  # nearly-identical build-zipapp-<profile> jobs.
+  #
+  # Each matrix entry declares the profile name (which `make zipapp-<name>`
+  # to invoke), the glob that resolves to the produced artefact, and an
+  # optional `smoke` block that runs after the build.  The shared setup
+  # (checkout + uv + python) and the shared release tail
+  # (attest + SBOM + cosign sign + upload + gh release upload) live in
+  # two composite actions under `.github/actions/`.
+  #
+  # Adding a new zipapp profile is one matrix entry here + one `Profile(...)`
+  # registration in `scripts/build/zipapps.py` + one `zipapp_rule` line in
+  # the Makefile.
+  # ---------------------------------------------------------------------
+  build-zipapp:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: explorer-cli
+            artefact_glob: "build/tcl-lsp-explorer-cli-*.pyz"
+            smoke: |
+              python3 build/tcl-lsp-explorer-cli-*.pyz --help
+              # Verify the textual TUI dependency is bundled — without
+              # this, `--tui` mode dies at import with `No module named
+              # 'rich'` (the default surface on an interactive TTY).
+              python3 -c "
+              import zipfile, glob
+              path = glob.glob('build/tcl-lsp-explorer-cli-*.pyz')[0]
+              names = zipfile.ZipFile(path).namelist()
+              assert any(n.startswith('rich/') for n in names), 'rich not bundled (--tui will fail)'
+              assert any(n.startswith('textual/') for n in names), 'textual not bundled (--tui will fail)'
+              print(f'OK: {len(names)} entries (textual + rich bundled for --tui)')
+              "
+
+          - profile: f5
+            artefact_glob: "build/f5-*.pyz"
+            smoke: |
+              python3 build/f5-*.pyz --help
+              python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
+              python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
+              python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
+              # event-info / event-order are iRules-only verbs; they moved from
+              # `tcl` to `f5 irule` in PR #387 when the irule binary alias was
+              # dropped.
+              python3 build/f5-*.pyz irule event-info HTTP_REQUEST --json
+              # Bundled shell-completion scripts must round-trip through the zipapp
+              # and parse cleanly under the corresponding shell where available.
+              python3 build/f5-*.pyz completion bash > /tmp/f5.bash
+              python3 build/f5-*.pyz completion fish > /tmp/f5.fish
+              python3 build/f5-*.pyz completion zsh  > /tmp/_f5
+              bash -n /tmp/f5.bash
+              # zsh and fish aren't installed in CI; rely on the bash syntax
+              # check plus the static unit tests for those scripts.
+
+          - profile: tcl
+            artefact_glob: "build/tcl-*.pyz"
+            smoke: |
+              python3 build/tcl-*.pyz --help
+              python3 build/tcl-*.pyz format samples/for_screenshots/ai-scene.irul
+              python3 build/tcl-*.pyz lint --source "set x 1"
+              python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
+              python3 build/tcl-*.pyz find-legacy samples/for_screenshots/ai-scene.irul --json
+              python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
+              python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
+              python3 build/tcl-*.pyz help taint --dialect f5-irules
+
+          - profile: lsp
+            artefact_glob: "build/tcl-lsp-server-*.pyz"
+            smoke: "python3 build/tcl-lsp-server-*.pyz --help"
+
+          - profile: mcp
+            artefact_glob: "build/tcl-lsp-mcp-server-*.pyz"
+            smoke: "python3 build/tcl-lsp-mcp-server-*.pyz --help"
+
+          # NOTE: the wasm profile is intentionally NOT in this matrix.  Unlike
+          # the other profiles, `make zipapp-wasm` builds the Zig runtime
+          # (RUNTIME_WASM → `zig build`), which needs the Zig toolchain and the
+          # vendored Tcl-regex sources that the shared `setup-build` action does
+          # not install.  It runs as the dedicated `build-zipapp-wasm` job below,
+          # which sets up Zig, fetches the regex sources, and additionally emits
+          # an SBOM + provenance attestation.  (Leaving it here produced a
+          # duplicate `zipapp-wasm` artefact upload and failed for lack of Zig.)
+
+          - profile: explorer-gui-cdn
+            artefact_glob: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
+            smoke: |
+              python3 -c "
+              import zipfile, glob
+              path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
+              zf = zipfile.ZipFile(path)
+              names = zf.namelist()
+              assert 'static/index.html' in names, 'missing index.html'
+              assert 'static/worker.js' in names, 'missing worker.js'
+              assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
+              print(f'OK: {len(names)} entries (CDN variant)')
+              "
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: ./.github/actions/setup-build
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Build ${{ matrix.profile }} zipapp
+        run: make zipapp-${{ matrix.profile }}
+
+      - name: Smoke-test ${{ matrix.profile }} zipapp
+        if: matrix.smoke != ''
+        run: ${{ matrix.smoke }}
+
+      - uses: ./.github/actions/sign-and-upload
         with:
-          python-version: "3.12"
+          artefact-glob: ${{ matrix.artefact_glob }}
+          artefact-name: zipapp-${{ matrix.profile }}
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build CLI zipapp
-        run: make zipapp-cli
-
-      - name: Smoke-test CLI zipapp
-        run: python3 build/tcl-lsp-explorer-cli-*.pyz --help
-
-      - name: Upload CLI zipapp
-        uses: actions/upload-artifact@v4
-        with:
-          name: zipapp-cli
-          path: "build/tcl-lsp-explorer-cli-*.pyz"
-          retention-days: 7
-
-      - name: Upload CLI zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-explorer-cli-*.pyz --clobber
-
-  # Build: unified Tcl tools zipapp
-  build-zipapp-tcl:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build unified Tcl zipapp
-        run: make zipapp-tcl
-
-      - name: Smoke-test unified Tcl zipapp
-        run: |
-          python3 build/tcl-*.pyz --help
-          python3 build/tcl-*.pyz format samples/for_screenshots/ai-scene.irul
-          python3 build/tcl-*.pyz lint --source "set x 1"
-          python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz event-info HTTP_REQUEST --json
-          python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
-          python3 build/tcl-*.pyz convert samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
-          python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
-          python3 build/tcl-*.pyz help taint --dialect f5-irules
-          cd build && ln -sfn tcl-*.pyz irule && cd ..
-          python3 build/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
-
-      - name: Upload unified Tcl zipapp
-        uses: actions/upload-artifact@v4
-        with:
-          name: zipapp-tcl
-          path: "build/tcl-*.pyz"
-          retention-days: 7
-
-      - name: Upload unified Tcl zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-*.pyz --clobber
-
-  # Build: GUI zipapp — CDN variant (tagged releases only)
-  build-zipapp-gui:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build CDN GUI zipapp
-        run: make zipapp-gui-cdn
-
-      - name: Smoke-test CDN GUI zipapp
-        run: |
-          python3 -c "
-          import zipfile, glob
-          path = glob.glob('build/tcl-lsp-explorer-gui-cdn-*.pyz')[0]
-          zf = zipfile.ZipFile(path)
-          names = zf.namelist()
-          assert 'static/index.html' in names, 'missing index.html'
-          assert 'static/worker.js' in names, 'missing worker.js'
-          assert not any('pyodide' in n for n in names), 'should not bundle pyodide'
-          print(f'OK: {len(names)} entries (CDN variant)')
-          "
-
-      - name: Upload CDN GUI zipapp
-        uses: actions/upload-artifact@v4
-        with:
-          name: zipapp-gui-cdn
-          path: "build/tcl-lsp-explorer-gui-cdn-*.pyz"
-          retention-days: 7
-
-      - name: Upload CDN GUI zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-explorer-gui-cdn-*.pyz --clobber
-
-  # Build: LSP server zipapp
-  build-zipapp-lsp:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
-      - name: Build LSP zipapp
-        run: make zipapp-lsp
-
-      - name: Smoke-test LSP zipapp
-        run: python3 build/tcl-lsp-server-*.pyz --help
-
-      - name: Upload LSP zipapp
-        uses: actions/upload-artifact@v4
-        with:
-          name: zipapp-lsp
-          path: "build/tcl-lsp-server-*.pyz"
-          retention-days: 7
-
-      - name: Upload LSP zipapp to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-server-*.pyz --clobber
-
-  # Build: AI analysis zipapp + Claude Code skills zip
+  # ---------------------------------------------------------------------
+  # build-claude-skills builds the AI zipapp first (since `make
+  # claude-skills` bundles the AI zipapp into the skills release zip),
+  # smokes both, then attests and uploads the skills zip + the AI zipapp.
+  # Stays standalone because it produces TWO artefacts in one go.
+  # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Build AI zipapp
         run: make zipapp-ai
@@ -537,11 +470,45 @@ jobs:
       - name: Smoke-test AI zipapp
         run: python3 build/tcl-lsp-ai-*.pyz context samples/for_screenshots/ai-scene.irul
 
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-ai-*.pyz"
+          artefact-name: zipapp-ai
+
       - name: Build Claude skills zip
         run: make claude-skills
 
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "build/tcl-lsp-claude-skills-*.zip"
+          artefact-name: claude-skills
+
+      - name: Resolve Claude skills zip path
+        id: sbom_skills
+        run: |
+          set -euo pipefail
+          artefact=$(ls build/tcl-lsp-claude-skills-*.zip | head -1)
+          [ -n "$artefact" ]
+          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
+          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Claude skills SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          file: ${{ steps.sbom_skills.outputs.artefact }}
+          format: spdx-json
+          output-file: ${{ steps.sbom_skills.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest Claude skills SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.sbom_skills.outputs.artefact }}
+          sbom-path: ${{ steps.sbom_skills.outputs.sbom }}
+
       - name: Upload Claude skills zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: claude-skills
           path: "build/tcl-lsp-claude-skills-*.zip"
@@ -550,27 +517,36 @@ jobs:
       - name: Upload Claude skills zip to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          SBOM_PATH: ${{ steps.sbom_skills.outputs.sbom }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-claude-skills-*.zip --clobber
+          gh release upload "$tag" build/tcl-lsp-claude-skills-*.zip "$SBOM_PATH" --clobber
 
   # Build: MCP server zipapp
   build-zipapp-mcp:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See pr-gate for why this is depth-1 + tags rather than full
+          # history: `git describe --tags` is the only consumer of the
+          # checkout and only needs tags reachable from HEAD.
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
 
@@ -583,8 +559,37 @@ jobs:
       - name: Smoke-test MCP zipapp
         run: python3 build/tcl-lsp-mcp-server-*.pyz --help
 
+      - name: Attest MCP zipapp build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: "build/tcl-lsp-mcp-server-*.pyz"
+
+      - name: Resolve MCP zipapp path
+        id: sbom_mcp
+        run: |
+          set -euo pipefail
+          artefact=$(ls build/tcl-lsp-mcp-server-*.pyz | head -1)
+          [ -n "$artefact" ]
+          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
+          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
+
+      - name: Generate MCP SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          file: ${{ steps.sbom_mcp.outputs.artefact }}
+          format: spdx-json
+          output-file: ${{ steps.sbom_mcp.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest MCP SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.sbom_mcp.outputs.artefact }}
+          sbom-path: ${{ steps.sbom_mcp.outputs.sbom }}
+
       - name: Upload MCP zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: zipapp-mcp
           path: "build/tcl-lsp-mcp-server-*.pyz"
@@ -593,29 +598,47 @@ jobs:
       - name: Upload MCP zipapp to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          SBOM_PATH: ${{ steps.sbom_mcp.outputs.sbom }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-mcp-server-*.pyz --clobber
+          gh release upload "$tag" build/tcl-lsp-mcp-server-*.pyz "$SBOM_PATH" --clobber
 
   # Build: WASM compiler zipapp
   build-zipapp-wasm:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See pr-gate for why this is depth-1 + tags rather than full
+          # history: `git describe --tags` is the only consumer of the
+          # checkout and only needs tags reachable from HEAD.
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
+
+      - name: Set up Zig (needed for runtime auto-build)
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+          use-cache: true
+
+      - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
+        run: bash scripts/fetch_tcl_regex.sh
 
       - name: Sync Python environment
         run: uv sync --extra dev
@@ -626,8 +649,37 @@ jobs:
       - name: Smoke-test WASM zipapp
         run: python3 build/tcl-wasm-compiler-*.pyz --help
 
+      - name: Attest WASM zipapp build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: "build/tcl-wasm-compiler-*.pyz"
+
+      - name: Resolve WASM zipapp path
+        id: sbom_wasm
+        run: |
+          set -euo pipefail
+          artefact=$(ls build/tcl-wasm-compiler-*.pyz | head -1)
+          [ -n "$artefact" ]
+          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
+          echo "sbom=${artefact}.sbom.spdx.json" >> "$GITHUB_OUTPUT"
+
+      - name: Generate WASM SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          file: ${{ steps.sbom_wasm.outputs.artefact }}
+          format: spdx-json
+          output-file: ${{ steps.sbom_wasm.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest WASM SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.sbom_wasm.outputs.artefact }}
+          sbom-path: ${{ steps.sbom_wasm.outputs.sbom }}
+
       - name: Upload WASM zipapp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: zipapp-wasm
           path: "build/tcl-wasm-compiler-*.pyz"
@@ -636,32 +688,36 @@ jobs:
       - name: Upload WASM zipapp to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          SBOM_PATH: ${{ steps.sbom_wasm.outputs.sbom }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-wasm-compiler-*.pyz --clobber
+          gh release upload "$tag" build/tcl-wasm-compiler-*.pyz "$SBOM_PATH" --clobber
 
   # Build: JetBrains plugin
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: temurin
           java-version: 17
@@ -670,53 +726,41 @@ jobs:
             editors/jetbrains/*.gradle*
             editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Sync Python environment
-        run: uv sync --extra dev
-
       - name: Build JetBrains plugin
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
-        run: make jetbrains
+        run: make build-editor-jetbrains
 
-      - name: Upload JetBrains plugin
-        uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/sign-and-upload
         with:
-          name: jetbrains-plugin
-          path: "build/tcl-lsp-jetbrains-*.zip"
-          retention-days: 7
-
-      - name: Upload JetBrains plugin to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-jetbrains-*.zip --clobber
+          artefact-glob: "build/tcl-lsp-jetbrains-*.zip"
+          artefact-name: jetbrains-plugin
 
   # Build: Sublime Text package
   build-sublime:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Build Sublime Text package
-        run: make sublime
+        run: make build-editor-sublime
 
       - name: Smoke-test Sublime package
         run: |
@@ -733,50 +777,46 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
-      - name: Upload Sublime package
-        uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/sign-and-upload
         with:
-          name: sublime-package
-          path: "build/tcl-lsp-sublime-*.sublime-package"
-          retention-days: 7
-
-      - name: Upload Sublime package to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-sublime-*.sublime-package --clobber
+          artefact-glob: "build/tcl-lsp-sublime-*.sublime-package"
+          artefact-name: sublime-package
 
   # Build: Zed extension
   build-zed:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write        # gh release upload
+      id-token: write        # OIDC for sigstore-backed attestations
+      attestations: write    # actions/attest-build-provenance writes here
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0
+          # See `.github/actions/setup-build/action.yml` for why this composite
+          # can't do its own checkout — it lives inside the workspace it would
+          # need to materialise.  Default `fetch-depth: 1` + `fetch-tags` based
+          # on whether we're on a tag ref (`git describe --tags` consumers
+          # need tags reachable from HEAD; tag refs already have the tag at
+          # HEAD so don't re-fetch).
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync Python environment
-        run: uv sync --extra dev
+      - uses: ./.github/actions/setup-build
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
+        # so we get cargo registry / target caching for free — meaningful
+        # speedup vs the bare dtolnay/rust-toolchain action.
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
-          targets: wasm32-wasip2
+          toolchain: stable
+          target: wasm32-wasip2
+          components: clippy, rustfmt
 
       - name: Build Zed extension
-        run: make zed
+        run: make build-editor-zed
 
       - name: Smoke-test Zed archive
         run: |
@@ -792,25 +832,86 @@ jobs:
           print(f'OK: {len(names)} entries')
           "
 
-      - name: Upload Zed extension
-        uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/sign-and-upload
         with:
-          name: zed-extension
-          path: "build/tcl-lsp-zed-*.zip"
-          retention-days: 7
+          artefact-glob: "build/tcl-lsp-zed-*.zip"
+          artefact-name: zed-extension
 
-      - name: Upload Zed extension to GitHub Release
+  # Publish: aggregate SHA256SUMS over every artefact attached to the
+  # release, plus an optional cosign keyless signature. The installer
+  # verifies downloaded artefacts against this file.
+  publish-checksums:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # gh release upload
+      id-token: write   # cosign keyless OIDC signing
+    steps:
+      - name: Determine tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Download every release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" build/tcl-lsp-zed-*.zip --clobber
+          mkdir -p dist
+          # Pull every asset currently attached to the release; this
+          # gives a single SUMS covering whatever was uploaded by the
+          # 12 build jobs (or by future ones, without further edits).
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --dir dist \
+            --clobber
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: |
+          # Sort for deterministic ordering. Exclude any pre-existing
+          # SHA256SUMS{,.cosign.bundle} so a rerun doesn't hash itself.
+          find . -maxdepth 1 -type f \
+            ! -name SHA256SUMS \
+            ! -name 'SHA256SUMS.*' \
+            -printf '%f\n' \
+            | LC_ALL=C sort \
+            | xargs -r sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          # Pin the cosign binary itself, not just the installer action.
+          # Without this, the installer downloads "latest" cosign — which
+          # is itself a moving target.  Bump in lockstep with the action.
+          cosign-release: 'v2.6.3'
+
+      - name: Sign SHA256SUMS (keyless OIDC)
+        working-directory: dist
+        run: |
+          cosign sign-blob --yes \
+            --bundle SHA256SUMS.cosign.bundle \
+            SHA256SUMS
+
+      - name: Upload SHA256SUMS.cosign.bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS.cosign.bundle \
+            --repo "${{ github.repository }}" --clobber
 
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
-    runs-on: ubuntu-latest
+    needs: [build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-checksums]
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
     steps:
@@ -860,8 +961,8 @@ jobs:
   # Cleanup: delete all non-release artifacts (runs only during releases)
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
-    runs-on: ubuntu-latest
+    needs: [build-vsix, build-zipapp, build-claude-skills, build-jetbrains, build-sublime, build-zed, publish-checksums]
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
     steps:

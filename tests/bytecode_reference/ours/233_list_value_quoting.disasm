@@ -1,0 +1,288 @@
+ByteCode ::top, 196 instructions, 634 bytes, 31 literals, 0 variables
+  Literals:
+    0: "spaced"
+    1: "a b c"
+    2: "x y"
+    3: "1"
+    4: "x {a b c} y"
+    5: "linsert spaced"
+    6: ""
+    7: "3"
+    8: "linsert llength"
+    9: "x y z"
+    10: "x {a b c} z"
+    11: "lreplace spaced"
+    12: "lreplace llength"
+    13: "lrepeat"
+    14: "{a b c} {a b c} {a b c}"
+    15: "lrepeat spaced"
+    16: "lrepeat llength"
+    17: "lrepeat empty llength"
+    18: "bracey"
+    19: "a{b}c"
+    20: "linsert brace llength"
+    21: "linsert brace content"
+    22: "a b"
+    23: "0"
+    24: "X"
+    25: "X a b"
+    26: "linsert plain"
+    27: "4"
+    28: "X X X X"
+    29: "lrepeat plain"
+    30: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "spaced"
+    (2) push1 1	# "a b c"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +53 2	# next cmd at pc 59, 2 cmds start here
+    (15) push1 2	# "x y"
+    (17) push1 3	# "1"
+    (19) push1 0	# "spaced"
+    (21) loadStk
+    (22) lreplace4 3 2
+    (28) push1 4	# "x {a b c} y"
+    (30) strneq
+    (31) jumpFalse1 +26	# pc 57
+  # if_then_3:
+    (33) startCommand +22 1	# next cmd at pc 55, 1 cmds start here
+    (42) push1 5	# "linsert spaced"
+    (44) push1 6	# ""
+    (46) returnImm +1 0
+  # cmd_end_2:
+    (55) jump1 +4	# pc 59
+  # if_next_4:
+    (57) push1 6	# ""
+  # if_end_2:
+  # if_cmd_end_1:
+    (59) pop
+    (60) startCommand +54 3	# next cmd at pc 114, 3 cmds start here
+    (69) push1 2	# "x y"
+    (71) push1 3	# "1"
+    (73) push1 0	# "spaced"
+    (75) loadStk
+    (76) lreplace4 3 2
+    (82) listLength
+    (83) push1 7	# "3"
+    (85) neq
+    (86) jumpFalse1 +26	# pc 112
+  # if_then_6:
+    (88) startCommand +22 1	# next cmd at pc 110, 1 cmds start here
+    (97) push1 8	# "linsert llength"
+    (99) push1 6	# ""
+    (101) returnImm +1 0
+  # cmd_end_4:
+    (110) jump1 +4	# pc 114
+  # if_next_7:
+    (112) push1 6	# ""
+  # if_end_5:
+  # if_cmd_end_3:
+    (114) pop
+    (115) startCommand +55 2	# next cmd at pc 170, 2 cmds start here
+    (124) push1 9	# "x y z"
+    (126) push1 3	# "1"
+    (128) push1 3	# "1"
+    (130) push1 0	# "spaced"
+    (132) loadStk
+    (133) lreplace4 4 1
+    (139) push1 10	# "x {a b c} z"
+    (141) strneq
+    (142) jumpFalse1 +26	# pc 168
+  # if_then_9:
+    (144) startCommand +22 1	# next cmd at pc 166, 1 cmds start here
+    (153) push1 11	# "lreplace spaced"
+    (155) push1 6	# ""
+    (157) returnImm +1 0
+  # cmd_end_6:
+    (166) jump1 +4	# pc 170
+  # if_next_10:
+    (168) push1 6	# ""
+  # if_end_8:
+  # if_cmd_end_5:
+    (170) pop
+    (171) startCommand +56 3	# next cmd at pc 227, 3 cmds start here
+    (180) push1 9	# "x y z"
+    (182) push1 3	# "1"
+    (184) push1 3	# "1"
+    (186) push1 0	# "spaced"
+    (188) loadStk
+    (189) lreplace4 4 1
+    (195) listLength
+    (196) push1 7	# "3"
+    (198) neq
+    (199) jumpFalse1 +26	# pc 225
+  # if_then_12:
+    (201) startCommand +22 1	# next cmd at pc 223, 1 cmds start here
+    (210) push1 12	# "lreplace llength"
+    (212) push1 6	# ""
+    (214) returnImm +1 0
+  # cmd_end_8:
+    (223) jump1 +4	# pc 227
+  # if_next_13:
+    (225) push1 6	# ""
+  # if_end_11:
+  # if_cmd_end_7:
+    (227) pop
+    (228) startCommand +49 1	# next cmd at pc 277, 1 cmds start here
+    (237) push1 13	# "lrepeat"
+    (239) push1 7	# "3"
+    (241) push1 0	# "spaced"
+    (243) loadStk
+    (244) invokeStk1 3
+    (246) push1 14	# "{a b c} {a b c} {a b c}"
+    (248) strneq
+    (249) jumpFalse1 +26	# pc 275
+  # if_then_15:
+    (251) startCommand +22 1	# next cmd at pc 273, 1 cmds start here
+    (260) push1 15	# "lrepeat spaced"
+    (262) push1 6	# ""
+    (264) returnImm +1 0
+  # cmd_end_10:
+    (273) jump1 +4	# pc 277
+  # if_next_16:
+    (275) push1 6	# ""
+  # if_end_14:
+  # if_cmd_end_9:
+    (277) pop
+    (278) startCommand +50 2	# next cmd at pc 328, 2 cmds start here
+    (287) push1 13	# "lrepeat"
+    (289) push1 7	# "3"
+    (291) push1 0	# "spaced"
+    (293) loadStk
+    (294) invokeStk1 3
+    (296) listLength
+    (297) push1 7	# "3"
+    (299) neq
+    (300) jumpFalse1 +26	# pc 326
+  # if_then_18:
+    (302) startCommand +22 1	# next cmd at pc 324, 1 cmds start here
+    (311) push1 16	# "lrepeat llength"
+    (313) push1 6	# ""
+    (315) returnImm +1 0
+  # cmd_end_12:
+    (324) jump1 +4	# pc 328
+  # if_next_19:
+    (326) push1 6	# ""
+  # if_end_17:
+  # if_cmd_end_11:
+    (328) pop
+    (329) startCommand +49 2	# next cmd at pc 378, 2 cmds start here
+    (338) push1 13	# "lrepeat"
+    (340) push1 7	# "3"
+    (342) push1 6	# ""
+    (344) invokeStk1 3
+    (346) listLength
+    (347) push1 7	# "3"
+    (349) neq
+    (350) jumpFalse1 +26	# pc 376
+  # if_then_21:
+    (352) startCommand +22 1	# next cmd at pc 374, 1 cmds start here
+    (361) push1 17	# "lrepeat empty llength"
+    (363) push1 6	# ""
+    (365) returnImm +1 0
+  # cmd_end_14:
+    (374) jump1 +4	# pc 378
+  # if_next_22:
+    (376) push1 6	# ""
+  # if_end_20:
+  # if_cmd_end_13:
+    (378) pop
+    (379) startCommand +14 1	# next cmd at pc 393, 1 cmds start here
+    (388) push1 18	# "bracey"
+    (390) push1 19	# "a{b}c"
+    (392) storeStk
+  # cmd_end_15:
+    (393) pop
+    (394) startCommand +54 3	# next cmd at pc 448, 3 cmds start here
+    (403) push1 2	# "x y"
+    (405) push1 3	# "1"
+    (407) push1 18	# "bracey"
+    (409) loadStk
+    (410) lreplace4 3 2
+    (416) listLength
+    (417) push1 7	# "3"
+    (419) neq
+    (420) jumpFalse1 +26	# pc 446
+  # if_then_24:
+    (422) startCommand +22 1	# next cmd at pc 444, 1 cmds start here
+    (431) push1 20	# "linsert brace llength"
+    (433) push1 6	# ""
+    (435) returnImm +1 0
+  # cmd_end_17:
+    (444) jump1 +4	# pc 448
+  # if_next_25:
+    (446) push1 6	# ""
+  # if_end_23:
+  # if_cmd_end_16:
+    (448) pop
+    (449) startCommand +59 3	# next cmd at pc 508, 3 cmds start here
+    (458) push1 2	# "x y"
+    (460) push1 3	# "1"
+    (462) push1 18	# "bracey"
+    (464) loadStk
+    (465) lreplace4 3 2
+    (471) listIndexImm 1
+    (476) push1 18	# "bracey"
+    (478) loadStk
+    (479) strneq
+    (480) jumpFalse1 +26	# pc 506
+  # if_then_27:
+    (482) startCommand +22 1	# next cmd at pc 504, 1 cmds start here
+    (491) push1 21	# "linsert brace content"
+    (493) push1 6	# ""
+    (495) returnImm +1 0
+  # cmd_end_19:
+    (504) jump1 +4	# pc 508
+  # if_next_28:
+    (506) push1 6	# ""
+  # if_end_26:
+  # if_cmd_end_18:
+    (508) pop
+    (509) startCommand +52 2	# next cmd at pc 561, 2 cmds start here
+    (518) push1 22	# "a b"
+    (520) push1 23	# "0"
+    (522) push1 24	# "X"
+    (524) lreplace4 3 2
+    (530) push1 25	# "X a b"
+    (532) strneq
+    (533) jumpFalse1 +26	# pc 559
+  # if_then_30:
+    (535) startCommand +22 1	# next cmd at pc 557, 1 cmds start here
+    (544) push1 26	# "linsert plain"
+    (546) push1 6	# ""
+    (548) returnImm +1 0
+  # cmd_end_21:
+    (557) jump1 +4	# pc 561
+  # if_next_31:
+    (559) push1 6	# ""
+  # if_end_29:
+  # if_cmd_end_20:
+    (561) pop
+    (562) startCommand +48 1	# next cmd at pc 610, 1 cmds start here
+    (571) push1 13	# "lrepeat"
+    (573) push1 27	# "4"
+    (575) push1 24	# "X"
+    (577) invokeStk1 3
+    (579) push1 28	# "X X X X"
+    (581) strneq
+    (582) jumpFalse1 +26	# pc 608
+  # if_then_33:
+    (584) startCommand +22 1	# next cmd at pc 606, 1 cmds start here
+    (593) push1 29	# "lrepeat plain"
+    (595) push1 6	# ""
+    (597) returnImm +1 0
+  # cmd_end_23:
+    (606) jump1 +4	# pc 610
+  # if_next_34:
+    (608) push1 6	# ""
+  # if_end_32:
+  # if_cmd_end_22:
+    (610) pop
+    (611) startCommand +22 1	# next cmd at pc 633, 1 cmds start here
+    (620) push1 30	# "ok"
+    (622) push1 6	# ""
+    (624) returnImm +0 1
+  # ret_end_24:
+    (633) done

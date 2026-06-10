@@ -1,5 +1,8 @@
 # KCS: feature — Refactor: switch to dict lookup
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Convert a `switch -exact` where every arm sets the same variable (or returns a value) into a `dict create` + `dict get`.
@@ -56,8 +59,8 @@ The refactoring detects two body patterns: `set var value` (all arms set the sam
 
 ## File-path anchors
 
-- `core/refactoring/_switch_to_dict.py`
-- `lsp/features/code_actions.py`
+- `tooling/refactoring/_switch_to_dict.py`
+- `server/features/code_actions.py`
 
 ## Failure modes
 

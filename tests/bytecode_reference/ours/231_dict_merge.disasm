@@ -1,0 +1,135 @@
+ByteCode ::top, 89 instructions, 291 bytes, 15 literals, 0 variables
+  Literals:
+    0: ""
+    1: "zero-arg merge"
+    2: "a 1"
+    3: "one-arg merge"
+    4: "::tcl::dict::merge"
+    5: "b 2"
+    6: "a 1 b 2"
+    7: "two disjoint"
+    8: "b 3 c 4"
+    9: "a 1 b 3 c 4"
+    10: "\u0000\u0002overlap: "
+    11: "a 3"
+    12: "a 3 b 2"
+    13: "\u0000\u0002three dicts: "
+    14: "ok"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) push1 0	# ""
+    (4) strneq
+    (5) jumpFalse1 +26	# pc 31
+  # if_then_3:
+    (7) startCommand +22 1	# next cmd at pc 29, 1 cmds start here
+    (16) push1 1	# "zero-arg merge"
+    (18) push1 0	# ""
+    (20) returnImm +1 0
+  # cmd_end_1:
+    (29) jump1 +4	# pc 33
+  # if_next_4:
+    (31) push1 0	# ""
+  # if_end_2:
+    (33) pop
+    (34) startCommand +44 2	# next cmd at pc 78, 2 cmds start here
+    (43) push1 2	# "a 1"
+    (45) dup
+    (46) verifyDict
+    (47) push1 2	# "a 1"
+    (49) strneq
+    (50) jumpFalse1 +26	# pc 76
+  # if_then_6:
+    (52) startCommand +22 1	# next cmd at pc 74, 1 cmds start here
+    (61) push1 3	# "one-arg merge"
+    (63) push1 0	# ""
+    (65) returnImm +1 0
+  # cmd_end_3:
+    (74) jump1 +4	# pc 78
+  # if_next_7:
+    (76) push1 0	# ""
+  # if_end_5:
+  # if_cmd_end_2:
+    (78) pop
+    (79) startCommand +48 2	# next cmd at pc 127, 2 cmds start here
+    (88) push1 4	# "::tcl::dict::merge"
+    (90) push1 2	# "a 1"
+    (92) push1 5	# "b 2"
+    (94) invokeStk1 3
+    (96) push1 6	# "a 1 b 2"
+    (98) strneq
+    (99) jumpFalse1 +26	# pc 125
+  # if_then_9:
+    (101) startCommand +22 1	# next cmd at pc 123, 1 cmds start here
+    (110) push1 7	# "two disjoint"
+    (112) push1 0	# ""
+    (114) returnImm +1 0
+  # cmd_end_5:
+    (123) jump1 +4	# pc 127
+  # if_next_10:
+    (125) push1 0	# ""
+  # if_end_8:
+  # if_cmd_end_4:
+    (127) pop
+    (128) startCommand +67 2	# next cmd at pc 195, 2 cmds start here
+    (137) push1 4	# "::tcl::dict::merge"
+    (139) push1 6	# "a 1 b 2"
+    (141) push1 8	# "b 3 c 4"
+    (143) invokeStk1 3
+    (145) push1 9	# "a 1 b 3 c 4"
+    (147) strneq
+    (148) jumpFalse1 +45	# pc 193
+  # if_then_12:
+    (150) startCommand +41 1	# next cmd at pc 191, 1 cmds start here
+    (159) push1 10	# "overlap: "
+    (161) startCommand +17 1	# next cmd at pc 178, 1 cmds start here
+    (170) push1 4	# "::tcl::dict::merge"
+    (172) push1 6	# "a 1 b 2"
+    (174) push1 8	# "b 3 c 4"
+    (176) invokeStk1 3
+  # interp_cmd_end_8:
+    (178) strcat 2
+    (180) push1 0	# ""
+    (182) returnImm +1 0
+  # cmd_end_7:
+    (191) jump1 +4	# pc 195
+  # if_next_13:
+    (193) push1 0	# ""
+  # if_end_11:
+  # if_cmd_end_6:
+    (195) pop
+    (196) startCommand +71 2	# next cmd at pc 267, 2 cmds start here
+    (205) push1 4	# "::tcl::dict::merge"
+    (207) push1 2	# "a 1"
+    (209) push1 5	# "b 2"
+    (211) push1 11	# "a 3"
+    (213) invokeStk1 4
+    (215) push1 12	# "a 3 b 2"
+    (217) strneq
+    (218) jumpFalse1 +47	# pc 265
+  # if_then_15:
+    (220) startCommand +43 1	# next cmd at pc 263, 1 cmds start here
+    (229) push1 13	# "three dicts: "
+    (231) startCommand +19 1	# next cmd at pc 250, 1 cmds start here
+    (240) push1 4	# "::tcl::dict::merge"
+    (242) push1 2	# "a 1"
+    (244) push1 5	# "b 2"
+    (246) push1 11	# "a 3"
+    (248) invokeStk1 4
+  # interp_cmd_end_11:
+    (250) strcat 2
+    (252) push1 0	# ""
+    (254) returnImm +1 0
+  # cmd_end_10:
+    (263) jump1 +4	# pc 267
+  # if_next_16:
+    (265) push1 0	# ""
+  # if_end_14:
+  # if_cmd_end_9:
+    (267) pop
+    (268) startCommand +22 1	# next cmd at pc 290, 1 cmds start here
+    (277) push1 14	# "ok"
+    (279) push1 0	# ""
+    (281) returnImm +0 1
+  # ret_end_12:
+    (290) done

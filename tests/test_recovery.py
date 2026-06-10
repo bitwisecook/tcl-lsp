@@ -10,14 +10,14 @@ Tests the centralised error recovery architecture:
 
 from __future__ import annotations
 
-from core.analysis import analyse
-from core.parsing.lexer import TclLexer
-from core.parsing.recovery import (
+from analyser import analyse
+from compiler.parsing.lexer import TclLexer
+from compiler.parsing.recovery import (
     compute_virtual_insertions,
     segment_with_recovery,
 )
-from core.parsing.tokens import TokenType
-from lsp.features import semantic_tokens_full
+from server.features import semantic_tokens_full
+from shared.tokens import TokenType
 
 
 class TestVirtualTokenLexer:
@@ -417,9 +417,12 @@ class TestSegmentWithRecovery:
         """Unterminated [ without { or # emits simple E201."""
         source = "set x [string length"
         commands, diags = segment_with_recovery(source)
-        # May produce E201 or no virtual (simple unterminated at EOF)
-        # The segmenter itself handles EOF-reaching tokens
-        assert len(commands) >= 1
+        # The unterminated ``[`` is recovered by synthesising a closing ``]``,
+        # so the EOF-reaching command segments as a normal ``set`` whose third
+        # word is the auto-closed bracket.
+        assert len(commands) == 1
+        assert commands[0].name == "set"
+        assert commands[0].texts == ["set", "x", "[string length]"]
 
 
 class TestE202UnterminatedQuote:

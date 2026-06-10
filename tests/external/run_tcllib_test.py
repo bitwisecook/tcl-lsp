@@ -108,8 +108,15 @@ def _read_counter_test_stripped() -> str:
     # Strip the backslash-continued ``source [file join \ … devtools
     # testutilities.tcl]`` block.  Match ``source`` through the first
     # line that ends with a ``]`` not followed by a backslash.
+    # Match ``source [file join`` followed by zero or more
+    # backslash-continued lines, ending on the line that closes with
+    # ``]``.  The previous form had overlapping ``\s*`` /
+    # ``[^\n]*`` segments which caused exponential backtracking on
+    # the failure path (CodeQL ``py/redos``); this variant tokenises
+    # each continuation line as a non-overlapping unit
+    # (``[^\n]*\\\n``) and ends on a final non-continued line.
     text = re.sub(
-        r"^source \[file join(?:\s*\\\n[^\n]*)*\s*\]\s*\n",
+        r"^source \[file join(?:[^\n]*\\\n)*[^\n]*\]\s*\n",
         "# [source devtools/testutilities.tcl stripped — handled by preamble]\n",
         text,
         count=1,

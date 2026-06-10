@@ -1,0 +1,40 @@
+# Categorisation for cmdMZ.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  # Note: cmdMZ uses sub-prefixes like ``cmdMZ-return-X.Y`` and
+  # ``cmdMZ-X.Y``.  The strip_stem helper strips the bundle stem
+  # ``cmdMZ-``, leaving the sub-prefix for lookup.  Listed both
+  # forms below.
+  "return-2.18",  # ``return -errorstack`` — propagating an
+                  # explicit error stack through return.
+  "return-2.21",  # ``return -options DICT`` — extras dict merge.
+  "return-3.9",   # ``return -code error -errorinfo`` shape.
+  "return-3.10",  # same — errorinfo wording variant.
+  "return-3.11",  # same — multi-line errorinfo.
+  "return-3.12",  # same — errorinfo with embedded backslash.
+  "return-3.12.1",# same — errorinfo with multi-byte content.
+  "4.13",   # cmdMZ-4.13: ``split "a乎b qw幎N wq" " 乎"`` — UTF-8
+            # aware split that recognises multi-byte separators.
+            # Our split iterates over bytes, so the multi-byte
+            # separator chars match a different byte boundary.
+  "6.1",    # cmdMZ-6.1: ``timerate`` command not implemented —
+            # the entire ``Tcl_TimeRateObjCmd`` family is missing.
+  "6.2.1",  # cmdMZ-6.2.1: timerate option parsing.
+  "6.2.2",  # cmdMZ-6.2.2: same.
+  "6.2.3",  # cmdMZ-6.2.3: same.
+  "6.3",    # cmdMZ-6.3: timerate basic measurement.
+  "6.4",    # cmdMZ-6.4: timerate -calibrate.
+  "6.5a",   # cmdMZ-6.5a: timerate -direct.
+  "6.5b",   # cmdMZ-6.5b: timerate -direct + script.
+  "6.7",    # cmdMZ-6.7: timerate -overhead.
+  "6.7.1",  # cmdMZ-6.7.1: timerate overhead-double parsing.
+  "6.9",    # cmdMZ-6.9: timerate with break.
+  "6.11",   # cmdMZ-6.11: timerate result shape.
+  "6.12",   # cmdMZ-6.12: timerate nested call.
+  "6.13",   # cmdMZ-6.13: timerate cancellation.
+]
+
+[baseline]
+good_to_have_failing = 22

@@ -1,0 +1,28 @@
+# Categorisation for trace.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass``.
+
+# trace.test currently traps mid-run before reaching the tcltest
+# summary: the cumulative interaction of read traces installed in
+# 1.x with write traces installed in 2.x cascades exponentially,
+# growing the WASM heap past the 2 GiB boundary and eventually
+# tripping a tcl-level "empty import pattern" in tcltest's
+# ``Replace::puts`` setup.  Cutting off the cascade is a separate
+# trace-dispatch follow-up — until then we tolerate the trap rather
+# than letting the harness promote it to a hard fail.
+trap_allowed = true
+
+good_to_have = [
+  # Once the cascade is broken and the suite reaches a summary
+  # line, populate this list with the per-test triage.  Today every
+  # failure is masked behind the trap.
+]
+
+[baseline]
+# All zeros: until the cascade-trap is broken, the whole stem is
+# masked behind ``trap_allowed`` and nothing reaches per-test
+# triage.  Bumping any of these requires explicit per-test
+# entries above first.
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0

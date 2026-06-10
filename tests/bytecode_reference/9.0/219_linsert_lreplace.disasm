@@ -1,0 +1,153 @@
+ByteCode 0x556e96c18960, refCt 1, epoch 21, interp 0x556e96b0d350 (epoch 21)
+  Source "# linsert / lreplace single-value forms.  Previously un..."
+  Cmds 25, src 708, inst 298, litObjs 25, aux 0, stkDepth 4, code/src 0.00
+  Commands 25:
+      1: pc 0-34, src 140-205        2: pc 0-11, src 145-163
+      3: pc 17-29, src 182-204        4: pc 35-69, src 207-270
+      5: pc 35-46, src 212-230        6: pc 52-64, src 249-269
+      7: pc 70-104, src 272-341        8: pc 70-81, src 277-296
+      9: pc 87-99, src 315-340       10: pc 105-139, src 343-396
+     11: pc 105-116, src 348-361       12: pc 122-134, src 374-395
+     13: pc 140-176, src 399-473       14: pc 140-153, src 404-429
+     15: pc 159-171, src 446-472       16: pc 177-211, src 475-548
+     17: pc 177-188, src 480-503       18: pc 194-206, src 518-547
+     19: pc 212-246, src 550-618       20: pc 212-223, src 555-574
+     21: pc 229-241, src 589-617       22: pc 247-283, src 620-696
+     23: pc 247-260, src 625-646       24: pc 266-278, src 665-695
+     25: pc 284-296, src 698-706
+  Command 1: "if {[linsert {a b c} 1 X] ne \"a X b c\"} { error \"lin..."
+  Command 2: "linsert {a b c} 1 X..."
+    (0) push1 0 	# "a b c"
+    (2) push1 1 	# "1"
+    (4) push1 2 	# "X"
+    (6) lreplace4 3 2 
+    (12) push1 3 	# "a X b c"
+    (14) strneq 
+    (15) jumpFalse1 +17 	# pc 32
+  Command 3: "error \"linsert middle\"..."
+    (17) push1 4 	# "linsert middle"
+    (19) push1 5 	# ""
+    (21) returnImm +1 0 
+    (30) jump1 +4 	# pc 34
+    (32) push1 5 	# ""
+    (34) pop 
+  Command 4: "if {[linsert {a b c} 0 X] ne \"X a b c\"} { error \"lin..."
+  Command 5: "linsert {a b c} 0 X..."
+    (35) push1 0 	# "a b c"
+    (37) push1 6 	# "0"
+    (39) push1 2 	# "X"
+    (41) lreplace4 3 2 
+    (47) push1 7 	# "X a b c"
+    (49) strneq 
+    (50) jumpFalse1 +17 	# pc 67
+  Command 6: "error \"linsert head\"..."
+    (52) push1 8 	# "linsert head"
+    (54) push1 5 	# ""
+    (56) returnImm +1 0 
+    (65) jump1 +4 	# pc 69
+    (67) push1 5 	# ""
+    (69) pop 
+  Command 7: "if {[linsert {a b c} 99 X] ne \"a b c X\"} { error \"li..."
+  Command 8: "linsert {a b c} 99 X..."
+    (70) push1 0 	# "a b c"
+    (72) push1 9 	# "99"
+    (74) push1 2 	# "X"
+    (76) lreplace4 3 2 
+    (82) push1 10 	# "a b c X"
+    (84) strneq 
+    (85) jumpFalse1 +17 	# pc 102
+  Command 9: "error \"linsert clamp-end\"..."
+    (87) push1 11 	# "linsert clamp-end"
+    (89) push1 5 	# ""
+    (91) returnImm +1 0 
+    (100) jump1 +4 	# pc 104
+    (102) push1 5 	# ""
+    (104) pop 
+  Command 10: "if {[linsert {} 0 X] ne \"X\"} { error \"linsert empty..."
+  Command 11: "linsert {} 0 X..."
+    (105) push1 5 	# ""
+    (107) push1 6 	# "0"
+    (109) push1 2 	# "X"
+    (111) lreplace4 3 2 
+    (117) push1 2 	# "X"
+    (119) strneq 
+    (120) jumpFalse1 +17 	# pc 137
+  Command 12: "error \"linsert empty\"..."
+    (122) push1 12 	# "linsert empty"
+    (124) push1 5 	# ""
+    (126) returnImm +1 0 
+    (135) jump1 +4 	# pc 139
+    (137) push1 5 	# ""
+    (139) pop 
+  Command 13: "if {[lreplace {a b c d e} 1 3 X] ne \"a X e\"} { error ..."
+  Command 14: "lreplace {a b c d e} 1 3 X..."
+    (140) push1 13 	# "a b c d e"
+    (142) push1 1 	# "1"
+    (144) push1 14 	# "3"
+    (146) push1 2 	# "X"
+    (148) lreplace4 4 1 
+    (154) push1 15 	# "a X e"
+    (156) strneq 
+    (157) jumpFalse1 +17 	# pc 174
+  Command 15: "error \"lreplace range+val\"..."
+    (159) push1 16 	# "lreplace range+val"
+    (161) push1 5 	# ""
+    (163) returnImm +1 0 
+    (172) jump1 +4 	# pc 176
+    (174) push1 5 	# ""
+    (176) pop 
+  Command 16: "if {[lreplace {a b c d e} 1 3] ne \"a e\"} { error \"lr..."
+  Command 17: "lreplace {a b c d e} 1 3..."
+    (177) push1 13 	# "a b c d e"
+    (179) push1 1 	# "1"
+    (181) push1 14 	# "3"
+    (183) lreplace4 3 1 
+    (189) push1 17 	# "a e"
+    (191) strneq 
+    (192) jumpFalse1 +17 	# pc 209
+  Command 18: "error \"lreplace delete-range\"..."
+    (194) push1 18 	# "lreplace delete-range"
+    (196) push1 5 	# ""
+    (198) returnImm +1 0 
+    (207) jump1 +4 	# pc 211
+    (209) push1 5 	# ""
+    (211) pop 
+  Command 19: "if {[lreplace {a b c} 0 0] ne \"b c\"} { error \"lrepla..."
+  Command 20: "lreplace {a b c} 0 0..."
+    (212) push1 0 	# "a b c"
+    (214) push1 6 	# "0"
+    (216) push1 6 	# "0"
+    (218) lreplace4 3 1 
+    (224) push1 19 	# "b c"
+    (226) strneq 
+    (227) jumpFalse1 +17 	# pc 244
+  Command 21: "error \"lreplace delete-head\"..."
+    (229) push1 20 	# "lreplace delete-head"
+    (231) push1 5 	# ""
+    (233) returnImm +1 0 
+    (242) jump1 +4 	# pc 246
+    (244) push1 5 	# ""
+    (246) pop 
+  Command 22: "if {[lreplace {a b c} 5 5 X] ne \"a b c X\"} { error \"..."
+  Command 23: "lreplace {a b c} 5 5 X..."
+    (247) push1 0 	# "a b c"
+    (249) push1 21 	# "5"
+    (251) push1 21 	# "5"
+    (253) push1 2 	# "X"
+    (255) lreplace4 4 1 
+    (261) push1 10 	# "a b c X"
+    (263) strneq 
+    (264) jumpFalse1 +17 	# pc 281
+  Command 24: "error \"lreplace append-beyond\"..."
+    (266) push1 22 	# "lreplace append-beyond"
+    (268) push1 5 	# ""
+    (270) returnImm +1 0 
+    (279) jump1 +4 	# pc 283
+    (281) push1 5 	# ""
+    (283) pop 
+  Command 25: "return ok..."
+    (284) push1 23 	# "ok"
+    (286) push1 24 	# ""
+    (288) returnImm +0 1 
+    (297) done 
+

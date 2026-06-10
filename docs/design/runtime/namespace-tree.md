@@ -16,8 +16,9 @@ namespace command and variable tables, explicit path and export lists
 — so command and variable resolution matches Tcl 9 semantics
 (`tclNamesp.c:Tcl_FindCommand`, `tclVar.c:TclObjLookupVarEx`) instead
 of the current FQN-string fallbacks in `runtime/zig/tcl_procs.zig`
-(suffix-scan in `proc_lookup`) and `runtime/zig/tcl_globals.zig`
-(flat FQN-keyed hash).
+(suffix-scan in `proc_lookup`) and `runtime/zig/interp/tcl_ns.zig`
+(flat FQN-keyed hash; globals were folded from the retired
+`tcl_globals.zig` into `tcl_ns.zig` in P3.4).
 
 Correctness first: a tcltest-shaped bundle (`proc $varName {args}
 body` created inside a factory, then invoked by FQN or unqualified
@@ -364,16 +365,13 @@ need them later the hook point is at the top of `ns_find_command`
 before the context-ns table check — same position as C's
 `Tcl_FindCommand:2678`.
 
-### Ensembles (**done in the Rust runtime port**)
+### Ensembles (**defer**)
 
-`Tcl_Ensemble`, `tclEnsemble.c`.  The Zig runtime's partial-ensemble
+`Tcl_Ensemble`, `tclEnsemble.c`.  Our current partial-ensemble
 support (`namespace ensemble create` compiles to a dispatch helper
-in the compiler) stays as-is.  The **Rust** runtime port now carries a
-real ensemble layer — a `Command::Ensemble` redirect built by
-`namespace ensemble create` (`-map`/`-subcommands`/`-prefixes`/
-`-command`) and dispatched by `runtime/rust/src/ensemble.rs` +
-`interp.rs` (subcommand resolution → `-map` or `<ns>::<sub>` target →
-re-dispatch).  See `rust-runtime-port.md` T1.5.
+in the compiler) stays as-is.  A real runtime ensemble layer can
+hang off `Namespace.ensembles` when we need it; irrelevant to the
+correctness of command lookup.
 
 ### Safe interps / interp aliases (**omit**)
 
@@ -575,7 +573,7 @@ every commit.  Source: `/root/.claude/plans/plan-out-and-fix-floofy-gadget.md`.
 | P5.3 | `tcl_ns.zig` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
 
 The runtime artefact (`runtime/zig/zig-out/bin/tcl_runtime.wasm`)
-is no longer checked in — `core.runtime_wasm.runtime_wasm_path()`
+is no longer checked in — `shared.runtime_wasm.runtime_wasm_path()`
 locates it and runs `zig build` on first call when missing, so
 downstream bundle tests pick up the right binary on a fresh
 checkout without anyone manually committing it.

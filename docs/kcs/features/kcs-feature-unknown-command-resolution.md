@@ -1,5 +1,8 @@
 # KCS: feature — Unknown Command Resolution (W123)
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Detects unresolved commands and offers "did you mean?" suggestions. Static
@@ -54,10 +57,11 @@ against the union of: registry commands, user-defined procs, stub commands,
 
 ## File-path anchors
 
-- `core/analysis/analyser.py` — `_emit_unresolved_command_diagnostics`, `_extract_unknown_proc_info`
-- `core/analysis/semantic_model.py` — `UnknownProcInfo`
-- `core/common/text.py` — `edit_distance`, `suggest_similar`
-- `lsp/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
+- `analyser/_analyser/_diag_commands.py` — `_emit_unresolved_command_diagnostics`
+- `analyser/_analyser/_oo.py` — `_extract_unknown_proc_info`
+- `analyser/semantic_model.py` — `UnknownProcInfo`
+- `shared/text.py` — `edit_distance`, `suggest_similar`
+- `server/features/diagnostics.py` — `_to_lsp_diagnostic` (code description link)
 
 ## Failure modes
 

@@ -7,10 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import build_cfg
-from core.compiler.def_use import DefKind, UseKind, build_def_use_chains
-from core.compiler.lowering import lower_to_ir
-from core.compiler.ssa import build_ssa
+from compiler.cfg import build_cfg
+from compiler.def_use import DefKind, UseKind, build_def_use_chains
+from compiler.lowering import lower_to_ir
+from compiler.ssa import build_ssa
 
 
 def _build(source: str):
@@ -82,7 +82,10 @@ class TestDefUsePhi:
         assert phi_chain.use_count >= 1
 
     def test_phi_incoming_edges_are_uses(self):
-        source = "if {$cond} {set a 1} else {set a 2}"
+        # ``a`` must be *read* after the merge or there is no reader for a
+        # phi to feed (semi-pruned SSA correctly places none); the phi-incoming
+        # use-tracking under test only applies when the merged value is used.
+        source = "if {$cond} {set a 1} else {set a 2}\nputs $a"
         du, _ = _build(source)
 
         # a#1 and a#2 should have PHI_INCOMING uses
@@ -142,9 +145,9 @@ class TestDefUseProc:
             # and have uses from the expr
             x_uses = du.uses_of("x", 0)
             y_uses = du.uses_of("y", 0)
-            # At least one use each (in the expr)
-            assert len(x_uses) >= 1
-            assert len(y_uses) >= 1
+            # Each parameter is read exactly once, in the ``$x + $y`` expr.
+            assert len(x_uses) == 1
+            assert len(y_uses) == 1
 
 
 class TestDefUseResultMethods:
@@ -162,7 +165,8 @@ class TestDefUseResultMethods:
         assert du.chain_for("nonexistent", 99) is None
 
     def test_has_phi_use(self):
-        source = "if {$cond} {set a 1} else {set a 2}"
+        # Read ``a`` after the merge so a phi is genuinely needed.
+        source = "if {$cond} {set a 1} else {set a 2}\nputs $a"
         du, _ = _build(source)
         # At least one branch definition should have a phi use
         a_defs = du.reaching_defs("a")

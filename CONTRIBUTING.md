@@ -18,7 +18,8 @@ accommodate it in a way that works upstream.
 
 ## AI Use
 
-All code in `core/` and `lsp/` must be human reviewed before merging to main.
+All code in the seven concern packages (`shared/`, `compiler/`, `dialects/`,
+`analyser/`, `server/`, `tooling/`, `ai/`) must be human reviewed before merging to main.
 Front-end code, editor integrations, CI/CD, build pipelines, AI integrations are
 all vibe-coded. You may contribute to any area of this project using AI. AI generated code
 must come with tests, and I would encourage you to at least use your organic brain
@@ -52,8 +53,8 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 Do not duplicate utility functions across modules. If two or more files need
 the same helper, extract it into an appropriate shared module.
 
-- Identifier helpers live in `core/common/naming.py`.
-- Command registry helpers live in `core/commands/registry/_base.py`.
+- Identifier helpers live in `shared/naming.py`.
+- Command registry helpers live in `compiler/registry/_base.py`.
   The `make_av(source)` factory there returns an `_av` closure bound to a
   documentation source string.  Use `_av = make_av(_SOURCE)` at module level
   in command definition files rather than defining a per-file `_av` function.
@@ -160,7 +161,7 @@ not just the implementation.
 
 Bare `except Exception:` handlers must include a `log.debug(...)` call with
 `exc_info=True` so failures are visible at debug log level.  Follow the
-pattern established in `workspace/scanner.py` and `workspace/package_resolver.py`:
+pattern established in `server/workspace/scanner.py` and `analyser/packages/resolver.py`:
 
 ```python
 except Exception:
@@ -183,7 +184,7 @@ with `--log-level DEBUG`.
 
 When code needs to classify commands (e.g. "is this a diagram-worthy action?",
 "does this always mutate state?", "can this be translated to XC?"), the metadata
-must live as a field on `CommandSpec` in `core/commands/registry/models.py`.
+must live as a field on `CommandSpec` in `compiler/registry/models.py`.
 
 **Do not** create hardcoded `frozenset` or `set` literals of command names in
 consumer modules. This scatters knowledge about commands across the codebase and
@@ -196,7 +197,7 @@ The pattern to follow:
    (e.g. `is_diagram_action(name)`) and a bulk query
    (e.g. `diagram_action_commands()`).
 3. **Set the flag** on each relevant command spec in
-   `core/commands/registry/{irules,tcl,iapps}/`.
+   `dialects/tcl/`, `dialects/f5/irules/`, or `dialects/f5/iapps/`.
 4. **Use the registry** in the consumer module instead of a local set.
 
 Existing examples of this pattern: `pure`, `commits_response`,
@@ -207,14 +208,14 @@ Existing examples of this pattern: `pure`, `commits_response`,
 ## Body identification and command argument roles
 
 The canonical source for identifying body, expression, and pattern argument
-indices is `commands/registry/runtime.py` via `body_arg_indices()`,
+indices is `compiler/registry/runtime.py` via `body_arg_indices()`,
 `expr_arg_indices()`, and `arg_indices_for_role()`.  Other modules (including
 the formatter) delegate to these functions rather than duplicating the
 argument-walking logic.
 
 If the formatter needs to restrict which bodies are expanded (e.g. the `for`
 command only expands its main body, not `init`/`next`), add a
-formatter-specific override in `formatting/engine.py` before the general
+formatter-specific override in `tooling/formatter/engine.py` before the general
 delegation call.
 
 ## Dead code and docstring accuracy
@@ -235,11 +236,13 @@ instances through constructors over importing module globals where practical.
 
 ## Python source of truth
 
-The Python source of truth is split between `lsp/` (LSP runtime) and `core/`
-(reusable parser/compiler/analysis modules).
+The Python source of truth is partitioned into seven concern packages
+(see [`AGENTS.md`](AGENTS.md) "Repository layout" and
+[`.importlinter`](.importlinter)): `shared/`, `compiler/`,
+`dialects/`, `analyser/`, `server/`, `tooling/`, `ai/`.
 
 - The extension package does not keep a mirrored Python tree under `editors/vscode/`.
-- `make vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.
+- `make package-vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.
 - If you need to point VS Code at a working tree directly, set `tclLsp.serverPath` to the repo root.
 
 ## Dependency audit policy

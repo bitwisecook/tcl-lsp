@@ -1,0 +1,20 @@
+# lrange.test — auto-generated baseline.
+# bucket = 'B8-missing-command'
+# reason = 'invalid command: catch {lrange {} -2 -2} m'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 38
+observed_passed = 26
+observed_failed = 10
+observed_skipped = 2
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lrange-1.15", "lrange-1.16", "lrange-3.3", "lrange-3.5", "lrange-3.6", "lrange-3.7a", "lrange-4.1", "lrange-4.2", "lrange-4.3", "lrange-4.4"]

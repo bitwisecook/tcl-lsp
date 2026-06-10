@@ -192,6 +192,25 @@ test "ns_resolve_qualified surfaces the alt-from-root path for unqualified cxt-a
     try testing.expectEqual(ns.ns_root(), r.alt_ns);
 }
 
+test "ns_resolve_qualified with null name_ptr returns context namespace without panic" {
+    // Regression test for issue #327: obj_ensure_string(null TclObj)
+    // returns (ptr=0, len=0); callers that forward the bytes directly
+    // must not cause @ptrFromInt(0) to fire.  Guard added in the same
+    // commit as this test.
+    const root = ns.ns_root();
+    // cxt == root, name_ptr == 0 → should return root with empty simple name.
+    const r_root = ns.ns_resolve_qualified(root, 0, 0);
+    try testing.expectEqual(root, r_root.target_ns);
+    try testing.expectEqual(@as(u32, 0), r_root.simple_len);
+    try testing.expectEqual(@as(u32, 0), r_root.alt_ns);
+    // cxt == non-root, name_ptr == 0 → should return cxt with empty simple name.
+    const cxt_name = "test_resolve_null_ptr";
+    const cxt = ns.ns_create(root, ptr_of(cxt_name), cxt_name.len);
+    const r_cxt = ns.ns_resolve_qualified(cxt, 0, 0);
+    try testing.expectEqual(cxt, r_cxt.target_ns);
+    try testing.expectEqual(@as(u32, 0), r_cxt.simple_len);
+}
+
 // -- ns_export / ns_export_matches ---------------------------------
 
 test "ns_export_matches returns false when no patterns are registered" {

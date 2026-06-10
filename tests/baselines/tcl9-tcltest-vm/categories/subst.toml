@@ -1,0 +1,20 @@
+# subst.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '24 of 63 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 63
+observed_passed = 38
+observed_failed = 24
+observed_skipped = 1
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["subst-1.2", "subst-3.1", "subst-4.3", "subst-5.5", "subst-5.6", "subst-5.7", "subst-5.8", "subst-5.9", "subst-5.10", "subst-7.1", "subst-7.2", "subst-7.3", "subst-7.7", "subst-8.6", "subst-8.9", "subst-10.6", "subst-11.6", "subst-12.1", "subst-12.2", "subst-12.3", "subst-12.4", "subst-12.5", "subst-13.1", "subst-13.2"]

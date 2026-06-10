@@ -250,11 +250,11 @@ pub fn buf_to_obj(b: ByteBuf) i32 {
         obj.free_sized(b.addr, b.cap);
         return obj_new_string(0, 0);
     }
-    const out = obj_new_string(@bitCast(b.addr), @bitCast(b.len));
-    if (out != 0) {
-        obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
-    }
-    return out;
+    // ``obj_new_string_take`` writes ``OBJ_STR_CAP`` and ``OBJ_STR_PTR``
+    // / ``OBJ_STR_LEN`` atomically and frees ``b.addr`` on header-alloc
+    // OOM — the prior split form leaked the byte buffer when ``obj_alloc``
+    // returned 0.
+    return obj.obj_new_string_take(b.addr, b.len, b.cap);
 }
 
 // -- UTF-8 iteration --------------------------------------------

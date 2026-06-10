@@ -17,13 +17,13 @@ Splitting into base + offset makes disambiguation explicit.
 
 ## Data model
 
-### `IRProcedure.base_priority` (`core/compiler/ir.py`)
+### `IRProcedure.base_priority` (`compiler/ir.py`)
 
 The declared priority from `when EVENT priority N { body }`. Defaults to 500.
-Set during lowering (`core/compiler/lowering.py`). Does **not** carry an
+Set during lowering (`compiler/lowering.py`). Does **not** carry an
 offset — a single `IRProcedure` does not know about sibling handlers.
 
-### `EventOrderEntry` (`core/compiler/irules_flow.py`)
+### `EventOrderEntry` (`compiler/irules_flow.py`)
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -49,7 +49,7 @@ There are two independent priority extraction paths:
 
 1. **Compiler path** — `lowering.py` parses `when EVENT priority N { body }`
    during IR lowering and stores `base_priority` on `IRProcedure`. Consumed by
-   `core/diagram/extract.py` for diagram data.
+   `tooling/diagram/extract.py` for diagram data.
 
 2. **Lightweight lexer path** — `_find_when_bodies()` in `irules_flow.py`
    re-parses the same syntax directly from source. Consumed by
@@ -57,19 +57,19 @@ There are two independent priority extraction paths:
 
 ## JSON serialisation
 
-- **Diagram data** (`core/diagram/extract.py`): emits `"priority"` as
+- **Diagram data** (`tooling/diagram/extract.py`): emits `"priority"` as
   `base_priority` or `null` when equal to 500.
-- **Explorer event order** (`explorer/serialise.py`): emits `"base_priority"`
+- **Explorer event order** (`tooling/cli/serialise.py`): emits `"base_priority"`
   and `"priority_offset"`.
 
 ## File-path anchors
 
-- `core/compiler/ir.py` — `IRProcedure.base_priority`
-- `core/compiler/lowering.py` — priority extraction during lowering
-- `core/compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
-- `core/diagram/extract.py` — diagram consumer
-- `explorer/serialise.py` — JSON serialisation
-- `explorer/static/index.html` — explorer HTML consumer
-- `lsp/workspace/workspace_index.py` — `RuleInitVarDef`
+- `compiler/ir.py` — `IRProcedure.base_priority`
+- `compiler/lowering.py` — priority extraction during lowering
+- `compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
+- `tooling/diagram/extract.py` — diagram consumer
+- `tooling/cli/serialise.py` — JSON serialisation
+- `tooling/explorer/static/index.html` — explorer HTML consumer
+- `server/workspace/workspace_index.py` — `RuleInitVarDef`
 - `tests/test_irules_checks.py` — priority and offset assertions
 - `tests/test_rule_init_vars.py` — RULE_INIT priority assertions

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.compiler.expr_ast import (
+from compiler.expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -18,7 +18,7 @@ from core.compiler.expr_ast import (
     ExprUnary,
     UnaryOp,
 )
-from core.parsing.expr_parser import parse_expr
+from compiler.parsing.expr_parser import parse_expr
 
 # Helpers
 

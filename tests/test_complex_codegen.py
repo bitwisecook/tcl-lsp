@@ -12,13 +12,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import (
+from compiler.cfg import (
     CFGBranch,
     CFGGoto,
     CFGReturn,
     build_cfg,
 )
-from core.compiler.codegen import (
+from compiler.codegen.bytecode import (
     FunctionAsm,
     ModuleAsm,
     Op,
@@ -26,8 +26,8 @@ from core.compiler.codegen import (
     format_function_asm,
     format_module_asm,
 )
-from core.compiler.expr_ast import ExprRaw
-from core.compiler.ir import (
+from compiler.expr_ast import ExprRaw
+from compiler.ir import (
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -39,7 +39,7 @@ from core.compiler.ir import (
     IRIncr,
     IRSwitch,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 # Helpers
 
@@ -461,8 +461,8 @@ proc ext {filename} {
         )
         assert has_switch, "-glob should keep IRSwitch for inline codegen"
 
-    def test_switch_regexp_becomes_barrier(self):
-        """Switch -regexp compiles as a barrier."""
+    def test_switch_regexp_stays_switch(self):
+        """Switch -regexp keeps its IRSwitch form (no barrier)."""
         source = """\
 proc match {s} {
     switch -regexp $s {
@@ -476,10 +476,17 @@ proc match {s} {
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::match"]
         has_barrier = any(
-            any(isinstance(s, IRBarrier) and "switch -regexp" in s.reason for s in b.statements)
+            any(
+                isinstance(s, IRBarrier) and "switch -regexp" in (s.reason or "")
+                for s in b.statements
+            )
             for b in proc_cfg.blocks.values()
         )
-        assert has_barrier
+        assert not has_barrier, "-regexp should no longer lower to IRBarrier"
+        has_switch = any(
+            any(isinstance(s, IRSwitch) for s in b.statements) for b in proc_cfg.blocks.values()
+        )
+        assert has_switch, "-regexp should keep IRSwitch for inline codegen"
 
     def test_switch_many_arms(self):
         """Switch with many arms creates a dispatch mechanism."""
@@ -833,7 +840,7 @@ proc loop {} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::loop"]
-        assert len(proc_cfg.loop_nodes) >= 1, "for loop should register loop_nodes"
+        assert len(proc_cfg.loop_nodes) == 1, "the single for loop should register one loop node"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -948,12 +955,17 @@ proc ns_iter {lst} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::ns_iter"]
-        # Should be an IRCall for "foreach" (generic), not inlined
-        has_foreach_call = any(
-            any(isinstance(s, IRCall) and s.command == "foreach" for s in b.statements)
+        # Should be an IRBarrier for "foreach" (generic invoke), not inlined.
+        # An IRBarrier (not IRCall) is required: ``foreach`` carries
+        # ``wasm_emits_nothing=True`` (for the inlined loop's synthetic header
+        # def-marker), so an IRCall(command="foreach") would be silently
+        # dropped by ``command_emits_nothing`` and the loop would run zero
+        # times.  Mirrors the ``dict for`` / ``dict map`` sibling case.
+        has_foreach_barrier = any(
+            any(isinstance(s, IRBarrier) and s.command == "foreach" for s in b.statements)
             for b in proc_cfg.blocks.values()
         )
-        assert has_foreach_call
+        assert has_foreach_barrier
 
     def test_dict_for_becomes_barrier(self):
         """dict for becomes barrier with qualified command name."""
@@ -1198,7 +1210,8 @@ class TestCFGStructure:
             for name, b in cfg.blocks.items()
             if any(isinstance(s, IRAssignConst) and s.name == "b" for s in b.statements)
         ]
-        assert len(merge_blocks) >= 1
+        # ``set b 3`` lands in exactly one merge block after the if/else.
+        assert len(merge_blocks) == 1
 
     def test_for_loop_back_edge(self):
         """For loop step block jumps back to header (back-edge)."""
@@ -1337,11 +1350,11 @@ proc fail {} {
         """``eval $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``eval {…}`` is relaxed to :class:`IRBlock` by the
-        barrier-relaxation gate (see ``core/compiler/lowering.py``);
+        barrier-relaxation gate (see ``compiler/lowering.py``);
         dynamic-body forms remain barriers because the interpreter
         must evaluate the runtime value.
         """
-        from core.compiler.ir import IRBlock
+        from compiler.ir import IRBlock
 
         ir = lower_to_ir("set body {set x 1}\neval $body")
         stmts = ir.top_level.statements
@@ -1355,10 +1368,10 @@ proc fail {} {
         """``uplevel 1 $body`` with a dynamic body still produces IRBarrier.
 
         Static-body ``uplevel 1 {…}`` is relaxed to :class:`IRUpFrame`
-        (see ``core/compiler/lowering.py::_relax_uplevel``); dynamic
+        (see ``compiler/lowering.py::_relax_uplevel``); dynamic
         bodies remain barriers.
         """
-        from core.compiler.ir import IRUpFrame
+        from compiler.ir import IRUpFrame
 
         ir = lower_to_ir("proc up {body} {\n    uplevel 1 $body\n}\n")
         proc = ir.procedures["::up"]
@@ -1789,12 +1802,15 @@ class TestDeferTopLevel:
         ir = lower_to_ir(source)
         cfg_deferred = build_cfg(ir, defer_top_level=True)
         top = cfg_deferred.top_level
-        # Should have an IRCall for foreach (deferred), not inlined foreach blocks
-        has_foreach_call = any(
-            any(isinstance(s, IRCall) and s.command == "foreach" for s in b.statements)
+        # Should have an IRBarrier for foreach (deferred generic invoke), not
+        # inlined foreach blocks.  An IRBarrier (not IRCall) is required because
+        # ``foreach`` is registered ``wasm_emits_nothing=True``; an IRCall would
+        # be dropped by ``command_emits_nothing`` and run zero iterations.
+        has_foreach_barrier = any(
+            any(isinstance(s, IRBarrier) and s.command == "foreach" for s in b.statements)
             for b in top.blocks.values()
         )
-        assert has_foreach_call
+        assert has_foreach_barrier
 
     def test_top_level_foreach_inlined(self):
         """Top-level foreach with defer=False gets inlined."""
@@ -1925,3 +1941,128 @@ main
         assert Op.DONE in ops  # function exit
         text = format_module_asm(ma)
         assert "ByteCode ::main" in text
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Braced whole-name array ref ${a($i)} vs bare $a($i)
+#
+# tclsh 9.0.3 carries the braced-vs-bare distinction by natural
+# spelling:
+#   * Braced ``${a($i)}`` SUPPRESSES the inner ``$i`` substitution, so
+#     it loads the WHOLE literal name ``a($i)`` — ``push "a($i)";
+#     loadStk`` (the runtime resolves the array element from the whole
+#     name).
+#   * Bare ``$a($i)`` SPLITS into array ``a`` + index = value of ``$i``
+#     — ``<load i>; loadArray1`` (LVT) or ``loadArrayStk``.
+# Verified against tclsh 9.0.3.  These tests guard the five codegen
+# paths that route a var-ref through ``_load_var`` (which SPLITS):
+# plain value, ``[list ...]`` arg, ``incr`` amount, an array store
+# target key, and an array read key, plus a ``[string length ...]``
+# command-substitution arg.
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _literal_before(fa: FunctionAsm, target_op: Op) -> str | None:
+    """Return the literal comment of the push immediately preceding the
+    first occurrence of *target_op*, or None."""
+    prev = None
+    for ins in fa.instructions:
+        if ins.op is target_op:
+            return prev.comment if prev is not None else None
+        prev = ins
+    return None
+
+
+class TestBracedWholeNameArrayRef:
+    """Braced ``${a($i)}`` → whole-name loadStk; bare ``$a($i)`` → split."""
+
+    def test_plain_set_value_braced_is_whole_name(self):
+        fa = _proc_asm("proc p {} { global a i x; set x ${a($i)} }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_STK in ops
+        assert Op.LOAD_ARRAY1 not in ops
+        assert Op.LOAD_ARRAY_STK not in ops
+        # The whole literal name is loaded, braces and inner $ intact.
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_plain_set_value_bare_is_split(self):
+        fa = _proc_asm("proc p {} { global a i x; set x $a($i) }", "::p")
+        ops = _opcodes(fa)
+        # Bare ref splits: load index i (scalar), then loadArray1 a.
+        assert Op.LOAD_ARRAY1 in ops
+        # The only loadStk would be a whole-name; there must be none here.
+        assert Op.LOAD_STK not in ops
+
+    def test_list_arg_braced_is_whole_name_bare_is_split(self):
+        fa = _proc_asm("proc p {} { global a i l; set l [list ${a($i)} $a($i)] }", "::p")
+        ops = _opcodes(fa)
+        # First element ${a($i)} → loadStk; second $a($i) → loadArray1.
+        assert Op.LOAD_STK in ops
+        assert Op.LOAD_ARRAY1 in ops
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_incr_amount_braced_is_whole_name(self):
+        fa = _proc_asm("proc p {} { global a i n; incr n ${a($i)} }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_STK in ops
+        assert Op.INCR_SCALAR1 in ops
+        assert Op.LOAD_ARRAY1 not in ops
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_incr_amount_bare_is_split(self):
+        fa = _proc_asm("proc p {} { global a i n; incr n $a($i) }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_ARRAY1 in ops
+        assert Op.INCR_SCALAR1 in ops
+        assert Op.LOAD_STK not in ops
+
+    def test_array_store_target_key_braced_is_whole_name(self):
+        fa = _proc_asm("proc p {} { global a i; set outer(${a($i)}) 9 }", "::p")
+        ops = _opcodes(fa)
+        # Key ${a($i)} → push "a($i)"; loadStk; value; storeArray1.
+        assert Op.LOAD_STK in ops
+        assert Op.STORE_ARRAY1 in ops
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_array_store_target_key_bare_is_split(self):
+        fa = _proc_asm("proc p {} { global a i; set outer($a($i)) 9 }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_ARRAY1 in ops
+        assert Op.STORE_ARRAY1 in ops
+        assert Op.LOAD_STK not in ops
+
+    def test_array_read_key_braced_is_whole_name(self):
+        fa = _proc_asm("proc p {} { global a i z; set z $outer(${a($i)}) }", "::p")
+        ops = _opcodes(fa)
+        # Inner key ${a($i)} → loadStk; outer read → loadArray1.
+        assert Op.LOAD_STK in ops
+        assert Op.LOAD_ARRAY1 in ops
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_cmd_subst_arg_braced_is_whole_name(self):
+        # `string length ${a($i)}` routes the braced arg through
+        # _emit_cmd_subst_arg, which must whole-name-load it.
+        fa = _proc_asm("proc p {} { global a i; set r [string length ${a($i)}] }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_STK in ops
+        assert Op.STR_LEN in ops
+        assert Op.LOAD_ARRAY1 not in ops
+        assert _literal_before(fa, Op.LOAD_STK) == '"a($i)"'
+
+    def test_cmd_subst_arg_bare_is_split(self):
+        fa = _proc_asm("proc p {} { global a i; set r [string length $a($i)] }", "::p")
+        ops = _opcodes(fa)
+        assert Op.LOAD_ARRAY1 in ops
+        assert Op.STR_LEN in ops
+        assert Op.LOAD_STK not in ops
+
+    def test_static_index_bare_key_keeps_splitting(self):
+        # The segmenter collapses a bare static-index key ``$::a(1)`` to
+        # the braced spelling ``${::a(1)}`` before codegen, so the array
+        # KEY path must keep SPLITTING the static case (matches tclsh's
+        # bare ``set ::a($::a(1)) 3`` → loadArrayStk).  Only a *dynamic*
+        # braced key takes the whole-name path.
+        fa = _top_asm("set ::a($::a(1)) 3")
+        ops = _opcodes(fa)
+        assert Op.LOAD_ARRAY_STK in ops
+        assert Op.LOAD_STK not in ops

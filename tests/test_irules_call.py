@@ -12,18 +12,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Severity
-from core.commands.registry.runtime import configure_signatures
-from lsp.features.call_hierarchy import (
+from analyser import analyse
+from analyser.semantic_model import Severity
+from compiler.registry.runtime import configure_signatures
+from server.features.call_hierarchy import (
     incoming_calls,
     outgoing_calls,
     prepare_call_hierarchy,
 )
-from lsp.features.completion import get_completions
-from lsp.features.definition import get_definition
-from lsp.features.references import get_references
-from lsp.features.rename import get_rename_edits
+from server.features.completion import get_completions
+from server.features.definition import get_definition
+from server.features.references import get_references
+from server.features.rename import get_rename_edits
 
 TEST_URI = "file:///test.irul"
 
@@ -477,10 +477,10 @@ class TestCallHierarchy:
         """)
         analysis = analyse(src)
         items = prepare_call_hierarchy(src, TEST_URI, 3, 6, analysis)
-        if items:
-            calls = incoming_calls(items[0], src, TEST_URI, analysis)
-            caller_names = {c.from_.name for c in calls}
-            assert "outer" in caller_names
+        assert items, "expected a call-hierarchy item for inner"
+        calls = incoming_calls(items[0], src, TEST_URI, analysis)
+        caller_names = {c.from_.name for c in calls}
+        assert "outer" in caller_names
 
     @_irules
     def test_outgoing_calls_from_proc(self):
@@ -493,10 +493,10 @@ class TestCallHierarchy:
         """)
         analysis = analyse(src)
         items = prepare_call_hierarchy(src, TEST_URI, 0, 6, analysis)
-        if items:
-            calls = outgoing_calls(items[0], src, TEST_URI, analysis)
-            callee_names = {c.to.name for c in calls}
-            assert "inner" in callee_names
+        assert items, "expected a call-hierarchy item for outer"
+        calls = outgoing_calls(items[0], src, TEST_URI, analysis)
+        callee_names = {c.to.name for c in calls}
+        assert "inner" in callee_names
 
 
 # Rename: rename works through ``call`` sites
@@ -528,7 +528,7 @@ class TestCallRename:
 class TestCallSpec:
     def test_call_available_in_all_events(self):
         """call should not be restricted to RULE_INIT."""
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         configure_signatures(dialect="f5-irules")
         spec = REGISTRY.get("call", "f5-irules")
@@ -538,15 +538,15 @@ class TestCallSpec:
 
     def test_call_has_role_hints(self):
         """call should have arg_roles marking arg[0] as NAME."""
-        from core.commands.registry.irules.call import CallCommand
-        from core.commands.registry.signatures import ArgRole
+        from compiler.registry.signatures import ArgRole
+        from dialects.f5.irules.call import CallCommand
 
         spec = CallCommand.spec()
         assert ArgRole.NAME in spec.arg_roles.get(0, frozenset())
 
     def test_call_minimum_arity(self):
         """call requires at least 1 argument (the proc name)."""
-        from core.commands.registry import REGISTRY
+        from compiler.registry import REGISTRY
 
         configure_signatures(dialect="f5-irules")
         spec = REGISTRY.get("call", "f5-irules")
@@ -562,7 +562,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_pure_proc_is_folded(self):
         """[call one] should fold to 1, same as [one] in plain Tcl."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc one {} { return 1 }
@@ -580,7 +580,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_passthrough_folds_static_arg(self):
         """[call id $a] should fold when $a is constant."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc id {x} { return $x }
@@ -598,7 +598,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_impure_proc_not_folded(self):
         """[call noisy] should NOT fold when the proc has side effects."""
-        from core.compiler.optimiser import optimise_source
+        from compiler.optimiser import optimise_source
 
         src = textwrap.dedent("""\
             proc noisy {} { log local0. "hi"; return 1 }
@@ -612,7 +612,7 @@ class TestCallInterprocedural:
     @_irules
     def test_call_in_call_graph(self):
         """call myproc should appear in the interprocedural call graph."""
-        from core.compiler.interprocedural import analyse_interprocedural_source
+        from compiler.interprocedural import analyse_interprocedural_source
 
         src = textwrap.dedent("""\
             proc helper {} { return 1 }

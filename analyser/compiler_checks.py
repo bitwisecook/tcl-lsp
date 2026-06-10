@@ -1,0 +1,1110 @@
+"""Compiler-driven wrapper for command-level checks.
+
+This module runs existing command checks using command spans discovered from
+the lowered IR, then recursively follows nested command substitutions/bodies.
+
+It also implements IR-based arity checking (E001–E003, W001, W002) and
+proc-call arity validation.
+"""
+
+# canonicalisation: audited #246
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Mapping
+
+from compiler.ir import (
+    CommandTokens,
+    IRBarrier,
+    IRBlock,
+    IRCall,
+    IRCatch,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRModule,
+    IRScript,
+    IRStatement,
+    IRSwitch,
+    IRTry,
+    IRWhile,
+)
+from compiler.lowering import lower_to_ir
+from compiler.parsing.argv import widen_argv_tokens_to_word_spans
+from compiler.parsing.command_segmenter import SegmentedCommand
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.green_tree import tokenise
+from compiler.parsing.syntax import (
+    build_document,
+    descend_command,
+    descend_token,
+    segments_from_document,
+    segments_from_tree,
+)
+from compiler.registry import REGISTRY
+from compiler.registry.dialect import active_dialect
+from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
+from compiler.registry.runtime import (
+    SIGNATURES,
+    ArgRole,
+    Arity,
+    CommandSig,
+    SubcommandSig,
+    arg_indices_for_role,
+)
+from shared.codes import diag
+from shared.diagnostic import Diagnostic, Range, Severity
+from shared.naming import normalise_qualified_name
+from shared.ranges import position_from_relative, range_from_token
+from shared.text import suggest_similar as _suggest_similar_impl
+from shared.tokens import Token, TokenType
+
+from .checks import run_all_checks
+
+log = logging.getLogger(__name__)
+
+# Module-level registrations for codes emitted from nested/inline code.
+diag("E004", "Invalid argument count.", section="error", internal=True)
+diag(
+    code="W302",
+    description="`catch` without result variable — errors are silently swallowed.",
+    section="security",
+    ai_category="style",
+)
+
+
+# Source-byte ceiling for deep proc-body analysis (the analyser/IR-walk
+# analogue of the CFG-block complexity guard in ``compiler.ssa``).  Bodies above
+# this are machine-generated dispatch tables (fumagic's ``filetypes.tcl``
+# analyze proc is ~1.1 MB); deep-walking them costs tens of seconds for
+# negligible findings.  Single source of truth — imported by the analyser
+# proc-body walk so the two guards stay in lockstep.
+_DEEP_ANALYSIS_BODY_BYTES = 262144
+
+
+def iter_ir_statements(script: IRScript):
+    """Yield every IR statement, recursing into structured bodies."""
+    for stmt in script.statements:
+        yield stmt
+
+        if isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                yield from iter_ir_statements(clause.body)
+            if stmt.else_body is not None:
+                yield from iter_ir_statements(stmt.else_body)
+            continue
+
+        if isinstance(stmt, IRFor):
+            yield from iter_ir_statements(stmt.init)
+            yield from iter_ir_statements(stmt.body)
+            yield from iter_ir_statements(stmt.next)
+            continue
+
+        if isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                if arm.body is not None:
+                    yield from iter_ir_statements(arm.body)
+            if stmt.default_body is not None:
+                yield from iter_ir_statements(stmt.default_body)
+            continue
+
+        if isinstance(stmt, IRWhile):
+            yield from iter_ir_statements(stmt.body)
+            continue
+
+        if isinstance(stmt, IRForeach):
+            yield from iter_ir_statements(stmt.body)
+            continue
+
+        if isinstance(stmt, IRCatch):
+            yield from iter_ir_statements(stmt.body)
+            continue
+
+        if isinstance(stmt, IRTry):
+            yield from iter_ir_statements(stmt.body)
+            for handler in stmt.handlers:
+                yield from iter_ir_statements(handler.body)
+            if stmt.finally_body is not None:
+                yield from iter_ir_statements(stmt.finally_body)
+
+
+def _switch_list_body_index(args: list[str]) -> int | None:
+    """Return the BODY index for ``switch string {pattern body ...}`` form."""
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        if args[i] == "--":
+            i += 1
+            break
+        i += 1
+    if i >= len(args):
+        return None
+    i += 1  # switch string argument
+    if i == len(args) - 1:
+        return i
+    return None
+
+
+def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[Token]:
+    """Return argv tokens widened to each word's full token span.
+
+    ``argv`` carries one representative token per word (typically the first
+    token).  For diagnostics we want each argument token range to cover the
+    entire Tcl word, including variable/cmd substitutions and trailing pieces.
+    """
+    return widen_argv_tokens_to_word_spans(argv, all_tokens)
+
+
+class _CompilerCheckRunner:
+    def __init__(
+        self,
+        source: str,
+        *,
+        file_profiles: frozenset[str] | None = None,
+        user_procs: Mapping[str, int] | None = None,
+    ) -> None:
+        self._source = source
+        self._seen_commands: set[tuple[int, int]] = set()
+        self.diagnostics: list[Diagnostic] = []
+        self._current_event: str | None = None
+        self._file_profiles = (
+            file_profiles
+            if file_profiles is not None
+            else EVENT_REGISTRY.compute_file_profiles(source)
+        )
+        self._user_procs: Mapping[str, int] = user_procs if user_procs is not None else {}
+
+    def process_statement(self, stmt: IRStatement) -> None:
+        """Process an IR statement, using carried tokens when available."""
+        ct: CommandTokens | None = getattr(stmt, "tokens", None)
+        if ct is not None and ct.all_tokens:
+            self._run_for_command(
+                list(ct.argv),
+                list(ct.argv_texts),
+                list(ct.all_tokens),
+            )
+        else:
+            r = stmt.range
+            start = r.start.offset
+            end = r.end.offset
+            if start < 0 or end < start:
+                return
+            if end >= len(self._source):
+                # A statement whose range reaches past the source end is an
+                # upstream range overshoot (e.g. a word-token closer widened one
+                # byte too far).  Dropping it silently turns the bug into a
+                # missing diagnostic — the failure mode that hid a broken change
+                # behind a single test in the issue #527 work.  Log so future
+                # overshoots surface instead of vanishing.
+                log.warning(
+                    "compiler_checks: dropping %s with out-of-range end "
+                    "(start=%d, end=%d, source_len=%d) — likely an upstream "
+                    "range overshoot",
+                    type(stmt).__name__,
+                    start,
+                    end,
+                    len(self._source),
+                )
+                return
+            self._process_text(
+                self._source[start : end + 1],
+                base_offset=start,
+                base_line=r.start.line,
+                base_col=r.start.character,
+            )
+
+    def _run_for_command(
+        self,
+        argv: list[Token],
+        argv_texts: list[str],
+        all_tokens: list[Token],
+    ) -> None:
+        """Run all checks for one command, then recurse into its nested scripts.
+
+        The single per-command entry point, fed identically from the top-level
+        IR-carried tokens and from segments derived from the concrete syntax tree
+        for descended bodies / substitutions — so a nested command is analysed
+        exactly like a top-level one (``argv_texts`` is the canonical ``_word_piece``
+        form, ``{*}`` is a marker, …), which the former ``_process_node``
+        mini-segmenter did not guarantee.
+        """
+        if not argv or not all_tokens:
+            return
+
+        span = (all_tokens[0].start.offset, all_tokens[-1].end.offset)
+        if span in self._seen_commands:
+            return
+        self._seen_commands.add(span)
+
+        argv_spanned = _argv_with_word_spans(argv, all_tokens)
+        cmd_name = argv_texts[0]
+        args = argv_texts[1:]
+        arg_tokens = argv_spanned[1:]
+
+        self.diagnostics.extend(
+            run_all_checks(
+                cmd_name,
+                args,
+                arg_tokens,
+                all_tokens,
+                self._source,
+                event=self._current_event,
+                file_profiles=self._file_profiles,
+                user_procs=self._user_procs,
+            )
+        )
+
+        self._recurse_nested_commands(all_tokens)
+        self._recurse_expression_subcommands(cmd_name, args, arg_tokens)
+        self._recurse_body_arguments(cmd_name, args, arg_tokens)
+
+    def _process_segments(self, segments: list[SegmentedCommand]) -> None:
+        for seg in segments:
+            self._run_for_command(seg.argv, seg.texts, seg.all_tokens)
+
+    def _process_text(
+        self,
+        text: str,
+        *,
+        base_offset: int,
+        base_line: int,
+        base_col: int,
+    ) -> None:
+        document, _ = build_document(text, base_offset, base_line, base_col)
+        self._process_segments(
+            segments_from_document(document, base_offset, base_line, base_col, text=text)
+        )
+
+    def _recurse_nested_commands(self, tokens: list[Token]) -> None:
+        for tok in tokens:
+            if tok.type is not TokenType.CMD or not tok.text:
+                continue
+            # Descend the command substitution against the full source and analyse
+            # its commands through the same segment path; an unterminated [..]
+            # descends to a recovered tree that still carries its inner tokens.
+            self._process_segments(segments_from_tree(descend_token(tok, self._source).tree))
+
+    def _recurse_body_arguments(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+    ) -> None:
+        # For ``when EVENT { body }``, set event context while recursing.
+        prev_event = self._current_event
+        if cmd_name == "when" and args:
+            self._current_event = args[0]
+        for child in descend_command(cmd_name, args, arg_tokens, self._source):
+            # switch list-form body (`switch x {pattern body ...}`) is a Tcl
+            # list, not a script. Parse pairs and recurse into each body arm.
+            if cmd_name == "switch" and _switch_list_body_index(args) == child.index:
+                self._recurse_switch_list_body(child.text, child.token)
+                continue
+            self._process_segments(segments_from_tree(child.descended.tree))
+        if cmd_name == "when":
+            self._current_event = prev_event
+
+    def _recurse_expression_subcommands(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+    ) -> None:
+        for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
+            if idx >= len(args) or idx >= len(arg_tokens):
+                continue
+            expr_text = args[idx]
+            owner = arg_tokens[idx]
+
+            if owner.type in (TokenType.STR, TokenType.CMD):
+                base_offset = owner.start.offset + 1
+                base_line = owner.start.line
+                base_col = owner.start.character + 1
+            else:
+                base_offset = owner.start.offset
+                base_line = owner.start.line
+                base_col = owner.start.character
+
+            for expr_tok in tokenise_expr(expr_text, dialect=active_dialect()):
+                if expr_tok.type is not ExprTokenType.COMMAND or len(expr_tok.text) < 2:
+                    continue
+
+                cmd_text = expr_tok.text[1:-1]
+                cmd_start = position_from_relative(
+                    expr_text,
+                    expr_tok.start,
+                    base_line=base_line,
+                    base_col=base_col,
+                    base_offset=base_offset,
+                )
+                self._process_text(
+                    cmd_text,
+                    base_offset=cmd_start.offset + 1,
+                    base_line=cmd_start.line,
+                    base_col=cmd_start.character + 1,
+                )
+
+    def _recurse_switch_list_body(self, body_text: str, body_tok: Token) -> None:
+        """Recurse into switch list-form arm bodies."""
+        elements, element_tokens = self._lex_switch_elements(body_text, body_tok)
+        i = 0
+        while i + 1 < len(elements):
+            body = elements[i + 1]
+            tok = element_tokens[i + 1]
+            i += 2
+            if body == "-" or not body.strip():
+                continue
+            if tok.type in (TokenType.STR, TokenType.CMD):
+                base_offset = tok.start.offset + 1
+                base_line = tok.start.line
+                base_col = tok.start.character + 1
+            else:
+                base_offset = tok.start.offset
+                base_line = tok.start.line
+                base_col = tok.start.character
+            self._process_text(
+                body,
+                base_offset=base_offset,
+                base_line=base_line,
+                base_col=base_col,
+            )
+
+    def _lex_switch_elements(
+        self,
+        body_text: str,
+        body_tok: Token,
+    ) -> tuple[list[str], list[Token]]:
+        """Lex switch list-form body into alternating pattern/body elements."""
+        tokens, _ = tokenise(
+            body_text,
+            body_tok.start.offset + 1,
+            body_tok.start.line,
+            body_tok.start.character + 1,
+        )
+        elements: list[str] = []
+        element_tokens: list[Token] = []
+        prev_type = TokenType.EOL
+
+        for tok in tokens:
+            if tok.type in (TokenType.SEP, TokenType.EOL):
+                prev_type = tok.type
+                continue
+            if prev_type in (TokenType.SEP, TokenType.EOL):
+                elements.append(tok.text)
+                element_tokens.append(tok)
+            else:
+                if elements:
+                    elements[-1] += tok.text
+                else:
+                    elements.append(tok.text)
+                    element_tokens.append(tok)
+            prev_type = tok.type
+
+        return elements, element_tokens
+
+
+def _resolve_signature(cmd_name: str) -> CommandSig | SubcommandSig | None:
+    """Look up the command signature from the registry.
+
+    Prefers the pre-built ``SIGNATURES`` dict which carries the full
+    ``CommandSig`` (including ``leading_options`` for option-aware arity).
+    Falls back to raw ``REGISTRY.validation`` only when SIGNATURES has no
+    entry.
+    """
+    # Pre-built signature has the richest metadata (leading_options, etc.).
+    cached = SIGNATURES.get(cmd_name)
+    if cached is not None:
+        return cached
+
+    dialect = active_dialect()
+    spec = REGISTRY.get(cmd_name, dialect)
+    if spec is not None and spec.subcommands:
+        return SubcommandSig(
+            subcommands={
+                name: CommandSig(
+                    arity=sub.arity,
+                    arg_roles=dict(sub.arg_roles) if sub.arg_roles else {},
+                )
+                for name, sub in spec.subcommands.items()
+            },
+            allow_unknown=spec.allow_unknown_subcommands,
+        )
+    validation = REGISTRY.validation(cmd_name, dialect)
+    if validation is not None:
+        return CommandSig(arity=validation.arity)
+    return None
+
+
+def _defining_namespace(qualified_name: str) -> str:
+    """Return the namespace a command defined as *qualified_name* lives in.
+
+    Command resolution inside a proc body uses the proc's defining
+    namespace — the qualified name minus its final ``::``-separated
+    component (``::`` for a globally defined proc).
+    """
+    idx = qualified_name.rfind("::")
+    if idx <= 0:
+        return "::"
+    return qualified_name[:idx]
+
+
+def _resolution_candidates(cmd_name: str, call_ns: str) -> list[str]:
+    """Qualified names *cmd_name* may resolve to from *call_ns*.
+
+    Mirrors the analyser's ``_resolve_proc_call`` resolution order: an
+    absolute name resolves to itself; a namespace-qualified relative name
+    resolves against the global namespace; a bare name resolves against
+    the call-site namespace first, then the global namespace.
+    """
+    if not cmd_name:
+        return []
+    if cmd_name.startswith("::"):
+        return [normalise_qualified_name(cmd_name)]
+    if "::" in cmd_name:
+        return [normalise_qualified_name(f"::{cmd_name}")]
+    candidates: list[str] = []
+    if call_ns and call_ns != "::":
+        candidates.append(normalise_qualified_name(f"{call_ns}::{cmd_name}"))
+    candidates.append(normalise_qualified_name(f"::{cmd_name}"))
+    return candidates
+
+
+def _resolves_to_user_command(
+    cmd_name: str,
+    call_ns: str,
+    user_proc_offsets: Mapping[str, int],
+    *,
+    call_offset: int,
+    enforce_order: bool,
+) -> bool:
+    """True when *cmd_name*, resolved from *call_ns*, names a user proc.
+
+    Suppression of the builtin arity check is gated on this so a shadowing
+    proc in one namespace cannot silence a call that actually reaches the
+    builtin.  Only *unconditional* proc definitions (the keys of
+    ``user_proc_offsets``, which excludes conditional/looping definitions)
+    can shadow a builtin — a conditionally defined proc is not statically
+    known to exist.
+
+    ``enforce_order`` is set for top-level calls, which execute in source
+    order during script load: a definition only shadows the builtin if it
+    textually precedes the call (``def_offset < call_offset``).  Proc
+    bodies run after load, by which point every unconditional definition
+    exists, so ordering is not enforced there.
+    """
+    for candidate in _resolution_candidates(cmd_name, call_ns):
+        def_offset = user_proc_offsets.get(candidate)
+        if def_offset is None:
+            continue
+        if enforce_order and def_offset >= call_offset:
+            continue
+        return True
+    return False
+
+
+# Bare commands whose entire purpose is destructive and which error on a
+# missing target — ``catch {<cmd> ...}`` is the canonical "if exists" idiom.
+_FIRE_AND_FORGET_BARE: frozenset[str] = frozenset(
+    {
+        "close",  # close ?-nocomplain? channel
+        "unset",  # unset ?-nocomplain? ?var ...?
+        "rename",  # rename foo ""  (delete)
+    }
+)
+
+# Ensemble commands where ONLY certain subcommands are fire-and-forget.
+# ``chan close`` is, but ``chan configure`` errors that should not be
+# silently swallowed.  Maps the ensemble name to its destructive subcommand set.
+_FIRE_AND_FORGET_SUBCOMMANDS: dict[str, frozenset[str]] = {
+    "after": frozenset({"cancel"}),
+    "chan": frozenset({"close"}),
+    "array": frozenset({"unset"}),
+    "dict": frozenset({"unset"}),
+    "interp": frozenset({"delete"}),
+    "namespace": frozenset({"delete", "forget"}),
+    "file": frozenset({"delete"}),
+}
+
+
+def _catch_body_is_fire_and_forget(body: IRScript) -> bool:
+    """Return True when the body of a ``catch`` matches the documented
+    "fire-and-forget" idiom: a single command whose head is a destructive
+    builtin (``close $h``, ``unset var``, ``rename foo \"\"``) OR a
+    documented destructive ensemble subcommand (``after cancel``, ``chan
+    close``, ``array unset``, ``dict unset``, ``interp delete``,
+    ``namespace delete``, ``file delete``).
+
+    Conservative: only single-statement bodies are matched, and ensemble
+    commands are subcommand-checked — ``catch {chan configure $h}`` and
+    ``catch {file copy a b}`` still fire W302 because those operations
+    are not the canonical "if exists" idiom.
+    """
+    stmts = list(getattr(body, "statements", ()) or ())
+    if len(stmts) != 1:
+        return False
+    stmt = stmts[0]
+    if not isinstance(stmt, IRCall):
+        return False
+    cmd = stmt.command
+    if not cmd:
+        return False
+    bare = cmd.lstrip(":").split("::")[-1]
+    if bare in _FIRE_AND_FORGET_BARE:
+        return True
+    subcommands = _FIRE_AND_FORGET_SUBCOMMANDS.get(bare)
+    if subcommands is None:
+        return False
+    if not stmt.args:
+        return False
+    return stmt.args[0] in subcommands
+
+
+def _arity_checks(ir_module: IRModule, user_proc_offsets: Mapping[str, int]) -> list[Diagnostic]:
+    """IR-native checks: arity (E001–E003), unknown subcommands (W001), W302.
+
+    W002/W003/W004/W307 are now in checks.py ALL_CHECKS so they fire for
+    all command spans including nested commands in ``[...]``.
+
+    Only checks built-in commands against registry signatures.  User-defined
+    proc-call arity is checked by the analyser which has access to full
+    parameter default information via ``ProcDef``.
+
+    Builtin arity is suppressed for any call that resolves Tcl-style to a
+    user-defined command (a shadowing proc): the suppression is
+    namespace-aware so a ``proc ::ns::close`` only silences ``close`` calls
+    that actually resolve to it, not a global ``close`` that reaches the
+    builtin.  ``user_proc_offsets`` maps each unconditionally defined proc
+    to its definition offset so suppression also respects definition order
+    and reachability (see :func:`_resolves_to_user_command`).
+    """
+    diagnostics: list[Diagnostic] = []
+
+    def _check_statement(stmt: IRStatement, call_ns: str, enforce_order: bool) -> None:
+        # W302: catch without result variable (IR-native).  Highlight just
+        # the ``catch`` command word — narrowest span that identifies the
+        # issue — rather than the whole ``catch {…}`` statement.
+        #
+        # Suppress the hint on the documented "fire-and-forget" idiom:
+        # ``catch {after cancel ...}``, ``catch {file delete ...}``,
+        # ``catch {close ...}`` etc.  These commands error when the target
+        # is already gone, and ``catch {<cmd>}`` without a result var is
+        # the canonical Tcl idiom for "do this if possible, ignore if
+        # not".  Capturing the result there is verbose and produces a
+        # variable that is genuinely never used — the user has already
+        # decided to ignore the failure.
+        if isinstance(stmt, IRCatch) and stmt.result_var is None:
+            if _catch_body_is_fire_and_forget(stmt.body):
+                return
+            w302_range = stmt.range
+            if stmt.tokens is not None and stmt.tokens.argv:
+                w302_range = range_from_token(stmt.tokens.argv[0])
+            diagnostics.append(
+                Diagnostic(
+                    range=w302_range,
+                    message=(
+                        "catch without a result variable silently swallows errors. "
+                        "Consider capturing the result: catch {…} result"
+                    ),
+                    severity=Severity.HINT,
+                    code="W302",
+                )
+            )
+
+        # E004: malformed control-flow structures detected by lowering
+        if isinstance(stmt, IRBarrier) and stmt.canonical_command == "::if":
+            if "extra words" in stmt.reason:
+                diagnostics.append(
+                    Diagnostic(
+                        range=stmt.range,
+                        message='Extra words after "else" clause in "if" command',
+                        severity=Severity.ERROR,
+                        code="E004",
+                    )
+                )
+            elif "malformed" in stmt.reason:
+                diagnostics.append(
+                    Diagnostic(
+                        range=stmt.range,
+                        message="Malformed 'if' command",
+                        severity=Severity.ERROR,
+                        code="E004",
+                    )
+                )
+
+        if not isinstance(stmt, (IRCall, IRBarrier)):
+            return
+
+        cmd_name = stmt.command
+        ct: CommandTokens | None = getattr(stmt, "tokens", None)
+
+        cmd_token_range = range_from_token(ct.argv[0]) if ct and ct.argv else stmt.range
+
+        args: list[str] = (
+            list(stmt.args) if isinstance(stmt, IRCall) else list(getattr(stmt, "args", ()))
+        )
+
+        # Extract {*} expansion markers for the argument words (position 0
+        # in ``expand_word`` is the command name, 1..n are the arguments).
+        # When expansion is present, arity checks must treat the expanded
+        # word as an unknown count rather than a single positional arg.
+        arg_expand: list[bool] | None = None
+        arg_tokens: list[Token] | None = None
+        arg_single: list[bool] | None = None
+        if ct is not None:
+            # Per-argument tokens are always carried (used for the W001
+            # subcommand range and, with ``arg_expand``, literal-list
+            # resolution).  ``{*}`` expansion markers are extracted only
+            # when present.
+            if ct.argv:
+                arg_tokens = list(ct.argv[1:])
+            if ct.single_token_word:
+                arg_single = list(ct.single_token_word[1:])
+            if ct.expand_word is not None:
+                # If the command name itself is expanded ({*}$dispatch), we
+                # cannot resolve the actual command — skip arity checks.
+                if ct.expand_word and ct.expand_word[0]:
+                    return
+                arg_expand = list(ct.expand_word[1:])
+
+        # Built-in command arity checking.  Skip when the call resolves to a
+        # user-defined command shadowing the builtin — that call's arity is
+        # validated against the proc's real parameter list by the analyser.
+        sig = _resolve_signature(cmd_name)
+        if sig is not None and not _resolves_to_user_command(
+            cmd_name,
+            call_ns,
+            user_proc_offsets,
+            call_offset=stmt.range.start.offset,
+            enforce_order=enforce_order,
+        ):
+            _check_arity(
+                cmd_name,
+                args,
+                sig,
+                cmd_token_range,
+                diagnostics,
+                arg_expand,
+                arg_tokens,
+                arg_single,
+            )
+            _check_closed_value_args(cmd_name, args, cmd_token_range, diagnostics, arg_tokens)
+
+    def _walk_ir(script: IRScript, call_ns: str, enforce_order: bool) -> None:
+        for stmt in iter_ir_statements(script):
+            _check_statement(stmt, call_ns, enforce_order)
+
+    # Top-level statements execute in source order, so a shadowing proc must
+    # be defined before the call; proc bodies run after load and see every
+    # unconditional definition regardless of order.
+    _walk_ir(ir_module.top_level, "::", enforce_order=True)
+    for proc in ir_module.procedures.values():
+        # A proc body resolves commands in the proc's defining namespace.
+        _walk_ir(proc.body, _defining_namespace(proc.qualified_name), enforce_order=False)
+
+    return diagnostics
+
+
+@diag("E001", "Missing subcommand — e.g. bare `string` without a subcommand.", section="error")
+@diag("W001", "Unknown subcommand.", section="warning")
+def _check_arity(
+    cmd_name: str,
+    args: list[str],
+    sig: CommandSig | SubcommandSig,
+    diag_range: Range,
+    diagnostics: list[Diagnostic],
+    arg_expand: list[bool] | None = None,
+    arg_tokens: list[Token] | None = None,
+    arg_single: list[bool] | None = None,
+) -> None:
+    """Check argument count against a command signature.
+
+    ``arg_expand`` is a list parallel to ``args`` whose entries are
+    ``True`` for arguments preceded by the Tcl 8.5+ ``{*}`` expansion
+    prefix.  Expanded words contribute an unknown number of runtime
+    arguments and must not be counted as a single positional arg.
+
+    ``arg_tokens`` and ``arg_single`` (when provided) carry the original
+    token and the single-token-word marker for each argument so that
+    literal-list expansions can be statically resolved to an exact
+    element count.
+    """
+    if isinstance(sig, SubcommandSig):
+        if not args:
+            diagnostics.append(
+                Diagnostic(
+                    range=diag_range,
+                    message=f"'{cmd_name}' requires a subcommand",
+                    severity=Severity.ERROR,
+                    code="E001",
+                )
+            )
+            return
+        sub_name = args[0]
+        # If the subcommand position itself is {*}-expanded, the actual
+        # subcommand is unknown — skip subcommand resolution and arity.
+        if arg_expand and arg_expand[0]:
+            return
+        # In the IR, $var and ${var} forms represent real substitutions
+        # (braced literals are resolved during lowering).  A $ or [ in
+        # an IR arg always indicates a dynamic value that cannot be
+        # resolved statically — skip the unknown-subcommand check.
+        if "$" in sub_name or "[" in sub_name:
+            return
+        sub_sig = sig.subcommands.get(sub_name)
+        if sub_sig is None:
+            if sig.allow_unknown:
+                return
+            # Tk geometry managers accept ``manager pathName ?args?`` as a
+            # shortcut for ``manager configure pathName ?args?`` (verified per
+            # Tk man pages — grid.n, pack.n, place.n).  A window path starts
+            # with ``.`` (Tk's path convention), and ``.`` is not a valid Tcl
+            # subcommand-name first character, so this is unambiguous.
+            if cmd_name in ("grid", "pack", "place") and sub_name.startswith("."):
+                return
+            msg = f"Unknown subcommand '{sub_name}' for '{cmd_name}'"
+            suggestions = _suggest_similar_impl(
+                sub_name, sig.subcommands, max_suggestions=3, max_distance=3
+            )
+            if suggestions:
+                msg += f"; did you mean '{suggestions[0]}'?"
+            # Highlight the offending subcommand word, not the command name.
+            w001_range = diag_range
+            if arg_tokens:
+                w001_range = range_from_token(arg_tokens[0])
+            diagnostics.append(
+                Diagnostic(
+                    range=w001_range,
+                    message=msg,
+                    severity=Severity.WARNING,
+                    code="W001",
+                )
+            )
+            return
+        # Check arity of subcommand (args after subcommand name)
+        sub_args = args[1:]
+        sub_expand = arg_expand[1:] if arg_expand else None
+        sub_tokens = arg_tokens[1:] if arg_tokens else None
+        sub_single = arg_single[1:] if arg_single else None
+        _check_simple_arity(
+            f"{cmd_name} {sub_name}",
+            sub_args,
+            sub_sig,
+            diag_range,
+            diagnostics,
+            sub_expand,
+            sub_tokens,
+            sub_single,
+        )
+        return
+
+    _check_simple_arity(
+        cmd_name, args, sig, diag_range, diagnostics, arg_expand, arg_tokens, arg_single
+    )
+
+
+@diag("W127", "Value not in the command's allowed set.", section="warning")
+def _check_closed_value_args(
+    cmd_name: str,
+    args: list[str],
+    diag_range: Range,
+    diagnostics: list[Diagnostic],
+    arg_tokens: list[Token] | None,
+) -> None:
+    """W127: a literal at a closed-value argument index is not an allowed value.
+
+    Only fires for argument indices a spec marks ``closed_value_args`` (the
+    ``arg_values`` are the complete legal set, not mere suggestions).  Dynamic
+    values (``$var`` / ``[cmd]``) and declared option flags are skipped, so the
+    ``HTTP::version -string <raw>`` form is never flagged.
+    """
+    dialect = active_dialect()
+    closed = REGISTRY.closed_value_arg_indices(cmd_name, dialect)
+    if not closed:
+        return
+    spec = REGISTRY.get(cmd_name, dialect)
+    if spec is None:
+        return
+    option_names: set[str] = set()
+    for form in spec.forms:
+        option_names.update(form.option_names())
+    for idx in sorted(closed):
+        if idx >= len(args):
+            continue
+        value = args[idx]
+        # Dynamic values and option flags are not literal value words.
+        if "$" in value or "[" in value or value in option_names:
+            continue
+        if spec.argument_value(idx, value) is not None:
+            continue
+        allowed = [vs.value for vs in spec.argument_values(idx)]
+        if not allowed:
+            continue
+        rng = diag_range
+        if arg_tokens is not None and idx < len(arg_tokens):
+            rng = range_from_token(arg_tokens[idx])
+        diagnostics.append(
+            Diagnostic(
+                range=rng,
+                message=(
+                    f"Invalid value '{value}' for '{cmd_name}'; "
+                    f"expected one of: {', '.join(allowed)}"
+                ),
+                severity=Severity.WARNING,
+                code="W127",
+            )
+        )
+
+
+def _resolve_expansion_elements(
+    arg_text: str,
+    tok: Token | None,
+    single_token: bool,
+) -> list[str] | None:
+    """Return the static element list of a ``{*}``-expanded IR argument word.
+
+    The IR text alone is ambiguous — for the literal expansion
+    ``{*}{$x}`` the segmenter strips the braces, leaving the IR arg
+    text ``$x``, which is indistinguishable from a variable
+    substitution.  Disambiguation requires the original token type and
+    the single-token-word marker:
+
+    - **STR token, single-token word** — the word came from a braced
+      literal ``{...}``.  The IR text is the brace contents (which may
+      legitimately contain ``$`` or ``[``); split it directly with
+      :func:`_split_tcl_list`.  An empty word resolves to zero elements.
+    - **CMD token, single-token word, ``[list ...]`` form** — the
+      command substitution is a literal ``list`` call; reuse
+      :func:`_extract_foreach_elements` to fold it.
+    - **Concatenated word, variable substitution, command substitution
+      with non-list head, etc.** — return ``None``: the count is not
+      statically known and the caller treats the expansion as
+      contributing 0..∞ runtime arguments, matching Tcl's runtime
+      semantics where ``{*}`` calls ``Tcl_ListObjGetElements`` to
+      shimmer the value to a list at call time.
+    """
+    from compiler.core_analyses import _extract_foreach_elements
+    from compiler.tcl_expr_eval import _split_tcl_list
+    from shared.tokens import TokenType
+
+    if not single_token or tok is None:
+        return None
+    if tok.type is TokenType.STR:
+        # Empty braced literal ``{*}{}`` → zero elements (the segmenter
+        # strips the braces, so the IR text is empty).
+        if not arg_text:
+            return []
+        try:
+            return _split_tcl_list(arg_text)
+        except Exception:
+            return None
+    if tok.type is TokenType.CMD:
+        # Only refine when the command substitution is a literal list,
+        # i.e. ``[list a b c]``.  ``_extract_foreach_elements`` handles
+        # the bracketed form for us.
+        elements = _extract_foreach_elements(arg_text)
+        if elements is not None:
+            return elements
+    return None
+
+
+def _resolve_expansion_count(
+    arg_text: str,
+    tok: Token | None,
+    single_token: bool,
+) -> int | None:
+    """Convenience wrapper around :func:`_resolve_expansion_elements`."""
+    elements = _resolve_expansion_elements(arg_text, tok, single_token)
+    return None if elements is None else len(elements)
+
+
+@diag("E002", "Too few arguments for command.", section="error")
+@diag("E003", "Too many arguments for command.", section="error")
+def _check_simple_arity(
+    display_name: str,
+    args: list[str],
+    sig: CommandSig,
+    diag_range: Range,
+    diagnostics: list[Diagnostic],
+    arg_expand: list[bool] | None = None,
+    arg_tokens: list[Token] | None = None,
+    arg_single: list[bool] | None = None,
+) -> None:
+    """Check argument count for a simple (non-subcommand) signature.
+
+    When the signature declares ``leading_options``, leading arguments
+    that match a declared option are skipped before counting positional
+    arguments.  ``--`` is only recognised as an option terminator when the
+    command explicitly declares it.  This lets ``puts -nonewline channel
+    string`` (3 raw args) pass arity ``(1, 2)`` because only 2 are
+    positional.
+
+    ``arg_expand`` marks arguments preceded by ``{*}``.  Each expanded
+    word may contribute zero or more runtime arguments; when the word is
+    a statically-resolvable literal list the exact count is used, and
+    otherwise the word contributes 0..∞ (so the upper bound becomes
+    unbounded and the lower bound remains the count of non-expanded
+    positional words).
+    """
+    # First, expand statically-resolvable ``{*}`` words inline so the
+    # leading-option scan and the positional count both see the real
+    # element list.  Words whose expansion count is unknown are kept as
+    # a single placeholder entry whose ``flat_expand`` flag stays True.
+    flat_args: list[str] = []
+    flat_expand: list[bool] = []
+    flat_tokens: list[Token | None] = []
+    flat_single: list[bool] = []
+    for i, word in enumerate(args):
+        expanded = bool(arg_expand and i < len(arg_expand) and arg_expand[i])
+        tok = arg_tokens[i] if arg_tokens and i < len(arg_tokens) else None
+        single = bool(arg_single and i < len(arg_single) and arg_single[i])
+        if expanded:
+            elements = _resolve_expansion_elements(word, tok, single)
+            if elements is not None:
+                # Resolved literal expansion — inline each element so
+                # leading_options scanning and positional counting both
+                # see real string values, not the brace text.
+                for element in elements:
+                    flat_args.append(element)
+                    flat_expand.append(False)
+                    flat_tokens.append(None)
+                    flat_single.append(True)
+                continue
+        flat_args.append(word)
+        flat_expand.append(expanded)
+        flat_tokens.append(tok)
+        flat_single.append(single)
+
+    # Count positional args by skipping leading declared options.
+    # An unresolved expanded word can't be reliably classified as an
+    # option, so option skipping stops at the first such word.
+    positional_start = 0
+    if sig.leading_options:
+        for i, arg in enumerate(flat_args):
+            if flat_expand[i]:
+                break
+            if arg in sig.leading_options:
+                positional_start = i + 1
+                if arg == "--":
+                    break  # -- terminates option parsing
+            else:
+                break
+    positional = flat_args[positional_start:]
+    positional_expand = flat_expand[positional_start:]
+    if any(positional_expand):
+        # Lower bound: non-expanded positional args.  Upper bound:
+        # unbounded once any unresolved expansion appears.
+        nargs_min = sum(1 for exp in positional_expand if not exp)
+        nargs_max = Arity.ANY
+    else:
+        nargs_min = len(positional)
+        nargs_max = len(positional)
+    if nargs_max < sig.arity.min:
+        diagnostics.append(
+            Diagnostic(
+                range=diag_range,
+                message=f"Too few arguments for '{display_name}': expected at least {sig.arity.min}, got {nargs_max}",
+                severity=Severity.ERROR,
+                code="E002",
+            )
+        )
+    elif nargs_min > sig.arity.max:
+        diagnostics.append(
+            Diagnostic(
+                range=diag_range,
+                message=f"Too many arguments for '{display_name}': expected at most {sig.arity.max}, got {nargs_min}",
+                severity=Severity.ERROR,
+                code="E003",
+            )
+        )
+
+
+def _qualify_proc_name(proc_name: str, namespace: str) -> str:
+    """Qualify a ``proc`` name against its enclosing namespace.
+
+    Mirrors the lowerer's ``_qualify_proc_name`` — an absolute name
+    (``::foo``) is returned as-is; a relative name is joined onto the
+    enclosing namespace (``::`` at top level, ``::ns`` inside
+    ``namespace eval ::ns { ... }``).
+    """
+    if proc_name.startswith("::"):
+        return normalise_qualified_name(proc_name)
+    if namespace == "::":
+        return normalise_qualified_name(f"::{proc_name}")
+    return normalise_qualified_name(f"{namespace}::{proc_name}")
+
+
+def _collect_unconditional_top_level_procs(ir_module: IRModule) -> dict[str, int]:
+    """Map qualified proc name → earliest unconditional top-level offset.
+
+    Walks ``ir_module.top_level`` and recurses into ``namespace eval``
+    bodies (``IRBlock``) which run unconditionally. Skips conditional and
+    looping constructs (``IRIf``/``IRWhile``/``IRFor``/``IRForeach``/
+    ``IRSwitch``/``IRCatch``/``IRTry``) and does not recurse into proc
+    bodies — a proc defined inside any of those is not guaranteed to
+    exist at an arbitrary call site, so W002 keeps its warning.
+
+    Each entry records the source offset of the defining ``proc``
+    command; W002 compares the call-site offset against this value to
+    decide whether the definition is statically known to precede the
+    call.
+    """
+    offsets: dict[str, int] = {}
+
+    def _walk(script: IRScript, namespace: str) -> None:
+        for stmt in script.statements:
+            if isinstance(stmt, IRBlock):
+                _walk(stmt.body, stmt.namespace)
+                continue
+            if (
+                isinstance(stmt, (IRCall, IRBarrier))
+                and stmt.canonical_command == "::proc"
+                and stmt.args
+            ):
+                qualified = _qualify_proc_name(stmt.args[0], namespace)
+                if qualified and qualified not in offsets:
+                    offsets[qualified] = stmt.range.start.offset
+
+    _walk(ir_module.top_level, "::")
+    return offsets
+
+
+def run_compiler_checks(
+    source: str,
+    *,
+    ir_module: IRModule | None = None,
+) -> list[Diagnostic]:
+    """Run command checks through compiler-discovered command ranges."""
+    if ir_module is None:
+        try:
+            ir_module = lower_to_ir(source)
+        except Exception:
+            log.debug(
+                "compiler_checks: IR lowering failed, skipping compiler checks", exc_info=True
+            )
+            return []
+
+    stmts: list[IRStatement] = []
+    stmts.extend(iter_ir_statements(ir_module.top_level))
+    for proc in ir_module.procedures.values():
+        # Complexity guard: skip pathologically large (generated) bodies — the
+        # analyser-walk / SSA / dataflow guards skip them too, so compiler
+        # checks stay consistent and don't recurse tens of thousands of
+        # nested statements for negligible findings.
+        if proc.range.end.offset - proc.range.start.offset > _DEEP_ANALYSIS_BODY_BYTES:
+            continue
+        stmts.extend(iter_ir_statements(proc.body))
+    stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
+
+    # Map qualified name → earliest unconditional top-level definition
+    # offset for W002. Restricting to unconditional definitions preserves
+    # the warning for call sites that would precede a (possibly
+    # conditional) proc at runtime.
+    user_procs = _collect_unconditional_top_level_procs(ir_module)
+
+    runner = _CompilerCheckRunner(source, user_procs=user_procs)
+    for stmt in stmts:
+        runner.process_statement(stmt)
+
+    diagnostics = runner.diagnostics
+    diagnostics.extend(_arity_checks(ir_module, user_procs))
+    return diagnostics

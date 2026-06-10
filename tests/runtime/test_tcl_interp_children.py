@@ -17,7 +17,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 from tests.runtime._host_imports import define_host_spawn  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
@@ -181,10 +181,12 @@ def test_delete_unlinks_from_parent(runtime: RuntimeHandle):
     root = runtime.root()
     runtime.create_child(root, "victim")
     assert runtime.lookup(root, "victim") != 0
-    assert runtime.delete(root, "victim") == 1
+    deleted = runtime.delete(root, "victim")
+    assert deleted == 1
     assert runtime.lookup(root, "victim") == 0
     # Second delete is a no-op.
-    assert runtime.delete(root, "victim") == 0
+    deleted_again = runtime.delete(root, "victim")
+    assert deleted_again == 0
 
 
 def test_eval_swaps_current_interp(runtime: RuntimeHandle):

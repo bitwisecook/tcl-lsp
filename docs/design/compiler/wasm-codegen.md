@@ -6,7 +6,7 @@ follow the flow.
 
 ## Entry point
 
-`core/compiler/codegen/wasm/__init__.py::wasm_codegen_module(ir_module)`
+`compiler/codegen/wasm/__init__.py::wasm_codegen_module(ir_module)`
 produces a `WasmModule` (defined in `_ir.py`) from an `IRModule`.
 That's the top of the call graph — every other file below executes
 under this call.
@@ -15,7 +15,7 @@ under this call.
 
 ### Phase 0 — Var-escape analysis (per proc)
 
-`core/compiler/var_escape/` runs before codegen starts.  For each
+`compiler/var_escape/` runs before codegen starts.  For each
 `IRProcedure` it identifies which local variables escape the frame
 (via `upvar`, `variable`, dynamic `$name` reads, etc.) and tags them
 `FRAME`.  The WASM emitter later routes those reads/writes through
@@ -28,6 +28,14 @@ every `IRCall`, embedded `[cmd]` substitution, `expr` operator, and
 statement-level side effect — and accumulates the set of Zig runtime
 imports the emitter will need (`tcl_puts`, `tcl_list_index`, `tcl_arith_add`,
 …).  This is a read-only pass; no code emitted yet.
+
+The scan also descends into `ir_module.methods` (TclOO method bodies).
+Method *functions* are not emitted to WASM — they are dispatched by the
+bundled runtime's interpreter at call time — but their bodies still need
+the runtime imports for the commands they invoke, so an OO program whose
+methods use a command not used elsewhere correctly declares that import.
+(`build_cfg` deliberately excludes methods from `cfg_module.procedures`,
+so Phase 5 never emits a method as a standalone callable.)
 
 The scan reads import keys from two sources:
 1. `runtime_import_for(command)` — walks `CommandSpec.wasm_runtime_import`

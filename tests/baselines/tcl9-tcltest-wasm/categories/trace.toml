@@ -1,0 +1,20 @@
+# trace.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '65 of 290 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 290
+observed_passed = 211
+observed_failed = 65
+observed_skipped = 14
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["trace-0.0", "trace-1.8", "trace-1.11", "trace-1.12", "trace-1.13", "trace-1.14", "trace-2.6", "trace-3.1", "trace-3.2", "trace-4.4", "trace-4.6", "trace-5.6", "trace-6.3", "trace-8.1", "trace-8.2", "trace-8.3", "trace-8.4", "trace-8.5", "trace-8.6", "trace-9.3", "trace-9.4", "trace-10.3", "trace-10.4", "trace-11.4", "trace-11.5", "trace-12.3", "trace-12.8", "trace-14.18", "trace-14.19", "trace-16.2", "trace-16.3", "trace-16.5", "trace-16.6", "trace-16.7", "trace-16.8", "trace-16.9", "trace-16.10", "trace-16.11", "trace-16.12", "trace-16.13", "trace-16.14", "trace-16.16", "trace-16.17", "trace-16.21", "trace-16.22", "trace-17.1", "trace-18.1", "trace-18.2", "trace-18.4", "trace-20.12", "trace-23.1", "trace-23.2", "trace-23.3", "trace-25.8", "trace-25.9", "trace-25.10", "trace-25.11", "trace-26.1", "trace-26.2", "trace-28.2", "trace-28.3", "trace-28.4", "trace-28.6", "trace-34.1", "trace-34.5"]

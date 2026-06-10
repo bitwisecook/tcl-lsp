@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.semantic_graph import (
+from analyser.semantic_graph import (
     build_call_graph,
     build_dataflow_graph,
     build_semantic_graph_bundle,
@@ -88,6 +88,61 @@ class TestBuildCallGraph:
         assert data["roots"] == []
         assert data["leaf_procs"] == []
 
+    def test_proc_call_inside_if_condition(self):
+        # Regression test for issue #409: proc calls inside an ``if``
+        # condition (whether directly or nested inside ``catch``) must
+        # appear as call-graph edges.
+        source = textwrap.dedent("""\
+            proc p {} {}
+            proc q {} {}
+            proc r {} {}
+
+            proc main {} {
+                if {[catch {p}]} {}
+                if {[q]} {}
+                r
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::p") in edge_pairs
+        assert ("::main", "::q") in edge_pairs
+        assert ("::main", "::r") in edge_pairs
+
+    def test_proc_call_inside_while_and_for_conditions(self):
+        source = textwrap.dedent("""\
+            proc cond_w {} { return 0 }
+            proc cond_f {} { return 0 }
+
+            proc main {} {
+                while {[cond_w]} {}
+                for {set i 0} {[cond_f]} {incr i} {}
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::cond_w") in edge_pairs
+        assert ("::main", "::cond_f") in edge_pairs
+
+    def test_stub_body_arg_picks_up_callbacks(self):
+        # A user-declared stub with a ``body`` arg role should make the
+        # callback inside that arg appear as a call-graph edge.  Mirrors
+        # the sqlite ``db eval ?sql? ?script?`` shape from issue #409.
+        source = textwrap.dedent("""\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub db_eval {sql script:body} -barrier
+            # tcl-lsp: stubs-end
+
+            proc on_row {} {}
+
+            proc main {} {
+                db_eval "SELECT 1" {on_row}
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::on_row") in edge_pairs
+
 
 # Symbol Graph
 
@@ -126,13 +181,13 @@ class TestBuildSymbolGraph:
             puts $counter
         """)
         data = build_symbol_graph(source)
-        # Should have at least one scope with variables
         global_scope = data["scopes"][0]
         variables = global_scope.get("variables", [])
-        if variables:
-            counter_var = [v for v in variables if v["name"] == "counter"]
-            if counter_var:
-                assert len(counter_var[0].get("references", [])) >= 0
+        counter_var = [v for v in variables if v["name"] == "counter"]
+        assert counter_var, variables
+        # ``counter`` is referenced twice — by ``incr`` (line 1) and ``puts``
+        # (line 2); the previous ``len(...) >= 0`` check was always true.
+        assert len(counter_var[0].get("references", [])) == 2
 
     def test_proc_references(self):
         source = textwrap.dedent("""\
@@ -196,10 +251,11 @@ class TestBuildDataflowGraph:
         data = build_dataflow_graph(source)
         effects = data["proc_effects"]
         names = {e["name"]: e for e in effects}
-        if "::pure_add" in names:
-            assert names["::pure_add"]["pure"] is True
-        if "::impure" in names:
-            assert names["::impure"]["pure"] is False
+        # Both procs must be analysed: pure_add is side-effect-free, impure
+        # calls puts and is not.
+        assert "::pure_add" in names and "::impure" in names, names
+        assert names["::pure_add"]["pure"] is True
+        assert names["::impure"]["pure"] is False
 
     def test_tainted_variables(self):
         source = textwrap.dedent("""\
@@ -236,9 +292,9 @@ class TestBuildDataflowGraph:
         """)
         data = build_dataflow_graph(source)
         warnings = data["taint_warnings"]
-        # Should detect taint from HTTP::uri flowing to eval
+        # Should detect taint from $uri (HTTP::uri) flowing into the eval sink.
         t100s = [w for w in warnings if w["code"] == "T100"]
-        assert len(t100s) >= 1
+        assert any(w["variable"] == "uri" and w["sink_command"] == "eval" for w in t100s), t100s
 
 
 class TestSemanticGraphBundle:
@@ -251,11 +307,11 @@ class TestSemanticGraphBundle:
 
     def test_bundle_compiles_once(self):
         source = "set x [expr {1 + 2}]\n"
-        from core.compiler import compilation_unit as cu_module
+        from compiler import compilation_unit as cu_module
 
         real_compile_source = cu_module.compile_source
         with patch(
-            "core.compiler.compilation_unit.compile_source", wraps=real_compile_source
+            "compiler.compilation_unit.compile_source", wraps=real_compile_source
         ) as mocked_compile:
             build_semantic_graph_bundle(source)
             assert mocked_compile.call_count == 1

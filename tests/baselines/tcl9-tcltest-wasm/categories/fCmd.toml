@@ -1,0 +1,22 @@
+# fCmd.test — auto-generated WASM baseline.
+# bucket = 'W0-runtime-error'
+# reason = 'tcl trap: site=1067 can\'t read "stat(dev)": no such element in array'
+# classification: deferred-wasi
+# rationale: needs a writable filesystem with stat()
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[crash]
+type = "Trap"
+msg = "tcl trap: site=1067 can't read \"stat(dev)\": no such element in array"

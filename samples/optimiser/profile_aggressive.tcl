@@ -24,7 +24,7 @@ proc greet {name} {
 
 # O115: redundant nested expr
 proc double_expr {x} {
-    return [expr {[expr {$x * 2}]}]
+    return [expr {$x * 2}]
 }
 
 # --- Constant folding candidates (O100, O101, O102, O103, O110, O113, O116, O118) ---
@@ -55,8 +55,8 @@ proc square {r} {
 
 # O104: string build chain
 proc build_banner {} {
-    set msg {Hello World}
-    return $msg
+
+    return {Hello World}
 }
 
 # O119: pack consecutive sets into lassign

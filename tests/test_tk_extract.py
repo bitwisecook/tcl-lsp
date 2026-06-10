@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.tk.extract import extract_tk_layout
+from dialects.tk.dialect.extract import extract_tk_layout
 
 
 class TestExtractTkLayout:

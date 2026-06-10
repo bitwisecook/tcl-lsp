@@ -1,0 +1,76 @@
+ByteCode ::top, 53 instructions, 127 bytes, 10 literals, 0 variables
+  Literals:
+    0: "oo::class"
+    1: "create"
+    2: "Counter"
+    3: "\n    variable count\n    constructor..."
+    4: "c1"
+    5: "new"
+    6: "c2"
+    7: "incr"
+    8: "result"
+    9: "get"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "oo::class"
+    (2) push1 1	# "create"
+    (4) push1 2	# "Counter"
+    (6) push1 3	# "\n    variable count\n    constructor..."
+    (8) invokeStk1 4	# oo::class
+    (10) pop
+    (11) startCommand +18 1	# next cmd at pc 29, 1 cmds start here
+    (20) push1 4	# "c1"
+    (22) push1 2	# "Counter"
+    (24) push1 5	# "new"
+    (26) invokeStk1 2
+    (28) storeStk
+  # cmd_end_1:
+    (29) pop
+    (30) startCommand +18 1	# next cmd at pc 48, 1 cmds start here
+    (39) push1 6	# "c2"
+    (41) push1 2	# "Counter"
+    (43) push1 5	# "new"
+    (45) invokeStk1 2
+    (47) storeStk
+  # cmd_end_2:
+    (48) pop
+    (49) push1 4	# "c1"
+    (51) loadStk
+    (52) push1 7	# "incr"
+    (54) invokeStk1 2	# ${c1}
+  # cmd_end_3:
+    (56) pop
+    (57) push1 4	# "c1"
+    (59) loadStk
+    (60) push1 7	# "incr"
+    (62) invokeStk1 2	# ${c1}
+  # cmd_end_4:
+    (64) pop
+    (65) push1 6	# "c2"
+    (67) loadStk
+    (68) push1 7	# "incr"
+    (70) invokeStk1 2	# ${c2}
+  # cmd_end_5:
+    (72) pop
+    (73) startCommand +40 1	# next cmd at pc 113, 1 cmds start here
+    (82) push1 8	# "result"
+    (84) startCommand +28 1	# next cmd at pc 112, 1 cmds start here
+    (93) push1 4	# "c1"
+    (95) loadStk
+    (96) push1 9	# "get"
+    (98) invokeStk1 2
+    (100) push1 6	# "c2"
+    (102) loadStk
+    (103) push1 9	# "get"
+    (105) invokeStk1 2
+    (107) list 2
+  # list_subst_end_7:
+    (112) storeStk
+  # cmd_end_6:
+    (113) pop
+    (114) startCommand +12 1	# next cmd at pc 126, 1 cmds start here
+    (123) push1 8	# "result"
+    (125) loadStk
+  # cmd_end_8:
+  # exit_2:
+    (126) done

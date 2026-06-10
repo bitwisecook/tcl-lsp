@@ -18,15 +18,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.analysis import analyse
-from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from core.parsing.lexer import TclLexer
-from core.parsing.tokens import TokenType
-from lsp.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
-from lsp.features.completion import get_completions
-from lsp.features.definition import get_definition
-from lsp.features.hover import get_hover
-from lsp.features.references import get_references
+from analyser import analyse
+from compiler.parsing.expr_lexer import ExprTokenType, tokenise_expr
+from compiler.parsing.lexer import TclLexer
+from server.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
+from server.features.completion import get_completions
+from server.features.definition import get_definition
+from server.features.hover import get_hover
+from server.features.references import get_references
+from shared.tokens import TokenType
 
 from .helpers import lex
 

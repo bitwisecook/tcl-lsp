@@ -88,6 +88,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticE200: Boolean = true
     var diagnosticW001: Boolean = true
     var diagnosticW002: Boolean = true
+    var diagnosticW003: Boolean = true
+    var diagnosticW004: Boolean = true
     var diagnosticW100: Boolean = true
     var diagnosticW104: Boolean = true
     var diagnosticW105: Boolean = true
@@ -108,11 +110,14 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW124: Boolean = true
     var diagnosticW125: Boolean = true
     var diagnosticW126: Boolean = true
+    var diagnosticW127: Boolean = true
+    var diagnosticW128: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
     var diagnosticW230: Boolean = true
     var diagnosticW231: Boolean = true
     var diagnosticW232: Boolean = true
+    var diagnosticW233: Boolean = true
     var diagnosticW240: Boolean = true
     var diagnosticW241: Boolean = true
     var diagnosticW210: Boolean = true
@@ -120,6 +125,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW212: Boolean = true
     var diagnosticW213: Boolean = true
     var diagnosticW214: Boolean = true
+    var diagnosticW215: Boolean = true
+    var diagnosticW216: Boolean = true
     var diagnosticW220: Boolean = true
     var diagnosticW101: Boolean = true
     var diagnosticW102: Boolean = true
@@ -135,6 +142,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW309: Boolean = true
     var diagnosticW313: Boolean = true
     var diagnosticH300: Boolean = true
+    var diagnosticI230: Boolean = true
+    var diagnosticI231: Boolean = true
     var diagnosticW123: Boolean = false
     var diagnosticW242: Boolean = false
     var diagnosticS100: Boolean = true
@@ -215,6 +224,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var optimiserO126: Boolean = true
     var optimiserO127: Boolean = true
     var optimiserO128: Boolean = true
+    var optimiserO129: Boolean = true
+    var optimiserO130: Boolean = true
     // @generated:optimiser-vars:end
 
     // Shimmer
@@ -325,6 +336,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "E200" to diagnosticE200,
                 "W001" to diagnosticW001,
                 "W002" to diagnosticW002,
+                "W003" to diagnosticW003,
+                "W004" to diagnosticW004,
                 "W100" to diagnosticW100,
                 "W104" to diagnosticW104,
                 "W105" to diagnosticW105,
@@ -345,11 +358,14 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W124" to diagnosticW124,
                 "W125" to diagnosticW125,
                 "W126" to diagnosticW126,
+                "W127" to diagnosticW127,
+                "W128" to diagnosticW128,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
                 "W230" to diagnosticW230,
                 "W231" to diagnosticW231,
                 "W232" to diagnosticW232,
+                "W233" to diagnosticW233,
                 "W240" to diagnosticW240,
                 "W241" to diagnosticW241,
                 "W210" to diagnosticW210,
@@ -357,6 +373,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W212" to diagnosticW212,
                 "W213" to diagnosticW213,
                 "W214" to diagnosticW214,
+                "W215" to diagnosticW215,
+                "W216" to diagnosticW216,
                 "W220" to diagnosticW220,
                 "W101" to diagnosticW101,
                 "W102" to diagnosticW102,
@@ -372,6 +390,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W309" to diagnosticW309,
                 "W313" to diagnosticW313,
                 "H300" to diagnosticH300,
+                "I230" to diagnosticI230,
+                "I231" to diagnosticI231,
                 "W123" to diagnosticW123,
                 "W242" to diagnosticW242,
                 "S100" to diagnosticS100,
@@ -456,6 +476,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "O126" to optimiserO126,
                 "O127" to optimiserO127,
                 "O128" to optimiserO128,
+                "O129" to optimiserO129,
+                "O130" to optimiserO130,
                 // @generated:optimiser-map:end
             ),
             "shimmer" to mapOf(

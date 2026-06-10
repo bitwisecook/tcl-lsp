@@ -1,0 +1,16 @@
+# Categorisation for eval.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+just_to_match_ctcl = [
+  "2.5",    # eval-2.5: ``errorInfo`` shape after ``catch {eval
+            # {error "test error"}}`` — C tcl unwinds with a
+            # multi-line trace that includes ``while executing
+            # "error "test error""`` + ``("eval" body line 3)``.
+            # Our runtime collapses the eval frame and emits a
+            # single ``invoked from within "eval {…}"``.  Semantic
+            # error message and code (TCL ERROR) match.
+]
+
+[baseline]
+just_to_match_ctcl_failing = 1

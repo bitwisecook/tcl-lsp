@@ -16,9 +16,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.parsing.command_segmenter import segment_commands
-from core.parsing.lexer import TclLexer, TclParseError
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from compiler.parsing.command_segmenter import segment_commands
+from compiler.parsing.lexer import TclLexer, TclParseError
+from shared.tokens import SourcePosition, Token, TokenType
 
 from .helpers import lex
 
@@ -53,7 +53,7 @@ def lex_with_warnings(source: str) -> tuple[list[Token], list[tuple[SourcePositi
 
 def lex_strict(source: str) -> list[Token]:
     """Lex with strict_quoting enabled (raises on errors like C Tcl)."""
-    from core.parsing.lexer import _thread_local as _lexer_tl
+    from compiler.parsing.lexer import _thread_local as _lexer_tl
 
     old = getattr(_lexer_tl, "strict_quoting", False)
     _lexer_tl.strict_quoting = True
@@ -171,11 +171,20 @@ class TestBracedVarSpecialChars:
         assert toks[0].type == TokenType.VAR
         assert toks[0].text == "$"
 
-    def test_braced_var_backslash(self):
-        """``${\\\\}``: variable name is ``\\``."""
-        toks = lex("${\\}")
+    def test_braced_var_backslash_escape(self):
+        """``${\\}`` -- the lexer treats ``\\X`` as a 2-char escape (per
+        Tcl 9.0.3 ``Tcl_ParseVarName``: a backslash consumes the next
+        char into the name).  So the source ``${\\}`` reads ``\\}`` as
+        the name and runs out of input -- Tcl emits a missing-close-brace
+        warning, leaving the brace form unclosed.  See
+        :doc:`/docs/kcs/kcs-tcl-corner-cases` §"Variable substitution
+        — brace ``${name}``"."""
+        toks, warnings = lex_with_warnings("${\\}")
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "\\"
+        # The backslash + ``}`` are both consumed as part of the name;
+        # there is no closing ``}`` left, so a warning is recorded.
+        assert toks[0].text == "\\}"
+        assert any("close-brace" in msg for _pos, msg in warnings)
 
     def test_braced_var_space(self):
         """``${ }``: variable name is a single space."""
@@ -208,27 +217,77 @@ class TestBracedVarSpecialChars:
         assert toks[0].text == "a\nb"
 
     def test_braced_var_open_brace_unclosed(self):
-        """``${{}``: ``{`` starts the name; closing ``}`` matches the
-        ``${`` opening, so the var name is ``{``.  Wait — actually this
-        is ambiguous.  In C Tcl, ``${{}`` is an error (missing ``}``)
-        because the inner ``{`` prevents the ``}`` from closing.
-        Actually no: C Tcl's ``Tcl_ParseVarName`` scans for the first
-        ``}`` — braces are NOT nested inside ``${}`` — so ``${{}``
-        has name ``{`` and the parser consumes it.  But our lexer
-        also scans for first ``}`` so this should be ``{``."""
+        """``${{}`` -- per Tcl 9.0.3 ``Tcl_ParseVarName``, inner ``{...}``
+        increments brace depth and only ``}`` at depth 0 closes the
+        var-name span.  So the inner ``{`` opens depth 1, the ``}``
+        closes back to depth 0, and the form runs out of input
+        without ever reaching the closing ``}`` of the ``${...}`` --
+        Tcl emits a missing-close-brace warning.  Name = ``{}``."""
         toks, warnings = lex_with_warnings("${{}")
-        # ``${`` starts, first ``{`` is part of name, ``}`` closes.
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "{"
+        assert toks[0].text == "{}"
+        assert any("close-brace" in msg for _pos, msg in warnings)
 
     def test_braced_var_nested_braces(self):
-        """``${a{b}c}``: braces inside are literal — name is ``a{b}c``
-        because ``${...}`` scans for the first unescaped ``}``.
-        Actually, first ``}`` at position 5 closes.  Name = ``a{b``."""
+        """``${a{b}c}`` -- per Tcl 9.0.3 ``Tcl_ParseVarName``, the inner
+        ``{b}`` is balanced (depth 0 -> 1 -> 0), so the trailing ``c``
+        is part of the name and the final ``}`` closes the span.
+        Name = ``a{b}c``."""
         toks = lex("${a{b}c}")
-        # First } closes the ${...} — C Tcl gets name "a{b", then "c}" is text.
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "a{b"
+        assert toks[0].text == "a{b}c"
+
+    def test_braced_var_escaped_close_brace(self):
+        """``${a\\}b}`` -- the ``\\}`` sequence consumes 2 chars (per
+        Tcl 9.0.3 ``Tcl_ParseVarName``); the inner ``}`` does NOT close
+        the var-name span.  Name = ``a\\}b`` (4 chars including the
+        literal backslash)."""
+        toks = lex("${a\\}b}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "a\\}b"
+
+    def test_braced_var_escaped_backslash_pair(self):
+        """``${a\\\\b}`` -- two backslashes in source are ``\\\\``,
+        which is one ``\\X`` escape consuming both backslashes.  Name
+        is the raw 4-char ``a\\\\b``."""
+        toks = lex("${a\\\\b}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "a\\\\b"
+
+    def test_namespace_qualified_brace_form(self):
+        """``${::tracevar}`` -- the entire ``::tracevar`` is the var
+        name (qualified-global lookup).  Single VAR token."""
+        toks = lex("${::tracevar}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "::tracevar"
+
+    def test_literal_colons_then_brace_form(self):
+        """``::${tracevar}`` is two tokens -- literal ``::`` text
+        followed by a brace-form VAR(``tracevar``).  This is NOT a
+        qualified-global lookup; the ``::`` is just literal text
+        concatenated with the value of ``tracevar``.  Cross-checked
+        on tclsh 9.0.3."""
+        toks = lex("::${tracevar}")
+        assert len(toks) >= 2
+        # First token is literal ``::``, second is the VAR.
+        first_text_or_var_toks = [t for t in toks if t.type in (TokenType.ESC, TokenType.VAR)]
+        assert first_text_or_var_toks[0].type == TokenType.ESC
+        assert first_text_or_var_toks[0].text == "::"
+        assert first_text_or_var_toks[1].type == TokenType.VAR
+        assert first_text_or_var_toks[1].text == "tracevar"
+
+    def test_bare_qualified_then_brace_does_not_compose(self):
+        """``$::myns::${suffix}`` is two tokens -- bare-form VAR with
+        trailing ``::`` (which fails at runtime) plus a brace-form
+        VAR(``suffix``).  Mixed bare/brace namespace forms don't
+        compose: the bare-form parser stops at ``$`` of ``${...}``,
+        leaving a trailing ``::`` in the bare name.  Verified against
+        tclsh 9.0.3 (which errors with `can't read "::myns::"`)."""
+        toks = lex("$::myns::${suffix}")
+        var_toks = [t for t in toks if t.type == TokenType.VAR]
+        assert len(var_toks) == 2
+        assert var_toks[0].text == "::myns::"
+        assert var_toks[1].text == "suffix"
 
     def test_braced_var_with_equals_and_colons(self):
         """``${foo::bar=baz}``: all of ``::`` and ``=`` are part of name."""
@@ -1100,11 +1159,12 @@ class TestPositionUnderStress:
         """Backslash-newline continuation tracks lines correctly."""
         source = "set x \\\nhello"
         toks = lex(source)
-        # "hello" (or continuation token) should be on line 1
+        # The backslash-newline continues the command, so ``hello`` is the last
+        # token and must be reported on line 1 (the previous ``>= 0`` check was
+        # both gated and always-true).
         last_tok = toks[-1]
-        # The token on the second line should reflect line 1
-        if last_tok.start.line == 1:
-            assert last_tok.start.character >= 0
+        assert last_tok.text == "hello"
+        assert last_tok.start.line == 1
 
     def test_comment_continuation_position(self):
         """Comment with backslash-newline continuation — spans two lines."""
@@ -1204,27 +1264,23 @@ class TestIRulesBraceSeparator:
 
     def test_brace_separator_produces_separate_words(self):
         """``if {$a}{puts a}`` parses as 3-arg command in iRules mode."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             cmds = segment_commands("if {$a}{puts a}")
             assert len(cmds) == 1
             assert len(cmds[0].argv) == 3
             assert cmds[0].texts[0] == "if"
             assert cmds[0].texts[1] == "$a"
             assert cmds[0].texts[2] == "puts a"
-        finally:
-            TclLexer.irules_brace_separator = old
 
     def test_brace_separator_no_warning(self):
         """``}{`` should not warn in iRules mode."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             _, warnings = lex_with_warnings("if {$a}{puts a}")
             assert not warnings
-        finally:
-            TclLexer.irules_brace_separator = old
 
     def test_standard_tcl_warns_on_brace_separator(self):
         """``}{`` should warn in standard Tcl mode."""
@@ -1240,12 +1296,10 @@ class TestIRulesBraceSeparator:
 
     def test_triple_brace_separator(self):
         """``if {cond}{body1}{body2}`` — three braced words in iRules."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             cmds = segment_commands("if {cond}{body1}{body2}")
             assert len(cmds) == 1
             assert len(cmds[0].argv) == 4
             assert cmds[0].texts == ["if", "cond", "body1", "body2"]
-        finally:
-            TclLexer.irules_brace_separator = old

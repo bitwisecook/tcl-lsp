@@ -27,7 +27,7 @@ tracked since they do not affect the current interpreter's namespace.
 
 ### Shared utilities
 
-Alias detection and resolution logic lives in `core/common/alias.py`:
+Alias detection and resolution logic lives in `shared/alias.py`:
 
 - `detect_interp_alias(cmd_name, args)` — parse an `interp alias` call
 - `resolve_alias(cmd_name, aliases, namespace)` — namespace-aware lookup

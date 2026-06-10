@@ -1,0 +1,189 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     compile.test
+DATE     2026-05-06T21:17:35Z
+---
+PASS compile-1.1
+PASS compile-1.2
+PASS compile-10.1
+PASS compile-11.1
+PASS compile-11.2
+PASS compile-11.3
+PASS compile-11.4
+PASS compile-11.5
+PASS compile-11.6
+PASS compile-11.7
+PASS compile-11.8
+PASS compile-11.9
+PASS compile-12.3
+PASS compile-12.4
+PASS compile-13.1
+PASS compile-13.2
+PASS compile-13.3
+PASS compile-14.1
+PASS compile-14.2
+PASS compile-15.1
+PASS compile-15.2
+PASS compile-15.3
+PASS compile-15.4
+PASS compile-15.5
+PASS compile-16.1.0
+PASS compile-16.10.0
+PASS compile-16.11.0
+PASS compile-16.12.0
+PASS compile-16.13.0
+PASS compile-16.14.0
+PASS compile-16.15.0
+PASS compile-16.16.0
+PASS compile-16.17.0
+PASS compile-16.2.0
+PASS compile-16.22.0
+PASS compile-16.23.0
+PASS compile-16.24.0
+PASS compile-16.25.0
+PASS compile-16.26.0
+PASS compile-16.3.0
+PASS compile-16.4.0
+PASS compile-16.5.0
+PASS compile-16.6.0
+PASS compile-16.7.0
+PASS compile-16.8.0
+PASS compile-16.9.0
+PASS compile-17.2
+PASS compile-18.1
+PASS compile-18.10
+PASS compile-18.11
+PASS compile-18.12
+PASS compile-18.13
+PASS compile-18.14
+PASS compile-18.15
+PASS compile-18.16
+PASS compile-18.17
+PASS compile-18.18
+PASS compile-18.19
+PASS compile-18.2
+PASS compile-18.21
+PASS compile-18.22
+PASS compile-18.23
+PASS compile-18.24
+PASS compile-18.26
+PASS compile-18.27
+PASS compile-18.28.1
+PASS compile-18.28.3
+PASS compile-18.29
+PASS compile-18.3
+PASS compile-18.30
+PASS compile-18.31
+PASS compile-18.32
+PASS compile-18.33
+PASS compile-18.34
+PASS compile-18.36
+PASS compile-18.37
+PASS compile-18.38
+PASS compile-18.4
+PASS compile-18.40
+PASS compile-18.41
+PASS compile-18.42
+PASS compile-18.43
+PASS compile-18.44
+PASS compile-18.45
+PASS compile-18.46
+PASS compile-18.47
+PASS compile-18.5
+PASS compile-18.50
+PASS compile-18.51
+PASS compile-18.52
+PASS compile-18.53
+PASS compile-18.54
+PASS compile-18.55
+PASS compile-18.56
+PASS compile-18.57
+PASS compile-18.6
+PASS compile-18.7
+PASS compile-18.8
+PASS compile-18.9
+PASS compile-19.0
+PASS compile-2.1
+PASS compile-2.2
+PASS compile-2.3
+PASS compile-2.4
+PASS compile-2.5
+PASS compile-20.1
+PASS compile-20.2
+PASS compile-21.1
+PASS compile-21.2
+PASS compile-21.3
+PASS compile-21.4
+PASS compile-3.1
+PASS compile-3.2
+PASS compile-3.3
+PASS compile-3.4
+PASS compile-3.5
+PASS compile-3.6
+PASS compile-3.7
+PASS compile-4.1
+PASS compile-5.1
+PASS compile-5.2
+PASS compile-5.3
+PASS compile-6.1
+PASS compile-6.2
+PASS compile-6.3
+PASS compile-7.1
+PASS compile-8.1
+PASS compile-8.2
+PASS compile-8.3
+PASS compile-9.1
+SKIP compile-12.1 memory
+SKIP compile-12.2 memory
+SKIP compile-16.1.1 testevalex
+SKIP compile-16.10.1 testevalex
+SKIP compile-16.11.1 testevalex
+SKIP compile-16.12.1 testevalex
+SKIP compile-16.13.1 testevalex
+SKIP compile-16.14.1 testevalex
+SKIP compile-16.15.1 testevalex
+SKIP compile-16.16.1 testevalex
+SKIP compile-16.17.1 testevalex
+SKIP compile-16.18.0 knownBug
+SKIP compile-16.18.1 knownBug
+SKIP compile-16.19.0 knownBug
+SKIP compile-16.19.1 knownBug
+SKIP compile-16.2.1 testevalex
+SKIP compile-16.20.0 knownBug
+SKIP compile-16.20.1 knownBug
+SKIP compile-16.21.0 knownBug
+SKIP compile-16.21.1 knownBug
+SKIP compile-16.22.1 testevalex
+SKIP compile-16.23.1 testevalex
+SKIP compile-16.24.1 testevalex
+SKIP compile-16.25.1 testevalex
+SKIP compile-16.26.1 testevalex
+SKIP compile-16.3.1 testevalex
+SKIP compile-16.4.1 testevalex
+SKIP compile-16.5.1 testevalex
+SKIP compile-16.6.1 testevalex
+SKIP compile-16.7.1 testevalex
+SKIP compile-16.8.1 testevalex
+SKIP compile-16.9.1 testevalex
+SKIP compile-17.1 knownBug
+FAIL compile-18.25
+FAIL compile-18.25 disassembler - basics
+FAIL compile-18.28
+FAIL compile-18.28 disassembler - basics
+FAIL compile-18.28.2
+FAIL compile-18.28.2 disassembler - tricky bit
+FAIL compile-18.28.4
+FAIL compile-18.28.4 disassembler - tricky bit
+FAIL compile-18.35
+FAIL compile-18.35 disassembler - basics
+FAIL compile-18.39
+FAIL compile-18.39 disassembler - basics
+FAIL compile-18.48
+FAIL compile-18.48 disassembler - basics
+FAIL compile-18.58
+FAIL compile-18.58 disassembler - basics
+---
+TOTAL   179
+PASSED  130
+SKIPPED 33
+FAILED  16

@@ -1,5 +1,8 @@
 # KCS: feature — Find References
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Find all references to a proc or variable across the file.
@@ -20,8 +23,8 @@ Locates all usages of the symbol under the cursor, including definitions, calls,
 
 ## File-path anchors
 
-- `lsp/features/references.py`
-- `core/analysis/proc_lookup.py`
+- `server/features/references.py`
+- `analyser/proc_lookup.py`
 
 ## Failure modes
 

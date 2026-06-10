@@ -1,0 +1,176 @@
+ByteCode 0x55c2e78ad280, refCt 1, epoch 21, interp 0x55c2e77e0350 (epoch 21)
+  Source "# ``proc p {args} {...}`` must receive surplus call-sit..."
+  Cmds 21, src 710, inst 324, litObjs 27, aux 0, stkDepth 5, code/src 0.00
+  Commands 21:
+      1: pc 0-10, src 328-357        2: pc 11-55, src 359-397
+      3: pc 20-23, src 364-364        4: pc 29-50, src 376-396
+      5: pc 56-102, src 399-453        6: pc 65-70, src 404-410
+      7: pc 76-97, src 427-452        8: pc 103-167, src 455-535
+      9: pc 112-121, src 460-466       10: pc 127-162, src 483-534
+     11: pc 138-147, src 504-510       12: pc 168-178, src 538-574
+     13: pc 179-235, src 576-626       14: pc 188-193, src 581-583
+     15: pc 199-230, src 597-625       16: pc 210-215, src 619-621
+     17: pc 236-300, src 628-698       18: pc 245-254, src 633-639
+     19: pc 260-295, src 656-697       20: pc 271-280, src 687-693
+     21: pc 301-322, src 700-708
+  Command 1: "proc p {args} { return $args }..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "p"
+    (4) push1 2 	# "args"
+    (6) push1 3 	# " return $args "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "if {[p] ne \"\"} { error \"p() != empty..."
+    (11) startCommand +44 1 	# next cmd at pc 55, 1 cmds start here
+  Command 3: "p..."
+    (20) push1 1 	# "p"
+    (22) invokeStk1 1 
+    (24) push1 4 	# ""
+    (26) strneq 
+    (27) jumpFalse1 +26 	# pc 53
+  Command 4: "error \"p() != empty\"..."
+    (29) startCommand +22 1 	# next cmd at pc 51, 1 cmds start here
+    (38) push1 5 	# "p() != empty"
+    (40) push1 4 	# ""
+    (42) returnImm +1 0 
+    (51) jump1 +4 	# pc 55
+    (53) push1 4 	# ""
+    (55) pop 
+  Command 5: "if {[p hello] ne \"hello\"} { error \"p(1 arg) != hello..."
+    (56) startCommand +46 1 	# next cmd at pc 102, 1 cmds start here
+  Command 6: "p hello..."
+    (65) push1 1 	# "p"
+    (67) push1 6 	# "hello"
+    (69) invokeStk1 2 
+    (71) push1 6 	# "hello"
+    (73) strneq 
+    (74) jumpFalse1 +26 	# pc 100
+  Command 7: "error \"p(1 arg) != hello\"..."
+    (76) startCommand +22 1 	# next cmd at pc 98, 1 cmds start here
+    (85) push1 7 	# "p(1 arg) != hello"
+    (87) push1 4 	# ""
+    (89) returnImm +1 0 
+    (98) jump1 +4 	# pc 102
+    (100) push1 4 	# ""
+    (102) pop 
+  Command 8: "if {[p 1 2 3] ne \"1 2 3\"} { error \"p(3 args) = '[p 1..."
+    (103) startCommand +64 1 	# next cmd at pc 167, 1 cmds start here
+  Command 9: "p 1 2 3..."
+    (112) push1 1 	# "p"
+    (114) push1 8 	# "1"
+    (116) push1 9 	# "2"
+    (118) push1 10 	# "3"
+    (120) invokeStk1 4 
+    (122) push1 11 	# "1 2 3"
+    (124) strneq 
+    (125) jumpFalse1 +40 	# pc 165
+  Command 10: "error \"p(3 args) = '[p 1 2 3]' (should be '1 2 3')\"..."
+    (127) startCommand +36 1 	# next cmd at pc 163, 1 cmds start here
+    (136) push1 12 	# "p(3 args) = '"
+  Command 11: "p 1 2 3..."
+    (138) push1 1 	# "p"
+    (140) push1 8 	# "1"
+    (142) push1 9 	# "2"
+    (144) push1 10 	# "3"
+    (146) invokeStk1 4 
+    (148) push1 13 	# "' (should be '1 2 3')"
+    (150) strcat 3 
+    (152) push1 4 	# ""
+    (154) returnImm +1 0 
+    (163) jump1 +4 	# pc 167
+    (165) push1 4 	# ""
+    (167) pop 
+  Command 12: "proc q {a args} { return \"$a:$args\"..."
+    (168) push1 0 	# "proc"
+    (170) push1 14 	# "q"
+    (172) push1 15 	# "a args"
+    (174) push1 16 	# " return \"$a:$args\"..."
+    (176) invokeStk1 4 
+    (178) pop 
+  Command 13: "if {[q x] ne \"x:\"} { error \"q(1 fixed) = '[q x]'..."
+    (179) startCommand +56 1 	# next cmd at pc 235, 1 cmds start here
+  Command 14: "q x..."
+    (188) push1 14 	# "q"
+    (190) push1 17 	# "x"
+    (192) invokeStk1 2 
+    (194) push1 18 	# "x:"
+    (196) strneq 
+    (197) jumpFalse1 +36 	# pc 233
+  Command 15: "error \"q(1 fixed) = '[q x]'\"..."
+    (199) startCommand +32 1 	# next cmd at pc 231, 1 cmds start here
+    (208) push1 19 	# "q(1 fixed) = '"
+  Command 16: "q x..."
+    (210) push1 14 	# "q"
+    (212) push1 17 	# "x"
+    (214) invokeStk1 2 
+    (216) push1 20 	# "'"
+    (218) strcat 3 
+    (220) push1 4 	# ""
+    (222) returnImm +1 0 
+    (231) jump1 +4 	# pc 235
+    (233) push1 4 	# ""
+    (235) pop 
+  Command 17: "if {[q x y z] ne \"x:y z\"} { error \"q(1 fixed + 2 tai..."
+    (236) startCommand +64 1 	# next cmd at pc 300, 1 cmds start here
+  Command 18: "q x y z..."
+    (245) push1 14 	# "q"
+    (247) push1 17 	# "x"
+    (249) push1 21 	# "y"
+    (251) push1 22 	# "z"
+    (253) invokeStk1 4 
+    (255) push1 23 	# "x:y z"
+    (257) strneq 
+    (258) jumpFalse1 +40 	# pc 298
+  Command 19: "error \"q(1 fixed + 2 tail) = '[q x y z]'\"..."
+    (260) startCommand +36 1 	# next cmd at pc 296, 1 cmds start here
+    (269) push1 24 	# "q(1 fixed + 2 tail) = '"
+  Command 20: "q x y z..."
+    (271) push1 14 	# "q"
+    (273) push1 17 	# "x"
+    (275) push1 21 	# "y"
+    (277) push1 22 	# "z"
+    (279) invokeStk1 4 
+    (281) push1 20 	# "'"
+    (283) strcat 3 
+    (285) push1 4 	# ""
+    (287) returnImm +1 0 
+    (296) jump1 +4 	# pc 300
+    (298) push1 4 	# ""
+    (300) pop 
+  Command 21: "return ok..."
+    (301) startCommand +22 1 	# next cmd at pc 323, 1 cmds start here
+    (310) push1 25 	# "ok"
+    (312) push1 26 	# ""
+    (314) returnImm +0 1 
+    (323) done 
+
+
+ByteCode 0x55c2e78d7c10, refCt 1, epoch 95, interp 0x55c2e79573b0 (epoch 95)
+  Source " return $args "
+  File "/home/user/tcl-lsp/scripts/reference_disasm.tcl" Line 35
+  Cmds 1, src 14, inst 3, litObjs 0, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x55c2e78d5290, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "args"
+  Commands 1:
+      1: pc 0-2, src 1-13
+  Command 1: "return $args "
+    (0) loadScalar1 %v0 	# var "args"
+    (2) done 
+
+
+ByteCode 0x55c2e78de330, refCt 1, epoch 95, interp 0x55c2e79573b0 (epoch 95)
+  Source " return \"$a:$args\"..."
+  File "/home/user/tcl-lsp/scripts/reference_disasm.tcl" Line 40
+  Cmds 1, src 19, inst 9, litObjs 1, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x55c2e78f4c10, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "args"
+  Commands 1:
+      1: pc 0-8, src 1-18
+  Command 1: "return \"$a:$args\"..."
+    (0) loadScalar1 %v0 	# var "a"
+    (2) push1 0 	# ":"
+    (4) loadScalar1 %v1 	# var "args"
+    (6) strcat 3 
+    (8) done 
+

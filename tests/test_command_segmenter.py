@@ -5,11 +5,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
-from core.analysis.semantic_model import Range
-from core.parsing.command_segmenter import (
+from analyser import analyse
+from analyser.semantic_model import Range
+from compiler.parsing.command_segmenter import (
     SegmentedCommand,
     UnclosedDelimiter,
     _find_recovery_offset,
@@ -18,7 +20,7 @@ from core.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
-from core.parsing.tokens import SourcePosition, Token, TokenType
+from shared.tokens import SourcePosition, Token, TokenType
 
 
 class TestSegmentCommands:
@@ -708,6 +710,26 @@ class TestE102StrayCloseBrace:
         e102 = [d for d in result.diagnostics if d.code == "E102"]
         assert len(e102) == 0
 
+    def test_e102_no_false_positive_on_trailing_empty_braces(self):
+        """Issue #527: a body ending in an empty `{}` argument is valid Tcl.
+
+        ``if {[llength $domain] != 2} {return {}}`` closes the body's brace right
+        after the empty ``{}``.  The empty word's token already ends on its own
+        closer, so the command span must not absorb the body's ``}`` and report
+        it as a stray brace.
+        """
+        source = "if {[llength $domain] != 2} {return {}}\n"
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert e102 == []
+
+    def test_e102_no_false_positive_on_trailing_empty_braces_in_proc(self):
+        """The same construct nested inside a proc body must also stay clean."""
+        source = "proc foo {domain} {\n    if {[llength $domain] != 2} {return {}}\n}\n"
+        result = analyse(source)
+        e102 = [d for d in result.diagnostics if d.code == "E102"]
+        assert e102 == []
+
     def test_e102_standalone_close_brace(self):
         """A standalone } line at top level emits E102."""
         source = "set x 1\n}\n"
@@ -994,12 +1016,32 @@ class TestFindFirstDirtyChunk:
     def test_both_empty(self):
         assert find_first_dirty_chunk([], []) == 0
 
+    def test_position_shift_is_dirty(self):
+        # A chunk whose text is unchanged but which moved (blank line inserted
+        # above) is dirty — its cached IR/diagnostics carry stale absolute
+        # positions.  The first shifted chunk is the dirty index.
+        old = segment_top_level_chunks("set a 1\nset b 2")
+        new = segment_top_level_chunks("\nset a 1\nset b 2")
+        assert find_first_dirty_chunk(old, new) == 0
+
+    def test_blank_line_between_chunks_marks_suffix_dirty(self):
+        old = segment_top_level_chunks("set a 1\nset b 2\nset c 3")
+        new = segment_top_level_chunks("set a 1\n\nset b 2\nset c 3")
+        # a is unshifted; b (and c) shifted down → first dirty is index 1.
+        assert find_first_dirty_chunk(old, new) == 1
+
+    def test_append_still_not_dirty(self):
+        # Appending a command must not shift existing chunks' offsets.
+        old = segment_top_level_chunks("set a 1\nset b 2")
+        new = segment_top_level_chunks("set a 1\nset b 2\nset c 3")
+        assert find_first_dirty_chunk(old, new) == 2
+
 
 class TestDocumentStateIncremental:
     """Integration: DocumentState skips re-analysis for unchanged sources."""
 
     def test_skips_reanalysis_for_identical_source(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://a")
         state.update("set a 1\nset b 2")
@@ -1009,7 +1051,7 @@ class TestDocumentStateIncremental:
         assert state.analysis is analysis_1
 
     def test_reanalyses_on_change(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://b")
         state.update("set a 1")
@@ -1018,10 +1060,175 @@ class TestDocumentStateIncremental:
         assert state.analysis is not analysis_1
 
     def test_chunks_updated_on_change(self):
-        from lsp.workspace.document_state import DocumentState
+        from server.workspace.document_state import DocumentState
 
         state = DocumentState(uri="test://c")
         state.update("set a 1")
         assert len(state.chunks) == 1
         state.update("set a 1\nset b 2")
         assert len(state.chunks) == 2
+
+
+class TestStableChunkHashes:
+    """``TopLevelChunk.source_hash`` must be deterministic across processes:
+    fresh analysis runs in a ``forkserver`` pool worker (fresh ``PYTHONHASHSEED``)
+    and returns chunks the main process compares against locally-segmented ones.
+    A salted builtin ``hash()`` made unchanged chunks look dirty and collapsed
+    cache reuse."""
+
+    _SRC = "proc alpha {} { return 1 }\nproc beta {} { return 2 }\nset c 3\n"
+
+    def _hashes_under_seed(self, seed: str) -> tuple[str, str]:
+        import os
+        import subprocess
+        import sys
+
+        code = (
+            "from compiler.parsing.command_segmenter import segment_top_level_chunks\n"
+            f"src = {self._SRC!r}\n"
+            "chunks = segment_top_level_chunks(src)\n"
+            "print('CHUNK ' + ','.join(str(c.source_hash) for c in chunks))\n"
+            "print('BUILTIN ' + str(hash(src)))\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        )
+        assert proc.returncode == 0, proc.stderr
+        chunk_line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("CHUNK "))
+        builtin_line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("BUILTIN "))
+        return chunk_line[len("CHUNK ") :], builtin_line[len("BUILTIN ") :]
+
+    def test_source_hash_identical_across_hash_seeds(self):
+        chunks1, builtin1 = self._hashes_under_seed("1")
+        chunks2, builtin2 = self._hashes_under_seed("2")
+        # Guard: the two runs really used different seeds (builtin hash differs).
+        assert builtin1 != builtin2, "PYTHONHASHSEED did not vary between runs"
+        # The chunk source hashes must match regardless of seed.
+        assert chunks1 == chunks2
+        assert chunks1  # non-empty
+
+
+class TestPartialCommandHashCoversTail:
+    """Regression: a partial (unclosed) command's ``source_hash`` must cover its
+    whole tile, not just the parsed ``range.end``.
+
+    A partial command's ``range.end`` stops at the parse-failure point, so text
+    edited in the unparsed tail still sits inside the chunk's tile but past
+    ``cmd_end``.  If the hash only covered ``source[start:cmd_end+1]`` an edit
+    there would leave the hash unchanged, ``find_first_dirty_chunk`` would treat
+    the chunk as clean, and the incremental cache would serve stale per-chunk
+    semantic tokens (observed as a token whose length lags the buffer)."""
+
+    def test_edit_in_unparsed_tail_changes_hash(self):
+        # In ``set b [ex\npr {\n1 + x]`` the command is *partial* (the ``[`` opens
+        # a substitution whose ``{`` never closes); its ``range.end`` stops early,
+        # leaving an unparsed tail inside the chunk's tile.  An edit there must
+        # still change the chunk hash.
+        before = "set a 1\nset b [ex\npr {\n1 + x]\nset c 3\n"
+        after = "set a 1\nset b [ex\npr {\n1 + xYYY]\nset c 3\n"
+        c_before = segment_top_level_chunks(before)[1]
+        c_after = segment_top_level_chunks(after)[1]
+        assert c_before.commands[0].is_partial, "expected the broken command to be partial"
+        assert c_before.source_hash != c_after.source_hash, (
+            "editing a partial command's unparsed tail must change its chunk hash"
+        )
+
+    def test_dirty_detection_flags_the_partial_chunk(self):
+        old = segment_top_level_chunks("set a 1\nset b [ex\npr {\n1 + x]\nset c 3\n")
+        new = segment_top_level_chunks("set a 1\nset b [ex\npr {\n1 + xYYY]\nset c 3\n")
+        # Chunk 0 (``set a 1``) is unchanged; the partial chunk (index 1) is dirty.
+        assert find_first_dirty_chunk(old, new) == 1
+
+    def test_well_formed_command_hash_unaffected_by_appended_command(self):
+        # The append-invariant still holds: a well-formed command's hash does not
+        # change when a new command is appended after it.
+        one = segment_top_level_chunks("set a 1\n")[0]
+        two = segment_top_level_chunks("set a 1\nset b 2\n")[0]
+        assert one.source_hash == two.source_hash
+
+    def test_trailing_layout_whitespace_is_folded(self):
+        # When the gap after the last token is pure layout whitespace it is
+        # trivia: ``_chunk_content_end`` drops it, so it must not affect the hash
+        # (this is what keeps the append-invariant).
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        spaced = segment_top_level_chunks("set a 1   \t\n")[0]
+        assert plain.source_hash == spaced.source_hash
+
+    def test_trailing_semicolon_is_kept_distinct(self):
+        # ``;`` is a syntactic command terminator, not layout whitespace, so the
+        # gap after the last token is *not* pure-whitespace and the chunk keeps
+        # its whole tile.  Folding ``set a 1;`` onto ``set a 1`` would collide
+        # chunks the incremental builder has to tell apart (a real divergence seen
+        # under the random-edit storm); guard against treating ``;`` as trivia.
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        semi = segment_top_level_chunks("set a 1;\n")[0]
+        assert plain.source_hash != semi.source_hash
+
+    def test_trailing_unicode_whitespace_is_not_over_stripped(self):
+        # The trivia test names the lexer's ASCII whitespace set, so a trailing
+        # non-ASCII space the lexer treats as word content makes the gap non-empty
+        # and still changes the hash (a bare ``str.rstrip()`` would eat it).
+        plain = segment_top_level_chunks("set a 1\n")[0]
+        nbsp = segment_top_level_chunks("set a 1\u00a0\n")[0]  # U+00A0 NBSP
+        assert plain.source_hash != nbsp.source_hash
+
+
+class TestUnclosedDelimiterSwallowsTrailingWhitespace:
+    """Regression: an unclosed delimiter at EOF consumes trailing whitespace into
+    its token, so that whitespace sets the token's rendered length and is *not*
+    trivia.  ``_chunk_content_end`` extends the hash to the last token's end (the
+    gap after it is empty, not pure whitespace), so editing the swallowed
+    whitespace changes the hash \u2014 otherwise the per-chunk token cache serves a
+    stale length."""
+
+    @pytest.mark.parametrize(
+        "more,less",
+        [
+            ("set x {abc   ", "set x {abc  "),  # unclosed brace
+            ('puts "abc   ', 'puts "abc  '),  # unclosed quote
+            ("set y [abc   ", "set y [abc  "),  # unclosed bracket
+        ],
+    )
+    def test_trailing_ws_inside_unclosed_token_changes_hash(self, more, less):
+        c_more = segment_top_level_chunks(more)[0]
+        c_less = segment_top_level_chunks(less)[0]
+        # The unterminated token reaches (near) EOF \u2014 that's what makes the
+        # trailing whitespace part of a token rather than inter-command trivia.
+        assert c_more.commands[0].all_tokens[-1].end.offset >= len(more) - 2
+        assert c_more.source_hash != c_less.source_hash
+
+    def test_well_formed_trailing_ws_still_folded(self):
+        # The append-invariant is unharmed: with no unclosed token swallowing it,
+        # trailing whitespace is trivia and does not change the hash.
+        a = segment_top_level_chunks("set x 1   \n")[0]
+        b = segment_top_level_chunks("set x 1  \n")[0]
+        assert a.source_hash == b.source_hash
+
+
+class TestEqualLengthLineShiftIsDirty:
+    """Regression: ``find_first_dirty_chunk`` keys reuse on the full start
+    *position*, not just ``start_offset``.  Leading/inter-command whitespace lives
+    outside chunk tiles, so an equal-length edit there (e.g. a space replaced by a
+    newline) shifts every following chunk's line without changing its offset or
+    hash.  Cached tokens are absolute, so such a chunk must be treated as dirty."""
+
+    def test_leading_space_to_newline_flags_first_chunk_dirty(self):
+        a = "  set x 1\nset y 2\n"
+        b = " \nset x 1\nset y 2\n"  # one leading space -> newline (same length)
+        ca, cb = segment_top_level_chunks(a), segment_top_level_chunks(b)
+        assert len(a) == len(b)
+        # offsets and hashes are unchanged; only the start line shifts.
+        assert ca[0].start_offset == cb[0].start_offset
+        assert ca[0].source_hash == cb[0].source_hash
+        assert ca[0].commands[0].range.start.line != cb[0].commands[0].range.start.line
+        assert find_first_dirty_chunk(ca, cb) == 0
+
+    def test_pure_append_stays_clean(self):
+        # The position check must not over-invalidate: appending a command shifts
+        # no existing chunk's position, so all existing chunks stay clean.
+        ca = segment_top_level_chunks("set x 1\nset y 2\n")
+        cb = segment_top_level_chunks("set x 1\nset y 2\nset z 3\n")
+        assert find_first_dirty_chunk(ca, cb) == 2

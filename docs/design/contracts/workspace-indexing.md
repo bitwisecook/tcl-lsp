@@ -16,11 +16,11 @@ Workspace services track per-document state, global proc indexes, scanning, and 
 
 ## File-path anchors
 
-- `lsp/workspace/document_state.py`
-- `lsp/workspace/workspace_index.py`
-- `lsp/workspace/scanner.py`
-- `core/packages/resolver.py`
-- `lsp/features/workspace_symbols.py`
+- `server/workspace/document_state.py`
+- `server/workspace/workspace_index.py`
+- `server/workspace/scanner.py`
+- `analyser/packages/resolver.py`
+- `server/features/workspace_symbols.py`
 
 ## Failure modes
 

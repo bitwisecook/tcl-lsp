@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.static_loops import summarise_static_for_loop
+from compiler.static_loops import summarise_static_for_loop
 
 
 def test_static_loop_handles_if_branching() -> None:

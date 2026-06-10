@@ -1,5 +1,8 @@
 # KCS: feature — Call Hierarchy
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 View incoming and outgoing calls for a proc.
@@ -20,8 +23,8 @@ The call hierarchy provider traces call relationships between procs, showing whi
 
 ## File-path anchors
 
-- `lsp/features/call_hierarchy.py`
-- `core/analysis/semantic_graph.py`
+- `server/features/call_hierarchy.py`
+- `analyser/semantic_graph.py`
 
 ## Failure modes
 

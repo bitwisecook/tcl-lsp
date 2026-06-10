@@ -9,18 +9,18 @@ the next.
 ## Context
 
 Every Tcl source string passes through 7 stages, each producing typed
-dataclasses.  All types live under `core/` and are frozen dataclasses
+dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 
-Source: [`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
-[`core/parsing/command_segmenter.py`](../../../core/parsing/command_segmenter.py),
-[`core/compiler/ir.py`](../../../core/compiler/ir.py),
-[`core/compiler/cfg.py`](../../../core/compiler/cfg.py),
-[`core/compiler/ssa.py`](../../../core/compiler/ssa.py),
-[`core/compiler/core_analyses.py`](../../../core/compiler/core_analyses.py),
-[`core/compiler/codegen/_types.py`](../../../core/compiler/codegen/_types.py),
-[`core/compiler/compilation_unit.py`](../../../core/compiler/compilation_unit.py)
+Source: [`shared/tokens.py`](../../../shared/tokens.py),
+[`compiler/parsing/command_segmenter.py`](../../../compiler/parsing/command_segmenter.py),
+[`compiler/ir.py`](../../../compiler/ir.py),
+[`compiler/cfg.py`](../../../compiler/cfg.py),
+[`compiler/ssa.py`](../../../compiler/ssa.py),
+[`compiler/core_analyses.py`](../../../compiler/core_analyses.py),
+[`compiler/codegen/bytecode/_types.py`](../../../compiler/codegen/bytecode/_types.py),
+[`compiler/compilation_unit.py`](../../../compiler/compilation_unit.py)
 
 ## Content
 
@@ -52,6 +52,7 @@ Source: [`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
 | `IRAssignConst` | `set x 42` — constant assignment |
 | `IRAssignExpr` | `set x [expr {…}]` — expression assignment |
 | `IRAssignValue` | `set x $y` — variable/interpolated assignment |
+| `IRExprEval` | `expr {…}` evaluated for side-effects (result discarded) |
 | `IRIncr` | `incr i` / `incr i 5` |
 | `IRCall` | Generic command (`puts`, `regexp`, etc.) with `defs`/`reads` |
 | `IRReturn` | `return` statement |
@@ -64,7 +65,8 @@ Source: [`core/parsing/tokens.py`](../../../core/parsing/tokens.py),
 | `IRTry` | `try/on/trap/finally` with `IRTryHandler` |
 | `IRSwitch` | `switch` with `IRSwitchArm` patterns |
 | `IRScript` | Container: `tuple[IRStatement, ...]` |
-| `IRModule` | Top-level + `procedures dict` + `redefined_procedures` |
+| `IRMethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body IRScript`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
+| `IRModule` | Top-level + `procedures dict` + `methods dict` (`IRMethodDef`) + `redefined_procedures` |
 
 Every IR node carries a `Range` for precise diagnostic mapping.
 
@@ -124,10 +126,10 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 
 | Type | Purpose |
 |------|---------|
-| `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function |
-| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `connection_scope` |
+| `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function (also built per TclOO method) |
+| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `methods dict` (per-method `FunctionUnit`s), `connection_scope` |
 
-`compile_source()` at `compilation_unit.py:89` orchestrates all stages and
+`compile_source()` at `compilation_unit.py:376` orchestrates all stages and
 returns a `CompilationUnit`.
 
 ## Decision rule
@@ -138,6 +140,12 @@ returns a `CompilationUnit`.
   to create modified copies.
 - `IRModule.procedures` and `CompilationUnit.procedures` use fully qualified
   names as keys (e.g. `"::mylib::helper"`).
+- `IRModule.methods` / `CompilationUnit.methods` are keyed by
+  `"{class_qname}::{method_name}"` (constructors/destructors use the synthetic
+  names `<constructor>` / `<destructor>`). They are populated by a cache-
+  independent post-pass (`_Lowerer.extract_oo_methods_pass`) and consumed by
+  interprocedural method-purity and the O126 `my <method>` gate — **not** by
+  codegen.
 
 ## Related docs
 

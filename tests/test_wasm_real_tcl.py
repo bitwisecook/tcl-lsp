@@ -16,13 +16,13 @@ from pathlib import Path
 
 import pytest
 
-from core.compiler.cfg import build_cfg
-from core.compiler.codegen.wasm import DiagMap, wasm_codegen_module
-from core.compiler.lowering import lower_to_ir
+from compiler.cfg import build_cfg
+from compiler.codegen.wasm import DiagMap, wasm_codegen_module
+from compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 
@@ -61,7 +61,7 @@ def _get_engine() -> wasmtime.Engine:
 def _get_engine_with_timeout() -> wasmtime.Engine:
     """Engine variant with epoch-interruption enabled.
 
-    Used by long-running sweeps (``scripts/run_tcl9_tcltest_sweep.py``)
+    Used by long-running sweeps (``scripts/dev/run_tcl9_tcltest_sweep.py``)
     that need to bound per-test execution against runaway loops.  A
     watchdog ``threading.Timer`` bumps the engine's epoch after the
     deadline; the next wasm op then traps with an epoch-deadline
@@ -120,7 +120,7 @@ def _compile_tcl(
     needing a WASI preopen of the test fixtures.  Leave ``None`` to
     disable inlining (compatible with the historic behaviour).
     """
-    from core.compiler.source_inliner import inline_static_sources
+    from compiler.source_inliner import inline_static_sources
 
     ir_module = lower_to_ir(source)
     if source_dir is not None:
@@ -151,7 +151,7 @@ def _compile_tcl_with_diag(
     :func:`_compile_tcl` for details.  When omitted the runtime
     handles ``source`` calls via the WASI preopen as before.
     """
-    from core.compiler.source_inliner import inline_static_sources
+    from compiler.source_inliner import inline_static_sources
 
     ir_module = lower_to_ir(source)
     if source_dir is not None:
@@ -178,10 +178,12 @@ def _run_wasm(
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
     preopen_tmpdir: str | None = None,
+    extra_preopens: tuple[tuple[str, str], ...] = (),
     timeout_s: float | None = None,
     memory_size: int | None = None,
     capabilities: int = 0,
     host_spawn=None,
+    env: dict[str, str] | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -200,6 +202,13 @@ def _run_wasm(
     "doesn't exist" regardless of the host filesystem state.  The
     ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
     exercise the real filesystem paths.
+
+    ``extra_preopens`` — additional ``(host_path, guest_path)`` pairs
+    granted alongside ``preopen_tmpdir``.  The Tcl 9 test harness uses
+    this to expose the C Tcl ``library/`` tree under ``/library`` so
+    bundle scripts (safe-stock, opt, etc.) resolve ``[info library]``
+    + ``file exists`` checks against the upstream library files
+    without copying 6 MB per test invocation.
     """
     engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
@@ -225,6 +234,12 @@ def _run_wasm(
         store.set_epoch_deadline(deadline_value)
     wasi_config = wasmtime.WasiConfig()
 
+    if env:
+        # Expose host-supplied environment variables to the guest via
+        # WASI ``environ_get`` (so the runtime's ``getenv`` sees them —
+        # e.g. ``TCL_LIBRARY`` driving the stdlib auto-loader).
+        wasi_config.env = list(env.items())
+
     stdout_path = None
     if capture_stdout:
         fd, stdout_path = tempfile.mkstemp(suffix=".txt")
@@ -245,6 +260,11 @@ def _run_wasm(
         # and the guest path as ``guest_path``; wasmtime's Python
         # binding follows that order.
         wasi_config.preopen_dir(preopen_tmpdir, "/")
+    for host_path, guest_path in extra_preopens:
+        # Additional dir grants — ``preopen_dir`` supports multiple
+        # mappings.  Each (host, guest) pair becomes an independent
+        # capability the guest can ``open`` paths under.
+        wasi_config.preopen_dir(host_path, guest_path)
 
     store.set_wasi(wasi_config)
 
@@ -258,76 +278,81 @@ def _run_wasm(
         linker, store, host_spawn=host_spawn
     )
 
-    rt_instance = linker.instantiate(store, rt_module)
-    rt_instance_box[0] = rt_instance
-
-    # Apply the requested capability mask.  Default is 0 — sandboxed
-    # posture refuses ``exec`` / ``exit`` / ``glob``.  Tests that
-    # need those primitives pass ``capabilities=tcl.CAP_*`` and a
-    # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
-    if capabilities:
-        set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
-        if set_caps_fn is None:
-            # An old runtime build without the capability bitset
-            # would silently leave the sandboxed posture in place
-            # and the test would diagnose the resulting refusal as
-            # a Tcl-level capability denial — wrong root cause.
-            # Surface the runtime-mismatch directly.
-            raise RuntimeError(
-                "runtime does not export 'tcl_set_capabilities'; "
-                f"cannot apply requested capability mask {capabilities!r}"
-            )
-        set_caps_fn(store, capabilities)
-
-    # WASI reactor initialisation — wasi-libc installs its ctors
-    # (preopen-fd scanner, global locks, etc.) in ``_initialize``
-    # rather than at instantiation.  Calling it once per store
-    # populates the ``__wasilibc_cwd`` / preopen table so
-    # subsequent ``access``/``stat`` calls can resolve paths
-    # against the configured ``preopen_dir``.  If the runtime
-    # doesn't export ``_initialize`` (old build), this is a no-op.
-    init_fn = rt_instance.exports(store).get("_initialize")
-    if init_fn is not None:
-        init_fn(store)
-
-    # Re-export under "tcl" namespace
-    for export in rt_module.exports:
-        name = export.name
-        if name.startswith("__"):
-            continue
-        val = rt_instance.exports(store)[name]
-        if isinstance(val, wasmtime.Func):
-            linker.define(store, "tcl", name, val)
-        elif name == "memory":
-            linker.define(store, "tcl", name, val)
-
-    # Instantiate compiled Tcl module
-    tcl_module = wasmtime.Module(engine, wasm_bytes)
-    tcl_instance = linker.instantiate(store, tcl_module)
-    tcl_instance_box[0] = tcl_instance
-    memory_box[0] = rt_instance.exports(store)["memory"]
-
-    obj_new_int = rt_instance.exports(store)["obj_new_int"]
-    obj_get_int = rt_instance.exports(store)["obj_get_int"]
-
-    func = tcl_instance.exports(store).get(func_name)
-    if func is None:
-        raise RuntimeError(f"function {func_name} not found in WASM exports")
-
-    boxed_args = tuple(obj_new_int(store, a) for a in args)
+    # Everything past ``store.set_wasi`` runs inside the try so the
+    # ``finally`` below always reaches ``store.close()`` — the store now
+    # owns the WASI capture FDs and any preopen handles, so an
+    # exception during instantiation must not leak them.
     watchdog = None
     watchdog_fired = [False]
-    if timeout_s is not None:
-        import threading
-
-        def _bump_epoch():
-            engine.increment_epoch()
-            watchdog_fired[0] = True
-
-        watchdog = threading.Timer(timeout_s, _bump_epoch)
-        watchdog.daemon = True
-        watchdog.start()
     try:
+        rt_instance = linker.instantiate(store, rt_module)
+        rt_instance_box[0] = rt_instance
+
+        # Apply the requested capability mask.  Default is 0 — sandboxed
+        # posture refuses ``exec`` / ``exit`` / ``glob``.  Tests that
+        # need those primitives pass ``capabilities=tcl.CAP_*`` and a
+        # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
+        if capabilities:
+            set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
+            if set_caps_fn is None:
+                # An old runtime build without the capability bitset
+                # would silently leave the sandboxed posture in place
+                # and the test would diagnose the resulting refusal as
+                # a Tcl-level capability denial — wrong root cause.
+                # Surface the runtime-mismatch directly.
+                raise RuntimeError(
+                    "runtime does not export 'tcl_set_capabilities'; "
+                    f"cannot apply requested capability mask {capabilities!r}"
+                )
+            set_caps_fn(store, capabilities)
+
+        # WASI reactor initialisation — wasi-libc installs its ctors
+        # (preopen-fd scanner, global locks, etc.) in ``_initialize``
+        # rather than at instantiation.  Calling it once per store
+        # populates the ``__wasilibc_cwd`` / preopen table so
+        # subsequent ``access``/``stat`` calls can resolve paths
+        # against the configured ``preopen_dir``.  If the runtime
+        # doesn't export ``_initialize`` (old build), this is a no-op.
+        init_fn = rt_instance.exports(store).get("_initialize")
+        if init_fn is not None:
+            init_fn(store)
+
+        # Re-export under "tcl" namespace
+        for export in rt_module.exports:
+            name = export.name
+            if name.startswith("__"):
+                continue
+            val = rt_instance.exports(store)[name]
+            if isinstance(val, wasmtime.Func):
+                linker.define(store, "tcl", name, val)
+            elif name == "memory":
+                linker.define(store, "tcl", name, val)
+
+        # Instantiate compiled Tcl module
+        tcl_module = wasmtime.Module(engine, wasm_bytes)
+        tcl_instance = linker.instantiate(store, tcl_module)
+        tcl_instance_box[0] = tcl_instance
+        memory_box[0] = rt_instance.exports(store)["memory"]
+
+        obj_new_int = rt_instance.exports(store)["obj_new_int"]
+        obj_get_int = rt_instance.exports(store)["obj_get_int"]
+
+        func = tcl_instance.exports(store).get(func_name)
+        if func is None:
+            raise RuntimeError(f"function {func_name} not found in WASM exports")
+
+        boxed_args = tuple(obj_new_int(store, a) for a in args)
+        if timeout_s is not None:
+            import threading
+
+            def _bump_epoch():
+                engine.increment_epoch()
+                watchdog_fired[0] = True
+
+            watchdog = threading.Timer(timeout_s, _bump_epoch)
+            watchdog.daemon = True
+            watchdog.start()
+
         result_obj = func(store, *boxed_args)
         result_val = obj_get_int(store, result_obj) if result_obj else 0
     except BaseException:
@@ -347,9 +372,12 @@ def _run_wasm(
 
         exc = sys.exc_info()[1]
         if exc is not None:
+            # Attach captured streams to the exception for test reporters
+            # — many BaseException subclasses allow attribute setting; the
+            # try/except handles those that don't (e.g. C-level exceptions).
             try:
-                exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]
-                exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]
+                exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+                exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
             except (AttributeError, TypeError):
                 pass
         raise
@@ -367,6 +395,20 @@ def _run_wasm(
             # single ``increment_epoch`` can reach.
             if watchdog_fired[0]:
                 _epoch_count_set(deadline_value)
+        # Release the store deterministically.  The store owns the OS
+        # file descriptors backing the WASI ``stdout_file`` /
+        # ``stderr_file`` captures and every ``preopen_dir`` mapping;
+        # without an explicit close those FDs only drop when CPython's
+        # cyclic GC eventually reclaims the store (the host-function
+        # closures defined on the linker capture ``store``, forming a
+        # reference cycle that defeats prompt refcount cleanup).  Across
+        # the thousands of ``_run_wasm`` calls in the suite that leak
+        # exhausts the process FD limit — fatal under macOS's default
+        # ``ulimit -n 256`` — and the whole run collapses into
+        # ``OSError: [Errno 24] Too many open files``.  The try opens
+        # right after ``set_wasi`` so this also fires when instantiation
+        # itself raises; ``close`` is idempotent regardless.
+        store.close()
 
     stdout_text = _maybe_read(stdout_path)
     stderr_text = _maybe_read(stderr_path)
@@ -409,6 +451,20 @@ def _define_call_compiled_proc(
         mem = memory_box[0]
         if inst is None or mem is None:
             raise RuntimeError("call_compiled_proc: tcl_instance or memory not yet wired")
+        # wasmtime hands us i32 values as Python *signed* ints, so a
+        # heap-grown WASM address whose high bit is set arrives as a
+        # negative number.  Re-mask to the matching unsigned u32 so
+        # the slice arithmetic below indexes the linear-memory buffer
+        # correctly.  Without this, a long-running session whose
+        # heap crosses the 2 GiB boundary produces negative offsets
+        # and ``data_ptr[neg:neg+L]`` reads from the *end* of the
+        # buffer — typically past the live region — yielding a
+        # missing-proc lookup or out-of-bounds slice.  trace.test's
+        # cumulative trace re-entry was the trigger.
+        if name_ptr < 0:
+            name_ptr &= 0xFFFFFFFF
+        if argv_ptr < 0:
+            argv_ptr &= 0xFFFFFFFF
         raw = bytes(mem.data_ptr(store)[name_ptr : name_ptr + name_len])
         pname = raw.decode("utf-8", errors="replace")
         func = inst.exports(store).get(pname)
@@ -1009,6 +1065,154 @@ return [dict get $d age]
         ok, val, err = _run_tcl_for_value(source)
         assert ok, f"error: {err}"
         assert val == 30
+
+    def test_dict_append_runtime(self):
+        # ``dict append varname key ?value ...?`` — concatenates onto
+        # the existing string at KEY (creates an empty entry first if
+        # the key isn't present).  Until the runtime gained an
+        # ``append`` arm in ``cmds/dict.zig`` the codegen routed to
+        # ``_emit_unsupported_trap("dict append")`` and any call
+        # surfaced as ``unsupported in WASM: dict append``.
+        source = """\
+set d {a hello b world}
+dict append d a " there"
+dict append d c brand new
+puts $d
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        # ``dict append`` concatenates its trailing args back-to-back
+        # with no separator (matches C tclsh: ``brand`` + ``new`` =
+        # ``brandnew``).  ``" there"`` keeps its leading space because
+        # the literal carries it.
+        assert out == "a {hello there} b world c brandnew\n", f"unexpected dict result: {out!r}"
+
+    def test_rename_builtin_round_trip(self):
+        # ``rename list l.new`` must mask ``list`` (so subsequent
+        # ``[list ...]`` calls surface ``invalid command name "list"``)
+        # while making ``[l.new ...]`` dispatch to the BUILTIN's
+        # handler.  ``rename l.new list`` must restore the BUILTIN.
+        # See rename.test rename-2.1.  This pins the FORWARD/MASKED
+        # mechanism added to ``runtime/zig/cmds/tcl_cmd_interp.zig``
+        # and ``runtime/zig/interp/tcl_procs.zig``.
+        source = """\
+rename list l.new
+set a [catch list msg1]
+set b [l.new x y z]
+rename l.new list
+set c [catch l.new msg2]
+set d [list 111 222]
+puts "$a|$msg1|$b|$c|$msg2|$d"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            '1|invalid command name "list"|x y z|1|invalid command name "l.new"|111 222\n'
+        ), f"got {out!r}"
+
+    def test_rename_builtin_delete(self):
+        # ``rename BUILTIN ""`` is the deletion form — the BUILTIN
+        # becomes ``invalid command name`` and stays that way until
+        # the proc is reinstated.
+        source = """\
+rename llength ""
+set a [catch {llength {a b c}} m]
+puts "$a|$m"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == '1|invalid command name "llength"\n', f"got {out!r}"
+
+    def test_rename_protected_builtins_refused(self):
+        # ``return`` and ``error`` are hardcoded protected — a
+        # rename attempt must surface ``can't rename "X": built-in
+        # command`` rather than silently masking the dispatch.
+        source = """\
+catch {rename return foo} ret
+catch {rename error bar} err
+puts "$ret|$err"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            'can\'t rename "return": built-in command|can\'t rename "error": built-in command\n'
+        ), f"got {out!r}"
+
+    def test_args_tail_quoted_substitution_word(self):
+        # When the eval-fallback path reassembles a call into a
+        # script for ``tcl_eval``, an arg whose IR text is a
+        # double-quoted word with embedded substitutions and
+        # internal whitespace (``"$n [expr {$n+1}] [expr {$n+2}]"``)
+        # would previously pass through unquoted as
+        # ``${n} [expr {$n+1}] [expr {$n+2}]`` -- splitting the
+        # one source argument into three when re-parsed.  That
+        # broke any callee with an ``args`` variadic tail since
+        # ``[llength $args]`` returned the wrong count.
+        # Pinned because opt.test, safe-stock.test, and any
+        # tcltest call passing a ``"...$x..."`` last argument
+        # depend on the boundary survival.
+        source = """\
+namespace eval ::ns {
+    namespace export rcv
+    proc rcv {a b args} {
+        puts "len=[llength $args]"
+        foreach x $args { puts "  e=$x" }
+    }
+}
+namespace import ::ns::*
+set n 5
+rcv name {desc} {body} "$n [expr {$n+1}] [expr {$n+2}]"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "len=2\n  e=body\n  e=5 6 7\n", f"got {out!r}"
+
+    def test_dynamic_switch_runtime(self):
+        # The codegen inlines static ``switch`` shapes via IRSwitch,
+        # but a ``switch`` reached through ``eval`` (or any path that
+        # builds the pattern/body list at runtime) routes through the
+        # interpreter's BUILTIN dispatch.  Until ``eval_switch`` was
+        # added in ``runtime/zig/interp/tcl_interp.zig`` such calls
+        # trapped with ``unsupported command: switch``.  This pins
+        # the four common shapes: -exact, -glob, -regexp, fall-through.
+        source = """\
+proc do_exact {x}  { eval [list switch       $x a {puts A} b {puts B} default {puts D}] }
+proc do_glob  {x}  { eval [list switch -glob $x  a*  {puts gA} b?  {puts gB} default {puts gD}] }
+proc do_re    {x}  { eval [list switch -regexp $x {^[A-Z]+$} {puts ru} {^[a-z]+$} {puts rl} default {puts rd}] }
+proc do_ft    {x}  { eval [list switch       $x a - b {puts AB} c {puts C} default {puts D}] }
+do_exact a
+do_exact x
+do_glob abc
+do_glob bz
+do_re HELLO
+do_re hello
+do_re Mixed
+do_ft a
+do_ft b
+do_ft c
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "A\nD\ngA\ngB\nru\nrl\nrd\nAB\nAB\nC\n", f"got {out!r}"
+
+    def test_dict_for_compiled_canonical_name(self):
+        # ``dict for {k v} D body`` is canonicalised by the CFG to
+        # ``::tcl::dict::for {k v} D body`` so static-foreach-like
+        # SSA reasoning sees a single command.  The runtime's
+        # ``eval_command`` recognises that ``::tcl::ENSEMBLE::SUBCMD``
+        # FQ form and re-dispatches to the ensemble's BUILTIN
+        # handler — without that rewrite the call traps with
+        # ``unknown command: ::tcl::dict::for``.
+        source = """\
+set out {}
+dict for {k v} {x 1 y 2 z 3} {
+    lappend out "$k=$v"
+}
+puts $out
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "x=1 y=2 z=3\n", f"got {out!r}"
 
     def test_nested_proc_calls(self):
         source = """\
@@ -1685,6 +1889,90 @@ return [main]
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "v=42 done\n"
 
+    def test_qualified_array_read_inside_string_subst(self):
+        """``$::arr(key)`` inside a nested ``[cmd ...]`` substitution.
+
+        The bare-name scan in ``_scan_value_for_array_refs`` advances
+        past namespace separators in pairs (``::`` → +2); a single-
+        step advance left the second colon to terminate the scan, so
+        ``$::myarr(`` was never recognised and ``tcl_array_get`` was
+        never imported.  ``_emit_array_element_read`` then silently
+        emitted ``i32.const 0`` for the read, the unset-check fired,
+        and the bundle trapped ``can't read "::myarr(x)": no such
+        variable`` even though the array existed.
+
+        Reproduces the cmdAH.test:25 ``testConstraint time64bit
+        [expr {... $::tcl_platform(pointerSize) ...}]`` shape via
+        the simplest equivalent: a fully-qualified global array
+        consumed by an outer command substitution.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::myarr {x hello}\nputs [string length $::myarr(x)]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_qualified_array_read_inside_expr_subst(self):
+        """Mirror of :meth:`test_qualified_array_read_inside_string_subst`
+        for the ``[expr {...}]`` command-substitution path.
+
+        cmdAH.test's actual call shape is ``testConstraint time64bit
+        [expr {... ?  ...  : $::tcl_platform(pointerSize)}]`` — the
+        ternary's false branch evaluates the array read inside the
+        nested ``[expr]`` cmd-sub.  Same root cause as the string-
+        subst case: the value-level array-ref scanner missed the
+        ``$::name(`` shape and the import dropped out.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::tcl_platform {pointerSize 4}\n"
+            "puts [expr {$::tcl_platform(pointerSize) >= 8}]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "0\n"
+
+    def test_braced_array_read_inside_expr_subst(self):
+        """``${arr(idx)}`` (braced form) inside a ``[expr {…}]`` cmd-
+        substitution.  The expression lexer wraps everything between
+        ``${`` and ``}`` into a single VARIABLE token whose ``text``
+        ends with ``}`` — distinct from the bare ``$arr(idx)`` shape
+        whose text ends with ``)``.  The expr-body import scanner has
+        to recognise both endings so ``tcl_array_get`` reaches the
+        module imports for either form; otherwise the fallback
+        ``i32.const 0`` path raises ``can't read "arr(idx)": no such
+        variable`` at runtime.
+        """
+        wasm, _ = _compile_tcl_with_diag("set ::myarr(x) 7\nputs [expr {${::myarr(x)} + 1}]\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "8\n"
+
+    def test_qualified_array_read_in_runtime_expr_eval(self):
+        """``$::arr(key)`` inside an expression evaluated by the
+        runtime interpreter (eval-fallback path).
+
+        ``parse_var`` in ``runtime/zig/interp/tcl_expr_eval.zig`` only
+        consumed identifier characters and lone ``:``s when scanning
+        a bareword variable reference, so a fully-qualified array
+        element ``$::arr(key)`` ended its slice at ``$::arr`` and the
+        downstream ``subst_flagged`` lookup treated the array name as
+        a scalar — failing with ``can't read "::arr": no such
+        variable`` even when the array existed.  cmdAH.test's
+        ``testConstraint time64bit [expr {... $::tcl_platform(pointerSize)}]``
+        hits this path because the ``testConstraint`` proc is
+        eval-fallback-dispatched, so its ``[expr]`` arg is evaluated
+        by the runtime interpreter rather than the AOT-compiled
+        expr emitter.
+
+        Force the same shape with ``eval`` so the expression body
+        is parsed at runtime and routes through ``parse_var`` —
+        compile-time codegen would otherwise re-route the read.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::tcl_platform {pointerSize 4}\n"
+            "puts [eval {expr {$::tcl_platform(pointerSize) >= 8}}]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "0\n"
+
 
 class TestNamespaceVariables:
     """Variables inside ``namespace eval ::ns { … }`` bodies must
@@ -2151,7 +2439,7 @@ class TestDiagMap:
             # "xabcdef" is 7 chars — previously the trap would have
             # written 6-char "xabcde" with the trailing 'f' lost to
             # the ``]``-consumed-by-next-word parse.
-            assert "unknown command: xabcdef" in stderr, f"stderr was: {stderr!r}"
+            assert 'invalid command name "xabcdef"' in stderr, f"stderr was: {stderr!r}"
 
     def test_runtime_trap_emits_site_prefix(self):
         # End-to-end: trigger an unknown command through the eval
@@ -2167,7 +2455,7 @@ class TestDiagMap:
             # The resolver must map the site back to our source file.
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
-            assert "unknown command: definitely_not_a_command" in resolved
+            assert 'invalid command name "definitely_not_a_command"' in resolved
 
 
 class TestReturnCodeError:
@@ -2437,6 +2725,85 @@ class TestVariadicArgs:
         wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
         _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
         assert stdout.strip() == "2"
+
+
+class TestRenamedToProcDispatch:
+    """A builtin renamed/redefined *to a user proc* must dispatch to the proc
+    at run time (matching tclsh), not the original builtin and not a trap.
+
+    The optimiser/codegen gate routes a tampered builtin through the
+    interpreter (``builtin_is_trusted`` is False); the runtime's
+    ``eval_proc_call_bucket`` then sees the proc bucket's ``func_idx != 0``
+    marker and dispatches the compiled body through the host bridge.  These
+    pin that end-to-end behaviour so the gate + dispatch stay wired.
+    """
+
+    def test_redef_builtin_to_proc_statement(self):
+        # ``rename string ::s; proc string {...}; [string length hi]`` — the
+        # task's canonical case.  Must run the proc (prints its result).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {args} {return PROC}\nputs [string length hi]"
+        )
+        assert ok, err
+        assert out.strip() == "PROC"
+
+    def test_redef_builtin_to_proc_uses_args(self):
+        # Fixed-arity shadow binds its parameters correctly.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {sub arg} {return redef:$arg}\nputs [string length hi]"
+        )
+        assert ok, err
+        assert out.strip() == "redef:hi"
+
+    def test_redef_builtin_to_proc_in_expr(self):
+        # Reached as an operand inside ``[expr {…}]`` (value/expr gate).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {a b} {return 9}\nputs [expr {[string length hi] + 1}]"
+        )
+        assert ok, err
+        assert out.strip() == "10"
+
+    def test_redef_incr_to_proc_value_position(self):
+        # The value/tail-position IRIncr gate routes a renamed ``incr`` to the
+        # proc; the proc's return value is used.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename incr ::oi\nproc incr {v} {return 42}\n"
+            "proc f {} {set c 0\nreturn [incr c]}\nputs [f]"
+        )
+        assert ok, err
+        assert out.strip() == "42"
+
+    def test_redef_incr_to_proc_in_catch_body(self):
+        # The catch-body (value-position) IRIncr gate.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename incr ::oi\nproc incr {v} {return 77}\nset c 0\ncatch {incr c} m\nputs $m"
+        )
+        assert ok, err
+        assert out.strip() == "77"
+
+    def test_renamed_away_still_errors(self):
+        # Renamed away with no replacement → the interpreter errors (caught).
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\ncatch {string length hi} e\nputs caught"
+        )
+        assert ok, err
+        assert out.strip() == "caught"
+
+    def test_variadic_shadow_of_renamed_builtin(self):
+        # Formerly a known gap: a *variadic* {args} proc shadowing a
+        # *renamed* builtin bound args short because the compile-time
+        # ``_proc_args_tail`` didn't recognise the shadow as variadic, so
+        # the direct distrust dispatch truncated.  The proc-arity work
+        # (PR #532) routes the compile-time-over-arity case through the
+        # eval fallback, where the runtime reads the proc's real stored
+        # params, recognises the ``args`` collector, and packs the tail
+        # correctly — so ``string length abcde`` → args = {length abcde}.
+        ok, out, err = _run_tcl_for_stdout(
+            "rename string ::s\nproc string {args} {return [llength $args]}\n"
+            "puts [string length abcde]"
+        )
+        assert ok, err
+        assert out.strip() == "2"
 
 
 class TestRegexp:
@@ -4023,9 +4390,11 @@ class TestExternalTcllibCounter:
             pytest.skip(f"tcllib counter.tcl not present at {self._COUNTER_TCL}")
         source = self._COUNTER_TCL.read_text()
         wasm_bytes = _compile_tcl(source)
-        # Should be a reasonable size
+        # Should be a reasonable size.  Upper bound is a rough sanity
+        # check, not a tight budget — every refcount-discipline tweak
+        # adds a handful of bytes per call site.
         assert len(wasm_bytes) > 5000
-        assert len(wasm_bytes) < 100000
+        assert len(wasm_bytes) < 110000
 
     def test_top_level_runs(self):
         """Running ::top should not trap (validates string table sharing)."""

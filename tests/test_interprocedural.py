@@ -8,13 +8,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.cfg import build_cfg
-from core.compiler.interprocedural import (
+from compiler.cfg import build_cfg
+from compiler.interprocedural import (
     analyse_interprocedural_source,
     evaluate_proc_with_constants,
     fold_static_proc_call,
 )
-from core.compiler.lowering import lower_to_ir
+from compiler.lowering import lower_to_ir
 
 
 class TestInterproceduralSummaries:

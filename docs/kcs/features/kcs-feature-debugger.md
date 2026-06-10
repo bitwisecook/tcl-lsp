@@ -1,5 +1,8 @@
 # KCS: feature — Tcl Debugger
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Interactive CLI debugger for Tcl scripts with single-stepping, breakpoints,
@@ -68,20 +71,20 @@ The debugger consists of:
   VM thread when stopped.
 - Backend-specific implementations that adapt tclsh, tkinter, and the VM
   to a common `DebugBackend` interface.
-- Shared Tcl runtime discovery in `core/tcl_discovery.py` (also used by
+- Shared Tcl runtime discovery in `shared/tcl_discovery.py` (also used by
   the iRule test framework).
 
 ## File-path anchors
 
-- `debugger/` — main debugger package
-- `debugger/controller.py` — breakpoints, stepping, state inspection
-- `debugger/cli.py` — readline-based CLI frontend
-- `debugger/backends/vm_backend.py` — VM backend
-- `debugger/backends/tclsh_backend.py` — tclsh subprocess backend
-- `debugger/backends/tkinter_backend.py` — tkinter in-process backend
-- `debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
-- `core/tcl_discovery.py` — shared tclsh/tkinter detection
-- `vm/machine.py` — debug hook insertion point
+- `tooling/debugger/` — main debugger package
+- `tooling/debugger/controller.py` — breakpoints, stepping, state inspection
+- `tooling/debugger/cli.py` — readline-based CLI frontend
+- `tooling/debugger/backends/vm_backend.py` — VM backend
+- `tooling/debugger/backends/tclsh_backend.py` — tclsh subprocess backend
+- `tooling/debugger/backends/tkinter_backend.py` — tkinter in-process backend
+- `tooling/debugger/tcl/debug_helper.tcl` — Tcl-side instrumentation
+- `shared/tcl_discovery.py` — shared tclsh/tkinter detection
+- `tooling/vm/machine.py` — debug hook insertion point
 
 ## Failure modes
 

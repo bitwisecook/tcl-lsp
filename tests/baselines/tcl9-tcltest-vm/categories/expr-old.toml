@@ -1,0 +1,20 @@
+# expr-old.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '3 of 461 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 461
+observed_passed = 445
+observed_failed = 3
+observed_skipped = 13
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["expr-old-32.50", "expr-old-36.7", "expr-old-41.7"]

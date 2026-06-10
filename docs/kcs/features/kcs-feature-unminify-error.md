@@ -1,5 +1,8 @@
 # KCS: feature — Unminify Error
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Translate Tcl or iRule error messages produced by minified code back to the original variable, proc, and command names using a saved symbol map.  Optionally remaps line-number references from minified single-line output to approximate original source lines.
@@ -209,10 +212,10 @@ The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it rea
 
 ## File-path anchors
 
-- `core/minifier/minifier.py` (`unminify_error`, `SymbolMap.parse`, `SymbolMap.reverse`)
-- `core/minifier/__init__.py` (exports `unminify_error`)
-- `explorer/tcl_cli.py` (`unminify-error` verb with `--symbol-map`, `--error`, `--error-file`, `--minified`, `--original`)
-- `lsp/server.py` (`tcl-lsp.unminifyError` command)
+- `tooling/minifier/minifier.py` (`unminify_error`, `SymbolMap.parse`, `SymbolMap.reverse`)
+- `tooling/minifier/__init__.py` (exports `unminify_error`)
+- `tooling/tcl/main.py` (`unminify-error` verb with `--symbol-map`, `--error`, `--error-file`, `--minified`, `--original`)
+- `server/server.py` (`tcl-lsp.unminifyError` command)
 - `ai/mcp/tcl_mcp_server.py` (`unminify_error` MCP tool)
 - `editors/vscode/src/extension.ts` (`unminifyError` handler)
 - `editors/vscode/package.json` (`tclLsp.unminifyError` command registration)

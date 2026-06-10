@@ -2,7 +2,7 @@
 name: bytecode-compare
 description: >
   Compare our compiler's bytecode output against tclsh reference disassembly
-  (8.5, 8.6, 9.0). Use when verifying bytecode correctness, investigating
+  (8.4, 8.5, 8.6, 9.0). Use when verifying bytecode correctness, investigating
   instruction sequence differences, or checking that our codegen matches C Tcl.
 allowed-tools: Bash, Read
 ---
@@ -10,8 +10,8 @@ allowed-tools: Bash, Read
 # Bytecode Comparison Skill
 
 Compares the bytecode produced by our compiler pipeline (lexer → lowering →
-IR → CFG → codegen) against tclsh reference disassembly (8.5, 8.6, 9.0)
-for a set of 30 test snippets.
+IR → CFG → codegen) against tclsh reference disassembly (8.4, 8.5, 8.6, 9.0)
+for a set of 219 test snippets.
 
 ## Usage
 
@@ -25,19 +25,19 @@ python3 .claude/skills/bytecode-compare/bytecode_compare.py [-v VERSION] <subcom
 
 | Flag | Description |
 |---|---|
-| `-v`, `--version` | Tcl version to compare against: `8.5`, `8.6`, `9.0` (default: `9.0`) |
+| `-v`, `--version` | Tcl version to compare against: `8.4`, `8.5`, `8.6`, `9.0` (default: `9.0`) |
 
 ## Subcommands
 
 | Subcommand | Arguments | What it does |
 |---|---|---|
-| `all` | | Compare all 30 snippets, show summary table |
+| `all` | | Compare all 219 snippets, show summary table |
 | `diff` | `<snippet>` | Detailed instruction-by-instruction diff for one snippet (e.g. `08_while`) |
 | `summary` | | One-line per snippet: match/mismatch with instruction counts |
 | `instructions` | `<snippet>` | Side-by-side normalised instruction listing |
 | `refresh` | | Regenerate our bytecode reference and re-compare |
 | `categories` | | Group differences by category (variable access, jumps, opcodes, etc.) |
-| `versions` | `<snippet>` | Compare one snippet against all Tcl versions (8.5, 8.6, 9.0) |
+| `versions` | `<snippet>` | Compare one snippet against all Tcl versions (8.4, 8.5, 8.6, 9.0) |
 
 ## Interpreting Output
 

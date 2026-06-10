@@ -20,61 +20,11 @@ Use this to verify server behavior after making changes.
 Run from the project root (the git worktree directory):
 
 ```bash
-python3 .claude/skills/lsp-client/lsp_client.py [--server python|rust] <subcommand> <args...>
+python3 .claude/skills/lsp-client/lsp_client.py <subcommand> <args...>
 ```
 
-The script auto-detects the server location.  Override with
-`--server-dir <path>` if needed.
-
-## Choosing a backend (`--server`)
-
-`--server` selects which language server to drive:
-
-| Value | Server | Notes |
-|---|---|---|
-| `python` (default) | `python -m lsp` (the `lsp/` package, run via `uv`) | The legacy Python server. |
-| `rust` | the native `tcl-lsp-server` binary | Built on demand with `cargo build -p tcl-lsp-server`; the binary is reused on later runs. |
-
-Use this to verify the **Rust** analyser/diagnostics (e.g. after changing
-`rust/tcl-compiler/src/analyser/`), and to A/B the two backends on the same
-file.  `--server-dir` means different things per backend: for `python` it's
-the `tcl-lsp` dir containing `lsp/`; for `rust` it's the Cargo workspace root
-(the dir with `Cargo.toml` + `rust/`).
-
-```bash
-# Same file, both servers — compare diagnostics
-python3 .claude/skills/lsp-client/lsp_client.py --server rust   diagnostics foo.tcl
-python3 .claude/skills/lsp-client/lsp_client.py --server python diagnostics foo.tcl
-```
-
-## Selecting a dialect (`--language-id`)
-
-The server picks its analysis **dialect** from the LSP `languageId` the
-client sends on `didOpen` (this takes precedence over any `tclLsp.dialect`
-setting).  The client derives the `languageId` from the **file extension**,
-mirroring the editor's language associations:
-
-| Extension | languageId | Dialect |
-|---|---|---|
-| `.tcl`, `.tk`, `.itcl`, `.tm`, `.test` (and anything unrecognised) | `tcl` | `tcl8.6` |
-| `.irul`, `.irule` | `tcl-irule` | `f5-irules` |
-| `.iapp`, `.iappimpl`, `.impl` | `tcl-iapp` | `f5-iapps` |
-| `.exp` | `tcl-expect` | `expect` |
-
-So `.irul` files are analysed as iRules automatically — no extra flags.
-
-Use `--language-id <id>` to override this when the extension doesn't imply
-the dialect you want — e.g. an iRule saved as `.tcl`, or exercising a
-specific Tcl version.  It accepts editor ids (`tcl`, `tcl-irule`,
-`tcl-iapp`, `tcl-expect`) **or** canonical dialect names (`f5-irules`,
-`f5-iapps`, `tcl8.4`, `tcl9.0`, …):
-
-```bash
-# An iRule that happens to live in a .tcl file
-python3 .claude/skills/lsp-client/lsp_client.py --server rust --language-id tcl-irule diagnostics rule.tcl
-# Check tcl9.0-specific behaviour on a plain .tcl file
-python3 .claude/skills/lsp-client/lsp_client.py --server rust --language-id tcl9.0 diagnostics foo.tcl
-```
+The script auto-detects the `tcl-lsp/` server directory.  Override with
+`--server-dir /path/to/tcl-lsp` if needed.
 
 ## Subcommands
 
@@ -248,7 +198,6 @@ to filter to just `[timing]` entries for performance analysis.
 ## Example Invocations
 
 ```bash
-python3 .claude/skills/lsp-client/lsp_client.py --server rust diagnostics tcl-lsp/editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py semantic-tokens tcl-lsp/samples/for_screenshots/03-completions.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagnostics tcl-lsp/editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py hover tcl-lsp/editors/vscode/testFixture/procs.tcl 1 6

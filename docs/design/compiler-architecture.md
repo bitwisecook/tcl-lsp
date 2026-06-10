@@ -74,7 +74,7 @@ flowchart TD
 
 ### 1. Lexer
 
-**File:** `core/parsing/lexer.py` — class `TclLexer`
+**File:** `compiler/parsing/lexer.py` — class `TclLexer`
 
 Converts raw source text into a flat stream of `Token` values.  Each token
 carries its `TokenType`, text content, and precise `SourcePosition`
@@ -115,12 +115,19 @@ be re-entered for nested bodies (brace/bracket contents).
 
 ### 2. Command Segmenter
 
-**File:** `core/parsing/command_segmenter.py` — function `segment_commands()`
+**File:** `compiler/parsing/command_segmenter.py` — function `segment_commands()`
 
 Tcl has no traditional grammar — a "program" is a sequence of commands, each
 being a list of whitespace-separated words terminated by a newline or
 semicolon.  The segmenter groups the flat token stream into per-command
 structures.
+
+Internally `segment_commands()` no longer runs a bespoke token loop: it builds
+the canonical lossless [red-green concrete syntax tree](compiler/syntax-tree.md)
+for the region and *derives* the `SegmentedCommand` list from it,
+byte-identically to the former loop (verified over the real-world corpus and
+120k randomised differential cases).  The tree is the single representation the
+formatter, minifier, AOT lowering, and per-command tooling are migrating onto.
 
 ```mermaid
 flowchart LR
@@ -145,7 +152,7 @@ record which words are atomic — important for downstream constant tracking.
 
 ### 3. Error Recovery
 
-**File:** `core/parsing/recovery.py` — function `segment_with_recovery()`
+**File:** `compiler/parsing/recovery.py` — function `segment_with_recovery()`
 
 When the segmenter encounters an unclosed delimiter (`{`, `[`, `"`), recovery
 kicks in:
@@ -168,7 +175,7 @@ unterminated `[`, E202 = unterminated `"`, E203 = unterminated `{`).
 
 ### 4. Semantic Analyser
 
-**File:** `core/analysis/analyser.py` — class `Analyser`
+**File:** `analyser/_analyser/__init__.py` — class `Analyser`
 
 A single-pass walk over segmented commands that builds a semantic model:
 scopes, procedure definitions, variable definitions, command invocations.
@@ -210,7 +217,7 @@ CFG/SSA-informed diagnostics such as unreachable-code and dead-store warnings.
 
 ### 5. IR Lowering
 
-**File:** `core/compiler/lowering.py` — function `lower_to_ir()`
+**File:** `compiler/lowering.py` — function `lower_to_ir()`
 
 Converts segmented commands into a structured Intermediate Representation.
 Each Tcl command maps to a typed IR node.
@@ -347,7 +354,7 @@ Key design decisions:
 
 ### 6. Control Flow Graph
 
-**File:** `core/compiler/cfg.py` — function `build_cfg_function()`
+**File:** `compiler/cfg.py` — function `build_cfg_function()`
 
 Flattens structured IR (`IRIf`, `IRFor`, `IRSwitch`, etc.) into basic blocks
 with explicit control-flow edges.
@@ -408,7 +415,7 @@ flowchart TD
 
 ### 7. SSA Construction
 
-**File:** `core/compiler/ssa.py` — function `build_ssa()`
+**File:** `compiler/ssa.py` — function `build_ssa()`
 
 Converts the CFG to Static Single-Assignment form, where every variable is
 defined exactly once.  Phi nodes are inserted at control-flow merge points.
@@ -436,7 +443,7 @@ Key types:
 
 ### 8. Core Analyses
 
-**File:** `core/compiler/core_analyses.py` — function `analyse_function()`
+**File:** `compiler/core_analyses.py` — function `analyse_function()`
 
 Runs the main dataflow passes over the SSA graph:
 
@@ -478,7 +485,7 @@ unreachable, enabling dead-code detection.
 
 ### 9. Interprocedural Analysis
 
-**File:** `core/compiler/interprocedural.py` — function `analyse_interprocedural_ir()`
+**File:** `compiler/interprocedural.py` — function `analyse_interprocedural_ir()`
 
 Builds conservative procedure summaries across the entire module:
 
@@ -514,7 +521,7 @@ and the taint analysis uses them for cross-procedure taint propagation.
 
 ### 10. Compilation Unit
 
-**File:** `core/compiler/compilation_unit.py` — function `compile_source()`
+**File:** `compiler/compilation_unit.py` — function `compile_source()`
 
 `CompilationUnit` remains the shared artefact boundary for IR/CFG/SSA/interprocedural
 facts consumed across diagnostics and downstream passes. For operational contracts,
@@ -572,7 +579,7 @@ and pass/test anchors are tracked in:
 flowchart LR
     CU["CompilationUnit"]
 
-    CU --> OPT["<b>Optimiser</b><br/>O100–O125"]
+    CU --> OPT["<b>Optimiser</b><br/>O100–O130"]
     CU --> TAINT["<b>Taint Analysis</b><br/>T100–T106, IRULE3xxx"]
     CU --> SHIM["<b>Shimmer Detection</b><br/>S100–S102"]
     CU --> GVN["<b>GVN / CSE</b><br/>O105, O106"]
@@ -587,7 +594,7 @@ flowchart LR
 
 ### 12. Diagnostics Provider
 
-**File:** `lsp/features/diagnostics.py` — function `get_diagnostics()`
+**File:** `server/features/diagnostics.py` — function `get_diagnostics()`
 
 `get_diagnostics()` is the policy boundary that merges analyser + pass findings,
 applies suppression/disable rules, and converts to LSP diagnostics. Integration
@@ -625,7 +632,7 @@ flowchart TD
 
 ### 13. Bytecode Assembly Backend
 
-**File:** `core/compiler/codegen.py` — functions `codegen_function()`, `codegen_module()`
+**File:** `compiler/codegen/bytecode/_emitter.py` — functions `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `CFGModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.2.
@@ -653,7 +660,7 @@ implementation.
 
 ### 14. Async Diagnostic Scheduler
 
-**File:** `lsp/async_diagnostics.py` — class `DiagnosticScheduler`
+**File:** `server/async_diagnostics.py` — class `DiagnosticScheduler`
 
 Tiered publishing and cancellation rules are maintained in:
 
@@ -668,7 +675,7 @@ flowchart TD
 
     subgraph "Background thread"
         direction TB
-        OPT["Optimiser (O100–O125)"]
+        OPT["Optimiser (O100–O130)"]
         SHIM["Shimmer (S100–S102)"]
         TAINT["Taint (T100–T106)"]
         GVN["GVN/CSE (O105–O106)"]
@@ -730,7 +737,7 @@ consumer must treat it as opaque and conservative.
 | W100–W120 | Semantic & style warnings | Analyser / Diagnostics |
 | W200–W214 | Variable & versioning warnings | Analyser |
 | W300–W313 | Security warnings | Analyser |
-| O100–O125 | Optimisation suggestions | Optimiser + GVN |
+| O100–O130 | Optimisation suggestions | Optimiser + GVN |
 | S100–S102 | Shimmer / type thunking | Shimmer detection |
 | T100–T106 | Taint / security | Taint analysis |
 | IRULE1007–IRULE1008 | Collect/release pairing (side-aware) | iRules flow analysis |
@@ -740,32 +747,32 @@ consumer must treat it as opaque and conservative.
 
 | File | Responsibility |
 |------|---------------|
-| `core/parsing/lexer.py` | Tokenisation with position tracking |
-| `core/parsing/tokens.py` | Token, SourcePosition, TokenType definitions |
-| `core/parsing/command_segmenter.py` | Command segmentation and chunking |
-| `core/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
-| `core/parsing/expr_lexer.py` | Expression tokenisation |
-| `core/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
-| `core/parsing/substitution.py` | Tcl backslash substitution helpers |
-| `core/analysis/analyser.py` | Semantic analysis, scope tracking |
-| `core/analysis/checks/` | Best-practice and security checks (W-series) |
-| `core/analysis/irules_checks.py` | iRules-specific checks (IRULE-series) |
-| `core/analysis/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
-| `core/compiler/ir.py` | IR node definitions |
-| `core/compiler/lowering.py` | IR construction from token stream |
-| `core/compiler/cfg.py` | Control flow graph construction |
-| `core/compiler/ssa.py` | SSA form construction |
-| `core/compiler/core_analyses.py` | SCCP, liveness, type inference |
-| `core/compiler/compilation_unit.py` | Pipeline orchestration and caching |
-| `core/compiler/interprocedural.py` | Call graph and procedure summaries |
-| `core/compiler/optimiser/` | Optimisation passes (O100–O125) |
-| `core/compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
-| `core/compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
-| `core/compiler/shimmer.py` | Type representation issue detection (S100–S102) |
-| `core/compiler/irules_flow.py` | iRules control-flow checks |
-| `core/compiler/codegen.py` | Tcl VM bytecode assembly backend |
-| `core/compiler/effects.py` | Command side-effect classification |
-| `core/compiler/types.py` | Type lattice definitions |
-| `lsp/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
-| `lsp/features/diagnostics.py` | LSP diagnostic aggregation |
-| `core/analysis/semantic_graph.py` | Call/symbol/data-flow graph queries |
+| `compiler/parsing/lexer.py` | Tokenisation with position tracking |
+| `shared/tokens.py` | Token, SourcePosition, TokenType definitions |
+| `compiler/parsing/command_segmenter.py` | Command segmentation and chunking |
+| `compiler/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
+| `compiler/parsing/expr_lexer.py` | Expression tokenisation |
+| `compiler/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
+| `shared/tcl_subst.py` | Tcl backslash substitution helpers |
+| `analyser/_analyser/__init__.py` | Semantic analysis, scope tracking |
+| `analyser/checks/` | Best-practice and security checks (W-series) |
+| `analyser/irules_checks.py` | iRules-specific checks (IRULE-series) |
+| `analyser/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
+| `compiler/ir.py` | IR node definitions |
+| `compiler/lowering.py` | IR construction from token stream |
+| `compiler/cfg.py` | Control flow graph construction |
+| `compiler/ssa.py` | SSA form construction |
+| `compiler/core_analyses.py` | SCCP, liveness, type inference |
+| `compiler/compilation_unit.py` | Pipeline orchestration and caching |
+| `compiler/interprocedural.py` | Call graph and procedure summaries |
+| `compiler/optimiser/` | Optimisation passes (O100–O130) |
+| `compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
+| `compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
+| `compiler/shimmer.py` | Type representation issue detection (S100–S102) |
+| `compiler/irules_flow.py` | iRules control-flow checks |
+| `compiler/codegen/` | Tcl VM bytecode assembly backend |
+| `compiler/side_effects.py` | Command side-effect classification |
+| `compiler/types.py` | Type lattice definitions |
+| `server/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
+| `server/features/diagnostics.py` | LSP diagnostic aggregation |
+| `analyser/semantic_graph.py` | Call/symbol/data-flow graph queries |

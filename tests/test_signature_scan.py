@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.signature_scan import extract_signatures
+from analyser.signature_scan import extract_signatures
 
 
 class TestProcs:

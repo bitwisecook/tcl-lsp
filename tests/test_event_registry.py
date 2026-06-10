@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from core.commands.registry import REGISTRY
-from core.commands.registry.namespace_data import (
+from compiler.registry import REGISTRY
+from compiler.registry.namespace_data import (
     EVENT_PROPS,
     PROFILE_SPECS,
     PROTOCOL_NAMESPACE_SPECS,
 )
-from core.commands.registry.namespace_models import EventRequires
-from core.commands.registry.namespace_registry import (
+from compiler.registry.namespace_models import EventRequires
+from compiler.registry.namespace_registry import (
     NAMESPACE_REGISTRY as EVENT_REGISTRY,
 )
-from core.commands.registry.namespace_registry import (
+from compiler.registry.namespace_registry import (
     NamespaceRegistry as EventRegistry,
 )
 
@@ -87,8 +87,10 @@ class TestPropertyQueries:
 class TestDescriptionQueries:
     def test_get_description(self):
         desc = EVENT_REGISTRY.get_description("HTTP_REQUEST")
+        # The HTTP_REQUEST description must explain when it fires (request
+        # headers parsed), not just be some non-empty string.
         assert desc is not None
-        assert len(desc) > 0
+        assert "request" in desc.lower() and "header" in desc.lower(), desc
 
     def test_get_description_unknown(self):
         assert EVENT_REGISTRY.get_description("NONEXISTENT") is None

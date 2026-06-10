@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.source_resolver import resolve_source_target
+from analyser.source_resolver import resolve_source_target
 
 
 class TestResolveSourceTarget:

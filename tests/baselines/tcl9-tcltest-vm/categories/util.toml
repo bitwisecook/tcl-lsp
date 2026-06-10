@@ -1,0 +1,20 @@
+# util.test — auto-generated baseline.
+# bucket = 'B0-bootstrap'
+# reason = 'argument out of range'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 168
+observed_passed = 96
+observed_failed = 59
+observed_skipped = 12
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["util-1.1", "util-1.2", "util-2.2", "util-3.2", "util-3.3", "util-3.4.1", "util-3.5", "util-3.5.1", "util-3.6", "util-4.1", "util-4.2", "util-4.3", "util-4.8", "util-5.14", "util-5.15", "util-5.36", "util-5.37", "util-5.38", "util-5.40", "util-5.41", "util-5.43", "util-5.44", "util-5.45", "util-5.46", "util-5.48", "util-8.1", "util-9.0.8", "util-9.0.9", "util-9.1.4", "util-9.1.5", "util-9.2.0", "util-9.5.0", "util-9.5.1", "util-9.6", "util-9.7", "util-9.8", "util-9.9.0", "util-9.9.1", "util-9.10", "util-9.11", "util-9.12", "util-9.13", "util-9.14", "util-9.15", "util-9.16", "util-9.17", "util-9.18", "util-9.32", "util-9.33", "util-9.33.1", "util-9.44", "util-9.45", "util-9.46", "util-9.54", "util-9.55", "util-9.56", "util-9.57", "util-9.58", "util-9.59"]

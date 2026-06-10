@@ -117,8 +117,17 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     // index 1.  ``given`` = number of supplied call arguments.
     const given: u32 = if (words.len == 0) 0 else @intCast(words.len - 1);
 
-    // Compiled-fn arity we have to satisfy.
-    const n_params: u32 = @intCast(procs.proc_get_n_params(bucket));
+    // Compiled-fn arity we have to satisfy.  ``proc_get_n_params`` /
+    // ``proc_get_n_required`` read i32 fields from the Command record;
+    // if the bucket has been corrupted (e.g. by an over-aggressive
+    // free under cascaded trace re-entry — Stream 1 trace.test) those
+    // reads can return negative values, which an ``@intCast`` to u32
+    // would convert to a panic in ReleaseSafe.  Treat negatives as
+    // "no arity constraint" rather than aborting the whole module so
+    // the surrounding ``catch`` (or the trace-handler boundary) can
+    // surface the actual proc-call problem.
+    const np_raw = procs.proc_get_n_params(bucket);
+    const n_params: u32 = if (np_raw <= 0) 0 else @intCast(np_raw);
     const has_args_tail: bool = procs.proc_get_args_tail(bucket) != 0;
 
     // Arity check: if the caller supplied fewer arguments than the
@@ -126,7 +135,8 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     // "wrong # args" before calling the compiled WASM function.
     // This mirrors what the Tcl interpreter does for interpreted procs
     // and lets ``catch {proc_missing_required_arg}`` return 1.
-    const n_required: u32 = @intCast(procs.proc_get_n_required(bucket));
+    const nr_raw = procs.proc_get_n_required(bucket);
+    const n_required: u32 = if (nr_raw <= 0) 0 else @intCast(nr_raw);
     if (n_required > 0 and given < n_required) {
         const catch_mod = @import("../interp/tcl_catch.zig");
         // name_ptr / name_len are raw bytes (not a TclObj).
@@ -135,6 +145,10 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
         const suffix: []const u8 = " arg ...\"";
         const total: u32 = @as(u32, @intCast(prefix.len)) + proc_len + @as(u32, @intCast(suffix.len));
         const buf = obj.alloc(total);
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
         const d: [*]u8 = @ptrFromInt(buf);
         for (prefix, 0..) |b, k| d[k] = b;
         if (proc_len > 0) {
@@ -142,7 +156,8 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             for (0..proc_len) |k| d[prefix.len + k] = np[k];
         }
         for (suffix, 0..) |b, k| d[prefix.len + proc_len + k] = b;
-        const msg = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+        // Issue #317: see ``build_args_list`` below.
+        const msg = obj.obj_new_string_take(buf, total, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -164,8 +179,18 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     const argc: u32 = n_params;
 
     var argv_buf: u32 = 0;
+    const argv_buf_size: u32 = argc * 4;
+    // Track the tail-args list so we can release it after the
+    // compiled proc returns.  ``build_args_list`` returns a fresh
+    // +1 owned obj; the compiled proc's prologue retains via
+    // ``frame_local_set_at`` for the ``args`` slot, then the
+    // matching ``frame_pop`` releases.  Without this caller-side
+    // release every ``args``-bearing compiled-proc dispatch leaked
+    // one TclObj header per call.
+    var tail_list: i32 = 0;
     if (argc > 0) {
-        argv_buf = obj.alloc(argc * 4);
+        argv_buf = obj.alloc(argv_buf_size);
+        if (argv_buf == 0) return 0;
         if (has_args_tail) {
             // How many leading words map to non-``args`` params
             // (equivalently: how many positional slots we copy
@@ -179,7 +204,7 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             // Remaining call args → join into a single list-shaped
             // TclObj.  Empty list when callee received ``given <=
             // fixed`` (Tcl semantics: ``args`` becomes ``{}``).
-            const tail_list = build_args_list(words, fixed);
+            tail_list = build_args_list(words, fixed);
             obj.write_i32(argv_buf + fixed * 4, tail_list);
         } else {
             // Pad with 0 when caller supplied fewer args than the
@@ -195,12 +220,23 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             }
         }
     }
-    return call_compiled_proc(
+    // ``@bitCast`` not ``@intCast`` so a heap-grown ``argv_buf`` past
+    // the 2 GiB high-bit boundary doesn't panic the whole module on
+    // narrowing — the host-side ``env::call_compiled_proc`` reads
+    // ``argv_ptr`` as an i32 and bitcasts back to a u32 address, so
+    // the bit pattern round-trips unchanged.  Stream 1: trace.test's
+    // cumulative trace re-entry pushed the heap past the boundary
+    // before reaching the test summary, blowing up here on what was
+    // an otherwise benign proc dispatch.
+    const result = call_compiled_proc(
         name_ptr,
         name_len,
-        @intCast(argv_buf),
-        @intCast(argc),
+        @bitCast(argv_buf),
+        @bitCast(argc),
     );
+    if (tail_list != 0) obj.tcl_obj_release(tail_list);
+    if (argv_buf != 0) obj.free_sized(argv_buf, argv_buf_size);
+    return result;
 }
 
 /// Build a Tcl list TclObj from ``words[fixed+1 ..]`` (skipping
@@ -234,6 +270,7 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
     }
     if (total == 0) return obj.obj_new_string(0, 0);
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     var off: u32 = 0;
     i = start;
     while (i < words.len) : (i += 1) {
@@ -249,5 +286,9 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
             off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj.obj_new_string(@bitCast(buf), @bitCast(off));
+    // Issue #317: ``obj_new_string_take`` so the args list owns
+    // ``buf`` (so its eventual release frees the slab).  The
+    // older borrowing form leaked one buf per compiled-proc
+    // dispatch with a tail ``args`` parameter.
+    return obj.obj_new_string_take(buf, off, total);
 }

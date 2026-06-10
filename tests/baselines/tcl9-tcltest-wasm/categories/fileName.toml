@@ -1,0 +1,27 @@
+# fileName.test — auto-generated WASM baseline.
+# bucket = 'W0-stub-trap'
+# reason = 'unsupported command: file'
+# classification: deferred-wasi
+# rationale: needs filesystem glob / path resolution
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["filename-11.16", "filename-11.17", "filename-11.17.5", "filename-11.17.6", "filename-11.18", "filename-11.19", "filename-11.20", "filename-11.21", "filename-11.22", "filename-11.23", "filename-11.24", "filename-11.25", "filename-11.25.1", "filename-11.25.2", "filename-11.26", "filename-11.37", "filename-11.38", "filename-11.39", "filename-13.1", "filename-13.6", "filename-13.7", "filename-13.8", "filename-13.9", "filename-13.10", "filename-13.11", "filename-13.13", "filename-13.14", "filename-13.16", "filename-13.18", "filename-13.20", "filename-14.1", "filename-14.3", "filename-14.7", "filename-14.9", "filename-14.11", "filename-14.13", "filename-14.15", "filename-14.18", "filename-14.20", "filename-14.23", "filename-14.25", "filename-14.26", "filename-14.27", "filename-14.28", "filename-14.29", "filename-14.30", "filename-15.4.1"]
+
+[crash]
+type = "Trap"
+msg = "tcl trap: site=425 unsupported command: file (unknown subcommand)"
+commands = ["file"]

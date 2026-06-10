@@ -1,6 +1,6 @@
 """Cross-surface diagnostic and optimisation consistency checks.
 
-Ensures the self-registering code registry (``core.common.codes``) is the
+Ensures the self-registering code registry (``shared.codes``) is the
 single source of truth and every consumer stays aligned:
 
 - Registry: all codes register via ``diag()``/``opt()`` at import time
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-import core.common.codes_all  # noqa: F401
-from core.common.codes import (
+import server._codes_init  # noqa: F401
+from shared.codes import (
     SECTION_KEYS,
     all_codes,
     diagnostic_codes,
@@ -64,7 +64,7 @@ def _vscode_codes_from_json(prefix: str) -> set[str]:
 
 
 def _scan_compiler_codes() -> set[str]:
-    """Scan core/ for all code=<str> keyword arguments using AST parsing.
+    """Scan the seven concern packages for all code=<str> keyword arguments.
 
     Uses Python's ``ast`` module instead of regex so we only find actual
     ``code=`` keyword arguments in function/constructor calls — not
@@ -73,24 +73,25 @@ def _scan_compiler_codes() -> set[str]:
     import ast
 
     codes: set[str] = set()
-    for py_file in ROOT.joinpath("core").rglob("*.py"):
-        try:
-            tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
+    for pkg in ("compiler", "analyser", "dialects", "server", "tooling", "shared", "ai"):
+        for py_file in ROOT.joinpath(pkg).rglob("*.py"):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+            except SyntaxError:
                 continue
-            for kw in node.keywords:
-                if kw.arg in ("code", "diagnostic_code") and isinstance(kw.value, ast.Constant):
-                    val = kw.value.value
-                    if (
-                        isinstance(val, str)
-                        and val.isascii()
-                        and val[:1].isupper()
-                        and val.isalnum()
-                    ):
-                        codes.add(val)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                for kw in node.keywords:
+                    if kw.arg in ("code", "diagnostic_code") and isinstance(kw.value, ast.Constant):
+                        val = kw.value.value
+                        if (
+                            isinstance(val, str)
+                            and val.isascii()
+                            and val[:1].isupper()
+                            and val.isalnum()
+                        ):
+                            codes.add(val)
     return codes
 
 
@@ -101,7 +102,7 @@ def test_registry_covers_compiler_codes():
     uncovered = compiler_codes - registry_codes
     assert not uncovered, (
         f"Compiler emits codes not in registry: {sorted(uncovered)}\n"
-        "Register them via diag() or opt() in core/common/codes_*.py."
+        "Register them via diag() or opt() in shared/codes_*.py."
     )
 
 
@@ -112,7 +113,7 @@ def test_internal_codes_are_real():
     stale = internal_codes() - compiler_codes
     assert not stale, (
         f"Internal codes not found in compiler source: {sorted(stale)}\n"
-        "Remove stale entries from core/common/codes_*.py."
+        "Remove stale entries from shared/codes_*.py."
     )
 
 
@@ -121,19 +122,19 @@ def test_internal_codes_are_real():
 
 def test_server_diagnostic_codes_match_registry():
     """The server's _ALL_DIAGNOSTIC_CODES matches the registry."""
-    from lsp.settings import _ALL_DIAGNOSTIC_CODES
+    from server.settings import _ALL_DIAGNOSTIC_CODES
 
     assert _ALL_DIAGNOSTIC_CODES == diagnostic_codes(), (
-        "lsp.settings._ALL_DIAGNOSTIC_CODES does not match registry"
+        "server.settings._ALL_DIAGNOSTIC_CODES does not match registry"
     )
 
 
 def test_server_optimisation_codes_match_registry():
     """The server's _ALL_OPTIMISATION_CODES matches the registry."""
-    from lsp.settings import _ALL_OPTIMISATION_CODES
+    from server.settings import _ALL_OPTIMISATION_CODES
 
     assert _ALL_OPTIMISATION_CODES == optimisation_codes(), (
-        "lsp.settings._ALL_OPTIMISATION_CODES does not match registry"
+        "server.settings._ALL_OPTIMISATION_CODES does not match registry"
     )
 
 
@@ -163,7 +164,7 @@ def test_vscode_optimiser_settings_match_registry():
 
 def test_all_generated_files_are_fresh():
     """Every generated file on disk matches the generator's dry_run output."""
-    from scripts.generate_editor_settings import render_all
+    from scripts.codegen.editor_settings import render_all
 
     stale = []
     for path, expected in render_all(dry_run=True):
@@ -202,7 +203,7 @@ def test_registry_no_duplicate_codes():
 
 def test_registry_codes_are_sorted_within_sections():
     """Registry diagnostics are sorted by code within each section."""
-    from core.common.codes import diagnostics_sorted, optimisations_sorted
+    from shared.codes import diagnostics_sorted, optimisations_sorted
 
     # Diagnostics: sorted within each section, sections in SECTIONS order
     current_section = None
@@ -231,7 +232,7 @@ def test_registry_codes_are_sorted_within_sections():
 
 def test_registry_sections_are_valid():
     """Every code's section is in the SECTION_KEYS list."""
-    from core.common.codes import _registry
+    from shared.codes import _registry
 
     for code, info in _registry.items():
         if hasattr(info, "section") and info.section:
@@ -250,7 +251,7 @@ def test_no_overlap_between_public_and_internal():
 
 def test_generator_is_idempotent():
     """Running the generator twice must produce identical output."""
-    from scripts.generate_editor_settings import render_all
+    from scripts.codegen.editor_settings import render_all
 
     results_1 = render_all(dry_run=True)
     results_2 = render_all(dry_run=True)
@@ -281,7 +282,9 @@ def test_typescript_catalog_compiles():
                 "--target",
                 "ES2020",
                 "--moduleResolution",
-                "node10",
+                "node16",
+                "--module",
+                "node16",
                 str(ts_path),
             ],
             capture_output=True,
@@ -303,7 +306,11 @@ def test_typescript_catalog_importable_by_node():
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        # Transpile to JS
+        # Transpile to JS for Node ``require()`` consumption.  Need
+        # ``--module commonjs`` paired with the classic resolver so the
+        # output is a plain CJS module; ``--ignoreDeprecations 6.0``
+        # silences TS 6.0's deprecation warning on the classic resolver
+        # (which is still supported, just not the default).
         result = subprocess.run(
             [
                 str(_PROJECT_TSC),
@@ -315,6 +322,8 @@ def test_typescript_catalog_importable_by_node():
                 "commonjs",
                 "--moduleResolution",
                 "node10",
+                "--ignoreDeprecations",
+                "6.0",
                 str(ts_path),
             ],
             capture_output=True,

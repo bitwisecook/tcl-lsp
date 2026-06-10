@@ -36,22 +36,23 @@ ByteCode ::top, 38 instructions, 67 bytes, 7 literals, 0 variables
     (32) jumpFalse1 +9	# pc 41
   # if_then_10:
     (34) jump4 +30	# pc 64
-  # cmd_end_3:
+  # cmd_end_4:
     (39) jump1 +4	# pc 43
   # if_next_11:
     (41) push1 3	# ""
   # if_end_9:
+  # if_cmd_end_3:
     (43) pop
     (44) push1 5	# "x"
     (46) push1 0	# "i"
     (48) loadStk
     (49) storeStk
-  # cmd_end_4:
+  # cmd_end_5:
     (50) pop
   # for_step_4:
     (51) push1 0	# "i"
     (53) incrStkImm +1
-  # cmd_end_5:
+  # cmd_end_6:
     (55) pop
   # for_header_2:
     (56) push1 0	# "i"

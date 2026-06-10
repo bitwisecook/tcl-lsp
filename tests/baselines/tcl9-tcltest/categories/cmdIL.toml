@@ -1,0 +1,30 @@
+# Categorisation for cmdIL.test (Tcl 9.0.3 source tree).
+# Bundle reaches 153 / 168 passing after the full lsort option-matrix
+# (``-ascii`` / ``-dictionary`` / ``-integer`` / ``-real`` / ``-nocase``
+# / ``-increasing`` / ``-decreasing`` / ``-unique`` / ``-indices`` /
+# ``-stride`` / ``-index`` / ``-command``) landed.  Residual failures
+# are dictionary-compare case-fold ordering rules and integer parsing
+# of Tcl 9 numeric prefixes (``0d`` / signed-char treatment); separate
+# follow-ups.
+good_to_have = [
+  # lsort -integer: numeric-prefix coverage gaps.
+  "3.11",   # 0d30 prefix (decimal-explicit) parses to 0 instead of 30.
+  "3.19",   # same — decreasing variant of 3.11.
+  # Dictionary-compare case-fold tie-break and signed-char rules.
+  "4.17",   # case-tie: aBCd vs abcc — primary fold equal, secondary
+            # case-sensitive should put lowercase first.
+  "4.20",   # same — abcd vs ABce.
+  "4.26",   # signed-char ordering: ``"abc\\200"`` (0x80) should
+            # compare past `c` (signed-wraparound semantics).
+  "4.27",   # same — dictionary variant.
+  "4.28",   # ASCII Z-to-a range: backtick (0x60) treated as letter.
+  "4.29",   # same — paired test.
+  "4.30",   # same — order of non-letter chars between Z and a.
+  "4.31",   # same.
+  "4.32",   # same.
+  "4.33",   # same.
+  "4.36",   # same — multi-char dictionary sort.
+]
+
+[baseline]
+good_to_have_failing = 13

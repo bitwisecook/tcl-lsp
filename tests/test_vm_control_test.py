@@ -16,9 +16,9 @@ import io
 import pytest
 
 from tests.conftest import ensure_tcl_source
-from vm.commands import tcltest_cmds
-from vm.commands.test_support_cmds import setup_test_support
-from vm.interp import TclInterp
+from tooling.vm.commands import tcltest_cmds
+from tooling.vm.commands.test_support_cmds import setup_test_support
+from tooling.vm.interp import TclInterp
 
 pytestmark = pytest.mark.slow
 
@@ -38,27 +38,166 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-KNOWN_FAILURES_FOR_OLD: set[str] = set()
+KNOWN_FAILURES_FOR_OLD: set[str] = {
+    "for-old-1.7",
+    "for-old-1.8",
+}
 
-KNOWN_FAILURES_WHILE_OLD: set[str] = set()
+KNOWN_FAILURES_WHILE_OLD: set[str] = {
+    "while-old-1.5",
+    "while-old-4.3",
+}
 
-KNOWN_FAILURES_IF_OLD: set[str] = set()
+KNOWN_FAILURES_IF_OLD: set[str] = {
+    "if-old-2.5",
+    "if-old-2.8",
+    "if-old-4.10",
+    "if-old-4.3",
+    "if-old-4.7",
+    "if-old-4.8",
+}
 
-KNOWN_FAILURES_FOREACH: set[str] = set()
+KNOWN_FAILURES_FOREACH: set[str] = {
+    "foreach-1.12",
+    "foreach-1.14",
+    "foreach-2.8",
+    "foreach-5.4",
+    "foreach-5.5",
+    "foreach-6.3",
+    "foreach-6.4",
+    "foreach-9.2",
+}
 
-KNOWN_FAILURES_SWITCH: set[str] = set()
+KNOWN_FAILURES_SWITCH: set[str] = {
+    "switch-11.1",
+    "switch-11.3",
+    "switch-11.4",
+    "switch-11.5",
+    "switch-11.6",
+    "switch-12.1",
+    "switch-12.3",
+    "switch-12.4",
+    "switch-12.5",
+    "switch-12.6",
+    "switch-12.7",
+    "switch-12.8",
+    "switch-12.9",
+    "switch-13.1",
+    "switch-13.2",
+    "switch-13.3",
+    "switch-13.4",
+    "switch-13.5",
+    "switch-13.6",
+    "switch-14.1",
+    "switch-14.10",
+    "switch-14.13",
+    "switch-14.16",
+    "switch-14.17",
+    "switch-14.2",
+    "switch-14.7",
+    "switch-15.1",
+    "switch-3.15",
+    "switch-3.16",
+    "switch-3.17",
+    "switch-3.18",
+    "switch-4.1",
+    "switch-4.2",
+    "switch-4.5",
+    "switch-5.1",
+    "switch-6.1",
+    "switch-6.2",
+    "switch-8.1",
+    "switch-9.1",
+    "switch-9.10",
+    "switch-9.2",
+    "switch-9.3",
+    "switch-9.4",
+    "switch-9.8",
+}
 
-KNOWN_FAILURES_APPEND: set[str] = set()
+KNOWN_FAILURES_APPEND: set[str] = {
+    "append-10.2",
+    "append-10.4",
+    "append-3.3",
+    "append-3.5",
+    "append-3.6",
+    "append-4.10",
+    "append-4.11",
+    "append-4.12",
+    "append-4.13",
+    "append-4.14",
+    "append-4.15",
+    "append-4.16",
+    "append-4.21",
+    "append-4.22",
+    "append-4.7",
+    "append-4.9",
+    "append-7.1",
+    "append-7.5",
+}
 
-KNOWN_FAILURES_EVAL: set[str] = set()
+KNOWN_FAILURES_EVAL: set[str] = {
+    "eval-2.5",
+}
 
-KNOWN_FAILURES_FOR: set[str] = set()
+KNOWN_FAILURES_FOR: set[str] = {
+    "for-1.10",
+    "for-1.2",
+    "for-1.4",
+    "for-2.1",
+    "for-3.1",
+    "for-6.13",
+    "for-6.17",
+    "for-6.18",
+    "for-6.6",
+    "for-6.7",
+    "for-6.9",
+}
 
-KNOWN_FAILURES_IF: set[str] = set()
+KNOWN_FAILURES_IF: set[str] = {
+    "if-1.13",
+    "if-1.17",
+    "if-1.3",
+    "if-10.1",
+    "if-10.2",
+    "if-10.3",
+    "if-10.4",
+    "if-10.5",
+    "if-10.6",
+    "if-2.2",
+    "if-2.3",
+    "if-2.4",
+    "if-3.2",
+    "if-5.10",
+    "if-5.17",
+    "if-5.3",
+    "if-6.2",
+    "if-6.4",
+    "if-7.2",
+    "if-7.4",
+}
 
-KNOWN_FAILURES_WHILE: set[str] = set()
+KNOWN_FAILURES_WHILE: set[str] = {
+    "while-1.10",
+    "while-1.2",
+    "while-4.3",
+    "while-4.9",
+}
 
-KNOWN_FAILURES_SOURCE: set[str] = set()
+KNOWN_FAILURES_SOURCE: set[str] = {
+    "source-2.3",
+    "source-2.6",
+    "source-2.7",
+    "source-3.3",
+    "source-3.4",
+    "source-3.5",
+    "source-4.1",
+    "source-6.2",
+    "source-7.3",
+    "source-7.4",
+    "source-7.6",
+    "source-8.1",
+}
 
 
 # Test runner
@@ -186,7 +325,7 @@ class TestForOldNative:
 
     def test_for_old(self) -> None:
         results = _run_test_file("for-old.test")
-        _check_results(results, KNOWN_FAILURES_FOR_OLD, "for-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_FOR_OLD, "for-old.test")
 
 
 class TestWhileOldNative:
@@ -194,7 +333,7 @@ class TestWhileOldNative:
 
     def test_while_old(self) -> None:
         results = _run_test_file("while-old.test")
-        _check_results(results, KNOWN_FAILURES_WHILE_OLD, "while-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_WHILE_OLD, "while-old.test")
 
 
 class TestIfOldNative:
@@ -202,7 +341,7 @@ class TestIfOldNative:
 
     def test_if_old(self) -> None:
         results = _run_test_file("if-old.test")
-        _check_results(results, KNOWN_FAILURES_IF_OLD, "if-old.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_IF_OLD, "if-old.test")
 
 
 class TestForeachNative:
@@ -210,7 +349,7 @@ class TestForeachNative:
 
     def test_foreach(self) -> None:
         results = _run_test_file("foreach.test")
-        _check_results(results, KNOWN_FAILURES_FOREACH, "foreach.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_FOREACH, "foreach.test")
 
 
 class TestSwitchNative:
@@ -218,7 +357,7 @@ class TestSwitchNative:
 
     def test_switch(self) -> None:
         results = _run_test_file("switch.test")
-        _check_results(results, KNOWN_FAILURES_SWITCH, "switch.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_SWITCH, "switch.test")
 
 
 class TestAppendNative:
@@ -226,7 +365,7 @@ class TestAppendNative:
 
     def test_append(self) -> None:
         results = _run_test_file("append.test")
-        _check_results(results, KNOWN_FAILURES_APPEND, "append.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_APPEND, "append.test")
 
 
 class TestEvalNative:
@@ -234,7 +373,7 @@ class TestEvalNative:
 
     def test_eval(self) -> None:
         results = _run_test_file("eval.test")
-        _check_results(results, KNOWN_FAILURES_EVAL, "eval.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_EVAL, "eval.test")
 
 
 class TestForNative:
@@ -242,7 +381,7 @@ class TestForNative:
 
     def test_for(self) -> None:
         results = _run_test_file("for.test")
-        _check_results(results, KNOWN_FAILURES_FOR, "for.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_FOR, "for.test")
 
 
 class TestSourceNative:
@@ -250,7 +389,7 @@ class TestSourceNative:
 
     def test_source(self) -> None:
         results = _run_test_file("source.test")
-        _check_results(results, KNOWN_FAILURES_SOURCE, "source.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_SOURCE, "source.test")
 
 
 class TestIfNative:
@@ -258,7 +397,7 @@ class TestIfNative:
 
     def test_if(self) -> None:
         results = _run_test_file("if.test")
-        _check_results(results, KNOWN_FAILURES_IF, "if.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_IF, "if.test")
 
 
 class TestWhileNative:
@@ -266,4 +405,4 @@ class TestWhileNative:
 
     def test_while(self) -> None:
         results = _run_test_file("while.test")
-        _check_results(results, KNOWN_FAILURES_WHILE, "while.test", expect_zero_total=True)
+        _check_results(results, KNOWN_FAILURES_WHILE, "while.test")

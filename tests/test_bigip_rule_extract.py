@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bigip.rule_extract import find_embedded_rules, find_rule_at_offset
+from dialects.f5.bigip.rule_extract import find_embedded_rules, find_rule_at_offset
 
 
 def test_find_embedded_rules_range_maps_to_braces() -> None:

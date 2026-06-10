@@ -1,0 +1,24 @@
+ByteCode 0x5606f8a52da0, refCt 1, epoch 21, interp 0x5606f88e0350 (epoch 21)
+  Source "proc set_global {} {\n    uplevel #0 {set ::g 42}\n}\ns..."
+  Cmds 3, src 72, inst 24, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-10, src 0-49        2: pc 11-15, src 51-60
+      3: pc 16-22, src 62-70
+  Command 1: "proc set_global {} {\n    uplevel #0 {set ::g 42}\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "set_global"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    uplevel #0 {set ::g 42}..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set_global..."
+    (11) push1 1 	# "set_global"
+    (13) invokeStk1 1 
+    (15) pop 
+  Command 3: "puts $::g..."
+    (16) push1 4 	# "puts"
+    (18) push1 5 	# "::g"
+    (20) loadStk 
+    (21) invokeStk1 2 
+    (23) done 
+

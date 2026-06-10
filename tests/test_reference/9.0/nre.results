@@ -1,0 +1,38 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     nre.test
+DATE     2026-05-06T21:17:41Z
+---
+PASS nre-4.2
+PASS nre-7.8
+PASS nre-8.1
+PASS nre-8.2
+PASS nre-X.1
+SKIP nre-0.1 testnrelevels
+SKIP nre-1.1 testnrelevels
+SKIP nre-1.2 testnrelevels
+SKIP nre-1.3 testnrelevels
+SKIP nre-2.1 testnrelevels
+SKIP nre-3.1 testnrelevels
+SKIP nre-4.1 testnrelevels
+SKIP nre-5.1 testnrelevels
+SKIP nre-5.2 testnrelevels
+SKIP nre-6.1 testnrelevels
+SKIP nre-6.2 testnrelevels
+SKIP nre-7.1 testnrelevels
+SKIP nre-7.2 testnrelevels
+SKIP nre-7.3 testnrelevels
+SKIP nre-7.4 testnrelevels
+SKIP nre-7.5 testnrelevels
+SKIP nre-7.6 testnrelevels
+SKIP nre-7.7 testnrelevels
+SKIP nre-oo.1 testnrelevels
+SKIP nre-oo.2 testnrelevels
+SKIP nre-oo.3 testnrelevels
+SKIP nre-oo.4 testnrelevels
+SKIP nre-oo.5 testnrelevels
+---
+TOTAL   28
+PASSED  5
+SKIPPED 23
+FAILED  0

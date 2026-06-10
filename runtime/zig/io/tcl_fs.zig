@@ -173,27 +173,75 @@ const S_IFDIR: u32 = 0o040000;
 const S_IFCHR: u32 = 0o020000;
 const S_IFIFO: u32 = 0o010000;
 
-/// Copy *path*'s bytes onto the bump allocator with a trailing
+// Static 2-slot toggle for ``path_cstr`` — mirrors the pattern in
+// ``io/tcl_chan.zig``.  Two slots so a caller that needs both a
+// source and destination path (``rename`` / ``copy``) doesn't
+// clobber the first when materialising the second.  The bump
+// allocator can't free so a per-call alloc would leak the bytes
+// permanently.
+//
+// PATH_BUF_CAP is sized to match WASI's path-length ceiling (most
+// hosts cap at 4096); inputs longer than ``PATH_BUF_CAP - 1`` are
+// rejected by emptying the buffer rather than silently truncated —
+// truncation would let ``file delete /very/long/path`` operate on a
+// different (shorter) path with destructive results (Codex P2 on
+// PR #453).
+const PATH_BUF_CAP: u32 = 4096;
+var path_buf_a: [PATH_BUF_CAP]u8 = undefined;
+var path_buf_b: [PATH_BUF_CAP]u8 = undefined;
+var path_buf_toggle: u32 = 0;
+
+/// Copy *path*'s bytes into a static toggle slot with a trailing
 /// NUL so it can be passed to wasi-libc APIs that expect
-/// C-strings.
+/// C-strings.  Each call alternates between two slots so a single
+/// caller (``rename old new``) can hold two valid path C-strings
+/// at once; a third concurrent call within the same statement
+/// would alias the first slot — none exist today.
+///
+/// Paths whose byte length is ``PATH_BUF_CAP - 1`` or more land at
+/// an empty NUL buffer so the receiving syscall fails with ENOENT
+/// (or the equivalent ``open``/``stat`` error).  Failing loudly is
+/// safer than silently truncating to a shorter pathname.
 fn path_cstr(path: i32) [*:0]const u8 {
     const s = obj_ensure_string(path);
-    const buf_addr = obj.alloc(s.len + 1);
-    const out: [*]u8 = @ptrFromInt(buf_addr);
-    if (s.len > 0) {
-        const src: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| out[i] = src[i];
+    const buf: *[PATH_BUF_CAP]u8 = if (path_buf_toggle == 0) &path_buf_a else &path_buf_b;
+    path_buf_toggle ^= 1;
+    // Reject overlong paths — empty C-string lets every wasi-libc
+    // path syscall surface a clean failure instead of operating on
+    // a silently-shortened name.
+    if (s.len >= PATH_BUF_CAP) {
+        buf[0] = 0;
+        return @ptrCast(buf);
     }
-    out[s.len] = 0;
-    return @ptrCast(out);
+    const copy_len: u32 = s.len;
+    if (copy_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..copy_len) |i| buf[i] = src[i];
+    }
+    buf[copy_len] = 0;
+    return @ptrCast(buf);
 }
 
-/// Run ``stat(2)`` on *path*.  Returns the bump-allocator address
+// Static buffer for stat results — stat_path / lstat_path return
+// the address of this buffer.  Callers read the fields then either
+// use the address-stable shape (followed by another stat call which
+// overwrites the buffer) or copy the fields into a Tcl-side result.
+// No call site preserves the stat buffer beyond a single command
+// invocation, so a single shared buffer is safe and eliminates the
+// permanent ~160-byte leak per ``file exists`` / ``file stat``.
+//
+// 8-byte alignment is mandatory: the stat fields include ``i64``
+// time/size values that ``stat_size`` reads via ``*i64`` deref.
+// A bare ``[STAT_SIZE]u8`` lands at byte-1 alignment and Debug
+// builds trap with ``incorrectAlignment``.
+var stat_buf_static: [STAT_SIZE]u8 align(8) = undefined;
+
+/// Run ``stat(2)`` on *path*.  Returns the static-buffer address
 /// of the filled struct, or 0 if the call failed (path doesn't
 /// exist, not accessible, etc.).
 fn stat_path(path: i32) u32 {
-    const buf_addr = obj.alloc(STAT_SIZE);
-    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const buf_addr: u32 = @intFromPtr(&stat_buf_static);
+    const buf: *anyopaque = @ptrCast(&stat_buf_static);
     const rc = stat(path_cstr(path), buf);
     if (rc != 0) return 0;
     return buf_addr;
@@ -202,8 +250,8 @@ fn stat_path(path: i32) u32 {
 /// Same as :func:`stat_path` but uses ``lstat(2)`` — does not
 /// follow symbolic links on the final path component.
 fn lstat_path(path: i32) u32 {
-    const buf_addr = obj.alloc(STAT_SIZE);
-    const buf: *anyopaque = @ptrFromInt(buf_addr);
+    const buf_addr: u32 = @intFromPtr(&stat_buf_static);
+    const buf: *anyopaque = @ptrCast(&stat_buf_static);
     const rc = lstat(path_cstr(path), buf);
     if (rc != 0) return 0;
     return buf_addr;
@@ -282,10 +330,11 @@ pub export fn tcl_cmd_source(path: i32) i32 {
         return 0;
     }
     const size_i64 = stat_size(stat_buf);
-    // Free the stat scratch buffer immediately — repeated sources of
-    // a missing file used to leak STAT_SIZE bytes per call.  After
-    // this point ``stat_buf`` must not be dereferenced.
-    obj.free_sized(stat_buf, STAT_SIZE);
+    // ``stat_buf`` is a static shared buffer (see ``stat_buf_static``
+    // in this file) — it must NOT be returned to the allocator.  An
+    // earlier revision routed it through ``obj.free_sized``, which
+    // would have corrupted the size-class free-list with a non-
+    // allocator address (Codex review on PR #453).
     if (size_i64 < 0 or size_i64 > 64 * 1024 * 1024) {
         stubs.raise("source: file size out of range");
         return 0;
@@ -354,6 +403,111 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     return true;
 }
 
+/// All ``file`` subcommand canonical names.  Used by
+/// :func:`resolve_file_subcmd` to expand abbreviated forms (``file
+/// ext`` → ``file extension``) the way reference Tcl does.  Order
+/// doesn't matter — the resolver checks every name for prefix
+/// equality and returns the canonical one when exactly one matches.
+const FILE_SUBCMDS = [_][]const u8{
+    "atime",    "attributes", "channels",    "copy",
+    "ctime",    "delete",     "dirname",     "executable",
+    "exists",   "extension",  "isdirectory", "isfile",
+    "join",     "link",       "lstat",       "mkdir",
+    "mtime",    "nativename", "normalize",   "owned",
+    "pathtype", "readable",   "readlink",    "rename",
+    "rootname", "separator",  "size",        "split",
+    "stat",     "system",     "tail",        "tempfile",
+    "type",     "volumes",    "writable",
+};
+
+const FileSubcmdResolution = struct {
+    /// Resolved canonical name span (or the original input span when
+    /// no prefix matched).  Always populated; callers that see an
+    /// ``ambiguous`` flag should bail out before reading these.
+    ptr: u32,
+    len: u32,
+    /// Set when more than one canonical name shares the prefix.  The
+    /// caller raised ``ambiguous subcommand`` via :func:`stubs.raise`
+    /// before returning this value, and the dispatcher should
+    /// short-circuit instead of falling through to the
+    /// ``unsupported command`` path.
+    ambiguous: bool,
+};
+
+/// Match *sub* against the ``file`` subcommand list and return the
+/// canonical name (``ext`` → ``extension``, ``ro`` → ``rootname``,
+/// …).  Returns the input unchanged when the name is exact (so the
+/// caller's downstream comparisons match the original spelling) and
+/// the canonical name when a unique prefix matches.  When two or
+/// more canonical names share the prefix (``file c ...`` matches
+/// ``copy`` and ``ctime`` and ``channels``), this raises Tcl's
+/// standard ``ambiguous subcommand`` error and signals via
+/// ``ambiguous = true`` so the caller short-circuits — without that
+/// signal the dispatcher would fall through to ``unsupported
+/// command`` and lose the diagnostic value of the ambiguous-prefix
+/// hint (Copilot review on PR #324).  Mirrors
+/// ``Tcl_GetIndexFromObj``'s abbreviation rules.
+fn resolve_file_subcmd(ptr: u32, len: u32) FileSubcmdResolution {
+    if (len == 0) return .{ .ptr = ptr, .len = len, .ambiguous = false };
+    const inp: [*]const u8 = @ptrFromInt(ptr);
+    var match_idx: i32 = -1;
+    var ambiguous = false;
+    for (FILE_SUBCMDS, 0..) |name, i| {
+        if (name.len < len) continue;
+        // Exact match wins immediately — never ambiguous against itself.
+        if (name.len == len) {
+            var j: u32 = 0;
+            var ok = true;
+            while (j < len) : (j += 1) {
+                if (inp[j] != name[j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) return .{
+                .ptr = @intCast(@intFromPtr(name.ptr)),
+                .len = @intCast(name.len),
+                .ambiguous = false,
+            };
+        } else {
+            // Prefix candidate: name is longer, the leading bytes match.
+            var j: u32 = 0;
+            var ok = true;
+            while (j < len) : (j += 1) {
+                if (inp[j] != name[j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                if (match_idx >= 0) {
+                    ambiguous = true;
+                } else {
+                    match_idx = @intCast(i);
+                }
+            }
+        }
+    }
+    if (ambiguous) {
+        // Raise the canonical Tcl error via :mod:`stubs.tcl_stubs` so
+        // a ``catch`` around the call sees a real error instead of the
+        // less-informative ``unsupported command`` fallthrough.
+        stubs.raise("ambiguous subcommand: must use a unique prefix");
+        return .{ .ptr = ptr, .len = len, .ambiguous = true };
+    }
+    if (match_idx < 0) {
+        // No prefix match — let the dispatcher's final
+        // ``unsupported command`` trap fire with the original word.
+        return .{ .ptr = ptr, .len = len, .ambiguous = false };
+    }
+    const canon = FILE_SUBCMDS[@intCast(match_idx)];
+    return .{
+        .ptr = @intCast(@intFromPtr(canon.ptr)),
+        .len = @intCast(canon.len),
+        .ambiguous = false,
+    };
+}
+
 /// ``file <sub> <arg> ?extra?`` — dispatch for subcommand set.
 /// String-only operations (join / dirname / tail / rootname /
 /// extension / normalize / pathtype / split) compute purely on
@@ -377,37 +531,44 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
         stubs.unsupported("file (empty subcommand)");
         return 0;
     }
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Resolve unique-prefix abbreviations to the canonical subcommand
+    // name.  Tcl accepts ``file ext`` for ``extension``, ``file ro`` for
+    // ``rootname``, ``file dir`` for ``dirname``, ``file att`` for
+    // ``attributes``, etc., as long as the prefix matches exactly one
+    // subcommand.  cmdAH-9 / cmdAH-10 sweep both forms.
+    const canon = resolve_file_subcmd(s.ptr, s.len);
+    // Ambiguous prefix — :func:`resolve_file_subcmd` already raised
+    // ``ambiguous subcommand``; short-circuit so we don't fall
+    // through to ``unsupported command``.
+    if (canon.ambiguous) return 0;
+    const sp: [*]const u8 = @ptrFromInt(canon.ptr);
+    const sl = canon.len;
 
     // -- String-only path manipulation --
-    if (eq(sp, s.len, "join")) return file_join(arg1, arg2);
-    if (eq(sp, s.len, "dirname")) return file_dirname(arg1);
-    if (eq(sp, s.len, "tail")) return file_tail(arg1);
-    if (eq(sp, s.len, "rootname")) return file_rootname(arg1);
-    if (eq(sp, s.len, "extension")) return file_extension(arg1);
-    if (eq(sp, s.len, "normalize")) return arg1; // pass-through — we have no symlinks to resolve
-    if (eq(sp, s.len, "pathtype")) return obj.obj_new_string_copy(@intFromPtr("absolute".ptr), 8);
-    if (eq(sp, s.len, "separator")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
-    if (eq(sp, s.len, "nativename")) return arg1; // no native names in WASM
-    if (eq(sp, s.len, "split")) return file_split(arg1);
+    if (eq(sp, sl, "join")) return file_join(arg1, arg2);
+    if (eq(sp, sl, "dirname")) return file_dirname(arg1);
+    if (eq(sp, sl, "tail")) return file_tail(arg1);
+    if (eq(sp, sl, "rootname")) return file_rootname(arg1);
+    if (eq(sp, sl, "extension")) return file_extension(arg1);
+    if (eq(sp, sl, "normalize")) return arg1; // pass-through — we have no symlinks to resolve
+    if (eq(sp, sl, "pathtype")) return obj.obj_new_string_copy(@intFromPtr("absolute".ptr), 8);
+    if (eq(sp, sl, "separator")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
+    if (eq(sp, sl, "nativename")) return arg1; // no native names in WASM
+    if (eq(sp, sl, "split")) return file_split(arg1);
 
     // -- Existence / accessibility queries — real access(2) calls.
-    if (eq(sp, s.len, "exists")) return bool_obj(access(path_cstr(arg1), F_OK) == 0);
-    if (eq(sp, s.len, "readable")) return bool_obj(access(path_cstr(arg1), R_OK) == 0);
-    if (eq(sp, s.len, "writable")) return bool_obj(access(path_cstr(arg1), W_OK) == 0);
-    if (eq(sp, s.len, "executable")) return bool_obj(access(path_cstr(arg1), X_OK) == 0);
+    if (eq(sp, sl, "exists")) return bool_obj(access(path_cstr(arg1), F_OK) == 0);
+    if (eq(sp, sl, "readable")) return bool_obj(access(path_cstr(arg1), R_OK) == 0);
+    if (eq(sp, sl, "writable")) return bool_obj(access(path_cstr(arg1), W_OK) == 0);
+    if (eq(sp, sl, "executable")) return bool_obj(access(path_cstr(arg1), X_OK) == 0);
 
     // -- Type queries — stat + S_IF* bit check.
-    if (eq(sp, s.len, "isfile")) {
+    if (eq(sp, sl, "isfile")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFREG);
     }
-    // ``isdir`` is the unique-prefix shorthand Tcl accepts for
-    // ``isdirectory``; tcltest's ``AcceptDirectory`` uses that
-    // shorter form.  Matching both literal spellings is cheaper
-    // than a generic prefix matcher and covers every caller.
-    if (eq(sp, s.len, "isdirectory") or eq(sp, s.len, "isdir")) {
+    if (eq(sp, sl, "isdirectory")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFDIR);
@@ -415,61 +576,61 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     // ``file owned`` — always false under WASI (no meaningful
     // user identity); keep the old 0 return rather than faking a
     // match.
-    if (eq(sp, s.len, "owned")) return obj.obj_new_int(0);
+    if (eq(sp, sl, "owned")) return obj.obj_new_int(0);
 
     // -- Size / time queries — stat-derived.  Return -1 (matches
     //    Tcl's typical "unavailable" signal; tclsh would error,
     //    but -1 lets scripts test for non-positive).
-    if (eq(sp, s.len, "size")) {
+    if (eq(sp, sl, "size")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_size(st));
     }
-    if (eq(sp, s.len, "mtime")) {
+    if (eq(sp, sl, "mtime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_mtim_sec(st));
     }
-    if (eq(sp, s.len, "atime")) {
+    if (eq(sp, sl, "atime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_atim_sec(st));
     }
-    if (eq(sp, s.len, "ctime")) {
+    if (eq(sp, sl, "ctime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_ctim_sec(st));
     }
 
     // -- Channel inquiry --
-    if (eq(sp, s.len, "channels")) return obj.obj_new_string_copy(@intFromPtr("stdin stdout stderr".ptr), 19);
-    if (eq(sp, s.len, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
+    if (eq(sp, sl, "channels")) return obj.obj_new_string_copy(@intFromPtr("stdin stdout stderr".ptr), 19);
+    if (eq(sp, sl, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
 
     // -- Mutating operations backed by wasi-libc --
-    if (eq(sp, s.len, "mkdir")) return file_mkdir(arg1);
-    if (eq(sp, s.len, "delete")) return file_delete(arg1, arg2);
-    if (eq(sp, s.len, "rename")) return file_rename(arg1, arg2);
-    if (eq(sp, s.len, "copy")) return file_copy(arg1, arg2);
-    if (eq(sp, s.len, "type")) return file_type(arg1);
-    if (eq(sp, s.len, "stat")) return file_stat_cmd(arg1, arg2, false);
-    if (eq(sp, s.len, "lstat")) return file_stat_cmd(arg1, arg2, true);
-    if (eq(sp, s.len, "readlink")) return file_readlink(arg1);
-    if (eq(sp, s.len, "link")) return file_link(arg1, arg2);
+    if (eq(sp, sl, "mkdir")) return file_mkdir(arg1);
+    if (eq(sp, sl, "delete")) return file_delete(arg1, arg2);
+    if (eq(sp, sl, "rename")) return file_rename(arg1, arg2);
+    if (eq(sp, sl, "copy")) return file_copy(arg1, arg2);
+    if (eq(sp, sl, "type")) return file_type(arg1);
+    if (eq(sp, sl, "stat")) return file_stat_cmd(arg1, arg2, false);
+    if (eq(sp, sl, "lstat")) return file_stat_cmd(arg1, arg2, true);
+    if (eq(sp, sl, "readlink")) return file_readlink(arg1);
+    if (eq(sp, sl, "link")) return file_link(arg1, arg2);
     // ``file system`` returns the VFS that backs the path.  We
     // only have a single WASI-preopen filesystem; report ``native``
     // with an empty per-volume type, matching what tclsh reports
     // on POSIX.  The second element (``/``) is the mount point.
-    if (eq(sp, s.len, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
+    if (eq(sp, sl, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
 
     // -- Mutating operations — trap so scripts can't silently miss
     //    work.  ``attributes`` queries/sets Unix-style owner/group/
     //    permissions which WASI doesn't expose meaningfully; ``tempfile``
     //    needs the mkstemp family that wasi-libc lacks cleanly.  Both
     //    remain trap-as-unsupported until we have a concrete caller.
-    if (eq(sp, s.len, "attributes") or
-        eq(sp, s.len, "tempfile"))
+    if (eq(sp, sl, "attributes") or
+        eq(sp, sl, "tempfile"))
     {
-        const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
+        const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(canon.ptr)))[0..sl];
         stubs.unsupported_sub("file", sub_slice);
         return 0;
     }
@@ -497,11 +658,12 @@ fn file_join(a: i32, b: i32) i32 {
     while (a_end > 0 and ap[a_end - 1] == '/') : (a_end -= 1) {}
     const total: u32 = a_end + 1 + bs.len;
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return obj.obj_new_string(0, 0);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (0..a_end) |i| buf[i] = ap[i];
     buf[a_end] = '/';
     for (0..bs.len) |i| buf[a_end + 1 + i] = bp[i];
-    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    return obj.obj_new_string_take(buf_addr, total, total);
 }
 
 fn file_dirname(a: i32) i32 {
@@ -763,6 +925,16 @@ fn file_copy(src: i32, dst: i32) i32 {
     // memory for tcltest-scale files.
     const buf_size: u32 = 8 * 1024;
     const buf_addr = obj.alloc(buf_size);
+    // OOM: alloc raised ``oom_flag``.  Close the FDs and bail before
+    // ``@ptrFromInt(0)`` panics; the partial destination file is
+    // intentionally left in place — matching the I/O-error path
+    // below which also doesn't unlink dst.
+    if (buf_addr == 0) {
+        _ = close(in_fd);
+        _ = close(out_fd);
+        stubs.raise("file copy: out of memory allocating transfer buffer");
+        return 0;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var ok = true;
     while (true) {
@@ -897,13 +1069,14 @@ fn file_readlink(path: i32) i32 {
     // preopen-relative resolution).
     const buf_size: usize = 4096;
     const buf_addr = obj.alloc(buf_size);
+    if (buf_addr == 0) return obj.obj_new_string(0, 0);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     const n = readlink(path_cstr(path), buf, buf_size);
     if (n < 0) {
         stubs.raise("file readlink: path is not a symlink or is inaccessible");
         return 0;
     }
-    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(n));
+    return obj.obj_new_string_take(buf_addr, @intCast(n), @intCast(buf_size));
 }
 
 // --- glob ---
@@ -1035,6 +1208,11 @@ fn pattern_has_meta(pattern: []const u8) bool {
 fn unescape_pattern(pattern: []const u8) []const u8 {
     if (pattern.len == 0) return pattern;
     const buf_addr = obj.alloc(@intCast(pattern.len));
+    // OOM: alloc raised ``oom_flag``.  Return an empty slice so the
+    // caller's subsequent ``cstr_from_bytes`` + ``access`` probe
+    // resolves to the empty path (which doesn't exist) and the glob
+    // reports no matches.  Avoids ``@ptrFromInt(0)`` on the next line.
+    if (buf_addr == 0) return pattern[0..0];
     const out: [*]u8 = @ptrFromInt(buf_addr);
     var src: usize = 0;
     var dst: usize = 0;
@@ -1062,11 +1240,23 @@ fn split_dir_basename(pattern: []const u8) struct { dir_len: u32, base_off: u32 
     return .{ .dir_len = i, .base_off = i };
 }
 
+/// Static fallback used when :func:`cstr_from_bytes` hits OOM.  The
+/// data-segment ``""`` literal has a fixed address Zig guarantees is
+/// non-null, so callers can ``@ptrFromInt`` safely; they will then
+/// see "no match" / "doesn't exist" against the empty path, which is
+/// the desired graceful-degrade behaviour under allocator failure.
+const EMPTY_CSTR: [*:0]const u8 = "";
+
 /// Build a NUL-terminated bump-allocator copy of *src*.  Mirrors
 /// :func:`path_cstr` but takes raw bytes so callers can pass a
 /// dir-prefix slice carved out of the pattern.
 fn cstr_from_bytes(src: []const u8) [*:0]const u8 {
     const buf_addr = obj.alloc(@intCast(src.len + 1));
+    // OOM: alloc raised ``oom_flag``; fall back to an empty cstring
+    // so callers don't ``@ptrFromInt(0)`` and panic.  The empty path
+    // will then fail ``access`` / ``opendir`` cleanly and the caller
+    // returns "no matches".
+    if (buf_addr == 0) return EMPTY_CSTR;
     const out: [*]u8 = @ptrFromInt(buf_addr);
     for (src, 0..) |c, i| out[i] = c;
     out[src.len] = 0;
@@ -1151,6 +1341,17 @@ pub fn tcl_cmd_glob(pattern: i32) i32 {
         // Glue the dir prefix back onto the matched basename.
         const out_len: u32 = split.dir_len + nlen;
         const out_buf = obj.alloc(out_len);
+        // OOM: bail out of the readdir loop early.  ``acc`` already
+        // contains any matches found before the allocator failed, so
+        // returning it gives the caller a (possibly truncated) view
+        // of the glob — better than synthesising a Tcl error from a
+        // generic command that's expected to be non-fatal under
+        // ``-nocomplain``.  ``oom_flag`` is set; the interp boundary
+        // will surface it.
+        if (out_buf == 0 and out_len != 0) {
+            _ = closedir(dir_handle.?);
+            return acc;
+        }
         const out: [*]u8 = @ptrFromInt(out_buf);
         if (split.dir_len > 0) {
             for (0..split.dir_len) |i| out[i] = dir_bytes[i];
@@ -1160,6 +1361,107 @@ pub fn tcl_cmd_glob(pattern: i32) i32 {
     }
     _ = closedir(dir_handle.?);
     return acc;
+}
+
+/// Recursive multi-segment glob.  Matches ``pattern`` (a byte slice
+/// that may contain ``/`` separators) against the directory tree rooted
+/// at the NUL-terminated path ``base`` (``base_len`` excludes the NUL),
+/// appending full matching paths (``base/.../match``) to the Tcl list
+/// ``acc_in``.  Each segment is matched against ``readdir`` entries via
+/// ``fnmatch_basename``; non-final segments recurse into matching
+/// sub-directories.  Powers ``glob -directory DIR -join * pkgIndex.tcl``
+/// — the package-discovery walk ``tclPkgUnknown`` uses to load the
+/// stdlib (opt / msgcat / http / …) from ``TCL_LIBRARY``.
+fn glob_rec(acc_in: i32, base: [*:0]const u8, base_len: u32, pattern: []const u8, strip_len: u32) i32 {
+    var acc = acc_in;
+    var slash: u32 = @intCast(pattern.len);
+    {
+        var i: u32 = 0;
+        while (i < pattern.len) : (i += 1) {
+            if (pattern[i] == '/') {
+                slash = i;
+                break;
+            }
+        }
+    }
+    const seg: []const u8 = pattern[0..slash];
+    const is_last = slash >= pattern.len;
+    const rest: []const u8 = if (is_last) pattern[0..0] else pattern[slash + 1 ..];
+
+    const dir_handle = opendir(base);
+    if (dir_handle == null) return acc;
+    while (true) {
+        const ent = readdir(dir_handle.?);
+        if (ent == null) break;
+        const ent_addr: u32 = @intFromPtr(ent.?);
+        const name_ptr: [*]const u8 = @ptrFromInt(ent_addr + DIRENT_OFF_NAME);
+        var nlen: u32 = 0;
+        while (name_ptr[nlen] != 0) : (nlen += 1) {}
+        if (nlen == 0) continue;
+        // Skip ``.`` / ``..`` unless the segment explicitly begins with ``.``.
+        if (name_ptr[0] == '.' and (seg.len == 0 or seg[0] != '.')) continue;
+        if (!fnmatch_basename(seg.ptr, @intCast(seg.len), name_ptr, nlen)) continue;
+        const child_len: u32 = base_len + 1 + nlen;
+        const cbuf = obj.alloc(child_len + 1);
+        if (cbuf == 0) {
+            _ = closedir(dir_handle.?);
+            return acc;
+        }
+        const cp: [*]u8 = @ptrFromInt(cbuf);
+        var k: u32 = 0;
+        while (k < base_len) : (k += 1) cp[k] = base[k];
+        cp[base_len] = '/';
+        var j: u32 = 0;
+        while (j < nlen) : (j += 1) cp[base_len + 1 + j] = name_ptr[j];
+        cp[child_len] = 0;
+        if (is_last) {
+            // ``strip_len`` > 0 selects ``-tails`` output: append the
+            // path relative to the original ``-directory`` (i.e. with
+            // the directory prefix and its slash removed).
+            if (strip_len != 0 and child_len > strip_len) {
+                acc = list_append(acc, cbuf + strip_len, child_len - strip_len);
+            } else {
+                acc = list_append(acc, cbuf, child_len);
+            }
+        } else {
+            acc = glob_rec(acc, @ptrCast(cp), child_len, rest, strip_len);
+        }
+        // ``list_append`` copies the element bytes and ``glob_rec``
+        // copies what it needs into deeper child buffers, so this
+        // per-entry path buffer can be reclaimed immediately — without
+        // this a deep/wide recursive glob grows linear memory unbounded.
+        obj.free_sized(cbuf, child_len + 1);
+    }
+    _ = closedir(dir_handle.?);
+    return acc;
+}
+
+/// ``glob -directory DIR ?-join? ?-tails? PATTERN`` core.  Globs
+/// ``pattern`` (already joined when ``-join`` was given) relative to
+/// ``dir``.  Returns a Tcl list of full paths, or — when ``tails`` is
+/// set — paths relative to ``dir``.  Capability-gated like
+/// :func:`tcl_cmd_glob`.
+pub fn tcl_cmd_glob_dir(dir_obj: i32, pattern_obj: i32, tails: bool) i32 {
+    if (!caps.check(caps.CAP_FS_GLOB, "glob", "FS_GLOB")) return 0;
+    const d = obj_ensure_string(dir_obj);
+    const p = obj_ensure_string(pattern_obj);
+    if (d.len == 0) {
+        // No directory → behave like the bare ``glob pattern`` path.
+        return tcl_cmd_glob(pattern_obj);
+    }
+    // NUL-terminate the base directory.
+    const base = obj.alloc(d.len + 1);
+    if (base == 0) return obj_new_string(0, 0);
+    const bp: [*]u8 = @ptrFromInt(base);
+    var i: u32 = 0;
+    const dpb: [*]const u8 = @ptrFromInt(d.ptr);
+    while (i < d.len) : (i += 1) bp[i] = dpb[i];
+    bp[d.len] = 0;
+    const pat: []const u8 = (@as([*]const u8, @ptrFromInt(p.ptr)))[0..p.len];
+    const strip_len: u32 = if (tails) d.len + 1 else 0;
+    const result = glob_rec(obj_new_string(0, 0), @ptrCast(bp), d.len, pat, strip_len);
+    obj.free_sized(base, d.len + 1);
+    return result;
 }
 
 /// ``file link ?-type? linkName target`` — create a link.  Tcl's

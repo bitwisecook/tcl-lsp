@@ -1,4 +1,4 @@
-# KCS: Optimisation passes (O100–O126)
+# KCS: Optimisation passes (O100–O130)
 
 ## Symptom
 
@@ -11,17 +11,17 @@ optimisation.
 The optimiser runs as Phase 7 of the pipeline, after CFG/SSA/SCCP analysis.
 It is managed by `_CompilerOptimiser` in `_manager.py`, which orchestrates
 individual passes and collects `Optimisation` objects.  Each pass produces
-diagnostics with codes O100–O126.  Passes share state through `PassContext`.
+diagnostics with codes O100–O130.  Passes share state through `PassContext`.
 
-Source: [`core/compiler/optimiser/`](../../../core/compiler/optimiser/) —
-[`_manager.py`](../../../core/compiler/optimiser/_manager.py),
-[`_propagation.py`](../../../core/compiler/optimiser/_propagation.py),
-[`_elimination.py`](../../../core/compiler/optimiser/_elimination.py),
-[`_expr_simplify.py`](../../../core/compiler/optimiser/_expr_simplify.py),
-[`_code_sinking.py`](../../../core/compiler/optimiser/_code_sinking.py),
-[`_tail_call.py`](../../../core/compiler/optimiser/_tail_call.py),
-[`_unused_procs.py`](../../../core/compiler/optimiser/_unused_procs.py),
-[`core/compiler/gvn.py`](../../../core/compiler/gvn.py)
+Source: [`compiler/optimiser/`](../../../compiler/optimiser/) —
+[`_manager.py`](../../../compiler/optimiser/_manager.py),
+[`_propagation.py`](../../../compiler/optimiser/_propagation.py),
+[`_elimination.py`](../../../compiler/optimiser/_elimination.py),
+[`_expr_simplify.py`](../../../compiler/optimiser/_expr_simplify.py),
+[`_code_sinking.py`](../../../compiler/optimiser/_code_sinking.py),
+[`_tail_call.py`](../../../compiler/optimiser/_tail_call.py),
+[`_unused_procs.py`](../../../compiler/optimiser/_unused_procs.py),
+[`compiler/gvn.py`](../../../compiler/gvn.py)
 
 ## Content
 
@@ -40,6 +40,7 @@ Source: [`core/compiler/optimiser/`](../../../core/compiler/optimiser/) —
 | O108 | Aggressive DCE (ADCE) | `_elimination.py` | Statement result never used, no side effects |
 | O109 | Dead store elimination (DSE) | `_elimination.py` | Variable set but never read |
 | O110 | InstCombine | `_expr_simplify.py` | Algebraic simplification opportunity |
+| O111 | Brace expression hints | `_propagation.py` | Unbraced expr body in expression context (readability, paired with W100) |
 | O112 | Constant condition (SCCP) | `_propagation.py` | Branch condition is compile-time constant |
 | O113 | Strength reduction | `_propagation.py` | Power/modulo with small constants |
 | O114 | Incr idiom | `_propagation.py` | `set x [expr {$x + N}]` pattern |
@@ -56,6 +57,9 @@ Source: [`core/compiler/optimiser/`](../../../core/compiler/optimiser/) —
 | O125 | Code sinking (LCP) | `_code_sinking.py` | Assignment used only in one branch |
 | O126 | Dead store after tail position | `_elimination.py` | Variable only used by eliminated tail expr |
 | O127 | Inline single-use assignment | `_propagation.py` | Non-constant variable set once and used once |
+| O128 | End-offset index rewrite | `_pattern_recognition.py` | `[expr {[llength/[string length] - N}]` → `end-(N-1)` as index arg |
+| O129 | Fold pure builtin command substitution | `_propagation.py` | Pure builtin command substitution with constant arguments |
+| O130 | Lappend build chain | `_pattern_recognition.py` | `set` + `lappend` sequence folded into single assignment |
 
 ### Priority ordering
 

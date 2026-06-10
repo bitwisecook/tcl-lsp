@@ -1,0 +1,52 @@
+# var.test categorisation (Tcl 9.0.3 source tree).
+# 182/219 passing after namespace-aware variable storage + global /
+# variable rework.  The 33 residuals cluster around:
+#   - 1.14-1.17 — info vars / upvar-to-deleted-namespace introspection
+#   - 5.2-7.12 — variable / global with namespace-qualified targets
+#   - 12.1 / 16.1 — TclFindCompiledLocals / CallVarTraces internals
+#   - 24.x / 25.x / 26.x / 27.x — runtime introspection paths we don't
+#     yet expose to compiled bodies
+#   - 30.x — Tcl 9 ``const`` command not yet implemented
+
+good_to_have = [
+  "1.14",
+  "1.15",
+  "1.16",
+  "1.17",
+  "5.2",
+  "7.12",
+  "12.1",
+  "16.1",
+  "24.2",
+  "24.4",
+  "24.6",
+  "24.8",
+  "24.10",
+  "24.12",
+  "24.14",
+  "24.15",
+  "25.3",
+  "26.10.1",
+  "26.10.2",
+  "26.12",
+  "27.10.1",
+  "27.10.2",
+  "27.12",
+  "30.1",
+  "30.2",
+  "30.3",
+  "30.7",
+  "30.8",
+  "30.9",
+  "30.10",
+  "30.11",
+  "30.12",
+  "30.13",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 33
+just_to_match_ctcl_failing = 0
+skip_failing = 0

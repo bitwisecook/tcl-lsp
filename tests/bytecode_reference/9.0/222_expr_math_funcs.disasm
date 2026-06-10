@@ -1,0 +1,258 @@
+ByteCode 0x55d85c0b2bb0, refCt 1, epoch 21, interp 0x55d85bf3c350 (epoch 21)
+  Source "# expr built-in math functions: variadic min/max, int/e..."
+  Cmds 37, src 1016, inst 616, litObjs 33, aux 0, stkDepth 6, code/src 0.00
+  Commands 37:
+      1: pc 0-42, src 324-380        2: pc 0-10, src 329-345
+      3: pc 16-37, src 356-379        4: pc 43-94, src 382-438
+      5: pc 52-62, src 387-403        6: pc 68-89, src 414-437
+      7: pc 95-150, src 440-502        8: pc 104-118, src 445-465
+      9: pc 124-145, src 476-501       10: pc 151-206, src 504-566
+     11: pc 160-174, src 509-529       12: pc 180-201, src 540-565
+     13: pc 207-254, src 568-618       14: pc 216-222, src 573-586
+     15: pc 228-249, src 597-617       16: pc 255-302, src 620-668
+     17: pc 264-270, src 625-637       18: pc 276-297, src 648-667
+     19: pc 303-350, src 670-722       20: pc 312-318, src 675-688
+     21: pc 324-345, src 700-721       22: pc 351-398, src 724-782
+     23: pc 360-366, src 729-745       24: pc 372-393, src 757-781
+     25: pc 399-446, src 784-838       26: pc 408-414, src 789-803
+     27: pc 420-441, src 815-837       28: pc 447-496, src 840-900
+     29: pc 456-464, src 845-860       30: pc 470-491, src 874-899
+     31: pc 497-544, src 902-952       32: pc 506-512, src 907-920
+     33: pc 518-539, src 931-951       34: pc 545-592, src 954-1004
+     35: pc 554-560, src 959-972       36: pc 566-587, src 983-1003
+     37: pc 593-614, src 1006-1014
+  Command 1: "if {[expr {min(3,1,2)}] != 1} { error \"min(3,1,2) != 1..."
+  Command 2: "expr {min(3,1,2)}..."
+    (0) push1 0 	# "tcl::mathfunc::min"
+    (2) push1 1 	# "3"
+    (4) push1 2 	# "1"
+    (6) push1 3 	# "2"
+    (8) invokeStk1 4 
+    (10) tryCvtToNumeric 
+    (11) push1 2 	# "1"
+    (13) neq 
+    (14) jumpFalse1 +26 	# pc 40
+  Command 3: "error \"min(3,1,2) != 1\"..."
+    (16) startCommand +22 1 	# next cmd at pc 38, 1 cmds start here
+    (25) push1 4 	# "min(3,1,2) != 1"
+    (27) push1 5 	# ""
+    (29) returnImm +1 0 
+    (38) jump1 +4 	# pc 42
+    (40) push1 5 	# ""
+    (42) pop 
+  Command 4: "if {[expr {max(3,1,2)}] != 3} { error \"max(3,1,2) != 3..."
+    (43) startCommand +51 2 	# next cmd at pc 94, 2 cmds start here
+  Command 5: "expr {max(3,1,2)}..."
+    (52) push1 6 	# "tcl::mathfunc::max"
+    (54) push1 1 	# "3"
+    (56) push1 2 	# "1"
+    (58) push1 3 	# "2"
+    (60) invokeStk1 4 
+    (62) tryCvtToNumeric 
+    (63) push1 1 	# "3"
+    (65) neq 
+    (66) jumpFalse1 +26 	# pc 92
+  Command 6: "error \"max(3,1,2) != 3\"..."
+    (68) startCommand +22 1 	# next cmd at pc 90, 1 cmds start here
+    (77) push1 7 	# "max(3,1,2) != 3"
+    (79) push1 5 	# ""
+    (81) returnImm +1 0 
+    (90) jump1 +4 	# pc 94
+    (92) push1 5 	# ""
+    (94) pop 
+  Command 7: "if {[expr {min(1,2,3,4,5)}] != 1} { error \"min variadi..."
+    (95) startCommand +55 2 	# next cmd at pc 150, 2 cmds start here
+  Command 8: "expr {min(1,2,3,4,5)}..."
+    (104) push1 0 	# "tcl::mathfunc::min"
+    (106) push1 2 	# "1"
+    (108) push1 3 	# "2"
+    (110) push1 1 	# "3"
+    (112) push1 8 	# "4"
+    (114) push1 9 	# "5"
+    (116) invokeStk1 6 
+    (118) tryCvtToNumeric 
+    (119) push1 2 	# "1"
+    (121) neq 
+    (122) jumpFalse1 +26 	# pc 148
+  Command 9: "error \"min variadic != 1\"..."
+    (124) startCommand +22 1 	# next cmd at pc 146, 1 cmds start here
+    (133) push1 10 	# "min variadic != 1"
+    (135) push1 5 	# ""
+    (137) returnImm +1 0 
+    (146) jump1 +4 	# pc 150
+    (148) push1 5 	# ""
+    (150) pop 
+  Command 10: "if {[expr {max(5,4,3,2,1)}] != 5} { error \"max variadi..."
+    (151) startCommand +55 2 	# next cmd at pc 206, 2 cmds start here
+  Command 11: "expr {max(5,4,3,2,1)}..."
+    (160) push1 6 	# "tcl::mathfunc::max"
+    (162) push1 9 	# "5"
+    (164) push1 8 	# "4"
+    (166) push1 1 	# "3"
+    (168) push1 3 	# "2"
+    (170) push1 2 	# "1"
+    (172) invokeStk1 6 
+    (174) tryCvtToNumeric 
+    (175) push1 9 	# "5"
+    (177) neq 
+    (178) jumpFalse1 +26 	# pc 204
+  Command 12: "error \"max variadic != 5\"..."
+    (180) startCommand +22 1 	# next cmd at pc 202, 1 cmds start here
+    (189) push1 11 	# "max variadic != 5"
+    (191) push1 5 	# ""
+    (193) returnImm +1 0 
+    (202) jump1 +4 	# pc 206
+    (204) push1 5 	# ""
+    (206) pop 
+  Command 13: "if {[expr {abs(-5)}] != 5} { error \"abs(-5) != 5\"..."
+    (207) startCommand +47 2 	# next cmd at pc 254, 2 cmds start here
+  Command 14: "expr {abs(-5)}..."
+    (216) push1 12 	# "tcl::mathfunc::abs"
+    (218) push1 13 	# "-5"
+    (220) invokeStk1 2 
+    (222) tryCvtToNumeric 
+    (223) push1 9 	# "5"
+    (225) neq 
+    (226) jumpFalse1 +26 	# pc 252
+  Command 15: "error \"abs(-5) != 5\"..."
+    (228) startCommand +22 1 	# next cmd at pc 250, 1 cmds start here
+    (237) push1 14 	# "abs(-5) != 5"
+    (239) push1 5 	# ""
+    (241) returnImm +1 0 
+    (250) jump1 +4 	# pc 254
+    (252) push1 5 	# ""
+    (254) pop 
+  Command 16: "if {[expr {abs(5)}] != 5} { error \"abs(5) != 5\"..."
+    (255) startCommand +47 2 	# next cmd at pc 302, 2 cmds start here
+  Command 17: "expr {abs(5)}..."
+    (264) push1 12 	# "tcl::mathfunc::abs"
+    (266) push1 9 	# "5"
+    (268) invokeStk1 2 
+    (270) tryCvtToNumeric 
+    (271) push1 9 	# "5"
+    (273) neq 
+    (274) jumpFalse1 +26 	# pc 300
+  Command 18: "error \"abs(5) != 5\"..."
+    (276) startCommand +22 1 	# next cmd at pc 298, 1 cmds start here
+    (285) push1 15 	# "abs(5) != 5"
+    (287) push1 5 	# ""
+    (289) returnImm +1 0 
+    (298) jump1 +4 	# pc 302
+    (300) push1 5 	# ""
+    (302) pop 
+  Command 19: "if {[expr {int(42)}] != 42} { error \"int(42) != 42\"..."
+    (303) startCommand +47 2 	# next cmd at pc 350, 2 cmds start here
+  Command 20: "expr {int(42)}..."
+    (312) push1 16 	# "tcl::mathfunc::int"
+    (314) push1 17 	# "42"
+    (316) invokeStk1 2 
+    (318) tryCvtToNumeric 
+    (319) push1 17 	# "42"
+    (321) neq 
+    (322) jumpFalse1 +26 	# pc 348
+  Command 21: "error \"int(42) != 42\"..."
+    (324) startCommand +22 1 	# next cmd at pc 346, 1 cmds start here
+    (333) push1 18 	# "int(42) != 42"
+    (335) push1 5 	# ""
+    (337) returnImm +1 0 
+    (346) jump1 +4 	# pc 350
+    (348) push1 5 	# ""
+    (350) pop 
+  Command 22: "if {[expr {entier(42)}] != 42} { error \"entier(42) != ..."
+    (351) startCommand +47 2 	# next cmd at pc 398, 2 cmds start here
+  Command 23: "expr {entier(42)}..."
+    (360) push1 19 	# "tcl::mathfunc::entier"
+    (362) push1 17 	# "42"
+    (364) invokeStk1 2 
+    (366) tryCvtToNumeric 
+    (367) push1 17 	# "42"
+    (369) neq 
+    (370) jumpFalse1 +26 	# pc 396
+  Command 24: "error \"entier(42) != 42\"..."
+    (372) startCommand +22 1 	# next cmd at pc 394, 1 cmds start here
+    (381) push1 20 	# "entier(42) != 42"
+    (383) push1 5 	# ""
+    (385) returnImm +1 0 
+    (394) jump1 +4 	# pc 398
+    (396) push1 5 	# ""
+    (398) pop 
+  Command 25: "if {[expr {wide(42)}] != 42} { error \"wide(42) != 42\"..."
+    (399) startCommand +47 2 	# next cmd at pc 446, 2 cmds start here
+  Command 26: "expr {wide(42)}..."
+    (408) push1 21 	# "tcl::mathfunc::wide"
+    (410) push1 17 	# "42"
+    (412) invokeStk1 2 
+    (414) tryCvtToNumeric 
+    (415) push1 17 	# "42"
+    (417) neq 
+    (418) jumpFalse1 +26 	# pc 444
+  Command 27: "error \"wide(42) != 42\"..."
+    (420) startCommand +22 1 	# next cmd at pc 442, 1 cmds start here
+    (429) push1 22 	# "wide(42) != 42"
+    (431) push1 5 	# ""
+    (433) returnImm +1 0 
+    (442) jump1 +4 	# pc 446
+    (444) push1 5 	# ""
+    (446) pop 
+  Command 28: "if {[expr {pow(2,10)}] != 1024} { error \"pow(2,10) != ..."
+    (447) startCommand +49 2 	# next cmd at pc 496, 2 cmds start here
+  Command 29: "expr {pow(2,10)}..."
+    (456) push1 23 	# "tcl::mathfunc::pow"
+    (458) push1 3 	# "2"
+    (460) push1 24 	# "10"
+    (462) invokeStk1 3 
+    (464) tryCvtToNumeric 
+    (465) push1 25 	# "1024"
+    (467) neq 
+    (468) jumpFalse1 +26 	# pc 494
+  Command 30: "error \"pow(2,10) != 1024\"..."
+    (470) startCommand +22 1 	# next cmd at pc 492, 1 cmds start here
+    (479) push1 26 	# "pow(2,10) != 1024"
+    (481) push1 5 	# ""
+    (483) returnImm +1 0 
+    (492) jump1 +4 	# pc 496
+    (494) push1 5 	# ""
+    (496) pop 
+  Command 31: "if {[expr {bool(5)}] != 1} { error \"bool(5) != 1\"..."
+    (497) startCommand +47 2 	# next cmd at pc 544, 2 cmds start here
+  Command 32: "expr {bool(5)}..."
+    (506) push1 27 	# "tcl::mathfunc::bool"
+    (508) push1 9 	# "5"
+    (510) invokeStk1 2 
+    (512) tryCvtToNumeric 
+    (513) push1 2 	# "1"
+    (515) neq 
+    (516) jumpFalse1 +26 	# pc 542
+  Command 33: "error \"bool(5) != 1\"..."
+    (518) startCommand +22 1 	# next cmd at pc 540, 1 cmds start here
+    (527) push1 28 	# "bool(5) != 1"
+    (529) push1 5 	# ""
+    (531) returnImm +1 0 
+    (540) jump1 +4 	# pc 544
+    (542) push1 5 	# ""
+    (544) pop 
+  Command 34: "if {[expr {bool(0)}] != 0} { error \"bool(0) != 0\"..."
+    (545) startCommand +47 2 	# next cmd at pc 592, 2 cmds start here
+  Command 35: "expr {bool(0)}..."
+    (554) push1 27 	# "tcl::mathfunc::bool"
+    (556) push1 29 	# "0"
+    (558) invokeStk1 2 
+    (560) tryCvtToNumeric 
+    (561) push1 29 	# "0"
+    (563) neq 
+    (564) jumpFalse1 +26 	# pc 590
+  Command 36: "error \"bool(0) != 0\"..."
+    (566) startCommand +22 1 	# next cmd at pc 588, 1 cmds start here
+    (575) push1 30 	# "bool(0) != 0"
+    (577) push1 5 	# ""
+    (579) returnImm +1 0 
+    (588) jump1 +4 	# pc 592
+    (590) push1 5 	# ""
+    (592) pop 
+  Command 37: "return ok..."
+    (593) startCommand +22 1 	# next cmd at pc 615, 1 cmds start here
+    (602) push1 31 	# "ok"
+    (604) push1 32 	# ""
+    (606) returnImm +0 1 
+    (615) done 
+

@@ -198,11 +198,14 @@ test "string_toupper / string_tolower" {
     try testing.expectEqualStrings("HELLO 123!", bytes(str.string_toupper(s("Hello 123!"))));
 }
 
-test "string_totitle — first alpha upper, rest lower" {
+test "string_totitle — first codepoint title-cased, rest lower" {
     try testing.expectEqualStrings("Hello", bytes(str.string_totitle(s("hello"))));
     try testing.expectEqualStrings("Hello", bytes(str.string_totitle(s("HELLO"))));
-    // Non-alpha leading bytes are passed through; first alpha gets upper.
-    try testing.expectEqualStrings("123 Abc", bytes(str.string_totitle(s("123 abc"))));
+    // Only the first codepoint is title-cased; if it has no title
+    // variant (e.g. a digit), it passes through unchanged and the
+    // rest is lowercased.  Matches Tcl 9 ``string totitle`` (only
+    // touches index 0; no "find first alpha" logic).
+    try testing.expectEqualStrings("123 abc", bytes(str.string_totitle(s("123 abc"))));
 }
 
 // ---- replace --------------------------------------------------------
@@ -219,6 +222,36 @@ test "string_replace — substitute range with new bytes" {
     );
 }
 
+// ---- insert ---------------------------------------------------------
+
+test "string_insert — start, middle, end (integer indices)" {
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), i(0), s("_"))));
+    try testing.expectEqualStrings("01_23", bytes(str.string_insert(s("0123"), i(2), s("_"))));
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), i(4), s("_"))));
+}
+
+test "string_insert — end / end-N (insertion-point semantics)" {
+    // ``end`` resolves to ``length`` (one past last char), unlike
+    // ``string index`` where ``end`` is ``length-1``.  Matches
+    // ``StringInsertCmd`` in upstream ``tclCmdMZ.c``.
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), s("end"), s("_"))));
+    try testing.expectEqualStrings("01_23", bytes(str.string_insert(s("0123"), s("end-2"), s("_"))));
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), s("end-4"), s("_"))));
+}
+
+test "string_insert — clamps out-of-range indices" {
+    // Negative indices clamp to 0 (prepend).
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), i(-1), s("_"))));
+    // Indices past the end clamp to length (append).
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), i(5), s("_"))));
+}
+
+test "string_insert — empty operands" {
+    try testing.expectEqualStrings("_", bytes(str.string_insert(s(""), i(0), s("_"))));
+    try testing.expectEqualStrings("0123", bytes(str.string_insert(s("0123"), i(0), s(""))));
+    try testing.expectEqualStrings("", bytes(str.string_insert(s(""), i(0), s(""))));
+}
+
 // ---- string_is_* predicates ----------------------------------------
 
 test "string_is_integer" {
@@ -226,8 +259,26 @@ test "string_is_integer" {
     try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("-7"))));
     try testing.expectEqual(@as(i64, 0), intResult(str.string_is_integer(s("12.5"))));
     try testing.expectEqual(@as(i64, 0), intResult(str.string_is_integer(s("abc"))));
-    // Empty string is NOT integer (matches the implementation).
-    try testing.expectEqual(@as(i64, 0), intResult(str.string_is_integer(s(""))));
+    // Tcl 9 ``string is integer`` returns 1 for the empty string in
+    // non-strict mode (the no-flag fast path here is non-strict).
+    // See ``tclCmdMZ.c`` STR_IS_INT case and string-6.10 in basic.test.
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s(""))));
+    // Bignum-shaped literals (Stage 2): values > i64 still register
+    // as integer because the runtime supports arbitrary precision.
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("18446744073709551616"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("99999999999999999999999"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("-99999999999999999999999"))));
+}
+
+test "string_is_wideinteger" {
+    // ``string is wideinteger`` accepts the same set as
+    // ``string is integer`` once bignum support landed — the
+    // distinction collapsed when arbitrary precision became the
+    // runtime default (matches Tcl 9.0 semantics).
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_wideinteger(s("99"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_wideinteger(s("18446744073709551616"))));
+    try testing.expectEqual(@as(i64, 0), intResult(str.string_is_wideinteger(s("12.5"))));
+    try testing.expectEqual(@as(i64, 0), intResult(str.string_is_wideinteger(s("abc"))));
 }
 
 test "string_is_alpha / digit / space" {

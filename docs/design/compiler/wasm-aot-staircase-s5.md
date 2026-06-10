@@ -10,7 +10,7 @@ where that overhead applies. S5 trims it back: when SSA already
 proves the wrap is unnecessary, skip it.
 
 The compile pipeline already runs SSA + SCCP + the rest of the
-optimiser stack (`core/compiler/optimiser/`). S5 is mostly about
+optimiser stack (`compiler/optimiser/`). S5 is mostly about
 plugging the existing SSA facts into the WASM codegen so it can
 make smarter emission choices.
 
@@ -41,11 +41,11 @@ several scratch locals. Each such write today emits a
 
 **Tasks**:
 
-- [ ] In `core/compiler/codegen/wasm/_emitter/_core.py::_emit_owned_local_write`:
+- [ ] In `compiler/codegen/wasm/_emitter/_core.py::_emit_owned_local_write`:
   query the SSA fact "is this slot's value at this program point
   provably 0?".
 - [ ] Plumb the SSA fact in: the existing
-  `core/compiler/ssa.py` already produces `(var, version)` keys.
+  `compiler/ssa.py` already produces `(var, version)` keys.
   Add a "version 0 is the initial undef-or-0 value" convention
   if it is not already there.
 - [ ] When the answer is yes, emit only the retain (or for OWNED
@@ -56,8 +56,8 @@ several scratch locals. Each such write today emits a
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
-- Modify: `core/compiler/ssa.py` if the convention needs
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/ssa.py` if the convention needs
   formalising.
 - Modify: `runtime/zig/valtypes/tcl_obj.zig` if the leak-check
   build needs a new counter.
@@ -113,8 +113,8 @@ nothing.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
-- Modify: `core/compiler/ssa.py` if version comparison helpers
+- Modify: `compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `compiler/ssa.py` if version comparison helpers
   need a new method.
 
 **Test plan**:
@@ -159,9 +159,9 @@ Hoisting drops that to one pair total.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_control_flow.py`
-- Modify: `core/compiler/optimiser/_licm.py` if it exists; new
-  module under `core/compiler/optimiser/` if not.
+- Modify: `compiler/codegen/wasm/_emitter/_control_flow.py`
+- Modify: `compiler/optimiser/_licm.py` if it exists; new
+  module under `compiler/optimiser/` if not.
 
 **Test plan**:
 
@@ -183,7 +183,7 @@ N→1 reduction.
 ### S5.4 — Plug existing optimiser passes into codegen
 
 **Goal**: The compiler already runs SCCP, DCE, GVN, and several
-other passes (`core/compiler/optimiser/`). The WASM codegen
+other passes (`compiler/optimiser/`). The WASM codegen
 reads few of their facts. Audit and plug each into the codegen
 where it can reduce emission.
 
@@ -193,7 +193,7 @@ analysis; the codegen should benefit from it.
 **Tasks**:
 
 - [ ] Audit each optimiser pass for facts the WASM codegen
-  ignores (look at `core/compiler/optimiser/_manager.py` for
+  ignores (look at `compiler/optimiser/_manager.py` for
   the pass list).
 - [ ] For each, write a small adapter that exposes the facts to
   `_WasmEmitterBase`.
@@ -210,9 +210,9 @@ analysis; the codegen should benefit from it.
 
 **Files**:
 
-- Modify: `core/compiler/codegen/wasm/_emitter/_optimisation.py`
+- Modify: `compiler/codegen/wasm/_emitter/_optimisation.py`
   (already exists; extend)
-- Modify: `core/compiler/optimiser/_manager.py` if any pass
+- Modify: `compiler/optimiser/_manager.py` if any pass
   needs to expose more facts.
 
 **Test plan**:

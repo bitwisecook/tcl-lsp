@@ -10,7 +10,8 @@
 // returning empty — matches the convention in
 // :file:`tcl_stub_fallback.zig`.
 
-const rt  = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const enc = @import("../valtypes/tcl_encoding.zig");
 const chan = @import("../io/tcl_chan.zig");
 const io_cmd = @import("io.zig");
@@ -20,21 +21,21 @@ const obj = @import("../valtypes/tcl_obj.zig");
 const list_quote = @import("../valtypes/tcl_list_quote.zig");
 const tcl_string = @import("../valtypes/tcl_string.zig");
 
-const alloc          = rt.alloc;
+const alloc = rt.alloc;
 const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
-fn eval_encoding(words: []const i32) i32 {
-    const sub  = if (words.len >= 2) words[1] else 0;
+fn eval_encoding(words: []const i32) result_mod.InterpResult {
+    const sub = if (words.len >= 2) words[1] else 0;
     const arg1 = if (words.len >= 3) words[2] else 0;
     const arg2 = if (words.len >= 4) words[3] else 0;
-    return enc.tcl_cmd_encoding(sub, arg1, arg2);
+    return result_mod.from_globals(enc.tcl_cmd_encoding(sub, arg1, arg2));
 }
 
-pub fn eval_fconfigure(words: []const i32) i32 {
-    if (words.len < 2) return chan.tcl_cmd_fconfigure(0, 0);
+pub fn eval_fconfigure(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(chan.tcl_cmd_fconfigure(0, 0));
     const fd = words[1];
-    if (words.len < 3) return chan.tcl_cmd_fconfigure(fd, 0);
+    if (words.len < 3) return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, 0));
 
     // Build a properly-quoted Tcl list of the option words.  Plain
     // ``tcl_cmd_concat`` with " " separators would collapse empty
@@ -54,6 +55,7 @@ pub fn eval_fconfigure(words: []const i32) i32 {
     }
     if (total_cap == 0) total_cap = 1;
     const buf = alloc(total_cap);
+    if (buf == 0) return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, 0));
     var off: u32 = 0;
     i = 2;
     while (i < words.len) : (i += 1) {
@@ -65,8 +67,8 @@ pub fn eval_fconfigure(words: []const i32) i32 {
         const s = obj.obj_ensure_string(words[i]);
         off = list_quote.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    const args_obj = obj_new_string(@bitCast(buf), @bitCast(off));
-    return chan.tcl_cmd_fconfigure(fd, args_obj);
+    const args_obj = rt.obj_new_string_take(buf, off, total_cap);
+    return result_mod.from_globals(chan.tcl_cmd_fconfigure(fd, args_obj));
 }
 
 // -- chan ensemble --
@@ -109,7 +111,19 @@ fn eval_chan_names(words: []const i32) i32 {
             const ns = obj_ensure_string(name);
             if (!tcl_string.glob_match(pattern_ptr, pattern_len, ns.ptr, ns.len)) continue;
         }
-        result = rt.tcl_cmd_lappend(result, name);
+        // ``tcl_cmd_lappend`` may take the in-place fast path
+        // (returning the same handle) or the canonical-rebuild slow
+        // path (returning a fresh +1 owned obj).  The empty-string
+        // seed always misses the fast path (``cap == 0``), so the
+        // first hit returns a fresh handle — release the prior
+        // accumulator on swap so the seed (and any subsequent
+        // intermediate rebuild) doesn't outlive the call.
+        const next = rt.tcl_cmd_lappend(result, name);
+        if (next != result) {
+            const obj_mod_chan = @import("../valtypes/tcl_obj.zig");
+            obj_mod_chan.tcl_obj_release(result);
+        }
+        result = next;
     }
     return result;
 }
@@ -126,27 +140,32 @@ fn eval_chan_close(words: []const i32) i32 {
         stubs.unsupported("chan close (half-close direction not implemented)");
         return 0;
     }
-    return io_cmd.eval_close(words);
+    return io_cmd.eval_close(words).value;
 }
 
-fn eval_chan(words: []const i32) i32 {
+fn eval_chan(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         stubs.raise("chan: missing subcommand");
-        return 0;
+        return result_mod.from_globals(0);
     }
     const sub = words[1];
     // Forward the slice ``words[1..]`` to the bare-command handler:
     // its ``words[0]`` becomes the subcommand name (ignored by the
     // delegate, which never reads ``words[0]``).
     const tail = words[1..];
+    // Sub-handlers from io_cmd are themselves ``HandlerFn``-typed
+    // (returning ``InterpResult``); forward the typed result directly
+    // instead of double-wrapping.  Local helpers (eval_chan_close,
+    // eval_fconfigure, eval_chan_names) still return i32 and need
+    // ``from_globals`` to lift into a typed result.
     if (name_eq(sub, "blocked")) return io_cmd.eval_fblocked(tail);
-    if (name_eq(sub, "close")) return eval_chan_close(tail);
+    if (name_eq(sub, "close")) return result_mod.from_globals(eval_chan_close(tail));
     if (name_eq(sub, "configure")) return eval_fconfigure(tail);
     if (name_eq(sub, "copy")) return io_cmd.eval_fcopy(tail);
     if (name_eq(sub, "eof")) return io_cmd.eval_eof(tail);
     if (name_eq(sub, "flush")) return io_cmd.eval_flush(tail);
     if (name_eq(sub, "gets")) return io_cmd.eval_gets(tail);
-    if (name_eq(sub, "names")) return eval_chan_names(words[1..]);
+    if (name_eq(sub, "names")) return result_mod.from_globals(eval_chan_names(words[1..]));
     if (name_eq(sub, "puts")) return io_cmd.eval_puts(tail);
     if (name_eq(sub, "read")) return io_cmd.eval_read(tail);
     if (name_eq(sub, "seek")) return io_cmd.eval_seek(tail);
@@ -165,10 +184,10 @@ fn eval_chan(words: []const i32) i32 {
         name_eq(sub, "truncate"))
     {
         stubs.unsupported("chan (subcommand not implemented)");
-        return 0;
+        return result_mod.from_globals(0);
     }
     stubs.raise("chan: unknown subcommand");
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 pub const registrations = [_]reg.CmdEntry{
@@ -178,7 +197,7 @@ pub const registrations = [_]reg.CmdEntry{
 };
 
 // Per-command sub-tables.  Arities mirror
-// ``core/commands/registry/tcl/chan.py``; the parity check enforces
+// ``dialects/tcl/chan.py``; the parity check enforces
 // every entry here matches the Python ``SubCommand.arity`` declaration.
 // The handler pointer is metadata-only — runtime dispatch happens
 // inside :func:`eval_chan` (and similarly inside the bare-command

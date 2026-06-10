@@ -1,5 +1,8 @@
 # KCS: feature — Document Symbols
 
+> **Audience:** User
+> **Type:** Functionality
+
 ## Summary
 
 Outline of procs, namespaces, event handlers, and variables in the current file.
@@ -20,7 +23,7 @@ Produces a hierarchical symbol tree with procs nested inside namespaces, variabl
 
 ## File-path anchors
 
-- `lsp/features/document_symbols.py`
+- `server/features/document_symbols.py`
 
 ## Failure modes
 

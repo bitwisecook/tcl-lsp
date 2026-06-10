@@ -1,0 +1,22 @@
+# ooNext2.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '12 of 62 failed'
+# classification: real-mismatch
+# rationale: TclOO next/forwarding behaviour mismatches
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 62
+observed_passed = 50
+observed_failed = 12
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["next-tailcall-simple-1", "next-tailcall-simple-2", "next-tailcall-simple-3", "next-tailcall-simple-4", "next-tailcall-superclass-1", "next-tailcall-superclass-2", "next-tailcall-mixin-1", "next-tailcall-objmixin-1", "next-tailcall-filter-1", "next-tailcall-forward-1", "next-tailcall-constructor-1", "next-tailcall-destructor-1"]

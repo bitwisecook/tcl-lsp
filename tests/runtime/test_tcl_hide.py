@@ -15,7 +15,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from shared.runtime_wasm import runtime_wasm_path  # noqa: E402
 from tests.runtime._host_imports import define_host_spawn  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
@@ -26,6 +26,7 @@ HIDE_OK = 0
 HIDE_NOT_FOUND = 1
 HIDE_QUALIFIED_REJECTED = 2
 HIDE_NAME_TAKEN = 3
+HIDE_NON_GLOBAL_SOURCE = 4
 
 EXPOSE_OK = 0
 EXPOSE_NOT_FOUND = 1
@@ -157,11 +158,15 @@ def test_hide_not_found(runtime: RuntimeHandle):
 
 
 def test_hide_rejects_qualified_source(runtime: RuntimeHandle):
-    """Qualified source names are not accepted."""
+    """Qualified source names are not accepted.  Tcl 9's
+    ``Tcl_HideCommand`` classifies this as "can only hide global
+    namespace commands" — distinct from the destination-side
+    "cannot use qualifiers in hidden token" error — so the helper
+    returns :data:`HIDE_NON_GLOBAL_SOURCE` (4)."""
     root = runtime.root()
     runtime.register_proc("::foo")
     r = runtime.hide(root, "::foo", "foo")
-    assert r == HIDE_QUALIFIED_REJECTED
+    assert r == HIDE_NON_GLOBAL_SOURCE
 
 
 def test_hide_rejects_qualified_hidden_name(runtime: RuntimeHandle):
