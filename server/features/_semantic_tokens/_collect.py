@@ -937,6 +937,15 @@ def _collect_tokens(
                     rendered = '"' + tok.text
                 else:
                     rendered = '"' + tok.text + '"'
+            elif tok.type is TokenType.STR:
+                # A braced word's text holds only the inner content; the
+                # ``{``/``}`` delimiters are stripped by the lexer but the
+                # token still starts on the opening brace.  Re-add both braces
+                # so the rendered span covers the whole ``{...}`` literal,
+                # matching the quoted-string convention above.  Without this
+                # the token is one character short and the closing brace plus
+                # the final inner character lose their colour (issue #579).
+                rendered = "{" + tok.text + "}"
             else:
                 rendered = tok.text
 

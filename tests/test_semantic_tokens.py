@@ -122,6 +122,62 @@ class TestSemanticTokens:
         types = [t["type"] for t in tokens]
         assert "string" in types
 
+    def test_braced_string_spans_full_literal(self):
+        """A braced word's string token must cover the whole ``{...}`` literal.
+
+        Regression for issue #579: the braced word's text holds only the inner
+        content, but the token starts on the opening brace.  Emitting it without
+        re-adding the braces left the token one character short, so the closing
+        brace and the final inner character lost their colour (the reported
+        "last digit a different colour" symptom).
+        """
+        source = "puts {12345}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        string_tokens = [t for t in tokens if t["type"] == "string"]
+        assert len(string_tokens) == 1
+        tok = string_tokens[0]
+        # ``{12345}`` starts at column 5 and is 7 characters wide.
+        assert tok["char"] == source.index("{")
+        assert tok["length"] == len("{12345}")
+
+    def test_braced_number_single_string_token(self):
+        """Braced numbers should produce exactly one full-width string token."""
+        source = "{42}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "string"
+        assert tokens[0]["char"] == 0
+        assert tokens[0]["length"] == len("{42}")
+
+    def test_braced_string_multiline_covers_both_delimiters(self):
+        """A multi-line braced literal keeps the opening and closing braces."""
+        source = "puts {line1\nline2}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        string_tokens = sorted(
+            (t for t in tokens if t["type"] == "string"),
+            key=lambda t: (t["line"], t["char"]),
+        )
+        assert len(string_tokens) == 2
+        # First line: ``{line1`` (brace + content, no trailing brace yet).
+        first = string_tokens[0]
+        assert first["line"] == 0
+        assert first["char"] == source.index("{")
+        assert first["length"] == len("{line1")
+        # Second line: ``line2}`` (content + closing brace).
+        second = string_tokens[1]
+        assert second["line"] == 1
+        assert second["char"] == 0
+        assert second["length"] == len("line2}")
+
+    def test_quoted_string_still_spans_full_literal(self):
+        """Quoted strings keep covering both quote delimiters (guards the fix)."""
+        source = 'puts "hello"'
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        string_tokens = [t for t in tokens if t["type"] == "string"]
+        assert len(string_tokens) == 1
+        assert string_tokens[0]["char"] == source.index('"')
+        assert string_tokens[0]["length"] == len('"hello"')
+
     def test_if_elseif_else_body_recursion(self):
         source = "if {$x} { set a 1 } elseif {$y} { set b 2 } else { set c 3 }"
         tokens = _decode_tokens(semantic_tokens_full(source))
