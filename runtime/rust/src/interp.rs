@@ -247,6 +247,20 @@ pub enum Command {
     /// `Class new`). The `Vec<u8>` is the FQN; dispatch routes to
     /// [`crate::cmd_oo`] via the [`OoState`](crate::cmd_oo::OoState) registry.
     OoObject(Vec<u8>),
+    /// A cross-interp alias installed in a *child* interp that delegates to a
+    /// command in the *parent* (`interp alias child name {} parentCmd …`). When
+    /// invoked, it runs `target` (+ `prefix` + the call args) in the parent.
+    ParentAlias {
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    },
+}
+
+thread_local! {
+    /// Depth of active cross-interp (`ParentAlias`) calls. Bounds re-entrancy so
+    /// a second parent deref can't alias a `&mut Interp` that is already live up
+    /// the stack — sound by erroring rather than risking UB.
+    static CROSS_INTERP_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
@@ -312,6 +326,14 @@ pub struct Interp {
     /// invocable via `interp invokehidden`. A safe interp hides the dangerous
     /// commands here.
     hidden: std::collections::BTreeMap<Vec<u8>, Command>,
+    /// While this interp runs as a child (`$parent eval`/`$child eval`), a raw
+    /// pointer to its parent interp — for cross-interp aliases that delegate to
+    /// a parent command. Valid only during a child eval: the child is *removed*
+    /// from the parent's table for the duration ([`eval_in_child`]), so the
+    /// parent is a dormant, disjoint value while the child holds this pointer.
+    ///
+    /// [`eval_in_child`]: Interp::eval_in_child
+    parent: Option<*mut Interp>,
     /// TclOO object system state (classes, objects, the method-call stack).
     pub(crate) oo: crate::cmd_oo::OoState,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
@@ -349,6 +371,7 @@ impl Interp {
             children: std::collections::BTreeMap::new(),
             interp_counter: 0,
             hidden: std::collections::BTreeMap::new(),
+            parent: None,
             oo: crate::cmd_oo::OoState::default(),
             cmd_frames: Vec::new(),
             eval_depth: 0,
@@ -382,6 +405,22 @@ impl Interp {
     pub(crate) fn install_alias(&mut self, name: &[u8], target: Vec<u8>, prefix: Vec<Vec<u8>>) {
         self.namespaces
             .register(name, Command::Alias { target, prefix });
+    }
+
+    /// Install a cross-interp alias in child `child`: `name` (in the child)
+    /// delegates to `target ?prefix...?` run in this (the parent) interp.
+    /// Returns whether the child exists.
+    pub(crate) fn install_parent_alias(
+        &mut self,
+        child: &[u8],
+        name: &[u8],
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    ) -> bool {
+        self.with_child(child, |c| {
+            c.ns_register(name, Command::ParentAlias { target, prefix });
+        })
+        .is_some()
     }
 
     /// The `(target, prefix)` of the alias bound to `name` (the query form), or
@@ -1414,6 +1453,9 @@ impl Interp {
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
             Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
+            Command::ParentAlias { target, prefix } => {
+                self.dispatch_parent_alias(&target, &prefix, argv)
+            }
         }
     }
 
@@ -1499,6 +1541,17 @@ impl Interp {
                 let elems: Vec<*mut TclObj> =
                     names.iter().map(|n| obj::new_string_bytes(n)).collect();
                 self.set_result(crate::list::new_list_obj(&elems));
+                Code::Ok
+            }
+            // `$child alias srcCmd targetCmd ?arg ...?` — a cross-interp alias in
+            // the child delegating to `targetCmd` in this (parent) interp. (The
+            // target is implicitly the parent, so there is no target-path arg.)
+            b"alias" if argv.len() >= 4 => {
+                let alias = obj_bytes(argv[2]);
+                let target = obj_bytes(argv[3]);
+                let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
+                self.install_parent_alias(name, &alias, target, prefix);
+                self.set_result(obj::new_string_bytes(&alias));
                 Code::Ok
             }
             other => {
@@ -1628,15 +1681,66 @@ impl Interp {
     /// Evaluate `script` in child interpreter `name`, copying its result/code
     /// back. `None`-returning if the child doesn't exist (caller raises).
     pub(crate) fn eval_in_child(&mut self, name: &[u8], script: &[u8]) -> Code {
-        let Some(child) = self.children.get_mut(name) else {
+        // Remove the child for the duration so the parent (`self`) is a dormant,
+        // disjoint value the child can reach back into (via its `parent` pointer)
+        // for cross-interp aliases — without an overlapping borrow. Re-inserted
+        // after. (A parent command can't re-enter *this* child meanwhile: it's
+        // not in the table.)
+        let Some(mut child) = self.children.remove(name) else {
             let mut m = b"could not find interpreter \"".to_vec();
             m.extend_from_slice(name);
             m.push(b'"');
             return self.error(&m);
         };
+        child.parent = Some(self as *mut Interp);
         let code = child.eval_str(script);
         let result = child.result_bytes();
+        child.parent = None;
+        self.children.insert(name.to_vec(), child);
         self.set_result_bytes(&result);
+        code
+    }
+
+    /// Run a cross-interp alias (`ParentAlias`): invoke `target` (+ `prefix` +
+    /// the call args) in this interp's *parent*, copying the parent's result
+    /// back. The parent is dormant (the child was removed from its table for the
+    /// child eval), so the raw deref forms the only live `&mut` to it — except
+    /// under nested cross-interp calls, which the depth guard rejects.
+    fn dispatch_parent_alias(
+        &mut self,
+        target: &[u8],
+        prefix: &[Vec<u8>],
+        argv: &[*mut TclObj],
+    ) -> Code {
+        let Some(parent_ptr) = self.parent else {
+            return self.error(b"cannot invoke a parent alias from the root interpreter");
+        };
+        if CROSS_INTERP_DEPTH.with(|d| d.get()) > 0 {
+            return self.error(b"recursive cross-interpreter invocation is not supported");
+        }
+        // Build [target, *prefix, *argv[1..]] — each element owned (+1).
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
+        let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
+            unsafe { obj::incr_ref_count(o) };
+            v.push(o);
+        };
+        push_owned(&mut new_argv, new_string(target));
+        for p in prefix {
+            push_owned(&mut new_argv, new_string(p));
+        }
+        for &a in &argv[1..] {
+            push_owned(&mut new_argv, a);
+        }
+        CROSS_INTERP_DEPTH.with(|d| d.set(1));
+        // SAFETY: `parent_ptr` points to the parent interp, which is dormant
+        // while this child eval runs (the child was removed from its table); the
+        // depth guard above ensures no other live `&mut` to it exists.
+        let parent = unsafe { &mut *parent_ptr };
+        let code = parent.dispatch(&new_argv);
+        let res = parent.result_bytes();
+        CROSS_INTERP_DEPTH.with(|d| d.set(0));
+        release_all(&new_argv);
+        self.set_result_bytes(&res);
         code
     }
 

@@ -313,11 +313,37 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"interp alias srcPath srcCmd ?targetPath targetCmd? ?arg ...?",
         );
     }
-    if !obj_bytes(argv[2]).is_empty() {
-        return only_single_interp(interp);
-    }
+    let src = obj_bytes(argv[2]);
     let name = obj_bytes(argv[3]);
 
+    // -- alias in a child interp, delegating to the parent (this interp) -------
+    if !src.is_empty() {
+        if !interp.child_exists(&src) {
+            let mut m = b"could not find interpreter \"".to_vec();
+            m.extend_from_slice(&src);
+            m.push(b'"');
+            return interp.set_error(&m);
+        }
+        if argv.len() == 4 {
+            return interp.set_error(b"querying a child alias is not yet supported");
+        }
+        if !obj_bytes(argv[4]).is_empty() {
+            // Only a `{}` target path (the parent) is supported.
+            return only_single_interp(interp);
+        }
+        if argv.len() == 5 {
+            interp.with_child(&src, |c| c.delete_command(&name));
+            interp.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let target = obj_bytes(argv[5]);
+        let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
+        interp.install_parent_alias(&src, &name, target, prefix);
+        interp.set_result(obj::new_string_bytes(&name));
+        return Code::Ok;
+    }
+
+    // -- alias in the current interp (single-interp) --------------------------
     // Query: `interp alias {} aliasName`.
     if argv.len() == 4 {
         return match interp.alias_info(&name) {
@@ -449,6 +475,30 @@ mod tests {
             assert_eq!(i.eval_str(b"interp exists kid"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0");
             assert_eq!(i.eval_str(b"kid eval {set x}"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn cross_interp_aliases() {
+        // A child alias delegating to a parent command (both syntaxes), and the
+        // re-entrancy guard (a parent alias re-entering a child errors, not UB).
+        leak_free(|i| {
+            i.eval_str(b"proc padd {a b} {expr {$a+$b}}");
+            i.eval_str(b"set c [interp create]");
+            // `interp alias $c name {} target prefix...`
+            i.eval_str(b"interp alias $c add {} padd 100");
+            assert_eq!(i.eval_str(b"$c eval {add 5}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"105");
+            // `$c alias name target prefix...`
+            i.eval_str(b"$c alias mul ::tcl::mathop::* 3");
+            assert_eq!(i.eval_str(b"$c eval {mul 4}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"12");
+            // Re-entrancy: a parent alias target that evals back into a child
+            // errors (the depth guard), rather than risking aliased &mut.
+            i.eval_str(b"proc reenter {} { $::c eval {set x 1} }");
+            i.eval_str(b"interp alias $c cb {} reenter");
+            assert_eq!(i.eval_str(b"$c eval {cb}"), Code::Error);
+            i.eval_str(b"interp delete $c; unset -nocomplain c");
         });
     }
 
