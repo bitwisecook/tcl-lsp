@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
+from .dialects import KNOWN_DIALECTS
 from .runtime import (
     _canonical_dialect,
     _dialect_var,
@@ -109,6 +110,25 @@ DIALECT_DIRECTIVE_SCAN_LINES = 5
 _PKG_REQUIRE_SCAN_LINES = 30
 
 
+def detect_dialect_directive(source: str) -> str | None:
+    """Return the dialect named by a ``# tcl-dialect: <dialect>`` directive.
+
+    Scans the first :data:`DIALECT_DIRECTIVE_SCAN_LINES` lines for an
+    explicit ``# tcl-dialect:`` comment and returns the named dialect when
+    it is a recognised value, else ``None``.  Split out from
+    :func:`detect_dialect_from_source` so callers can give the explicit
+    user directive priority over filename heuristics (e.g. BIG-IP config
+    basenames) while leaving the rest of the autodetection lower-priority.
+    """
+    for line in source.split("\n", DIALECT_DIRECTIVE_SCAN_LINES)[:DIALECT_DIRECTIVE_SCAN_LINES]:
+        m = _DIALECT_DIRECTIVE_RE.match(line)
+        if m:
+            candidate = m.group(1).strip().lower()
+            if candidate in KNOWN_DIALECTS:
+                return candidate
+    return None
+
+
 def detect_dialect_from_source(source: str) -> str | None:
     """Detect a dialect from source content.
 
@@ -116,20 +136,16 @@ def detect_dialect_from_source(source: str) -> str | None:
     1. ``# tcl-dialect: <dialect>`` comment directive (first 5 lines)
     2. Shebang (first line)
     3. ``package require Tcl <version>`` (first 30 lines)
+    4. Conf-wrapped iRules (``ltm rule`` / ``gtm rule`` stanzas)
 
     Returns ``None`` if no dialect hint is found.
     """
-    from compiler.registry.dialects import KNOWN_DIALECTS
-
     lines = source.split("\n", _PKG_REQUIRE_SCAN_LINES)
 
     # Comment directive (``# tcl-dialect: <dialect>``)
-    for line in lines[:DIALECT_DIRECTIVE_SCAN_LINES]:
-        m = _DIALECT_DIRECTIVE_RE.match(line)
-        if m:
-            candidate = m.group(1).strip().lower()
-            if candidate in KNOWN_DIALECTS:
-                return candidate
+    directive = detect_dialect_directive(source)
+    if directive is not None:
+        return directive
 
     # Shebang detection (first line only)
     if lines:
