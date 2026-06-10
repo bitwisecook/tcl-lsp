@@ -39,6 +39,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     match obj_bytes(argv[1]).as_slice() {
         b"current" => ns_current(interp, argv),
+        b"delete" => ns_delete(interp, argv),
         b"eval" => ns_eval(interp, argv),
         b"exists" => ns_exists(interp, argv),
         b"parent" => ns_parent(interp, argv),
@@ -57,7 +58,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, current, ensemble, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
+            m.extend_from_slice(b"\": must be children, current, delete, ensemble, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
             interp.set_error(&m)
         }
     }
@@ -73,6 +74,24 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cur = interp.current_ns();
     let name = interp.namespaces().qualified_name(cur);
     interp.set_result_bytes(&name);
+    Code::Ok
+}
+
+/// `namespace delete ?name name ...?` — delete each named namespace (with its
+/// children, commands, and variables). A missing namespace is an error; with no
+/// names it is a no-op. Mirrors C's `NamespaceDeleteCmd` (`tclNamesp.c`).
+fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let cur = interp.current_ns();
+    for &a in &argv[2..] {
+        let name = obj_bytes(a);
+        if !interp.namespaces_mut().delete_namespace(cur, &name) {
+            let mut m = b"unknown namespace \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\" in namespace delete command");
+            return interp.set_error(&m);
+        }
+    }
+    interp.set_result_bytes(b"");
     Code::Ok
 }
 
@@ -794,6 +813,28 @@ mod tests {
             );
             // -force overrides the clobber.
             assert_eq!(i.eval_str(b"namespace import -force ::other::*"), Code::Ok);
+        });
+    }
+
+    #[test]
+    fn namespace_delete_removes_subtree() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval foo { proc p {} {return P} ; namespace eval bar {} }");
+            assert_eq!(i.eval_str(b"namespace exists ::foo::bar"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"namespace delete ::foo"), Code::Ok);
+            // The namespace, its child, and its commands are gone.
+            assert_eq!(i.eval_str(b"namespace exists ::foo"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"namespace exists ::foo::bar"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"::foo::p"), Code::Error);
+            // Deleting a missing namespace errors (tclsh message).
+            assert_eq!(i.eval_str(b"namespace delete ::nope"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown namespace \"::nope\" in namespace delete command"
+            );
         });
     }
 

@@ -141,7 +141,10 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for attempt in 0..2 {
         if let Some(ver) = best_ifneeded(interp, &name, exact, &reqs) {
             let script = interp.packages.ifneeded[&(name.clone(), ver)].clone();
-            if interp.eval_str(&script) == Code::Error {
+            // Package load scripts run at the global scope (C's `uplevel #0`),
+            // so a package's `namespace eval foo` creates `::foo` even when
+            // `package require` is called from inside another namespace.
+            if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
             if let Some(Ok(v)) = check_provided(interp, &name, exact, &reqs) {
@@ -159,7 +162,8 @@ fn require(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 script.push(b' ');
                 script.extend_from_slice(w);
             }
-            if interp.eval_str(&script) == Code::Error {
+            // The `package unknown` handler (pkgIndex search) also runs globally.
+            if interp.eval_uplevel(0, &script) == Code::Error {
                 return Code::Error;
             }
         }
