@@ -204,6 +204,9 @@ pub fn hover(
     // subcommand word.  Mirrors `lsp/features/hover.py`'s
     // `SIGNATURES` lookup at the tail of `get_hover`.
     if let Some(registry) = registry {
+        if let Some(text) = option_hover_text(source, line, character, registry, &word) {
+            return Some(Hover::markdown(text));
+        }
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
@@ -469,6 +472,51 @@ fn subcommand_hover_text(
         }
     } else {
         let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
+    }
+    Some(out)
+}
+
+/// Render a hover snippet for a `-option` when the cursor sits on an option
+/// word of the surrounding command.  `cursor_word` is the identifier under
+/// the cursor (no leading `-`); the dash is detected on the line.  Mirrors
+/// the option arm of `lsp/features/hover.py`.
+fn option_hover_text(
+    source: &str,
+    line: u32,
+    character: u32,
+    registry: &CommandRegistry,
+    _cursor_word: &str,
+) -> Option<String> {
+    use std::fmt::Write;
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    // The option word run (dash-led identifier) containing the cursor.
+    let is_opt_char = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
+    let mut start = col.min(chars.len());
+    while start > 0 && is_opt_char(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_opt_char(chars[end]) {
+        end += 1;
+    }
+    // The run must begin with a `-` to be an option.
+    if start >= end || chars[start] != '-' {
+        return None;
+    }
+    let option: String = chars[start..end].iter().collect();
+    // The surrounding command is the first whitespace-delimited token.
+    let prefix: String = chars[..start].iter().collect();
+    let cmd_name = prefix.split_whitespace().next()?;
+    let spec = registry.get(cmd_name)?;
+    let opt = spec.options.iter().find(|o| o.name == option)?;
+    let mut out = format!("**`{}`** — option of `{cmd_name}`\n", opt.name);
+    if !opt.detail.is_empty() {
+        let _ = write!(out, "\n{}\n", opt.detail);
+    }
+    if opt.takes_value && !opt.value_hint.is_empty() {
+        let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint);
     }
     Some(out)
 }
