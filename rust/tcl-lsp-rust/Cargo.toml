@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tcl-lsp-py = { path = "../tcl-lsp-py" }
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
 
 [lints]
 workspace = true

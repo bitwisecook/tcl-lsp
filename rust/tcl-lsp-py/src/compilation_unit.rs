@@ -24,7 +24,12 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 /// Rust side. `Arc` lets the handle be cheap-cloneable so future
 /// follow-up bindings can take it by value without sacrificing
 /// amortised reuse.
-#[pyclass(module = "tcl_lsp_py", name = "CompilationUnit", frozen)]
+#[pyclass(
+    module = "tcl_lsp_py",
+    name = "CompilationUnit",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct CompilationUnitHandle {
     pub(crate) inner: Arc<CompilationUnit>,

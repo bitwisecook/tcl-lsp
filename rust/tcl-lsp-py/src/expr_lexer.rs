@@ -6,7 +6,14 @@ use tcl_lexer::{
     tokenise_expr as core_tokenise, ExprToken as CoreExprToken, ExprTokenType as CoreExprTokenType,
 };
 
-#[pyclass(name = "ExprTokenType", eq, hash, frozen, module = "tcl_lsp_py")]
+#[pyclass(
+    name = "ExprTokenType",
+    eq,
+    hash,
+    frozen,
+    module = "tcl_lsp_py",
+    from_py_object
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyExprTokenType {
     #[pyo3(name = "NUMBER")]
@@ -102,7 +109,14 @@ impl From<PyExprTokenType> for CoreExprTokenType {
     }
 }
 
-#[pyclass(name = "ExprToken", eq, hash, frozen, module = "tcl_lsp_py")]
+#[pyclass(
+    name = "ExprToken",
+    eq,
+    hash,
+    frozen,
+    module = "tcl_lsp_py",
+    from_py_object
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyExprToken {
     kind: PyExprTokenType,
@@ -116,7 +130,7 @@ impl PyExprToken {
     #[getter]
     #[pyo3(name = "type")]
     fn token_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let class = py.get_type_bound::<PyExprTokenType>();
+        let class = py.get_type::<PyExprTokenType>();
         class.getattr(self.kind.name())
     }
 

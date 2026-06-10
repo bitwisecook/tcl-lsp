@@ -13,7 +13,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 bitflags = "2"
-thiserror = "1.0"
+thiserror = "2.0"
 unicode-general-category = "1.1.0"
 
 [lints]

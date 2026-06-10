@@ -22,7 +22,14 @@ use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType
 /// original Python `auto()` declarations (1-indexed) so `TokenType.X.value`
 /// stays stable across the Rust port and any external scripts that
 /// happened to read it.
-#[pyclass(name = "TokenType", eq, hash, frozen, module = "tcl_lsp_py")]
+#[pyclass(
+    name = "TokenType",
+    eq,
+    hash,
+    frozen,
+    module = "tcl_lsp_py",
+    from_py_object
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyTokenType {
     /// Plain string fragment.
@@ -117,7 +124,14 @@ impl From<PyTokenType> for CoreTokenType {
 /// A position in source text. Exposed to Python as
 /// `tcl_lsp_py.SourcePosition` (also reachable via the legacy
 /// `tcl_lsp_rust.SourcePosition` alias for the transition window).
-#[pyclass(name = "SourcePosition", eq, hash, frozen, module = "tcl_lsp_py")]
+#[pyclass(
+    name = "SourcePosition",
+    eq,
+    hash,
+    frozen,
+    module = "tcl_lsp_py",
+    from_py_object
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PySourcePosition {
     inner: CoreSourcePosition,
@@ -179,7 +193,14 @@ impl PySourcePosition {
 /// Owns its text as `String`. The original Python dataclass was frozen
 /// (`@dataclass(frozen=True, slots=True)`) and Rust enforces the same
 /// invariant via `#[pyclass(frozen)]`.
-#[pyclass(name = "Token", eq, hash, frozen, module = "tcl_lsp_py")]
+#[pyclass(
+    name = "Token",
+    eq,
+    hash,
+    frozen,
+    module = "tcl_lsp_py",
+    from_py_object
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyToken {
     kind: PyTokenType,
@@ -245,7 +266,7 @@ impl PyToken {
     #[getter]
     #[pyo3(name = "type")]
     fn token_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let class = py.get_type_bound::<PyTokenType>();
+        let class = py.get_type::<PyTokenType>();
         class.getattr(self.kind.name())
     }
 
