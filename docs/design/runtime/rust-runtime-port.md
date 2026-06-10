@@ -1396,13 +1396,24 @@ the Zig rep.
   control-flow/proc/…), each command (or small group) one PR with its tcltest
   delta. The value-type chunks (list/dict/string/array) each carry a
   [representation-decision note](#choosing-algorithms--data-structures-the-porting-method).
-  **Procs are gated on a design**, not started blind:
+  Procs followed a design, not started blind:
   [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md) fixes the
   call protocol (the CallFrame + CmdFrame stacks), the exception/return-options
   model, stack-trace construction, and AOT↔interp interop — built on the
   conservative-first principle and "get the dynamic cross-scope core
   (`uplevel`/`upvar`/`namespace`/`eval`) correct, then optimise". The proc
   chunk follows that doc's PC-1..PC-7 plan.
+  - **Status (ahead of the prose above):** the bulk of T1.6 has landed —
+    string/list/dict/array/control-flow/info/scan/format/chan/trace/package
+    builtins, plus the **proc chunk PC-2/PC-3** (`proc`/`apply`, `uplevel`/
+    `upvar`/`global`/`variable`, `info level`, `catch`/`error`/`try`/`throw`)
+    and **PC-1/PC-4 — faithful `::errorInfo` stack traces** (the incremental
+    `while executing` / `invoked from within` / `(procedure "x" line N)`
+    unwinder, byte-verified vs tclsh 9.0). Remaining proc-chunk items:
+    **PC-5** (`info frame`/`info errorstack` + `source` frames — needs the
+    persistent `CmdFrame` stack), `return -options` errorinfo restore, and the
+    expr/`foreach` bytecode-boundary trace approximations noted in
+    `proc-call-and-stack-traces.md` §8.
 - **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
   `tcl_*`/`obj_*` primitives; the Rust runtime must export the same names/sigs
   so the parity check and the compiled-script harness stay green. Also the wasm

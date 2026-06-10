@@ -346,22 +346,45 @@ the Tcl 9 suite's exact-`errorInfo` tests so nothing regresses.
 **Correctness of the dynamic cross-scope core comes first (the hard core
 above); speed is recovered only afterwards.**
 
-1. **PC-1 — frame model:** extend `CallFrame` (argv, two-chain caller, level,
-   proc) + add the `CmdFrame` source stack + line computation from T1.2 offsets.
-2. **PC-2 — `proc` + call:** the `Proc` `Command` variant, `call_proc` (bind,
-   eval body, `return`→Ok), `wrong # args`. Gate: leak-checked proc round-trips.
-3. **PC-3 — the dynamic cross-scope core (the foundation):** `uplevel` (run a
-   script in another frame's var scope), `upvar` to any level (T1.3 has
-   global/caller; generalise), `namespace eval`/`variable`, and `eval`/dynamic
-   command+var names through the interpreter. **Get every cross-frame /
-   cross-namespace / dynamic case correct here** — this is the base everything
-   else optimises over. Gate: the cross-scope cases match C Tcl exactly.
-4. **PC-4 — exceptions:** `ExceptionState`, `error`, `catch`, `return -code
-   -level -options`; the incremental `errorInfo` unwinder
-   (`Tcl_LogCommandInfo` + `MakeProcError` analogues). Gate: stack-trace tests
-   vs C Tcl's exact `errorInfo` output.
-5. **PC-5 — `info level`/`info frame`/`info errorstack`** over the two stacks;
-   `source` (the `Source` frame kind) + `package` over `source`.
+1. **PC-1 — frame model. ✅ landed (source/line half).** `parse::Command` now
+   carries `start` (C's `commandStart`) + `end` (terminator-excluded command
+   end); the logged command slice keeps trailing whitespace but drops the
+   `\n`/`;` terminator and the 1-based line is `1 + count('\n' in src[0..start])`
+   — both byte-verified against tclsh 9.0. The `CallFrame` two-chain (argv +
+   caller/caller_var) already landed with PC-3. The **persistent `CmdFrame`
+   source stack** (needed for `info frame`) is **deferred to PC-5**: PC-4 logs at
+   the unwinding site (where `src` + the command range are in scope), so the
+   success path pays no per-command push/pop — matching C, which calls
+   `TclLogCommandInfo` as the error returns through each level.
+2. **PC-2 — `proc` + call. ✅ landed** (`cmd_proc.rs`, `Interp::run_proc`):
+   defaults, `args` catch-all, `wrong # args`, recursion bound, `apply`.
+3. **PC-3 — the dynamic cross-scope core. ✅ landed:** `uplevel`/`upvar`/
+   `global`/`variable`/`namespace eval`, `eval`, dynamic command+var names
+   through the interpreter (T1.5 + the proc chunk).
+4. **PC-4 — exceptions. ✅ landed** (the headline). `ExceptionState`
+   (`info`/`code`/`line`/`already_logged`, the `iPtr` errorInfo/errorCode/
+   errorLine/`ERR_ALREADY_LOGGED` analogue) + the incremental `errorInfo`
+   unwinder: `Interp::log_command_info` (`while executing` / `invoked from
+   within`, 150-byte truncation) at each `eval_command`, `make_proc_error`
+   (`(procedure "x" line N)` / `(lambda term "..." line N)`, 60-byte truncation)
+   in `run_proc`, and `("eval"/"uplevel"/"foreach" body line N)` body-frames.
+   `error`/`throw`/`catch`/`try` rewired onto it; the trace is published to the
+   `::errorInfo`/`::errorCode` globals at the catch / outermost-eval boundary.
+   `return -code -level -options` errorinfo restore is the remaining sub-item.
+   Gate: byte-exact `errorInfo` unit tests + a tclsh 9.0 differential sweep.
+   - **Tree-walker approximations of the bytecode boundary** (message always
+     correct; only the trace framing differs): `foreach` adds its body-frame
+     only at top level (`!in_proc()`) — C inlines `foreach` when it compiles the
+     enclosing proc body, so no frame there; `if`/`while`/`for`/`switch` are
+     always inlined (never a frame). `expr {1/0}` and expr *parse* errors show
+     `while executing` where tclsh's TEBC seeds the inner context to show
+     `invoked from within`; var-not-found / domain errors / propagated
+     `[cmd]`-substitution traces all match.
+5. **PC-5 — `info frame`/`info errorstack` + `source` frames. ⏳ next.** Needs
+   the **persistent `CmdFrame` stack** (`Eval`/`Source`/`Proc` kinds) pushed/
+   popped per command so `info frame ?N?` can read it at runtime, the `Source`
+   frame kind for `source file`, and the TIP-348 `errorStack` (`UP`/`CALL`
+   list). `info level` already landed (PC-2/PC-3).
 6. **PC-6 — AOT emit path** carries the same bookkeeping (conservative), and the
    AOT compiler keeps a **real frame + interpreter fallback** wherever any
    PC-3 dynamic construct is reachable; the AOT↔interp interop gate (a compiled
