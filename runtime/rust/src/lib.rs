@@ -57,6 +57,7 @@ pub mod cmd_mathfunc;
 pub mod cmd_mathop;
 pub mod cmd_misc;
 pub mod cmd_namespace;
+pub mod cmd_oo;
 pub mod cmd_package;
 pub mod cmd_proc;
 pub mod cmd_scan;

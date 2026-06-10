@@ -45,7 +45,7 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Parse a proc parameter spec (a Tcl list of names / `{name default}` pairs).
-fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
+pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
     let elems = split_list(spec).map_err(|e| e.message().to_vec())?;
     let mut params = Vec::with_capacity(elems.len());
     for e in &elems {
@@ -111,6 +111,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             fqn: None,
             source: None,
             body_line_base: 0,
+            link_vars: &[],
         },
     )
 }

@@ -35,6 +35,9 @@ impl PackageState {
         let mut p = PackageState::default();
         p.provided.insert(b"tcl".to_vec(), b"9.0.3".to_vec());
         p.provided.insert(b"Tcl".to_vec(), b"9.0.3".to_vec());
+        // TclOO is built in (the `oo::*` commands are always present).
+        p.provided.insert(b"tcl::oo".to_vec(), b"1.3.1".to_vec());
+        p.provided.insert(b"TclOO".to_vec(), b"1.3.1".to_vec());
         p
     }
 }

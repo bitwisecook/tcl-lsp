@@ -54,6 +54,9 @@ pub fn install(interp: &mut Interp) {
     // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
     #[cfg(have_regex)]
     crate::cmd_regex::install(interp);
+    // TclOO last: its `variable`/`self`/`my`/`next` intentionally override the
+    // base `variable` (OO-aware inside `oo::define`, forwarding otherwise).
+    crate::cmd_oo::install(interp);
 }
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {

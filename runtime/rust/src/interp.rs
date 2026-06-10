@@ -82,6 +82,9 @@ pub(crate) struct CallMeta<'a> {
     /// The body's `info frame` line base (file-absolute for a source-defined
     /// proc, 0 otherwise).
     pub body_line_base: u32,
+    /// Variable names to pre-link into the call frame from its namespace (a
+    /// TclOO method's declared instance variables); empty for procs/lambdas.
+    pub link_vars: &'a [Vec<u8>],
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -240,9 +243,14 @@ pub enum Command {
     /// `Vec<u8>` is the child's name; dispatch routes the subcommand to the child
     /// `Interp` stored in [`Interp::children`].
     ChildInterp(Vec<u8>),
+    /// A TclOO object or class, addressable as a command (`$obj method …`,
+    /// `Class new`). The `Vec<u8>` is the FQN; dispatch routes to
+    /// [`crate::cmd_oo`] via the [`OoState`](crate::cmd_oo::OoState) registry.
+    OoObject(Vec<u8>),
 }
 
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
+#[derive(Clone)]
 pub struct Param {
     pub name: Vec<u8>,
     pub default: Option<Vec<u8>>,
@@ -300,6 +308,8 @@ pub struct Interp {
     children: std::collections::BTreeMap<Vec<u8>, Box<Interp>>,
     /// Counter for auto-generated child names (`interp0`, `interp1`, …).
     interp_counter: usize,
+    /// TclOO object system state (classes, objects, the method-call stack).
+    pub(crate) oo: crate::cmd_oo::OoState,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
     cmd_frames: Vec<CmdFrame>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
@@ -334,6 +344,7 @@ impl Interp {
             exc: ExceptionState::default(),
             children: std::collections::BTreeMap::new(),
             interp_counter: 0,
+            oo: crate::cmd_oo::OoState::default(),
             cmd_frames: Vec::new(),
             eval_depth: 0,
             result,
@@ -978,7 +989,7 @@ impl Interp {
     /// The `-errorcode` taxonomy is conservative for now: `wrong # args` ⇒ `TCL
     /// WRONGARGS`, else `NONE` (the full taxonomy is a follow-up). `error`/`throw`
     /// set a richer code on their own paths.
-    fn error(&mut self, msg: &[u8]) -> Code {
+    pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
         let code: &[u8] = if msg.starts_with(b"wrong # args:") {
             b"TCL WRONGARGS"
@@ -1358,7 +1369,7 @@ impl Interp {
     /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
-    fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+    pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
         if let Some(cmd) = self.namespaces.resolve(self.current_ns, &name) {
             return self.invoke(cmd, argv);
@@ -1397,7 +1408,30 @@ impl Interp {
             Command::Ensemble(cfg) => self.dispatch_ensemble(&cfg, argv),
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
+            Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
         }
+    }
+
+    /// Register `cmd` under the (possibly qualified) name `name` — for the OO
+    /// object/class commands.
+    pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
+        self.namespaces.register(name, cmd);
+    }
+
+    /// The fully-qualified name a (relative or absolute) command/object name
+    /// resolves to, relative to the current namespace — used to name OO
+    /// objects/classes consistently.
+    pub(crate) fn fqn_for(&self, name: &[u8]) -> Vec<u8> {
+        if name.starts_with(b"::") {
+            return name.to_vec();
+        }
+        let qn = self.namespaces.qualified_name(self.current_ns);
+        let mut fqn = qn.clone();
+        if qn != b"::" {
+            fqn.extend_from_slice(b"::");
+        }
+        fqn.extend_from_slice(name);
+        fqn
     }
 
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
@@ -1498,6 +1532,7 @@ impl Interp {
                 fqn: Some(&def.fqn),
                 source: def.source.clone(),
                 body_line_base: def.body_line_base,
+                link_vars: &[],
             },
         )
     }
@@ -1549,6 +1584,13 @@ impl Interp {
         self.frames.set_words(words);
         let saved_ns = self.current_ns;
         self.current_ns = ns;
+
+        // Pre-link a TclOO method's declared instance variables: each name in
+        // the frame becomes a link to the object's namespace variable (`ns`), so
+        // the method sees instance state without an explicit `variable`.
+        for v in meta.link_vars {
+            self.make_variable(ns, v);
+        }
 
         // Bind positionals left-to-right: the supplied arg, else the default.
         // Binding is purely positional — a defaulted parameter does *not* yield
@@ -1769,7 +1811,7 @@ impl Interp {
     }
 
     /// The `invalid command name "X"` error (the resolver miss; `unknown` later).
-    fn invalid_command(&mut self, name: &[u8]) -> Code {
+    pub(crate) fn invalid_command(&mut self, name: &[u8]) -> Code {
         let mut msg = b"invalid command name \"".to_vec();
         msg.extend_from_slice(name);
         msg.push(b'"');
