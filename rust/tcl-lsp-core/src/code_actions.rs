@@ -782,14 +782,200 @@ fn docstring_actions(
     out
 }
 
-// extract / inline proc — deferred to a follow-up (LARGE refactor port).
 fn extract_inline_actions(
-    _source: &str,
-    _range: LspRange,
-    _analysis: &AnalysisResult,
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
     _line_index: &LineIndex,
 ) -> Vec<CodeAction> {
-    Vec::new()
+    let mut out = Vec::new();
+    out.extend(extract_proc_action(source, range));
+    out.extend(inline_proc_action(source, range, analysis));
+    out
+}
+
+/// Distinct `$var` / `${var}` names referenced in `text`, in first-seen order.
+fn referenced_vars(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '$' {
+            let braced = chars.get(i + 1) == Some(&'{');
+            let mut j = i + 1 + usize::from(braced);
+            let start = j;
+            while j < chars.len()
+                && (chars[j].is_alphanumeric() || chars[j] == '_' || chars[j] == ':')
+            {
+                j += 1;
+            }
+            if j > start {
+                let name: String = chars[start..j].iter().collect();
+                if !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `refactor.extract` — extract the selected lines into a new proc and replace
+/// the selection with a call.  Mirrors `_extract_proc_action`.
+fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
+    // Need a non-empty selection.
+    if range.start_line == range.end_line && range.start_character >= range.end_character {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = source.split('\n').collect();
+    // The selected line span — a selection ending at column 0 doesn't include
+    // its end line.
+    let last = if range.end_character == 0 {
+        range.end_line.saturating_sub(1)
+    } else {
+        range.end_line
+    };
+    let (s, e) = (range.start_line as usize, last as usize);
+    if s > e || e >= lines.len() {
+        return Vec::new();
+    }
+    let block: Vec<&str> = lines[s..=e].to_vec();
+    let body_text = block.join("\n");
+    if body_text.trim().is_empty() {
+        return Vec::new();
+    }
+    let params = referenced_vars(&body_text);
+    let name = "extracted_proc";
+    let body_indented = block
+        .iter()
+        .map(|l| format!("    {}", l.trim_end()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let proc_text = format!(
+        "proc {name} {{{}}} {{\n{body_indented}\n}}\n\n",
+        params.join(" ")
+    );
+    let call = if params.is_empty() {
+        name.to_string()
+    } else {
+        format!(
+            "{name} {}",
+            params
+                .iter()
+                .map(|p| format!("${p}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+    };
+    // Replace the selected lines with the call.
+    let replace = LspRange {
+        start_line: range.start_line,
+        start_character: 0,
+        end_line: u32::try_from(e + 1).unwrap_or(range.end_line),
+        end_character: 0,
+    };
+    let name_start = u32::try_from("proc ".len()).unwrap_or(5);
+    vec![CodeAction {
+        title: "Extract selection into proc".to_string(),
+        edits: vec![
+            crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: 0,
+                },
+                new_text: proc_text,
+            },
+            crate::rename::TextEdit {
+                range: replace,
+                new_text: format!("{call}\n"),
+            },
+        ],
+        kind: ActionKind::RefactorExtract,
+        // Trigger a rename of the generated proc name (line 0).
+        command: Some(ActionCommand {
+            command: "tclLsp.renameSymbolAtPosition".to_string(),
+            args: vec![
+                0,
+                name_start,
+                name_start + u32::try_from(name.len()).unwrap_or(0),
+            ],
+        }),
+    }]
+}
+
+/// `refactor.inline` — inline a single-command proc at the call cursor.
+/// Mirrors `_inline_proc_action`; declines branchy / control-flow bodies.
+fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
+    // Control-flow / scope keywords whose bodies can't be safely inlined.
+    const UNSAFE: &[&str] = &[
+        "return", "break", "continue", "tailcall", "yield", "uplevel", "upvar", "global",
+        "variable",
+    ];
+    let line = source
+        .split('\n')
+        .nth(range.start_line as usize)
+        .unwrap_or("");
+    let toks: Vec<&str> = line.split_whitespace().collect();
+    let Some(&head) = toks.first() else {
+        return Vec::new();
+    };
+    let Some(proc_def) = analysis
+        .all_procs
+        .values()
+        .find(|p| p.name == head || p.qualified_name == head)
+    else {
+        return Vec::new();
+    };
+    // Body text (strip the outer braces).
+    let bspan = proc_def.body_span;
+    let body_raw = source
+        .get(bspan.start() as usize..bspan.end() as usize)
+        .unwrap_or("")
+        .trim()
+        .trim_start_matches('{')
+        .trim_end_matches('}')
+        .trim();
+    // Decline control-flow / multi-command bodies.
+    if body_raw.is_empty()
+        || body_raw.contains('\n')
+        || body_raw.contains(';')
+        || UNSAFE.iter().any(|kw| {
+            body_raw == *kw
+                || body_raw.starts_with(&format!("{kw} "))
+                || body_raw.contains(&format!("[{kw} "))
+        })
+    {
+        return Vec::new();
+    }
+    // Map call args onto params.
+    let call_args: Vec<&str> = toks[1..].to_vec();
+    let mut inlined = body_raw.to_string();
+    for (i, p) in proc_def.params.iter().enumerate() {
+        let Some(arg) = call_args.get(i) else { break };
+        inlined = inlined
+            .replace(&format!("${{{}}}", p.name), arg)
+            .replace(&format!("${}", p.name), arg);
+    }
+    // Replace the whole call line.
+    vec![CodeAction {
+        title: format!("Inline proc '{}'", proc_def.name),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: range.start_line,
+                start_character: 0,
+                end_line: range.start_line,
+                end_character: char_col_to_utf16_local(line, line.chars().count()),
+            },
+            new_text: inlined,
+        }],
+        kind: ActionKind::RefactorInline,
+        command: None,
+    }]
 }
 
 // ---------------------------------------------------------------------------
