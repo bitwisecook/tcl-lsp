@@ -50,51 +50,51 @@ use tcl_lexer::Span;
 #[pyo3(signature = (source, /))]
 pub fn signature_scan_extract<'py>(py: Python<'py>, source: &str) -> PyResult<Bound<'py, PyDict>> {
     let result = extract_signatures(source, crate::registry::default_registry());
-    let out = PyDict::new_bound(py);
+    let out = PyDict::new(py);
 
-    let procs = PyDict::new_bound(py);
+    let procs = PyDict::new(py);
     for (qname, p) in &result.procs {
         procs.set_item(qname, proc_to_dict(py, p)?)?;
     }
     out.set_item("procs", procs)?;
 
-    let classes = PyDict::new_bound(py);
+    let classes = PyDict::new(py);
     for (qname, c) in &result.classes {
         classes.set_item(qname, class_to_dict(py, c)?)?;
     }
     out.set_item("classes", classes)?;
 
-    let invocations = PyList::empty_bound(py);
+    let invocations = PyList::empty(py);
     for inv in &result.command_invocations {
         invocations.append(invocation_to_dict(py, inv)?)?;
     }
     out.set_item("command_invocations", invocations)?;
 
-    let packages = PyList::empty_bound(py);
+    let packages = PyList::empty(py);
     for pr in &result.package_requires {
         packages.append(package_require_to_dict(py, pr)?)?;
     }
     out.set_item("package_requires", packages)?;
 
-    let sources = PyList::empty_bound(py);
+    let sources = PyList::empty(py);
     for s in &result.source_targets {
         sources.append(source_to_dict(py, s)?)?;
     }
     out.set_item("source_targets", sources)?;
 
-    let aliases = PyDict::new_bound(py);
+    let aliases = PyDict::new(py);
     for (qname, a) in &result.command_aliases {
         aliases.set_item(qname, alias_to_dict(py, a)?)?;
     }
     out.set_item("command_aliases", aliases)?;
 
-    let imports = PyList::empty_bound(py);
+    let imports = PyList::empty(py);
     for imp in &result.namespace_imports {
         imports.append(namespace_import_to_dict(py, imp)?)?;
     }
     out.set_item("namespace_imports", imports)?;
 
-    let autopath = PyList::empty_bound(py);
+    let autopath = PyList::empty(py);
     for entry in &result.auto_path_entries {
         autopath.append(auto_path_entry_to_dict(py, entry)?)?;
     }
@@ -104,10 +104,10 @@ pub fn signature_scan_extract<'py>(py: Python<'py>, source: &str) -> PyResult<Bo
 }
 
 fn proc_to_dict<'py>(py: Python<'py>, p: &SignatureProc) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &p.name)?;
     d.set_item("qualified_name", &p.qualified_name)?;
-    let params = PyList::empty_bound(py);
+    let params = PyList::empty(py);
     for param in &p.params {
         params.append(param_to_dict(py, param)?)?;
     }
@@ -118,7 +118,7 @@ fn proc_to_dict<'py>(py: Python<'py>, p: &SignatureProc) -> PyResult<Bound<'py, 
 }
 
 fn class_to_dict<'py>(py: Python<'py>, c: &SignatureClass) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &c.name)?;
     d.set_item("qualified_name", &c.qualified_name)?;
     d.set_item("name_range", span_tuple(c.name_range))?;
@@ -130,14 +130,14 @@ fn invocation_to_dict<'py>(
     py: Python<'py>,
     inv: &SignatureCommandInvocation,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &inv.name)?;
     d.set_item("range", span_tuple(inv.range))?;
     Ok(d)
 }
 
 fn param_to_dict<'py>(py: Python<'py>, p: &ParamDef) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &p.name)?;
     d.set_item("has_default", p.has_default)?;
     d.set_item("default_value", p.default_value.clone())?;
@@ -148,7 +148,7 @@ fn package_require_to_dict<'py>(
     py: Python<'py>,
     pr: &SignaturePackageRequire,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &pr.name)?;
     d.set_item("version", pr.version.clone())?;
     d.set_item("range", span_tuple(pr.range))?;
@@ -157,7 +157,7 @@ fn package_require_to_dict<'py>(
 }
 
 fn source_to_dict<'py>(py: Python<'py>, s: &SignatureSource) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("raw_path", &s.raw_path)?;
     d.set_item("range", span_tuple(s.range))?;
     d.set_item("is_literal", s.is_literal)?;
@@ -165,10 +165,10 @@ fn source_to_dict<'py>(py: Python<'py>, s: &SignatureSource) -> PyResult<Bound<'
 }
 
 fn alias_to_dict<'py>(py: Python<'py>, a: &SignatureCommandAlias) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("qualified_name", &a.qualified_name)?;
     d.set_item("target", &a.target)?;
-    d.set_item("extras", PyList::new_bound(py, &a.extras))?;
+    d.set_item("extras", PyList::new(py, &a.extras)?)?;
     Ok(d)
 }
 
@@ -176,7 +176,7 @@ fn namespace_import_to_dict<'py>(
     py: Python<'py>,
     imp: &SignatureNamespaceImport,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("ns", &imp.ns)?;
     d.set_item("pattern", &imp.pattern)?;
     d.set_item("range", span_tuple(imp.range))?;
@@ -188,7 +188,7 @@ fn auto_path_entry_to_dict<'py>(
     py: Python<'py>,
     entry: &SignatureAutoPathEntry,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("raw", &entry.raw)?;
     d.set_item("range", span_tuple(entry.range))?;
     Ok(d)

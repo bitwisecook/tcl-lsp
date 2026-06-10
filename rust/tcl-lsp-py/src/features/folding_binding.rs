@@ -41,7 +41,7 @@ pub fn folding_ranges<'py>(
 ) -> PyResult<Bound<'py, PyList>> {
     let registry = crate::registry::default_registry_for_dialect(dialect);
     let ranges = compute_folding_ranges(source, dialect, registry);
-    let out = PyList::empty_bound(py);
+    let out = PyList::empty(py);
     for r in ranges {
         out.append(folding_range_to_dict(py, r)?)?;
     }
@@ -49,7 +49,7 @@ pub fn folding_ranges<'py>(
 }
 
 fn folding_range_to_dict(py: Python<'_>, r: FoldingRange) -> PyResult<Bound<'_, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("start_line", r.start_line)?;
     d.set_item("end_line", r.end_line)?;
     d.set_item("kind", r.kind.as_str())?;

@@ -14,7 +14,10 @@ use std::collections::HashMap;
 use tcl_compiler::analyser::{Analyser, ProcDef};
 
 fn find_proc<'a>(procs: &'a HashMap<String, ProcDef>, name: &str) -> &'a ProcDef {
-    procs.values().find(|p| p.name == name).expect("proc not found")
+    procs
+        .values()
+        .find(|p| p.name == name)
+        .expect("proc not found")
 }
 
 #[test]
@@ -79,7 +82,9 @@ fn invocation_spans_after_recovery_use_original_offsets() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
 
-    let invoc = r.command_invocations.iter()
+    let invoc = r
+        .command_invocations
+        .iter()
         .find(|inv| inv.name == "puts")
         .expect("puts must be found after recovery");
 
@@ -125,10 +130,19 @@ fn diagnostic_spans_always_point_into_original_source() {
         assert!(
             s <= e && e <= src.len(),
             "diagnostic {} span ({s},{e}) out of range for source len {}",
-            d.code, src.len(),
+            d.code,
+            src.len(),
         );
         // Span must land on UTF-8 char boundaries.
-        assert!(src.is_char_boundary(s), "diag {code} start {s} not char boundary", code = d.code);
-        assert!(src.is_char_boundary(e), "diag {code} end {e} not char boundary", code = d.code);
+        assert!(
+            src.is_char_boundary(s),
+            "diag {code} start {s} not char boundary",
+            code = d.code
+        );
+        assert!(
+            src.is_char_boundary(e),
+            "diag {code} end {e} not char boundary",
+            code = d.code
+        );
     }
 }

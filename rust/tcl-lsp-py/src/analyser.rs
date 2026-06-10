@@ -68,67 +68,67 @@ pub fn analyser_analyse<'py>(
 }
 
 fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'py, PyDict>> {
-    let out = PyDict::new_bound(py);
+    let out = PyDict::new(py);
 
     out.set_item("global_scope", scope_to_dict(py, &r.global_scope)?)?;
 
-    let procs = PyDict::new_bound(py);
+    let procs = PyDict::new(py);
     for (qname, p) in &r.all_procs {
         procs.set_item(qname, proc_to_dict(py, p)?)?;
     }
     out.set_item("all_procs", procs)?;
 
-    let classes = PyDict::new_bound(py);
+    let classes = PyDict::new(py);
     for (qname, c) in &r.all_classes {
         classes.set_item(qname, class_to_dict(py, c)?)?;
     }
     out.set_item("all_classes", classes)?;
 
-    let variables = PyDict::new_bound(py);
+    let variables = PyDict::new(py);
     for (qname, v) in &r.all_variables {
         variables.set_item(qname, var_to_dict(py, v)?)?;
     }
     out.set_item("all_variables", variables)?;
 
-    let diagnostics = PyList::empty_bound(py);
+    let diagnostics = PyList::empty(py);
     for d in &r.diagnostics {
         diagnostics.append(diagnostic_to_dict(py, d)?)?;
     }
     out.set_item("diagnostics", diagnostics)?;
 
-    let invocations = PyList::empty_bound(py);
+    let invocations = PyList::empty(py);
     for inv in &r.command_invocations {
         invocations.append(invocation_to_dict(py, inv)?)?;
     }
     out.set_item("command_invocations", invocations)?;
 
-    let packages = PyList::empty_bound(py);
+    let packages = PyList::empty(py);
     for pr in &r.package_requires {
         packages.append(package_require_to_dict(py, pr)?)?;
     }
     out.set_item("package_requires", packages)?;
 
-    let sources = PyList::empty_bound(py);
+    let sources = PyList::empty(py);
     for s in &r.source_targets {
         sources.append(source_target_to_dict(py, s)?)?;
     }
     out.set_item("source_targets", sources)?;
 
-    let aliases = PyDict::new_bound(py);
+    let aliases = PyDict::new(py);
     for (qname, a) in &r.command_aliases {
         aliases.set_item(qname, alias_to_dict(py, a)?)?;
     }
     out.set_item("command_aliases", aliases)?;
 
-    let imports = PyList::empty_bound(py);
+    let imports = PyList::empty(py);
     for imp in &r.namespace_imports {
         imports.append(namespace_import_to_dict(py, imp)?)?;
     }
     out.set_item("namespace_imports", imports)?;
 
-    let provides = PyList::empty_bound(py);
+    let provides = PyList::empty(py);
     for pp in &r.package_provides {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("name", &pp.name)?;
         d.set_item("version", pp.version.clone())?;
         d.set_item("range", span_tuple(pp.range))?;
@@ -137,9 +137,9 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     out.set_item("package_provides", provides)?;
     out.set_item("has_dynamic_providers", r.has_dynamic_providers)?;
 
-    let auto_paths = PyList::empty_bound(py);
+    let auto_paths = PyList::empty(py);
     for ap in &r.auto_path_entries {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("raw_path", &ap.raw_path)?;
         d.set_item("range", span_tuple(ap.range))?;
         auto_paths.append(d)?;
@@ -149,9 +149,9 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     out.set_item("stub_commands", stub_commands_to_list(py, r)?)?;
     out.set_item("stub_expr_defs", stub_expr_defs_to_list(py, r)?)?;
 
-    let regex = PyList::empty_bound(py);
+    let regex = PyList::empty(py);
     for rp in &r.regex_patterns {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("range", span_tuple(rp.range))?;
         d.set_item("pattern", &rp.pattern)?;
         d.set_item("command", &rp.command)?;
@@ -159,9 +159,9 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
     out.set_item("regex_patterns", regex)?;
 
-    let suppressed = PyDict::new_bound(py);
+    let suppressed = PyDict::new(py);
     for (line, codes) in &r.suppressed_lines {
-        let code_list = PyList::empty_bound(py);
+        let code_list = PyList::empty(py);
         for c in codes {
             code_list.append(c.as_str())?;
         }
@@ -187,13 +187,13 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
 /// ``StubFlags`` bitfield; this decomposes it back to the
 /// per-flag boolean dict shape Python consumes.
 fn stub_commands_to_list<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'py, PyList>> {
-    let stub_cmds = PyList::empty_bound(py);
+    let stub_cmds = PyList::empty(py);
     for sc in &r.stub_commands {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("name", &sc.name)?;
-        let args = PyList::empty_bound(py);
+        let args = PyList::empty(py);
         for a in &sc.args {
-            let ad = PyDict::new_bound(py);
+            let ad = PyDict::new(py);
             ad.set_item("name", &a.name)?;
             ad.set_item("role", &a.role)?;
             ad.set_item("optional", a.optional)?;
@@ -219,9 +219,9 @@ fn stub_expr_defs_to_list<'py>(
     py: Python<'py>,
     r: &AnalysisResult,
 ) -> PyResult<Bound<'py, PyList>> {
-    let stub_exprs = PyList::empty_bound(py);
+    let stub_exprs = PyList::empty(py);
     for se in &r.stub_expr_defs {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("name", &se.name)?;
         d.set_item("kind", &se.kind)?;
         d.set_item("arity", se.arity)?;
@@ -232,30 +232,30 @@ fn stub_expr_defs_to_list<'py>(
 }
 
 fn scope_to_dict<'py>(py: Python<'py>, s: &Scope) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("kind", s.kind.as_str())?;
     d.set_item("name", &s.name)?;
     d.set_item("body_range", s.body_span.map(span_tuple))?;
 
-    let variables = PyDict::new_bound(py);
+    let variables = PyDict::new(py);
     for (name, v) in &s.variables {
         variables.set_item(name, var_to_dict(py, v)?)?;
     }
     d.set_item("variables", variables)?;
 
-    let procs = PyDict::new_bound(py);
+    let procs = PyDict::new(py);
     for (name, p) in &s.procs {
         procs.set_item(name, proc_to_dict(py, p)?)?;
     }
     d.set_item("procs", procs)?;
 
-    let classes = PyDict::new_bound(py);
+    let classes = PyDict::new(py);
     for (name, c) in &s.classes {
         classes.set_item(name, class_to_dict(py, c)?)?;
     }
     d.set_item("classes", classes)?;
 
-    let children = PyList::empty_bound(py);
+    let children = PyList::empty(py);
     for child in &s.children {
         children.append(scope_to_dict(py, child)?)?;
     }
@@ -264,12 +264,12 @@ fn scope_to_dict<'py>(py: Python<'py>, s: &Scope) -> PyResult<Bound<'py, PyDict>
 }
 
 fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &p.name)?;
     d.set_item("qualified_name", &p.qualified_name)?;
-    let params = PyList::empty_bound(py);
+    let params = PyList::empty(py);
     for param in &p.params {
-        let pd = PyDict::new_bound(py);
+        let pd = PyDict::new(py);
         pd.set_item("name", &param.name)?;
         pd.set_item("has_default", param.has_default)?;
         pd.set_item("default_value", param.default_value.clone())?;
@@ -284,9 +284,9 @@ fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict
     // (``"eval"`` / ``"body"`` / ``"var_write"`` / ``"var_read"``
     // / ``"expr"`` / ``"loop_list"``).  Empty entries are
     // omitted.
-    let traits_dict = PyDict::new_bound(py);
+    let traits_dict = PyDict::new(py);
     for (param_name, set) in &p.param_traits {
-        let trait_list = PyList::empty_bound(py);
+        let trait_list = PyList::empty(py);
         for t in set {
             trait_list.append(t.as_str())?;
         }
@@ -297,25 +297,25 @@ fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict
 }
 
 fn class_to_dict<'py>(py: Python<'py>, c: &ClassDef) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &c.name)?;
     d.set_item("qualified_name", &c.qualified_name)?;
     d.set_item("name_range", span_tuple(c.name_span))?;
     d.set_item("body_range", span_tuple(c.body_span))?;
     d.set_item("metaclass", &c.metaclass)?;
-    d.set_item("superclasses", PyList::new_bound(py, &c.superclasses))?;
-    d.set_item("mixins", PyList::new_bound(py, &c.mixins))?;
-    let methods = PyDict::new_bound(py);
+    d.set_item("superclasses", PyList::new(py, &c.superclasses)?)?;
+    d.set_item("mixins", PyList::new(py, &c.mixins)?)?;
+    let methods = PyDict::new(py);
     for (name, m) in &c.methods {
         methods.set_item(name, method_to_dict(py, m)?)?;
     }
     d.set_item("methods", methods)?;
-    let class_methods = PyDict::new_bound(py);
+    let class_methods = PyDict::new(py);
     for (name, m) in &c.class_methods {
         class_methods.set_item(name, method_to_dict(py, m)?)?;
     }
     d.set_item("class_methods", class_methods)?;
-    let constructors = PyList::empty_bound(py);
+    let constructors = PyList::empty(py);
     for ctor in &c.constructors {
         constructors.append(method_to_dict(py, ctor)?)?;
     }
@@ -324,28 +324,28 @@ fn class_to_dict<'py>(py: Python<'py>, c: &ClassDef) -> PyResult<Bound<'py, PyDi
         Some(dtor) => d.set_item("destructor", method_to_dict(py, dtor)?)?,
         None => d.set_item("destructor", py.None())?,
     }
-    d.set_item("variables", PyList::new_bound(py, &c.variables))?;
-    let properties = PyDict::new_bound(py);
+    d.set_item("variables", PyList::new(py, &c.variables)?)?;
+    let properties = PyDict::new(py);
     for (name, p) in &c.properties {
         properties.set_item(name, property_to_dict(py, p)?)?;
     }
     d.set_item("properties", properties)?;
-    d.set_item("filters", PyList::new_bound(py, &c.filters))?;
+    d.set_item("filters", PyList::new(py, &c.filters)?)?;
     // ``HashSet`` iteration is non-deterministic; sort for stable
     // output so downstream callers (and golden tests) see a
     // consistent ordering.
     let mut exports: Vec<&String> = c.exports.iter().collect();
     exports.sort();
-    d.set_item("exports", PyList::new_bound(py, &exports))?;
+    d.set_item("exports", PyList::new(py, &exports)?)?;
     let mut unexports: Vec<&String> = c.unexports.iter().collect();
     unexports.sort();
-    d.set_item("unexports", PyList::new_bound(py, &unexports))?;
+    d.set_item("unexports", PyList::new(py, &unexports)?)?;
     d.set_item("doc", &c.doc)?;
     Ok(d)
 }
 
 fn property_to_dict<'py>(py: Python<'py>, p: &PropertyDef) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &p.name)?;
     d.set_item("name_range", span_tuple(p.name_span))?;
     d.set_item("kind", &p.kind)?;
@@ -358,9 +358,9 @@ fn unknown_proc_info_to_dict<'py>(
     py: Python<'py>,
     info: &UnknownProcInfo,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     let targets: Vec<&String> = info.dispatch_targets.iter().collect();
-    d.set_item("dispatch_targets", PyList::new_bound(py, &targets))?;
+    d.set_item("dispatch_targets", PyList::new(py, &targets)?)?;
     d.set_item("chains_original", info.chains_original)?;
     d.set_item("empty_stub", info.empty_stub)?;
     d.set_item("case_insensitive", info.case_insensitive)?;
@@ -374,11 +374,11 @@ fn method_to_dict<'py>(
     py: Python<'py>,
     m: &tcl_compiler::analyser::MethodDef,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &m.name)?;
-    let params = PyList::empty_bound(py);
+    let params = PyList::empty(py);
     for param in &m.params {
-        let pd = PyDict::new_bound(py);
+        let pd = PyDict::new(py);
         pd.set_item("name", &param.name)?;
         pd.set_item("has_default", param.has_default)?;
         pd.set_item("default_value", param.default_value.clone())?;
@@ -394,10 +394,10 @@ fn method_to_dict<'py>(
 }
 
 fn var_to_dict<'py>(py: Python<'py>, v: &VarDef) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &v.name)?;
     d.set_item("definition_range", span_tuple(v.definition_span))?;
-    let refs = PyList::empty_bound(py);
+    let refs = PyList::empty(py);
     for r in &v.references {
         refs.append(span_tuple(*r))?;
     }
@@ -407,12 +407,12 @@ fn var_to_dict<'py>(py: Python<'py>, v: &VarDef) -> PyResult<Bound<'py, PyDict>>
 }
 
 fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'py, PyDict>> {
-    let out = PyDict::new_bound(py);
+    let out = PyDict::new(py);
     out.set_item("code", &d.code)?;
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
     out.set_item("severity", d.severity.as_str())?;
-    let fixes = PyList::empty_bound(py);
+    let fixes = PyList::empty(py);
     for fix in &d.fixes {
         fixes.append(code_fix_to_dict(py, fix)?)?;
     }
@@ -421,7 +421,7 @@ fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'p
 }
 
 fn code_fix_to_dict<'py>(py: Python<'py>, fix: &CodeFix) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("range", span_tuple(fix.span))?;
     d.set_item("new_text", &fix.new_text)?;
     d.set_item("description", &fix.description)?;
@@ -432,7 +432,7 @@ fn invocation_to_dict<'py>(
     py: Python<'py>,
     inv: &SignatureCommandInvocation,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &inv.name)?;
     d.set_item("range", span_tuple(inv.range))?;
     Ok(d)
@@ -442,7 +442,7 @@ fn package_require_to_dict<'py>(
     py: Python<'py>,
     pr: &SignaturePackageRequire,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &pr.name)?;
     d.set_item("version", pr.version.clone())?;
     d.set_item("range", span_tuple(pr.range))?;
@@ -454,7 +454,7 @@ fn source_target_to_dict<'py>(
     py: Python<'py>,
     s: &SignatureSource,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("raw_path", &s.raw_path)?;
     d.set_item("range", span_tuple(s.range))?;
     d.set_item("is_literal", s.is_literal)?;
@@ -462,10 +462,10 @@ fn source_target_to_dict<'py>(
 }
 
 fn alias_to_dict<'py>(py: Python<'py>, a: &SignatureCommandAlias) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("qualified_name", &a.qualified_name)?;
     d.set_item("target", &a.target)?;
-    d.set_item("extras", PyList::new_bound(py, &a.extras))?;
+    d.set_item("extras", PyList::new(py, &a.extras)?)?;
     Ok(d)
 }
 
@@ -473,7 +473,7 @@ fn namespace_import_to_dict<'py>(
     py: Python<'py>,
     imp: &SignatureNamespaceImport,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("ns", &imp.ns)?;
     d.set_item("pattern", &imp.pattern)?;
     d.set_item("range", span_tuple(imp.range))?;

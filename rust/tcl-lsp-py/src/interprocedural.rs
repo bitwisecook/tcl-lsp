@@ -56,7 +56,7 @@ pub fn interprocedural_summaries<'py>(
     let registry = crate::registry::default_registry();
     let cu =
         CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
-    let out = PyDict::new_bound(py);
+    let out = PyDict::new(py);
     let Some(ia) = cu.interproc.as_ref() else {
         return Ok(out);
     };
@@ -68,12 +68,12 @@ pub fn interprocedural_summaries<'py>(
 }
 
 fn summary_to_dict<'py>(py: Python<'py>, s: &ProcSummary) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("qualified_name", &s.qualified_name)?;
-    d.set_item("params", PyList::new_bound(py, &s.params))?;
+    d.set_item("params", PyList::new(py, &s.params)?)?;
     d.set_item("arity_min", s.arity.min)?;
     d.set_item("arity_max", s.arity.max)?;
-    d.set_item("calls", PyList::new_bound(py, &s.calls))?;
+    d.set_item("calls", PyList::new(py, &s.calls)?)?;
     d.set_item("has_barrier", s.has_barrier)?;
     d.set_item("has_unknown_calls", s.has_unknown_calls)?;
     d.set_item("writes_global", s.writes_global)?;
@@ -87,7 +87,7 @@ fn summary_to_dict<'py>(py: Python<'py>, s: &ProcSummary) -> PyResult<Bound<'py,
     )?;
     d.set_item(
         "return_depends_on_params",
-        PyList::new_bound(py, &s.return_depends_on_params),
+        PyList::new(py, &s.return_depends_on_params)?,
     )?;
     d.set_item(
         "return_passthrough_param",
@@ -109,11 +109,11 @@ fn param_traits_to_dict<'py>(
     py: Python<'py>,
     traits: &HashMap<String, std::collections::HashSet<ProcArgTrait>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     for (name, set) in traits {
         let mut names: Vec<&'static str> = set.iter().map(|t| t.as_str()).collect();
         names.sort_unstable();
-        d.set_item(name, PyList::new_bound(py, &names))?;
+        d.set_item(name, PyList::new(py, &names)?)?;
     }
     Ok(d)
 }

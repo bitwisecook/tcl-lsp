@@ -49,7 +49,7 @@ fn symbols_to_list<'py>(
     py: Python<'py>,
     symbols: &[DocumentSymbol],
 ) -> PyResult<Bound<'py, PyList>> {
-    let out = PyList::empty_bound(py);
+    let out = PyList::empty(py);
     for s in symbols {
         out.append(symbol_to_dict(py, s)?)?;
     }
@@ -57,7 +57,7 @@ fn symbols_to_list<'py>(
 }
 
 fn symbol_to_dict<'py>(py: Python<'py>, s: &DocumentSymbol) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("name", &s.name)?;
     match &s.detail {
         Some(text) => d.set_item("detail", text)?,
@@ -71,7 +71,7 @@ fn symbol_to_dict<'py>(py: Python<'py>, s: &DocumentSymbol) -> PyResult<Bound<'p
 }
 
 fn range_to_dict(py: Python<'_>, r: LineRange) -> PyResult<Bound<'_, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("start_line", r.start_line)?;
     d.set_item("start_character", r.start_character)?;
     d.set_item("end_line", r.end_line)?;

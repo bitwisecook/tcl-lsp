@@ -1,7 +1,7 @@
 /// Edge-case tests for the structural index — verifies behavior at boundaries.
 use tcl_lexer::{
-    BraceIndex, BracketIndex, ExprParenIndex, ParenBalance,
-    command_boundaries, reparse_window, script_is_complete,
+    command_boundaries, reparse_window, script_is_complete, BraceIndex, BracketIndex,
+    ExprParenIndex, ParenBalance,
 };
 
 // ── BracketIndex ──────────────────────────────────────────────────
@@ -252,14 +252,20 @@ fn boundaries_semicolon() {
 fn boundaries_skip_braces() {
     let src = "set x {\n}\nputs hi";
     let b = command_boundaries(src);
-    assert_eq!(*b.last().unwrap(), u32::try_from(src.len()).expect("offset fits u32"));
+    assert_eq!(
+        *b.last().unwrap(),
+        u32::try_from(src.len()).expect("offset fits u32")
+    );
 }
 
 #[test]
 fn boundaries_skip_cmd_sub() {
     let src = "if {[info exists x]} { puts hi }\nset y 1";
     let b = command_boundaries(src);
-    assert_eq!(*b.last().unwrap(), u32::try_from(src.len()).expect("offset fits u32"));
+    assert_eq!(
+        *b.last().unwrap(),
+        u32::try_from(src.len()).expect("offset fits u32")
+    );
 }
 
 #[test]
