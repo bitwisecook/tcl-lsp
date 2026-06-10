@@ -949,8 +949,125 @@ pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> 
     let mut out = Vec::new();
     for d in diags {
         out.extend(taint_quickfix(source, d));
+        out.extend(collect_bootstrap_actions(source, d));
+    }
+    // De-duplicate (two IRULE1006 diags for the same buffer command yield the
+    // same bootstrap action).  Key on the title + edit replacement texts.
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|a| {
+        let key = (
+            a.title.clone(),
+            a.edits
+                .iter()
+                .map(|e| e.new_text.clone())
+                .collect::<Vec<_>>(),
+        );
+        seen.insert(key)
+    });
+    out
+}
+
+/// Protocol names `X` for which `X::<suffix>` appears in `message`.
+fn protocols_before(message: &str, suffix: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = message.as_bytes();
+    let mut search = 0;
+    while let Some(rel) = message[search..].find(suffix) {
+        let end = search + rel;
+        let mut start = end;
+        while start > 0 && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_') {
+            start -= 1;
+        }
+        if start < end {
+            out.push(message[start..end].to_ascii_uppercase());
+        }
+        search = end + suffix.len();
     }
     out
+}
+
+/// The `when`-event setup event a `protocol::collect` bootstrap belongs in.
+fn setup_event_for(protocol: &str, event: &str) -> String {
+    let ev = event.to_ascii_uppercase();
+    match protocol {
+        "HTTP" if ev.starts_with("HTTP_RESPONSE") => "HTTP_RESPONSE".to_string(),
+        "HTTP" => "HTTP_REQUEST".to_string(),
+        "SSL" if ev.starts_with("SERVERSSL") => "SERVERSSL_HANDSHAKE".to_string(),
+        "SSL" => "CLIENTSSL_HANDSHAKE".to_string(),
+        _ if ev.starts_with("SERVER") => "SERVER_CONNECTED".to_string(),
+        _ => "CLIENT_ACCEPTED".to_string(),
+    }
+}
+
+/// Line index of the `when` block enclosing `line` (scanning upward), or 0.
+fn enclosing_when_line(source: &str, line: u32) -> u32 {
+    let lines: Vec<&str> = source.split('\n').collect();
+    let start = (line as usize).min(lines.len().saturating_sub(1));
+    for i in (0..=start).rev() {
+        if lines[i].trim_start().starts_with("when ") {
+            return u32::try_from(i).unwrap_or(0);
+        }
+    }
+    0
+}
+
+/// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
+/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.  Mirrors
+/// `_irules_collect_bootstrap_actions`.
+fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
+    if d.code != "IRULE1005" && d.code != "IRULE1006" {
+        return Vec::new();
+    }
+    let anchor = enclosing_when_line(source, d.range.start_line);
+    let event =
+        crate::irules_context::find_enclosing_when_event(source, d.range.start_line, "f5-irules")
+            .unwrap_or_default();
+
+    let (protocols, setup_event) = if d.code == "IRULE1005" {
+        // The data event is the word in the diag range; collect protocols from
+        // the "X::collect" mentions in the message.
+        let data_event = {
+            let line = source
+                .split('\n')
+                .nth(d.range.start_line as usize)
+                .unwrap_or("");
+            let chars: Vec<char> = line.chars().collect();
+            let s = (d.range.start_character as usize).min(chars.len());
+            let e = (d.range.end_character as usize).min(chars.len());
+            chars[s..e].iter().collect::<String>().to_ascii_uppercase()
+        };
+        (protocols_before(&d.message, "::collect"), data_event)
+    } else {
+        // IRULE1006 — the buffer command is `X::payload`.
+        (protocols_before(&d.message, "::payload"), event)
+    };
+
+    let mut unique: Vec<String> = Vec::new();
+    for p in protocols {
+        if !unique.contains(&p) {
+            unique.push(p);
+        }
+    }
+    unique
+        .into_iter()
+        .map(|proto| {
+            let setup = setup_event_for(&proto, &setup_event);
+            CodeAction {
+                title: format!("Add '{proto}::collect' bootstrap in '{setup}'"),
+                edits: vec![crate::rename::TextEdit {
+                    range: LspRange {
+                        start_line: anchor,
+                        start_character: 0,
+                        end_line: anchor,
+                        end_character: 0,
+                    },
+                    new_text: format!("when {setup} priority 500 {{\n    {proto}::collect\n}}\n\n"),
+                }],
+                kind: ActionKind::QuickFix,
+                command: None,
+            }
+        })
+        .collect()
 }
 
 /// Extract the variable name (no `$`/braces) named in a taint message.
