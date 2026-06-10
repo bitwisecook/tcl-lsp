@@ -58,6 +58,19 @@ _BIGIP_CONF_NAMES = frozenset(
     }
 )
 
+
+def is_bigip_conf_name(uri: str) -> bool:
+    """Return ``True`` if *uri*'s basename is a canonical BIG-IP config name.
+
+    Single source of truth for the basename → BIG-IP test, shared by the
+    dialect resolution paths (``infer_document_dialect``,
+    ``resolve_dialect_for_uri``) and the diagnostics pipeline so they can
+    never disagree about what counts as a BIG-IP config file.
+    """
+    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
+    return basename in _BIGIP_CONF_NAMES
+
+
 # BIG-IP file extensions for discovery beyond the canonical basenames.
 # ``.scf`` is the F5 single-config-file export format (always BIG-IP);
 # ``.conf`` files are tried opportunistically — the parser is tolerant
