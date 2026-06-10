@@ -131,6 +131,8 @@ enum TokenKind {
     /// BIG-IP object name referenced from iRules code (pool, data group,
     /// virtual, node, …).
     Object = 27,
+    /// A recognised `-option` switch on a command (`regexp -nocase`).
+    Decorator = 28,
 }
 
 /// `binary format`/`scan` specifier letters.  Mirrors
@@ -174,6 +176,7 @@ pub fn legend_token_types() -> Vec<&'static str> {
         "binaryFlag",
         "operator",
         "object",
+        "decorator",
     ]
 }
 
@@ -346,6 +349,10 @@ enum ArgOverride {
     /// tokenising it via the expression sub-lexer (variables / numbers /
     /// operators / functions / nested `[cmd]` substitutions).
     ExprScript,
+    /// A recognised `-option` switch → `Decorator`.
+    Decorator,
+    /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
+    SubcommandKeyword,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -543,6 +550,30 @@ fn special_arg_kinds(
         if let Some(w) = bin_word {
             if let Some(tok) = seg.argv.get(w) {
                 overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
+            }
+        }
+    }
+
+    // Known `-option` switches → `Decorator` (only real options, so `puts
+    // -foo` stays a string); subcommand word at arg index 1 → keyword carrying
+    // `defaultLibrary`.  Both consult the command's registry spec.
+    if let Some(spec) = registry.get(head) {
+        for (i, text) in seg.texts.iter().enumerate().skip(1) {
+            if text.starts_with('-') && spec.options.iter().any(|o| o.name == text.as_str()) {
+                if let Some(tok) = seg.argv.get(i) {
+                    overrides
+                        .entry(tok.span.start())
+                        .or_insert(ArgOverride::Decorator);
+                }
+            }
+        }
+        if let Some(sub_text) = seg.texts.get(1) {
+            if spec.subcommand(sub_text).is_some() {
+                if let Some(tok) = seg.argv.get(1) {
+                    overrides
+                        .entry(tok.span.start())
+                        .or_insert(ArgOverride::SubcommandKeyword);
+                }
             }
         }
     }
@@ -1346,6 +1377,26 @@ fn collect_script(
                 Some(ArgOverride::Kind(kind)) => {
                     push_token(line_index, full_source, *tok, *kind, 0, entries);
                 }
+                Some(ArgOverride::Decorator) => {
+                    push_token(
+                        line_index,
+                        full_source,
+                        *tok,
+                        TokenKind::Decorator,
+                        0,
+                        entries,
+                    );
+                }
+                Some(ArgOverride::SubcommandKeyword) => {
+                    push_token(
+                        line_index,
+                        full_source,
+                        *tok,
+                        TokenKind::Keyword,
+                        MOD_DEFAULT_LIBRARY,
+                        entries,
+                    );
+                }
                 Some(ArgOverride::BodyScript) => {
                     if let Some((cstart, inner)) = subspec_content(full_source, *tok) {
                         collect_script(
@@ -1852,6 +1903,16 @@ mod tests {
             .chunks(5)
             .map(|c| c[3])
             .collect()
+    }
+
+    #[test]
+    fn known_option_classified_as_decorator() {
+        // `regexp -nocase {pat} $s` — `-nocase` is a real option → decorator.
+        let ks = kinds("regexp -nocase {pat} $s\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
+        // `puts -foo` — `-foo` is not an option of `puts` → not a decorator.
+        let ks = kinds("puts -foo\n", "tcl", &reg());
+        assert!(!ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
     }
 
     #[test]
