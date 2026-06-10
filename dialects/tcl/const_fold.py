@@ -628,7 +628,8 @@ def fold_scan(args: tuple[str, ...]) -> str | None:
     """``scan string format`` — the *inline* (no ``varName``) form only.
 
     Returns the list of converted values.  Deliberately conservative: only the
-    integer / string / char conversions (``%d %o %x %X %u %s %c``) are folded,
+    integer / string / char conversions (``%d %o %x %X %s %c``) are folded
+    (``%u`` is excluded — its unsigned-width semantics are version-specific),
     and only when **every** conversion succeeds (no whitespace-flag, width,
     ``*`` suppression, ``%[`` set, size modifier, or float conversion, and no
     partial / failed match — those have empty-element semantics we don't
@@ -691,20 +692,29 @@ def _tcl_scan(string: str, fmt: str) -> str | None:
             while si < n and string[si] not in _SCAN_WS:
                 si += 1
             results.append(string[start:si])
-        elif conv in "doxXu":
+        elif conv in "doxX":
+            # ``%u`` is deliberately excluded: scanning an unsigned word has
+            # version-specific width semantics (``scan -5 %u`` differs on
+            # Tcl 8 vs 9), so it is never folded.
             start = si
             if string[si] in "+-":
                 si += 1
-            digit_start = si
             if conv in "xX":
                 base = 16
                 allowed = "0123456789abcdefABCDEF"
+                # Tcl's ``%x`` accepts an optional ``0x``/``0X`` prefix before
+                # the hex digits (``scan 0xff %x`` -> 255).  Skip it so Python's
+                # ``int(..., 16)`` sees a valid literal; require a following hex
+                # digit so a bare ``0`` still scans as ``0``.
+                if string[si : si + 2] in ("0x", "0X") and si + 2 < n and string[si + 2] in allowed:
+                    si += 2
             elif conv == "o":
                 base = 8
                 allowed = "01234567"
-            else:  # d, u
+            else:  # d
                 base = 10
                 allowed = "0123456789"
+            digit_start = si
             while si < n and string[si] in allowed:
                 si += 1
             if si == digit_start:
@@ -901,9 +911,27 @@ def _tcl_format(fmt: str, vals: tuple[str, ...]) -> str | None:
         pyspec = "%" + flags + width + prec
         try:
             if conv in "diu":
-                out.append((pyspec + "d") % _format_int_arg(raw))
+                ival = _format_int_arg(raw)
+                # ``%u`` of a negative value renders as an unsigned word whose
+                # width is version-specific (32-bit on Tcl 9, 64-bit on 8.x),
+                # and Python's ``%d`` keeps the sign instead — never fold it.
+                if conv == "u" and ival < 0:
+                    return None
+                out.append((pyspec + "d") % ival)
             elif conv in "xXo":
-                out.append((pyspec + conv) % _format_int_arg(raw))
+                ival = _format_int_arg(raw)
+                # Negative hex/octal is two's-complement at a word width that
+                # differs across Tcl versions (``ffffffff`` on 9 vs the 64-bit
+                # form on 8.x); Python renders ``-N``.  Don't fold.
+                if ival < 0:
+                    return None
+                # The ``#`` alternate-form prefix also diverges by version:
+                # ``%#o`` is ``010`` on 8.x but ``0o10`` on 9, and ``%#X`` is
+                # ``0XFF`` on 8.x but ``0xFF`` on 9.  (``%#x`` is identical
+                # everywhere, so it stays foldable.)
+                if "#" in flags and conv in "Xo":
+                    return None
+                out.append((pyspec + conv) % ival)
             elif conv in "feEgG":
                 out.append((pyspec + conv) % float(raw))
             elif conv == "s":

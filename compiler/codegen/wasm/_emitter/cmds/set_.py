@@ -87,10 +87,93 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
     return True
 
 
+def _emit_incr_strict(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
+    """Issue #262: route ``incr`` through the strict ``tcl_incr`` runtime
+    helper so a non-integer current value (e.g. the float string ``"52.60"``
+    or ``"abc"``) raises ``expected integer but got ...`` rather than being
+    silently truncated/zeroed by the permissive inline unbox (``obj_get_int``).
+
+    This mirrors the strict lowering the optimiser/CFG paths already use for
+    ``IRIncr`` (``_optimisation.py`` / ``_control_flow.py`` / ``_statements.py``);
+    the inline command emitter is reached for ``incr`` in value position and in
+    un-optimised statement positions such as a ``catch {}`` body, which is where
+    the permissiveness bug surfaced.
+
+    Returns ``False`` when the runtime predates the ``tcl_incr`` import so the
+    caller falls back to the legacy inline arithmetic.
+    """
+    incr_idx = emitter._shared_imports.get("tcl_incr")
+    if incr_idx is None:
+        return False
+    var = args[0]
+    array_ref = _parse_array_ref(var)
+    base = array_ref[0] if array_ref else var
+
+    # Compute the post-increment value (boxed TclObj) on the stack:
+    #   tcl_incr(lenient_read(var), amount_obj)
+    # Lenient read so ``incr x`` on an unset scalar initialises to 0
+    # (Tcl 8.5+: returns the increment, doesn't raise) — same as the
+    # optimised tail path.  ``tcl_incr`` enforces the strict-integer guard
+    # on both the current value and a non-literal increment.
+    emitter._emit_var_read_obj_lenient(var)
+    if len(args) >= 2:
+        try:
+            emitter._emit_i64_const(int(args[1]))
+            emitter._emit_box_int()
+        except ValueError:
+            emitter._emit_value(args[1])
+    else:
+        emitter._emit_i64_const(1)
+        emitter._emit_box_int()
+    emitter._emit_call(incr_idx)
+    # Stack: [new_value_obj]
+
+    in_ns_block = (
+        not emitter._is_proc
+        and emitter._block_namespace is not None
+        and emitter._block_namespace != "::"
+        and array_ref is None
+    )
+    use_var_path = (
+        not emitter._is_proc
+        or var in emitter._globals
+        or var in emitter._aliases
+        or base in emitter._aliases
+        or array_ref is not None
+        or in_ns_block
+        or _is_dynamic_var_name(var)
+    )
+
+    if context is EmitContext.VALUE:
+        # Keep the new value on the stack for the enclosing expression.
+        if use_var_path:
+            emitter._emit_var_write_obj_keep(var)
+        else:
+            idx = emitter._intern_local(var)
+            emitter._emit_local_tee(idx)
+        return True
+
+    # STATEMENT context — write back (consume), mirroring the legacy path's
+    # def-mirror capture for non-dynamic names.
+    use_def_mirror = bool(defs) and not _is_dynamic_var_name(defs[0])
+    if use_def_mirror:
+        emitter._emit_var_write_obj_keep(var)
+        def_idx = emitter._intern_local(defs[0])
+        emitter._emit_local_set(def_idx)
+    else:
+        emitter._emit_var_write_obj(var)
+    return True
+
+
 def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
-    """``incr varName ?increment?`` — unbox, i64 add, rebox."""
+    """``incr varName ?increment?`` — strict ``tcl_incr`` when available,
+    otherwise legacy inline unbox / i64 add / rebox."""
     if not (1 <= len(args) <= 2):
         return False
+    if _emit_incr_strict(emitter, args, defs, context):
+        return True
     var = args[0]
 
     if context is EmitContext.VALUE:

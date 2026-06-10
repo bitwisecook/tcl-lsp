@@ -144,6 +144,7 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
         IRFor,
         IRForeach,
         IRIf,
+        IRIncr,
         IRReturn,
         IRSwitch,
         IRTry,
@@ -225,6 +226,17 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
             case IRReturn(expr=expr):
                 if expr is not None:
                     _scan_expr_body_imports_from_node(expr, needed)
+            case IRIncr(amount=amount):
+                # ``incr`` in a brace-quoted body (e.g. the last statement of
+                # ``[catch {incr i} msg]``) lowers to IRIncr but is emitted via
+                # the strict ``tcl_incr`` path (issue #262 — a non-integer value
+                # must raise, not be silently truncated).  The full-module
+                # scanner adds these for top-level IRIncr; mirror it here so the
+                # import is present for body-scanned IRIncr too.
+                needed.add("tcl_incr")
+                needed.add("tcl_obj_new_int")
+                if isinstance(amount, str) and "[" in amount:
+                    _scan_text_for_cmd_subst(amount, needed)
             case _:
                 # Scan value strings in IRCall / IRAssignValue for cmd-substs.
                 args = getattr(stmt, "args", None)
@@ -536,6 +548,18 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     # this import the interpolation collapses to a literal
                     # in the lookup table and ``$x`` never substitutes.
                     needed.add("tcl_append")
+                elif cmd == "incr":
+                    # ``[incr i]`` in value position (and ``incr`` as the
+                    # last statement of a ``catch`` body) is emitted by the
+                    # inline ``_emit_incr`` hook, which routes through
+                    # ``tcl_incr`` for the strict-integer guard (issue #262 —
+                    # a non-integer value like ``"52.60"`` must raise rather
+                    # than be silently truncated).  ``runtime_import_for`` has
+                    # no entry for ``incr``, so request the helper here; the
+                    # IRIncr statement scanner does the same at the lowered
+                    # statement level.
+                    needed.add("tcl_incr")
+                    needed.add("tcl_obj_new_int")
                 elif cmd == "dict" and len(parts) > 1:
                     subcmd = parts[1]
                     sri = subcommand_runtime_import_for("dict", subcmd)
