@@ -1219,6 +1219,88 @@ impl Backend {
         Some(serde_json::json!({ "events": events }))
     }
 
+    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping safe
+    /// diagnostic fix iteratively until the source stabilises.  Mirrors
+    /// `server/commands.py::on_fix_all_safe_issues` (the `_SAFE_FIX_CODES`
+    /// whitelist + multi-pass apply).
+    async fn fix_all_safe_issues_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let (disabled, na_mode) = self.analyser_config().await;
+        let dialect = doc.dialect.clone();
+        let mut source = doc.text.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
+            let mut applied: Vec<serde_json::Value> = Vec::new();
+            for _ in 0..4 {
+                let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
+                let analysis = analyser.analyse(&source, &dialect).clone();
+                // First fix per safe diagnostic, sorted by start offset.
+                let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
+                for d in &analysis.diagnostics {
+                    if !SAFE.contains(&d.code.as_str()) {
+                        continue;
+                    }
+                    if let Some(f) = d.fixes.first() {
+                        fixes.push((
+                            f.span.start(),
+                            f.span.end(),
+                            f.new_text.clone(),
+                            d.code.clone(),
+                            f.description.clone(),
+                        ));
+                    }
+                }
+                fixes.sort_by_key(|f| f.0);
+                // Keep non-overlapping fixes in order.
+                let mut chosen: Vec<(u32, u32, String, String, String)> = Vec::new();
+                let mut last_end = 0u32;
+                for f in fixes {
+                    if f.0 >= last_end {
+                        last_end = f.1;
+                        chosen.push(f);
+                    }
+                }
+                if chosen.is_empty() {
+                    break;
+                }
+                // Apply from the end so earlier byte offsets stay valid.
+                let mut new_source = source.clone();
+                for f in chosen.iter().rev() {
+                    let (s, e) = (f.0 as usize, f.1 as usize);
+                    if s <= e && e <= new_source.len() {
+                        new_source.replace_range(s..e, &f.2);
+                    }
+                }
+                if new_source == source {
+                    break;
+                }
+                for f in &chosen {
+                    applied.push(serde_json::json!({ "code": f.3, "description": f.4 }));
+                }
+                source = new_source;
+            }
+            serde_json::json!({ "source": source, "applied": applied })
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("fix-all worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(Some(value))
+    }
+
     /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config
     /// (at minimum the active dialect).  Mirrors
     /// `server/commands.py::on_get_effective_config`.
@@ -2599,6 +2681,7 @@ impl LanguageServer for Backend {
         Ok(Some(lifted))
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn code_action(
         &self,
         params: CodeActionParams,
@@ -2658,8 +2741,7 @@ impl LanguageServer for Backend {
             ));
             // iRules-only: the `# Profiles:` header source action.
             if dialect == "f5-irules" {
-                if let Some(a) =
-                    core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
                 {
                     actions.push(a);
                 }
@@ -2751,6 +2833,7 @@ impl LanguageServer for Backend {
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
+            "tcl-lsp.fixAllSafeIssues" => self.fix_all_safe_issues_command(&params.arguments).await,
             _ => Ok(None),
         }
     }
@@ -3762,6 +3845,7 @@ fn build_server_capabilities() -> ServerCapabilities {
                 "tcl-lsp.listIruleEvents".to_owned(),
                 "tcl-lsp.diagramData".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
+                "tcl-lsp.fixAllSafeIssues".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
