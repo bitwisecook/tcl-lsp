@@ -1841,28 +1841,38 @@ class TestSubcommandOptionArity:
 
     # --- signature-level assertions --------------------------------------
 
+    @staticmethod
+    def _subcommand_sig(command: str, sub: str):
+        """Return the per-subcommand ``CommandSig`` for *command sub*.
+
+        ``SIGNATURES[name]`` is typed ``CommandSig | SubcommandSig``; the
+        ``isinstance`` narrow keeps the static type-checker happy (and
+        asserts the command really is an ensemble).
+        """
+        from compiler.registry.runtime import SIGNATURES, SubcommandSig
+
+        sig = SIGNATURES[command]
+        assert isinstance(sig, SubcommandSig)
+        return sig.subcommands[sub]
+
     def test_file_link_signature_carries_leading_options(self):
         """The fix lives in signature construction: the per-subcommand
         ``CommandSig`` must expose its options as ``leading_options`` so the
         arity checker can skip them."""
-        from compiler.registry.runtime import SIGNATURES
-
-        sub = SIGNATURES["file"].subcommands["link"]
+        sub = self._subcommand_sig("file", "link")
         assert sub.leading_options == frozenset({"-symbolic", "-hard"})
 
     def test_subcommand_options_are_dialect_filtered(self):
         """A subcommand option introduced in a later release must not leak
         into an earlier dialect's ``leading_options`` (``clock scan
         -validate`` is Tcl 9.0+)."""
-        from compiler.registry.runtime import SIGNATURES, configure_signatures
+        from compiler.registry.runtime import configure_signatures
 
         configure_signatures(dialect="tcl8.6")
-        opts_86 = SIGNATURES["clock"].subcommands["scan"].leading_options
-        assert "-validate" not in opts_86
+        assert "-validate" not in self._subcommand_sig("clock", "scan").leading_options
 
         configure_signatures(dialect="tcl9.0")
-        opts_90 = SIGNATURES["clock"].subcommands["scan"].leading_options
-        assert "-validate" in opts_90
+        assert "-validate" in self._subcommand_sig("clock", "scan").leading_options
 
 
 # W200: Binary format signed/unsigned modifier requires Tcl 8.5+

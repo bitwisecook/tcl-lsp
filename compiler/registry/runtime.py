@@ -624,9 +624,7 @@ def _subcommand_switch_names(
     """
     parent_dialects = sub.dialects if sub.dialects is not None else spec.dialects
     return frozenset(
-        opt.name
-        for opt in sub.options
-        if opt.supports_dialect(dialect, parent_dialects)
+        opt.name for opt in sub.options if opt.supports_dialect(dialect, parent_dialects)
     )
 
 
