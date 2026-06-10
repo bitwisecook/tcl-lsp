@@ -1696,10 +1696,11 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + reimport / build-info | 94 / 168 | 73 | 6139 / 12299 |
 | + totitle / nsdelete / file / pkg-require-global | 105 / 168 | 62 | 6830 / 14079 |
 | + panic fixes / qualified-name fallback | 110 / 168 | 57 | 7214 / 15345 |
-| + `binary format`/`scan` | **116 / 168** | 51 | **8325 / 17673** |
+| + `binary format`/`scan` | 116 / 168 | 51 | 8325 / 17673 |
+| + child interpreters | **118 / 168** | 49 | **8406 / 17855** |
 
-Cumulative: **+30 files** now run to a tcltest summary, errored-before-summary
-**81 → 51**, **+2753 tests pass**, and **zero panics** (the passed *count*
+Cumulative: **+32 files** now run to a tcltest summary, errored-before-summary
+**81 → 49**, **+2834 tests pass**, and **zero panics** (the passed *count*
 matters more than the ~47% rate — the denominator grows as more files run their
 full test sets). The unblocking fixes:
 
@@ -1716,15 +1717,19 @@ full test sets). The unblocking fixes:
   required parameter after a defaulted one (`wrong # args`);
 - relative qualified command names fall back to the global namespace (so
   `tcl::build-info` resolves from inside a namespace);
-- `binary format`/`binary scan` (the core type codes — see `cmd_binary`).
+- `binary format`/`binary scan` (the core type codes — see `cmd_binary`);
+- basic child interpreters (`interp create`/`eval`/`exists`/`children`/`delete`
+  + the child as a command), each a full `Interp` with startup globals.
 
 Biggest remaining error-before-summary blockers, by file count:
 
 | Blocker | Files | Notes |
 |---|---|---|
-| `interp` child interpreters (`create`/`children`/`eval`/…) | ~10 | a substantial feature (sub-`Interp`s) |
-| `tcl::oo` package | 4 | TclOO (own chunk) |
+| `tcl::oo` package (TclOO) | 4 | classes/methods/inheritance — own chunk |
+| `zipfs` | 3 | zip virtual filesystem |
 | `tcl::test` package | 2 | the C-tier test commands |
+| `auto_load` in children | 2 | child interps lack the full `init.tcl` |
+| safe interpreters | (in `interp`) | the `-safe` sandbox: hidden commands, limited set |
 
 > Per-file detail is in the sweep's `--json` (`scripts/dev/rust_tcltest_sweep.py
 > --json`). Drive these down toward the Zig baseline.
