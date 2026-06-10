@@ -4470,25 +4470,38 @@ unit tests + clippy/fmt clean, no regressions):
   **document_highlight 1→0** (proc/class/method use `Text`); **server
   identity** `serverInfo.name` → `tcl-lsp`.
 
-**Current native-server e2e: 280 passed / 75 failed / 1 skipped** (from
-220/135). The contained provider-parity gaps are closed; the remaining 75 map
-to **genuinely-unported subsystems**, which Phase 1's gate explicitly defers
-("remaining reds are only genuinely-unported domain features"):
+**Second wave (the remaining-75 push): 280 → 321 passed** (40 more closed).
+Landed: completion array-element + scope-binding (upvar / namespace upvar /
+dict for/with/update / try on-error via new analyser handlers + `array_indices`
++ multi-assignment var refs); code-action `kind`/`command` infra + `only`
+filter; refactor/source families (W115 continuation, IPv4↔IPv6, De Morgan,
+invert, generate-docstring); iRules taint encode-wrap quick-fixes (IRULE3001 /
+IRULE3002 / T103 / T106 + helper-proc insertion); iRules `# Profiles:` header
+source action; class superclass/mixin reference spans; semantic-token
+proc-name `definition` modifier; hover var scope-offset bug-fix; one UTF-16
+column bug-fix in the continuation edit.
 
-- **code_actions 17 + most iRules quick-fixes** — the refactor / quick-fix
-  transform families (extract/inline proc, DeMorgan, expression-invert,
-  continuation-comment, IPv4↔IPv6, doc-comment generation, `eval`→`list`, the
-  IRULE3001/T103/T106 encode-wrap fixes). This is the `core/refactoring/` →
-  `tcl-refactor` port (a distinct crate in the plan), not a provider bug.
-- **iRules domain 24** — F5 profile-requirement data, event→profile
-  generation, timing/option keyword data. The `core/bigip` / dialect-data
-  depth.
-- **completion 14 / references 4 / hover 7** — analyser-depth: scope-binding
-  alias tracking, `array_indices`, namespace resolution, multi-write var
-  references, binary/alias hover. The `core/analysis` deepening (Phase 2).
-- **recovery 2** — nested / multi-break ghost-token recovery (parser depth);
-  **semantic_tokens 3 / rename 2** — small provider tails (one rename is a
-  shared-server flaky).
+**Current native-server e2e: 321 passed / 34 failed / 1 skipped** (from
+220/135 — **+101**). The remaining 34 map to subsystems the plan scopes as
+distinct large efforts (Phase 1's gate defers genuinely-unported domain
+features):
+
+- **iRules 7** — IRULE1005/1006 collect-bootstrap actions + dialect-data
+  completion (timing keywords / `HTTP::respond` options / arg-value docs) +
+  profile-requirement hover. The remaining `tcl-bigip` / dialect-data depth.
+- **code_actions 5** — extract-proc / inline-proc (the `tcl-refactor`
+  variable-extraction + body-substitution engine) and `eval`→`[list …]`
+  (needs the GAP-A2 W101 security check).
+- **completion 5** — cross-namespace qualified enumeration, `global`
+  both-forms, `uplevel #0` scope semantics, read-only array index.
+- **hover 7** — namespace-var, `binary` spec table, regexp-literal,
+  command-alias hover (provider sub-language depth).
+- **recovery 2** (nested ghost-token recovery — parser depth),
+  **semantic_tokens 2** (`switch -regexp` arm patterns, bareword
+  backslash-escape sub-tokens), **rename 2** (namespaced-proc decl form + one
+  shared-server flaky), **references 2** (namespace-scoped unqualified-call
+  resolution + a flaky), **commands 2** (`fixAllSafeIssues` /
+  `optimiseDocument`).
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
