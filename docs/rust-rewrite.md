@@ -4546,6 +4546,72 @@ clean, no regressions):
   `tcl-lsp.optimiseDocument` workspace command; O129 now folds nested constant
   command substitutions (`puts [llength [list a b c]]` → `puts 3`).
 
+### SYNC-JUN10-phase2 — analyser precision parity (fp / ground-truth battery)
+
+**Measurement harness landed.** `tests/rust_diag_bridge.py` drives the native
+server over a single reused document and shapes its published diagnostics into
+the `.code`/`.message`/`.range` objects the `test_fp_*` /
+`test_ground_truth_tn_fn` battery reads; `server.features.diagnostics.get_diagnostics`
+routes through it when `TCL_LSP_DIAG_BACKEND=rust` (no-op otherwise). This lets
+the existing 377-test precision battery certify the **Rust** analyser unchanged.
+Run it with:
+
+```
+TCL_LSP_DIAG_BACKEND=rust TCL_LSP_SERVER_KIND=rust \
+  TCL_LSP_SERVER_BIN=$(pwd)/target/release/tcl-lsp-server \
+  uv run --extra dev pytest tests/test_fp_*.py tests/test_ground_truth_tn_fn.py
+```
+
+**Baseline (the 11 `get_diagnostics`-based files, 316 tests): 216 → 223
+passing** after this strip. The two `analyse()`-based object files
+(`test_fp_obj*`, 61 tests) aren't yet routed (they read `analyse().diagnostics`
+directly, the analyser-only path).
+
+**Closed this strip:**
+- **taint (TNT) family — 18/18.** Position-aware sink filtering: T101 only the
+  `puts` content arg (not a channel id); T104 only the
+  `taint_network_sink_args` network-address positional slots (a tainted
+  `-headers $hdr` option value no longer fires); T100/T105 suppress
+  `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]` (literal command word).
+- **W210 condition-substitution out-vars (fp_rbs 17 → 14).** `catch`/`regexp`/
+  `scan` substitutions in `if`/`while` conditions now record their result
+  variables as CFG defs (`condition_command_out_vars`), so a read in the
+  guarded body isn't a false read-before-set.
+
+**Remaining precision backlog (≈93 failing, itemised by family):**
+
+| family | failing | nature |
+|---|---|---|
+| ground_truth | 31 | W210 path-merge **true-positives** (Rust under-fires: def-on-one-path, switch-no-default, use-after-unset), W307 var-as-command resolution (snit/TclOO), interproc dict/mixed-caller |
+| fp_rbs | 14 | remaining W210 RBS (regexp switch shapes, qualified `foreach`/`for`, `namespace eval`, frozen-while) + TP controls |
+| fp_sty | 11 | source-style knobs (W111/W112/W115/W118 thresholds) |
+| fp_ds | 10 | dead-store (O109/W220) flow precision |
+| fp_bnd | 9 | bounds checks |
+| fp_nab | 5 | not-a-bug suppression |
+| fp_rch | 5 | reachability |
+| fp_sh | 4 | shimmer (S10x) |
+| fp_opt | 3 | O116 empty-list fold replacement, O106 LICM purity, O109 dead-store |
+| fp_inj | 1 | T102 (needs iRules dialect taint source — harness-dialect artifact) |
+
+The dominant remaining theme is **path-sensitive dataflow precision** (W210
+must fire on a merge where a def reaches on only one path, while *not* firing
+on the catch/regexp-guarded reads above) — TP and FP requirements are in direct
+tension, so each is a careful CFG/SSA flow fix verified against tclsh 9.0.3
+ground truth, not a single switch. These are tracked here as the Phase-2
+worklist; the harness is the regression gate.
+
+### SYNC-JUN10-phase5 — gating note (default-flip + Python retirement)
+
+Phase 5 (make `rust` the default backend; delete the named Python LSP/analysis
+stack) is **gated on Phase-2 parity** — the plan's own "*Once Phases 1-2 close
+parity*" precondition and the explicit project decision to *flip default-on
+after parity*. With ≈93 analyser-precision deltas still open (mostly
+user-facing false-positive/false-negative diagnostics vs the tclsh-locked
+ground truth), flipping the default now would ship those as regressions, and
+deleting `server/`/`analyser/` would remove the reference implementation **and**
+the harness that measures parity. Phase 5 therefore stays gated until the
+fp/ground-truth battery is green against the Rust backend.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
