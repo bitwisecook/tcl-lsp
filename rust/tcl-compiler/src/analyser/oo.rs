@@ -376,6 +376,11 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
     match subcmd {
         "superclass" => {
             class_def.superclasses = sub_args.to_vec();
+            for (i, name) in sub_args.iter().enumerate() {
+                if let Some(tok) = sub_tokens.get(i) {
+                    class_def.superclass_refs.push((name.clone(), tok.span));
+                }
+            }
         }
         "mixin" => {
             // Skip ``-append`` and similar flags — mirrors
@@ -385,6 +390,14 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
                 .filter(|a| !a.starts_with('-'))
                 .cloned()
                 .collect();
+            for (i, name) in sub_args.iter().enumerate() {
+                if name.starts_with('-') {
+                    continue;
+                }
+                if let Some(tok) = sub_tokens.get(i) {
+                    class_def.mixin_refs.push((name.clone(), tok.span));
+                }
+            }
         }
         "method" => {
             if let Some(md) = extract_method_def(sub_args, sub_tokens, "method", "public", "") {

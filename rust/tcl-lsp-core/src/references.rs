@@ -106,13 +106,27 @@ pub fn references(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
+            let simple = class_def.name.clone();
+            let qualified = class_def.qualified_name.clone();
             let mut out = Vec::new();
             if include_declaration {
                 out.push(span_to_range(source, &line_index, class_def.name_span));
             }
             for inv in &analysis.command_invocations {
-                if inv.name == class_def.name || inv.name == class_def.qualified_name {
+                if inv.name == simple || inv.name == qualified {
                     out.push(span_to_range(source, &line_index, inv.range));
+                }
+            }
+            // `superclass <C>` / `mixin <C>` usages across every class body
+            // are references to the class too.
+            let matches_name = |n: &str| {
+                n == simple || n == qualified || format!("::{n}") == qualified || n == word
+            };
+            for other in analysis.all_classes.values() {
+                for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
+                    if matches_name(name) {
+                        out.push(span_to_range(source, &line_index, *span));
+                    }
                 }
             }
             dedup_ranges(&mut out);
