@@ -1,3 +1,91 @@
+# v1.11.0
+
+## New Features
+
+- **Encrypted (OpenPGP) UCS archive support.** The F5 tooling can now
+  decrypt passphrase-protected `.ucs` archives, preferring a local
+  `gpg` and falling back to a pure-Python OpenPGP/AES path so the
+  zipapp works without native crypto extensions.
+- **Compiler-explorer CLI and GUI.** The compiler explorer ships as an
+  installable CLI and a standalone web GUI, with IR / call-out trees
+  drawn using Unicode box-drawing.
+- **Profile-guided branch reordering (PGO).** An opt-in optimiser pass
+  reorders `if`/`elseif` and `switch` arms from a profile; off by
+  default and behaviour-preserving.
+- **Wider Tcl 9 support.** `lseq` with doubles, `scan` charset/float
+  conversions, `binary` unsigned formats, and `apply` default
+  arguments, plus broad scan/format/string/regex/proc/flow
+  compatibility fixes across the 8.4–9.0 range.
+- **Line-continuation folding.** Backslash-continued lines now fold in
+  editors that support folding ranges.
+- **New project logo.** A fresh SVG logo with a dark-theme variant,
+  used across the editor integrations and docs; PNGs are rendered from
+  the SVG via `make logo`.
+
+## Improvements
+
+- **Parser/compiler precision.** A large round of algorithmic
+  improvements and a catalogued false-positive audit (102 entries,
+  each with a paired must-fire / must-stay-silent regression test)
+  tighten diagnostic accuracy and cut false positives across the W/E/S
+  families.
+- **Faster, more precise analysis engine.** The SSA/dataflow stack was
+  reworked around standard algorithms: SSA construction with dominance
+  frontiers (Cytron–Ferrante–Rosen–Wegman–Zadeck), immediate dominators
+  via Cooper–Harvey–Kennedy ("A Simple, Fast Dominance Algorithm"),
+  O(1) dominance queries from Euler-tour interval labels on the
+  dominator tree, semi-pruned SSA φ-reduction (Briggs–Cooper–Harvey–
+  Simpson), sparse conditional constant propagation / SCCP (Wegman–
+  Zadeck), global value numbering / GVN (Alpern–Wegman–Zadeck), and an
+  interval-domain abstract interpretation with widening/narrowing.
+- **Canonical red–green concrete syntax tree (CST)** backed by a
+  **persistent implicit treap** document buffer (randomised balanced
+  BST, O(log n) edits + position mapping) — a lossless syntax tree that
+  underpins more accurate spans, recovery, and incremental reparsing.
+- **Stronger constant folding.** Embedded command substitutions, nested
+  `expr` variables, `subst`, and `lappend` list-build chains now fold,
+  and multi-word string constants propagate into whole-word `$var`
+  references.
+- **Folding reworked.** `if`/`elseif`/`else` bodies now fold as correct
+  disjoint ranges (no more overlapping siblings); note that some
+  multi-line literal / `#region` folds were dropped in the rewrite for
+  non–VS Code editors.
+- **Reposition cache for moved procedures** keeps results stable when a
+  proc shifts position in a file.
+- **TclOO method bodies are lowered to function units**, so method
+  purity (O126) and related analyses now apply inside methods.
+- **Dependency refresh** across the Python, npm, Gradle, and
+  GitHub-Actions ecosystems.
+- **VS Code icon and docs/web favicons** refreshed from the new logo.
+
+## Bug Fixes
+
+- **Optimiser no longer rewrites `format`/`scan` to wrong literals.**
+  Version- or sign-dependent conversions (`[format %x -1]`,
+  `[format %#o 8]`, `[scan 0xff %x]`, `%u`, …) are no longer folded to
+  incorrect values; the safe cases still fold and now honour `scan`'s
+  `0x` prefix.
+- **WASM `incr` is strict about integers.** `incr` of a non-integer
+  value in value/`catch`-body position now raises `expected integer but
+  got …` instead of silently truncating.
+- **Variable traces and `info exists`** behave correctly on unset
+  variables, with proper trace-error wrapping and qualified-`foreach`
+  fallback.
+- **`{*}` expansion truncation and list-scaling O(N²) regressions**
+  fixed.
+- **Interpreter correctness:** `dict exists`, `try` exception chaining,
+  `regexp`/`regsub` empty-subject matching, `lset` index bounds,
+  `concat` trailing-whitespace trimming, and empty proc names.
+- **`switch` pattern spans and command parsing** consolidated and
+  corrected; **lexer line tracking** fixed for lone-CR continuations.
+- **Inlay hints** render correctly for optional positional parameters
+  and flag placeholders.
+- **BigIP document outline** no longer emits empty symbol names; a
+  file-descriptor leak in the WASM test runner is closed; general Tcl
+  diagnostics are suppressed for BIG-IP config files.
+- **Security:** all CodeQL alerts resolved (import-cycle breaks and
+  forward-only cleanups).
+
 # v1.10.10
 
 ## New Features
