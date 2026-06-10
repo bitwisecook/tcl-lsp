@@ -1375,7 +1375,9 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: build_server_capabilities(),
             server_info: Some(ServerInfo {
-                name: "tcl-lsp-server".to_owned(),
+                // Protocol identity must match the Python server / editor
+                // expectations ("tcl-lsp"), not the crate/binary name.
+                name: "tcl-lsp".to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
             }),
         })

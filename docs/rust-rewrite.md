@@ -4395,6 +4395,41 @@ backlog — each should be triaged into the relevant `tcl-lsp-core` provider and
 turned into a tracked row as it's picked up.  The harness is no longer the
 blocker; this is genuine provider parity work.
 
+### SYNC-JUN10-runtests — both suites re-verified end-to-end on the Rust backend
+
+Re-ran both test batteries against a fresh `make rust-server` build to confirm
+they execute to completion against the native server (the prerequisite for the
+parity work below).  Both run clean — no collection abort, no indefinite hang:
+
+| suite | rust-backend result |
+|---|---|
+| `tests/lsp_e2e` (`make test-lsp-e2e-rust`) | **220 passed / 135 failed / 1 skipped** |
+| VS Code integration (`make test-ext-rust`) | **325 passed / 50 failed** (runner exit-timeout cleanup handles electron's headless non-exit; `make` exits 0) |
+
+**Infra landed this run:**
+- Two opt-in Makefile targets — `test-lsp-e2e-rust` and `test-ext-rust` — build
+  the native server (`PROFILE=release`) and export `TCL_LSP_SERVER_KIND=rust` +
+  `TCL_LSP_SERVER_BIN` so the existing backend-neutral harnesses drive the Rust
+  binary.  Default `make test-py` / `test-ext` / CI stay on Python until the
+  default-flip milestone.
+- `tests/lsp_e2e/test_server_version.py::test_initialize_reports_packaged_build_version`
+  now `skipif(server_kind()=="rust")` — the banner is pyz-specific (the native
+  server reports `CARGO_PKG_VERSION`), so it would otherwise be a known red.
+- **Server-identity fix:** the native server reported `serverInfo.name =
+  "tcl-lsp-server"`; corrected to `"tcl-lsp"` to match the Python server / editor
+  expectations (`rust/tcl-lsp-server/src/lib.rs`).  Fixes
+  `test_server_version.py::test_server_info_name`.
+
+**Refreshed per-feature lsp_e2e failure tally (worst-first — the Phase-1
+worklist):** completion 34, irules 24, code_actions 17, semantic_tokens 14,
+hover 10, rename 9, commands (executeCommand) 8, signature_help 5, references 4,
+recovery 3, navigation_extras 3, editor_features 3, document_highlight 1.
+Spot-check root causes already triaged: semantic_tokens drops bareword argument
+words (`classify_arg_token` returns `None` for a non-quoted/non-number/non-`::`
+`Esc` token — needs the registry arg-role classification Python uses, not a
+blanket `String`); the VS Code `code_actions` reds are refactor-action poll
+timeouts (the missing refactor-action families, `code_actions.rs`).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
