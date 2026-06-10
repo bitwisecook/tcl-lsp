@@ -441,7 +441,18 @@ impl Interp {
     /// Register an ensemble command (`namespace ensemble create`); `name` is the
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
-        self.namespaces.register(name, Command::Ensemble(cfg));
+        // The `-command` name resolves relative to the current namespace, like a
+        // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
+        // `NamespaceEnsembleCmd`). `namespace ensemble create -command path`
+        // inside `namespace eval ::tcl::tm` therefore binds `::tcl::tm::path`,
+        // not a bare `::path` at global scope.
+        let ns = self.namespaces.command_home_ns(self.current_ns, name);
+        let tail = tcl_syntax::naming::qualifier_segments(name)
+            .last()
+            .copied()
+            .unwrap_or(name)
+            .to_vec();
+        self.namespaces.bind(ns, &tail, Command::Ensemble(cfg));
     }
 
     /// Define a user proc (`proc name params body`). The proc's defining

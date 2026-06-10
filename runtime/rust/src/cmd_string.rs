@@ -715,20 +715,9 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 }
 
 /// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
-fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
-    let len = len as isize;
-    if spec == b"end" {
-        return Some(len - 1);
-    }
-    if let Some(rest) = spec.strip_prefix(b"end") {
-        match rest.first() {
-            Some(b'-') => return parse_isize(&rest[1..]).map(|n| len - 1 - n),
-            Some(b'+') => return parse_isize(&rest[1..]).map(|n| len - 1 + n),
-            _ => return None,
-        }
-    }
-    parse_isize(spec)
-}
+// Index specs (`end`, `int±int`, `end±int`, …) share the full
+// `TclGetIntForIndex` grammar with the list commands — reuse one parser.
+use crate::cmd_list::index_spec;
 
 // -- error helpers ---------------------------------------------------------
 
@@ -841,6 +830,14 @@ mod tests {
         assert_eq!(ok(b"string index hello 9"), b"");
         assert_eq!(ok(b"string range hello 1 3"), b"ell");
         assert_eq!(ok(b"string range hello 2 end"), b"llo");
+        // `integer±integer` arithmetic in an index spec (Tcl 9 / safe-base):
+        // `string range $s 0 $last-1` with last=5 → indices 0..4.
+        assert_eq!(ok(b"string range abcdefghij 0 5-1"), b"abcde");
+        assert_eq!(
+            ok(b"set last 5; string range abcdefghij 0 $last-1"),
+            b"abcde"
+        );
+        assert_eq!(ok(b"string index abcdef 2+1"), b"d");
     }
 
     #[test]

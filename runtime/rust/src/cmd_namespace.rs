@@ -55,10 +55,11 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
+        b"upvar" => ns_upvar(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, current, delete, ensemble, eval, exists, export, forget, import, parent, path, qualifiers, tail, or which");
+            m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
             interp.set_error(&m)
         }
     }
@@ -548,6 +549,51 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `namespace upvar ns ?otherVar myVar ...?` — link each `myVar` in the current
+/// frame to `otherVar`, a variable resolved in namespace `ns` (mirrors C's
+/// `NamespaceUpvarCmd`: the other-var is looked up with the var frame's
+/// namespace temporarily set to `ns`).
+fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // objc<2 || objc&1 in C (argv[0] is "namespace"): need ns + even #pairs.
+    if argv.len() < 3 || argv.len() % 2 == 0 {
+        return wrong_args(interp, b"namespace upvar ns ?otherVar myVar ...?");
+    }
+    let ns_name = obj_bytes(argv[2]);
+    let Some(ns) = interp
+        .namespaces()
+        .find_namespace(interp.current_ns(), &ns_name)
+    else {
+        let mut m = b"namespace \"".to_vec();
+        m.extend_from_slice(&ns_name);
+        m.extend_from_slice(b"\" not found");
+        return interp.set_error(&m);
+    };
+
+    let mut i = 3;
+    while i + 1 < argv.len() {
+        let other = obj_bytes(argv[i]);
+        let local = obj_bytes(argv[i + 1]);
+        let (base, elem) = crate::frame::split_array_ref(&other);
+        // The other-var resolves in `ns` (a qualified `base` resolves relative to
+        // it, an unqualified one names a var of `ns` directly).
+        let Some((home_ns, simple)) = interp.resolve_var_target(ns, &base) else {
+            let mut m = b"can't access \"".to_vec();
+            m.extend_from_slice(&other);
+            m.extend_from_slice(b"\": parent namespace doesn't exist");
+            return interp.set_error(&m);
+        };
+        let link = crate::frame::Link {
+            home: crate::frame::VarHome::Namespace(home_ns),
+            name: simple,
+            elem,
+        };
+        interp.make_upvar(link, &local);
+        i += 2;
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
 // -- ensemble --------------------------------------------------------------
 
 /// `namespace ensemble create|exists ...` — the canonical `ens sub`→target
@@ -1010,6 +1056,53 @@ mod tests {
             assert_eq!(i.result_bytes(), b"1");
             assert_eq!(i.eval_str(b"namespace ensemble exists ::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0");
+        });
+    }
+
+    #[test]
+    fn namespace_upvar_links_local_to_ns_var() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval a { variable x 42 }");
+            // `namespace upvar a x lx` links a frame-local `lx` to `::a::x`.
+            assert_eq!(
+                i.eval_str(
+                    b"proc p {} { namespace upvar a x lx; set lx [expr {$lx+1}]; return $lx }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"p"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"43");
+            // The write went through to the namespace variable.
+            assert_eq!(i.eval_str(b"set ::a::x"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"43");
+            // A missing namespace is an error.
+            assert_eq!(i.eval_str(b"namespace upvar nope v lv"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn ensemble_command_is_qualified_relative_to_current_ns() {
+        leak_free(|i| {
+            // A relative `-command` binds in the current namespace, not global
+            // (the `tcl::tm::path` / safe-base case): `-command path` inside
+            // `::a::b` creates `::a::b::path`, resolvable by its FQN.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval a::b { namespace export path; namespace ensemble create -command path -map {list ::set} }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"namespace which -command ::a::b::path"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::a::b::path");
+            // No bare `::path` leaked into the global namespace.
+            assert_eq!(i.eval_str(b"namespace which -command ::path"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            assert_eq!(i.eval_str(b"::a::b::path list v 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            i.eval_str(b"unset v");
         });
     }
 }

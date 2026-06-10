@@ -446,6 +446,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut tails = false;
     let mut join_mode = false;
     let mut directory: Option<Vec<u8>> = None;
+    let mut types: Vec<u8> = Vec::new();
     let mut i = 1;
     while i < argv.len() {
         match obj_bytes(argv[i]).as_slice() {
@@ -456,6 +457,18 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 i += 1;
                 directory = argv.get(i).map(|&a| obj_bytes(a));
             }
+            b"-type" | b"-types" => {
+                i += 1;
+                // The value is a list of type specifiers (`d`, `f`, `r`, …); a
+                // name must satisfy every requested test (`tclFileName.c`).
+                if let Some(&a) = argv.get(i) {
+                    types = crate::parse::split_list(&obj_bytes(a))
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter_map(|s| (s.len() == 1).then_some(s[0]))
+                        .collect();
+                }
+            }
             b"--" => {
                 i += 1;
                 break;
@@ -463,7 +476,9 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             opt if opt.starts_with(b"-") => {
                 let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(opt);
-                m.extend_from_slice(b"\": must be -directory, -join, -nocomplain, -tails, or --");
+                m.extend_from_slice(
+                    b"\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --",
+                );
                 return interp.set_error(&m);
             }
             _ => break,
@@ -477,7 +492,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let base = directory.clone();
     let mut hits: Vec<Vec<u8>> = Vec::new();
     for pat in &patterns {
-        glob_one(base.as_deref(), pat, tails, &mut hits);
+        glob_one(base.as_deref(), pat, tails, &types, &mut hits);
     }
     hits.sort();
     hits.dedup();
@@ -499,7 +514,13 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Match one glob pattern against the filesystem, pushing results (full paths,
 /// or just the tail when `tails`) onto `hits`.
-fn glob_one(directory: Option<&[u8]>, pattern: &[u8], tails: bool, hits: &mut Vec<Vec<u8>>) {
+fn glob_one(
+    directory: Option<&[u8]>,
+    pattern: &[u8],
+    tails: bool,
+    types: &[u8],
+    hits: &mut Vec<Vec<u8>>,
+) {
     // Starting directory + whether results are absolute.
     let (start, abs_prefix): (Vec<u8>, Vec<u8>) = if pattern.starts_with(b"/") {
         (b"/".to_vec(), b"/".to_vec())
@@ -512,12 +533,19 @@ fn glob_one(directory: Option<&[u8]>, pattern: &[u8], tails: bool, hits: &mut Ve
         .split(|&c| c == b'/')
         .filter(|s| !s.is_empty())
         .collect();
-    walk(&start, &abs_prefix, &segs, 0, hits);
+    walk(&start, &abs_prefix, &segs, 0, types, hits);
 }
 
 /// Recursively match path segments `segs[idx..]` under `dir`, accumulating the
 /// display path (`prefix`).
-fn walk(dir: &[u8], prefix: &[u8], segs: &[&[u8]], idx: usize, hits: &mut Vec<Vec<u8>>) {
+fn walk(
+    dir: &[u8],
+    prefix: &[u8],
+    segs: &[&[u8]],
+    idx: usize,
+    types: &[u8],
+    hits: &mut Vec<Vec<u8>>,
+) {
     if idx >= segs.len() {
         if !prefix.is_empty() {
             hits.push(prefix.to_vec());
@@ -542,14 +570,68 @@ fn walk(dir: &[u8], prefix: &[u8], segs: &[&[u8]], idx: usize, hits: &mut Vec<Ve
         }
         child_prefix.extend_from_slice(name_b);
         if last {
+            // `-types`: keep only entries that satisfy every requested test.
+            if !entry_matches_types(&entry, types) {
+                continue;
+            }
             hits.push(child_prefix);
         } else {
             let mut child_dir = dir.to_vec();
             child_dir.push(b'/');
             child_dir.extend_from_slice(name_b);
-            walk(&child_dir, &child_prefix, segs, idx + 1, hits);
+            walk(&child_dir, &child_prefix, segs, idx + 1, types, hits);
         }
     }
+}
+
+/// Whether a directory entry satisfies every `-types` specifier. An empty list
+/// matches everything. Recognised: file-kind `d f l p s b c` and permission
+/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`; the rarely-used
+/// `{macintosh …}` forms are not modelled). A name passes only if it matches
+/// every requested test — both any file-kind tests and the permission tests.
+fn entry_matches_types(entry: &std::fs::DirEntry, types: &[u8]) -> bool {
+    if types.is_empty() {
+        return true;
+    }
+    // `symlink_metadata` so `l` (and the kind tests) see the link itself, like C.
+    let Ok(meta) = entry.path().symlink_metadata() else {
+        return false;
+    };
+    let ft = meta.file_type();
+    for &t in types {
+        let ok = match t {
+            b'd' => ft.is_dir(),
+            b'f' => ft.is_file(),
+            b'l' => ft.is_symlink(),
+            b'r' | b'w' => true, // permission probes — best-effort (assume yes)
+            b'x' => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    meta.permissions().mode() & 0o111 != 0
+                }
+                #[cfg(not(unix))]
+                {
+                    true
+                }
+            }
+            #[cfg(unix)]
+            b'p' | b's' | b'b' | b'c' => {
+                use std::os::unix::fs::FileTypeExt;
+                match t {
+                    b'p' => ft.is_fifo(),
+                    b's' => ft.is_socket(),
+                    b'b' => ft.is_block_device(),
+                    _ => ft.is_char_device(),
+                }
+            }
+            _ => true, // unknown specifier: don't exclude
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
 }
 
 /// Whether a single path segment matches a glob segment. A literal segment (no
