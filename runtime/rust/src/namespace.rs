@@ -502,10 +502,22 @@ impl Namespaces {
         let absolute = name.starts_with(b"::");
         let segments = split_qualifier(name);
         let (simple, ns_parts) = segments.split_last()?;
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = *self.arena[ns].children.get(*part)?;
-        }
+        // Walk the qualifier path from `start`, following child links.
+        let walk = |start: NsId| -> Option<NsId> {
+            let mut ns = start;
+            for part in ns_parts {
+                ns = *self.arena[ns].children.get(*part)?;
+            }
+            Some(ns)
+        };
+        // A relative qualifier resolves against the current namespace, falling
+        // back to the global namespace (C's `TclGetNamespaceForQualName`), so
+        // `tcl::build-info` from inside `::a::b` still finds `::tcl::build-info`.
+        let ns = if absolute {
+            walk(GLOBAL)?
+        } else {
+            walk(current).or_else(|| walk(GLOBAL))?
+        };
         Some((ns, simple))
     }
 }

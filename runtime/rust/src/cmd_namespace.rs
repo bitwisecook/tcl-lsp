@@ -817,6 +817,27 @@ mod tests {
     }
 
     #[test]
+    fn qualified_command_falls_back_to_global() {
+        // A relative qualified command name resolves against the current
+        // namespace, then the global one (C's `TclGetNamespaceForQualName`): so
+        // `foo::bar` from inside `::a::b` finds `::foo::bar` when `::a::b::foo`
+        // doesn't exist. (The bug: `tcl::build-info` failing inside a namespace.)
+        leak_free(|i| {
+            i.eval_str(b"namespace eval foo { proc bar {} {return BAR} }");
+            assert_eq!(
+                i.eval_str(b"namespace eval ::a::b { set ::r [foo::bar] }"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"BAR");
+            // A relative qualifier that *does* exist locally still wins.
+            i.eval_str(b"namespace eval x::foo { proc bar {} {return LOCAL} }");
+            assert_eq!(i.eval_str(b"namespace eval x { foo::bar }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"LOCAL");
+            i.eval_str(b"unset -nocomplain ::r");
+        });
+    }
+
+    #[test]
     fn namespace_delete_removes_subtree() {
         leak_free(|i| {
             i.eval_str(b"namespace eval foo { proc p {} {return P} ; namespace eval bar {} }");
