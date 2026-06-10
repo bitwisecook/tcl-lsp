@@ -39,6 +39,43 @@ class TestPushDiagnostics:
         assert "W128" in _codes(diags)
 
 
+class TestSubcommandOptionArity:
+    """End-to-end arity checks for per-subcommand option flags (issue #581).
+
+    ``file link -symbolic linkName target`` is valid Tcl — the optional
+    ``-linktype`` flag precedes the two positionals — but the packaged
+    server used to emit ``Too many arguments for 'file link'`` because the
+    subcommand's declared options were never skipped before the positional
+    count.  These assert the real server's ``publishDiagnostics`` over the
+    full pipeline, not just the in-process checker.
+    """
+
+    def test_file_link_symbolic_has_no_arity_error(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "file link -symbolic $dst $src\n")
+        assert "E003" not in _codes(diags)
+
+    def test_file_link_hard_has_no_arity_error(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "file link -hard $dst $src\n")
+        assert "E003" not in _codes(diags)
+
+    def test_file_link_too_many_positionals_is_e003(self, lsp_server, uri_factory):
+        # No option flag: three positionals genuinely exceed the max of 2,
+        # so the arity error must still fire (the fix skips options, not
+        # real arguments).
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "file link $a $b $c\n")
+        e003 = [d for d in diags if d.get("code") == "E003"]
+        assert e003
+        assert e003[0].get("severity") == 1  # DiagnosticSeverity.Error
+
+    def test_string_match_nocase_has_no_arity_error(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "string match -nocase $pat $str\n")
+        assert "E003" not in _codes(diags)
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()
