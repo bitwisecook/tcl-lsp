@@ -1437,14 +1437,18 @@ impl Interp {
         let saved_ns = self.current_ns;
         self.current_ns = ns;
 
-        // Bind positionals: the supplied arg, else the default.
+        // Bind positionals left-to-right: the supplied arg, else the default.
+        // Binding is purely positional — a defaulted parameter does *not* yield
+        // its slot to a later one, so a required parameter reached with no
+        // supplied arg (a non-trailing default, e.g. `proc p {a {b 2} c}` called
+        // with 2 args) is a `wrong # args` error, matching tclsh 9.0.
         for (i, p) in positional.iter().enumerate() {
             let stored = if i < call_args.len() {
                 self.var_set(&p.name, call_args[i])
-            } else {
-                // SAFETY-balance: a fresh rc-0 default; `var_set` retains it, so
-                // on the (here-unreachable) error path it must be dropped.
-                let o = new_string(p.default.as_ref().expect("arity guaranteed default"));
+            } else if let Some(def) = &p.default {
+                // A fresh rc-0 default; `var_set` retains it, so on the error
+                // path it must be dropped.
+                let o = new_string(def);
                 match self.var_set(&p.name, o) {
                     Ok(()) => Ok(()),
                     Err(e) => {
@@ -1452,6 +1456,11 @@ impl Interp {
                         Err(e)
                     }
                 }
+            } else {
+                self.frames.pop();
+                self.current_ns = saved_ns;
+                self.recursion_depth -= 1;
+                return self.error(&proc_usage(usage_called, params));
             };
             if stored.is_err() {
                 self.frames.pop();
@@ -1460,9 +1469,11 @@ impl Interp {
                 return self.error(b"proc parameter binding failed");
             }
         }
-        // The `args` catch-all: a list of the remaining args.
+        // The `args` catch-all: a list of the remaining args. Clamp the split
+        // point — when trailing positionals took their defaults, fewer args were
+        // supplied than there are positionals, so `args` is simply empty.
         if has_args {
-            let rest = &call_args[positional.len()..];
+            let rest = &call_args[positional.len().min(call_args.len())..];
             let list = crate::list::new_list_obj(rest); // rc 0; var_set retains
             if self.var_set(b"args", list).is_err() {
                 drop_fresh(list);
