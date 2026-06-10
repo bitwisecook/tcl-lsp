@@ -67,7 +67,6 @@ every iteration, so reads inside don't observe any difference.
 
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 
 from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar, vars_in_expr_node
@@ -92,6 +91,7 @@ from ..ir import (
     IRUpFrame,
     IRWhile,
 )
+from ..var_refs import VarReferenceScanner, VarScanOptions
 
 
 def licm_module(module: IRModule) -> IRModule:
@@ -594,12 +594,11 @@ def _collect_one(stmt: object, counts: dict[str, int]) -> None:
         return
 
 
-# Match ``$<name>`` and ``${<name>}`` Tcl variable substitutions in a
-# raw word.  Word-boundary on the bare form rules out ``$NAMES``
-# matching when the name we look for is ``NAME``.  Brace form has an
-# explicit terminator so any non-``}`` chars qualify as the name.
-_VAR_REF_BARE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_:]*)")
-_VAR_REF_BRACE = re.compile(r"\$\{([^}]+)\}")
+# Token-based scanner for ``$<name>`` / ``${<name>}`` substitutions in a
+# raw word.  Command-substitution recursion is disabled: values handled
+# here never contain ``[`` (the LICM gate refuses them), matching the
+# "doesn't track command substitutions" contract below.
+_VALUE_VAR_SCANNER = VarReferenceScanner(VarScanOptions(recurse_cmd_substitutions=False))
 
 
 def _vars_in_value(value: str | None) -> set[str]:
@@ -611,8 +610,7 @@ def _vars_in_value(value: str | None) -> set[str]:
     if not value or "$" not in value:
         return set()
     out: set[str] = set()
-    out.update(m.group(1) for m in _VAR_REF_BARE.finditer(value))
-    out.update(m.group(1) for m in _VAR_REF_BRACE.finditer(value))
+    out.update(_VALUE_VAR_SCANNER.scan_word(value))
     return out
 
 

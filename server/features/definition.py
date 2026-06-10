@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from lsprotocol import types
 
 from analyser import analyse
@@ -207,10 +205,6 @@ def _resolve_pool_across_configs(
 
 
 _BIGIP_PATH_DELIMS = " \t\n\r;{}[]\"'"
-_BIGIP_SECTION_OPEN_RE = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*\{\s*(?:#.*)?$")
-_BIGIP_HEADER_LINE_RE = re.compile(
-    r"^\s*(ltm|gtm|net|auth|cm|sys|security)\s+(.+?)\s*\{\s*(?:#.*)?$"
-)
 # NOTE: the legacy ``_BIGIP_CLASS_PATTERNS`` and
 # ``_BIGIP_RULE_BODY_PATTERNS`` regex catalogues used to live here —
 # nine hardcoded ``\b<keyword>\s+([^\s{}]+)`` patterns plus three
@@ -287,26 +281,6 @@ def _is_candidate_reference(token: str) -> bool:
     return clean.lower() not in _BIGIP_FALSEY_REF_TOKENS
 
 
-def _parse_bigip_header_line(line_text: str) -> tuple[str, str, str, int, int] | None:
-    """Parse one BIG-IP header line into module, type, identifier and span."""
-    match = _BIGIP_HEADER_LINE_RE.match(line_text)
-    if match is None:
-        return None
-    module = match.group(1)
-    rest = match.group(2).strip()
-    if not rest:
-        return None
-    parts = rest.split()
-    object_type = parts[0]
-    identifier = ""
-    if len(parts) >= 2:
-        object_type = " ".join(parts[:-1])
-        identifier = parts[-1]
-    ident_start = line_text.find(identifier) if identifier else -1
-    ident_end = ident_start + len(identifier) if ident_start >= 0 else -1
-    return (module, object_type, identifier, ident_start, ident_end)
-
-
 def _containing_bigip_header(
     config: BigipConfig,
     line: int,
@@ -321,29 +295,144 @@ def _containing_bigip_header(
     return None
 
 
-def _scan_section_stack(lines: list[str], line: int) -> list[str]:
-    """Best-effort nested section stack at *line* (inside a BIG-IP object)."""
-    stack: list[str] = []
-    for idx in range(0, min(line, len(lines))):
-        text = lines[idx]
-        stripped = text.strip()
-        if not stripped or stripped.startswith("#"):
+def _is_section_name(key: str) -> bool:
+    """True when *key* names a nested section (a bare identifier).
+
+    Mirrors the old ``_BIGIP_SECTION_OPEN_RE`` ``[A-Za-z0-9_-]+``
+    character class: keyed-list entries whose names are object paths
+    (``/Common/web1:80``) are transparent — the enclosing *section*
+    is the nearest bare-identifier sub-block, exactly as the legacy
+    line-walk excluded ``stripped.startswith("/")`` from the stack.
+    """
+    return bool(key) and all(c.isalnum() or c in "_-" for c in key)
+
+
+def _structural_context_at_offset(
+    block_body: str,
+    body_base: int,
+    cursor_offset: int,
+) -> tuple[str | None, str | None]:
+    """Walk a parsed block body and return ``(section, key)`` at the cursor.
+
+    Both values are derived from the parsed structure
+    (:func:`_parse_properties_with_spans`), not line regexes:
+
+    * ``section`` is the innermost enclosing bare-identifier sub-block
+      whose braced body span covers the cursor (the parser-driven
+      replacement for ``_scan_section_stack``'s ``stack[-1]``).
+    * ``key`` is the property under the cursor — the first token of
+      that property's ``key value`` line (replacing the inline
+      ``^\\s*([A-Za-z0-9_-]+)\\s+...`` regex).  It's reported whether
+      the cursor sits on the key or anywhere in the value.
+
+    The walk descends through nested sub-blocks so the section/key the
+    cursor lands in reflects the full brace nesting.
+    """
+    section: str | None = None
+    key: str | None = None
+
+    props = _parse_properties_with_spans(block_body)
+    for prop in props.values():
+        if prop.value_start is None or prop.value_end is None:
             continue
-        if _BIGIP_HEADER_LINE_RE.match(text):
-            stack.clear()
+        val_end = body_base + prop.value_end
+        # Reconstruct the key's local start by stepping back from the
+        # value over the inter-token whitespace and then the key token,
+        # so a cursor on the key (not just the value) still attributes
+        # to this property.
+        sep = prop.value_start
+        while sep > 0 and block_body[sep - 1] in " \t":
+            sep -= 1
+        key_local_start = sep - len(prop.key)
+        key_start = body_base + key_local_start
+        if not (key_start <= cursor_offset < val_end):
             continue
-        m = _BIGIP_SECTION_OPEN_RE.match(text)
-        if m and not stripped.startswith("/"):
-            opens = text.count("{")
-            closes = text.count("}")
-            if opens > closes:
-                stack.append(m.group(1))
+
+        # This property owns the cursor.
+        if prop.value.startswith("{"):
+            # Braced sub-block: this is a *section*, not a ``key value``
+            # line.  Descend so the cursor's real section/key come from
+            # the inner level.  ``value_start`` points at the opening
+            # ``{``; the body runs to just before the matching ``}`` at
+            # ``value_end - 1``.
+            inner_open = body_base + prop.value_start
+            if inner_open < cursor_offset:
+                inner_body = block_body[prop.value_start + 1 : prop.value_end - 1]
+                inner_base = inner_open + 1
+                inner_section, inner_key = _structural_context_at_offset(
+                    inner_body, inner_base, cursor_offset
+                )
+                # The enclosing section for the cursor is this sub-block
+                # when it is a bare-identifier section; otherwise the
+                # path-named entry is transparent and we keep whatever
+                # the deeper level resolved.
+                if _is_section_name(prop.key):
+                    section = inner_section if inner_section is not None else prop.key
+                else:
+                    section = inner_section
+                key = inner_key
+        else:
+            # Simple ``key value`` line — the cursor's line key.
+            key = prop.key
+        break
+
+    return (section, key)
+
+
+def _bigip_structure_at_cursor(
+    source: str,
+    cursor_offset: int,
+) -> tuple[str, str, str, int, int, str | None, str | None] | None:
+    """Parser-driven structural context for the cursor's BIG-IP stanza.
+
+    Returns ``(module, object_type, identifier, ident_start, ident_end,
+    section, key)`` for the top-level block whose ``{ ... }`` span (or
+    header) covers *cursor_offset*, all derived from
+    :func:`_extract_blocks` / :func:`_parse_generic_header` /
+    :func:`_parse_properties_with_spans` rather than line regexes.
+
+    ``ident_start`` / ``ident_end`` give the absolute half-open span of
+    the stanza identifier inside the header (``-1`` when there is no
+    identifier).  ``section`` / ``key`` are the nested section name and
+    the property key under the cursor (``None`` when the cursor is on
+    the header rather than inside the body).
+    """
+    for block in _extract_blocks(source):
+        if not (block.start_offset <= cursor_offset <= block.end_offset):
             continue
-        closes = text.count("}")
-        while closes > 0 and stack:
-            stack.pop()
-            closes -= 1
-    return stack
+        generic = _parse_generic_header(block.header)
+        if generic is None:
+            return None
+        module, object_type, identifier = generic
+
+        # Header span: from the block start back to where the header
+        # begins.  ``start_offset`` is the opening brace; the header
+        # text precedes it.  Locate the identifier within that slice.
+        header_text_start = block.start_offset - len(block.header)
+        # The header may have trailing whitespace before the brace; find
+        # the real header start by matching the parsed header string.
+        actual_start = source.rfind(block.header, 0, block.start_offset)
+        if actual_start != -1:
+            header_text_start = actual_start
+        ident_start = -1
+        ident_end = -1
+        if identifier:
+            # Search for the identifier within the header slice only, so a
+            # value with the same text deeper in the body can't match.
+            rel = block.header.rfind(identifier)
+            if rel != -1:
+                ident_start = header_text_start + rel
+                ident_end = ident_start + len(identifier)
+
+        # When the cursor sits inside the body, derive section + key.
+        section: str | None = None
+        key: str | None = None
+        body_base = block.start_offset + 1
+        if body_base <= cursor_offset < block.end_offset:
+            section, key = _structural_context_at_offset(block.body, body_base, cursor_offset)
+
+        return (module, object_type, identifier, ident_start, ident_end, section, key)
+    return None
 
 
 def get_bigip_definition(
@@ -372,8 +461,8 @@ def get_bigip_definition(
 
     # Registry-first dispatch: ask the value-spec layer if any
     # migrated property's reference covers the cursor.  Falls through
-    # to the legacy regex / candidate_kinds_for_key path when no
-    # registered spec owns the cursor position (so unmigrated
+    # to the parser-driven candidate_kinds_for_key / section-item path
+    # when no registered spec owns the cursor position (so unmigrated
     # properties keep working unchanged).
     registry_hit = _bigip_definition_via_registry(source, uri, line, character, configs)
     if registry_hit:
@@ -404,18 +493,35 @@ def get_bigip_definition(
         return []
     token, token_start, token_end = token_info
 
+    if not _cursor_in_span(character, token_start, token_end):
+        return []
+
+    # Map the cursor to an absolute offset so the structural context can
+    # be read straight from the parsed block model.
+    import server.state as _state
+
+    buffer = _state.document_buffer_for(uri, source)
+    try:
+        cursor_offset = _line_character_to_offset(buffer, line, character)
+    except ValueError:
+        return []
+
     containing_header = _containing_bigip_header(current_config, line)
     container_module = containing_header[0] if containing_header else None
     container_object_type = containing_header[1] if containing_header else None
-    section_stack = _scan_section_stack(lines, line)
-    current_section = section_stack[-1] if section_stack else None
+
+    # Structural context (container header, nested section, key under the
+    # cursor) is read from the parsed block model — ``_extract_blocks`` /
+    # ``_parse_generic_header`` / ``_parse_properties_with_spans`` — not
+    # from line regexes.
+    structure = _bigip_structure_at_cursor(source, cursor_offset)
+    current_section = structure[5] if structure else None
+    line_key = structure[6] if structure else None
 
     # Key/value lines: e.g. "pool /Common/p", "monitor /Common/m".
-    key_match = re.match(r"^\s*([A-Za-z0-9_-]+)\s+(.+?)\s*(?:#.*)?$", line_text)
-    if key_match and _cursor_in_span(character, token_start, token_end):
-        key = key_match.group(1)
+    if line_key is not None:
         for kind in candidate_kinds_for_key(
-            key,
+            line_key,
             section=current_section,
             container_module=container_module,
             container_object_type=container_object_type,
@@ -434,45 +540,41 @@ def get_bigip_definition(
                 return [to_lsp_location(target_uri, target_range)]
 
     # Section list entries (profiles/rules/persist/members/policies/vlans/etc).
-    if _cursor_in_span(character, token_start, token_end):
-        section = current_section or ""
-        for kind in candidate_kinds_for_section_item(
-            section,
-            container_module=container_module,
-            container_object_type=container_object_type,
-        ):
-            if not _is_candidate_reference(token):
-                continue
-            ref = _normalise_reference_for_kind(kind, token)
-            resolved = resolve_kind_in_configs(
-                kind,
-                ref,
-                configs,
-                preferred_module=container_module,
-            )
-            if resolved is not None:
-                target_uri, target_range = resolved
-                return [to_lsp_location(target_uri, target_range)]
+    section = current_section or ""
+    for kind in candidate_kinds_for_section_item(
+        section,
+        container_module=container_module,
+        container_object_type=container_object_type,
+    ):
+        if not _is_candidate_reference(token):
+            continue
+        ref = _normalise_reference_for_kind(kind, token)
+        resolved = resolve_kind_in_configs(
+            kind,
+            ref,
+            configs,
+            preferred_module=container_module,
+        )
+        if resolved is not None:
+            target_uri, target_range = resolved
+            return [to_lsp_location(target_uri, target_range)]
 
     # Top-level headers that reference named objects (e.g. auth user admin).
-    parsed_header = _parse_bigip_header_line(line_text)
-    if parsed_header and _cursor_in_span(character, token_start, token_end):
-        module, object_type, ident, ident_start, ident_end = parsed_header
-        if ident and ident_start >= 0 and _cursor_in_span(character, ident_start, ident_end):
+    if structure is not None:
+        module, object_type, ident, ident_start, ident_end, _section, _key = structure
+        if ident and ident_start >= 0 and ident_start <= cursor_offset < ident_end:
             kind = kind_for_header(module, object_type)
-        else:
-            kind = None
-        if kind is not None and ident:
-            ref = _normalise_reference_for_kind(kind, ident)
-            resolved = resolve_kind_in_configs(
-                kind,
-                ref,
-                configs,
-                preferred_module=module,
-            )
-            if resolved is not None:
-                target_uri, target_range = resolved
-                return [to_lsp_location(target_uri, target_range)]
+            if kind is not None:
+                ref = _normalise_reference_for_kind(kind, ident)
+                resolved = resolve_kind_in_configs(
+                    kind,
+                    ref,
+                    configs,
+                    preferred_module=module,
+                )
+                if resolved is not None:
+                    target_uri, target_range = resolved
+                    return [to_lsp_location(target_uri, target_range)]
 
     # iRule source refs in embedded "ltm rule" bodies.  Driven by the
     # full iRule command registry (every command argument that can name

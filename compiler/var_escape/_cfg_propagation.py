@@ -40,15 +40,16 @@ from ..ir import (
     IRCall,
     IRIncr,
 )
+from ..parsing.token_scanning import scan_command_substitutions
 from ..ssa import SSABlock, SSAFunction, SSAStatement, SSAValueKey
 from ._info_subcommands import (
     is_frame_inspecting_info_subcommand,
     is_safe_info_subcommand,
 )
 from ._propagation import (
-    _CMD_SUBST_HEAD_RE,
     _NAME_FIRST_COMMANDS,
     _array_element_array_name,
+    _cmd_subst_head,
     _is_dynamic_name,
     _is_dynamic_token,
     _is_frameless_runtime,
@@ -257,8 +258,11 @@ def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> Non
     if not value:
         return
     if "[" in value:
-        for match in _CMD_SUBST_HEAD_RE.finditer(value):
-            head = _normalise_cmd_subst_head(match.group(1))
+        for cmd_tok in scan_command_substitutions(value):
+            raw_head = _cmd_subst_head(cmd_tok.text)
+            if raw_head is None:
+                continue
+            head = _normalise_cmd_subst_head(raw_head)
             if not _is_frameless_runtime(head):
                 state.record_fallback()
                 # Also record the embedded command head as a direct
