@@ -1750,6 +1750,121 @@ class TestNamespaceShadowedArity:
         assert self._arity_codes(source) == []
 
 
+class TestSubcommandOptionArity:
+    """E003 / E002 -- per-subcommand option flags are skipped before the
+    positional-argument count, just like simple-command ``leading_options``.
+
+    Regression for issue #581: ``file link -symbolic $dst $src`` is valid
+    (the ``-linktype`` flag precedes ``linkName`` and ``target``) but was
+    flagged ``Too many arguments for 'file link': expected at most 2, got
+    3`` because the subcommand's declared options never flowed into its
+    ``CommandSig.leading_options``.
+    """
+
+    @staticmethod
+    def _arity_codes(source):
+        from analyser.compiler_checks import run_compiler_checks
+
+        return [d for d in run_compiler_checks(source) if d.code in ("E002", "E003")]
+
+    # --- issue #581: file link -linktype ---------------------------------
+
+    def test_file_link_symbolic_no_false_positive(self):
+        """The exact case from issue #581 must not be flagged."""
+        assert self._arity_codes("file link -symbolic $dst $src") == []
+
+    def test_file_link_hard_no_false_positive(self):
+        """The sibling ``-hard`` link type behaves identically."""
+        assert self._arity_codes("file link -hard $dst $src") == []
+
+    def test_file_link_one_positional_clean(self):
+        """``file link linkName`` (read a link) stays valid."""
+        assert self._arity_codes("file link $linkName") == []
+
+    def test_file_link_two_positionals_clean(self):
+        """``file link linkName target`` (create a link) stays valid."""
+        assert self._arity_codes("file link $linkName $target") == []
+
+    def test_file_link_option_plus_one_positional_clean(self):
+        """``file link -symbolic linkName`` is a 1-positional read form."""
+        assert self._arity_codes("file link -symbolic $linkName") == []
+
+    def test_file_link_too_many_positionals_still_flagged(self):
+        """Three *positional* args (no option) is genuinely too many."""
+        diags = self._arity_codes("file link $a $b $c")
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+        assert "at most 2" in diags[0].message
+
+    def test_file_link_option_then_too_many_positionals_flagged(self):
+        """The option is skipped, but the trailing positionals still count:
+        ``-symbolic`` + 3 positionals exceeds the max of 2."""
+        diags = self._arity_codes("file link -symbolic $a $b $c")
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+        assert "at most 2" in diags[0].message
+
+    def test_file_link_only_option_is_too_few(self):
+        """An option with no positional still under-runs the min of 1."""
+        diags = self._arity_codes("file link -symbolic")
+        assert len(diags) == 1
+        assert diags[0].code == "E002"
+
+    # --- other option-bearing subcommands --------------------------------
+
+    def test_file_copy_force_no_false_positive(self):
+        assert self._arity_codes("file copy -force $a $b") == []
+
+    def test_file_delete_force_no_false_positive(self):
+        assert self._arity_codes("file delete -force $a") == []
+
+    def test_file_rename_force_no_false_positive(self):
+        assert self._arity_codes("file rename -force $a $b") == []
+
+    def test_string_match_nocase_no_false_positive(self):
+        assert self._arity_codes("string match -nocase $pat $str") == []
+
+    def test_string_equal_nocase_no_false_positive(self):
+        assert self._arity_codes("string equal -nocase $a $b") == []
+
+    def test_string_is_strict_no_false_positive(self):
+        assert self._arity_codes("string is integer -strict $val") == []
+
+    # --- subcommand without options is unaffected ------------------------
+
+    def test_non_option_subcommand_too_many_still_flagged(self):
+        """A subcommand with no declared options keeps its strict count:
+        ``file tail a b`` has one too many positionals."""
+        diags = self._arity_codes("file tail $a $b")
+        assert len(diags) == 1
+        assert diags[0].code == "E003"
+
+    # --- signature-level assertions --------------------------------------
+
+    def test_file_link_signature_carries_leading_options(self):
+        """The fix lives in signature construction: the per-subcommand
+        ``CommandSig`` must expose its options as ``leading_options`` so the
+        arity checker can skip them."""
+        from compiler.registry.runtime import SIGNATURES
+
+        sub = SIGNATURES["file"].subcommands["link"]
+        assert sub.leading_options == frozenset({"-symbolic", "-hard"})
+
+    def test_subcommand_options_are_dialect_filtered(self):
+        """A subcommand option introduced in a later release must not leak
+        into an earlier dialect's ``leading_options`` (``clock scan
+        -validate`` is Tcl 9.0+)."""
+        from compiler.registry.runtime import SIGNATURES, configure_signatures
+
+        configure_signatures(dialect="tcl8.6")
+        opts_86 = SIGNATURES["clock"].subcommands["scan"].leading_options
+        assert "-validate" not in opts_86
+
+        configure_signatures(dialect="tcl9.0")
+        opts_90 = SIGNATURES["clock"].subcommands["scan"].leading_options
+        assert "-validate" in opts_90
+
+
 # W200: Binary format signed/unsigned modifier requires Tcl 8.5+
 
 
