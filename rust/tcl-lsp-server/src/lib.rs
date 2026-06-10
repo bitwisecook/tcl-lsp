@@ -737,6 +737,15 @@ impl Backend {
         }
         // Otherwise the symbol may be defined in a sibling
         // document — resolve its qualified name from the index.
+        // Gate this on the cursor actually sitting on a command
+        // invocation head in *this* document: without it, a
+        // coincidental bareword argument (`puts hello`) would resolve
+        // against any sibling document that happens to define a proc /
+        // class of the same name, producing spurious cross-document
+        // references / rename edits.
+        if !position_is_command_head(source, pos, analysis) {
+            return None;
+        }
         let index = self.workspace_index.lock().await;
         if let Some(p) = index.proc_definitions(&word, uri.as_str()).first() {
             return Some((p.name.clone(), p.qualified_name.clone()));
@@ -3002,6 +3011,13 @@ impl LanguageServer for Backend {
         })?;
         let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
             std::collections::HashMap::new();
+        // An empty in-document result means the rename was *rejected*
+        // (collision with an existing symbol, an unsafe / built-in target
+        // name) or the cursor isn't on a renameable symbol.  In every one
+        // of those cases the rename must abort wholesale — adding
+        // cross-document edits for a locally-rejected rename would leak a
+        // partial, inconsistent edit set into sibling documents.
+        let local_rejected = edits.is_empty();
         if !edits.is_empty() {
             let lifted: Vec<TextEdit> = edits
                 .into_iter()
@@ -3016,8 +3032,10 @@ impl LanguageServer for Backend {
         // definition sites in sibling documents.  Gated on the
         // same safety checks as the in-document path
         // (`is_safe_symbol_name`, no built-in shadow) so a
-        // cross-doc rename can't produce an unsafe edit set.
-        if core_rename::is_safe_symbol_name(&new_name)
+        // cross-doc rename can't produce an unsafe edit set — and
+        // skipped entirely when the in-document rename was rejected.
+        if !local_rejected
+            && core_rename::is_safe_symbol_name(&new_name)
             && !core_rename::is_builtin_command_name(&new_name, &registry)
         {
             self.add_cross_document_rename_edits(
@@ -5399,14 +5417,15 @@ mod tests {
             core_call_hierarchy::prepare("proc helper {} {}\n", 0, 5, &analysis)
         };
         let core_item = prep.into_iter().next().expect("prepared item");
-        assert_eq!(core_item.name, "::helper");
+        // Call-hierarchy items now carry the short display name.
+        assert_eq!(core_item.name, "helper");
         let cross = backend
             .cross_document_incoming_calls(&lib, &core_item.name)
             .await;
         // The only caller is `caller` in consumer.tcl.
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].0, consumer);
-        assert_eq!(cross[0].1.from.name, "::caller");
+        assert_eq!(cross[0].1.from.name, "caller");
     }
 
     #[tokio::test]
