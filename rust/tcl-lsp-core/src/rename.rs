@@ -461,7 +461,18 @@ fn rename_proc(
         }
     }
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
-    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
+    // The declaration rewrite follows the *form the source wrote* — a proc
+    // declared short inside a `namespace eval` (`proc helper`) stays short
+    // (`assist`); one declared qualified (`proc ::ns::greet`) stays qualified.
+    let decl_was_qualified = source
+        .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
+        .is_some_and(|t| t.contains("::"));
+    let new_decl_text = if decl_was_qualified {
+        qualified_decl
+    } else {
+        new_name.to_owned()
+    };
     // Collision gate: renaming onto an existing proc of the same qualified
     // name would shadow it — refuse (mirrors the Python server).  Compare
     // names normalised to the leading-`::` form.
@@ -733,17 +744,17 @@ fn qualified_and_decl_text(namespace_prefix: &str, new_name: &str) -> (String, S
 /// itself was qualified.  Shared by the proc and class rename
 /// paths.
 fn invocation_replacement(
-    namespace_prefix: &str,
-    new_qualified: &str,
+    _namespace_prefix: &str,
+    _new_qualified: &str,
     new_name: &str,
     inv_name: &str,
 ) -> String {
-    if namespace_prefix.is_empty() {
-        new_name.to_owned()
-    } else if inv_name.contains("::") {
-        new_qualified.to_owned()
-    } else {
-        new_name.to_owned()
+    // Preserve the call's *as-written* qualifier: a qualified call replaces
+    // only its final `::`-segment (`utils::helper` → `utils::assist`,
+    // `::myns::greet` → `::myns::hello`); a short call becomes the short name.
+    match inv_name.rfind("::") {
+        Some(idx) => format!("{}::{new_name}", &inv_name[..idx]),
+        None => new_name.to_owned(),
     }
 }
 
