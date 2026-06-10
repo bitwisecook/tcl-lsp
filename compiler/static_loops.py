@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import math
 
-from compiler.parsing.lexer import is_simple_scalar_var_word
+from compiler.parsing.token_scanning import is_simple_scalar_var_word
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE

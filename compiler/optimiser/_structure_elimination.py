@@ -9,7 +9,7 @@ from shared.naming import (
     normalise_var_name as _normalise_var_name,
 )
 
-from ..core_analyses import LatticeKind, LatticeValue
+from ..analysis_types import LatticeKind, LatticeValue
 from ..ir import (
     IRCatch,
     IRFor,

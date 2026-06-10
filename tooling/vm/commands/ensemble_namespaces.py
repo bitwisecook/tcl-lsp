@@ -48,6 +48,7 @@ them are categorised under the ``skip`` bucket in
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 from ..scope import ensure_namespace
@@ -564,7 +565,7 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
             interp,
             qualname,
             subcmds,
-            lambda sub, _bare=bare: _make_alias(_bare, sub),
+            partial(_make_alias, bare),
         )
 
     for qualname, (parent_bare, parent_sub), subcmds in _SUB_ENSEMBLE_NAMESPACES:
@@ -572,7 +573,7 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
             interp,
             qualname,
             subcmds,
-            lambda sub, _pb=parent_bare, _ps=parent_sub: _make_sub_alias(_pb, _ps, sub),
+            partial(_make_sub_alias, parent_bare, parent_sub),
         )
 
     # OO helpers + Info{Object,Class}.  ``::oo`` is already created
@@ -587,13 +588,13 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
         interp,
         "::oo::InfoObject",
         _OO_INFO_OBJECT_SUBCMDS,
-        lambda sub: _make_oo_info_alias("object", sub),
+        partial(_make_oo_info_alias, "object"),
     )
     _register_namespace(
         interp,
         "::oo::InfoClass",
         _OO_INFO_CLASS_SUBCMDS,
-        lambda sub: _make_oo_info_alias("class", sub),
+        partial(_make_oo_info_alias, "class"),
     )
     ensure_namespace(interp.root_namespace, "::oo::configuresupport")
     ensure_namespace(interp.root_namespace, "::oo::configuresupport::objectinternal")

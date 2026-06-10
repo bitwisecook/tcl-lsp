@@ -9,8 +9,8 @@ the ASCII gutter draws the routed lanes as box-drawing characters.
 from __future__ import annotations
 
 from tooling.cli.serialise import serialise_result
+from tooling.explorer._render import _cfg_gutter
 from tooling.explorer.cfg_layout import assign_lanes, build_cfg_edges
-from tooling.explorer.cli import _cfg_gutter
 from tooling.explorer.pipeline import run_pipeline
 
 _BRANCHY = (

@@ -30,7 +30,6 @@ deletion, never delete a live store.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
@@ -65,17 +64,28 @@ from ..ir import (
     IRUpFrame,
     IRWhile,
 )
+from ..var_refs import VarReferenceScanner, VarScanOptions
 
-# Matches both ``$name`` and ``${name}`` substitutions.  Tcl
-# variable names are alphanumeric + underscore + ``::`` for fully
-# qualified names.  ``$arr(idx)`` is also matched and contributes
-# the array name (``arr``) — that's correct for our purposes.
-_VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)")
-
-# Matches ``[set varname]`` (1-arg form = read).  The 2-arg form
-# ``[set varname value]`` would have non-']' content after the name,
-# so this pattern only matches the read form.
-_SET_READ_RE = re.compile(r"\[set\s+([A-Za-z_][A-Za-z0-9_]*)\s*\]")
+# Token-based scanner for variable reads in a raw word.  Captures
+# ``$name`` / ``${name}`` substitutions, ``$arr(idx)`` (array name
+# ``arr``, index normalised away), ``[set varname]`` (1-arg read form)
+# via the registry's VAR_READ role, plus ``$var`` references buried in
+# the script/expr bodies of nested command substitutions (``[expr
+# {$x+1}]``, ``[if {$c} {set z $w}]``).  ``recurse_into_script_roles``
+# (which implies expr-role recursion) is required so DCE still observes
+# those reads — the old flat ``$``-regex saw them by accident, and
+# missing them would wrongly delete a still-read store.  The result is
+# a superset of the two regexes it replaces on every real read; the
+# only words it no longer reports are ``$x`` inside a *top-level braced
+# literal* (``{$x}``), which Tcl genuinely does not substitute — a
+# false-positive removal, safe for DCE, which only checks read presence.
+_READ_SCANNER = VarReferenceScanner(
+    VarScanOptions(
+        include_var_read_roles=True,
+        recurse_cmd_substitutions=True,
+        recurse_into_script_roles=True,
+    )
+)
 
 
 def dce_module(module: IRModule, summaries: Mapping[str, Any] | None = None) -> IRModule:
@@ -601,17 +611,5 @@ def _scan_string(text: str, counts: dict[str, int]) -> None:
     """
     if not text:
         return
-    for m in _VAR_REF_RE.finditer(text):
-        name = m.group(1) or m.group(2)
-        if name is None:
-            continue
-        # Strip array element: ``arr(idx)`` → ``arr``.
-        paren = name.find("(")
-        if paren >= 0:
-            name = name[:paren]
-        if name:
-            counts[name] = counts.get(name, 0) + 1
-    for m in _SET_READ_RE.finditer(text):
-        name = m.group(1)
-        if name:
-            counts[name] = counts.get(name, 0) + 1
+    for name in _READ_SCANNER.scan_word(text):
+        counts[name] = counts.get(name, 0) + 1

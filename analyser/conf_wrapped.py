@@ -34,7 +34,7 @@ from .semantic_model import (
 
 # The leaf position/range shift is the canonical rebase primitive shared with
 # the incremental reparse and the AnchorTable-driven analysis rebase.
-_shift_position = rebase.shift_position
+shift_position = rebase.shift_position
 _shift_range = rebase.shift_range
 
 

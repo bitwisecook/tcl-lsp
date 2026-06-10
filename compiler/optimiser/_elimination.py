@@ -163,30 +163,30 @@ def _expr_has_observable_side_effect(
     )
 
     match node:
-        case ExprCommand(text=text) | ExprRaw(text=text):
+        case ExprCommand(text=_text) | ExprRaw(text=_text):
             return _word_has_observable_side_effect(
-                text, interproc_pure, interproc_pure_methods, enclosing_class
+                _text, interproc_pure, interproc_pure_methods, enclosing_class
             )
-        case ExprBinary(left=left, right=right):
+        case ExprBinary(left=_left, right=_right):
             return _expr_has_observable_side_effect(
-                left, interproc_pure, interproc_pure_methods, enclosing_class
+                _left, interproc_pure, interproc_pure_methods, enclosing_class
             ) or _expr_has_observable_side_effect(
-                right, interproc_pure, interproc_pure_methods, enclosing_class
+                _right, interproc_pure, interproc_pure_methods, enclosing_class
             )
-        case ExprUnary(operand=operand):
+        case ExprUnary(operand=_operand):
             return _expr_has_observable_side_effect(
-                operand, interproc_pure, interproc_pure_methods, enclosing_class
+                _operand, interproc_pure, interproc_pure_methods, enclosing_class
             )
-        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+        case ExprTernary(condition=_cond, true_branch=_tb, false_branch=_fb):
             return (
                 _expr_has_observable_side_effect(
-                    cond, interproc_pure, interproc_pure_methods, enclosing_class
+                    _cond, interproc_pure, interproc_pure_methods, enclosing_class
                 )
                 or _expr_has_observable_side_effect(
-                    tb, interproc_pure, interproc_pure_methods, enclosing_class
+                    _tb, interproc_pure, interproc_pure_methods, enclosing_class
                 )
                 or _expr_has_observable_side_effect(
-                    fb, interproc_pure, interproc_pure_methods, enclosing_class
+                    _fb, interproc_pure, interproc_pure_methods, enclosing_class
                 )
             )
         case ExprCall(args=args):
@@ -198,6 +198,7 @@ def _expr_has_observable_side_effect(
             )
         case _:
             return False
+    return False  # unreachable; satisfies static analysis
 
 
 def _assignment_safe_to_delete(

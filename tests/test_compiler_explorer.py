@@ -230,7 +230,7 @@ class TestDiffNormalisation:
     """Unit tests for the offset-ignoring diff key (``_normalise_diff_line``)."""
 
     def test_tree_connector_and_range_collapse(self):
-        from tooling.explorer.cli import _normalise_diff_line
+        from tooling.explorer._render import _normalise_diff_line
 
         # Same node, different sibling position (├── vs └──) and source range.
         a = _normalise_diff_line("│   ├── call puts ${b} [3:1-3:7]")
@@ -238,7 +238,7 @@ class TestDiffNormalisation:
         assert a == b
 
     def test_byte_offset_and_literal_index_collapse(self):
-        from tooling.explorer.cli import _normalise_diff_line
+        from tooling.explorer._render import _normalise_diff_line
 
         # Same instruction, shifted byte offset and literal-pool index.
         a = _normalise_diff_line('    (15) push1 4\t# "puts"')
@@ -246,7 +246,7 @@ class TestDiffNormalisation:
         assert a == b
 
     def test_variable_slot_collapses_but_arity_is_kept(self):
-        from tooling.explorer.cli import _normalise_diff_line
+        from tooling.explorer._render import _normalise_diff_line
 
         # %vN slot shifts when a variable is dropped — the comment names it.
         assert _normalise_diff_line('    (4) loadScalar1 %v2\t# var "a"') == _normalise_diff_line(
@@ -258,7 +258,7 @@ class TestDiffNormalisation:
         )
 
     def test_distinct_content_stays_distinct(self):
-        from tooling.explorer.cli import _normalise_diff_line
+        from tooling.explorer._render import _normalise_diff_line
 
         assert _normalise_diff_line('  └── call puts "a"') != _normalise_diff_line(
             '  └── call puts "b"'
@@ -272,7 +272,7 @@ class TestDiffNormalisation:
         import contextlib
         import io
 
-        from tooling.explorer.cli import _print_opt_diff
+        from tooling.explorer._render import _print_opt_diff
 
         before = ["  ├── call puts hi [1:1-1:7]"]
         after = ["  └── call puts hi [9:9-9:15]"]  # same node, only connector + range moved

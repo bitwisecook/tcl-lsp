@@ -119,8 +119,9 @@ class TestDeepDiagnosticsWorkerContext:
     re-applies state per call, so the effect is observable on the registry)."""
 
     def _snapshot(self):
+        from compiler.dialect_context import _dialect_var
         from compiler.registry import stub_comments
-        from compiler.registry.runtime import _dialect_var, _extra_commands_var
+        from compiler.registry.runtime import _extra_commands_var
 
         return (
             _dialect_var.get(),
@@ -129,8 +130,9 @@ class TestDeepDiagnosticsWorkerContext:
         )
 
     def _restore(self, snap):
+        from compiler.dialect_context import _dialect_var
         from compiler.registry import stub_comments
-        from compiler.registry.runtime import _dialect_var, _extra_commands_var
+        from compiler.registry.runtime import _extra_commands_var
 
         _dialect_var.set(snap[0])
         _extra_commands_var.set(snap[1])

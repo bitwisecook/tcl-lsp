@@ -1019,7 +1019,8 @@ function getSource() { return compiledSource || document.querySelector('#source'
 </script>
 <script src="explorer-core.js"></script>
 <script>
-// Consumer state
+// Consumer state (extend globals declared above for CodeQL visibility)
+var data;
 let compileTimer = null;
 let lastSource = '';
 let lastDialect = '';

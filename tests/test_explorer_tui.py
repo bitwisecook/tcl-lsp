@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 
-from tooling.explorer.cli import parse_args, render_view, run_pipeline
+from tooling.explorer._render import render_view
+from tooling.explorer.cli import parse_args, run_pipeline
 from tooling.explorer.tui import ExplorerApp, _render_view_ansi
 
 _SRC = "proc f {x} { set y [expr {$x + 1}]\n return $y }\nputs [f 3]\n"

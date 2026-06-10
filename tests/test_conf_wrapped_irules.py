@@ -8,9 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analyser.conf_wrapped import (
-    _shift_position,
     _shift_range,
     analyse_conf_wrapped,
+    shift_position,
 )
 from analyser.semantic_model import Range
 from compiler.registry.dialect import detect_dialect_from_source
@@ -161,7 +161,7 @@ class TestRangeShifting:
     def test_shift_position_line_zero(self):
         """Line 0 positions shift both line and character."""
         pos = SourcePosition(line=0, character=4, offset=4)
-        shifted = _shift_position(pos, base_line=3, base_char=8, base_offset=100)
+        shifted = shift_position(pos, base_line=3, base_char=8, base_offset=100)
         assert shifted.line == 3
         assert shifted.character == 12  # 4 + 8
         assert shifted.offset == 104  # 4 + 100
@@ -169,7 +169,7 @@ class TestRangeShifting:
     def test_shift_position_later_line(self):
         """Lines > 0 shift only line (character is relative to line start)."""
         pos = SourcePosition(line=2, character=6, offset=30)
-        shifted = _shift_position(pos, base_line=5, base_char=8, base_offset=100)
+        shifted = shift_position(pos, base_line=5, base_char=8, base_offset=100)
         assert shifted.line == 7  # 2 + 5
         assert shifted.character == 6  # unchanged
         assert shifted.offset == 130  # 30 + 100

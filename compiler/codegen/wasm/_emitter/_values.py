@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ._core import _WasmEmitterBase as _Base
 else:
     _Base = object
-
-from collections.abc import Callable
 
 from compiler.command_trust import builtin_is_trusted
 from compiler.registry import REGISTRY as _REGISTRY

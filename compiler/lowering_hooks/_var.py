@@ -45,7 +45,7 @@ def _expr_arg_from_expr_command(
     expr_aliases: frozenset[str] | None = None,
 ) -> str | None:
     """Extract the expr argument from a [expr {...}] command substitution."""
-    from compiler.parsing.command_shapes import extract_single_expr_argument
+    from compiler.parsing.token_scanning import extract_single_expr_argument
 
     return extract_single_expr_argument(text, expr_aliases=expr_aliases)
 

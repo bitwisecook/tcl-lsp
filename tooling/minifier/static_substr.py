@@ -38,8 +38,8 @@ from shared.tcl_list import tcl_list_quote, tcl_list_split
 from shared.text_edits import apply_edits
 
 if TYPE_CHECKING:
+    from compiler.analysis_types import LatticeValue
     from compiler.compilation_unit import FunctionUnit
-    from compiler.core_analyses import LatticeValue
     from compiler.interprocedural import InterproceduralAnalysis
     from compiler.ssa import SSAValueKey
     from compiler.taint import TaintLattice
@@ -535,7 +535,7 @@ def _resolve_arg_constants(
     Returns the fully-resolved string, or ``None`` if any variable
     is not a known constant.
     """
-    from compiler.core_analyses import LatticeKind
+    from compiler.analysis_types import LatticeKind
 
     if "$" not in arg:
         return arg
@@ -762,7 +762,7 @@ def _fold_string_via_sccp(
     constant).  Returns the folded string if everything resolves,
     or ``None`` if any part is overdefined/unknown.
     """
-    from compiler.core_analyses import LatticeKind
+    from compiler.analysis_types import LatticeKind
 
     pieces: list[str] = []
     has_dynamic = False

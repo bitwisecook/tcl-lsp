@@ -30,7 +30,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Label, ListItem, ListView, Static, Tree
 
 from tooling.cli.serialise import serialise_result
-from tooling.explorer.cli import (
+from tooling.explorer._render import (
     _VIEW_ORDER,
     OPT_VIEWS,
     LineIndex,
@@ -119,13 +119,20 @@ class ExplorerApp(App):
 
     def __init__(self, source: str, args: argparse.Namespace) -> None:
         super().__init__()
+
+        self._OPT_VIEWS = OPT_VIEWS
+        self._VIEW_ORDER = _VIEW_ORDER
+        self._summary_parts = _summary_parts
+        self._load_source = load_source
+        self._optimised_result = optimised_result
+
         self._source = source
         self._args = args
         self._result: CompilerExplorerResult | None = None
         self._data: dict = {}
         self._opt: tuple[CompilerExplorerResult, str] | None = None
         self._opt_mode = getattr(args, "opt", "off") or "off"
-        self._views = [v for v in _VIEW_ORDER if v in args.views]
+        self._views = [v for v in self._VIEW_ORDER if v in args.views]
         self._current = self._views[0] if self._views else "ir"
 
     def compose(self) -> ComposeResult:
@@ -171,11 +178,13 @@ class ExplorerApp(App):
         # 'on', and any view's 'diff') — needed for every non-"off" mode, not
         # just diff.  Tree views get optimised data from the serialised payload.
         self._opt = (
-            optimised_result(self._result, self._args.dialect) if self._opt_mode != "off" else None
+            self._optimised_result(self._result, self._args.dialect)
+            if self._opt_mode != "off"
+            else None
         )
         self._update_subtitle()
         self.query_one("#summary", Label).update(
-            "  ".join(_summary_parts(self._result, self._args.dialect))
+            "  ".join(self._summary_parts(self._result, self._args.dialect))
         )
 
     def _update_subtitle(self) -> None:
@@ -186,12 +195,12 @@ class ExplorerApp(App):
         """Views the TUI renders as captured ANSI text instead of a tree."""
         if view not in TREE_VIEWS:
             return True  # asm / wasm / asm-opt / wasm-opt
-        return self._opt_mode == "diff" and view in OPT_VIEWS
+        return self._opt_mode == "diff" and view in self._OPT_VIEWS
 
     def _view_data(self, view: str) -> dict:
         """Serialised data for *view*, swapping in optimised keys under ``opt on``."""
         data = self._data
-        if self._opt_mode == "on" and view in OPT_VIEWS:
+        if self._opt_mode == "on" and view in self._OPT_VIEWS:
             data = dict(data)
             if data.get("irOptimised"):
                 data["ir"] = data["irOptimised"]
@@ -261,7 +270,7 @@ class ExplorerApp(App):
         if self._opt_mode == "off":
             self._opt = None
         elif self._opt is None and self._result is not None:
-            self._opt = optimised_result(self._result, self._args.dialect)
+            self._opt = self._optimised_result(self._result, self._args.dialect)
         self._update_subtitle()
         self._show(self._current)
 
@@ -273,7 +282,7 @@ class ExplorerApp(App):
         # Re-read the file (if any) so the view tracks edits, then recompute.
         if self._args.path and self._args.path != "-":
             with contextlib.suppress(Exception):
-                self._source = load_source(self._args.path, None)
+                self._source = self._load_source(self._args.path, None)
         self._recompute()
         self._show(self._current)
 

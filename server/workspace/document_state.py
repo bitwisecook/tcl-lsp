@@ -730,6 +730,12 @@ class _StateSnapshot:
     embedded_rules: list[Any] = field(default_factory=list)
 
 
+def _new_version_registry() -> weakref.WeakValueDictionary[int, DocumentBuffer]:
+    """Factory for the MVCC version registry field (typed so the bare
+    ``WeakValueDictionary`` constructor doesn't widen the field's generics)."""
+    return weakref.WeakValueDictionary()
+
+
 @dataclass
 class DocumentState:
     """Cached analysis state for a single document.
@@ -782,7 +788,7 @@ class DocumentState:
     # so coexisting in-flight versions are cheap.  Never holds a strong ref, so
     # it cannot itself leak old versions.
     _versions: weakref.WeakValueDictionary[int, DocumentBuffer] = field(
-        default_factory=lambda: weakref.WeakValueDictionary(), repr=False
+        default_factory=_new_version_registry, repr=False
     )
 
     def _register_version(self, buf: DocumentBuffer | None) -> None:

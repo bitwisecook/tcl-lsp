@@ -8,11 +8,14 @@ from __future__ import annotations
 # optimisation-code set on first call, so calling profile_to_disabled()
 # with only a partial set registered would freeze that partial set for the
 # whole test session (and break generated-file freshness checks elsewhere).
-import server._codes_init  # noqa: F401
+import server._codes_init as _codes_init
 from compiler.optimiser._manager import find_optimisations
 from compiler.pgo.reorder import REORDER_CODE
 from shared.codes import optimisation_codes, pgo_codes
 from shared.optimisation_profiles import OptimisationProfile, profile_to_disabled
+
+# Reference the side-effect import so it is not pruned (see the rationale above).
+_ = _codes_init
 
 # A chain that the PGO reorderer *would* flag given a profile.
 DISPATCH = """\

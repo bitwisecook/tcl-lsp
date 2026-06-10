@@ -68,6 +68,15 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended,security-and-quality
+          # py/ineffectual-statement flags every ``...`` as a statement with no
+          # effect.  ``...`` is the idiomatic stub body (PEP 8 / typeshed) and
+          # the repo uses it in ~220 ``if TYPE_CHECKING:`` mixin forward-decls;
+          # the rule is a recommendation-severity style check that is pure noise
+          # here, so exclude it rather than contort idiomatic stubs into ``pass``.
+          config: |
+            query-filters:
+              - exclude:
+                  id: py/ineffectual-statement
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
