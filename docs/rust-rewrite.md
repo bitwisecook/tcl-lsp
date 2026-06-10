@@ -4503,6 +4503,49 @@ features):
   resolution + a flaky), **commands 2** (`fixAllSafeIssues` /
   `optimiseDocument`).
 
+### SYNC-JUN10-phase1-complete — native-server lsp_e2e parity reached (355/355)
+
+The native Rust server now passes the **entire** `tests/lsp_e2e` battery:
+**355 passed, 1 skipped** (the skip is the pyz-only version-banner assertion),
+**0 failed** — up from the 220 baseline.  `cargo test --workspace
+--all-features` is **3726 passed, 0 failed**; workspace clippy (`--all-targets`)
+and fmt are clean.
+
+Final increments closing the tail (each with crate unit tests + clippy/fmt
+clean, no regressions):
+
+- **iRules completion** — command-level positional arg-value completion.
+  Added `CommandSpec::arg_values` (mirroring `SubCommand.arg_values`,
+  flattening the Python `FormSpec.arg_values` to positional indices);
+  populated `when EVENT timing enable|disable` (gated on the preceding
+  `timing` keyword so `priority N` isn't offered timing values) and
+  `HTTP::respond <status> content|noserver|version`.
+- **semantic_tokens** — `switch -regexp { pat body … }` braced case lists now
+  sub-tokenise the patterns as regexes and recurse the bodies
+  (`ArgOverride::SwitchRegexpCaseList`, flattening words across the
+  possibly-multiline list, even=pattern / odd=body).
+- **completion** — `uplevel #0 { … }` modelled as an `ScopeKind::Uplevel`
+  global-frame scope; `visible_variable_names` drops the enclosing proc's
+  locals inside it, `command_resolution_namespace` resets to `::`.
+- **cross-document correctness** — rename aborts wholesale when the
+  in-document result is empty (collision / unsafe target) instead of leaking
+  partial sibling edits; `resolve_workspace_symbol`'s index fallback is gated
+  on the cursor sitting on a command-invocation head (`position_is_command_head`)
+  so a coincidental bareword (`puts hello`) no longer resolves against a
+  sibling proc.  These were the two "shared-server flaky" rows — now genuine
+  fixes, not isolation artifacts.
+- **recovery (E201)** — `segment_with_recovery` iterates the ghost-`]`
+  insertion to a fixpoint (multi-break: `set a [foo` … `set c [bar` … `proc`
+  now recovers the tail proc), and `analyse_body` runs the
+  unterminated-bracket detector so an unterminated `[` inside a braced body is
+  flagged.
+- **code_actions (W101)** — the `eval "cmd $a"` → `eval [list cmd $a]` rewrite
+  CodeFix is attached to the W101 diagnostic.
+- **commands (`optimiseDocument`)** — added `apply_optimisations` +
+  `optimise_source_multipass` to the optimiser manager and wired the
+  `tcl-lsp.optimiseDocument` workspace command; O129 now folds nested constant
+  command substitutions (`puts [llength [list a b c]]` → `puts 3`).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
