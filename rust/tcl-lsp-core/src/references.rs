@@ -650,9 +650,12 @@ pub fn document_highlights(
             || class_def.qualified_name == format!("::{word}")
         {
             let mut out = Vec::new();
+            // Non-variable symbols (procs / classes / methods) highlight as
+            // `Text` for both declaration and uses — only variables carry the
+            // Write/Read distinction (matches the Python server).
             out.push((
                 span_to_range(source, &line_index, class_def.name_span),
-                HighlightKind::Write,
+                HighlightKind::Text,
             ));
             for inv in &analysis.command_invocations {
                 if inv.name == class_def.name || inv.name == class_def.qualified_name {
@@ -671,7 +674,7 @@ pub fn document_highlights(
             let mut out = Vec::new();
             out.push((
                 span_to_range(source, &line_index, proc_def.name_span),
-                HighlightKind::Write,
+                HighlightKind::Text,
             ));
             let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
             for inv in &analysis.command_invocations {
@@ -703,7 +706,7 @@ pub fn document_highlights(
         let mut out = Vec::new();
         out.push((
             span_to_range(source, &line_index, decl_span),
-            HighlightKind::Write,
+            HighlightKind::Text,
         ));
         for s in call_spans {
             out.push((span_to_range(source, &line_index, s), HighlightKind::Text));
@@ -908,17 +911,18 @@ mod tests {
     }
 
     #[test]
-    fn document_highlights_proc_decl_is_write() {
+    fn document_highlights_proc_decl_is_text() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
-        // Declaration on line 0 should be Write.
-        let line0_write = highlights
+        // Declaration on line 0 should be Text — procs carry no Write/Read
+        // distinction (only variables do), matching the Python server.
+        let line0 = highlights
             .iter()
-            .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write);
+            .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Text);
         assert!(
-            line0_write.is_some(),
-            "expected Write on line 0 (declaration); got {highlights:?}",
+            line0.is_some(),
+            "expected Text on line 0 (declaration); got {highlights:?}",
         );
         // Call site on line 1 should be Text (no read/write
         // semantics on command-invocation heads).
@@ -1025,20 +1029,16 @@ mod tests {
     }
 
     #[test]
-    fn document_highlights_for_method_marks_decl_write_calls_text() {
+    fn document_highlights_for_method_marks_decl_and_calls_text() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         let h = document_highlights(src, "tcl", 1, 11, &analysis);
-        let writes: Vec<_> = h
-            .iter()
-            .filter(|(_, k)| *k == HighlightKind::Write)
-            .collect();
-        let texts: Vec<_> = h
-            .iter()
-            .filter(|(_, k)| *k == HighlightKind::Text)
-            .collect();
-        assert_eq!(writes.len(), 1, "{h:?}");
-        assert_eq!(texts.len(), 2, "{h:?}");
+        // Methods carry no Write/Read distinction — declaration + both call
+        // sites are all Text (only variables are Write/Read).
+        let writes = h.iter().filter(|(_, k)| *k == HighlightKind::Write).count();
+        let texts = h.iter().filter(|(_, k)| *k == HighlightKind::Text).count();
+        assert_eq!(writes, 0, "{h:?}");
+        assert_eq!(texts, 3, "{h:?}");
     }
 
     // -- S-references-rich: external $obj method sites --------------
