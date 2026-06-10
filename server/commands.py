@@ -1084,6 +1084,10 @@ def _switch_dialect(dialect: str) -> dict:
         )
 
         for uri, state in _state.workspace_state.items():
+            # BIG-IP configuration files are not Tcl source — skip
+            # the general Tcl re-analysis path.
+            if state.dialect_hint == "f5-bigip":
+                continue
             if loop is not None:
                 spawn_publish_diagnostics(
                     uri,

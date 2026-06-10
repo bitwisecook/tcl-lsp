@@ -20,7 +20,7 @@ from .features.diagnostics import (
     get_deep_diagnostics,
     get_diagnostics,
 )
-from .workspace.scanner import path_to_uri, uri_to_path
+from .workspace.scanner import is_bigip_conf_name, path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource
 
 if TYPE_CHECKING:
@@ -319,6 +319,11 @@ def _publish_diagnostics_sync(
 
     cfg = _state.config_for_uri(uri)
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
+    # BIG-IP configuration files have their own diagnostics pipeline
+    # (bigip parser → bigip validator).  The general Tcl analyser
+    # must never be run on their top-level text.
+    if dialect == "f5-bigip":
+        return
     with (
         dialect_scope(dialect=dialect, extra_commands=extras),
         non_ascii_mode_scope(cfg.non_ascii_mode),
@@ -428,6 +433,12 @@ async def _publish_diagnostics_inner(
     *,
     force_reanalyse: bool = False,
 ) -> None:
+    # BIG-IP configuration files have their own diagnostics pipeline
+    # (bigip parser → bigip validator).  The general Tcl analyser must
+    # never be run on their top-level text.
+    if _is_bigip_conf(uri):
+        return
+
     t_start = time.perf_counter()
 
     await asyncio.sleep(0)
@@ -939,10 +950,7 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
 
 
 def _is_bigip_conf(uri: str) -> bool:
-    from .workspace.scanner import _BIGIP_CONF_NAMES
-
-    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
-    return basename in _BIGIP_CONF_NAMES
+    return is_bigip_conf_name(uri)
 
 
 def _is_irules_source(uri: str) -> bool:
