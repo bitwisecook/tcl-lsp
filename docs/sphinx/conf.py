@@ -109,13 +109,19 @@ myst_enable_extensions = [
 
 html_theme = "furo"
 html_title = f"dialects.f5.query {release}"
-html_static_path: list[str] = []
+# ``_static`` holds the project logo + favicon, propagated from the canonical
+# docs/tcl-lsp-logo*.svg by ``make logo`` (scripts/build/render_logo.sh).
+html_static_path: list[str] = ["_static"]
+html_favicon = "_static/favicon.png"
 
 html_theme_options = {
     "source_repository": "https://github.com/bitwisecook/tcl-lsp/",
     "source_branch": "main",
     "source_directory": "docs/sphinx/",
     "footer_icons": [],
+    # furo swaps these by colour scheme; both are vector logos.
+    "light_logo": "tcl-lsp-logo.svg",
+    "dark_logo": "tcl-lsp-logo-dark.svg",
 }
 
 # Cleaner module-index display.

@@ -168,7 +168,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Coverage
 .PHONY: coverage coverage-py coverage-ext
 # Compile + codegen + generated assets
-.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env
+.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
@@ -236,7 +236,7 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 	$(PYTHON) $(ROOT)scripts/install/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
-	cp "$(ROOT)docs/Tcl LSP Logo-8bit-128.png" $(STAGE_DIR)/docs/icon.png
+	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
 	@echo "==> Packaging .vsix (stripped, not obfuscated)"
 	cd $(STAGE_DIR) && $(VSCE) package --allow-missing-repository --no-update-package-json --no-git-tag-version -o $(VSIX_FILE)
 	@echo ""
@@ -1097,6 +1097,12 @@ gen-editor-settings: editors/vscode/src/generated/diagnosticCatalog.ts ## Regene
 check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py --check
+
+# Logo assets — rasterise the canonical SVG logos to the shipped PNGs
+
+logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
+	@echo "==> Rendering logo PNGs from docs/tcl-lsp-logo*.svg"
+	bash $(ROOT)scripts/build/render_logo.sh
 
 # Unified codegen — regenerate ALL generated files from registries
 
