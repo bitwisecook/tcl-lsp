@@ -32,7 +32,45 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"info subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    // `info` is an ensemble: resolve an exact name, else an unambiguous prefix
+    // (so `info command` → `commands`, matching tclsh).
+    const SUBS: &[&[u8]] = &[
+        b"args",
+        b"body",
+        b"class",
+        b"commands",
+        b"complete",
+        b"default",
+        b"exists",
+        b"frame",
+        b"globals",
+        b"level",
+        b"library",
+        b"locals",
+        b"nameofexecutable",
+        b"object",
+        b"patchlevel",
+        b"procs",
+        b"script",
+        b"sharedlibextension",
+        b"tclversion",
+        b"vars",
+    ];
+    let raw = obj_bytes(argv[1]);
+    let sub: &[u8] = if SUBS.contains(&raw.as_slice()) {
+        &raw
+    } else {
+        let hits: Vec<&&[u8]> = SUBS
+            .iter()
+            .filter(|s| s.starts_with(raw.as_slice()))
+            .collect();
+        if hits.len() == 1 {
+            hits[0]
+        } else {
+            &raw // 0 or ambiguous → the error arm
+        }
+    };
+    match sub {
         b"exists" => info_exists(interp, argv),
         b"commands" => set_list(interp, argv, Interp::visible_command_names),
         b"procs" => set_list(interp, argv, Interp::visible_proc_names),
