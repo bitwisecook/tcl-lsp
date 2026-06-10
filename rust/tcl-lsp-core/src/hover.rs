@@ -276,6 +276,16 @@ fn builtin_command_hover_text(
     if let Some(requires) = spec.event_requires.as_ref() {
         let effective = effective_event_requires(name, requires);
         append_valid_events(&mut out, &effective);
+    } else if let Some((prefix, _)) = name.split_once("::") {
+        // Namespace-only command (no `event_requires`): if its protocol
+        // namespace declares profiles (e.g. `ACCESS::log` → ACCESS), surface
+        // a `**Requires**` profile line.  Mirrors the Python info path.
+        let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
+        if let Some(ns) = profile_reg.get_namespace(prefix) {
+            if !ns.profiles.is_empty() {
+                let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
+            }
+        }
     }
     Some(out)
 }
@@ -2438,6 +2448,7 @@ fn obj_method_hover_text(analysis: &AnalysisResult, class_q: &str, method: &str)
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
