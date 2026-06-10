@@ -133,7 +133,14 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"issafe" => {
-            interp.set_result_bytes(b"0");
+            // `interp issafe ?path?` — the current interp (no path) or a child.
+            let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
+            let safe = if path.is_empty() {
+                interp.is_safe()
+            } else {
+                interp.with_child(&path, |c| c.is_safe()).unwrap_or(false)
+            };
+            interp.set_result_bytes(if safe { b"1" } else { b"0" });
             Code::Ok
         }
         other => {
@@ -379,12 +386,20 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// `interp aliases ?{}?` — every alias command's name as a Tcl list.
+/// `interp aliases ?path?` — every alias command's name in the named interp (the
+/// current one for an empty/missing path) as a Tcl list.
 fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() > 3 || (argv.len() == 3 && !obj_bytes(argv[2]).is_empty()) {
-        return only_single_interp(interp);
+    if argv.len() > 3 {
+        return wrong_args(interp, b"interp aliases ?path?");
     }
-    let names = interp.alias_names();
+    let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
+    let names = if path.is_empty() {
+        interp.alias_names()
+    } else {
+        interp
+            .with_child(&path, |c| c.alias_names())
+            .unwrap_or_default()
+    };
     let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
     interp.set_result(list::new_list_obj(&elems));
     for e in elems {
@@ -480,8 +495,9 @@ mod tests {
 
     #[test]
     fn cross_interp_aliases() {
-        // A child alias delegating to a parent command (both syntaxes), and the
-        // re-entrancy guard (a parent alias re-entering a child errors, not UB).
+        // A child alias delegating to a parent command (both syntaxes), and
+        // re-entrancy (a parent alias re-entering the *same* child mid-eval —
+        // the Safe Base pattern — now recurses correctly, bounded not forbidden).
         leak_free(|i| {
             i.eval_str(b"proc padd {a b} {expr {$a+$b}}");
             i.eval_str(b"set c [interp create]");
@@ -493,11 +509,15 @@ mod tests {
             i.eval_str(b"$c alias mul ::tcl::mathop::* 3");
             assert_eq!(i.eval_str(b"$c eval {mul 4}"), Code::Ok);
             assert_eq!(i.result_bytes(), b"12");
-            // Re-entrancy: a parent alias target that evals back into a child
-            // errors (the depth guard), rather than risking aliased &mut.
-            i.eval_str(b"proc reenter {} { $::c eval {set x 1} }");
+            // Re-entrancy: a parent alias target that evals back into the same
+            // child while its outer eval is still on the stack. This recurses
+            // (the child's `x` ends up set), it does not error.
+            i.eval_str(b"proc reenter {} { $::c eval {set x 42} }");
             i.eval_str(b"interp alias $c cb {} reenter");
-            assert_eq!(i.eval_str(b"$c eval {cb}"), Code::Error);
+            assert_eq!(i.eval_str(b"$c eval {cb}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            assert_eq!(i.eval_str(b"$c eval {set x}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
             i.eval_str(b"interp delete $c; unset -nocomplain c");
         });
     }

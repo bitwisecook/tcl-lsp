@@ -1700,7 +1700,8 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + child interpreters | 118 / 168 | 49 | 8406 / 17855 |
 | + TclOO core | 120 / 168 | 47 | 8415 / 18298 |
 | + TclOO expand / info prefix / hidden+safe | 122 / 168 | 45 | 8529 / 18775 |
-| + cross-interp aliases | **122 / 168** | 45 | **8546 / 18775** |
+| + cross-interp aliases | 122 / 168 | 45 | 8546 / 18775 |
+| + auto-load fixes + re-entrant Safe Base | **124 / 168** | 43 (+1 timeout) | **8654 / 18939** |
 
 Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
 **81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
@@ -1736,10 +1737,29 @@ full test sets). The unblocking fixes:
   the runtime has);
 - **cross-interp aliases** — a child alias delegating to a parent command
   (`interp alias child name {} target …`, `$child alias name target …`).
-  `eval_in_child` removes the child from the parent's table for the eval and
-  hands it a raw parent pointer (disjoint, dormant parent); a thread-local
-  depth guard rejects nested cross-interp calls rather than risk an aliased
-  `&mut`. interp.test 79 → 94.
+  interp.test 79 → 94.
+- **library auto-loading fixes** — five conformance bugs that blocked the Safe
+  Base's pure-Tcl libraries (tm.tcl, safe.tcl, opt) from auto-loading on demand:
+  `namespace ensemble create -command NAME` now qualifies a relative `NAME`
+  against the current namespace (so `tcl::tm::path` binds at the right FQN and
+  `auto_load`'s `namespace which` check passes); `lappend a(k)` addresses array
+  elements; index specs accept the full `integer±integer` grammar (`string range
+  $s 0 $last-1`); `namespace upvar` is implemented; `glob -types` filters by
+  file-kind/permission.
+- **re-entrant Safe Base** — the cross-interp eval engine now supports genuine
+  parent⇄child recursion (a child's aliased `source` calls back into the parent,
+  which calls `interp invokehidden $child …` back into the *same* child while its
+  outer eval is on the stack — exactly C's nested `Tcl_Eval`). The child stays in
+  the parent's table and is evaluated through a raw `*mut Interp` into its
+  heap-stable `Box` (so the pointer survives map reorganisation); the `&mut`
+  aliasing across the boundary models C's shared `Tcl_Interp*` and is **bounded**
+  by `MAX_CROSS_INTERP_DEPTH` (native-stack cap) rather than forbidden. A child
+  deleted *during* its own eval (the self-deleting `exit`→`interp delete` alias)
+  has its teardown **deferred** until the eval unwinds (C's deferred
+  `Tcl_DeleteInterp`), so the boxed interp is never freed under a live raw
+  pointer. `safe::interpCreate`/`interpDelete` and the full Safe Base lifecycle
+  now work (safe.test: 0 run → **51 passed** of 155, no crashes; interp.test
+  94 → 104). `interp issafe`/`aliases` (+`$child` forms) added.
 
 Biggest remaining error-before-summary blockers, by file count:
 

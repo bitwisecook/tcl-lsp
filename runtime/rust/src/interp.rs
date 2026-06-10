@@ -257,11 +257,24 @@ pub enum Command {
 }
 
 thread_local! {
-    /// Depth of active cross-interp (`ParentAlias`) calls. Bounds re-entrancy so
-    /// a second parent deref can't alias a `&mut Interp` that is already live up
-    /// the stack — sound by erroring rather than risking UB.
+    /// Depth of active cross-interp (`ParentAlias`) calls. The Safe Base requires
+    /// genuine re-entrant recursion across the parent/child boundary (a child's
+    /// aliased `source` calls back into the parent, which calls `interp
+    /// invokehidden $child …` back into the *same* child while its outer eval is
+    /// still on the stack — exactly as C's nested `Tcl_Eval` does). We therefore
+    /// **bound** rather than forbid the nesting: the count caps native-stack
+    /// growth (each cross-interp hop adds real frames), and the raw `*mut Interp`
+    /// derefs that span the boundary model C's shared-`Tcl_Interp*` access — sound
+    /// only because every interp is heap-stable behind a `Box` (so a `*mut Interp`
+    /// survives `children` map reorganisation) and we never run two *different*
+    /// commands on one interp concurrently, only nested-in-time recursion.
     static CROSS_INTERP_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
+
+/// Maximum nested cross-interp call depth (the native-stack bound for the
+/// re-entrant parent⇄child recursion the Safe Base needs). Generous enough for
+/// safe-base setup (a handful of hops) while still catching runaway recursion.
+const MAX_CROSS_INTERP_DEPTH: u32 = 80;
 
 /// One formal parameter of a [`ProcDef`]: a name and an optional default value.
 #[derive(Clone)]
@@ -328,12 +341,30 @@ pub struct Interp {
     hidden: std::collections::BTreeMap<Vec<u8>, Command>,
     /// While this interp runs as a child (`$parent eval`/`$child eval`), a raw
     /// pointer to its parent interp — for cross-interp aliases that delegate to
-    /// a parent command. Valid only during a child eval: the child is *removed*
-    /// from the parent's table for the duration ([`eval_in_child`]), so the
-    /// parent is a dormant, disjoint value while the child holds this pointer.
+    /// a parent command. Set for the duration of a child eval ([`eval_in_child`]
+    /// / [`with_child`]) and restored after; the deref models C's shared
+    /// `Tcl_Interp*` access (see the `CROSS_INTERP_DEPTH` note).
     ///
     /// [`eval_in_child`]: Interp::eval_in_child
+    /// [`with_child`]: Interp::with_child
     parent: Option<*mut Interp>,
+    /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
+    is_safe: bool,
+    /// How many of *this* interp's evals are currently on the stack (as a child:
+    /// [`eval_in_child`]/[`with_child`] bump it). A child may be deleted *during*
+    /// its own eval — e.g. its aliased `exit` calls `interp delete` on itself —
+    /// so a non-zero count means the boxed interp must not be freed yet, or the
+    /// raw-pointer eval still unwinding above would dangle.
+    ///
+    /// [`eval_in_child`]: Interp::eval_in_child
+    /// [`with_child`]: Interp::with_child
+    eval_active: usize,
+    /// Set when a delete was requested while [`eval_active`] was non-zero; the
+    /// actual teardown is deferred until the last eval unwinds (C's deferred
+    /// `Tcl_DeleteInterp`).
+    ///
+    /// [`eval_active`]: Interp::eval_active
+    pending_delete: bool,
     /// TclOO object system state (classes, objects, the method-call stack).
     pub(crate) oo: crate::cmd_oo::OoState,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
@@ -372,6 +403,9 @@ impl Interp {
             interp_counter: 0,
             hidden: std::collections::BTreeMap::new(),
             parent: None,
+            is_safe: false,
+            eval_active: 0,
+            pending_delete: false,
             oo: crate::cmd_oo::OoState::default(),
             cmd_frames: Vec::new(),
             eval_depth: 0,
@@ -1504,7 +1538,8 @@ impl Interp {
                 self.eval_in_child(name, &script)
             }
             b"issafe" => {
-                self.set_result_bytes(b"0");
+                let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
+                self.set_result_bytes(if safe { b"1" } else { b"0" });
                 Code::Ok
             }
             b"delete" => {
@@ -1548,6 +1583,15 @@ impl Interp {
             b"hidden" => {
                 let names = self
                     .with_child(name, |c| c.hidden_names())
+                    .unwrap_or_default();
+                let elems: Vec<*mut TclObj> =
+                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
+                self.set_result(crate::list::new_list_obj(&elems));
+                Code::Ok
+            }
+            b"aliases" => {
+                let names = self
+                    .with_child(name, |c| c.alias_names())
                     .unwrap_or_default();
                 let elems: Vec<*mut TclObj> =
                     names.iter().map(|n| obj::new_string_bytes(n)).collect();
@@ -1599,12 +1643,46 @@ impl Interp {
 
     /// Run `f` on the child interpreter `name` (or `None` if it doesn't exist) —
     /// the mutable-access path for `interp <sub> childPath …`.
+    ///
+    /// `f` runs against a raw `*mut Interp` into the (heap-stable, boxed) child
+    /// rather than a borrow held on `self.children`, so a command inside `f` may
+    /// re-enter `self` (e.g. a child's `invokehidden source` that triggers a
+    /// parent alias) without an outstanding `&mut self.children` borrow. The
+    /// child's `parent` pointer is set for the duration so that re-entrancy can
+    /// reach back up. See the `CROSS_INTERP_DEPTH` note for the aliasing model.
+    ///
+    /// The child is marked active for the call, so a delete requested *during*
+    /// `f` (the self-deleting `exit` alias) is deferred until it unwinds — the
+    /// boxed interp is then freed here, never out from under the raw pointer.
     pub(crate) fn with_child<R>(
         &mut self,
         name: &[u8],
         f: impl FnOnce(&mut Interp) -> R,
     ) -> Option<R> {
-        self.children.get_mut(name).map(|c| f(c))
+        let parent_ptr = self as *mut Interp;
+        let child_ptr: *mut Interp = self.children.get_mut(name)?.as_mut();
+        // SAFETY: `child_ptr` addresses the boxed child interp, whose address is
+        // stable across `children` mutation; the borrow on `self.children` ended
+        // when we took the raw pointer, so `f` may re-enter `self`.
+        let teardown;
+        let r;
+        {
+            let child = unsafe { &mut *child_ptr };
+            let saved = child.parent;
+            child.parent = Some(parent_ptr);
+            child.eval_active += 1;
+            r = f(child);
+            child.eval_active -= 1;
+            child.parent = saved;
+            teardown = child.pending_delete && child.eval_active == 0;
+        }
+        // `child` borrow has ended; safe to drop the box (and its command) now
+        // that no eval of it remains on the stack.
+        if teardown {
+            self.children.remove(name);
+            self.namespaces.delete(GLOBAL, name);
+        }
+        Some(r)
     }
 
     /// `interp hide name`: move command `name` out of the command table into the
@@ -1673,6 +1751,12 @@ impl Interp {
         for &c in UNSAFE {
             self.hide_command(c);
         }
+        self.is_safe = true;
+    }
+
+    /// Whether this interp is safe (`interp issafe`).
+    pub(crate) fn is_safe(&self) -> bool {
+        self.is_safe
     }
 
     /// The names of this interp's direct child interpreters (sorted).
@@ -1681,42 +1765,64 @@ impl Interp {
     }
 
     /// Delete a child interpreter (and its command). Returns whether it existed.
+    ///
+    /// If the child is currently executing (a self-deleting `exit`/`interp
+    /// delete` from inside its own eval), the actual teardown is **deferred**:
+    /// the command binding is removed now so the name stops dispatching, but the
+    /// boxed interp is freed only when its last eval unwinds
+    /// ([`with_child`]/[`eval_in_child`]) — never out from under the raw-pointer
+    /// eval still on the stack. Mirrors C's deferred `Tcl_DeleteInterp`.
+    ///
+    /// [`with_child`]: Interp::with_child
+    /// [`eval_in_child`]: Interp::eval_in_child
     pub(crate) fn delete_child(&mut self, name: &[u8]) -> bool {
-        let existed = self.children.remove(name).is_some();
-        if existed {
-            self.namespaces.delete(GLOBAL, name);
+        match self.children.get_mut(name) {
+            Some(child) if child.eval_active > 0 => {
+                child.pending_delete = true;
+                self.namespaces.delete(GLOBAL, name);
+                true
+            }
+            Some(_) => {
+                self.children.remove(name);
+                self.namespaces.delete(GLOBAL, name);
+                true
+            }
+            None => false,
         }
-        existed
     }
 
     /// Evaluate `script` in child interpreter `name`, copying its result/code
     /// back. `None`-returning if the child doesn't exist (caller raises).
+    ///
+    /// The child stays in `self.children` and is evaluated through a raw
+    /// `*mut Interp` (its boxed address is heap-stable), so a parent command
+    /// invoked *during* this eval — via a child→parent alias — can re-enter the
+    /// same child (`interp invokehidden $child …`), which the Safe Base relies on.
+    /// The `parent` back-pointer is set for the eval and restored after.
     pub(crate) fn eval_in_child(&mut self, name: &[u8], script: &[u8]) -> Code {
-        // Remove the child for the duration so the parent (`self`) is a dormant,
-        // disjoint value the child can reach back into (via its `parent` pointer)
-        // for cross-interp aliases — without an overlapping borrow. Re-inserted
-        // after. (A parent command can't re-enter *this* child meanwhile: it's
-        // not in the table.)
-        let Some(mut child) = self.children.remove(name) else {
-            let mut m = b"could not find interpreter \"".to_vec();
-            m.extend_from_slice(name);
-            m.push(b'"');
-            return self.error(&m);
-        };
-        child.parent = Some(self as *mut Interp);
-        let code = child.eval_str(script);
-        let result = child.result_bytes();
-        child.parent = None;
-        self.children.insert(name.to_vec(), child);
-        self.set_result_bytes(&result);
-        code
+        // `with_child` runs the eval against the heap-stable boxed child through a
+        // raw pointer, marks it active (so a self-delete during the eval is
+        // deferred), and frees it here if a delete landed mid-eval.
+        match self.with_child(name, |c| (c.eval_str(script), c.result_bytes())) {
+            Some((code, result)) => {
+                self.set_result_bytes(&result);
+                code
+            }
+            None => {
+                let mut m = b"could not find interpreter \"".to_vec();
+                m.extend_from_slice(name);
+                m.push(b'"');
+                self.error(&m)
+            }
+        }
     }
 
     /// Run a cross-interp alias (`ParentAlias`): invoke `target` (+ `prefix` +
     /// the call args) in this interp's *parent*, copying the parent's result
-    /// back. The parent is dormant (the child was removed from its table for the
-    /// child eval), so the raw deref forms the only live `&mut` to it — except
-    /// under nested cross-interp calls, which the depth guard rejects.
+    /// back. The raw `parent_ptr` deref models C's shared-`Tcl_Interp*` access;
+    /// re-entrancy (the parent calling `interp invokehidden $child …` back into
+    /// this child) is supported and only **bounded** by `MAX_CROSS_INTERP_DEPTH`
+    /// to cap native-stack growth.
     fn dispatch_parent_alias(
         &mut self,
         target: &[u8],
@@ -1726,8 +1832,8 @@ impl Interp {
         let Some(parent_ptr) = self.parent else {
             return self.error(b"cannot invoke a parent alias from the root interpreter");
         };
-        if CROSS_INTERP_DEPTH.with(|d| d.get()) > 0 {
-            return self.error(b"recursive cross-interpreter invocation is not supported");
+        if CROSS_INTERP_DEPTH.with(|d| d.get()) >= MAX_CROSS_INTERP_DEPTH {
+            return self.error(b"too many nested cross-interpreter calls");
         }
         // Build [target, *prefix, *argv[1..]] — each element owned (+1).
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
@@ -1742,14 +1848,15 @@ impl Interp {
         for &a in &argv[1..] {
             push_owned(&mut new_argv, a);
         }
-        CROSS_INTERP_DEPTH.with(|d| d.set(1));
-        // SAFETY: `parent_ptr` points to the parent interp, which is dormant
-        // while this child eval runs (the child was removed from its table); the
-        // depth guard above ensures no other live `&mut` to it exists.
+        CROSS_INTERP_DEPTH.with(|d| d.set(d.get() + 1));
+        // SAFETY: `parent_ptr` addresses the (heap-stable, boxed) parent interp;
+        // the deref models C's shared-interp recursion. The depth counter bounds
+        // the native recursion, and refcounts on `new_argv` keep the args alive
+        // across the nested dispatch.
         let parent = unsafe { &mut *parent_ptr };
         let code = parent.dispatch(&new_argv);
         let res = parent.result_bytes();
-        CROSS_INTERP_DEPTH.with(|d| d.set(0));
+        CROSS_INTERP_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
         self.set_result_bytes(&res);
         code
