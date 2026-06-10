@@ -4311,7 +4311,7 @@ Post-rebase test run on the branch:
 | `cargo test --workspace --all-features` | **3719 passed, 0 failed** (30 crate test binaries) |
 | `runtime/rust` (`cargo test`) | **213 passed, 0 failed** |
 | `tests/lsp_e2e` against the **Python** server | **356 passed** |
-| `tests/lsp_e2e` against the **native Rust** server | **does not pass yet — harness-portability gap, see below** |
+| `tests/lsp_e2e` against the **native Rust** server | **220 passed / 136 failed** (after the snapshot-built marker landed — see below) |
 
 **Server-backend selection landed (test infra).**  The e2e harness, the VS
 Code extension, the `lsp-client` skill, and the Makefile now select the
@@ -4321,26 +4321,46 @@ located at `target/{release,debug}/tcl-lsp-server` or built via `make
 rust-server`.  This is what lets the same JSON-RPC battery drive either
 backend.
 
-### SYNC-JUN10-e2e-harness — make the e2e harness backend-neutral
+### SYNC-JUN10-e2e — native-server logging + e2e parity baseline
 
-**The native Rust server handles the core flow correctly** — verified by a
-direct probe: `initialize` → `didOpen` → `publishDiagnostics(version=1)` →
-`hover` returns ```` ```tcl\nproc ::p {a} {...}\n``` ````.  But the **e2e
-suite hangs against it** because the harness's readiness barrier is
-Python-server-specific: `tests/lsp_e2e/harness.py::open_document` blocks in
-`await_log("workspace_state.update", uri)` — a `window/logMessage` timing
-marker the **Python** server emits and the native server does not.  Every
-test that opens a document therefore waits out the timeout.
+**Native-server `window/logMessage` instrumentation — LANDED.**  The native
+server now emits a `[timing] workspace_state.update …ms (uri=…, lines=…,
+diags=…)` marker via `window/logMessage` once a document's analysis snapshot
+is cached, the workspace index refreshed, and diagnostics published
+(`rust/tcl-lsp-server/src/lib.rs::publish_analyser_diagnostics`) — mirroring
+the Python server's `[timing]` lines so the same logs surface in editors' LSP
+output channels.  This also made the e2e harness backend-neutral: its
+`open_document` readiness barrier (`await_log("workspace_state.update", uri)`)
+now resolves against either server, so `TCL_LSP_SERVER_KIND=rust` drives the
+full battery (previously every `open_document` waited out the timeout).
 
-**Port (harness, not server).**  Replace the `workspace_state.update` log
-barrier with a backend-neutral readiness signal — wait only on the
-version-matched `publishDiagnostics` (both servers emit it), or a `$/progress`
-end / a tiny `tcl-lsp/analysisReady`-style notification both backends send.
-Until then `TCL_LSP_SERVER_KIND=rust` is wired but the suite cannot certify
-the native server.  Separately, the native server reports
-`serverInfo.version = "0.1.0"` (its crate version) rather than the pyz build
-version, so `test_server_version` is python-pyz-specific and should be skipped
-in rust mode.  Tracked as the gating item for native-server e2e parity.
+**Parity baseline (native Rust server vs the 356-test e2e battery): 220
+passed / 136 failed.**  Per feature:
+
+| feature | pass/total | feature | pass/total |
+|---|---|---|---|
+| definition | 8/8 ✅ | diagnostics | 7/7 ✅ |
+| document_symbols | 17/17 ✅ | edit_tracking_stress | 17/17 ✅ |
+| navigation | 6/6 ✅ | structure (folding/sel) | 7/7 ✅ |
+| document_highlight | 6/7 | hover | 27/37 |
+| references | 10/13 | recovery | 13/16 |
+| editor_features | 6/9 | semantic_tokens | 26/40 |
+| signature_help | 9/14 | rename | 10/19 |
+| navigation_extras | 3/6 | code_actions | 13/30 |
+| irules | 19/43 | completion | 15/49 |
+| commands (execute) | 1/9 | server_version | 0/2 † |
+
+† `test_server_version` asserts the **pyz** build version; the native server
+reports its crate version (`0.1.0`).  Harness-specific — skip in rust mode.
+
+**Native-server parity backlog** (the real feature gaps the failures map to,
+roughly worst-first): **completion** (15/49), **execute-command surface**
+(`commands` 1/9), **code actions** (13/30), **iRules dialect features**
+(19/43), **rename** (10/19), and the long tails on semantic_tokens /
+signature_help / hover.  These are the native server's feature-completeness
+backlog — each should be triaged into the relevant `tcl-lsp-core` provider and
+turned into a tracked row as it's picked up.  The harness is no longer the
+blocker; this is genuine provider parity work.
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
