@@ -14,7 +14,7 @@
 # Sections are independent; we run all of them and only fail at the end.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 EXT_DIR="$ROOT/editors/vscode"
 NODE_BIN="$EXT_DIR/node_modules/.bin"
 JB_DIR="$ROOT/editors/jetbrains"
