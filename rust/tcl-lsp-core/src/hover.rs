@@ -123,7 +123,10 @@ pub fn hover(
     // surface the [`VarDef`] not the (typically absent) proc of
     // the same name.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(var_def) = lookup_var_in_scope_chain(&analysis.global_scope, line, &var_name) {
+        let var_byte_offset = crate::definition::byte_offset_at(source, line, character);
+        if let Some(var_def) =
+            lookup_var_in_scope_chain(&analysis.global_scope, var_byte_offset, &var_name)
+        {
             // Inferred-intrep / taint annotations need the compiler
             // pipeline (`CompilationUnit`), which requires a
             // registry; without one we surface just the reference

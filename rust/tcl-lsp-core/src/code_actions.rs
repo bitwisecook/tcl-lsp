@@ -481,7 +481,9 @@ fn continuation_comment_actions(
                 start_line: range.start_line,
                 start_character: 0,
                 end_line: u32::try_from(idx).unwrap_or(range.start_line),
-                end_character: u32::try_from(lines[idx].chars().count()).unwrap_or(0),
+                // LSP columns are UTF-16 code units — use the line's UTF-16
+                // length, not its codepoint count.
+                end_character: char_col_to_utf16_local(lines[idx], lines[idx].chars().count()),
             },
             new_text,
         }],
