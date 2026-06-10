@@ -128,35 +128,50 @@ def test_incr_float_string_errors_interpreted() -> None:
     assert out == '1 {expected integer but got "52.60"}'
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Issue #262: the inline `_emit_incr` codegen fallback (used in "
-        "un-optimised positions such as a `catch {}` body) is permissive — "
-        '`catch {incr i}` with i="52.60" returns `0 53` (and i="abc" '
-        "returns `0 1`) instead of erroring. Root cause: the fallback reads "
-        "the operand via `_emit_unbox_int` -> the runtime `obj_get_int` "
-        "(runtime/zig/valtypes/tcl_obj.zig), which truncates a float/garbage "
-        "string rather than raising; the optimised top-level path routes "
-        "through the strict `tcl_incr` helper instead, which is why a bare "
-        "top-level `incr` traps correctly. Fix: make `_emit_incr` enforce the "
-        "strict-integer guard (call `tcl_incr` / a strict accessor) on the "
-        "inline path too, then remove this xfail. Needs WASM-baseline "
-        "re-validation, so it is tracked here rather than fixed inline."
-    ),
-)
 def test_incr_float_string_errors_aot() -> None:
     """AOT-compiled counterpart of the interpreted #262 test.
 
     Routes ``incr i`` through the inline statement/catch-body codegen
-    rather than the runtime interpreter or the optimised top-level path.
-    This is the live permissiveness bug: the float string ``"52.60"``
-    must error, but the inline path returns 53.  Marked
-    ``xfail(strict=True)`` so it flips to a hard failure (forcing the
-    marker's removal) the moment the codegen path is fixed.
+    (the last statement of a ``catch {}`` body) rather than the runtime
+    interpreter or the optimised top-level path.  This was the live
+    permissiveness bug: the inline ``_emit_incr`` fallback read the
+    operand via the permissive ``obj_get_int`` and silently returned 53.
+    It now routes through the strict ``tcl_incr`` helper (the scan layer
+    requests the import for inline/value/body ``incr`` too), so a
+    non-integer current value errors like every other path.
     """
     out = _run("set i 52.60\nputs [list [catch {incr i} msg] $msg]")
     assert out == '1 {expected integer but got "52.60"}'
+
+
+def test_incr_garbage_string_errors_aot() -> None:
+    """Companion to the float case: ``incr`` of a non-numeric string in a
+    ``catch`` body must error rather than treating the value as 0 and
+    returning 1.  Regression for issue #262."""
+    out = _run("set i abc\nputs [list [catch {incr i} msg] $msg]")
+    assert out == '1 {expected integer but got "abc"}'
+
+
+def test_incr_value_position_float_string_errors() -> None:
+    """``[incr i]`` in value position (command substitution) with a float
+    string must also enforce the strict-integer guard.  Regression for
+    issue #262 (the value-context inline path)."""
+    assert _catch_msg("set i 52.60; incr i") == '1 {expected integer but got "52.60"}'
+
+
+def test_incr_nonint_amount_errors() -> None:
+    """A non-integer *increment* (``incr i 2.5``) must error too — the
+    strict guard applies to both operands.  Regression for issue #262."""
+    assert _catch_msg("set i 5; incr i 2.5") == '1 {expected integer but got "2.5"}'
+
+
+def test_incr_normal_paths_still_work() -> None:
+    """Positive controls: integer ``incr`` in value/catch/statement
+    position still increments, and ``incr`` on an unset scalar still
+    initialises to 0 (Tcl 8.5+)."""
+    assert _run("set i 5\nputs [incr i]") == "6"
+    assert _catch_msg("set i 5; incr i") == "0 6"
+    assert _run("proc p {} {incr x}\nputs [p]") == "1"
 
 
 # ---------------------------------------------------------------------------
