@@ -308,6 +308,10 @@ pub struct Interp {
     children: std::collections::BTreeMap<Vec<u8>, Box<Interp>>,
     /// Counter for auto-generated child names (`interp0`, `interp1`, …).
     interp_counter: usize,
+    /// Hidden commands (`interp hide`): removed from the command table but
+    /// invocable via `interp invokehidden`. A safe interp hides the dangerous
+    /// commands here.
+    hidden: std::collections::BTreeMap<Vec<u8>, Command>,
     /// TclOO object system state (classes, objects, the method-call stack).
     pub(crate) oo: crate::cmd_oo::OoState,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
@@ -344,6 +348,7 @@ impl Interp {
             exc: ExceptionState::default(),
             children: std::collections::BTreeMap::new(),
             interp_counter: 0,
+            hidden: std::collections::BTreeMap::new(),
             oo: crate::cmd_oo::OoState::default(),
             cmd_frames: Vec::new(),
             eval_depth: 0,
@@ -1454,6 +1459,48 @@ impl Interp {
                 self.set_result_bytes(b"");
                 Code::Ok
             }
+            b"hide" | b"expose" if argv.len() == 3 => {
+                let hide = obj_bytes(argv[1]) == b"hide";
+                let cmd = obj_bytes(argv[2]);
+                self.with_child(name, |c| {
+                    if hide {
+                        c.hide_command(&cmd)
+                    } else {
+                        c.expose_command(&cmd)
+                    }
+                });
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            b"invokehidden" if argv.len() >= 3 => {
+                let cmd = obj_bytes(argv[2]);
+                let hidden_argv: Vec<*mut TclObj> = argv[2..].to_vec();
+                for &a in &hidden_argv {
+                    unsafe { obj::incr_ref_count(a) };
+                }
+                let out = self.with_child(name, |c| {
+                    (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
+                });
+                for &a in &hidden_argv {
+                    unsafe { obj::decr_ref_count(a) };
+                }
+                match out {
+                    Some((code, res)) => {
+                        self.set_result_bytes(&res);
+                        code
+                    }
+                    None => self.error(b"could not find interpreter"),
+                }
+            }
+            b"hidden" => {
+                let names = self
+                    .with_child(name, |c| c.hidden_names())
+                    .unwrap_or_default();
+                let elems: Vec<*mut TclObj> =
+                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
+                self.set_result(crate::list::new_list_obj(&elems));
+                Code::Ok
+            }
             other => {
                 let mut m = b"interp subcommand \"".to_vec();
                 m.extend_from_slice(other);
@@ -1484,6 +1531,84 @@ impl Interp {
     /// Whether a child interpreter `name` exists.
     pub(crate) fn child_exists(&self, name: &[u8]) -> bool {
         self.children.contains_key(name)
+    }
+
+    /// Run `f` on the child interpreter `name` (or `None` if it doesn't exist) —
+    /// the mutable-access path for `interp <sub> childPath …`.
+    pub(crate) fn with_child<R>(
+        &mut self,
+        name: &[u8],
+        f: impl FnOnce(&mut Interp) -> R,
+    ) -> Option<R> {
+        self.children.get_mut(name).map(|c| f(c))
+    }
+
+    /// `interp hide name`: move command `name` out of the command table into the
+    /// hidden table. Returns whether it existed.
+    pub(crate) fn hide_command(&mut self, name: &[u8]) -> bool {
+        match self.namespaces.resolve(GLOBAL, name) {
+            Some(cmd) => {
+                self.namespaces.delete(GLOBAL, name);
+                self.hidden.insert(name.to_vec(), cmd);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// `interp expose name`: move a hidden command back into the command table.
+    pub(crate) fn expose_command(&mut self, name: &[u8]) -> bool {
+        match self.hidden.remove(name) {
+            Some(cmd) => {
+                self.namespaces.register(name, cmd);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
+    pub(crate) fn invoke_hidden(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+        match self.hidden.get(name).cloned() {
+            Some(cmd) => self.invoke(cmd, argv),
+            None => {
+                let mut m = b"invalid hidden command name \"".to_vec();
+                m.extend_from_slice(name);
+                m.push(b'"');
+                self.error(&m)
+            }
+        }
+    }
+
+    /// Sorted names of the hidden commands (`interp hidden`).
+    pub(crate) fn hidden_names(&self) -> Vec<Vec<u8>> {
+        self.hidden.keys().cloned().collect()
+    }
+
+    /// Make this interp "safe": hide the commands that touch the host
+    /// (filesystem, processes, sockets, the interpreter itself) — the core of
+    /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
+    /// `file` is a follow-up (needs cross-interp aliases).
+    pub(crate) fn make_safe(&mut self) {
+        const UNSAFE: &[&[u8]] = &[
+            b"exec",
+            b"exit",
+            b"cd",
+            b"pwd",
+            b"glob",
+            b"open",
+            b"socket",
+            b"source",
+            b"load",
+            b"file",
+            b"fconfigure",
+            b"encoding",
+            b"after",
+            b"vwait",
+        ];
+        for &c in UNSAFE {
+            self.hide_command(c);
+        }
     }
 
     /// The names of this interp's direct child interpreters (sorted).

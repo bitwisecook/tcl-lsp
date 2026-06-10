@@ -111,7 +111,27 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Code::Ok
         }
-        // Single-interp runtime: `issafe`/`exists ""` describe the one interp.
+        b"hide" => interp_hidectl(interp, argv, HideOp::Hide),
+        b"expose" => interp_hidectl(interp, argv, HideOp::Expose),
+        b"invokehidden" => interp_invokehidden(interp, argv),
+        b"hidden" => {
+            // `interp hidden ?path?` — hidden command names in the (current or
+            // named) interp.
+            let path = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
+            let names = if path.is_empty() {
+                interp.hidden_names()
+            } else {
+                interp
+                    .with_child(&path, |c| c.hidden_names())
+                    .unwrap_or_default()
+            };
+            let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
+            interp.set_result(list::new_list_obj(&elems));
+            for e in elems {
+                drop_fresh(e);
+            }
+            Code::Ok
+        }
         b"issafe" => {
             interp.set_result_bytes(b"0");
             Code::Ok
@@ -126,15 +146,16 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
-/// its name (auto-generated `interpN` when omitted). `-safe` is accepted but the
-/// sandbox is not yet enforced (a follow-up).
+/// its name (auto-generated `interpN` when omitted). `-safe` hides the
+/// host-touching commands (the Safe Base's re-aliasing is a follow-up).
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut name: Option<Vec<u8>> = None;
+    let mut safe = false;
     let mut i = 2;
     while i < argv.len() {
         let a = obj_bytes(argv[i]);
         match a.as_slice() {
-            b"-safe" => {}
+            b"-safe" => safe = true,
             b"--" => {
                 i += 1;
                 break;
@@ -155,8 +176,96 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         name = Some(p);
     }
     let created = interp.create_child(name);
+    if safe {
+        interp.with_child(&created, |c| c.make_safe());
+    }
     interp.set_result(obj::new_string_bytes(&created));
     Code::Ok
+}
+
+enum HideOp {
+    Hide,
+    Expose,
+}
+
+/// `interp hide|expose path cmdName` — move a command into/out of the hidden
+/// table of the named (or current, when path is `{}`) interpreter.
+fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"interp hide|expose path cmdName");
+    }
+    let path = obj_bytes(argv[2]);
+    let cmd = obj_bytes(argv[3]);
+    let did = if path.is_empty() {
+        match op {
+            HideOp::Hide => interp.hide_command(&cmd),
+            HideOp::Expose => interp.expose_command(&cmd),
+        }
+    } else {
+        interp
+            .with_child(&path, |c| match op {
+                HideOp::Hide => c.hide_command(&cmd),
+                HideOp::Expose => c.expose_command(&cmd),
+            })
+            .unwrap_or(false)
+    };
+    if !did {
+        // Hiding a missing command, or exposing a non-hidden one.
+        let _ = did;
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// `interp invokehidden path ?-opt ...? cmdName ?arg ...?` — invoke a hidden
+/// command in the named (or current) interpreter.
+fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
+    }
+    let path = obj_bytes(argv[2]);
+    // Skip leading option flags (`-namespace ns`, `-global`).
+    let mut i = 3;
+    while i < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-global" => i += 1,
+            b"-namespace" => i += 2,
+            b"--" => {
+                i += 1;
+                break;
+            }
+            s if s.starts_with(b"-") => i += 1,
+            _ => break,
+        }
+    }
+    if i >= argv.len() {
+        return wrong_args(interp, b"interp invokehidden path ?-opt? cmd ?arg ...?");
+    }
+    let cmd = obj_bytes(argv[i]);
+    // Build the hidden command's argv (cmd + remaining args).
+    let mut hidden_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() - i);
+    for &a in &argv[i..] {
+        unsafe { obj::incr_ref_count(a) };
+        hidden_argv.push(a);
+    }
+    let code = if path.is_empty() {
+        interp.invoke_hidden(&cmd, &hidden_argv)
+    } else {
+        // Run in the child; copy its result back.
+        match interp.with_child(&path, |c| {
+            (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
+        }) {
+            Some((code, res)) => {
+                interp.set_result_bytes(&res);
+                code
+            }
+            None => interp.set_error(b"could not find interpreter"),
+        }
+    };
+    for a in hidden_argv {
+        unsafe { obj::decr_ref_count(a) };
+    }
+    code
 }
 
 /// `interp eval path arg ?arg ...?` — evaluate a script in a child interpreter.
@@ -340,6 +449,32 @@ mod tests {
             assert_eq!(i.eval_str(b"interp exists kid"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0");
             assert_eq!(i.eval_str(b"kid eval {set x}"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn hidden_commands_and_safe() {
+        // `interp hide`/`expose`/`invokehidden` + `interp create -safe`.
+        leak_free(|i| {
+            i.eval_str(b"set c [interp create]");
+            i.eval_str(b"$c hide set");
+            // hidden `set` is gone from the child but invocable via invokehidden.
+            assert_eq!(i.eval_str(b"$c eval {set x 1}"), Code::Error);
+            assert_eq!(i.eval_str(b"$c hidden"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"set");
+            assert_eq!(i.eval_str(b"$c invokehidden set y 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"5");
+            i.eval_str(b"$c expose set");
+            assert_eq!(i.eval_str(b"$c eval {set z 9}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9");
+            // `-safe` hides the host-touching commands it has.
+            i.eval_str(b"set s [interp create -safe]");
+            assert_eq!(
+                i.eval_str(b"expr {[lsearch [$s hidden] file] >= 0}"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1");
+            i.eval_str(b"interp delete $c; interp delete $s");
         });
     }
 
