@@ -14,54 +14,38 @@ import argparse
 import json
 import sys
 
-try:
-    from shared._build_info import BUILD_TIMESTAMP, FULL_VERSION
-except ImportError:
-    FULL_VERSION = "dev"
-    BUILD_TIMESTAMP = ""
-
 from tooling.cli.formatters import LineIndex
-from tooling.explorer._render import (
-    _VIEW_ORDER,
-    Ansi,
-    _summary_parts,
-    load_source,
-    optimised_result,
-    render_view_opt,
-    style,
-)
-from tooling.explorer.pipeline import (
-    ALL_VIEWS,
-    AVAILABLE_DIALECTS,
-    VIEW_GROUPS,
-    CompilerExplorerResult,
-    run_pipeline,
-)
-from tooling.explorer.tui import run_tui
+from tooling.explorer._render import Ansi, load_source, style
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS, run_pipeline
+from tooling.explorer.report import ExploreOptions, resolve_views, run_text_report
+
+# Re-exported for the test-suite and the explorer's ``__main__`` shim, which
+# reach these helpers through the CLI module rather than their canonical homes.
+__all__ = [
+    "Ansi",
+    "LineIndex",
+    "expand_show",
+    "load_source",
+    "main",
+    "parse_args",
+    "run_pipeline",
+    "style",
+]
 
 
 def expand_show(raw: str) -> frozenset[str]:
     """Expand a comma-separated ``--show`` value into a set of view names.
 
-    Lives in the CLI adapter (not the pipeline library) because it raises
-    :class:`argparse.ArgumentTypeError` for an unknown view — argparse is
-    an adapter concern, so the pipeline module stays argparse-free.
+    Thin argparse adapter over
+    :func:`tooling.explorer.report.resolve_views`: it translates the
+    library's :class:`ValueError` for an unknown view into an
+    :class:`argparse.ArgumentTypeError`, keeping the shared library
+    argparse-free.
     """
-    views: set[str] = set()
-    for token in raw.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if token in VIEW_GROUPS:
-            views |= VIEW_GROUPS[token]
-        elif token in ALL_VIEWS:
-            views.add(token)
-        else:
-            raise argparse.ArgumentTypeError(
-                f"unknown view {token!r}; choose from: "
-                f"{', '.join(sorted(ALL_VIEWS | set(VIEW_GROUPS)))}"
-            )
-    return frozenset(views)
+    try:
+        return resolve_views(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -166,38 +150,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
-def _render_text(
-    result: CompilerExplorerResult, source: str, args: argparse.Namespace, *, use_colour: bool
-) -> int:
-    line_index = LineIndex(source)
-    _version = FULL_VERSION + (f" ({BUILD_TIMESTAMP})" if BUILD_TIMESTAMP else "")
-    print(style(f"compiler-optimiser-explorer {_version}", Ansi.BOLD, use_colour))
-    print(style(" ".join(_summary_parts(result, args.dialect)), Ansi.DIM, use_colour))
-    opt_label = "" if args.opt == "off" else f"  opt={args.opt}"
-    print(style(f"views: {','.join(sorted(args.views))}{opt_label}", Ansi.DIM, use_colour))
-    print()
-    opt = optimised_result(result, args.dialect) if args.opt != "off" else None
-    for view in _VIEW_ORDER:
-        if view not in args.views:
-            continue
-        if view == "callouts" and args.no_source_callouts:
-            continue
-        render_view_opt(
-            view,
-            result,
-            source,
-            use_colour=use_colour,
-            line_index=line_index,
-            opt_mode=args.opt,
-            opt=opt,
-            views=args.views,
-            show_optimised_source=args.show_optimised_source,
-            max_annotations=args.max_annotations,
-        )
-        print()
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
@@ -225,16 +177,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if mode == "tui":
+        # Imported lazily: the TUI pulls in rich/textual, which are optional
+        # extras not bundled into the zipapp build.  Keeping this out of module
+        # import scope lets `tcl explore --text`/`--json` (and `tcl --help`,
+        # which loads every verb) work without those packages installed.
+        from tooling.explorer.tui import run_tui
+
         return run_tui(source, args)
 
     # text
-    use_colour = (not args.no_colour) and sys.stdout.isatty()
-    try:
-        result = run_pipeline(source, dialect=args.dialect)
-    except Exception as exc:
-        print(f"error: compiler exploration failed: {exc}", file=sys.stderr)
-        return 2
-    return _render_text(result, source, args, use_colour=use_colour)
+    options = ExploreOptions(
+        views=args.views,
+        dialect=args.dialect,
+        opt=args.opt,
+        show_optimised_source=args.show_optimised_source,
+        no_source_callouts=args.no_source_callouts,
+        max_annotations=args.max_annotations,
+        no_colour=args.no_colour,
+    )
+    return run_text_report(source, options)
 
 
 def _textual_available() -> bool:
