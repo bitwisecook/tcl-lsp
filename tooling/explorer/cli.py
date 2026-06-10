@@ -37,7 +37,6 @@ from tooling.explorer.pipeline import (
     CompilerExplorerResult,
     run_pipeline,
 )
-from tooling.explorer.tui import run_tui
 
 
 def expand_show(raw: str) -> frozenset[str]:
@@ -225,6 +224,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if mode == "tui":
+        # Imported lazily: the TUI pulls in rich/textual, which are optional
+        # extras not bundled into the zipapp build.  Keeping this out of module
+        # import scope lets `tcl explore --text`/`--json` (and `tcl --help`,
+        # which loads every verb) work without those packages installed.
+        from tooling.explorer.tui import run_tui
+
         return run_tui(source, args)
 
     # text
