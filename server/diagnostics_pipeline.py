@@ -949,10 +949,9 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
 
 
 def _is_bigip_conf(uri: str) -> bool:
-    from .workspace.scanner import _BIGIP_CONF_NAMES
+    from .workspace.scanner import is_bigip_conf_name
 
-    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
-    return basename in _BIGIP_CONF_NAMES
+    return is_bigip_conf_name(uri)
 
 
 def _is_irules_source(uri: str) -> bool:

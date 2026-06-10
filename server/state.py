@@ -17,7 +17,7 @@ from tooling.formatter import FormatterConfig
 from .async_diagnostics import DiagnosticScheduler
 from .feature_config import FeatureConfig
 from .workspace.document_state import WorkspaceState
-from .workspace.scanner import BackgroundScanner
+from .workspace.scanner import BackgroundScanner, is_bigip_conf_name
 from .workspace.workspace_index import WorkspaceIndex
 
 if TYPE_CHECKING:
@@ -219,13 +219,20 @@ def resolve_dialect_for_uri(
 
     Consults, in priority order:
 
-    1. ``detect_dialect_from_source(source)`` — in-source hints (shebang,
-       ``# tcl-dialect:`` directive, ``package require Tcl X.Y``, conf-wrapped
-       iRules).
+    1. An explicit ``# tcl-dialect:`` directive in the source — the user's
+       override always wins.
     2. BIG-IP configuration file detection (by basename → ``"f5-bigip"``).
-    3. The folder-scoped ``FeatureConfig`` (longest workspace-folder prefix
+       This beats the rest of source autodetection so a ``bigip.conf`` that
+       embeds ``ltm rule`` stanzas is not misclassified as ``f5-irules`` by
+       the conf-wrapped-iRules heuristic.
+    3. The remaining in-source hints (shebang, ``package require Tcl X.Y``,
+       conf-wrapped iRules) via ``detect_dialect_from_source(source)``.
+    4. The folder-scoped ``FeatureConfig`` (longest workspace-folder prefix
        match) — its ``dialect`` / ``extra_commands`` fields when set.
-    4. The workspace-fallback ``FeatureConfig`` — same fields.
+    5. The workspace-fallback ``FeatureConfig`` — same fields.
+
+    Steps 1-3 mirror ``infer_document_dialect`` so the two resolvers never
+    disagree about a document's dialect.
 
     Each component may independently be ``None`` (meaning "inherit the
     process default that ``configure_signatures`` set at server startup /
@@ -233,26 +240,32 @@ def resolve_dialect_for_uri(
     :func:`compiler.registry.dialect.dialect_scope` with the result; ``None``
     values leave the corresponding ContextVar untouched.
     """
-    from compiler.registry.dialect import detect_dialect_from_source
+    from compiler.registry.dialect import (
+        detect_dialect_directive,
+        detect_dialect_from_source,
+    )
 
     dialect: str | None = None
     extras: tuple[str, ...] | None = None
 
+    # 1. Explicit ``# tcl-dialect:`` directive — the user's override wins.
     if source is not None:
+        dialect = detect_dialect_directive(source)
+
+    # 2. BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are not
+    #    Tcl source — they are key-value config stanzas that often embed
+    #    ``ltm rule`` stanzas.  Resolve their dialect to ``"f5-bigip"`` ahead
+    #    of source autodetection so the conf-wrapped-iRules heuristic in
+    #    ``detect_dialect_from_source`` cannot misclassify them as
+    #    ``f5-irules`` (which would defeat the f5-bigip analysis skip).
+    if dialect is None and doc_uri is not None and is_bigip_conf_name(doc_uri):
+        dialect = "f5-bigip"
+
+    # 3. Remaining in-source hints (shebang, package require, conf-wrapped).
+    if dialect is None and source is not None:
         detected = detect_dialect_from_source(source)
         if detected is not None:
             dialect = detected
-
-    # BIG-IP configuration files (bigip.conf, bigip_base.conf, …) are
-    # not Tcl source — they are key-value config stanzas.  Resolve
-    # their dialect to ``"f5-bigip"`` so the general Tcl analysis
-    # pipeline knows to skip them.
-    if dialect is None and doc_uri is not None:
-        from server.workspace.scanner import _BIGIP_CONF_NAMES
-
-        basename = doc_uri.rsplit("/", 1)[-1].lower() if "/" in doc_uri else doc_uri.lower()
-        if basename in _BIGIP_CONF_NAMES:
-            dialect = "f5-bigip"
 
     cfg = config_for_uri(doc_uri)
     if dialect is None and cfg.dialect is not None:
