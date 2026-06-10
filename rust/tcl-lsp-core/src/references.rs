@@ -884,6 +884,7 @@ mod tests {
                 definition_span: Span::new(4, 5),
                 references: vec![Span::new(13, 14)],
                 warn_if_unused: false,
+                array_indices: std::collections::BTreeSet::new(),
             },
         );
         let a = Result {

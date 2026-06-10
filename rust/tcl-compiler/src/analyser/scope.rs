@@ -19,7 +19,7 @@
 
 use tcl_lexer::{Span, Token};
 
-use crate::naming::{normalise_qualified_name, normalise_var_name};
+use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 
 use super::state::Analyser;
 use super::types::{Scope, ScopeKind, VarDef};
@@ -415,6 +415,11 @@ impl Analyser {
         if base_name.is_empty() {
             return;
         }
+        // An `$arr(idx)` read records the element index on the array var.
+        let element = split_array_name(name)
+            .1
+            .filter(|e| !e.is_empty())
+            .map(ToString::to_string);
 
         // Local scope first.
         let path = scope_path.to_vec();
@@ -422,6 +427,9 @@ impl Analyser {
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
             if let Some(var) = scope.variables.get_mut(&base_owned) {
                 var.references.push(read_span);
+                if let Some(e) = element {
+                    var.array_indices.insert(e);
+                }
                 return;
             }
         }
@@ -430,6 +438,9 @@ impl Analyser {
         if base_owned.starts_with("::") || base_owned.starts_with("static::") {
             if let Some(var) = self.result.global_scope.variables.get_mut(&base_owned) {
                 var.references.push(read_span);
+                if let Some(e) = element {
+                    var.array_indices.insert(e);
+                }
             }
         }
     }
@@ -456,26 +467,53 @@ impl Analyser {
         }
         let base_owned = base_name.to_string();
         let span = definition_span.unwrap_or(tok.span);
+        // A `set arr(idx) …` definition records the element index on the array.
+        let element = split_array_name(name)
+            .1
+            .filter(|e| !e.is_empty())
+            .map(ToString::to_string);
 
         let path = scope_path.to_vec();
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {
             return;
         };
 
-        if !scope.variables.contains_key(&base_owned) {
+        if let Some(existing) = scope.variables.get_mut(&base_owned) {
+            // Re-definition (`set x` twice) does not overwrite the original
+            // declaration span, but its span is recorded as a reference so
+            // find-references / rename see every assignment, and it escalates
+            // the unused flag.  Array indices accumulate.
+            if span != existing.definition_span {
+                existing.references.push(span);
+            }
+            if warn_if_unused {
+                existing.warn_if_unused = true;
+            }
+            if let Some(e) = element {
+                existing.array_indices.insert(e);
+            }
+            if let Some(global) = self
+                .result
+                .all_variables
+                .get_mut(&format!("{}::{base_owned}", scope.name))
+            {
+                *global = scope.variables[&base_owned].clone();
+            }
+        } else {
+            let mut indices = std::collections::BTreeSet::new();
+            if let Some(e) = element {
+                indices.insert(e);
+            }
             let var = VarDef {
                 name: base_owned.clone(),
                 definition_span: span,
                 references: Vec::new(),
                 warn_if_unused,
+                array_indices: indices,
             };
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
             self.result.all_variables.insert(key, var);
-        } else if warn_if_unused {
-            if let Some(existing) = scope.variables.get_mut(&base_owned) {
-                existing.warn_if_unused = true;
-            }
         }
     }
 

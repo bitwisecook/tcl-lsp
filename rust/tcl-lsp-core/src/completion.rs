@@ -379,13 +379,16 @@ fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, St
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
 
-    // Run of identifier-continuation chars immediately before
-    // the cursor — that is the partial.
+    // Run of identifier-continuation chars immediately before the cursor —
+    // that is the partial.  `(` is included so an array reference (`$arr(na`)
+    // is captured whole; the array branch in `variable_completions` then
+    // splits on it.
     let mut start = col;
     while start > 0
         && (chars[start - 1].is_alphanumeric()
             || chars[start - 1] == '_'
-            || chars[start - 1] == ':')
+            || chars[start - 1] == ':'
+            || chars[start - 1] == '(')
     {
         start -= 1;
     }
@@ -514,9 +517,62 @@ fn variable_completions(
     let edit_start = dollar.map(|d| char_col_to_utf16(line_text, d));
     let edit_end = char_col_to_utf16(line_text, end);
 
+    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+
+    // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
+    // indices of `arr` as `$arr(index)`.  Mirrors completion.py's `(` branch.
+    if let Some(paren) = partial.find('(') {
+        let arr_name = partial[..paren].trim_start_matches('{');
+        let elem_prefix = &partial[paren + 1..];
+        if let Some(arr_def) =
+            crate::definition::lookup_var_in_scope_chain(scope, byte_offset, arr_name)
+        {
+            if !arr_def.array_indices.is_empty() && is_bare_var_name(arr_name) {
+                // Extend the replace range to swallow an existing `)`.
+                let mut arr_end = end;
+                let line_chars: Vec<char> = line_text.chars().collect();
+                while arr_end < line_chars.len() && line_chars[arr_end] != ')' {
+                    arr_end += 1;
+                }
+                if arr_end < line_chars.len() && line_chars[arr_end] == ')' {
+                    arr_end += 1;
+                }
+                let arr_edit_end = char_col_to_utf16(line_text, arr_end);
+                let mut items = Vec::new();
+                for elem in &arr_def.array_indices {
+                    if elem.is_empty() || elem.contains(')') {
+                        continue;
+                    }
+                    if !elem_prefix.is_empty() && !elem.starts_with(elem_prefix) {
+                        continue;
+                    }
+                    let new_text = format!("${arr_name}({elem})");
+                    let text_edit = edit_start.map(|start_char| CompletionEdit {
+                        start_char,
+                        end_char: arr_edit_end,
+                        new_text: new_text.clone(),
+                    });
+                    items.push(CompletionItem {
+                        label: format!("${arr_name}({elem})"),
+                        insert_text: new_text,
+                        kind: CompletionKind::Variable,
+                        detail: None,
+                        sort_text: None,
+                        is_snippet: false,
+                        filter_text: None,
+                        text_edit,
+                        documentation: None,
+                    });
+                }
+                items.sort_by(|a, b| a.label.cmp(&b.label));
+                return items;
+            }
+        }
+        return Vec::new();
+    }
+
     // Scope-aware: union of variables visible at the cursor (innermost scope
     // first, then enclosing scopes up to the global root).
-    let byte_offset = crate::definition::byte_offset_at(source, line, character);
     let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
         .into_iter()
         .filter(|n| n.starts_with(partial) && var_is_substitutable(n))

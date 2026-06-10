@@ -2796,6 +2796,7 @@ mod tests {
             definition_span: tcl_lexer::Span::new(0, 1),
             references: Vec::new(),
             warn_if_unused: false,
+            array_indices: std::collections::BTreeSet::new(),
         };
         let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
         assert!(text.contains("**Inferred intrep**: int"), "{text}");

@@ -139,6 +139,10 @@ pub struct VarDef {
     /// True when an unused-var warning should still fire even if
     /// the var is exported via a known mechanism (e.g. ``upvar``).
     pub warn_if_unused: bool,
+    /// Array element indices observed for this variable (`set arr(name) …`
+    /// / `$arr(name)`).  Used by completion to offer `$arr(name)`.
+    /// Mirrors Python `VarDef.array_indices`.
+    pub array_indices: std::collections::BTreeSet<String>,
 }
 
 /// How a proc parameter is used inside the proc body.
