@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
 
+from .dialects import KNOWN_DIALECTS
 from .runtime import (
     _canonical_dialect,
     _dialect_var,
@@ -119,8 +120,6 @@ def detect_dialect_directive(source: str) -> str | None:
     user directive priority over filename heuristics (e.g. BIG-IP config
     basenames) while leaving the rest of the autodetection lower-priority.
     """
-    from compiler.registry.dialects import KNOWN_DIALECTS
-
     for line in source.split("\n", DIALECT_DIRECTIVE_SCAN_LINES)[:DIALECT_DIRECTIVE_SCAN_LINES]:
         m = _DIALECT_DIRECTIVE_RE.match(line)
         if m:

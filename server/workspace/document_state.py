@@ -47,6 +47,7 @@ from compiler.registry.dialect import (
 )
 from compiler.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from compiler.registry.runtime import is_irules_dialect
+from server.workspace.scanner import is_bigip_conf_name
 from shared.codes import default_disabled_diagnostics
 from shared.document_buffer import DocumentBuffer
 from shared.rope import RopeEdit
@@ -240,8 +241,6 @@ def infer_document_dialect(uri: str, source: str, language_id: str = "") -> str 
     # source autodetection so the conf-wrapped-iRules heuristic in
     # ``detect_dialect_from_source`` cannot misclassify them as ``f5-irules``
     # (which would defeat the f5-bigip analysis skip).
-    from server.workspace.scanner import is_bigip_conf_name
-
     if is_bigip_conf_name(uri):
         return "f5-bigip"
 

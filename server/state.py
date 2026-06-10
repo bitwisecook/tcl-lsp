@@ -12,6 +12,11 @@ from typing import TYPE_CHECKING
 
 import server._codes_init  # noqa: F401  # must precede feature_config import so profile categories are computed with full registry
 from analyser.packages import PackageResolver
+from compiler.registry.dialect import (
+    detect_dialect_directive,
+    detect_dialect_from_source,
+    dialect_scope,
+)
 from tooling.formatter import FormatterConfig
 
 from .async_diagnostics import DiagnosticScheduler
@@ -121,8 +126,6 @@ def dialect_scope_for_uri(doc_uri: str | None, source: str | None = None):
         with _state.dialect_scope_for_uri(uri, source):
             ...
     """
-    from compiler.registry.dialect import dialect_scope
-
     dialect, extras = resolve_dialect_for_uri(doc_uri, source)
     return dialect_scope(dialect=dialect, extra_commands=extras)
 
@@ -240,11 +243,6 @@ def resolve_dialect_for_uri(
     :func:`compiler.registry.dialect.dialect_scope` with the result; ``None``
     values leave the corresponding ContextVar untouched.
     """
-    from compiler.registry.dialect import (
-        detect_dialect_directive,
-        detect_dialect_from_source,
-    )
-
     dialect: str | None = None
     extras: tuple[str, ...] | None = None
 

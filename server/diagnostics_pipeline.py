@@ -20,7 +20,7 @@ from .features.diagnostics import (
     get_deep_diagnostics,
     get_diagnostics,
 )
-from .workspace.scanner import path_to_uri, uri_to_path
+from .workspace.scanner import is_bigip_conf_name, path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource
 
 if TYPE_CHECKING:
@@ -949,8 +949,6 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
 
 
 def _is_bigip_conf(uri: str) -> bool:
-    from .workspace.scanner import is_bigip_conf_name
-
     return is_bigip_conf_name(uri)
 
 
