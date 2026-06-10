@@ -194,6 +194,10 @@ pub fn legend_token_modifiers() -> Vec<&'static str> {
 /// `1 << _MOD_INDEX["defaultLibrary"]`.
 const MOD_DEFAULT_LIBRARY: u32 = 1 << 3;
 
+/// `definition` modifier bit (legend index 1) — set on the name token of a
+/// `proc` definition.
+const MOD_DEFINITION: u32 = 1 << 1;
+
 /// Sub-keywords highlighted as `keyword` that are **not** standalone
 /// commands, so they have no `CommandSpec` to carry the
 /// `LANGUAGE_KEYWORD` trait: clause keywords of `if`/`try`/`switch`
@@ -353,6 +357,8 @@ enum ArgOverride {
     Decorator,
     /// A known subcommand word (arg index 1) → `Keyword` + `defaultLibrary`.
     SubcommandKeyword,
+    /// The name argument of a `proc` definition → `Function` + `definition`.
+    ProcNameDef,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -466,6 +472,7 @@ fn push_regsub_subtokens(
 ///
 /// The format-string (`%Y` / `%s`) and `BigIP` object sub-token
 /// taxonomies remain the deferred bulk of `S-semantic-tokens-rich`.
+#[allow(clippy::too_many_lines)]
 fn special_arg_kinds(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -551,6 +558,15 @@ fn special_arg_kinds(
             if let Some(tok) = seg.argv.get(w) {
                 overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
             }
+        }
+    }
+
+    // `proc NAME …` — the name argument is a function definition.
+    if head == "proc" {
+        if let Some(tok) = seg.argv.get(1) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::ProcNameDef);
         }
     }
 
@@ -1461,6 +1477,16 @@ fn collect_script(
                         *tok,
                         TokenKind::Keyword,
                         MOD_DEFAULT_LIBRARY,
+                        entries,
+                    );
+                }
+                Some(ArgOverride::ProcNameDef) => {
+                    push_token(
+                        line_index,
+                        full_source,
+                        *tok,
+                        TokenKind::Function,
+                        MOD_DEFINITION,
                         entries,
                     );
                 }
