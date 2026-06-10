@@ -1286,6 +1286,79 @@ fn push_subtoken(
 /// against pathological nesting (mirrors Python's `_collect_tokens` cap).
 const MAX_TOKEN_RECURSION: u32 = 32;
 
+/// Emit the command-head token, splitting a namespace-qualified head
+/// (`oo::class`, `::set`) into a `namespace` token for the leading
+/// `…::` prefix plus a command token for the final segment — mirrors
+/// Python's `_emit_namespace_qualified`.  A bare head is emitted whole,
+/// carrying `defaultLibrary` when it resolves to a registry built-in.
+fn emit_command_head(
+    line_index: &LineIndex,
+    full_source: &str,
+    head_tok: Token,
+    head_text: &str,
+    registry: &CommandRegistry,
+    entries: &mut Vec<Entry>,
+) {
+    let full_kind = classify_command_head(head_text, registry);
+    // Split any `…::name` head (namespace-qualified command or keyword) into a
+    // namespace prefix + final-segment command token.
+    if head_text.contains("::") {
+        if let Some(idx) = head_text.rfind("::") {
+            // Byte length of the `…::` prefix (head_text bytes == span bytes).
+            let prefix_len = u32::try_from(idx + 2).unwrap_or(0);
+            let start = head_tok.span.start();
+            // Namespace prefix token.
+            push_token(
+                line_index,
+                full_source,
+                Token {
+                    span: tcl_lexer::Span::new(start, start + prefix_len),
+                    ..head_tok
+                },
+                TokenKind::Namespace,
+                0,
+                entries,
+            );
+            // Final-segment command token: keyword when the full name is a
+            // language keyword (TclOO `oo::class` etc.), else function;
+            // `defaultLibrary` when the full name is a registry built-in.
+            let tail = &head_text[idx + 2..];
+            let is_keyword = registry.get(head_text).is_some_and(|s| {
+                s.traits
+                    .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
+            }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&tail);
+            let kind = if is_keyword {
+                TokenKind::Keyword
+            } else {
+                TokenKind::Function
+            };
+            let mods = if kind == TokenKind::Function && registry.get(head_text).is_some() {
+                MOD_DEFAULT_LIBRARY
+            } else {
+                0
+            };
+            push_token(
+                line_index,
+                full_source,
+                Token {
+                    span: tcl_lexer::Span::new(start + prefix_len, head_tok.span.end()),
+                    ..head_tok
+                },
+                kind,
+                mods,
+                entries,
+            );
+            return;
+        }
+    }
+    let mods = if full_kind == TokenKind::Function && registry.get(head_text).is_some() {
+        MOD_DEFAULT_LIBRARY
+    } else {
+        0
+    };
+    push_token(line_index, full_source, head_tok, full_kind, mods, entries);
+}
+
 /// Segment `text` (anchored at absolute byte `base_offset` within
 /// `full_source`) into commands and push a semantic-token [`Entry`] for each
 /// token, recursing into braced bodies (`ArgRole::Body`), braced expressions
@@ -1319,18 +1392,12 @@ fn collect_script(
         // `_collect.py`: `is_cmd_name && function && builtin`).
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        let head_kind = classify_command_head(head_text, registry);
-        let head_mods = if head_kind == TokenKind::Function && registry.get(head_text).is_some() {
-            MOD_DEFAULT_LIBRARY
-        } else {
-            0
-        };
-        push_token(
+        emit_command_head(
             line_index,
             full_source,
             head_tok,
-            head_kind,
-            head_mods,
+            head_text,
+            registry,
             entries,
         );
 
