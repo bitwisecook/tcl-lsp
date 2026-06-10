@@ -4174,6 +4174,22 @@ Advances the anchor from `origin/main`@`08babde2` (SYNC-JUN09) to
 `origin/main`@`0becf577` (#571).  Histories remain unrelated (no
 merge-base) — per-file audit of the **9** intervening commits:
 
+> **SYNC-JUN10b follow-up — anchor → `origin/main`@`6d7c4a06` (#570).**
+> Main then landed #570 (*resolve all CodeQL alerts — break import cycles by
+> lifting, plus forward-only cleanups*, 78 files across `compiler/`, `server/`,
+> `analyser/`, `dialects/`, `tooling/` + `.importlinter`).  Absorbed onto the
+> branch by cherry-picking #570 (its parent is exactly the `0becf577` anchor,
+> so it 3-way-merged cleanly).  **Out of scope for the Rust port** — it is a
+> Python module-structure refactor (e.g. the lexer's dialect ContextVar lifted
+> to `compiler.dialect_context` to break a cycle); the equivalent boundaries
+> are enforced *by construction* in the Rust crate DAG, so there is no Rust
+> mirror, and the import-cycle lifts in fact validate the crate-boundary graph
+> the workspace already targets.  Only `compiler/parsing/lexer.py` overlapped
+> the Rust lexer shim and auto-merged (the hook still calls
+> `_expand_syntax_active()` / `_irules_brace_separator_active()`);
+> `shared.diagnostic` / `shared.tokens` were untouched, so
+> `compiler/rust_spans.py` stays contract-legal (`import-linter` 7/7 kept).
+
 | # | commit | classification |
 |---|---|---|
 | #551 | `186f0fbd` | `{*}` expansion truncation + list scaling O(N²) — **out of scope** (WASM/Zig VM; the Rust CST already models `{*}` as an `Expand` marker, CST-PORT strip 5). |
