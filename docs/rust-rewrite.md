@@ -4179,16 +4179,33 @@ merge-base) — per-file audit of the **9** intervening commits:
 > lifting, plus forward-only cleanups*, 78 files across `compiler/`, `server/`,
 > `analyser/`, `dialects/`, `tooling/` + `.importlinter`).  Absorbed onto the
 > branch by cherry-picking #570 (its parent is exactly the `0becf577` anchor,
-> so it 3-way-merged cleanly).  **Out of scope for the Rust port** — it is a
-> Python module-structure refactor (e.g. the lexer's dialect ContextVar lifted
-> to `compiler.dialect_context` to break a cycle); the equivalent boundaries
-> are enforced *by construction* in the Rust crate DAG, so there is no Rust
-> mirror, and the import-cycle lifts in fact validate the crate-boundary graph
-> the workspace already targets.  Only `compiler/parsing/lexer.py` overlapped
-> the Rust lexer shim and auto-merged (the hook still calls
-> `_expand_syntax_active()` / `_irules_brace_separator_active()`);
+> so it 3-way-merged cleanly).
+>
+> **Audited for Rust relevance — none.**  Every CodeQL fix category is
+> behaviour-preserving: `py/ineffectual-statement` (`...` → `pass`,
+> `await task` → `_ = await task`), `py/unused-import` / `-global` / `-local`
+> (dead-code removal), `py/uninitialized-local-variable` (distinct match/case
+> capture names), `py/mixed-returns` (explicit `return` after an *exhaustive*
+> match — no path change), `py/empty-except` (comments only), `py/cyclic-import`
+> (deferred / lifted imports), and one JS `var data` declaration.  No analyser,
+> compiler, optimiser, or runtime **semantics** changed, so there is **no Rust
+> port row**; the import-cycle lifts merely validate the crate-boundary DAG the
+> Rust workspace already enforces by construction.
+>
+> One Python→Rust **mapping breadcrumb** for future audits: the SCCP/GVN lattice
+> types `LatticeKind` / `LatticeValue` (+ `UNKNOWN` / `OVERDEFINED` / `const` /
+> `constset` / `_to_set`) were relocated verbatim from `core_analyses.py` to the
+> new `compiler/analysis_types.py` — the Rust lattice in `tcl-compiler` is
+> independent and unchanged; only the Python source path moved.
+>
+> Tree parity: among all core Python concern dirs the branch is byte-identical
+> to `origin/main`@`6d7c4a06` except the four intentional Rust-workstream edits
+> (`compiler/parsing/lexer.py` shim — auto-merged, hook still calls
+> `_expand_syntax_active()` / `_irules_brace_separator_active()`;
+> `compiler/rust_spans.py`; the two `tests/lsp_e2e` harness files).
 > `shared.diagnostic` / `shared.tokens` were untouched, so
 > `compiler/rust_spans.py` stays contract-legal (`import-linter` 7/7 kept).
+> The rebased branch therefore tracks main's new head `6d7c4a06`.
 
 | # | commit | classification |
 |---|---|---|
