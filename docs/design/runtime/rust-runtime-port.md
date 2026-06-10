@@ -1699,10 +1699,11 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `binary format`/`scan` | 116 / 168 | 51 | 8325 / 17673 |
 | + child interpreters | 118 / 168 | 49 | 8406 / 17855 |
 | + TclOO core | 120 / 168 | 47 | 8415 / 18298 |
-| + TclOO expand / info prefix / hidden+safe | **122 / 168** | 45 | **8529 / 18775** |
+| + TclOO expand / info prefix / hidden+safe | 122 / 168 | 45 | 8529 / 18775 |
+| + cross-interp aliases | **122 / 168** | 45 | **8546 / 18775** |
 
 Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
-**81 → 45**, **+2957 tests pass**, and **zero panics** (the passed *count*
+**81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
 matters more than the ~47% rate — the denominator grows as more files run their
 full test sets). The unblocking fixes:
 
@@ -1732,7 +1733,13 @@ full test sets). The unblocking fixes:
   `commands` (unblocks interp.test, 48/354).
 - hidden commands (`interp hide`/`expose`/`invokehidden`/`hidden`, + the
   `$child` forms) and `interp create -safe` (hides the host-touching commands
-  the runtime has).
+  the runtime has);
+- **cross-interp aliases** — a child alias delegating to a parent command
+  (`interp alias child name {} target …`, `$child alias name target …`).
+  `eval_in_child` removes the child from the parent's table for the eval and
+  hands it a raw parent pointer (disjoint, dormant parent); a thread-local
+  depth guard rejects nested cross-interp calls rather than risk an aliased
+  `&mut`. interp.test 79 → 94.
 
 Biggest remaining error-before-summary blockers, by file count:
 
@@ -1743,12 +1750,13 @@ Biggest remaining error-before-summary blockers, by file count:
 | `tcl::test` package | 2 | the C-tier test commands |
 | `auto_load` in children | 2 | child interps lack the full `init.tcl` |
 
-**Deferred (architectural):** cross-interp aliases — a child alias delegating
-to a *parent* command — and thus the full Safe Base (`source`/`load`/`file`
-re-aliasing that `safe*.test` needs). The parent owns each child as a
-`Box<Interp>`, so a child cannot call back into the parent during a borrowed
-`eval`; this needs the parent threaded through the child eval (or a flat
-interp registry, dropping the ownership tree).
+**Deferred:** the full Safe Base (`safe.tcl` — `source`/`load`/`file`
+re-aliasing that `safe*.test` needs) builds on cross-interp aliases (now
+present) plus auto-loading in children and *deep* cross-interp re-entrancy
+(parent alias → back into the same child). The latter is what the depth guard
+currently rejects; lifting it needs the parent threaded through the child eval
+(or a flat interp registry replacing the ownership tree) so re-entrant
+`&mut Interp` access is provably non-overlapping.
 
 > Per-file detail is in the sweep's `--json` (`scripts/dev/rust_tcltest_sweep.py
 > --json`). Drive these down toward the Zig baseline.
