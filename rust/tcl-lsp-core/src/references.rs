@@ -66,6 +66,7 @@ use crate::hover::{find_var_at_position, find_word_span_at_position};
 /// flag — when `true`, the symbol's defining span is the first
 /// element of the returned vector.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn references(
     source: &str,
     dialect: &str,
