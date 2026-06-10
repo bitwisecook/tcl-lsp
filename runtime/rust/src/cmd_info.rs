@@ -427,6 +427,20 @@ mod tests {
     }
 
     #[test]
+    fn info_frame_uplevel_is_eval_typed_without_level() {
+        // An `uplevel` body is `type eval` (a fresh dynamically-evaluated body),
+        // keeps the *invoking* proc's name, and omits the `level` key (its scope
+        // is redirected). Byte-verified vs tclsh 9.0.
+        leak_free(|i| {
+            run(i, b"proc h {} { uplevel 1 { return [info frame 0] } }");
+            assert_eq!(
+                run(i, b"h"),
+                b"type eval line 1 cmd {info frame 0} proc ::h"
+            );
+        });
+    }
+
+    #[test]
     fn info_complete_balances() {
         leak_free(|i| {
             assert_eq!(run(i, b"info complete {set x 1}"), b"1");

@@ -1411,11 +1411,14 @@ the Zig rep.
     `while executing` / `invoked from within` / `(procedure "x" line N)`
     unwinder, byte-verified vs tclsh 9.0), and **PC-5 — `info frame` + `source`
     frames** (the persistent `CmdFrame` stack: `type`/`line`/`cmd`/`proc`/
-    `file`/`level`, byte-verified vs tclsh 9.0). Remaining proc-chunk items:
-    `info errorstack` (TIP 348), `return -options` errorinfo restore,
-    file-absolute `info frame` lines for source-defined procs, and the
-    expr/`foreach` bytecode-boundary trace approximations noted in
-    `proc-call-and-stack-traces.md` §8.
+    `file`/`level`, byte-verified vs tclsh 9.0 — including file-absolute lines
+    for source-defined procs and the `uplevel`/`eval`-body cases). Remaining
+    proc-chunk items: `return -options` errorinfo restore, and the
+    expr/`foreach`/`eval`-body **bytecode-boundary** trace approximations noted
+    in `proc-call-and-stack-traces.md` §8. `info errorstack` (TIP 348) is
+    **out of scope** — its `INNER` element exposes tclvm bytecode opcodes a
+    WASM-targeting runtime cannot reproduce (the bytecode/disassembly exclusion
+    class).
 - **T1.7 — re-export the codegen ABI.** The AOT codegen imports a fixed set of
   `tcl_*`/`obj_*` primitives; the Rust runtime must export the same names/sigs
   so the parity check and the compiled-script harness stay green. Also the wasm

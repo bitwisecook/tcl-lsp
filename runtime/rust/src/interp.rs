@@ -79,6 +79,9 @@ pub(crate) struct CallMeta<'a> {
     /// The file the body was defined in (`source`d) — makes its `info frame`
     /// `type source` with this `file`.
     pub source: Option<Rc<[u8]>>,
+    /// The body's `info frame` line base (file-absolute for a source-defined
+    /// proc, 0 otherwise).
+    pub body_line_base: u32,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -89,29 +92,65 @@ pub(crate) struct CallMeta<'a> {
 /// `cmd`/`line` are updated to the currently-executing command of the
 /// frame-owning script as the eval loop steps through it.
 struct CmdFrame {
-    /// The file this script came from (`source`d / a proc defined in one) →
-    /// `type source` + the `file` key. `None` ⇒ `type proc`/`eval`.
+    /// The frame's location `type` (`eval`/`proc`/`source`). Explicit rather than
+    /// derived: an `uplevel` body is `type eval` yet still names the invoking
+    /// proc, and an `eval` body inherits the enclosing kind.
+    kind: FrameKind,
+    /// The file this script came from (`source`d / a proc defined in one) — the
+    /// `file` key (present for `source` frames).
     file: Option<Rc<[u8]>>,
     /// The proc FQN this frame runs in (a proc call; `eval`/`uplevel` bodies
-    /// inherit the enclosing proc) → the `proc` key and `type proc`. `None` at
-    /// the global level (`type eval`).
+    /// inherit the enclosing proc) — the `proc` key. `None` at the global level.
     proc: Option<Vec<u8>>,
     /// The proc (call) level this frame runs in; the `level` key is the distance
     /// from the current level (`current_level - this`).
     level: usize,
+    /// Omit the `level` key — C drops it when the frame's CallFrame is not on the
+    /// current var-scope chain, which is the `uplevel` case (its body runs in a
+    /// redirected scope).
+    omit_level: bool,
+    /// Added to a body-relative line to get the reported `line`. `0` for
+    /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
+    /// for a proc defined in a `source`d file it is the file line where the body
+    /// began minus one, so its commands report file-absolute lines.
+    line_base: u32,
     /// The currently-executing command at this level (the `cmd` key) and its
-    /// 1-based source line (the `line` key).
+    /// reported source line (the `line` key).
     cmd: Vec<u8>,
     line: u32,
+}
+
+/// A `CmdFrame`'s location type (`info frame`'s `type` key).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FrameKind {
+    /// Top level / an `eval` or `uplevel` body (`type eval`).
+    Eval,
+    /// A proc body (`type proc`).
+    Proc,
+    /// A `source`d file, or a proc defined in one (`type source`).
+    Source,
+}
+
+impl FrameKind {
+    fn as_bytes(self) -> &'static [u8] {
+        match self {
+            FrameKind::Eval => b"eval",
+            FrameKind::Proc => b"proc",
+            FrameKind::Source => b"source",
+        }
+    }
 }
 
 impl CmdFrame {
     /// The top-level script frame (`type eval`, global level).
     fn root() -> Self {
         CmdFrame {
+            kind: FrameKind::Eval,
             file: None,
             proc: None,
             level: 0,
+            omit_level: false,
+            line_base: 0,
             cmd: Vec::new(),
             line: 1,
         }
@@ -205,6 +244,10 @@ pub struct ProcDef {
     /// The file the proc was defined in (`source`d), if any — makes its body
     /// frame `type source` with this `file` (`info frame`).
     pub source: Option<Rc<[u8]>>,
+    /// The line base for the body's `info frame` lines: `0` (body-relative) for
+    /// an eval-defined proc, or the defining file line minus one for one defined
+    /// in a `source`d file (so its commands report file-absolute lines).
+    pub body_line_base: u32,
 }
 
 /// `Tcl_Interp`. Owns the frame stack, the command table, and the current
@@ -343,16 +386,31 @@ impl Interp {
         }
         fqn.extend_from_slice(&tail);
         // A proc defined while a file is being sourced records that file, so its
-        // body frame reports `type source`.
+        // body frame reports `type source`. Its body lines are then file-absolute
+        // (C's literal line table): the base is the file line of the `proc`
+        // command minus one (the body opens on that line). Eval-defined procs
+        // keep body-relative lines (base 0).
         let source = self.script_stack.last().map(|f| Rc::from(f.as_slice()));
+        let body_line_base = if source.is_some() {
+            self.current_cmd_line().saturating_sub(1)
+        } else {
+            0
+        };
         let def = Rc::new(ProcDef {
             params,
             body,
             ns,
             fqn,
             source,
+            body_line_base,
         });
         self.namespaces.bind(ns, &tail, Command::Proc(def));
+    }
+
+    /// The reported `line` of the command currently executing at the top of the
+    /// `info frame` stack (for fixing a source-defined proc's body line base).
+    fn current_cmd_line(&self) -> u32 {
+        self.cmd_frames.last().map_or(1, |f| f.line)
     }
 
     /// Whether `name` resolves to an ensemble command (`namespace ensemble
@@ -472,12 +530,15 @@ impl Interp {
     /// `source`: evaluate `script` as a sourced file named `name`, tracking it on
     /// the script stack (`info script`). A top-level `return` ends the file (the
     /// return boundary maps `return` → Ok); other codes propagate.
-    pub(crate) fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
+    pub fn eval_sourced(&mut self, script: &[u8], name: &[u8]) -> Code {
         self.script_stack.push(name.to_vec());
         // A `source`d file is its own `info frame` level: `type source` + the
-        // file path, inheriting the enclosing proc/level.
+        // file path, inheriting the enclosing proc/level. Its commands are
+        // numbered by the file's own lines (base 0, the file *is* the script).
         let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Source;
         frame.file = Some(Rc::from(name));
+        frame.line_base = 0;
         let code = self.eval_framed(script, frame);
         self.script_stack.pop();
         self.settle_return(code)
@@ -496,11 +557,17 @@ impl Interp {
         let prev_level = self.frames.set_active_level(target_level);
         let prev_ns = self.current_ns;
         self.current_ns = self.frames.frame_ns(target_level);
-        // The `uplevel` body runs at the target call level (its own `info frame`
-        // level); the proc/file context is inherited (an approximation of the
-        // target frame's — exact target-proc resolution is a follow-up).
+        // The `uplevel` body is a fresh dynamically-evaluated script: `type
+        // eval`, **no** file, body-relative lines (base 0) — but it keeps the
+        // invoking proc's name and runs at the target call level (with no
+        // `level` key, the redirected scope). Matches tclsh, where `uplevel`'s
+        // body is not inlined into the proc bytecode.
         let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Eval;
+        frame.file = None;
+        frame.line_base = 0;
         frame.level = target_level;
+        frame.omit_level = true;
         let code = self.eval_framed(script, frame);
         self.frames.set_active_level(prev_level);
         self.current_ns = prev_ns;
@@ -1054,15 +1121,8 @@ impl Interp {
             return None;
         }
         let f = &self.cmd_frames[(pos - 1) as usize];
-        let typ: &[u8] = if f.file.is_some() {
-            b"source"
-        } else if f.proc.is_some() {
-            b"proc"
-        } else {
-            b"eval"
-        };
         let mut pairs = vec![
-            (b"type".to_vec(), typ.to_vec()),
+            (b"type".to_vec(), f.kind.as_bytes().to_vec()),
             (b"line".to_vec(), f.line.to_string().into_bytes()),
         ];
         if let Some(file) = &f.file {
@@ -1072,9 +1132,12 @@ impl Interp {
         if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
-        // `level` is the distance from the current call level.
-        let level = self.frames.current_level().saturating_sub(f.level);
-        pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+        // `level` is the distance from the current call level (omitted for a
+        // redirected `uplevel` scope, matching C's reachability check).
+        if !f.omit_level {
+            let level = self.frames.current_level().saturating_sub(f.level);
+            pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+        }
         Some(pairs)
     }
 
@@ -1163,15 +1226,22 @@ impl Interp {
         last
     }
 
-    /// A `CmdFrame` for an `eval`/`uplevel`/`source` body, inheriting the current
-    /// frame's proc/level/file context (these bodies run in the enclosing
-    /// CallFrame). The caller overrides `file` (`source`) or `level` (`uplevel`).
+    /// A `CmdFrame` for an `eval` body, inheriting the current frame's
+    /// kind/proc/level/file context (the body runs in the enclosing CallFrame).
+    /// `line_base` is the line of the `eval` command minus one — the body opens
+    /// on that line, so in a sourced context its commands stay file-absolute
+    /// (e.g. `eval` at file line 5 → its body at line 5). `uplevel`/`source`
+    /// override fields ([`eval_uplevel`](Self::eval_uplevel)/
+    /// [`eval_sourced`](Self::eval_sourced)).
     fn inherited_cmd_frame(&self) -> CmdFrame {
         let top = self.cmd_frames.last();
         CmdFrame {
+            kind: top.map_or(FrameKind::Eval, |f| f.kind),
             file: top.and_then(|f| f.file.clone()),
             proc: top.and_then(|f| f.proc.clone()),
             level: top.map_or(0, |f| f.level),
+            omit_level: false,
+            line_base: self.current_cmd_line().saturating_sub(1),
             cmd: Vec::new(),
             line: 1,
         }
@@ -1197,7 +1267,9 @@ impl Interp {
         // advances the line as it steps through its own commands.
         if let Some(top) = self.cmd_frames.last_mut() {
             if owns_frame {
-                top.line = line_of(src, cmd.start);
+                // `line_base` shifts a source-defined proc's body lines to be
+                // file-absolute; it is 0 elsewhere (body-relative).
+                top.line = top.line_base + line_of(src, cmd.start);
             }
             top.cmd = src[cmd.start..cmd.end].to_vec();
         }
@@ -1312,6 +1384,7 @@ impl Interp {
                 err: ProcFrame::Proc(&name),
                 fqn: Some(&def.fqn),
                 source: def.source.clone(),
+                body_line_base: def.body_line_base,
             },
         )
     }
@@ -1400,9 +1473,16 @@ impl Interp {
         // `source` if defined in a sourced file), the proc FQN, and the new call
         // level (set after `frames.push`, so `current_level` is the proc's).
         let proc_frame = CmdFrame {
+            kind: if meta.source.is_some() {
+                FrameKind::Source
+            } else {
+                FrameKind::Proc
+            },
             file: meta.source,
             proc: meta.fqn.map(<[u8]>::to_vec),
             level: self.frames.current_level(),
+            omit_level: false,
+            line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
         };

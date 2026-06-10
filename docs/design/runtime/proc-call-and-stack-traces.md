@@ -380,22 +380,37 @@ above); speed is recovered only afterwards.**
      `while executing` where tclsh's TEBC seeds the inner context to show
      `invoked from within`; var-not-found / domain errors / propagated
      `[cmd]`-substitution traces all match.
-5. **PC-5 — `info frame` + `source` frames. ✅ landed** (`info errorstack`
-   remaining). A persistent `CmdFrame` stack (`{file, proc(FQN), level, cmd,
+5. **PC-5 — `info frame` + `source` frames. ✅ landed, byte-exact.** A
+   persistent `CmdFrame` stack (`{kind, file, proc(FQN), level, line_base, cmd,
    line}`) is pushed per script-eval level Tcl tracks — the root script, a proc
    call, an `eval`/`uplevel` body, and a `source`d file — but **not** a `[cmd]`
    substitution or an inline `if`/`while`/`for`/`foreach` body (verified vs
    tclsh). The eval loop unifies on `eval_script(src, owned)`; each command
    updates the current frame's `cmd`/`line` (a substitution reports the
-   substituted command at the enclosing line). `ProcDef` records its FQN +
-   defining-source so a proc frame is `type proc` (eval-defined) or `type
-   source`+`file` (source-defined). `info frame` (depth) and `info frame N`
-   (N>0 absolute, N≤0 relative) return the `type line [file] cmd [proc] level`
-   dict, byte-verified vs tclsh 9.0. `info level` landed earlier (PC-2/PC-3).
-   - **Remaining / approximations:** proc-body lines are body-relative where
-     tclsh reports file-absolute for source-defined procs (a literal line-base);
-     `uplevel` inherits the current proc context rather than the target frame's;
-     `info errorstack` (TIP 348 — the `UP`/`CALL` list) is the next sub-item.
+   substituted command at the enclosing line). `ProcDef` records its FQN,
+   defining-source, and body line-base, so a proc frame is `type proc`
+   (eval-defined, body-relative lines) or `type source`+`file` (source-defined,
+   **file-absolute** lines via the line-base — C's literal line table). An
+   `eval` body inherits the enclosing kind/file with a file-absolute base; an
+   `uplevel` body is `type eval`, no file, body-relative, names the invoking
+   proc, and omits the `level` key (its scope is redirected — C's
+   var-chain-reachability rule). `info frame` (depth) and `info frame N` (N>0
+   absolute, N≤0 relative) return the `type line [file] cmd [proc] [level]`
+   dict. **Byte-verified vs tclsh 9.0** across root / proc / nested-proc /
+   eval-body / uplevel / sourced-file / source-defined-proc frames (the dev
+   `run_script` example now `source`s a file argument, like `tclsh`, so the
+   differential is exact). `info level` landed earlier (PC-2/PC-3).
+   - **Approximation:** an `eval`-body's `type` can differ from tclsh when its
+     bytecode compiler inlines the literal body (sometimes `proc` vs `eval`) —
+     the inherit rule matches the sourced-file suite but not every inlined
+     `eval {literal}`. This is the same bytecode-boundary class as the
+     `foreach`/`expr` errorInfo notes.
+   - **`info errorstack` (TIP 348) — out of scope.** Its `INNER {…}` element is
+     the **bytecode** execution context (tclvm opcodes — `returnImm`, `loadStk`,
+     …), present even at top level since modern Tcl compiles everything. A
+     runtime that emits WASM, not tclvm bytecode, cannot reproduce it — the same
+     class as the suite's bytecode/disassembly exclusions. It degrades to a
+     clean `unknown subcommand` error.
 6. **PC-6 — AOT emit path** carries the same bookkeeping (conservative), and the
    AOT compiler keeps a **real frame + interpreter fallback** wherever any
    PC-3 dynamic construct is reachable; the AOT↔interp interop gate (a compiled

@@ -110,6 +110,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             err: ProcFrame::Lambda(&lambda),
             fqn: None,
             source: None,
+            body_line_base: 0,
         },
     )
 }
