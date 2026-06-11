@@ -1,14 +1,14 @@
-"""Registry-completeness gate for the Rust BIG-IP object registry.
+"""Registry-parity gate for the Rust BIG-IP object registry.
 
-The Rust `tcl_registry::bigip` registry must carry every property the
-Python registry declares for each `(module, object_type)` header — i.e.
-the Python property set is a **subset** of the Rust one. This catches
-missing-property regressions like the `ltm profile client-ssl` /
-`server-ssl` specs that were once shadowed by empty stub specs (88 / 69
-properties dropped).
-
-The Rust registry is allowed to be a *superset* (it carries some props
-the Python projection doesn't surface), so the assertion is directional.
+The Rust `tcl_registry::bigip` registry must carry **exactly** the same
+property set the Python registry declares for each `(module,
+object_type)` header — no missing properties (the `client-ssl` /
+`server-ssl` specs were once shadowed by empty stubs, dropping 88 / 69
+props) and no extra ones (34 generation artifacts — module-name tokens
+like `net`/`security`, a `timestamp` mis-linked to `net_route_domain`,
+and `ltm policy` *rule* operands conflated onto the policy object — were
+removed). Equality both ways keeps the Rust registry honest against the
+Python source of truth.
 """
 
 from __future__ import annotations
@@ -47,22 +47,25 @@ def _rust_registry() -> dict[tuple[str, str], set[str]] | None:
     return by_header
 
 
-def test_rust_registry_covers_every_python_property() -> None:
-    """Every declared Python property is present in the Rust registry."""
+def test_rust_registry_property_sets_match_python() -> None:
+    """The Rust registry's property set equals Python's for every header."""
     rust = _rust_registry()
     if rust is None:
         pytest.skip("native Rust registry unavailable (no cargo / build failed)")
 
     missing: dict[tuple[str, str], list[str]] = {}
+    extra: dict[tuple[str, str], list[str]] = {}
     checked = 0
     for (module, otype), rust_props in rust.items():
         python_props = set(property_names_for(module, otype))
         if not python_props:
             continue
         checked += 1
-        gap = python_props - rust_props
-        if gap:
-            missing[(module, otype)] = sorted(gap)
+        if python_props - rust_props:
+            missing[(module, otype)] = sorted(python_props - rust_props)
+        if rust_props - python_props:
+            extra[(module, otype)] = sorted(rust_props - python_props)
 
     assert checked > 700, f"expected to compare ~741 headers, got {checked}"
     assert not missing, f"Rust registry is missing Python properties: {missing}"
+    assert not extra, f"Rust registry has properties absent from Python: {extra}"

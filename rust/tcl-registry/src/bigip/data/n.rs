@@ -76,12 +76,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "bwc policy")],
         properties: &[
             BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -295,12 +289,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "bwc traffic-group")],
         properties: &[
-            BigipPropertySpec {
-                name: "net",
-                value_type: ValueKind::Reference,
-                references: &["cm_traffic_group"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
