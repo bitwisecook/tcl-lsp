@@ -1916,12 +1916,20 @@ _TCL_REGEX_METACHARS = frozenset(r"\^$.|?*+()[]{}")
 # pure-literal pattern (one with no metacharacters): they either alter
 # the return shape (``-indices``/``-inline``/``-all``), restrict where
 # the match may begin (``-start``; tcl-match ⊆ naive-substring), or
-# only affect anchor / whitespace semantics that a no-metachar pattern
-# cannot use (``-line``/``-lineanchor``/``-linestop``/``-expanded``).
-# ``--`` is the option terminator and is also benign.  Anything outside
-# this set (e.g. ``-nocase`` which weakens matching, ``-about`` which
-# does not return a match at all, or an option we simply don't know
-# about) forces the caller to bail conservatively.
+# only affect anchor semantics that a no-metachar pattern cannot use
+# (``-line``/``-lineanchor``/``-linestop``).  ``--`` is the option
+# terminator and is also benign.  Anything outside this set (e.g.
+# ``-nocase`` which weakens matching, ``-about`` which does not return a
+# match at all, or an option we simply don't know about) forces the
+# caller to bail conservatively.
+#
+# ``-expanded`` is deliberately NOT in this set: it makes Tcl ignore
+# unescaped whitespace and ``#``-to-end-of-line comments in the pattern,
+# so ``a b`` is the substring ``ab`` (not ``a b``) under it.  A
+# metacharacter-free pattern is therefore no longer a plain substring,
+# and a "no match" proof would be unsound.  ``_regexp_literal_no_match``
+# handles ``-expanded`` specially: it stays provable only for a pattern
+# free of whitespace and ``#``.
 _REGEXP_LITERAL_SAFE_SWITCHES = frozenset(
     {
         "-indices",
@@ -1930,7 +1938,6 @@ _REGEXP_LITERAL_SAFE_SWITCHES = frozenset(
         "-line",
         "-lineanchor",
         "-linestop",
-        "-expanded",
         "-start",
         "--",
     }
@@ -1964,6 +1971,7 @@ def _regexp_literal_no_match(pat: str, inp: str, options: tuple[str, ...] = ()) 
     if any(c in _TCL_REGEX_METACHARS for c in pat):
         return False
     nocase = False
+    expanded = False
     for opt in options:
         # Skip option values (the token after ``-start`` etc.) -- only
         # the switches themselves carry semantics for this analysis.
@@ -1972,10 +1980,22 @@ def _regexp_literal_no_match(pat: str, inp: str, options: tuple[str, ...] = ()) 
         if opt == "-nocase":
             nocase = True
             continue
+        if opt == "-expanded":
+            expanded = True
+            continue
         if opt in _REGEXP_LITERAL_SAFE_SWITCHES:
             continue
         # Unknown / unsafe switch (e.g. ``-about``, or a switch added in
         # a future Tcl release we don't model).  Bail conservatively.
+        return False
+    if expanded and any(c.isspace() or c == "#" for c in pat):
+        # Under ``-expanded`` Tcl strips unescaped whitespace and
+        # ``#``-to-EOL comments from the pattern, so ``regexp -expanded
+        # {a b} {ab}`` MATCHES.  The metacharacter screen above already
+        # rejected any backslash-bearing pattern, so every space / ``#``
+        # reaching here is unescaped: a substring no-match proof would be
+        # unsound, so bail.  A whitespace-and-``#``-free literal stays
+        # provably literal and keeps firing.
         return False
     if nocase:
         return pat.casefold() not in inp.casefold()
@@ -4068,6 +4088,16 @@ def _collect_call_site_constants(ir_module: IRModule) -> dict[str, dict[int, set
                             by_idx.setdefault(i, set()).add(_UNKNOWN_ARG)
                         else:
                             by_idx.setdefault(i, set()).add(arg)
+                    # Parameters this call omits (i >= argc) take their
+                    # default value, NOT the literal another caller passes.
+                    # Poison those slots so a parameter omitted by even one
+                    # caller is never bound to a constant -- otherwise SCCP
+                    # analyses the callee as if the default path were
+                    # unreachable, hiding read-before-set / reachability
+                    # findings on it.
+                    callee = ir_module.procedures[target]
+                    for i in range(len(stmt.args), len(callee.params)):
+                        by_idx.setdefault(i, set()).add(_UNKNOWN_ARG)
             for attr in ("body", "init", "next"):
                 sub = getattr(stmt, attr, None)
                 if sub is not None and hasattr(sub, "statements"):

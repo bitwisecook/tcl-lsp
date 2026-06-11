@@ -571,6 +571,15 @@ class _CFGBuilder:
         # default (non-optimised) bytecode stays byte-identical to tclsh 9.
         self._faithful_exceptions = faithful_exceptions
         self._exception_edges: list[tuple[str, str]] = []
+        # Set by ``_lower_script`` to the block where the script's
+        # straight-line control flow terminated (``return``/``error``/…)
+        # without a normal fall-through, or None when the script can fall
+        # through.  Surfaced separately from the fall-through return value so
+        # ``_lower_try`` can source the on-error exception edge from the
+        # throwing block (where body-set vars are defined) rather than from
+        # the pre-``try`` block.  Always read immediately after the relevant
+        # ``_lower_script`` call, before any nested lowering overwrites it.
+        self._last_terminal_block: str | None = None
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
@@ -802,9 +811,15 @@ class _CFGBuilder:
         # bytecode byte-identical to tclsh 9 (tclsh's compiler also
         # discards post-return statements).
         orphan: str | None = None
+        # First block whose straight-line execution terminated (the throwing
+        # / returning block).  None while control still falls through.
+        terminal: str | None = None
+        self._last_terminal_block = None
         for stmt in script.statements:
             block = self._block(current)
             if block.terminator is not None:
+                if terminal is None:
+                    terminal = current
                 if not self._faithful_exceptions:
                     return None
                 if orphan is None:
@@ -1031,6 +1046,12 @@ class _CFGBuilder:
                             value=None, range=stmt.range, expr=None, braced=False
                         )
 
+        # The script has no normal fall-through if the block control finally
+        # rests in is terminated (a straight-line ``return``/``error`` as the
+        # final statement leaves ``current`` on the terminated block).
+        if terminal is None and self._block(current).terminator is not None:
+            terminal = current
+        self._last_terminal_block = terminal
         return current
 
     def _lower_if(self, stmt: IRIf, block_name: str) -> str | None:
@@ -1315,6 +1336,11 @@ class _CFGBuilder:
         # Where does control go after the body succeeds?
         post_body = self._new_block("try_ok") if stmt.handlers else end_block
         body_tail = self._lower_script(stmt.body, body_block)
+        # ``_lower_script`` surfaces the block where the body's straight-line
+        # control terminated (the throwing block) when the body has no normal
+        # fall-through.  Capture it before any nested lowering (the handler
+        # bodies below) overwrites the shared attribute.
+        body_terminal = self._last_terminal_block
         if body_tail is not None:
             self._ensure_goto(body_tail, post_body, stmt.body_range)
 
@@ -1332,19 +1358,30 @@ class _CFGBuilder:
             # ``on ok`` runs only after the body completes normally, so it
             # observes the body's *exit* versions (a body-set var is defined) —
             # its source is the body tail.  Every other handler (``on error``/
-            # ``trap``/``on return``/…) runs on an abnormal completion that can
-            # occur at *any* point in the body, so a body-set var is *maybe*
-            # defined: merge the pre-``try`` state (var unset, version-0) with
-            # the body-exit state (var set).  Sourcing only from pre-``try``
-            # would wrongly flag a definitely-set var as read-before-set —
-            # tclsh 9.0.3: ``try {set x 1; error e} on error {} {puts $x}``
-            # reads ``x`` == 1.  Merging keeps a never-set var version-0 in both
-            # predecessors, so a genuine read-before-set still fires.
+            # ``trap``/``on return``/…) runs on an abnormal completion.
+            #
+            # When the body can fall through, an abnormal completion may occur
+            # at *any* point, so a body-set var is *maybe* defined: merge the
+            # pre-``try`` state (var unset, version-0) with the body-exit state
+            # (var set).  Sourcing only from pre-``try`` would wrongly flag a
+            # definitely-set var as read-before-set — tclsh 9.0.3:
+            # ``try {set x 1; error e} on error {} {puts $x}`` reads ``x`` == 1.
+            # Merging keeps a never-set var version-0 in both predecessors, so a
+            # genuine read-before-set still fires.
+            #
+            # When the body has *no* normal fall-through (it unconditionally
+            # throws), the handler is only reachable from the throw point, where
+            # the body-set vars up to that point are defined.  Source the edge
+            # from that throwing block alone — adding the pre-``try`` block would
+            # re-introduce a version-0 predecessor and false-fire W210 on a var
+            # that is provably set at the throw.
             if self._faithful_exceptions:
                 is_on_ok = handler.kind == "on" and handler.match_arg == "ok"
                 if is_on_ok:
                     if body_tail is not None:
                         self._exception_edges.append((body_tail, handler_block))
+                elif body_terminal is not None:
+                    self._exception_edges.append((body_terminal, handler_block))
                 else:
                     self._exception_edges.append((block_name, handler_block))
                     if body_tail is not None and body_tail != block_name:

@@ -720,6 +720,83 @@ class TestCatchBodyDefsInCondition:
         assert len(diags) == 0
 
 
+class TestSoundnessRegressionsFromRustReview:
+    """Three latent soundness bugs surfaced while reviewing the Rust port.
+
+    Each was hiding a real read-before-set (W210) finding (or, for the
+    ``-expanded`` case, false-firing one).  Ground truth is real tclsh 9.0.3.
+    """
+
+    def test_omitted_arg_call_site_constant_is_poisoned(self):
+        """A parameter omitted by one caller takes its default, so the
+        constant another caller passes must NOT be bound to it.
+
+        tclsh 9.0.3: ``p`` (default ``x == 0``) leaves ``y`` unset, so
+        ``puts $y`` errors ``can't read "y"``.  Binding ``x = const(1)`` from
+        the ``p 1`` call site would analyse the ``if {$x}`` body as always
+        taken and hide the finding."""
+        src = "proc p {{x 0}} {\n    if {$x} {\n        set y 5\n    }\n    puts $y\n}\np\np 1"
+        assert len(_diag_with_code(src, "W210")) == 1
+
+    def test_uniform_literal_call_sites_still_bind(self):
+        """When every caller passes the same literal at a slot, the constant
+        binding still applies (no over-poisoning) — the ``if {$x}`` body is
+        provably taken, so ``y`` is always set and no W210 fires."""
+        src = "proc q {{x 0}} {\n    if {$x} {\n        set y 5\n    }\n    puts $y\n}\nq 1\nq 1"
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_regexp_expanded_whitespace_pattern_no_false_w210(self):
+        """``-expanded`` ignores unescaped whitespace, so ``regexp -expanded
+        {a b} $input v`` matches the substring ``ab`` and writes ``v``.
+
+        tclsh 9.0.3: ``regexp -expanded {a b} ab v`` returns 1 and sets
+        ``v == ab``.  The no-match proof must not claim no-match here, else a
+        later read of ``v`` false-fires W210."""
+        src = "proc g {input} {\n    regexp -expanded {a b} $input v\n    puts $v\n}"
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_regexp_expanded_clean_literal_still_proves_no_match(self):
+        """A whitespace-and-``#``-free literal stays provably literal under
+        ``-expanded``: ``regexp -expanded {x} X w`` never matches (returns 0)
+        and never writes ``w``, so reading ``w`` is genuinely read-before-set."""
+        src = "proc g {} {\n    regexp -expanded {x} X w\n    puts $w\n}"
+        assert len(_diag_with_code(src, "W210")) == 1
+
+    def test_try_body_unconditional_throw_keeps_handler_defs(self):
+        """A ``try`` body that always throws after defining a var: the
+        on-error handler is reachable only from the throw point, where the
+        var is set.
+
+        tclsh 9.0.3: ``try {set x 1; error boom} on error {} {puts $x}``
+        prints ``1``.  The handler must source its versions from the throwing
+        block (``x`` set), not the pre-``try`` block (``x`` unset)."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        set x 1\n"
+            "        error boom\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_try_body_throw_genuine_read_before_set_still_warns(self):
+        """A handler reading a var the body never set still fires W210 —
+        the throwing-block edge keeps a never-set var version-0."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        error boom\n"
+            "    } on error {} {\n"
+            "        puts $y\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 1
+
+
 class TestInfoExistsNotReadBeforeSet:
     """`info exists`/`array exists` is the canonical test-before-use idiom —
     referencing an unset variable there is legal (returns 0), so it must never
