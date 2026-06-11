@@ -3462,6 +3462,16 @@ a script (like eval). Use a single braced body or {*}$cmdList to avoid injection
             {
                 return;
             }
+            // A single *pure* variable substitution (`uplevel 1 $body`) is the
+            // safe single-substitution idiom: tclsh evaluates `$body` once in
+            // the target frame, no concatenation / second substitution.  The
+            // script word must be exactly one `Var` token — a concatenation
+            // (`$a$b`, `pre$x`) is not a single token and stays flagged.
+            if arg_single.get(script_idx).copied() == Some(true)
+                && matches!(tok.kind, tcl_lexer::TokenType::Var)
+            {
+                return;
+            }
             if self.args_have_substitution(arg_tokens, arg_single) {
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W301".to_string(),
@@ -9521,6 +9531,11 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         // Braced body and the `[list …]` idiom are safe.
         assert_eq!(sec_codes("uplevel 1 {set x 1}\n", "W301"), 0);
         assert_eq!(sec_codes("uplevel 1 [list set x $y]\n", "W301"), 0);
+        // A single *pure* variable script is the safe single-substitution
+        // idiom — no W301; a concatenation still fires.
+        assert_eq!(sec_codes("proc f {body} { uplevel 1 $body }\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 $body\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 pre$body\n", "W301"), 1);
     }
 
     #[test]
