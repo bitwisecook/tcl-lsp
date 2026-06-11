@@ -70,7 +70,7 @@ use tower_lsp::lsp_types::{
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
-    CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
+    CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, ConfigurationItem,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
@@ -225,6 +225,83 @@ pub struct Backend {
     /// (later) cross-document go-to-definition resolve symbols
     /// defined elsewhere.
     workspace_index: Mutex<core_workspace_index::WorkspaceIndex>,
+    /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
+    /// keys default to enabled, so a config that names only some
+    /// features leaves the rest on.  Consulted by each provider
+    /// entry point and surfaced by `getEffectiveConfig`.  Mirrors
+    /// the Python server's `_FEATURE_TOGGLE_KEYS` resolution.
+    feature_toggles: Mutex<FeatureToggles>,
+    /// Optimiser master switch (`tclLsp.optimiser.enabled`).  When
+    /// `false`, the `tcl-lsp.optimiseDocument` command yields no
+    /// rewrites.  Default on.
+    optimiser_enabled: Mutex<bool>,
+    /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
+    /// Surfaced by `getEffectiveConfig`; default 80.
+    line_length: Mutex<u32>,
+}
+
+/// Resolved `tclLsp.features.*` toggle state.
+///
+/// Stores only the keys an editor has explicitly set; every other
+/// feature resolves to enabled.  This matches the Python server's
+/// "absent → default-on" semantics and the config-pull restore
+/// contract (a pulled config only *sets* the keys it carries).
+#[derive(Debug, Default, Clone)]
+struct FeatureToggles {
+    set: HashMap<String, bool>,
+}
+
+impl FeatureToggles {
+    /// camelCase feature keys reported by `getEffectiveConfig`,
+    /// mirroring Python's `_FEATURE_TOGGLE_KEYS`.
+    const KEYS: &'static [&'static str] = &[
+        "hover",
+        "completion",
+        "diagnostics",
+        "semanticTokens",
+        "codeActions",
+        "definition",
+        "references",
+        "documentSymbols",
+        "folding",
+        "rename",
+        "signatureHelp",
+        "workspaceSymbols",
+        "inlayHints",
+        "callHierarchy",
+        "documentLinks",
+        "selectionRange",
+        "documentHighlight",
+        "codeLens",
+        "implementation",
+        "typeDefinition",
+        "declaration",
+        "linkedEditingRange",
+    ];
+
+    /// Whether `feature` is enabled — explicitly-set value, else
+    /// the default-on fallback.
+    fn is_enabled(&self, feature: &str) -> bool {
+        self.set.get(feature).copied().unwrap_or(true)
+    }
+
+    /// Merge an editor-supplied `features` object, setting only the
+    /// keys it carries (absent keys keep their last-applied value).
+    fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
+        for (key, value) in features {
+            if let Some(flag) = value.as_bool() {
+                self.set.insert(key.clone(), flag);
+            }
+        }
+    }
+
+    /// The full resolved `{feature: bool}` map for `getEffectiveConfig`.
+    fn resolved_map(&self) -> serde_json::Map<String, serde_json::Value> {
+        Self::KEYS
+            .iter()
+            .map(|&k| (k.to_owned(), serde_json::Value::Bool(self.is_enabled(k))))
+            .collect()
+    }
 }
 
 /// Cached semantic-tokens result keyed on the URI.
@@ -350,6 +427,9 @@ impl Backend {
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
+            feature_toggles: Mutex::new(FeatureToggles::default()),
+            optimiser_enabled: Mutex::new(true),
+            line_length: Mutex::new(80),
         }
     }
 
@@ -1383,27 +1463,105 @@ impl Backend {
         Ok(Some(value))
     }
 
-    /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config
-    /// (at minimum the active dialect).  Mirrors
-    /// `server/commands.py::on_get_effective_config`.
+    /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config —
+    /// active dialect, the resolved `features` toggle map, the optimiser
+    /// switch, line length, and analyser settings.  Mirrors
+    /// `server/commands.py::on_get_effective_config`.  Tests poll this command
+    /// after a `tclLsp.features.X = false` config change to confirm the server
+    /// has applied the toggle without sleeping on wall-clock time.
     async fn get_effective_config_command(
         &self,
         args: &[serde_json::Value],
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
-        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
-            return Ok(None);
+        let uri_str = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        // Resolve the dialect via the open document when the URI names one,
+        // else the session default — never `null`, so a polling client always
+        // sees a concrete value.
+        let dialect = match Url::parse(uri_str) {
+            Ok(uri) => match self.read_document(&uri).await {
+                Some(doc) => doc.dialect,
+                None => self.default_dialect.lock().await.clone(),
+            },
+            Err(_) => self.default_dialect.lock().await.clone(),
         };
-        let Ok(uri) = Url::parse(uri_str) else {
-            return Ok(None);
-        };
-        let dialect = self
-            .read_document(&uri)
-            .await
-            .map_or_else(|| "tcl".to_owned(), |d| d.dialect);
+        let features = self.feature_toggles.lock().await.resolved_map();
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let line_length = *self.line_length.lock().await;
+        let (disabled, mode) = self.analyser_config().await;
+        let mut disabled_sorted: Vec<String> = disabled.into_iter().collect();
+        disabled_sorted.sort();
         Ok(Some(serde_json::json!({
             "uri": uri_str,
             "dialect": dialect,
+            "features": features,
+            "optimiser_enabled": optimiser_enabled,
+            "line_length": line_length,
+            "non_ascii_mode": non_ascii_mode_str(mode),
+            "disabled_diagnostics": disabled_sorted,
         })))
+    }
+
+    /// Pull the `tclLsp` configuration section from the client and apply it.
+    ///
+    /// The editor (and the e2e harness) answer `workspace/configuration` with
+    /// the resolved `tclLsp` settings; a bare `didChangeConfiguration` with an
+    /// empty payload is the signal to re-pull.  Applies `features.*`, the
+    /// optimiser switch, line length, dialect, and the analyser knobs (W108
+    /// mode + disabled diagnostics) — only the keys the reply carries, so
+    /// omitted keys keep their last-applied value.
+    async fn pull_and_apply_config(&self) {
+        let items = vec![ConfigurationItem {
+            scope_uri: None,
+            section: Some("tclLsp".to_owned()),
+        }];
+        let Ok(values) = self.client.configuration(items).await else {
+            return;
+        };
+        let Some(cfg) = values.into_iter().next() else {
+            return;
+        };
+        if !cfg.is_object() {
+            return;
+        }
+        if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
+            self.feature_toggles.lock().await.apply(features);
+        }
+        if let Some(flag) = cfg
+            .get("optimiser")
+            .and_then(|o| o.get("enabled"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            *self.optimiser_enabled.lock().await = flag;
+        }
+        if let Some(len) = cfg
+            .get("formatting")
+            .and_then(|f| f.get("lineLength"))
+            .or_else(|| cfg.get("lineLength"))
+            .and_then(serde_json::Value::as_u64)
+        {
+            *self.line_length.lock().await = u32::try_from(len).unwrap_or(80);
+        }
+        if let Some(dialect) = cfg.get("dialect").and_then(serde_json::Value::as_str) {
+            *self.default_dialect.lock().await = dialect.to_owned();
+        }
+        // The pulled value is the *content* of the `tclLsp` section; the
+        // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
+        // so re-wrap before reusing them for the W108 mode + disabled codes.
+        let wrapped = serde_json::json!({ "tclLsp": cfg });
+        if let Some(mode) = settings_non_ascii_mode(&wrapped) {
+            *self.non_ascii_mode.lock().await = mode;
+        }
+        if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
+            *self.disabled_diagnostics.lock().await = disabled;
+        }
+    }
+
+    /// Whether the named `tclLsp.features.*` provider is enabled.
+    async fn feature_enabled(&self, feature: &str) -> bool {
+        self.feature_toggles.lock().await.is_enabled(feature)
     }
 
     /// Snapshot the user-configured analyser settings (disabled
@@ -1681,6 +1839,10 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "tcl-lsp-server initialised")
             .await;
+        // Pull the resolved `tclLsp` config once the client is ready so
+        // feature toggles / optimiser switch / analyser knobs are in effect
+        // before the first request.
+        self.pull_and_apply_config().await;
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
@@ -1802,6 +1964,13 @@ impl LanguageServer for Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
+        // VS Code (and the e2e harness) push an empty/partial payload as a
+        // signal to re-pull the full resolved config via
+        // `workspace/configuration`.  Always re-pull so `features.*`, the
+        // optimiser switch, and the analyser knobs reflect the latest editor
+        // settings — the inline `params.settings` handling above covers the
+        // flat MCP-bridge shape that carries the values directly.
+        self.pull_and_apply_config().await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -1840,6 +2009,9 @@ impl LanguageServer for Backend {
         &self,
         params: FoldingRangeParams,
     ) -> jsonrpc::Result<Option<Vec<FoldingRange>>> {
+        if !self.feature_enabled("folding").await {
+            return Ok(None);
+        }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
@@ -1852,6 +2024,9 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentSymbolParams,
     ) -> jsonrpc::Result<Option<DocumentSymbolResponse>> {
+        if !self.feature_enabled("documentSymbols").await {
+            return Ok(None);
+        }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
@@ -1864,6 +2039,9 @@ impl LanguageServer for Backend {
         &self,
         params: CompletionParams,
     ) -> jsonrpc::Result<Option<CompletionResponse>> {
+        if !self.feature_enabled("completion").await {
+            return Ok(None);
+        }
         let uri = params.text_document_position.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -1914,6 +2092,9 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        if !self.feature_enabled("definition").await {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -2071,6 +2252,9 @@ impl LanguageServer for Backend {
     }
 
     async fn references(&self, params: ReferenceParams) -> jsonrpc::Result<Option<Vec<Location>>> {
+        if !self.feature_enabled("references").await {
+            return Ok(None);
+        }
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let include_decl = params.context.include_declaration;
@@ -2616,6 +2800,9 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentLinkParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
+        if !self.feature_enabled("documentLinks").await {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
@@ -2936,7 +3123,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let edits = core_formatting::formatting(&doc.text, &registry);
+        // An explicit client `FormattingOptions.tabSize` / `insertSpaces`
+        // overrides the server's indentation by LSP contract.
+        let config = formatter_config_from_options(&params.options);
+        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
         if edits.is_empty() {
             return Ok(None);
         }
@@ -2989,6 +3179,9 @@ impl LanguageServer for Backend {
         &self,
         params: SelectionRangeParams,
     ) -> jsonrpc::Result<Option<Vec<SelectionRange>>> {
+        if !self.feature_enabled("selectionRange").await {
+            return Ok(None);
+        }
         let uri = params.text_document.uri.clone();
         let positions = params.positions;
         let Some(doc) = self.read_document(&uri).await else {
@@ -3227,6 +3420,9 @@ impl LanguageServer for Backend {
         &self,
         params: SignatureHelpParams,
     ) -> jsonrpc::Result<Option<SignatureHelp>> {
+        if !self.feature_enabled("signatureHelp").await {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -3264,6 +3460,9 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
+        if !self.feature_enabled("hover").await {
+            return Ok(None);
+        }
         let uri = params
             .text_document_position_params
             .text_document
@@ -3464,6 +3663,42 @@ fn parse_non_ascii_mode(s: &str) -> NonAsciiMode {
         "common" => NonAsciiMode::Common,
         _ => NonAsciiMode::Default,
     }
+}
+
+/// Build a [`core_formatting::FormatterConfig`] from an LSP request's
+/// [`FormattingOptions`].  An explicit client `tabSize` / `insertSpaces`
+/// overrides the server's default indentation by LSP contract; every
+/// other formatter knob keeps its default.
+fn formatter_config_from_options(
+    options: &tower_lsp::lsp_types::FormattingOptions,
+) -> core_formatting::FormatterConfig {
+    let indent_size = usize::try_from(options.tab_size).unwrap_or(4).max(1);
+    let indent_style = if options.insert_spaces {
+        core_formatting::IndentStyle::Spaces
+    } else {
+        core_formatting::IndentStyle::Tabs
+    };
+    core_formatting::FormatterConfig {
+        indent_size,
+        indent_style,
+        continuation_indent: indent_size,
+        ..core_formatting::FormatterConfig::default()
+    }
+}
+
+/// Render a [`NonAsciiMode`] for `getEffectiveConfig`.  The unset
+/// [`NonAsciiMode::Default`] reports as JSON `null` (the per-dialect
+/// auto behaviour, mirroring the Python server's `None`); every explicit
+/// mode reports its setting string.
+fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
+    let label = match mode {
+        NonAsciiMode::Default => return serde_json::Value::Null,
+        NonAsciiMode::Off => "off",
+        NonAsciiMode::Strict => "strict",
+        NonAsciiMode::Confusables => "confusables",
+        NonAsciiMode::Common => "common",
+    };
+    serde_json::Value::String(label.to_owned())
 }
 
 /// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
@@ -4251,6 +4486,83 @@ mod tests {
     }
 
     #[test]
+    fn feature_toggles_default_on_and_merge() {
+        let mut toggles = FeatureToggles::default();
+        // Absent keys default to enabled.
+        assert!(toggles.is_enabled("hover"));
+        assert!(toggles.is_enabled("completion"));
+        // Applying a partial `features` object sets only the named keys.
+        let features = serde_json::json!({"hover": false, "folding": false});
+        toggles.apply(features.as_object().unwrap());
+        assert!(!toggles.is_enabled("hover"));
+        assert!(!toggles.is_enabled("folding"));
+        // Unnamed keys keep their default-on value.
+        assert!(toggles.is_enabled("completion"));
+        // Re-enabling merges (does not reset the rest).
+        toggles.apply(serde_json::json!({"hover": true}).as_object().unwrap());
+        assert!(toggles.is_enabled("hover"));
+        assert!(!toggles.is_enabled("folding"));
+    }
+
+    #[test]
+    fn feature_toggles_resolved_map_covers_known_keys() {
+        let mut toggles = FeatureToggles::default();
+        toggles.apply(serde_json::json!({"hover": false}).as_object().unwrap());
+        let map = toggles.resolved_map();
+        // Every advertised key is present and boolean.
+        for key in FeatureToggles::KEYS {
+            assert_eq!(
+                map.get(*key).and_then(serde_json::Value::as_bool),
+                Some(*key != "hover"),
+                "feature {key}"
+            );
+        }
+        // The toggleable keys the e2e contract checks are all reported.
+        for key in [
+            "hover",
+            "completion",
+            "documentSymbols",
+            "definition",
+            "references",
+            "signatureHelp",
+            "folding",
+            "selectionRange",
+            "documentLinks",
+        ] {
+            assert!(map.contains_key(key), "missing reported feature {key}");
+        }
+    }
+
+    #[test]
+    fn non_ascii_mode_str_renders_null_for_default() {
+        assert!(non_ascii_mode_str(NonAsciiMode::Default).is_null());
+        assert_eq!(non_ascii_mode_str(NonAsciiMode::Off), "off");
+        assert_eq!(non_ascii_mode_str(NonAsciiMode::Strict), "strict");
+        assert_eq!(non_ascii_mode_str(NonAsciiMode::Common), "common");
+        assert_eq!(non_ascii_mode_str(NonAsciiMode::Confusables), "confusables");
+    }
+
+    #[test]
+    fn formatter_config_honours_request_indent() {
+        let mut opts = tower_lsp::lsp_types::FormattingOptions {
+            tab_size: 2,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        let cfg = formatter_config_from_options(&opts);
+        assert_eq!(cfg.indent_size, 2);
+        assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
+        // A zero tabSize is clamped to a usable minimum.
+        opts.tab_size = 0;
+        assert_eq!(formatter_config_from_options(&opts).indent_size, 1);
+        // insertSpaces=false selects tab indentation.
+        opts.tab_size = 4;
+        opts.insert_spaces = false;
+        let cfg = formatter_config_from_options(&opts);
+        assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
+    }
+
+    #[test]
     fn configured_analyser_threads_mode_and_disabled() {
         // `Off` mode suppresses W108 entirely.
         let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off);
@@ -4594,6 +4906,9 @@ mod tests {
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
+            feature_toggles: Mutex::new(FeatureToggles::default()),
+            optimiser_enabled: Mutex::new(true),
+            line_length: Mutex::new(80),
         }
     }
 

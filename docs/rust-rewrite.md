@@ -4684,6 +4684,37 @@ today — no `tclLsp.features.*` state). The fp/ground-truth precision battery i
 unaffected by the rebase (no analyser source changed); its `223/316` baseline
 stands.
 
+#### SYNC-JUN11-config — `getEffectiveConfig` + per-feature toggles (lsp_e2e 46→32 failing)
+
+Closed the whole `test_config_e2e` cluster (14 tests). The native server now
+pulls the resolved `tclLsp` section via `workspace/configuration`:
+
+- `Backend` gained `feature_toggles` (a default-on `FeatureToggles` map mirroring
+  Python's `_FEATURE_TOGGLE_KEYS`), `optimiser_enabled`, and `line_length` state.
+- A new `pull_and_apply_config` issues a `workspace/configuration` request for the
+  `tclLsp` section and applies `features.*` / `optimiser.enabled` /
+  `formatting.lineLength` / dialect / W108 mode / disabled codes — *merging* only
+  the keys the reply carries (absent → unchanged, matching the config-pull
+  restore contract). It runs on `initialized` and on every
+  `didChangeConfiguration` (the editor/harness push an empty payload as the
+  re-pull signal; the inline `params.settings` path still covers the flat
+  MCP-bridge shape).
+- `get_effective_config_command` now returns the resolved `features` map +
+  `optimiser_enabled` + `line_length` + `non_ascii_mode` + `disabled_diagnostics`
+  alongside `dialect`.
+- The nine toggleable providers (hover, completion, documentSymbols, definition,
+  references, signatureHelp, folding, selectionRange, documentLinks) consult
+  `feature_enabled(...)` and return empty/None when disabled.
+- `formatting` honours the request's `tabSize` / `insertSpaces`
+  (`formatter_config_from_options` → `core_formatting::formatting_with`).
+
+Result: **lsp_e2e against the Rust server 441→455 passed, 46→32 failed, 1
+skipped**; no regressions. 7 new server unit tests + the
+`core_formatting::formatting_with` split; `cargo test`/`clippy`/`fmt` clean. The
+remaining 32 are the diagnostic-precision clusters (W210/W220/W307/taint —
+shared with the Phase-2 battery), command-surface shapes (`test_commands_e2e`),
+BigIP outline/suppression, bracket-recovery veto, and token/range invariants.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
