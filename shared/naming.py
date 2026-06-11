@@ -122,6 +122,60 @@ def is_brace_substitutable(name: str) -> bool:
     return depth == 0
 
 
+def is_braced_indirect_array_ref(word: str) -> bool:
+    """Return True when *word* is the braced indirect-array-element idiom
+    ``${name}(index)``.
+
+    Tcl parses ``${name}(index)`` as the brace-form substitution ``${name}``
+    (which the lexer ends at the ``}``) concatenated with the *literal* text
+    ``(index)``.  When this word sits in a **variable-name position**
+    (the target of ``set`` / ``incr`` / ``append`` / ``lappend`` / ``unset`` /
+    ``info exists`` / ``vwait`` …) the resulting string
+    ``<value-of-name>(index)`` names element ``index`` of the array whose name
+    is held in the scalar ``name`` — the standard "array name kept in a
+    variable" access idiom (e.g. Tcl's ``http`` package:
+    ``set ${token}(status) eof``, where ``token`` holds ``::http::1``).
+
+    The braces are essential: only ``${name}`` substitutes the *whole* name
+    before the literal ``(index)`` is appended.  The bare ``$name(index)`` is a
+    *direct* array reference (an array literally named ``name`` with the index
+    substituted), a different construct — so this returns False for it.
+
+    This is the discriminator that keeps the W216 (brace-then-paren) and W212
+    (substitution-where-name-expected) checks from false-positiving on the
+    indirect idiom while still firing on a genuine value-position
+    ``${arr}(x)`` typo for ``$arr(x)``.
+    """
+    if not word.startswith("${"):
+        return False
+    # Walk to the depth-0 ``}`` that closes the brace-form variable name,
+    # mirroring the brace parser in :func:`is_brace_substitutable`.
+    i = 2
+    n = len(word)
+    depth = 0
+    close = -1
+    while i < n:
+        ch = word[i]
+        if ch == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            if depth == 0:
+                close = i
+                break
+            depth -= 1
+        i += 1
+    # No closing brace, or an empty name (``${}(…)``) — not the idiom.
+    if close <= 2:
+        return False
+    # The closing ``}`` must be immediately followed by ``(…)`` that runs to
+    # the end of the word.
+    rest = word[close + 1 :]
+    return len(rest) >= 2 and rest[0] == "(" and rest[-1] == ")"
+
+
 def normalise_var_name(name: str) -> str:
     """Normalise Tcl variable forms to their base name."""
     base = name

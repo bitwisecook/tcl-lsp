@@ -1,12 +1,20 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 /**
  * Open the fixture, apply an in-memory edit that inserts a probe (``$`` or
  * array suffix) at a known offset, trigger a completion request at the end
  * of the inserted text, and return the items.  After the test, revert the
  * file so the next test sees the canonical on-disk content.
+ *
+ * The completion request is **polled** until the server has re-indexed the
+ * post-edit content and offers at least one variable (``$``-prefixed) item —
+ * every caller probes a ``puts $`` site and asserts on ``$``-prefixed labels.
+ * Requesting once immediately after ``applyEdit`` raced the analysis-snapshot
+ * rebuild and was flaky under load (the request could land before the new
+ * version was analysed, returning only keyword/command items).  This mirrors
+ * the robust ``pollUntil`` pattern in ``variableContexts.test.ts``.
  */
 async function completionItems(
   uri: vscode.Uri,
@@ -22,12 +30,21 @@ async function completionItems(
   // newlines in ``insertion`` don't throw off the line/character math.
   const completionPos = doc.positionAt(startOffset + insertion.length);
   try {
-    const result = (await vscode.commands.executeCommand(
-      "vscode.executeCompletionItemProvider",
-      uri,
-      completionPos,
-    )) as vscode.CompletionList;
-    return result.items;
+    return await pollUntil(
+      async () => {
+        const result = (await vscode.commands.executeCommand(
+          "vscode.executeCompletionItemProvider",
+          uri,
+          completionPos,
+        )) as vscode.CompletionList;
+        return result.items;
+      },
+      (items) => items.some((i) => labelOf(i).startsWith("$")),
+      {
+        timeout: 10_000,
+        label: `variable completions at ${completionPos.line}:${completionPos.character}`,
+      },
+    );
   } finally {
     await vscode.commands.executeCommand("workbench.action.files.revert", doc);
   }

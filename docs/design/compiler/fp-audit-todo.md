@@ -250,7 +250,10 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   with an explicit access mode. TP. (398)
 - [x] **W212** substitution where var-name expected — `set $x` / `incr $x` /
   `lappend $x` are genuine dynamic-name foot-guns; `upvar`/`dict`/`trace`/
-  `namespace which` correctly exempt. TP. (390)
+  `namespace which` correctly exempt. TP. (390)  **One FP class fixed
+  (FP-STY-12):** the braced indirect-array form `set ${var}(idx)` (where `var`
+  holds an array name) is now exempt — it is the deliberate indirect-element
+  idiom, not a foot-gun.  Bare `$x` / `$arr(idx)` / index-less `${x}` still fire.
 - [x] **W301** uplevel multi-arg concatenation — TP (logger.tcl idioms). (291)
 - [x] **W313** destructive op with variable path — TP. (95)
 - [x] **W110 / O120** `==`/`!=` on strings → `eq`/`ne` — TP (near-duplicate pair;
@@ -338,11 +341,24 @@ can simplify this" suggestion. None swept yet.
 - [ ] **W100** unbraced expr (219)
 - [x] **W104** string-concat list building → lappend — RESOLVED (see top): usage/
   template notation suppressed; corpus 165→144.
-- [ ] **W105** unbraced code-block arg (396) — INJ family has some coverage;
-  re-sweep the non-eval shapes.
+- [x] **W105** unbraced code-block arg (396) — RESOLVED (FP-STY-14): a body
+  argument that is a *single bare variable substitution* (`eval $cmd`,
+  `proc $n $a $body`, `namespace eval :: $state(-command)`, `after 0 $coroName`,
+  `interp eval $child $contents`) is a script-valued reference, not an inline
+  block — bracing it (`eval {$cmd}`) evaluates the literal text and errors.
+  Suppressed via `_word_is_single_var`; the eval-injection risk stays with
+  W101 and the dynamic-dispatch risk with W307 (which already accepts the
+  callback form).  Composite / quoted interpolated bodies (`eval "do $script"`,
+  `eval $cmd$args`, `${t}--Coro`) still fire at Error severity.
 - [ ] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
 - [ ] **W108** non-ASCII in token (1)
-- [ ] **W113** proc shadows builtin (95) — verify namespace-qualified shadowing.
+- [x] **W113** proc shadows builtin (95) — RESOLVED (FP-STY-13): redefining an
+  overridable Tcl *library* proc (`unknown`, `history`, `auto_*`,
+  `tcl_findLibrary`, `pkg_mkIndex`, `tcl_*WordBreak*` …) is not shadowing a C
+  built-in — these are script-defined and documented as user-replaceable, and
+  Tcl's own library is what `proc`s them.  Added `_OVERRIDABLE_LIBRARY_PROCS`
+  exempt set; genuine C commands (`set`/`clock`/`after`/`socket`/`glob`) still
+  fire.  Namespace-qualified shadowing was already exempt.
 - [ ] **W114** redundant nested `[expr]` (0) — synthetic verify.
 - [ ] **W115** backslash-newline in comment (0) — synthetic verify.
 - [ ] **W116 / W117** stub shadows builtin command/function (0) — synthetic.
@@ -361,8 +377,13 @@ can simplify this" suggestion. None swept yet.
 
 - [ ] **W213** unset on possibly-unset var (1) — RBS-derived; re-check.
 - [ ] **W215** unreachable variable name (12)
-- [ ] **W216** broken brace-form array ref `${arr}(x)` (count low) — verify the
-  depth-lock from OBJ family holds.
+- [x] **W216** broken brace-form array ref `${arr}(x)` — RESOLVED (FP-STY-12):
+  in a *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/
+  `info exists`/`vwait` target) `${var}(idx)` is the legitimate indirect-array-
+  element idiom (`var` holds the array name — Tcl's `http` package, 25 firings
+  in `http.tcl`), not a broken `$var(idx)`.  Suppressed there; value-position
+  `puts ${arr}(x)` still fires.  Same idiom also cleared a paired **W212**
+  false positive (`check_name_vs_value` skips the braced indirect form).
 - [ ] **W240** constant-false loop condition (0) — synthetic verify.
 - [ ] **W241** provably-infinite loop (0) — synthetic; intentional `while 1`
   must NOT fire (known idiom).
@@ -371,6 +392,15 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — security warnings (W3xx) + taint (Txx)
 
+- [x] **W201** manual path concatenation → `[file join]` — RESOLVED for the
+  literal-whitespace class (FP-STY-16): every multi-word quoted string that
+  merely contains a `/` (HTTP request line `"CONNECT $host:$port HTTP/1.1"`,
+  usage message `"Usage: … script "`) was flagged.  Rendered-props pass now
+  sets `HAS_LITERAL_SPACE` on a top-level `SEP` token and W201 skips it; genuine
+  path concat (`"$dir/$name"`, `"$dir/[file tail $path]"`) still fires.  Known
+  residual: bracketless CIDR `"$ip/$mask"` / HTML `src=$a/$b` (no literal
+  whitespace to key on).  (W201 is a taint-pass diagnostic — not surfaced
+  through the server push path — so it is pytest-covered only.)
 - [x] **W302** catch without result var — RESOLVED (see top): exempted
   the documented fire-and-forget idiom (`catch {after cancel}`, `catch
   {file delete}`, `catch {close}`, etc.).
@@ -393,9 +423,15 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — errors (Exxx) + hints
 
-- [ ] **E001** missing subcommand / **E002** too few args / **E003** too many
+- [~] **E001** missing subcommand / **E002** too few args / **E003** too many
   args — arity. Sweep for custom-arity commands (ensembles, varargs) that may
-  miscount. (E002/E003 fire in corpus.)
+  miscount. (E002/E003 fire in corpus.)  **One lexer-root-cause FP class fixed
+  (FP-STY-15):** every corpus E002/E205 firing (tcltest.tcl, csv.tcl) was a
+  quoted word ending in the regex end-anchor `$"` (`regsub "\n$" …`,
+  `string match "abc$" …`) — the lexer misread the closing quote as a new
+  opening quote and merged the word with the next, dropping an argument.  Also
+  cleared the paired W306 FP on `"^foo$"` end-anchors (the `$` is literal, not
+  a substitution).  Genuine `$bar` foot-guns in quoted patterns still fire W306.
 - [ ] **E004** malformed control flow (0) — synthetic.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.
