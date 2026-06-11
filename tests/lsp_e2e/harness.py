@@ -23,17 +23,67 @@ To write a test, take the ``lsp_server`` fixture and call ``request`` /
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_INFO = ROOT / "shared" / "_build_info.py"
+
+# -- server selection (Python pyz vs native Rust binary) -------------------
+#
+# The same JSON-RPC battery can drive either backend.  ``TCL_LSP_SERVER_KIND``
+# selects which:
+#   * ``python`` (default) — the packaged ``tcl-lsp-server-<v>.pyz`` run under
+#     the current interpreter (the shipped Python LSP server).
+#   * ``rust``             — the native ``tcl-lsp-server`` binary, run directly
+#     over stdio.
+#
+# In ``rust`` mode the binary is located via ``TCL_LSP_SERVER_BIN`` (explicit
+# path) or discovered at ``target/{release,debug}/tcl-lsp-server`` under the
+# repo root (build it with ``make rust-server`` / ``cargo build -p
+# tcl-lsp-server``).  Keeping the selector here — rather than in conftest —
+# lets every fixture and any out-of-band script share one resolution rule.
+
+
+def server_kind() -> str:
+    """Return the selected LSP backend: ``"python"`` (default) or ``"rust"``."""
+    kind = os.environ.get("TCL_LSP_SERVER_KIND", "python").strip().lower()
+    return "rust" if kind in {"rust", "native"} else "python"
+
+
+def native_server_bin() -> Path | None:
+    """Resolve the native Rust ``tcl-lsp-server`` binary for ``rust`` mode.
+
+    Honours ``TCL_LSP_SERVER_BIN`` first, then a release/debug build under the
+    repo's ``target/``.  Returns ``None`` when nothing is built yet.
+    """
+    explicit = os.environ.get("TCL_LSP_SERVER_BIN")
+    if explicit:
+        return Path(explicit).resolve()
+    for profile in ("release", "debug"):
+        candidate = ROOT / "target" / profile / "tcl-lsp-server"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def server_launch_argv(server: Path) -> list[str]:
+    """Build the subprocess argv for *server*.
+
+    A native binary runs directly; a ``.pyz`` runs under the current
+    interpreter.
+    """
+    return [str(server)] if server_kind() == "rust" else [sys.executable, str(server)]
+
 
 # Used only when no build-info file has been generated yet (bare checkout /
 # before ``make build-info``); a value that is unmistakably not the "dev"
@@ -509,6 +559,90 @@ class LspServerClient:
             {"command": command, "arguments": arguments},
             timeout=timeout,
         )
+
+    # -- configuration injection ------------------------------------------
+
+    def effective_config(self, uri: str = "", *, timeout: float = 30.0) -> dict:
+        """Return the server's *resolved* config for ``uri`` (``getEffectiveConfig``).
+
+        This is the view the analyser/formatter actually applies — folder
+        override → workspace fallback → process default — so a test can assert
+        the server honoured a config change rather than sleeping on the
+        ``workspace/configuration`` round-trip.
+        """
+        result = self.execute_command("tcl-lsp.getEffectiveConfig", [uri], timeout=timeout)
+        return result if isinstance(result, dict) else {}
+
+    def apply_configuration(
+        self,
+        config: dict,
+        *,
+        settle: Callable[[dict], bool] | None = None,
+        settle_uri: str = "",
+        timeout: float = 30.0,
+    ) -> dict:
+        """Make the server adopt *config* as the ``tclLsp`` section, then settle.
+
+        Updates the reply this client returns for the ``tclLsp`` section of
+        ``workspace/configuration`` and notifies ``didChangeConfiguration`` so
+        the server re-pulls and re-applies.  The pull/apply is async, so this
+        blocks until ``getEffectiveConfig`` for ``settle_uri`` satisfies
+        *settle* (a predicate over the resolved config) — turning a config
+        change into a deterministic barrier with no wall-clock sleeps.
+
+        Returns the resolved config the server settled on.  Tests must
+        restore the prior config (or use a dedicated server fixture) to avoid
+        leaking state across the shared session — see ``config_session``.
+        """
+        self._tcllsp_config = config
+        # An empty/None ``settings`` payload makes the server fall through to a
+        # full ``workspace/configuration`` re-pull (see settings.register).
+        self.notify("workspace/didChangeConfiguration", {"settings": {}})
+        if settle is None:
+            return self.effective_config(settle_uri, timeout=timeout)
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        last: dict = {}
+        while _time.monotonic() < deadline:
+            last = self.effective_config(settle_uri, timeout=timeout)
+            if settle(last):
+                return last
+            _time.sleep(0.05)
+        raise AssertionError(
+            f"config did not settle within {timeout}s; last effective config: {last!r}"
+        )
+
+    @contextlib.contextmanager
+    def config_session(
+        self,
+        config: dict,
+        *,
+        settle: Callable[[dict], bool] | None = None,
+        settle_uri: str = "",
+        timeout: float = 30.0,
+    ):
+        """Apply *config* for the duration of the ``with`` block, then restore.
+
+        Snapshots the current ``tclLsp`` reply, applies *config* (settling as
+        :meth:`apply_configuration` does), and on exit restores the prior reply
+        and re-pulls — so a feature-toggle test on the *shared* server cannot
+        leak its override into the next test.  The restore runs even if the
+        body raises.
+        """
+        previous = self._tcllsp_config
+        self.apply_configuration(config, settle=settle, settle_uri=settle_uri, timeout=timeout)
+        try:
+            yield self
+        finally:
+            self._tcllsp_config = previous
+            self.notify("workspace/didChangeConfiguration", {"settings": {}})
+            # Best-effort settle back: give the re-pull a moment to land so the
+            # next test starts from the restored defaults.
+            try:
+                self.effective_config(settle_uri, timeout=timeout)
+            except Exception:  # pragma: no cover - best effort
+                pass
 
     # -- push diagnostics --------------------------------------------------
 
