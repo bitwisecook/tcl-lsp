@@ -292,7 +292,7 @@ def _extract_sections(disasm_text: str) -> dict[str, str]:
 # Commands that aren't available (or fail) in a default
 # ``interp create -safe`` interpreter.  When the snippet's top
 # level invokes any of these the reference capture
-# (``scripts/reference_disasm.tcl``) errors out of
+# (``scripts/capture/disasm.tcl``) errors out of
 # ``$child eval $source`` before ``info procs`` runs and never
 # captures any per-proc disassembly.  We mirror that on the
 # comparison side only so production codegen keeps producing
@@ -331,7 +331,7 @@ _SAFE_INTERP_UNAVAILABLE_COMMANDS = frozenset(
 def _top_level_would_fail_in_safe_interp_source(source: str) -> bool:
     """Cheap textual scan for top-level commands that would error
     in a default safe-interp eval.  Mirrors what
-    ``scripts/reference_disasm.tcl`` observes, without depending on
+    ``scripts/capture/disasm.tcl`` observes, without depending on
     a Tcl interpreter at test time.
     """
     for raw in source.splitlines():
@@ -372,7 +372,7 @@ def _our_disasm(source: str) -> str:
     """Compile source with our pipeline and return disassembly text.
 
     The captured reference disasm comes from
-    ``scripts/reference_disasm.tcl`` which evaluates each snippet in
+    ``scripts/capture/disasm.tcl`` which evaluates each snippet in
     a child ``interp create -safe`` interpreter before iterating
     ``info procs``.  When the safe-interp eval errors (e.g. because
     the script's top level calls ``puts`` and stdout is unavailable)

@@ -17,9 +17,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNIPPETS_DIR="$REPO_ROOT/tests/bytecode_snippets"
-DISASM_SCRIPT="$SCRIPT_DIR/reference_disasm.tcl"
+DISASM_SCRIPT="$SCRIPT_DIR/disasm.tcl"
 
 TCLSH_VERSIONS=(tclsh8.5 tclsh8.6 tclsh9.0)
 
