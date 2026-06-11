@@ -7617,6 +7617,81 @@ existing namespace-qualified exemption.
 
 ---
 
+### FP-STY-14 — W105 single bare-variable body is a script reference, not an inline block
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_14_*`
+- **Codes:** W105 (unbraced code-block argument) — fired at **Error** severity
+- **Corpus:** Tcl 9.0 stdlib + tcllib — `eval $cmd` (auto.tcl, package.tcl),
+  `proc $fakeName $arglist $body` (auto.tcl dynamic proc), `namespace eval ::
+  $state(-command) $token` (http.tcl callback dispatch — 6+ firings),
+  `after 0 $coroName` (http.tcl), `interp eval $child $contents` (safe.tcl),
+  `foreach name $nameList $_sub_load_cmd` (init.tcl).
+
+#### Reproducer
+
+```tcl
+# Each body argument below is a single bare variable that HOLDS the script —
+# a script-valued reference, not an inline code block.
+eval $cmd
+proc $fakeName $arglist $body
+namespace eval :: $state(-command) $token
+after 0 $coroName
+```
+
+#### Per-line reasoning
+
+1. W105 warns that an *inline* code-block argument containing `$`/`[` should
+   be braced to avoid double substitution.  But when the body word is a
+   **single bare variable substitution** (`$cmd`, `${cmd}`, `$state(-command)`,
+   `$ns::var`) there is no inline block — the variable already holds the
+   script.  Bracing it (`eval {$cmd}`) evaluates the *literal text* `$cmd`,
+   which is a different program (and usually an error).
+2. The W105 quick-fix ("wrap code block in braces") is therefore **actively
+   wrong** for this shape.  The genuine risks are covered elsewhere: the
+   eval-injection / double-substitution risk of `eval $cmd` is W101's, and the
+   dynamic command-name risk of a callback (`$state(-command)`) is W307's
+   (which already *accepts* the registered-callback dispatch form — so W105
+   was double-flagging a pattern the analyser elsewhere recognises as
+   legitimate).
+3. `uplevel $script` was already silent (its arg is not BODY-role); this fix
+   makes `eval` and the callback-dispatch forms consistent with it.
+4. The exemption is narrow: a body that is a **composite** word — `${t}--Coro`
+   (var + literal), `"do $script"` (quoted with interpolation), `$cmd$args`
+   (concatenation) — has more than one content token and **still fires** W105,
+   because there the substitution really is being woven into an inline script.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set cmd {set y 42}
+% eval $cmd          ;# runs the script held in cmd
+% puts $y
+42
+% eval {$cmd}        ;# braces it -> evaluates the literal text "$cmd"
+invalid command name "set y 42"
+```
+
+The brace-fix W105 suggested turns working code into an error — proof the
+single-bare-var body must not be flagged.
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_style.py::check_unbraced_body` calls the new
+`_word_is_single_var` helper: it counts the content tokens spanned by the body
+word and skips W105 when the word is exactly one `VAR` token.  Composite /
+quoted bodies keep their existing `Error`-severity W105.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_14_eval_single_var_body_no_w105` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_14_callback_dispatch_body_no_w105` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_14_dynamic_proc_and_after_no_w105` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_14_quoted_interpolated_body_still_fires` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_14_composite_body_still_fires` (TP)
+
+---
+
 
 ## Precision gaps (PR #498 deep-review) — ALL CLOSED
 

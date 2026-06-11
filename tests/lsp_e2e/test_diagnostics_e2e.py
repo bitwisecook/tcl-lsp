@@ -247,6 +247,37 @@ class TestOverridableLibraryProcs:
             assert "W113" in _codes(lsp_server.open_ready(uri, src)), name
 
 
+class TestSingleVarBodyW105:
+    """FP-STY-14: a body argument that is a single bare variable substitution
+    (``eval $cmd``, ``$state(-command)``, ``after 0 $coroName``) is a
+    script-valued reference, not an inline block — no W105 through the server
+    pipeline.  A quoted/composite interpolated body still fires."""
+
+    def test_eval_single_var_body_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W105" not in _codes(lsp_server.open_ready(uri, "eval $cmd\n"))
+
+    def test_callback_dispatch_body_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "namespace eval :: $state(-command) $token\n"
+        assert "W105" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_after_and_dynamic_proc_silent(self, lsp_server, uri_factory):
+        for src in ("after 0 $coroName\n", "proc $fakeName $arglist $body\n"):
+            uri = uri_factory()
+            assert "W105" not in _codes(lsp_server.open_ready(uri, src)), src
+
+    def test_quoted_interpolated_body_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, 'eval "do $script"\n')
+        assert "W105" in _codes(diags), _codes(diags)
+        assert 0 in _on_line(diags, "W105")
+
+    def test_composite_body_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W105" in _codes(lsp_server.open_ready(uri, "eval $cmd$args\n"))
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()

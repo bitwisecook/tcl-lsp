@@ -495,3 +495,47 @@ def test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113():
     for name in ("clock", "after", "socket", "glob"):
         src = f"proc {name} {{a}} {{ return }}\n"
         assert _codes(src, "W113"), f"proc {name} must still fire W113"
+
+
+# FP-STY-14 — W105 single bare-variable body is a script reference
+
+
+def test_FP_STY_14_eval_single_var_body_no_w105():
+    """FP: ``eval $cmd`` — the variable holds the script; bracing it
+    (``eval {$cmd}``) evaluates the literal text ``$cmd`` (a different,
+    usually-erroring program), so the W105 brace-fix is wrong and must not
+    fire.  The eval-injection risk is W101's to flag."""
+    assert _codes("eval $cmd", "W105") == []
+
+
+def test_FP_STY_14_callback_dispatch_body_no_w105():
+    """FP: ``namespace eval :: $state(-command) $token`` is registered-callback
+    dispatch (the same shape W307 already accepts); W105 must not double-flag
+    it at Error severity."""
+    assert _codes("namespace eval :: $state(-command) $token", "W105") == []
+
+
+def test_FP_STY_14_dynamic_proc_and_after_no_w105():
+    """FP variants: every single-bare-variable body is a script reference."""
+    for src in (
+        "proc $fakeName $arglist $body",
+        "after 0 $coroName",
+        "interp eval $child $contents",
+        "foreach name $nameList $body",
+        "uplevel $script",
+    ):
+        assert _codes(src, "W105") == [], f"W105 should be silent on {src!r}"
+
+
+def test_FP_STY_14_quoted_interpolated_body_still_fires():
+    """TP control: a *quoted* body with interpolation (``eval "do $script"``)
+    really is an inline script being woven from substitutions — it can and
+    should be braced, so W105 still fires."""
+    assert _codes('eval "do $script"', "W105"), "quoted interpolated body must fire W105"
+
+
+def test_FP_STY_14_composite_body_still_fires():
+    """TP control: a composite body (var + concatenation) still fires — it is
+    not a single bare reference."""
+    assert _codes("eval $cmd$args", "W105"), "composite body must fire W105"
+    assert _codes("fileevent $s readable ${t}--Coro", "W105"), "composite body must fire W105"

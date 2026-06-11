@@ -82,3 +82,33 @@ suite("Overridable library procs (FP-STY-13)", () => {
     }
   });
 });
+
+// FP-STY-14 — single bare-variable body is a script reference, not a block.
+//
+// Lines 8–9 (`eval "do $script"` / `eval $cmd$args`) weave substitutions into
+// an inline script and MUST fire W105 (the marker that analysis ran).  The
+// bare-variable bodies on lines 2–5 (`eval $cmd`, `$state(-command)`,
+// `after 0 $coroName`, dynamic `proc`) must stay silent.
+suite("Single bare-variable body (FP-STY-14)", () => {
+  const docUri = getDocUri("singleVarBody.tcl");
+
+  test("composite/quoted interpolated body fires W105 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W105"),
+    });
+    const w105Lines = linesWithCode(diags, "W105");
+    assert.ok(w105Lines.includes(8), `expected W105 on 'eval "do $script"' (line 8); got [${w105Lines}]`);
+    assert.ok(w105Lines.includes(9), `expected W105 on 'eval $cmd$args' (line 9); got [${w105Lines}]`);
+  });
+
+  test("single bare-variable body stays silent for W105 (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W105"),
+    });
+    for (const ln of linesWithCode(diags, "W105")) {
+      assert.ok(![2, 3, 4, 5].includes(ln), `unexpected W105 on bare-var-body line ${ln}`);
+    }
+  });
+});

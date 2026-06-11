@@ -341,8 +341,15 @@ can simplify this" suggestion. None swept yet.
 - [ ] **W100** unbraced expr (219)
 - [x] **W104** string-concat list building → lappend — RESOLVED (see top): usage/
   template notation suppressed; corpus 165→144.
-- [ ] **W105** unbraced code-block arg (396) — INJ family has some coverage;
-  re-sweep the non-eval shapes.
+- [x] **W105** unbraced code-block arg (396) — RESOLVED (FP-STY-14): a body
+  argument that is a *single bare variable substitution* (`eval $cmd`,
+  `proc $n $a $body`, `namespace eval :: $state(-command)`, `after 0 $coroName`,
+  `interp eval $child $contents`) is a script-valued reference, not an inline
+  block — bracing it (`eval {$cmd}`) evaluates the literal text and errors.
+  Suppressed via `_word_is_single_var`; the eval-injection risk stays with
+  W101 and the dynamic-dispatch risk with W307 (which already accepts the
+  callback form).  Composite / quoted interpolated bodies (`eval "do $script"`,
+  `eval $cmd$args`, `${t}--Coro`) still fire at Error severity.
 - [ ] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
 - [ ] **W108** non-ASCII in token (1)
 - [x] **W113** proc shadows builtin (95) — RESOLVED (FP-STY-13): redefining an
