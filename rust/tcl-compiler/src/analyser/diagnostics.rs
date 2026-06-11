@@ -2622,6 +2622,20 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         };
 
+        // The braced pattern-list switch form ``switch $x { pat body … }``
+        // is NOT a runtime hazard: Tcl unambiguously identifies the
+        // trailing brace as the pattern list and never consumes the
+        // preceding word as an option.  Detect the two-arg braced form
+        // (the last arg is a brace-enclosed `Str` token) and exempt it
+        // entirely.  The SPLIT form (`switch $x -nocase {body} …`, 3+
+        // args) is still flagged.  Mirrors `_style.py` G12.
+        if cmd_name == "switch"
+            && arg_tokens.len() == 2
+            && arg_tokens.last().map(|t| t.kind) == Some(tcl_lexer::TokenType::Str)
+        {
+            return;
+        }
+
         let Some(positional_idx) = first_positional_without_terminator(args, &profile) else {
             return;
         };
@@ -8239,6 +8253,37 @@ foo
         assert!(
             !r.diagnostics.iter().any(|d| d.code == "W302"),
             "W302 must be suppressed on `catch {{chan close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w304_braced_switch_form_silent() {
+        // FP-NAB-05: the two-arg braced switch form is unambiguous — no W304.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {x} { switch $x { -nocase {puts a} default {puts b} } }",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W304"),
+            "W304 must not fire on a two-arg braced switch; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w304_split_switch_form_still_fires() {
+        // TP control: the split (3+ arg) switch form with a dynamic string
+        // before an explicit option still warrants `--`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {x} { switch $x -nocase {puts a} default {puts b} }",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W304"),
+            "W304 must still fire on the split switch form; got {:?}",
             r.diagnostics,
         );
     }

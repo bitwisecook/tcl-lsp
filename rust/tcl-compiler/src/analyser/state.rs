@@ -2569,14 +2569,14 @@ mod tests {
 
     #[test]
     fn analyse_w304_constant_propagation_emits_info_with_origin() {
-        // ``set X "datagroup"; switch $X { default { ... } }`` — the
-        // variable resolves to a literal value that doesn't start
-        // with `-`, so severity drops to INFO and a second "origin"
-        // diagnostic anchors at the literal's range.
+        // ``set X "datagroup"; exec $X`` — the variable resolves to a
+        // literal value that doesn't start with `-`, so severity drops
+        // to INFO and a second "origin" diagnostic anchors at the
+        // literal's range.  (The two-arg braced ``switch $X { ... }``
+        // form is exempt from W304 entirely — FP-NAB-05 — so an
+        // option-bearing command that still flags is used here.)
         let src = "set totp_key_storage \"datagroup\"\n\
-                   switch $totp_key_storage {\n\
-                   \x20\x20\x20\x20default { puts ok }\n\
-                   }\n";
+                   exec $totp_key_storage\n";
         let diags = w304_diags(src);
         assert_eq!(diags.len(), 2, "got {diags:?}");
 
