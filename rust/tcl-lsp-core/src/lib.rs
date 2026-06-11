@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod bigip;
 pub mod call_hierarchy;
 pub mod code_actions;
 pub mod code_lens;

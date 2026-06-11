@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
+use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
@@ -548,13 +549,33 @@ impl Backend {
     ///    URLs, use the deepest-matching folder's dialect.
     /// 3. The session-wide ``default_dialect`` fallback.
     async fn dialect_for_open(&self, uri: &Url, language_id: &str) -> String {
-        if let Some(d) = Self::dialect_from_language_id(language_id) {
+        let lang_dialect = Self::dialect_from_language_id(language_id);
+        // A canonical BIG-IP basename (``bigip.conf``, ``bigip_base.conf``,
+        // …) routes to ``f5-bigip`` ahead of a *generic* Tcl ``languageId``,
+        // mirroring Python ``infer_document_dialect``: only an explicit
+        // non-Tcl dialect id (``f5-irules`` / ``f5-iapps`` / ``expect`` /
+        // EDA / ``tk``) wins over the basename. This is what lets the test
+        // harness open ``bigip.conf`` with ``languageId: "tcl"`` and still
+        // get the BIG-IP path (parse / outline + general-Tcl-diagnostic
+        // suppression).
+        let explicit_non_tcl = matches!(lang_dialect, Some(d) if !d.starts_with("tcl"));
+        if !explicit_non_tcl && core_bigip::is_bigip_conf_name(uri.as_str()) {
+            return "f5-bigip".to_owned();
+        }
+        if let Some(d) = lang_dialect {
             return d.to_owned();
         }
         if let Some(d) = self.resolve_folder_dialect(uri).await {
             return d;
         }
         self.default_dialect.lock().await.clone()
+    }
+
+    /// Whether `dialect` denotes an F5 BIG-IP config document — the
+    /// signal every BIG-IP-specific branch (analysis suppression,
+    /// config outline) keys on.
+    fn is_bigip_dialect(dialect: &str) -> bool {
+        dialect == "f5-bigip"
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -1778,6 +1799,28 @@ impl Backend {
         // `window/logMessage` (mirrors the Python server's `[timing]` lines so
         // the same logs appear in editors' LSP output channels — and so the
         // e2e harness can await the per-URI snapshot-built marker).
+        // F5 BIG-IP config (`bigip.conf`, …) is not Tcl source. The
+        // general Tcl analyser must never run on it — doing so mis-reads
+        // BIG-IP encrypted-string markers (`$M$…$`) as Tcl `$var`
+        // references (W210) and flags stanza syntax like `ltm pool …` as
+        // bad Tcl (W123 / E002). Publish an empty (no general-Tcl)
+        // diagnostic set keyed on the document version and return before
+        // any analysis, mirroring the Python `f5-bigip` diagnostics skip
+        // (#571). The Tcl `workspace_state.update` timing marker is
+        // deliberately *not* emitted on this path — there is no Tcl
+        // analysis snapshot to advertise.
+        if Self::is_bigip_dialect(&dialect) {
+            let is_current = {
+                let docs = self.documents.lock().await;
+                docs.get(&uri).is_some_and(|doc| doc.revision == revision)
+            };
+            if is_current {
+                self.client
+                    .publish_diagnostics(uri, Vec::new(), version)
+                    .await;
+            }
+            return;
+        }
         let started = std::time::Instant::now();
         let uri_str = uri.to_string();
         let line_count = text.lines().count();
@@ -2154,7 +2197,16 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
             return Ok(None);
         };
-        let symbols = core_symbols::document_symbols(&doc.text, &doc.dialect);
+        // BIG-IP config documents get a `module → kind → object` outline
+        // built from their stanza tree rather than the Tcl scope walk
+        // (which would find nothing in non-Tcl config text). Nameless
+        // singletons fall back to their kind label so no outline symbol
+        // ever carries an empty `name` (#534).
+        let symbols = if Self::is_bigip_dialect(&doc.dialect) {
+            core_bigip::document_symbols(&doc.text)
+        } else {
+            core_symbols::document_symbols(&doc.text, &doc.dialect)
+        };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
     }
@@ -2733,6 +2785,12 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(empty_diagnostic_report());
         };
+        // BIG-IP config text carries no general Tcl diagnostics — the
+        // analyser never runs on it (#571), so the pull report is empty
+        // too (matching the push path in `publish_analyser_diagnostics`).
+        if Self::is_bigip_dialect(&doc.dialect) {
+            return Ok(empty_diagnostic_report());
+        }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -4484,6 +4542,7 @@ fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
         CoreSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
         CoreSymbolKind::Namespace => SymbolKind::NAMESPACE,
         CoreSymbolKind::Variable => SymbolKind::VARIABLE,
+        CoreSymbolKind::Module => SymbolKind::MODULE,
     }
 }
 

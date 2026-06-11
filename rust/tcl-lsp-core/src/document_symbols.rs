@@ -53,6 +53,9 @@ pub enum SymbolKind {
     /// Top-level `set` / `variable` definition at global / namespace
     /// scope.
     Variable,
+    /// A BIG-IP tmsh module folder (`ltm`, `net`, `sys`, …) — the
+    /// top level of the BIG-IP config outline.
+    Module,
 }
 
 impl SymbolKind {
@@ -67,6 +70,7 @@ impl SymbolKind {
             Self::Constructor => "Constructor",
             Self::Namespace => "Namespace",
             Self::Variable => "Variable",
+            Self::Module => "Module",
         }
     }
 }
