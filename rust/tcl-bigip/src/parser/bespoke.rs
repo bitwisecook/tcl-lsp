@@ -28,13 +28,19 @@ use tcl_registry::bigip::BigipRegistry;
 
 use crate::model::gen::parsers::*;
 use crate::model::{
-    BigipApmPolicyItem, BigipDataGroup, BigipGtmPool, BigipGtmPoolMember, BigipGtmServer,
-    BigipGtmTopology, BigipGtmWideip, BigipMonitor, BigipNetRoute, BigipNetSelf, BigipNode,
-    BigipPersistence, BigipPolicy, BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule,
-    BigipPool, BigipPoolMember, BigipProfile, BigipRule, BigipSecurityFirewallPolicy,
-    BigipSecurityFirewallRuleList, BigipSnatPool, BigipSysNtp, BigipSysNtpRestrict, BigipSysSnmp,
-    BigipSysSnmpDiskMonitor, BigipSysSnmpProcessMonitor, BigipSysSnmpTrap, BigipSysSnmpUser,
-    BigipVirtualAddress, BigipVirtualServer, DataGroupType, ProfileType,
+    BigipApmOauthDbInstance, BigipApmPolicyItem, BigipAuthPartition, BigipCmDevice,
+    BigipCmDeviceGroup, BigipCmTrafficGroup, BigipCmTrustDomain, BigipDataGroup,
+    BigipGtmDatacenter, BigipGtmPool, BigipGtmPoolMember, BigipGtmProberPool, BigipGtmRule,
+    BigipGtmServer, BigipGtmTopology, BigipGtmWideip, BigipLtmDnsCacheResolver, BigipMonitor,
+    BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute, BigipNetRouteDomain,
+    BigipNetSelf, BigipNetStp, BigipNetVlan, BigipNode, BigipPemListener, BigipPemPolicy,
+    BigipPemServiceChainEndpoint, BigipPersistence, BigipPolicy, BigipPolicyAction,
+    BigipPolicyCondition, BigipPolicyRule, BigipPool, BigipPoolMember, BigipProfile, BigipRule,
+    BigipSecurityFirewallPolicy, BigipSecurityFirewallPortList, BigipSecurityFirewallRuleList,
+    BigipSecurityLogProfile, BigipSecurityNatPolicy, BigipSecurityPacketFilterPolicy,
+    BigipSnatPool, BigipSysFileSslCert, BigipSysNtp, BigipSysNtpRestrict, BigipSysProvision,
+    BigipSysSnmp, BigipSysSnmpDiskMonitor, BigipSysSnmpProcessMonitor, BigipSysSnmpTrap,
+    BigipSysSnmpUser, BigipVirtualAddress, BigipVirtualServer, DataGroupType, ProfileType,
 };
 use crate::range::Range;
 use crate::value::bigip_list::SourceSpan;
@@ -91,6 +97,66 @@ fn strip_quotes(text: &str) -> String {
     } else {
         s.to_owned()
     }
+}
+
+/// For a block of anonymous sub-blocks like `{ { ip 10.0.0.1 } { ip
+/// 10.0.0.2 } }`, extract `prop_name` from every direct sub-block in
+/// document order. Mirrors `_collect_named_property_from_anon_subblocks`.
+fn collect_named_property_from_anon_subblocks(braced: &str, prop_name: &str) -> Vec<String> {
+    let inner = strip_outer_braces(braced);
+    let bytes = inner.as_bytes();
+    let length = bytes.len();
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while pos < length {
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length || bytes[pos] != b'{' {
+            break;
+        }
+        let block_start = pos;
+        pos += 1;
+        let mut depth = 1;
+        while pos < length && depth > 0 {
+            match bytes[pos] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                _ => {}
+            }
+            pos += 1;
+        }
+        let block_text = &inner[block_start..pos];
+        let sub_inner = strip_outer_braces(block_text);
+        if let Some((_, p)) = parse_properties_with_spans(sub_inner)
+            .iter()
+            .find(|(k, _)| k == prop_name)
+        {
+            out.push(p.value.clone());
+        }
+    }
+    out
+}
+
+/// For a block like `{ 1 { ip ... } 2 { ip ... } }`, return the
+/// `prop_name` value from every direct sub-block in document order.
+/// Mirrors `_collect_named_property_from_subblocks`.
+fn collect_named_property_from_subblocks(braced: &str, prop_name: &str) -> Vec<String> {
+    let inner = strip_outer_braces(braced);
+    let mut out = Vec::new();
+    for (_, prop) in parse_properties_with_spans(inner) {
+        if !prop.value.starts_with('{') {
+            continue;
+        }
+        let sub_inner = strip_outer_braces(&prop.value);
+        if let Some((_, p)) = parse_properties_with_spans(sub_inner)
+            .iter()
+            .find(|(k, _)| k == prop_name)
+        {
+            out.push(p.value.clone());
+        }
+    }
+    out
 }
 
 /// `(start, end)` of the first non-whitespace / non-`#{}` token. Mirrors
@@ -1474,6 +1540,319 @@ pub fn parse_apm_policy_item(full_path: &str, body: &str, range: Range) -> Bigip
     obj.caption = props
         .get("caption")
         .map_or_else(String::new, |v| strip_quotes(v));
+    obj
+}
+
+// ---------------------------------------------------------------------------
+// Per-kind structured-list parsers (cm / gtm / ltm / net / pem / security / sys)
+// ---------------------------------------------------------------------------
+
+/// `_parse_list_block` over a property's value when present, else empty.
+fn list_block_of(props: &HashMap<String, String>, key: &str) -> Vec<String> {
+    props
+        .get(key)
+        .filter(|v| !v.is_empty())
+        .map(|v| parse_list_block(v))
+        .unwrap_or_default()
+}
+
+/// The ordered top-level keys of a braced sub-block value (mirrors
+/// `tuple(_parse_properties_with_spans(_strip_outer_braces(value)).keys())`).
+fn subblock_keys(value: &str) -> Vec<String> {
+    parse_properties_with_spans(strip_outer_braces(value))
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// `apm oauth db-instance` — `purge_time` is a quoted string Python
+/// `_strip_quotes`-es (the rest is faithful via the scalar parser).
+/// Mirrors `_parse_apm_oauth_db_instance`.
+#[must_use]
+pub fn parse_apm_oauth_db_instance(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipApmOauthDbInstance {
+    let mut obj = parse_bigip_apm_oauth_db_instance(full_path, body, range);
+    obj.purge_time = props_map(body)
+        .get("purge-time")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj
+}
+
+/// `cm device` — `unicast_address` flattened out of anon-or-numbered
+/// `ip` sub-blocks; `comment`/`contact`/`location` `_strip_quotes`-ed.
+/// Mirrors `_parse_cm_device`.
+#[must_use]
+pub fn parse_cm_device(full_path: &str, body: &str, range: Range) -> BigipCmDevice {
+    let mut obj = parse_bigip_cm_device(full_path, body, range);
+    let props = props_map(body);
+    obj.comment = props
+        .get("comment")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj.contact = props
+        .get("contact")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj.location = props
+        .get("location")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj.unicast_address = props.get("unicast-address").map_or_else(Vec::new, |ua| {
+        let anon = collect_named_property_from_anon_subblocks(ua, "ip");
+        if anon.is_empty() {
+            collect_named_property_from_subblocks(ua, "ip")
+        } else {
+            anon
+        }
+    });
+    obj
+}
+
+/// `cm device-group` — `devices` list. Mirrors `_parse_cm_device_group`.
+#[must_use]
+pub fn parse_cm_device_group(full_path: &str, body: &str, range: Range) -> BigipCmDeviceGroup {
+    let mut obj = parse_bigip_cm_device_group(full_path, body, range);
+    obj.devices = list_block_of(&props_map(body), "devices");
+    obj
+}
+
+/// `cm traffic-group` — `ha_order` list. Mirrors `_parse_cm_traffic_group`.
+#[must_use]
+pub fn parse_cm_traffic_group(full_path: &str, body: &str, range: Range) -> BigipCmTrafficGroup {
+    let mut obj = parse_bigip_cm_traffic_group(full_path, body, range);
+    obj.ha_order = list_block_of(&props_map(body), "ha-order");
+    obj
+}
+
+/// `cm trust-domain` — `ca_devices` list. Mirrors `_parse_cm_trust_domain`.
+#[must_use]
+pub fn parse_cm_trust_domain(full_path: &str, body: &str, range: Range) -> BigipCmTrustDomain {
+    let mut obj = parse_bigip_cm_trust_domain(full_path, body, range);
+    obj.ca_devices = list_block_of(&props_map(body), "ca-devices");
+    obj
+}
+
+/// `gtm datacenter` — `contact`/`location` `_strip_quotes`-ed. Mirrors
+/// `_parse_gtm_datacenter`.
+#[must_use]
+pub fn parse_gtm_datacenter(full_path: &str, body: &str, range: Range) -> BigipGtmDatacenter {
+    let mut obj = parse_bigip_gtm_datacenter(full_path, body, range);
+    let props = props_map(body);
+    obj.contact = props
+        .get("contact")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj.location = props
+        .get("location")
+        .map_or_else(String::new, |v| strip_quotes(v));
+    obj
+}
+
+/// `gtm prober-pool` — `members` list. Mirrors `_parse_gtm_prober_pool`.
+#[must_use]
+pub fn parse_gtm_prober_pool(full_path: &str, body: &str, range: Range) -> BigipGtmProberPool {
+    let mut obj = parse_bigip_gtm_prober_pool(full_path, body, range);
+    obj.members = list_block_of(&props_map(body), "members");
+    obj
+}
+
+/// `gtm rule` — Tcl body stored verbatim in `source`. Mirrors
+/// `_parse_gtm_rule`.
+#[must_use]
+pub fn parse_gtm_rule(full_path: &str, body: &str, range: Range) -> BigipGtmRule {
+    let mut obj = parse_bigip_gtm_rule(full_path, body, range);
+    obj.source = body.trim().to_owned();
+    obj
+}
+
+/// `ltm dns cache resolver` — `forward_zones` keys. Mirrors
+/// `_parse_ltm_dns_cache_resolver`.
+#[must_use]
+pub fn parse_ltm_dns_cache_resolver(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipLtmDnsCacheResolver {
+    let mut obj = parse_bigip_ltm_dns_cache_resolver(full_path, body, range);
+    let props = props_map(body);
+    obj.forward_zones = props
+        .get("forward-zones")
+        .filter(|raw| raw.starts_with('{'))
+        .map_or_else(Vec::new, |raw| subblock_keys(raw));
+    obj
+}
+
+/// `net dns-resolver` — `forward_zones` + `nameservers` lists. Mirrors
+/// `_parse_net_dns_resolver`.
+#[must_use]
+pub fn parse_net_dns_resolver(full_path: &str, body: &str, range: Range) -> BigipNetDnsResolver {
+    let mut obj = parse_bigip_net_dns_resolver(full_path, body, range);
+    let props = props_map(body);
+    obj.forward_zones = list_block_of(&props, "forward-zones");
+    obj.nameservers = list_block_of(&props, "nameservers");
+    obj
+}
+
+/// `net interface` — `name = full_path` (bare slot/port token). Mirrors
+/// `_parse_net_interface`.
+#[must_use]
+pub fn parse_net_interface(full_path: &str, body: &str, range: Range) -> BigipNetInterface {
+    let mut obj = parse_bigip_net_interface(full_path, body, range);
+    obj.name = full_path.to_owned();
+    obj
+}
+
+/// `net port-list` — `ports` list. Mirrors `_parse_net_port_list`.
+#[must_use]
+pub fn parse_net_port_list(full_path: &str, body: &str, range: Range) -> BigipNetPortList {
+    let mut obj = parse_bigip_net_port_list(full_path, body, range);
+    obj.ports = list_block_of(&props_map(body), "ports");
+    obj
+}
+
+/// `net route-domain` — `vlans` + `routing_protocol` lists. Mirrors
+/// `_parse_net_route_domain`.
+#[must_use]
+pub fn parse_net_route_domain(full_path: &str, body: &str, range: Range) -> BigipNetRouteDomain {
+    let mut obj = parse_bigip_net_route_domain(full_path, body, range);
+    let props = props_map(body);
+    obj.vlans = list_block_of(&props, "vlans");
+    obj.routing_protocol = list_block_of(&props, "routing-protocol");
+    obj
+}
+
+/// `net stp` — `interfaces` + `vlans` lists. Mirrors `_parse_net_stp`.
+#[must_use]
+pub fn parse_net_stp(full_path: &str, body: &str, range: Range) -> BigipNetStp {
+    let mut obj = parse_bigip_net_stp(full_path, body, range);
+    let props = props_map(body);
+    obj.interfaces = list_block_of(&props, "interfaces");
+    obj.vlans = list_block_of(&props, "vlans");
+    obj
+}
+
+/// `net vlan` — `interfaces` list. Mirrors `_parse_net_vlan`.
+#[must_use]
+pub fn parse_net_vlan(full_path: &str, body: &str, range: Range) -> BigipNetVlan {
+    let mut obj = parse_bigip_net_vlan(full_path, body, range);
+    obj.interfaces = list_block_of(&props_map(body), "interfaces");
+    obj
+}
+
+/// `pem listener` — `virtual_servers` list. Mirrors `_parse_pem_listener`.
+#[must_use]
+pub fn parse_pem_listener(full_path: &str, body: &str, range: Range) -> BigipPemListener {
+    let mut obj = parse_bigip_pem_listener(full_path, body, range);
+    obj.virtual_servers = list_block_of(&props_map(body), "virtual-servers");
+    obj
+}
+
+/// `pem policy` — `rules` sub-block keys. Mirrors `_parse_pem_policy`.
+#[must_use]
+pub fn parse_pem_policy(full_path: &str, body: &str, range: Range) -> BigipPemPolicy {
+    let mut obj = parse_bigip_pem_policy(full_path, body, range);
+    obj.rules = props_map(body)
+        .get("rules")
+        .map_or_else(Vec::new, |v| subblock_keys(v));
+    obj
+}
+
+/// `pem service-chain-endpoint` — `service_endpoints` sub-block keys.
+/// Mirrors `_parse_pem_service_chain_endpoint`.
+#[must_use]
+pub fn parse_pem_service_chain_endpoint(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipPemServiceChainEndpoint {
+    let mut obj = parse_bigip_pem_service_chain_endpoint(full_path, body, range);
+    obj.service_endpoints = props_map(body)
+        .get("service-endpoints")
+        .map_or_else(Vec::new, |v| subblock_keys(v));
+    obj
+}
+
+/// `security firewall port-list` — `ports` list. Mirrors
+/// `_parse_security_firewall_port_list`.
+#[must_use]
+pub fn parse_security_firewall_port_list(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipSecurityFirewallPortList {
+    let mut obj = parse_bigip_security_firewall_port_list(full_path, body, range);
+    obj.ports = list_block_of(&props_map(body), "ports");
+    obj
+}
+
+/// `security log profile` — `application_data` from the `application`
+/// key. Mirrors `_parse_security_log_profile`.
+#[must_use]
+pub fn parse_security_log_profile(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipSecurityLogProfile {
+    let mut obj = parse_bigip_security_log_profile(full_path, body, range);
+    obj.application_data = props_map(body)
+        .get("application")
+        .cloned()
+        .unwrap_or_default();
+    obj
+}
+
+/// `security nat policy` — firewall `rules` + `rule_lists` summary.
+/// Mirrors `_parse_security_nat_policy`.
+#[must_use]
+pub fn parse_security_nat_policy(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipSecurityNatPolicy {
+    let mut obj = parse_bigip_security_nat_policy(full_path, body, range);
+    let (names, refs) = firewall_rules_summary(&props_map(body));
+    obj.rules = names;
+    obj.rule_lists = refs;
+    obj
+}
+
+/// `security packet-filter policy` — firewall `rules` summary (no
+/// rule-lists surfaced). Mirrors `_parse_security_packet_filter_policy`.
+#[must_use]
+pub fn parse_security_packet_filter_policy(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipSecurityPacketFilterPolicy {
+    let mut obj = parse_bigip_security_packet_filter_policy(full_path, body, range);
+    let (names, _) = firewall_rules_summary(&props_map(body));
+    obj.rules = names;
+    obj
+}
+
+/// `sys file ssl-cert` — `cert_validators` list. Mirrors
+/// `_parse_sys_file_ssl_cert`.
+#[must_use]
+pub fn parse_sys_file_ssl_cert(full_path: &str, body: &str, range: Range) -> BigipSysFileSslCert {
+    let mut obj = parse_bigip_sys_file_ssl_cert(full_path, body, range);
+    obj.cert_validators = list_block_of(&props_map(body), "cert-validators");
+    obj
+}
+
+/// `sys provision` — `name = full_path` (bare module name). Mirrors
+/// `_parse_sys_provision`.
+#[must_use]
+pub fn parse_sys_provision(full_path: &str, body: &str, range: Range) -> BigipSysProvision {
+    let mut obj = parse_bigip_sys_provision(full_path, body, range);
+    obj.name = full_path.to_owned();
+    obj
+}
+
+/// `auth partition` — `name = full_path` (cluster-wide identifier).
+/// Mirrors `_parse_auth_partition`.
+#[must_use]
+pub fn parse_auth_partition(full_path: &str, body: &str, range: Range) -> BigipAuthPartition {
+    let mut obj = parse_bigip_auth_partition(full_path, body, range);
+    obj.name = full_path.to_owned();
     obj
 }
 

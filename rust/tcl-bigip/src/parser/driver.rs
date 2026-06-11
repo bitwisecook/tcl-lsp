@@ -372,6 +372,7 @@ fn placed(table: &'static str, full_path: &str, object: ModelObject) -> Option<P
 /// routes through the scalar named/singleton tables but which carry
 /// structured fields handled by [`super::bespoke`]. Returns `None` for any
 /// other key so the generated dispatch proceeds unchanged.
+#[allow(clippy::too_many_lines)]
 fn bespoke_override(
     module: &str,
     object_type: &str,
@@ -419,12 +420,169 @@ fn bespoke_override(
             full_path,
             ModelObject::GtmServer(super::bespoke::parse_gtm_server(full_path, body, range)),
         ),
+        ("apm", "oauth db-instance") => placed(
+            "apm_oauth_db_instances",
+            full_path,
+            ModelObject::ApmOauthDbInstance(super::bespoke::parse_apm_oauth_db_instance(
+                full_path, body, range,
+            )),
+        ),
         ("apm", "policy policy-item") => placed(
             "apm_policy_items",
             full_path,
             ModelObject::ApmPolicyItem(super::bespoke::parse_apm_policy_item(
                 full_path, body, range,
             )),
+        ),
+        ("auth", "partition") => placed(
+            "auth_partitions",
+            full_path,
+            ModelObject::AuthPartition(super::bespoke::parse_auth_partition(
+                full_path, body, range,
+            )),
+        ),
+        ("cm", "device") => placed(
+            "cm_devices",
+            full_path,
+            ModelObject::CmDevice(super::bespoke::parse_cm_device(full_path, body, range)),
+        ),
+        ("cm", "device-group") => placed(
+            "cm_device_groups",
+            full_path,
+            ModelObject::CmDeviceGroup(super::bespoke::parse_cm_device_group(
+                full_path, body, range,
+            )),
+        ),
+        ("cm", "traffic-group") => placed(
+            "cm_traffic_groups",
+            full_path,
+            ModelObject::CmTrafficGroup(super::bespoke::parse_cm_traffic_group(
+                full_path, body, range,
+            )),
+        ),
+        ("cm", "trust-domain") => placed(
+            "cm_trust_domains",
+            full_path,
+            ModelObject::CmTrustDomain(super::bespoke::parse_cm_trust_domain(
+                full_path, body, range,
+            )),
+        ),
+        ("gtm", "datacenter") => placed(
+            "gtm_datacenters",
+            full_path,
+            ModelObject::GtmDatacenter(super::bespoke::parse_gtm_datacenter(
+                full_path, body, range,
+            )),
+        ),
+        ("gtm", "prober-pool") => placed(
+            "gtm_prober_pools",
+            full_path,
+            ModelObject::GtmProberPool(super::bespoke::parse_gtm_prober_pool(
+                full_path, body, range,
+            )),
+        ),
+        ("gtm", "rule") => placed(
+            "gtm_rules",
+            full_path,
+            ModelObject::GtmRule(super::bespoke::parse_gtm_rule(full_path, body, range)),
+        ),
+        ("ltm", "dns cache resolver") => placed(
+            "ltm_dns_cache_resolvers",
+            full_path,
+            ModelObject::LtmDnsCacheResolver(super::bespoke::parse_ltm_dns_cache_resolver(
+                full_path, body, range,
+            )),
+        ),
+        ("net", "dns-resolver") => placed(
+            "net_dns_resolvers",
+            full_path,
+            ModelObject::NetDnsResolver(super::bespoke::parse_net_dns_resolver(
+                full_path, body, range,
+            )),
+        ),
+        ("net", "interface") => placed(
+            "net_interfaces",
+            full_path,
+            ModelObject::NetInterface(super::bespoke::parse_net_interface(full_path, body, range)),
+        ),
+        ("net", "port-list") => placed(
+            "net_port_lists",
+            full_path,
+            ModelObject::NetPortList(super::bespoke::parse_net_port_list(full_path, body, range)),
+        ),
+        ("net", "route-domain") => placed(
+            "net_route_domains",
+            full_path,
+            ModelObject::NetRouteDomain(super::bespoke::parse_net_route_domain(
+                full_path, body, range,
+            )),
+        ),
+        ("net", "stp") => placed(
+            "net_stps",
+            full_path,
+            ModelObject::NetStp(super::bespoke::parse_net_stp(full_path, body, range)),
+        ),
+        ("net", "vlan") => placed(
+            "net_vlans",
+            full_path,
+            ModelObject::NetVlan(super::bespoke::parse_net_vlan(full_path, body, range)),
+        ),
+        ("pem", "listener") => placed(
+            "pem_listeners",
+            full_path,
+            ModelObject::PemListener(super::bespoke::parse_pem_listener(full_path, body, range)),
+        ),
+        ("pem", "policy") => placed(
+            "pem_policies",
+            full_path,
+            ModelObject::PemPolicy(super::bespoke::parse_pem_policy(full_path, body, range)),
+        ),
+        ("pem", "service-chain-endpoint") => placed(
+            "pem_service_chain_endpoints",
+            full_path,
+            ModelObject::PemServiceChainEndpoint(super::bespoke::parse_pem_service_chain_endpoint(
+                full_path, body, range,
+            )),
+        ),
+        ("security", "firewall port-list") => placed(
+            "security_firewall_port_lists",
+            full_path,
+            ModelObject::SecurityFirewallPortList(
+                super::bespoke::parse_security_firewall_port_list(full_path, body, range),
+            ),
+        ),
+        ("security", "log profile") => placed(
+            "security_log_profiles",
+            full_path,
+            ModelObject::SecurityLogProfile(super::bespoke::parse_security_log_profile(
+                full_path, body, range,
+            )),
+        ),
+        ("security", "nat policy") => placed(
+            "security_nat_policies",
+            full_path,
+            ModelObject::SecurityNatPolicy(super::bespoke::parse_security_nat_policy(
+                full_path, body, range,
+            )),
+        ),
+        ("security", "packet-filter policy") => placed(
+            "security_packet_filter_policies",
+            full_path,
+            ModelObject::SecurityPacketFilterPolicy(
+                super::bespoke::parse_security_packet_filter_policy(full_path, body, range),
+            ),
+        ),
+        ("sys", "file ssl-cert") => placed(
+            "sys_file_ssl_certs",
+            full_path,
+            ModelObject::SysFileSslCert(super::bespoke::parse_sys_file_ssl_cert(
+                full_path, body, range,
+            )),
+        ),
+        ("sys", "provision") => placed(
+            "sys_provisions",
+            full_path,
+            ModelObject::SysProvision(super::bespoke::parse_sys_provision(full_path, body, range)),
         ),
         _ => None,
     }
