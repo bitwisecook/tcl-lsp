@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -124,6 +125,27 @@ class LspError(AssertionError):
     """Raised when the server returns a JSON-RPC error to a request."""
 
 
+#: Every constructed :class:`LspServerClient` registers itself here so a
+#: function-scoped teardown fixture can close the documents each test opened
+#: on whichever server(s) it actually used.  A ``WeakSet`` keeps shut-down
+#: servers from lingering.  Without this the session-scoped servers accumulate
+#: every test's documents, and workspace-wide providers (cross-document
+#: references, workspace symbols) then surface one test's buffer in another's
+#: results — an order-dependent leak.
+_LIVE_CLIENTS: "weakref.WeakSet[LspServerClient]" = weakref.WeakSet()
+
+
+def close_all_documents_on_live_servers() -> None:
+    """Close every still-open document on every live server.
+
+    Called from a function-scoped autouse fixture after each test so the
+    long-lived shared servers start every test with no foreign documents
+    open.  Best-effort: a server whose process has already exited is skipped.
+    """
+    for client in list(_LIVE_CLIENTS):
+        client.close_all_documents()
+
+
 class LspServerClient:
     """Manage a language-server subprocess and talk LSP JSON-RPC to it."""
 
@@ -160,6 +182,11 @@ class LspServerClient:
         #: ``serverInfo`` from the initialize result, populated by initialize().
         self.server_info: dict | None = None
         self.initialize_result: dict | None = None
+        #: URIs currently opened (``didOpen`` without a matching ``didClose``),
+        #: so per-test teardown can close them and keep the shared server from
+        #: accumulating one test's documents into the next test's results.
+        self._open_uris: set[str] = set()
+        _LIVE_CLIENTS.add(self)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -271,6 +298,7 @@ class LspServerClient:
                 }
             },
         )
+        self._open_uris.add(uri)
 
     def change_document(
         self,
@@ -300,6 +328,22 @@ class LspServerClient:
 
     def close_document(self, uri: str) -> None:
         self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+        self._open_uris.discard(uri)
+
+    def close_all_documents(self) -> None:
+        """Send ``didClose`` for every still-open document on this server.
+
+        Best-effort: if the server process has already exited (or any send
+        fails during teardown) the remaining URIs are simply dropped — the
+        process is going away regardless.
+        """
+        if self._proc is None or self._proc.poll() is not None:
+            self._open_uris.clear()
+            return
+        for uri in list(self._open_uris):
+            with contextlib.suppress(Exception):
+                self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+        self._open_uris.clear()
 
     def open_ready(
         self,

@@ -5060,6 +5060,23 @@ fp_inj 1.
    `if` into a match guard so the file is clippy-pedantic clean. lsp_e2e
    465→467 passing; precision battery unchanged.
 
+4. **invariants[clean] shared-server document leak** (closes
+   `test_invariants_e2e::TestRangeInvariants::test_all_provider_ranges_well_formed[clean]`
+   + `…TestRobustnessAdversarial::test_server_survives_and_responds[clean]`).
+   Order-dependent: passed in isolation, failed in the full suite. The
+   `lsp_server` fixtures are session-scoped and tests never closed the
+   documents they opened, so the native server's **cross-document references**
+   feature (a Rust enhancement Python lacks) surfaced a leftover
+   `proc greet` from `test_hover_e2e::test_proc_multiline_doc` (where `greet`
+   sits at line 2 col 5) in the unrelated `clean` document's references —
+   out of bounds for the clean source's one-char line 2, tripping the range
+   invariant. Fix is the leak, not the assertion: `LspServerClient` now tracks
+   open URIs, and a function-scoped autouse fixture closes every test's
+   documents on all live servers during teardown, so the shared servers start
+   each test with no foreign documents open. Test-harness only (no analyser /
+   server change); full Python-backend e2e suite still green (488 passed),
+   native lsp_e2e 467→469 passing.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
