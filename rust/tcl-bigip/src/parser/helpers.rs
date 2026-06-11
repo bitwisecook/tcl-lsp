@@ -371,6 +371,104 @@ pub fn parse_keyed_block_entries(braced: &str) -> Vec<(String, String)> {
     entries
 }
 
+/// One entry returned by [`parse_keyed_block_entries_with_offsets`]:
+/// `(key, body, key_start, key_end, body_start, body_end, item_start,
+/// item_end)`. All offsets are relative to the `braced` input.
+pub type KeyedBlockEntryOffsets = (String, String, usize, usize, usize, usize, usize, usize);
+
+/// Like [`parse_keyed_block_entries`] but also returns per-entry offsets.
+///
+/// Each entry is `(key, body, key_start, key_end, body_start, body_end,
+/// item_start, item_end)`. `item_start`/`item_end` bracket the entire
+/// `key { body }` span; `key_start`/`key_end` bracket just the key;
+/// `body_start`/`body_end` bracket the body bytes inside the inner
+/// `{ ... }` (without the braces). All offsets are relative to `braced`.
+///
+/// Mirrors `_parse_keyed_block_entries_with_offsets`.
+#[must_use]
+pub fn parse_keyed_block_entries_with_offsets(braced: &str) -> Vec<KeyedBlockEntryOffsets> {
+    let bytes = braced.as_bytes();
+    let length = bytes.len();
+    let mut out = Vec::new();
+    let mut pos = 0;
+
+    // Skip the first `{` so item offsets reference the surrounding body.
+    if pos < length && bytes[pos] == b'{' {
+        pos += 1;
+    }
+
+    while pos < length {
+        let loop_start = pos;
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length {
+            break;
+        }
+        if bytes[pos] == b'}' {
+            break;
+        }
+
+        let item_start = pos;
+        let key_start = pos;
+        while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
+            if bytes[pos] == b'\\' && pos + 1 < length {
+                pos += 2;
+                continue;
+            }
+            pos += 1;
+        }
+        let key_end = pos;
+        let name = braced[key_start..key_end].trim().to_owned();
+
+        // Skip horizontal whitespace before optional `{`.
+        while pos < length && matches!(bytes[pos], b' ' | b'\t') {
+            pos += 1;
+        }
+
+        let mut body = String::new();
+        let mut body_start = pos;
+        let mut body_end = pos;
+        if pos < length && bytes[pos] == b'{' {
+            body_start = pos + 1;
+            pos += 1;
+            let mut depth = 1;
+            while pos < length && depth > 0 {
+                match bytes[pos] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    b'\\' if pos + 1 < length => pos += 1,
+                    _ => {}
+                }
+                pos += 1;
+            }
+            body_end = pos;
+            body.push_str(&braced[body_start..body_end]);
+            if pos < length {
+                pos += 1; // consume closing `}`
+            }
+        }
+        let item_end = pos;
+
+        if !name.is_empty() && name != "{" && name != "}" {
+            out.push((
+                name, body, key_start, key_end, body_start, body_end, item_start, item_end,
+            ));
+        }
+
+        if pos == loop_start {
+            break;
+        }
+    }
+
+    out
+}
+
 /// Split `header` on whitespace, honouring `"..."` quoted spans and
 /// backslash escapes. Mirrors `_tokenise_header`.
 #[must_use]

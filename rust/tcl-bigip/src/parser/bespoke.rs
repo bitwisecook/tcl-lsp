@@ -37,14 +37,15 @@ use crate::model::{
     ProfileType,
 };
 use crate::range::Range;
+use crate::value::bigip_list::SourceSpan;
 use crate::value::{
     try_parse_address, BigipList, IPAddress, ListItem, ListItemValue, ListSyntax, Network,
     PersistenceAttachment, ProfileAttachment, FQDN,
 };
 
 use super::helpers::{
-    parse_keyed_block_entries, parse_list_block, parse_properties, parse_properties_with_spans,
-    unquote, Property,
+    parse_keyed_block_entries, parse_keyed_block_entries_with_offsets, parse_list_block,
+    parse_properties, parse_properties_with_spans, unquote, Property,
 };
 use super::scalar::{description, props_map, state_flag};
 
@@ -490,12 +491,12 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
         items: members
             .into_iter()
             .map(|m| {
+                // Mirror Python: `ListItem(value=m, key=m.name)`. The typed
+                // member carries address / port / field_offsets; the item
+                // key is the member name. Per-item lexical spans stay at
+                // their defaults (Python leaves them empty here too).
                 let key = m.name.clone();
-                // The value layer has no pool-member variant; surface the
-                // member name as the list item value and key (faithful to
-                // the iteration / membership / paths surface). The typed
-                // per-member record cannot be carried on `ListItemValue`.
-                let mut item = ListItem::new(ListItemValue::Str(key.clone()));
+                let mut item = ListItem::new(ListItemValue::PoolMember(m));
                 item.key = key;
                 item
             })
@@ -532,24 +533,53 @@ pub fn parse_snatpool(full_path: &str, body: &str, range: Range) -> BigipSnatPoo
 // virtual
 // ---------------------------------------------------------------------------
 
+/// Re-glue a `(key, body)` pair into the per-item source the inner spec's
+/// parse consumes (`"<key> { <body> }"`). Mirrors `_keyed_item_text`.
+fn keyed_item_text(key: &str, body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        format!("{key} {{ }}")
+    } else {
+        format!("{key} {{ {body} }}")
+    }
+}
+
 /// Build a keyed-block attachment list (`profiles` / `persist`). The
 /// closure maps `(path, body)` to the typed list item value.
+///
+/// Each item's lexical spans (`raw` / `body` / `range` / `key_range` /
+/// `body_range`) mirror the Python `ListSpec` keyed-block parse: offsets
+/// are relative to `block` (the property value, `base_offset == 0`), `raw`
+/// is the re-glued `keyed_item_text`, and `body_range` is `None` when the
+/// body span is empty.
 fn keyed_attachment_list<F>(block: &str, make: F) -> BigipList
 where
     F: Fn(&str, &str) -> ListItemValue,
 {
-    let entries = parse_keyed_block_entries(block);
+    let entries = parse_keyed_block_entries_with_offsets(block);
     BigipList {
         items: entries
             .into_iter()
-            .map(|(name, body)| {
-                let value = make(&name, &body);
-                let mut item = ListItem::new(value);
-                item.key = name;
-                item
-            })
+            .map(
+                |(name, body, key_start, key_end, body_start, body_end, item_start, item_end)| {
+                    let value = make(&name, &body);
+                    let mut item = ListItem::new(value);
+                    item.raw = keyed_item_text(&name, &body);
+                    item.body = body;
+                    item.range = Some(SourceSpan::new(item_start, item_end));
+                    item.key_range = Some(SourceSpan::new(key_start, key_end));
+                    item.body_range = if body_end > body_start {
+                        Some(SourceSpan::new(body_start, body_end))
+                    } else {
+                        None
+                    };
+                    item.key = name;
+                    item
+                },
+            )
             .collect(),
         syntax: ListSyntax::KeyedBlock,
+        raw: block.trim().to_owned(),
         ..Default::default()
     }
 }
