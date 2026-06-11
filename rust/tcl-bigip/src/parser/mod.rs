@@ -1,8 +1,11 @@
 //! BIG-IP config parser — Rust port of `dialects/f5/bigip/parser/`.
 
+pub mod driver;
 pub mod header;
 pub mod helpers;
 pub mod scalar;
+
+pub use driver::{parse_bigip_conf, BigipConfig, Placed};
 
 pub use header::{parse_generic_header, ObjectTypeIndex};
 pub use helpers::{
