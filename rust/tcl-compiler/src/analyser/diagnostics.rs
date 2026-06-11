@@ -2886,14 +2886,81 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         };
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
-        let Some(CommandSignature::Simple(sig)) =
-            signature_for_command(registry, cmd_name, dialect)
-        else {
-            // Unknown command (no signature) or a subcommand-dispatch
-            // command — neither is arity-checked here.
-            return;
-        };
+        match signature_for_command(registry, cmd_name, dialect) {
+            Some(CommandSignature::Simple(sig)) => {
+                self.check_simple_arity(
+                    cmd_name, cmd_name, &sig, args, arg_tokens, arg_expand, cmd_tok, scope_path,
+                );
+            }
+            Some(CommandSignature::WithSubcommands(sig)) => {
+                // Per-subcommand arity, mirroring the Python
+                // `_check_arity` → `_check_simple_arity` path on
+                // `args[1:]` (compiler_checks.py:783-797).  The W001
+                // unknown-subcommand path is handled separately by
+                // [`Self::emit_w001_unknown_subcommand`].
+                let Some(sub_name) = args.first() else {
+                    // Missing subcommand — Python's E001 path; not here.
+                    return;
+                };
+                // A `{*}`-expanded subcommand word resolves to an unknown
+                // name at runtime; skip resolution and arity entirely.
+                if arg_expand.first().copied().unwrap_or(false) {
+                    return;
+                }
+                // Dynamic subcommand value — can't resolve statically.
+                if sub_name.contains('$') || sub_name.contains('[') {
+                    return;
+                }
+                let Some(sub_sig) = sig.subcommands.get(sub_name) else {
+                    // Unknown subcommand — W001's job, not arity.
+                    return;
+                };
+                let display_name = format!("{cmd_name} {sub_name}");
+                self.check_simple_arity(
+                    cmd_name,
+                    &display_name,
+                    sub_sig,
+                    &args[1..],
+                    arg_tokens.get(1..).unwrap_or(&[]),
+                    arg_expand.get(1..).unwrap_or(&[]),
+                    cmd_tok,
+                    scope_path,
+                );
+            }
+            None => {}
+        }
+    }
 
+    /// Compare a positional-argument count against a single
+    /// [`CommandSig`]'s arity bounds and queue an E002 / E003
+    /// candidate.  Shared by the simple-command and per-subcommand
+    /// arity paths in [`Self::emit_arity_diagnostics`]; mirrors
+    /// `_check_simple_arity` in `core/compiler/compiler_checks.py`.
+    ///
+    /// `resolution_name` is the base command name used by the
+    /// post-walk [`Self::flush_arity_diagnostics`] to honour a
+    /// shadowing user proc / class / alias (e.g. `file` for the
+    /// `file link` subcommand check), while `display_name` is the
+    /// human-facing name shown in the message (`file link`).
+    ///
+    /// `args` / `arg_tokens` / `arg_expand` are the slices *after*
+    /// whatever prefix the caller has already consumed (the command
+    /// name for the simple path; the command name and subcommand word
+    /// for the subcommand path), so the leading-option scan and
+    /// positional count operate on the same coordinate system as
+    /// `sig`.
+    #[allow(clippy::too_many_arguments)]
+    fn check_simple_arity(
+        &mut self,
+        resolution_name: &str,
+        display_name: &str,
+        sig: &super::dispatch::CommandSig,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
+    ) {
         let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
 
         // Skip leading declared option flags.  Stop at the first
@@ -2966,14 +3033,14 @@ Consider capturing the result: catch {\u{2026}} result"
         if !positional_any_expand && (args.len() - positional_start) < min {
             let got = args.len() - positional_start;
             self.pending_arity.push((
-                cmd_name.to_string(),
+                resolution_name.to_string(),
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
                     code: "E002".to_string(),
                     span: full_span,
                     message: format!(
-                        "Too few arguments for '{cmd_name}': expected at least {min}, got {got}"
+                        "Too few arguments for '{display_name}': expected at least {min}, got {got}"
                     ),
                     severity: Severity::Error,
                     fixes: Vec::new(),
@@ -2981,14 +3048,14 @@ Consider capturing the result: catch {\u{2026}} result"
             ));
         } else if !sig.arity.is_unlimited() && nargs_min > max {
             self.pending_arity.push((
-                cmd_name.to_string(),
+                resolution_name.to_string(),
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
                     code: "E003".to_string(),
                     span: full_span,
                     message: format!(
-                        "Too many arguments for '{cmd_name}': expected at most {max}, got {nargs_min}"
+                        "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
                     ),
                     severity: Severity::Error,
                     fixes: Vec::new(),
@@ -8098,6 +8165,81 @@ mod tests {
             !on_90.iter().any(|c| c == "E003"),
             "9.0 expands `{{*}}` → 4 positional words ≤ max → no E003: {on_90:?}",
         );
+    }
+
+    // -- subcommand-level E003 arity (per-subcommand signatures) -----
+
+    #[test]
+    fn e003_fires_on_subcommand_over_arity() {
+        // `string length` takes exactly one argument — three positional
+        // words must trip E003.
+        let mut a = Analyser::new();
+        let result = a.analyse("string length a b c", "tcl8.6");
+        let e003: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E003")
+            .collect();
+        assert!(
+            !e003.is_empty(),
+            "expected E003 for `string length a b c`, got {:?}",
+            result.diagnostics
+        );
+        assert!(
+            e003[0].message.contains("string length"),
+            "message should name the subcommand: {:?}",
+            e003[0].message
+        );
+    }
+
+    #[test]
+    fn e003_fires_on_file_link_over_arity() {
+        // `file link ?-linktype? linkName ?target?` — `link` accepts at
+        // most two positional args, so three literal targets is E003.
+        let mut a = Analyser::new();
+        let result = a.analyse("file link $a $b $c", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003 for `file link $a $b $c`, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_silent_for_subcommand_leading_options() {
+        // Per-subcommand options (`file link -symbolic` / `-hard`,
+        // `string match -nocase`) must be skipped before counting
+        // positionals, so these well-formed calls stay silent.
+        for snippet in [
+            "file link -symbolic $a $b",
+            "file link -hard $a $b",
+            "string match -nocase $a $b",
+        ] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e003: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E003")
+                .collect();
+            assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        }
+    }
+
+    #[test]
+    fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
+        // An unknown subcommand is W001's job, not E003; a dynamic
+        // subcommand word (`$sub`) can't be resolved, so neither path
+        // should emit E003.
+        for snippet in ["string $sub a b c", "string [x] a b c"] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            assert!(
+                !result.diagnostics.iter().any(|d| d.code == "E003"),
+                "unexpected E003 for {snippet:?}: {:?}",
+                result.diagnostics
+            );
+        }
     }
 
     #[test]

@@ -5026,6 +5026,24 @@ fp_inj 1.
   **fp_opt O106/O109/O116** (3), and the residual misc (namespace-ensemble
   resolution, `eval [list set …]` def recognition, S101 intrep-thrash).
 
+2. **E003 subcommand arity** (closes `test_diagnostic_matrix_e2e[E003]` +
+   `test_diagnostics_e2e::test_file_link_too_many_positionals_is_e003`).
+   `analyser/diagnostics.rs::emit_arity_diagnostics` previously returned early
+   for `WithSubcommands`; it now ports the Python `_check_arity` →
+   `_check_simple_arity` path (`analyser/compiler_checks.py:783-797`) by
+   extracting a shared `check_simple_arity` helper and running it on `args[1:]`
+   against the resolved subcommand's `CommandSig`. The per-subcommand option set
+   (`SubCommand.options`, e.g. `-symbolic`/`-hard` on `file link`,
+   `-nocase` on `string match`) is now threaded into the subcommand
+   `CommandSig.leading_options` via a new `SubCommand::switch_names`
+   (mirroring `_subcommand_switch_names`), so option-aware skipping matches.
+   Stays silent on `file link -symbolic $a $b`, `file link -hard $a $b`,
+   `string match -nocase $a $b`; fires on `string length a b c` and
+   `file link $a $b $c`. Shadowing-proc suppression and `{*}`-expansion handling
+   carry over unchanged (the candidate still flows through
+   `flush_arity_diagnostics` keyed on the base command name). lsp_e2e
+   463→465 passing; precision battery held at 284/93.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
