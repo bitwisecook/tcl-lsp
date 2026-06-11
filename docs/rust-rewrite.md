@@ -4776,6 +4776,46 @@ word opened on a `"` and re-quotes it (and any quoted body) on re-emission. +1
 minify unit test. **lsp_e2e 31→24 failing; the whole `test_commands_e2e` file
 (17 tests) is green.**
 
+#### SYNC-JUN11 scoreboard — cumulative
+
+Across the JUN11 increments the native server moved **lsp_e2e 46→24 failing
+(441→463 passing, 1 skipped)** with **no regressions** and the precision battery
+held at its documented baseline (284 passed / 93 failed, byte-identical
+families). Workspace gate green throughout: `cargo test --workspace
+--all-features` (30 groups, 0 fail), `cargo clippy --workspace --all-targets`
+(0 warnings), `cargo fmt`.
+
+| increment | closed | running total failing |
+|---|---|---|
+| `config` (`getEffectiveConfig` + toggles) | 14 | 46→32 |
+| `w307` (proc-param / multi-dispatch suppression) | 1 | 32→31 |
+| `commands` (listSubcommands/listKnownPackages/suggestPackages/exportConfig) | 6 | 31→25 |
+| `minify` (#540 quoted switch-pattern) | 1 | 25→24 |
+
+Remaining 24, by cluster (worst-first, all pre-existing):
+- **path-sensitive dataflow precision** (`test_diagnostics_e2e` 6 +
+  `test_diagnostic_matrix_e2e` 5 = 11) — W210 path-merge TP (read on a
+  partial-def merge currently mis-folds to O100/O102; `unset` doesn't kill the
+  reaching def), W220 dead-store flow precision (misses the real dead store,
+  false-fires the live one), E003 **subcommand** arity (needs per-subcommand
+  option-aware skipping — the `SubCommand.options` set is in the registry but
+  the arity path is still `Simple`-only), and the clean-dataflow no-FP control.
+  This is the documented `SYNC-JUN10-phase2` core and is **battery-locked** —
+  each is a careful CFG/SSA/optimiser-interaction fix, not a switch.
+- **BigIP `.conf`** (4) — needs canonical-basename detection
+  (`bigip.conf`/`bigip_base.conf`/…) routing to a BigIP-config parse/outline
+  path that suppresses general Tcl diagnostics (W123/E002 currently leak); a
+  sizeable feature port, not yet started on the native server.
+- **recovery** (3) — the bracket-recovery inert-offset veto (#560): the ghost-`]`
+  insertion must veto offsets inside a balanced brace word (the brace path
+  already does).
+- **semantic tokens** (2) — token-invariant edge cases (non-overlap on a dense
+  line, `unicode_after_var`).
+- **invariants** (2) — `[clean]` malformed-range; **order-dependent** (passes in
+  isolation), a shared-server state-leak artifact rather than a provider bug.
+- **irules taint** (1, IRULE3102) and **inlay-hint optional-positional labels**
+  (1).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
