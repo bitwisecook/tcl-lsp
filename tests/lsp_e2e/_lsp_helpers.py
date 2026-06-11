@@ -134,3 +134,88 @@ def decode_semantic_tokens(result: Any) -> list[dict]:
             {"line": line, "char": char, "length": length, "type": ttype, "modifiers": tmods}
         )
     return out
+
+
+def _utf16_len(s: str) -> int:
+    """Length of *s* in UTF-16 code units — the unit LSP positions are measured in.
+
+    A character outside the BMP (e.g. an emoji) is two UTF-16 units, so a token
+    encoder that counts code points instead of UTF-16 units drifts here.
+    """
+    return len(s.encode("utf-16-le")) // 2
+
+
+def _doc_lines_utf16(text: str) -> list[int]:
+    """Per-line content length in UTF-16 units (trailing ``\\r`` excluded).
+
+    Lines are split on ``\\n``; a trailing ``\\r`` (CRLF documents) is not part
+    of the visible line content the encoder positions tokens within.
+    """
+    return [_utf16_len(line.rstrip("\r")) for line in text.split("\n")]
+
+
+def semantic_token_violations(
+    result: Any,
+    text: str,
+    *,
+    token_types: list[str],
+    token_modifiers: list[str],
+) -> list[str]:
+    """Return a list of semantic-token *invariant* violations (empty == valid).
+
+    These are the properties a conforming server must satisfy for *any*
+    document, independent of which tokens it chooses to emit — the things a
+    client relies on and silently mis-renders (or logs "Overlapping semantic
+    tokens detected") when they break:
+
+    * the raw ``data`` is a flat run of 5-int groups;
+    * every delta is non-negative (the encoding requires ascending order);
+    * each ``tokenType`` index is within the advertised legend, and every
+      ``tokenModifiers`` bit maps to a legend entry;
+    * absolute tokens are strictly ordered and **non-overlapping** — on a line,
+      the next token starts at or after the previous token's end;
+    * every token lies within document bounds, measured in **UTF-16** units
+      (so a multibyte/emoji column slip surfaces as an over-run).
+    """
+    out: list[str] = []
+    data = (result or {}).get("data") if isinstance(result, dict) else None
+    if data is None:
+        return ["semanticTokens result has no `data` array"]
+    if len(data) % 5 != 0:
+        return [f"token data length {len(data)} is not a multiple of 5"]
+
+    n_types = len(token_types)
+    n_mods = len(token_modifiers)
+    for i in range(0, len(data), 5):
+        d_line, d_char, length, ttype, tmods = data[i : i + 5]
+        if d_line < 0 or d_char < 0:
+            out.append(f"token {i // 5}: negative delta (dline={d_line}, dchar={d_char})")
+        if length <= 0:
+            out.append(f"token {i // 5}: non-positive length {length}")
+        if not (0 <= ttype < n_types):
+            out.append(f"token {i // 5}: type index {ttype} outside legend (0..{n_types - 1})")
+        if tmods < 0 or (n_mods < 32 and tmods >> n_mods):
+            out.append(f"token {i // 5}: modifier bits {tmods:#b} outside legend ({n_mods} mods)")
+
+    line_u16 = _doc_lines_utf16(text)
+    n_lines = len(line_u16)
+    prev: dict | None = None
+    for idx, tok in enumerate(decode_semantic_tokens(result)):
+        line, char, length = tok["line"], tok["char"], tok["length"]
+        if line >= n_lines:
+            out.append(f"token {idx}: line {line} past end of document ({n_lines} lines)")
+        elif char + length > line_u16[line]:
+            out.append(
+                f"token {idx}: ends at utf16 col {char + length} but line {line} is "
+                f"{line_u16[line]} units long (multibyte/UTF-16 column drift?)"
+            )
+        if prev is not None:
+            if (line, char) < (prev["line"], prev["char"]):
+                out.append(f"token {idx}: starts before previous token (not ascending)")
+            elif line == prev["line"] and char < prev["char"] + prev["length"]:
+                out.append(
+                    f"token {idx}: overlaps previous token on line {line} "
+                    f"(starts {char}, previous ends {prev['char'] + prev['length']})"
+                )
+        prev = tok
+    return out

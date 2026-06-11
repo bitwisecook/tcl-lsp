@@ -958,6 +958,15 @@ def _collect_tokens(
                 # (i.e. the token completed the quoted word).
                 if tok.in_quote:
                     rendered = '"' + tok.text
+                elif tok.text == "":
+                    # A completing segment with no text is *just* the closing
+                    # quote — the string ended immediately after an
+                    # interpolation (``"$name"`` / ``"a $b"``).  The token's
+                    # start already sits on that closing quote, so emitting
+                    # ``'"' + '' + '"'`` would double-count it: a 2-wide token
+                    # over the 1-char quote, over-running the line and tripping
+                    # the client's "overlapping semantic tokens" guard.
+                    rendered = '"'
                 else:
                     rendered = '"' + tok.text + '"'
             else:
