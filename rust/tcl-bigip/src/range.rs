@@ -77,9 +77,15 @@ impl Range {
 fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position {
     let off = u32::try_from(offset).unwrap_or(u32::MAX);
     let sp = line_index.position_at_utf16(off, source);
+    // Python `SourcePosition.offset` is a code-point index (Python str
+    // indexing), not a byte offset — count code points up to the byte
+    // offset so non-ASCII sources still match the Python parser.
+    let codepoint_offset = source
+        .get(..offset.min(source.len()))
+        .map_or(0, |s| s.chars().count());
     Position {
         line: sp.line,
         character: sp.character,
-        offset: sp.offset,
+        offset: u32::try_from(codepoint_offset).unwrap_or(u32::MAX),
     }
 }

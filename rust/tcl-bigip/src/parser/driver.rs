@@ -407,6 +407,25 @@ fn bespoke_override(
                 super::bespoke::parse_security_firewall_rule_list(full_path, body, range),
             ),
         ),
+        ("security", "firewall policy") => placed(
+            "security_firewall_policies",
+            full_path,
+            ModelObject::SecurityFirewallPolicy(super::bespoke::parse_security_firewall_policy(
+                full_path, body, range,
+            )),
+        ),
+        ("gtm", "server") => placed(
+            "gtm_servers",
+            full_path,
+            ModelObject::GtmServer(super::bespoke::parse_gtm_server(full_path, body, range)),
+        ),
+        ("apm", "policy policy-item") => placed(
+            "apm_policy_items",
+            full_path,
+            ModelObject::ApmPolicyItem(super::bespoke::parse_apm_policy_item(
+                full_path, body, range,
+            )),
+        ),
         _ => None,
     }
 }

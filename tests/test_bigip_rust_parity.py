@@ -26,7 +26,13 @@ from dialects.f5.bigip.parser import _rust_bridge as bridge
 from dialects.f5.bigip.parser import parse_bigip_conf
 
 _ROOT = Path(__file__).parent.parent
-_CORPUS = sorted((_ROOT / "samples" / "bigip").glob("*.conf"))
+_CORPUS = sorted(
+    {
+        *(_ROOT / "samples").rglob("*.conf"),
+        *(_ROOT / "samples").rglob("*.scf"),
+        *(_ROOT / "scripts").rglob("*.scf"),
+    }
+)
 
 
 def _rust_canonical(conf: Path) -> dict | None:

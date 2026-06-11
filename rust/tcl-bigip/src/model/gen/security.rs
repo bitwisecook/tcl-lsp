@@ -410,6 +410,8 @@ pub struct BigipSecurityFirewallRuleList {
     pub full_path: String,
     /// `rules`
     pub rules: Vec<String>,
+    /// `rule_objects`
+    pub rule_objects: Vec<crate::value::FirewallRule>,
     /// `description`
     pub description: String,
     /// `range`
@@ -422,6 +424,7 @@ impl Default for BigipSecurityFirewallRuleList {
             name: String::new(),
             full_path: String::new(),
             rules: Vec::new(),
+            rule_objects: Vec::new(),
             description: String::new(),
             range: None,
         }

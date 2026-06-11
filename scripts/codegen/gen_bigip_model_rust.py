@@ -93,6 +93,10 @@ def _rust_inner(inner: str) -> str | None:
     m = re.fullmatch(r"tuple\[(Bigip[A-Za-z0-9_]+), \.\.\.\]", inner)
     if m:
         return f"Vec<{m.group(1)}>"
+    # The sole bare-``tuple`` field in the model is
+    # BigipSecurityFirewallRuleList.rule_objects (tuple[FirewallRule, ...]).
+    if inner == "tuple":
+        return "Vec<crate::value::FirewallRule>"
     # dict[str, Bigip...] only appears on BigipConfig — skip here.
     if inner.startswith("dict[str, Bigip"):
         return None
@@ -182,7 +186,9 @@ def gen_parser(name: str, cls: type) -> str:
         if rty is None:
             continue
         nm = f.name
-        key = nm.replace("_", "-")
+        # Trailing underscores avoid Python reserved words (``type_`` ->
+        # tmsh key ``type``); strip them before deriving the key.
+        key = nm.rstrip("_").replace("_", "-")
         if nm == "name":
             lines.append("    obj.name = crate::parser::scalar::name_leaf(full_path);")
         elif nm == "full_path":
@@ -247,7 +253,7 @@ def canon_expr(field_name: str, rust_ty: str) -> str:
         )
     if inner in ("crate::model::ProfileType", "crate::model::DataGroupType"):
         return f'serde_json::json!({{"e": {f}.py_name()}})'
-    if inner.startswith("Vec<Bigip"):
+    if inner.startswith("Vec<Bigip") or inner == "Vec<crate::value::FirewallRule>":
         return f"crate::canonical::vec_tagged(&{f})"
     if inner.startswith("Bigip"):
         if optional:

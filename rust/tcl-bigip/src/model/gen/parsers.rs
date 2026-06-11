@@ -234,7 +234,7 @@ pub fn parse_bigip_auth_ldap(
     obj.bind_timeout = crate::parser::scalar::get_str(&props, "bind-timeout");
     obj.check_host_attr = crate::parser::scalar::get_str(&props, "check-host-attr");
     obj.check_roles_group = crate::parser::scalar::get_str(&props, "check-roles-group");
-    obj.filter_ = crate::parser::scalar::get_str(&props, "filter-");
+    obj.filter_ = crate::parser::scalar::get_str(&props, "filter");
     obj.group_dn = crate::parser::scalar::get_str(&props, "group-dn");
     obj.group_member_attribute = crate::parser::scalar::get_str(&props, "group-member-attribute");
     obj.idle_timeout = crate::parser::scalar::get_str(&props, "idle-timeout");
@@ -437,7 +437,7 @@ pub fn parse_bigip_auth_source(
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
     obj.fallback = crate::parser::scalar::get_str(&props, "fallback");
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.range = Some(range);
     obj
 }
@@ -585,7 +585,7 @@ pub fn parse_bigip_cm_device_group(
     obj.hidden = crate::parser::scalar::get_str(&props, "hidden");
     obj.devices = crate::parser::scalar::list_field(&props, "devices");
     obj.description = crate::parser::scalar::description(&props);
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.save_on_auto_sync = crate::parser::scalar::get_str(&props, "save-on-auto-sync");
     obj.full_load_on_sync = crate::parser::scalar::get_str(&props, "full-load-on-sync");
     obj.asm_sync = crate::parser::scalar::get_str(&props, "asm-sync");
@@ -1349,7 +1349,7 @@ pub fn parse_bigip_ltm_dns_dnssec_key(
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
     obj.description = crate::parser::scalar::description(&props);
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.algorithm = crate::parser::scalar::get_str(&props, "algorithm");
     obj.bit_width = crate::parser::scalar::get_str(&props, "bit-width");
     obj.rollover_period = crate::parser::scalar::get_str(&props, "rollover-period");
@@ -2480,7 +2480,7 @@ pub fn parse_bigip_pem_forwarding_endpoint(
     obj.snat_pool = crate::parser::scalar::get_str(&props, "snat-pool");
     obj.source_ip = crate::parser::scalar::get_str(&props, "source-ip");
     obj.destination_ip = crate::parser::scalar::get_str(&props, "destination-ip");
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.persistence = crate::parser::scalar::get_str(&props, "persistence");
     obj.translate_address = crate::parser::scalar::get_str(&props, "translate-address");
     obj.translate_service = crate::parser::scalar::get_str(&props, "translate-service");
@@ -2672,7 +2672,7 @@ pub fn parse_bigip_security_device_id_attribute(
     let _ = &props;
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
-    obj.id_ = crate::parser::scalar::get_str(&props, "id-");
+    obj.id_ = crate::parser::scalar::get_str(&props, "id");
     obj.description = crate::parser::scalar::description(&props);
     obj.range = Some(range);
     obj
@@ -3124,7 +3124,7 @@ pub fn parse_bigip_security_nat_destination_translation(
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
     obj.description = crate::parser::scalar::description(&props);
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.addresses = crate::parser::scalar::list_field(&props, "addresses");
     obj.ports = crate::parser::scalar::list_field(&props, "ports");
     obj.range = Some(range);
@@ -3165,7 +3165,7 @@ pub fn parse_bigip_security_nat_source_translation(
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
     obj.description = crate::parser::scalar::description(&props);
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.addresses = crate::parser::scalar::list_field(&props, "addresses");
     obj.ports = crate::parser::scalar::list_field(&props, "ports");
     obj.traffic_group = crate::parser::scalar::get_str(&props, "traffic-group");
@@ -3267,7 +3267,7 @@ pub fn parse_bigip_security_protocol_inspection_compliance_object(
     obj.name = crate::parser::scalar::name_leaf(full_path);
     obj.full_path = full_path.to_owned();
     obj.insp_id = crate::parser::scalar::get_str(&props, "insp-id");
-    obj.type_ = crate::parser::scalar::get_str(&props, "type-");
+    obj.type_ = crate::parser::scalar::get_str(&props, "type");
     obj.description = crate::parser::scalar::description(&props);
     obj.range = Some(range);
     obj

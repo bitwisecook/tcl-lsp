@@ -28,19 +28,19 @@ use tcl_registry::bigip::BigipRegistry;
 
 use crate::model::gen::parsers::*;
 use crate::model::{
-    BigipDataGroup, BigipGtmPool, BigipGtmPoolMember, BigipGtmTopology, BigipGtmWideip,
-    BigipMonitor, BigipNetRoute, BigipNetSelf, BigipNode, BigipPersistence, BigipPolicy,
-    BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule, BigipPool, BigipPoolMember,
-    BigipProfile, BigipRule, BigipSecurityFirewallRuleList, BigipSnatPool, BigipSysNtp,
-    BigipSysNtpRestrict, BigipSysSnmp, BigipSysSnmpDiskMonitor, BigipSysSnmpProcessMonitor,
-    BigipSysSnmpTrap, BigipSysSnmpUser, BigipVirtualAddress, BigipVirtualServer, DataGroupType,
-    ProfileType,
+    BigipApmPolicyItem, BigipDataGroup, BigipGtmPool, BigipGtmPoolMember, BigipGtmServer,
+    BigipGtmTopology, BigipGtmWideip, BigipMonitor, BigipNetRoute, BigipNetSelf, BigipNode,
+    BigipPersistence, BigipPolicy, BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule,
+    BigipPool, BigipPoolMember, BigipProfile, BigipRule, BigipSecurityFirewallPolicy,
+    BigipSecurityFirewallRuleList, BigipSnatPool, BigipSysNtp, BigipSysNtpRestrict, BigipSysSnmp,
+    BigipSysSnmpDiskMonitor, BigipSysSnmpProcessMonitor, BigipSysSnmpTrap, BigipSysSnmpUser,
+    BigipVirtualAddress, BigipVirtualServer, DataGroupType, ProfileType,
 };
 use crate::range::Range;
 use crate::value::bigip_list::SourceSpan;
 use crate::value::{
-    try_parse_address, BigipList, IPAddress, ListItem, ListItemValue, ListSyntax, Network,
-    PersistenceAttachment, ProfileAttachment, FQDN,
+    try_parse_address, BigipList, FirewallRule, IPAddress, ListItem, ListItemValue, ListSyntax,
+    Network, PersistenceAttachment, ProfileAttachment, FQDN,
 };
 
 use super::helpers::{
@@ -66,6 +66,14 @@ pub struct BespokeCtx<'a> {
 // ---------------------------------------------------------------------------
 // Small helpers mirroring `_parsers.py` primitives not in `scalar`/`helpers`.
 // ---------------------------------------------------------------------------
+
+/// Convert a byte offset into a code-point (Python str) index, matching
+/// the Python parser's offset convention for non-ASCII sources.
+fn byte_to_cp(source: &str, byte: usize) -> usize {
+    source
+        .get(..byte.min(source.len()))
+        .map_or(0, |s| s.chars().count())
+}
 
 /// Strip a single layer of surrounding `{ ... }` from a sub-block value.
 /// Mirrors `_strip_outer_braces`.
@@ -485,6 +493,17 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
         if !prop.value.is_empty() {
             let members_abs = ctx.block_start + 1 + prop.value_start.unwrap_or(0);
             members = parse_pool_members(&prop.value, members_abs);
+            // `field_offsets` are absolute source offsets; Python stores
+            // them as code-point indices (str indexing), so convert the
+            // byte offsets to code points for non-ASCII fidelity.
+            for m in &mut members {
+                for span in m.field_offsets.values_mut() {
+                    *span = (
+                        byte_to_cp(ctx.source, span.0),
+                        byte_to_cp(ctx.source, span.1),
+                    );
+                }
+            }
         }
     }
     obj.members = BigipList {
@@ -1360,15 +1379,101 @@ pub fn parse_security_firewall_rule_list(
 ) -> BigipSecurityFirewallRuleList {
     let mut obj = parse_bigip_security_firewall_rule_list(full_path, body, range);
     let props_with_spans = parse_properties_with_spans(body);
-    obj.rules = props_with_spans
-        .iter()
-        .find(|(k, _)| k == "rules")
-        .map_or_else(Vec::new, |(_, p)| {
-            parse_keyed_block_entries(&p.value)
-                .into_iter()
-                .map(|(k, _)| k)
-                .collect()
-        });
+    if let Some((_, p)) = props_with_spans.iter().find(|(k, _)| k == "rules") {
+        let entries = parse_keyed_block_entries(&p.value);
+        obj.rules = entries.iter().map(|(k, _)| k.clone()).collect();
+        obj.rule_objects = entries
+            .iter()
+            .map(|(name, rbody)| FirewallRule::from_raw(name, rbody))
+            .collect();
+    }
+    obj
+}
+
+/// `security firewall policy` — `rules` + `rule_lists` walked out of the
+/// nested `rules { ... }` block. Mirrors `_parse_security_firewall_policy`.
+#[must_use]
+pub fn parse_security_firewall_policy(
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> BigipSecurityFirewallPolicy {
+    let mut obj = parse_bigip_security_firewall_policy(full_path, body, range);
+    let (names, refs) = firewall_rules_summary(&props_map(body));
+    obj.rules = names;
+    obj.rule_lists = refs;
+    obj
+}
+
+/// Walk a firewall `rules { ... }` block → `(rule_names, rule_list_refs)`.
+/// Mirrors `_firewall_rules_summary`.
+fn firewall_rules_summary(props: &HashMap<String, String>) -> (Vec<String>, Vec<String>) {
+    let raw = props.get("rules").map_or("", String::as_str);
+    if raw.is_empty() || !raw.starts_with('{') {
+        return (Vec::new(), Vec::new());
+    }
+    let inner = strip_outer_braces(raw);
+    let mut names = Vec::new();
+    let mut refs = Vec::new();
+    for (key, prop) in parse_properties_with_spans(inner) {
+        names.push(key);
+        if prop.value.starts_with('{') {
+            let sub = parse_properties(strip_outer_braces(&prop.value));
+            if let Some((_, v)) = sub.iter().find(|(k, _)| k == "rule-list") {
+                refs.push(v.clone());
+            }
+        }
+    }
+    (names, refs)
+}
+
+/// `gtm server` — `addresses` / `virtual_servers` flattened out of the
+/// nested `devices` / `virtual-servers` numbered sub-blocks. Mirrors
+/// `_parse_gtm_server` (the generated scalar parser mis-reads them as
+/// flat lists, so override both).
+#[must_use]
+pub fn parse_gtm_server(full_path: &str, body: &str, range: Range) -> BigipGtmServer {
+    let mut obj = parse_bigip_gtm_server(full_path, body, range);
+    let props = props_map(body);
+    let mut addresses = Vec::new();
+    if let Some(devices) = props.get("devices") {
+        for (_, dev) in parse_properties_with_spans(strip_outer_braces(devices)) {
+            if !dev.value.starts_with('{') {
+                continue;
+            }
+            let dev_props = parse_properties(strip_outer_braces(&dev.value));
+            if let Some((_, addrs)) = dev_props.iter().find(|(k, _)| k == "addresses") {
+                addresses.extend(parse_list_block(addrs));
+            }
+        }
+    }
+    let mut virtual_servers = Vec::new();
+    if let Some(vss) = props.get("virtual-servers") {
+        for (_, vs) in parse_properties_with_spans(strip_outer_braces(vss)) {
+            if !vs.value.starts_with('{') {
+                continue;
+            }
+            let vs_props = parse_properties(strip_outer_braces(&vs.value));
+            if let Some((_, dest)) = vs_props.iter().find(|(k, _)| k == "destination") {
+                virtual_servers.push(dest.clone());
+            }
+        }
+    }
+    obj.addresses = addresses;
+    obj.virtual_servers = virtual_servers;
+    obj
+}
+
+/// `apm policy item` — `caption` is a quoted string Python `_strip_quotes`-es.
+/// Mirrors `_parse_apm_policy_item` (the rest is faithful via the scalar
+/// parser).
+#[must_use]
+pub fn parse_apm_policy_item(full_path: &str, body: &str, range: Range) -> BigipApmPolicyItem {
+    let mut obj = parse_bigip_apm_policy_item(full_path, body, range);
+    let props = props_map(body);
+    obj.caption = props
+        .get("caption")
+        .map_or_else(String::new, |v| strip_quotes(v));
     obj
 }
 

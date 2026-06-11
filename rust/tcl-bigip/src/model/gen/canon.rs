@@ -5826,6 +5826,10 @@ impl crate::canonical::Canon for BigipSecurityFirewallRuleList {
         );
         o.insert("rules".to_owned(), crate::canonical::vec_str(&self.rules));
         o.insert(
+            "rule_objects".to_owned(),
+            crate::canonical::vec_tagged(&self.rule_objects),
+        );
+        o.insert(
             "description".to_owned(),
             serde_json::Value::String(self.description.clone()),
         );
