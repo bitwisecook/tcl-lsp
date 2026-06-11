@@ -11,17 +11,17 @@
 # The script searches /usr/src/tcl<version>*/tests/ first, then falls
 # back to tmp/tcl<version>*/tests/ in the repo, then ~/src/tcl<version>*/tests/.
 #
-# Handles Tcl 8.4 through 9.0 — uses reference_test_runner_84.tcl for
-# 8.4 (no chan create, dict, ni) and reference_test_runner.tcl for 8.5+.
+# Handles Tcl 8.4 through 9.0 — uses test_runner_84.tcl for
+# 8.4 (no chan create, dict, ni) and test_runner.tcl for 8.5+.
 #
 # Writes output to tests/test_reference/<version>/ for each tclsh found.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUNNER_85="$SCRIPT_DIR/reference_test_runner.tcl"
-RUNNER_84="$SCRIPT_DIR/reference_test_runner_84.tcl"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RUNNER_85="$SCRIPT_DIR/test_runner.tcl"
+RUNNER_84="$SCRIPT_DIR/test_runner_84.tcl"
 OUTPUT_BASE="$REPO_ROOT/tests/test_reference"
 
 # Test files matched against tests/external/run_tcl9_tests.py::_IN_SCOPE
