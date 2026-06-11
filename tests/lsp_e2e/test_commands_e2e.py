@@ -86,3 +86,70 @@ class TestDiagramAndConfig:
         data = lsp_server.execute_command("tcl-lsp.getEffectiveConfig", [uri])
         assert isinstance(data, dict)
         assert "dialect" in data
+
+
+# Commands advertised in ``executeCommandProvider`` that every conforming
+# backend must expose.  Side-effecting / environment-coupled commands
+# (tclpkg.*, bigipCleanup, writeRuleBack, renamePartition, tkPreview,
+# compilerExplorer, searchHelp, listRules — which read external files) are
+# exercised elsewhere or out of scope for a pure-protocol probe.
+_CORE_COMMANDS = {
+    "tcl-lsp.optimiseDocument",
+    "tcl-lsp.minifyDocument",
+    "tcl-lsp.fixAllSafeIssues",
+    "tcl-lsp.getEffectiveConfig",
+    "tcl-lsp.listSubcommands",
+    "tcl-lsp.describeIruleEvent",
+    "tcl-lsp.describeIruleCommand",
+    "tcl-lsp.listIruleEvents",
+    "tcl-lsp.diagramData",
+}
+
+
+class TestCommandSurface:
+    """The advertised ``executeCommand`` surface is present and well-shaped."""
+
+    def test_core_commands_are_advertised(self, lsp_server):
+        provider = lsp_server.initialize_result["capabilities"].get("executeCommandProvider") or {}
+        advertised = set(provider.get("commands") or [])
+        missing = _CORE_COMMANDS - advertised
+        assert not missing, f"executeCommandProvider missing core commands: {missing}"
+
+    def test_minify_compact_round_trip(self, lsp_server, uri_factory):
+        # Compact renaming shortens identifiers and reports the reverse map, so a
+        # name in the minified source resolves back to the original.
+        uri = uri_factory()
+        lsp_server.open_ready(
+            uri, "proc addNumbers {a b} { return [expr {$a + $b}] }\naddNumbers 1 2\n"
+        )
+        result = lsp_server.execute_command("tcl-lsp.minifyDocument", [uri, True, False, False])
+        assert result is not None
+        assert result["minifiedLength"] < result["originalLength"]
+        assert "addNumbers" not in result["source"], result["source"]
+        assert "addNumbers" in result["symbolMap"], result["symbolMap"]
+
+    def test_list_subcommands_shape(self, lsp_server):
+        data = lsp_server.execute_command("tcl-lsp.listSubcommands", ["string"])
+        assert data["command"] == "string"
+        names = {s["name"] for s in data["subcommands"]}
+        assert {"length", "range", "map"} <= names, names
+
+    def test_list_subcommands_unknown_is_empty(self, lsp_server):
+        data = lsp_server.execute_command(
+            "tcl-lsp.listSubcommands", ["definitely_not_a_command_zzz"]
+        )
+        assert data["subcommands"] == []
+
+    def test_list_known_packages_shape(self, lsp_server):
+        data = lsp_server.execute_command("tcl-lsp.listKnownPackages", [])
+        assert isinstance(data.get("packages"), list)
+
+    def test_suggest_packages_for_symbol_shape(self, lsp_server):
+        data = lsp_server.execute_command("tcl-lsp.suggestPackagesForSymbol", ["json::write"])
+        assert data["symbol"] == "json::write"
+        assert isinstance(data.get("suggestions"), list)
+
+    def test_export_config_writes_a_file(self, lsp_server):
+        data = lsp_server.execute_command("tcl-lsp.exportConfig", [])
+        assert data.get("success") is True
+        assert data.get("path")
