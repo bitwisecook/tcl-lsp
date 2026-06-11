@@ -704,6 +704,358 @@ fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> 
     }
 }
 
+/// Implicit / interpreter-provided variables that are always defined and
+/// must never raise a read-before-set.  Mirrors `_IMPLICIT_VARS` in
+/// `compiler/core_analyses.py`.
+fn is_implicit_var(name: &str) -> bool {
+    matches!(
+        name,
+        "argc"
+            | "argv"
+            | "argv0"
+            | "auto_path"
+            | "env"
+            | "errorCode"
+            | "errorInfo"
+            | "errorResult"
+            | "tcl_interactive"
+            | "tcl_library"
+            | "tcl_patchLevel"
+            | "tcl_pkgPath"
+            | "tcl_platform"
+            | "tcl_precision"
+            | "tcl_rcFileName"
+            | "tcl_version"
+            | "tcl_wordchars"
+            | "tcl_nonwordchars"
+            | "static"
+    )
+}
+
+/// Names whose whole binding is removed by an `unset` call.  Conservative
+/// vs. `compiler/core_analyses.py`: only a **literal** bare name kills
+/// (a dynamic `unset $name` targets the variable *named by* `$name`, not
+/// `name` itself — yet the IR records `name` in the call's defs, so a
+/// `$`-stripping harvest would wrongly mark it killed).  Per-element
+/// `unset x(k)` drops one array element, not the binding, so it is
+/// skipped too.
+fn whole_unset_names(args: &[String]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        let is_dashdash = args[i] == "--";
+        i += 1;
+        if is_dashdash {
+            break;
+        }
+    }
+    for raw in &args[i..] {
+        // Literal bare names only — skip dynamic (`$`/`${…}`/`[…]`) and
+        // element-subscripted (`x(k)`) targets.
+        if raw.contains('$') || raw.contains('[') || raw.contains('(') {
+            continue;
+        }
+        let base = crate::naming::normalise_var_name(raw);
+        if !base.is_empty() {
+            out.insert(base.to_string());
+        }
+    }
+    out
+}
+
+/// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
+/// definition reached it, but a phi result whose reachable incomings
+/// include an undefined (version-0) or `unset`-killed origin only reaches
+/// on a subset of paths — the others read an unset variable.  Returns
+/// true when `(name, version)` can be undefined on some reachable path.
+///
+/// Mirrors `_phi_can_undef` in `compiler/core_analyses.py`.  Version 0 is
+/// the undef origin; an `unset`-killed version is undef; a non-phi
+/// (concrete) definition is never undef; a phi is undef if any of its
+/// reachable, non-existence-guarded incomings is undef.  Cycles
+/// (loop-header phis) conservatively resolve to *not* undef on the cycle.
+#[allow(clippy::too_many_arguments)]
+fn phi_can_undef(
+    name: &str,
+    version: crate::ssa::Version,
+    phi_def: &std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>,
+    killed: &HashSet<(String, crate::ssa::Version)>,
+    considered: &HashSet<String>,
+    exists_guards: &[(String, String)],
+    ssa: &crate::ssa::SsaFunction,
+    seen: &mut HashSet<(String, crate::ssa::Version)>,
+) -> bool {
+    if version == 0 {
+        return true;
+    }
+    let key = (name.to_string(), version);
+    if killed.contains(&key) {
+        return true;
+    }
+    if seen.contains(&key) {
+        // Cycle (loop-header phi): the DFS seed already accounted for the
+        // entry path's contribution; treat the back-edge as not-undef to
+        // avoid every loop-header phi self-triggering.
+        return false;
+    }
+    let Some(phi) = phi_def.get(&key) else {
+        // Concrete (non-phi) definition reached this version — safe.
+        return false;
+    };
+    seen.insert(key.clone());
+    let mut result = false;
+    for (pred, &incoming_ver) in &phi.incoming {
+        if !considered.contains(pred) {
+            continue;
+        }
+        // A dominating existence guard proves the variable is defined at
+        // the predecessor; that incoming cannot be undef regardless of
+        // its SSA version.
+        if exists_guards
+            .iter()
+            .any(|(gv, gblk)| gv == name && block_dominated_by(ssa, pred, gblk))
+        {
+            continue;
+        }
+        if phi_can_undef(
+            name,
+            incoming_ver,
+            phi_def,
+            killed,
+            considered,
+            exists_guards,
+            ssa,
+            seen,
+        ) {
+            result = true;
+            break;
+        }
+    }
+    seen.remove(&key);
+    result
+}
+
+/// `(name, version) → Phi` index used by [`phi_can_undef`].
+type PhiDefMap = std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
+
+/// Build the `(name, version) → Phi` index and the set of `unset`-killed
+/// versions for [`phi_can_undef`], restricted to `considered` (executable)
+/// blocks.  Mirrors the `phi_def` / `killed_versions` setup in
+/// `compiler/core_analyses.py::_read_before_set`.
+fn build_phi_undef_index(
+    ssa: &crate::ssa::SsaFunction,
+    considered: &HashSet<String>,
+) -> (PhiDefMap, HashSet<(String, crate::ssa::Version)>) {
+    use crate::ir::Statement;
+    let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
+        std::collections::HashMap::new();
+    let mut killed: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    for bn in considered {
+        let Some(sblock) = ssa.blocks.get(bn) else {
+            continue;
+        };
+        for phi in &sblock.phis {
+            phi_def.insert((phi.name.clone(), phi.version), phi.clone());
+        }
+        for s in &sblock.statements {
+            let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            } = &s.statement
+            else {
+                continue;
+            };
+            let is_unset = canonical_command.as_deref() == Some("::unset") || command == "unset";
+            if !is_unset {
+                continue;
+            }
+            let whole = whole_unset_names(args);
+            for (def_name, def_ver) in &s.defs {
+                if whole.contains(def_name) {
+                    killed.insert((def_name.clone(), *def_ver));
+                }
+            }
+        }
+    }
+    (phi_def, killed)
+}
+
+/// Name-level suppression context for the `return`-value phi-from-undef W210
+/// pass, harvested from `dict with` / `dict update` and qualified `variable`
+/// declarations.  Mirrors the corresponding `skip` / key-set construction in
+/// `compiler/core_analyses.py::_read_before_set`.
+#[derive(Default)]
+struct ReturnUndefSuppression {
+    /// A `dict with` / `dict update` is present (enables the key-aware gate).
+    has_dict_with: bool,
+    /// At least one dict-with target's value shape is statically unknown.
+    dict_with_any_unknown: bool,
+    /// Keys provably unpacked by some known-literal dict-with target.
+    dict_with_known_keys: HashSet<String>,
+    /// The dict-with target variable names themselves.
+    dict_vars: HashSet<String>,
+    /// Names with a concrete (version > 0) statement/phi definition.
+    explicitly_defined: HashSet<String>,
+    /// Local-alias tails declared by a qualified `variable ns::tail`.
+    alias_tails: HashSet<String>,
+}
+
+impl ReturnUndefSuppression {
+    /// True when a `return`-value read of `name` is suppressed by an alias
+    /// declaration or a `dict with` / `dict update` unpack (key-aware; a
+    /// concretely-defined name is never suppressed).
+    fn suppresses(&self, name: &str) -> bool {
+        if self.alias_tails.contains(name) || self.dict_vars.contains(name) {
+            return true;
+        }
+        self.has_dict_with
+            && !self.explicitly_defined.contains(name)
+            && (self.dict_with_any_unknown || self.dict_with_known_keys.contains(name))
+    }
+}
+
+/// Build the [`ReturnUndefSuppression`] context over `considered` blocks.
+fn build_return_undef_suppression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> ReturnUndefSuppression {
+    use crate::ir::Statement;
+    let mut s = ReturnUndefSuppression::default();
+
+    // `dict with` / `dict update`: harvest the dict-var names and, when the
+    // dict value is a same-block literal, its keys (key-aware suppression).
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for (idx, stmt) in block.statements.iter().enumerate() {
+            let (Statement::Barrier { command, args, .. } | Statement::Call { command, args, .. }) =
+                stmt
+            else {
+                continue;
+            };
+            let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
+            if !is_dict {
+                continue;
+            }
+            if args.first().map(String::as_str) != Some("with")
+                && args.first().map(String::as_str) != Some("update")
+            {
+                continue;
+            }
+            s.has_dict_with = true;
+            let Some(dict_var) = args.get(1) else {
+                s.dict_with_any_unknown = true;
+                continue;
+            };
+            let dvar = crate::naming::normalise_var_name(dict_var).to_string();
+            if dvar.is_empty() {
+                s.dict_with_any_unknown = true;
+                continue;
+            }
+            s.dict_vars.insert(dvar.clone());
+            // Backward-scan the same block for the dict's literal value.
+            let mut found = false;
+            for prev in (0..idx).rev() {
+                match &block.statements[prev] {
+                    Statement::AssignConst { name, value, .. }
+                        if crate::naming::normalise_var_name(name) == dvar =>
+                    {
+                        for (i, key) in crate::tcl_expr_eval::split_tcl_list(value)
+                            .into_iter()
+                            .enumerate()
+                        {
+                            if i % 2 == 0 {
+                                s.dict_with_known_keys.insert(key);
+                            }
+                        }
+                        found = true;
+                        break;
+                    }
+                    // A barrier between us and the literal invalidates the trace.
+                    Statement::Barrier { .. } => break,
+                    _ => {}
+                }
+            }
+            if !found {
+                s.dict_with_any_unknown = true;
+            }
+        }
+    }
+
+    // Names with a concrete (version > 0) statement or phi definition — a
+    // dict-with scope never suppresses these (they are genuinely set).
+    if s.has_dict_with {
+        for bn in considered {
+            let Some(sb) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+            for st in &sb.statements {
+                for (n, v) in &st.defs {
+                    if *v > 0 {
+                        s.explicitly_defined.insert(n.clone());
+                    }
+                }
+            }
+            for phi in &sb.phis {
+                if phi.version > 0 {
+                    s.explicitly_defined.insert(phi.name.clone());
+                }
+            }
+        }
+    }
+
+    s.alias_tails = collect_qualified_variable_alias_tails(fu, considered);
+    s
+}
+
+/// Local-alias tail names declared by a *qualified* `variable`
+/// (`variable ns::tail` / `variable ${name}::tail`): the bare tail read
+/// resolves to the namespace var, not an unset local.  Mirrors
+/// `compiler/core_analyses.py::_qualified_variable_alias_tails`.
+fn collect_qualified_variable_alias_tails(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut tails = HashSet::new();
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let (Statement::Barrier { command, args, .. } | Statement::Call { command, args, .. }) =
+                stmt
+            else {
+                continue;
+            };
+            if command != "variable" && stmt.canonical_command_or_source() != "::variable" {
+                continue;
+            }
+            // `variable` alternates (name, value?) pairs — names at even args.
+            let mut i = 0;
+            while i < args.len() {
+                let text = &args[i];
+                if text.contains("::") {
+                    let tail = text.rsplit("::").next().unwrap_or(text);
+                    let (base, _) = crate::naming::split_array_name(tail);
+                    if !base.is_empty()
+                        && !base.contains('$')
+                        && !base.contains('[')
+                        && !base.contains('{')
+                    {
+                        tails.insert(crate::naming::normalise_var_name(base).to_string());
+                    }
+                }
+                i += 2;
+            }
+        }
+    }
+    tails
+}
+
 /// Collect every variable name defined anywhere in `cfg`.
 ///
 /// Mirrors `_collect_defined_vars` in
@@ -3876,6 +4228,21 @@ file; this call falls through to the 'unknown' handler."
             &scope_aliases,
             extra_known_defined,
         );
+        // Phi-from-undef on `return $v` reads (the def-use builder records
+        // statement + branch-condition uses but NOT `Terminator::Return`
+        // values).  Mirrors the `CFGReturn` arm of `_read_before_set`.
+        let rbs_params: HashSet<&str> = ir_proc
+            .map(|p| p.params.iter().map(String::as_str).collect())
+            .unwrap_or_default();
+        let exists_guards = collect_existence_guards(function_unit);
+        self.emit_return_phi_undef_w210(
+            function_unit,
+            &rbs_params,
+            &exists_guards,
+            &scope_aliases,
+            extra_known_defined,
+            &defined,
+        );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
@@ -4445,6 +4812,127 @@ file; this call falls through to the 'unknown' handler."
                 }
                 let mut message = format!("Variable '{var}' is read before it is set");
                 if let Some(similar) = find_case_mismatch(var, defined_vars) {
+                    let _ = write!(message, "; did you mean '{similar}'?");
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W210".to_string(),
+                    span,
+                    message,
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// W210 on `return $v` reads where `v`'s reaching version can be
+    /// undefined on some executable path (phi-from-undef / `unset`-killed).
+    /// Companion to [`Self::emit_read_before_set_diagnostics`]; see its
+    /// trailing call site for why the def-use-chain pass cannot catch
+    /// these (return values are terminator reads, not recorded uses).
+    fn emit_return_phi_undef_w210(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        params: &HashSet<&str>,
+        exists_guards: &[(String, String)],
+        scope_aliases: &HashSet<String>,
+        extra_known_defined: &HashSet<String>,
+        defined_vars: &HashSet<String>,
+    ) {
+        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+        use std::fmt::Write as _;
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+
+        let considered: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().cloned().collect()
+        } else {
+            fu.sccp.executable_blocks.clone()
+        };
+        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, &considered);
+        let supp = build_return_undef_suppression(fu, &considered);
+
+        let mut scanner = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: false,
+            recurse_cmd_substitutions: true,
+        });
+
+        let mut reported: HashSet<String> = HashSet::new();
+        // Deterministic block order for stable diagnostics.
+        let mut block_names: Vec<&String> = considered.iter().collect();
+        block_names.sort();
+
+        for bn in block_names {
+            let Some(cfg_block) = fu.cfg.blocks.get(bn) else {
+                continue;
+            };
+            let Some(crate::cfg::Terminator::Return { value, expr, .. }) = &cfg_block.terminator
+            else {
+                continue;
+            };
+            let Some(span) = cfg_block
+                .terminator
+                .as_ref()
+                .and_then(crate::cfg::Terminator::span)
+            else {
+                continue;
+            };
+            if span.is_empty() {
+                continue;
+            }
+            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+
+            // Collect the variable names read by the return value (word
+            // substitutions + nested `[...]`) and any parsed expr.
+            let mut reads: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            if let Some(v) = value {
+                reads.extend(scanner.scan_script(v, registry));
+            }
+            if let Some(e) = expr {
+                reads.extend(crate::var_refs::vars_in_expr(e));
+            }
+
+            for name in reads {
+                if reported.contains(&name) {
+                    continue;
+                }
+                let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+                let mut seen = HashSet::new();
+                if !phi_can_undef(
+                    &name,
+                    ver,
+                    &phi_def,
+                    &killed,
+                    &considered,
+                    exists_guards,
+                    &fu.ssa,
+                    &mut seen,
+                ) {
+                    continue;
+                }
+                if params.contains(name.as_str())
+                    || scope_aliases.contains(&name)
+                    || extra_known_defined.contains(&name)
+                    || is_implicit_var(&name)
+                    || name.contains("::")
+                    || supp.suppresses(&name)
+                {
+                    continue;
+                }
+                // A dominating existence guard proves the var exists here.
+                if exists_guards
+                    .iter()
+                    .any(|(gv, gblk)| *gv == name && block_dominated_by(&fu.ssa, bn, gblk))
+                {
+                    continue;
+                }
+                reported.insert(name.clone());
+                let mut message = format!("Variable '{name}' is read before it is set");
+                if let Some(similar) = find_case_mismatch(&name, defined_vars) {
                     let _ = write!(message, "; did you mean '{similar}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
@@ -8285,6 +8773,125 @@ foo
             r.diagnostics.iter().any(|d| d.code == "W304"),
             "W304 must still fire on the split switch form; got {:?}",
             r.diagnostics,
+        );
+    }
+
+    /// Helper: W210 codes for a snippet.
+    fn w210_codes(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W210")
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    #[test]
+    fn w210_phi_undef_if_arm_only_def_return() {
+        // `v` is defined only when `$x > 0`; the unconditional `return $v`
+        // reads it on the no-set path too.
+        let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 }\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "phi-from-undef merge read must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_phi_undef_switch_no_default_return() {
+        let got =
+            w210_codes("proc f {x} { switch $x { a { set v 1 } b { set v 2 } }\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "switch-no-default + return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_phi_undef_use_after_unset_return() {
+        let got = w210_codes("proc f {} { set v 1\n unset v\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "use-after-unset return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_phi_undef_loop_body_only_init_return() {
+        let got = w210_codes("proc f {items} { foreach i $items { lappend r $i }\n return $r }");
+        assert!(
+            got.iter().any(|m| m.contains("'r'")),
+            "loop-body-only init + return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_no_fire_when_both_merge_arms_define() {
+        // Control: every merge predecessor defines `v` — not read-before-set.
+        let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 } else { set v 2 }\n return $v }");
+        assert!(
+            got.is_empty(),
+            "both-arms-defined merge must be silent; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_empty_dict_with_return_fires_but_known_key_silent() {
+        // FP-DS-08: empty dict unpacks nothing — `return $missing` fires.
+        let empty = w210_codes("proc f {} { set d {}\n dict with d {}\n return $missing }");
+        assert!(
+            empty.iter().any(|m| m.contains("'missing'")),
+            "empty dict-with return must fire W210; got {empty:?}"
+        );
+        // Known-key dict unpacks `missing` — silent.
+        let known =
+            w210_codes("proc f {} { set d {missing ok}\n dict with d {}\n return $missing }");
+        assert!(
+            known.is_empty(),
+            "known-key dict-with return must be silent; got {known:?}"
+        );
+        // Unknown-shape dict (param) — conservatively silent.
+        let unknown = w210_codes("proc f {d} { dict with d {}\n return $missing }");
+        assert!(
+            unknown.is_empty(),
+            "unknown dict-with return must be silent; got {unknown:?}"
+        );
+    }
+
+    #[test]
+    fn w210_qualified_variable_alias_tail_return_silent() {
+        // FP-RBS-04: `variable ${name}::graphAttr` declares the local alias
+        // `graphAttr`; the bare tail read is not read-before-set.
+        let got = w210_codes(
+            "proc ::ns::get {name key} { variable ${name}::graphAttr\n return $graphAttr }",
+        );
+        assert!(
+            got.is_empty(),
+            "qualified variable-alias tail read must be silent; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_no_false_fire_on_many_var_scan_return() {
+        // D4-F2: the dynamic scan arg-role resolver marks every trailing
+        // varName as a write, so `return $a19` is not read-before-set.
+        let src = "proc f {} { scan {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19} \
+{%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} \
+a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19\n return $a19 }";
+        assert!(
+            w210_codes(src).is_empty(),
+            "20-var scan must not false-fire W210 on the tail var"
+        );
+    }
+
+    #[test]
+    fn w210_no_false_fire_on_many_var_lassign_return() {
+        let src = "proc f {l} { lassign $l a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 \
+a15 a16 a17 a18 a19 a20\n return $a20 }";
+        assert!(
+            w210_codes(src).is_empty(),
+            "21-var lassign must not false-fire W210 on the tail var"
         );
     }
 
