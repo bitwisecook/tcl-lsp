@@ -5044,6 +5044,22 @@ fp_inj 1.
    `flush_arity_diagnostics` keyed on the base command name). lsp_e2e
    463→465 passing; precision battery held at 284/93.
 
+3. **semantic_tokens non-overlap after `$var`** (closes
+   `test_semantic_tokens_e2e::TestTokenInvariants::test_tokens_strictly_non_overlapping_dense_line`
+   + `…test_tokens_satisfy_invariants[unicode_after_var]`). The tcl-lexer
+   `parse_quoted` *empty-content clamp* extends a quoted `Esc` fragment's span
+   by one byte over the `$` / `[` that introduces the next substitution token
+   (so `token_text` stays empty while `span.end` lands on the terminator). The
+   semantic-token emitter (`semantic_tokens.rs::push_token`) used that raw span
+   verbatim, so the opening fragment of `"$x …"` spanned `"$` and overlapped the
+   `$x` Variable token — a client "Overlapping semantic tokens detected"
+   violation. `push_token` now recognises a clamped-empty `Esc`
+   (`span_len == content_offset + 1` with a `$` / `[` last byte) and trims it to
+   just its leading delimiter (the opening `"`, or nothing for an empty ESC
+   between adjacent `$a$b`). Also collapsed the pre-existing `E::Function`
+   `if` into a match guard so the file is clippy-pedantic clean. lsp_e2e
+   465→467 passing; precision battery unchanged.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
