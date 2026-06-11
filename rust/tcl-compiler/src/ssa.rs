@@ -935,30 +935,28 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                     .collect();
                 *exit_versions.get_mut(&bn).unwrap() = xv;
 
-                // Fill in phi incoming edges for successors.
-                if let Some(block) = func.blocks.get(&bn) {
-                    if let Some(ref term) = block.terminator {
-                        for succ in term.successors() {
-                            if !func.blocks.contains_key(succ) {
-                                continue;
-                            }
-                            let succ_phis: Vec<String> = phi_vars
-                                .get(succ)
-                                .map(|s| {
-                                    let mut v: Vec<String> = s.iter().cloned().collect();
-                                    v.sort();
-                                    v
-                                })
-                                .unwrap_or_default();
-                            for var in &succ_phis {
-                                phi_incoming
-                                    .get_mut(succ)
-                                    .unwrap()
-                                    .entry(var.clone())
-                                    .or_default()
-                                    .insert(bn.clone(), top(&stacks, var));
-                            }
-                        }
+                // Fill in phi incoming edges for successors — the terminator's
+                // successors plus any `try` exception-edge handler targets, so
+                // a handler block's phis see this block's versions.
+                for succ in func.block_successors(&bn) {
+                    if !func.blocks.contains_key(&succ) {
+                        continue;
+                    }
+                    let succ_phis: Vec<String> = phi_vars
+                        .get(&succ)
+                        .map(|s| {
+                            let mut v: Vec<String> = s.iter().cloned().collect();
+                            v.sort();
+                            v
+                        })
+                        .unwrap_or_default();
+                    for var in &succ_phis {
+                        phi_incoming
+                            .get_mut(&succ)
+                            .unwrap()
+                            .entry(var.clone())
+                            .or_default()
+                            .insert(bn.clone(), top(&stacks, var));
                     }
                 }
 

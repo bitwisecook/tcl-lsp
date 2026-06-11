@@ -83,7 +83,7 @@ use tcl_lexer::SourceMap;
 
 use super::state::Analyser;
 use super::types::Severity;
-use crate::expr_ast::{BinOp, ExprNode};
+use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
@@ -218,6 +218,8 @@ fn is_word_byte(b: u8) -> bool {
 struct DottedQuad<'a> {
     octets: [&'a str; 4],
     start: usize,
+    /// Byte offset just past the final octet (the regex `m.end()`).
+    end: usize,
 }
 
 /// Find every `\b\d{1,N}.\d{1,N}.\d{1,N}.\d{1,N}\b` dotted quad in
@@ -234,7 +236,11 @@ fn find_dotted_quads(text: &str, max_digits: usize) -> Vec<DottedQuad<'_>> {
         let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
         if boundary_before {
             if let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
-                out.push(DottedQuad { octets, start: i });
+                out.push(DottedQuad {
+                    octets,
+                    start: i,
+                    end,
+                });
                 i = end;
                 continue;
             }
@@ -366,6 +372,63 @@ fn has_redos_shape(pattern: &str) -> bool {
         i += 1;
     }
     false
+}
+
+/// Destructive builtins whose bare `catch {<cmd> ...}` form is the
+/// documented "fire-and-forget" idiom — failure when the target is
+/// already gone is expected and intentionally ignored.  Mirrors
+/// `analyser/compiler_checks.py::_FIRE_AND_FORGET_BARE`.
+fn fire_and_forget_bare(bare: &str) -> bool {
+    matches!(bare, "close" | "unset" | "rename")
+}
+
+/// Ensemble commands where only certain destructive subcommands are
+/// fire-and-forget (`chan close` is, `chan configure` is not).  Mirrors
+/// `_FIRE_AND_FORGET_SUBCOMMANDS`.
+fn fire_and_forget_subcommand(bare: &str, sub: &str) -> bool {
+    match bare {
+        "after" => sub == "cancel",
+        "chan" => sub == "close",
+        "array" | "dict" => sub == "unset",
+        "interp" | "file" => sub == "delete",
+        "namespace" => sub == "delete" || sub == "forget",
+        _ => false,
+    }
+}
+
+/// True when the body of a `catch` matches the documented
+/// "fire-and-forget" idiom: a single command whose head is a
+/// destructive builtin (`close $h`, `unset var`, `rename foo ""`) or a
+/// documented destructive ensemble subcommand (`after cancel`, `chan
+/// close`, `array unset`, …).  Conservative: only single-statement
+/// bodies match, and ensemble heads are subcommand-checked.  Mirrors
+/// `analyser/compiler_checks.py::_catch_body_is_fire_and_forget`.
+fn catch_body_is_fire_and_forget(body: &str) -> bool {
+    let segs: Vec<_> = crate::segmenter::segment_commands(body)
+        .into_iter()
+        .filter(|c| !c.texts.is_empty())
+        .collect();
+    if segs.len() != 1 {
+        return false;
+    }
+    let Some(head) = segs[0].texts.first() else {
+        return false;
+    };
+    if head.is_empty() {
+        return false;
+    }
+    let bare = head
+        .trim_start_matches(':')
+        .rsplit("::")
+        .next()
+        .unwrap_or(head);
+    if fire_and_forget_bare(bare) {
+        return true;
+    }
+    match segs[0].texts.get(1) {
+        Some(first_arg) => fire_and_forget_subcommand(bare, first_arg),
+        None => false,
+    }
 }
 
 /// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
@@ -639,6 +702,663 @@ fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> 
             _ => return false,
         }
     }
+}
+
+/// True when a read of `var` at this use-site statement is in fact a safe
+/// self-initialisation, not a read-before-set: a `safe_on_uninit` call (e.g.
+/// `lappend`/`dict set`/`append`) that defines `var`, or an `incr` of its own
+/// target (which initialises an unset var to 0 in Tcl 8.5+).
+fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
+    use crate::ir::Statement;
+    match stmt {
+        Some(Statement::Call {
+            safe_on_uninit,
+            defs,
+            ..
+        }) => *safe_on_uninit && defs.iter().any(|d| d == var),
+        Some(Statement::Incr { name, .. }) => crate::naming::normalise_var_name(name) == var,
+        _ => false,
+    }
+}
+
+/// The namespace of a fully-qualified name: everything up to the last `::`,
+/// or `::` for a top-level name.  Mirrors `qname.rsplit("::", 1)[0] or "::"`.
+fn namespace_of(qualified_name: &str) -> String {
+    match qualified_name.rsplit_once("::") {
+        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
+        _ => "::".to_string(),
+    }
+}
+
+/// Implicit / interpreter-provided variables that are always defined and
+/// must never raise a read-before-set.  Mirrors `_IMPLICIT_VARS` in
+/// `compiler/core_analyses.py`.
+fn is_implicit_var(name: &str) -> bool {
+    matches!(
+        name,
+        "argc"
+            | "argv"
+            | "argv0"
+            | "auto_path"
+            | "env"
+            | "errorCode"
+            | "errorInfo"
+            | "errorResult"
+            | "tcl_interactive"
+            | "tcl_library"
+            | "tcl_patchLevel"
+            | "tcl_pkgPath"
+            | "tcl_platform"
+            | "tcl_precision"
+            | "tcl_rcFileName"
+            | "tcl_version"
+            | "tcl_wordchars"
+            | "tcl_nonwordchars"
+            | "static"
+    )
+}
+
+/// Names whose whole binding is removed by an `unset` call.  Conservative
+/// vs. `compiler/core_analyses.py`: only a **literal** bare name kills
+/// (a dynamic `unset $name` targets the variable *named by* `$name`, not
+/// `name` itself — yet the IR records `name` in the call's defs, so a
+/// `$`-stripping harvest would wrongly mark it killed).  Per-element
+/// `unset x(k)` drops one array element, not the binding, so it is
+/// skipped too.
+fn whole_unset_names(args: &[String]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut i = 0;
+    while i < args.len() && args[i].starts_with('-') {
+        let is_dashdash = args[i] == "--";
+        i += 1;
+        if is_dashdash {
+            break;
+        }
+    }
+    for raw in &args[i..] {
+        // Literal bare names only — skip dynamic (`$`/`${…}`/`[…]`) and
+        // element-subscripted (`x(k)`) targets.
+        if raw.contains('$') || raw.contains('[') || raw.contains('(') {
+            continue;
+        }
+        let base = crate::naming::normalise_var_name(raw);
+        if !base.is_empty() {
+            out.insert(base.to_string());
+        }
+    }
+    out
+}
+
+/// Tcl ARE metacharacters: a pattern free of these reduces to a literal
+/// substring search.  Mirrors `_TCL_REGEX_METACHARS`.
+const TCL_REGEX_METACHARS: &str = r"\^$.|?*+()[]{}";
+
+/// `regexp` switches that don't change match-vs-no-match for a pure-literal
+/// pattern.  Mirrors `_REGEXP_LITERAL_SAFE_SWITCHES`.
+fn is_regexp_literal_safe_switch(opt: &str) -> bool {
+    matches!(
+        opt,
+        "-indices" | "-inline" | "-all" | "-line" | "-lineanchor" | "-linestop" | "-start" | "--"
+    )
+    // `-expanded` is handled separately (whitespace/comment-gated) by the
+    // caller, so it is intentionally not listed here.
+}
+
+/// True iff `regexp PATTERN INPUT` provably returns 0.  Sound only when
+/// `pat` is a pure-literal pattern (no ARE metacharacters), reducing the
+/// match to substring search.  Unknown / unsafe switches bail (return
+/// `false` = cannot prove no-match).  Mirrors `_regexp_literal_no_match`.
+fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
+    if pat.chars().any(|c| TCL_REGEX_METACHARS.contains(c)) {
+        return false;
+    }
+    let mut nocase = false;
+    let mut expanded = false;
+    for opt in options {
+        if !opt.starts_with('-') {
+            continue; // an option value (e.g. after `-start`)
+        }
+        if opt == "-nocase" {
+            nocase = true;
+            continue;
+        }
+        if opt == "-expanded" {
+            expanded = true;
+            continue;
+        }
+        if is_regexp_literal_safe_switch(opt) {
+            continue;
+        }
+        return false; // unknown / unsafe switch
+    }
+    // `-expanded` makes Tcl ignore unescaped whitespace and `#`-comments in
+    // the pattern, so a pattern containing either is NOT a plain substring
+    // (`regexp -expanded {a b} {ab}` matches).  Bail in that case so the
+    // no-match proof stays sound — a whitespace/comment-free literal is
+    // still safe.
+    if expanded && pat.chars().any(|c| c.is_whitespace() || c == '#') {
+        return false;
+    }
+    if nocase {
+        !inp.to_lowercase().contains(&pat.to_lowercase())
+    } else {
+        !inp.contains(pat)
+    }
+}
+
+/// `Some(true)` when a `regexp` / `scan` call (`is_regexp` selects the arg
+/// order) with literal pattern + input provably can't match; `Some(false)`
+/// when it might match; `None` when the args can't be statically resolved
+/// (dynamic substitution, too few args).  Mirrors the per-call arm of the
+/// `provably_unset` setup in `_read_before_set`.
+fn regexp_scan_no_match(is_regexp: bool, args: &[String]) -> Option<bool> {
+    let value_opts: &[&str] = if is_regexp { &["-start"] } else { &[] };
+    let pos = skip_options(args, value_opts);
+    if pos + 1 >= args.len() {
+        return None;
+    }
+    let a = &args[pos];
+    let b = &args[pos + 1];
+    // `regexp ?opts? PATTERN STRING …`; `scan STRING FORMAT …`.
+    let (pat, inp) = if is_regexp { (a, b) } else { (b, a) };
+    // Dynamic substitution markers — runtime value unknown.
+    if pat.contains(['$', '[']) || inp.contains(['$', '[']) {
+        return None;
+    }
+    if is_regexp {
+        let opts: Vec<String> = args[..pos].to_vec();
+        Some(regexp_literal_no_match(pat, inp, &opts))
+    } else {
+        Some(crate::scan_predicate::scan_provably_no_match(pat, inp))
+    }
+}
+
+/// Index of the first non-option argument in `args`, skipping `-option`
+/// flags and the values of options in `value_opts`.  Mirrors `skip_options`.
+fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if value_opts.contains(&a.as_str()) && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    i
+}
+
+/// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
+/// definition reached it, but a phi result whose reachable incomings
+/// include an undefined (version-0) or `unset`-killed origin only reaches
+/// on a subset of paths — the others read an unset variable.  Returns
+/// true when `(name, version)` can be undefined on some reachable path.
+///
+/// Mirrors `_phi_can_undef` in `compiler/core_analyses.py`.  Version 0 is
+/// the undef origin; an `unset`-killed version is undef; a non-phi
+/// (concrete) definition is never undef; a phi is undef if any of its
+/// reachable, non-existence-guarded incomings is undef.  Cycles
+/// (loop-header phis) conservatively resolve to *not* undef on the cycle.
+#[allow(clippy::too_many_arguments)]
+fn phi_can_undef(
+    name: &str,
+    version: crate::ssa::Version,
+    phi_def: &std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>,
+    killed: &HashSet<(String, crate::ssa::Version)>,
+    considered: &HashSet<String>,
+    exists_guards: &[(String, String)],
+    ssa: &crate::ssa::SsaFunction,
+    seen: &mut HashSet<(String, crate::ssa::Version)>,
+) -> bool {
+    if version == 0 {
+        return true;
+    }
+    let key = (name.to_string(), version);
+    if killed.contains(&key) {
+        return true;
+    }
+    if seen.contains(&key) {
+        // Cycle (loop-header phi): the DFS seed already accounted for the
+        // entry path's contribution; treat the back-edge as not-undef to
+        // avoid every loop-header phi self-triggering.
+        return false;
+    }
+    let Some(phi) = phi_def.get(&key) else {
+        // Concrete (non-phi) definition reached this version — safe.
+        return false;
+    };
+    seen.insert(key.clone());
+    let mut result = false;
+    for (pred, &incoming_ver) in &phi.incoming {
+        if !considered.contains(pred) {
+            continue;
+        }
+        // A dominating existence guard proves the variable is defined at
+        // the predecessor; that incoming cannot be undef regardless of
+        // its SSA version.
+        if exists_guards
+            .iter()
+            .any(|(gv, gblk)| gv == name && block_dominated_by(ssa, pred, gblk))
+        {
+            continue;
+        }
+        if phi_can_undef(
+            name,
+            incoming_ver,
+            phi_def,
+            killed,
+            considered,
+            exists_guards,
+            ssa,
+            seen,
+        ) {
+            result = true;
+            break;
+        }
+    }
+    seen.remove(&key);
+    result
+}
+
+/// `(name, version) → Phi` index used by [`phi_can_undef`].
+type PhiDefMap = std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
+
+/// Build the `(name, version) → Phi` index and the set of `unset`-killed
+/// versions for [`phi_can_undef`], restricted to `considered` (executable)
+/// blocks.  Mirrors the `phi_def` / `killed_versions` setup in
+/// `compiler/core_analyses.py::_read_before_set`.
+fn build_phi_undef_index(
+    ssa: &crate::ssa::SsaFunction,
+    considered: &HashSet<String>,
+) -> (PhiDefMap, HashSet<(String, crate::ssa::Version)>) {
+    use crate::ir::Statement;
+    let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
+        std::collections::HashMap::new();
+    let mut killed: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    for bn in considered {
+        let Some(sblock) = ssa.blocks.get(bn) else {
+            continue;
+        };
+        for phi in &sblock.phis {
+            phi_def.insert((phi.name.clone(), phi.version), phi.clone());
+        }
+        for s in &sblock.statements {
+            let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            } = &s.statement
+            else {
+                continue;
+            };
+            let is_unset = canonical_command.as_deref() == Some("::unset") || command == "unset";
+            if !is_unset {
+                continue;
+            }
+            let whole = whole_unset_names(args);
+            for (def_name, def_ver) in &s.defs {
+                if whole.contains(def_name) {
+                    killed.insert((def_name.clone(), *def_ver));
+                }
+            }
+        }
+    }
+    (phi_def, killed)
+}
+
+/// True when an expression operand is provably the integer zero: a literal
+/// `0` (int or float spelling) or a variable whose SCCP value at `versions`
+/// is a constant zero.  Used by the W233 divide-by-zero check.
+fn expr_operand_is_zero(
+    node: &ExprNode,
+    versions: &std::collections::HashMap<String, crate::ssa::Version>,
+    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+) -> bool {
+    use crate::analyses::{ConstValue, LatticeValue};
+    let const_is_zero = |lv: Option<&LatticeValue>| match lv {
+        Some(LatticeValue::Const(ConstValue::Int(0) | ConstValue::Bool(false))) => true,
+        Some(LatticeValue::Const(ConstValue::Float(f))) => *f == 0.0,
+        Some(LatticeValue::Const(ConstValue::String(s))) => {
+            let t = s.trim();
+            t.parse::<i64>() == Ok(0) || t.parse::<f64>().is_ok_and(|f| f == 0.0)
+        }
+        _ => false,
+    };
+    match node {
+        ExprNode::Literal { text, .. } => {
+            let t = text.trim();
+            t.parse::<i64>() == Ok(0) || t.parse::<f64>().is_ok_and(|f| f == 0.0)
+        }
+        ExprNode::Var { name, .. } => versions
+            .get(name)
+            .is_some_and(|&ver| const_is_zero(sccp.get(&(name.clone(), ver)))),
+        _ => false,
+    }
+}
+
+/// Constant truthiness of `text` under Tcl boolean rules: a non-zero number
+/// is true, `0`/`0.0` false, and the literal boolean words (case-insensitive)
+/// map directly.  `None` when not a recognised constant.
+fn const_truthiness(text: &str) -> Option<bool> {
+    let t = text.trim();
+    if let Ok(n) = t.parse::<i64>() {
+        return Some(n != 0);
+    }
+    if let Ok(f) = t.parse::<f64>() {
+        return Some(f != 0.0);
+    }
+    match t.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "on" => Some(true),
+        "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+/// Provable truthiness of an expression operand (`Some(true)`/`Some(false)`),
+/// or `None` when not statically known.  Used to model short-circuit (`&&` /
+/// `||`) and ternary reachability for the W233 divisor walk.
+fn expr_truthiness(
+    node: &ExprNode,
+    versions: &std::collections::HashMap<String, crate::ssa::Version>,
+    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+) -> Option<bool> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    match node {
+        ExprNode::Literal { text, .. } => const_truthiness(text),
+        ExprNode::Var { name, .. } => {
+            let ver = versions.get(name)?;
+            match sccp.get(&(name.clone(), *ver))? {
+                LatticeValue::Const(ConstValue::Int(n)) => Some(*n != 0),
+                LatticeValue::Const(ConstValue::Float(f)) => Some(*f != 0.0),
+                LatticeValue::Const(ConstValue::Bool(b)) => Some(*b),
+                LatticeValue::Const(ConstValue::String(s)) => const_truthiness(s),
+                _ => None,
+            }
+        }
+        // `-1` / `+1` keep the operand's zero-ness; `!x` / `not x` invert it.
+        ExprNode::Unary { op, operand } => match op {
+            UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot => {
+                expr_truthiness(operand, versions, sccp)
+            }
+            UnaryOp::Not | UnaryOp::WordNot => expr_truthiness(operand, versions, sccp).map(|b| !b),
+        },
+        _ => None,
+    }
+}
+
+/// Find the first `/` or `%` operator in `node` whose divisor is provably
+/// zero **and is actually reachable**, returning its [`BinOp`].  Models
+/// short-circuit `&&` / `||` and ternary reachability so a guarded division
+/// (`$d != 0 && 1/$d`, `0 ? 1/0 : 7`) does not fire.  Mirrors
+/// `find_divide_by_zero` (`compiler/interval_bounds.py`).
+fn find_divide_by_zero(
+    node: &ExprNode,
+    versions: &std::collections::HashMap<String, crate::ssa::Version>,
+    sccp: &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+) -> Option<BinOp> {
+    let recurse = |n| find_divide_by_zero(n, versions, sccp);
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            if matches!(op, BinOp::Div | BinOp::Mod) && expr_operand_is_zero(right, versions, sccp)
+            {
+                return Some(*op);
+            }
+            // The left operand is always evaluated.  The right operand of a
+            // short-circuit `&&` is reached only when the left is provably
+            // truthy; of `||` only when the left is provably falsy.
+            if let Some(hit) = recurse(left) {
+                return Some(hit);
+            }
+            let right_reachable = match op {
+                BinOp::And | BinOp::WordAnd => expr_truthiness(left, versions, sccp) == Some(true),
+                BinOp::Or | BinOp::WordOr => expr_truthiness(left, versions, sccp) == Some(false),
+                _ => true,
+            };
+            if right_reachable {
+                recurse(right)
+            } else {
+                None
+            }
+        }
+        ExprNode::Unary { operand, .. } => recurse(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            // The condition is always evaluated; an arm only when the
+            // condition provably selects it.
+            if let Some(hit) = recurse(condition) {
+                return Some(hit);
+            }
+            match expr_truthiness(condition, versions, sccp) {
+                Some(true) => recurse(true_branch),
+                Some(false) => recurse(false_branch),
+                None => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Name-level suppression context for the `return`-value phi-from-undef W210
+/// pass, harvested from `dict with` / `dict update` and qualified `variable`
+/// declarations.  Mirrors the corresponding `skip` / key-set construction in
+/// `compiler/core_analyses.py::_read_before_set`.
+#[derive(Default)]
+struct UndefSuppression {
+    /// A `dict with` / `dict update` is present (enables the key-aware gate).
+    has_dict_with: bool,
+    /// At least one dict-with target's value shape is statically unknown.
+    dict_with_any_unknown: bool,
+    /// Keys provably unpacked by some known-literal dict-with target.
+    dict_with_known_keys: HashSet<String>,
+    /// The dict-with target variable names themselves.
+    dict_vars: HashSet<String>,
+    /// Names with a concrete (version > 0) statement/phi definition.
+    explicitly_defined: HashSet<String>,
+    /// Local-alias tails declared by a qualified `variable ns::tail`.
+    alias_tails: HashSet<String>,
+}
+
+impl UndefSuppression {
+    /// True when a read of `name` is suppressed by an alias declaration or a
+    /// `dict with` / `dict update` unpack.  Blanket variant: an unknown-shape
+    /// dict suppresses every non-concrete name (the conservative
+    /// "might-have-the-key" stance, used where no truth source can confirm
+    /// the dict is empty — e.g. a `return` after a `dict with` on a param).
+    fn suppresses(&self, name: &str) -> bool {
+        self.suppresses_strict(name)
+            || (self.has_dict_with
+                && self.dict_with_any_unknown
+                && !self.explicitly_defined.contains(name))
+    }
+
+    /// Like [`Self::suppresses`] but **without** the unknown-shape blanket —
+    /// only alias tails, dict vars, and *provably-unpacked* keys suppress.
+    /// Used on statement reads inside a `dict with` body, where an
+    /// unknown-shape dict (e.g. an interprocedurally-empty literal Rust's
+    /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
+    /// is not hidden.
+    fn suppresses_strict(&self, name: &str) -> bool {
+        if self.alias_tails.contains(name) || self.dict_vars.contains(name) {
+            return true;
+        }
+        self.has_dict_with
+            && !self.explicitly_defined.contains(name)
+            && self.dict_with_known_keys.contains(name)
+    }
+}
+
+/// Build the [`UndefSuppression`] context over `considered` blocks.
+fn build_undef_suppression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> UndefSuppression {
+    use crate::ir::Statement;
+    let mut s = UndefSuppression::default();
+
+    // `dict with` / `dict update`: harvest the dict-var names and, when the
+    // dict value is a same-block literal, its keys (key-aware suppression).
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for (idx, stmt) in block.statements.iter().enumerate() {
+            let (Statement::Barrier { command, args, .. } | Statement::Call { command, args, .. }) =
+                stmt
+            else {
+                continue;
+            };
+            let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
+            if !is_dict {
+                continue;
+            }
+            if args.first().map(String::as_str) != Some("with")
+                && args.first().map(String::as_str) != Some("update")
+            {
+                continue;
+            }
+            s.has_dict_with = true;
+            let Some(dict_var) = args.get(1) else {
+                s.dict_with_any_unknown = true;
+                continue;
+            };
+            let dvar = crate::naming::normalise_var_name(dict_var).to_string();
+            if dvar.is_empty() {
+                s.dict_with_any_unknown = true;
+                continue;
+            }
+            s.dict_vars.insert(dvar.clone());
+            // Resolve the dict's value to harvest its keys.  Prefer the
+            // SCCP CONST of the SPECIFIC version read by this dict-with (so
+            // interprocedurally-propagated literals — a caller passing `{}`
+            // — are honoured), falling back to a same-block literal `set`.
+            // A known value (even empty) harvests its keys; only a value
+            // that resolves to neither marks the dict shape unknown.
+            let mut literal: Option<String> = None;
+            if let Some(sb) = fu.ssa.blocks.get(bn) {
+                if let Some(ver) = sb
+                    .statements
+                    .get(idx)
+                    .and_then(|s| s.uses.get(&dvar).copied())
+                {
+                    if let Some(crate::analyses::LatticeValue::Const(
+                        crate::analyses::ConstValue::String(v),
+                    )) = fu.sccp.values.get(&(dvar.clone(), ver))
+                    {
+                        literal = Some(v.clone());
+                    }
+                }
+            }
+            if literal.is_none() {
+                for prev in (0..idx).rev() {
+                    match &block.statements[prev] {
+                        Statement::AssignConst { name, value, .. }
+                            if crate::naming::normalise_var_name(name) == dvar =>
+                        {
+                            literal = Some(value.clone());
+                            break;
+                        }
+                        // A barrier between us and the literal invalidates it.
+                        Statement::Barrier { .. } => break,
+                        _ => {}
+                    }
+                }
+            }
+            match literal {
+                Some(v) => {
+                    for (i, key) in crate::tcl_expr_eval::split_tcl_list(&v)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        if i % 2 == 0 {
+                            s.dict_with_known_keys.insert(key);
+                        }
+                    }
+                }
+                None => s.dict_with_any_unknown = true,
+            }
+        }
+    }
+
+    // Names with a concrete (version > 0) statement or phi definition — a
+    // dict-with scope never suppresses these (they are genuinely set).
+    if s.has_dict_with {
+        for bn in considered {
+            let Some(sb) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+            for st in &sb.statements {
+                for (n, v) in &st.defs {
+                    if *v > 0 {
+                        s.explicitly_defined.insert(n.clone());
+                    }
+                }
+            }
+            for phi in &sb.phis {
+                if phi.version > 0 {
+                    s.explicitly_defined.insert(phi.name.clone());
+                }
+            }
+        }
+    }
+
+    s.alias_tails = collect_qualified_variable_alias_tails(fu, considered);
+    s
+}
+
+/// Local-alias tail names declared by a *qualified* `variable`
+/// (`variable ns::tail` / `variable ${name}::tail`): the bare tail read
+/// resolves to the namespace var, not an unset local.  Mirrors
+/// `compiler/core_analyses.py::_qualified_variable_alias_tails`.
+fn collect_qualified_variable_alias_tails(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut tails = HashSet::new();
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let (Statement::Barrier { command, args, .. } | Statement::Call { command, args, .. }) =
+                stmt
+            else {
+                continue;
+            };
+            if command != "variable" && stmt.canonical_command_or_source() != "::variable" {
+                continue;
+            }
+            // `variable` alternates (name, value?) pairs — names at even args.
+            let mut i = 0;
+            while i < args.len() {
+                let text = &args[i];
+                if text.contains("::") {
+                    let tail = text.rsplit("::").next().unwrap_or(text);
+                    let (base, _) = crate::naming::split_array_name(tail);
+                    if !base.is_empty()
+                        && !base.contains('$')
+                        && !base.contains('[')
+                        && !base.contains('{')
+                    {
+                        tails.insert(crate::naming::normalise_var_name(base).to_string());
+                    }
+                }
+                i += 2;
+            }
+        }
+    }
+    tails
 }
 
 /// Collect every variable name defined anywhere in `cfg`.
@@ -1980,6 +2700,16 @@ numeric/string coercion."
         if arg_tokens.is_empty() {
             return;
         }
+        // Suppress the hint on the documented "fire-and-forget" idiom:
+        // ``catch {close $h}`` / ``catch {after cancel $h}`` etc.  These
+        // commands error when the target is already gone, and a bare
+        // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
+        // possible, ignore if not".
+        if let Some(body) = args.first() {
+            if catch_body_is_fire_and_forget(body) {
+                return;
+            }
+        }
         let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W302".to_string(),
@@ -2549,6 +3279,20 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         };
 
+        // The braced pattern-list switch form ``switch $x { pat body … }``
+        // is NOT a runtime hazard: Tcl unambiguously identifies the
+        // trailing brace as the pattern list and never consumes the
+        // preceding word as an option.  Detect the two-arg braced form
+        // (the last arg is a brace-enclosed `Str` token) and exempt it
+        // entirely.  The SPLIT form (`switch $x -nocase {body} …`, 3+
+        // args) is still flagged.  Mirrors `_style.py` G12.
+        if cmd_name == "switch"
+            && arg_tokens.len() == 2
+            && arg_tokens.last().map(|t| t.kind) == Some(tcl_lexer::TokenType::Str)
+        {
+            return;
+        }
+
         let Some(positional_idx) = first_positional_without_terminator(args, &profile) else {
             return;
         };
@@ -2982,6 +3726,16 @@ a script (like eval). Use a single braced body or {*}$cmdList to avoid injection
             // Single arg — unbraced + substituted (and not [list …]).
             if matches!(tok.kind, tcl_lexer::TokenType::Str)
                 || self.is_canonical_list_substitution(*tok)
+            {
+                return;
+            }
+            // A single *pure* variable substitution (`uplevel 1 $body`) is the
+            // safe single-substitution idiom: tclsh evaluates `$body` once in
+            // the target frame, no concatenation / second substitution.  The
+            // script word must be exactly one `Var` token — a concatenation
+            // (`$a$b`, `pre$x`) is not a single token and stays flagged.
+            if arg_single.get(script_idx).copied() == Some(true)
+                && matches!(tok.kind, tcl_lexer::TokenType::Var)
             {
                 return;
             }
@@ -3782,16 +4536,47 @@ file; this call falls through to the 'unknown' handler."
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
+        // Shared read-before-set context: the SCCP-executable block set and
+        // the name-level suppression (`dict with` keys, qualified-`variable`
+        // alias tails, dict vars), threaded through both the version-0
+        // statement/branch emitter and the `Terminator::Return` pass.
+        let considered: HashSet<String> = if function_unit.sccp.executable_blocks.is_empty() {
+            function_unit.ssa.blocks.keys().cloned().collect()
+        } else {
+            function_unit.sccp.executable_blocks.clone()
+        };
+        let supp = build_undef_suppression(function_unit, &considered);
+        let exists_guards = collect_existence_guards(function_unit);
+        let rbs_params: HashSet<&str> = ir_proc
+            .map(|p| p.params.iter().map(String::as_str).collect())
+            .unwrap_or_default();
         self.emit_read_before_set_diagnostics(
             function_unit,
             ir_proc,
             &defined,
             &scope_aliases,
             extra_known_defined,
+            &supp,
         );
+        // Phi-from-undef on `return $v` reads (the def-use builder records
+        // statement + branch-condition uses but NOT `Terminator::Return`
+        // values).  Mirrors the `CFGReturn` arm of `_read_before_set`.
+        self.emit_return_phi_undef_w210(
+            function_unit,
+            &rbs_params,
+            &exists_guards,
+            &scope_aliases,
+            extra_known_defined,
+            &defined,
+            &considered,
+            &supp,
+        );
+        // W210 on reads of a provably-no-match regexp / scan output var.
+        self.emit_provably_unset_w210(function_unit, &considered, &defined);
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
+        self.emit_w233_divide_by_zero(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
@@ -4157,11 +4942,29 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: &crate::ir::Procedure,
     ) {
+        // Empty-body procs (``proc foo {a b} {}``) are signature
+        // placeholders — stubs declaring an API whose implementation
+        // lives elsewhere.  Every parameter is necessarily "unused"
+        // since there is no body to use it, so flagging is pure noise.
+        // Mirrors the `not body.statements` early return in
+        // `_diag_var_lifecycle.py::_emit_unused_param_diagnostics`.
+        if ir_proc.body.statements.is_empty() {
+            return;
+        }
+        let mut unused: Vec<String> = Vec::new();
         for param in &ir_proc.params {
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
             // marker).  Skip it from W214.
             if param == "args" {
+                continue;
+            }
+            // Positional keyword markers: a param whose name is itself a
+            // quoted literal (snit-style ``{"as" ""}``) is a syntactic
+            // placeholder consumed by being PRESENT in the call form, not
+            // read as a variable.  Flagging it is noise.  Conservative:
+            // only suppress params whose name starts AND ends with ``"``.
+            if param.len() >= 2 && param.starts_with('"') && param.ends_with('"') {
                 continue;
             }
             let any_live = fu
@@ -4188,6 +4991,37 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 }
             }
+            unused.push(param.clone());
+        }
+        if unused.is_empty() {
+            return;
+        }
+        // Dispatch-protocol suppression: when ≥3 peer procs in this
+        // namespace share this proc's leading-param signature AND an
+        // arity-compatible variable-command dispatcher exists, the leading
+        // params are an external contract, not genuinely unused.  Mirrors
+        // `_dispatch_protocol_signatures` + its W214 filter.  Computed only
+        // when there is something to report.
+        let ns = namespace_of(&ir_proc.qualified_name);
+        let leading: Vec<String> = ir_proc
+            .params
+            .iter()
+            .take_while(|p| *p != "args")
+            .cloned()
+            .collect();
+        let protocol_params: HashSet<String> = if !leading.is_empty()
+            && self
+                .dispatch_protocol_signatures()
+                .contains(&(ns, leading.clone()))
+        {
+            leading.into_iter().collect()
+        } else {
+            HashSet::new()
+        };
+        for param in unused {
+            if protocol_params.contains(&param) {
+                continue;
+            }
             let message = format!(
                 "Parameter '{param}' of proc '{name}' is unused",
                 name = ir_proc.qualified_name,
@@ -4200,6 +5034,60 @@ file; this call falls through to the 'unknown' handler."
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Identify `(namespace, leading-param-list)` pairs that look like a
+    /// **dispatch protocol** — ≥3 peer procs in the same namespace sharing a
+    /// leading-param signature dictated by an arity-compatible
+    /// variable-command dispatcher.  Mirrors `_dispatch_protocol_signatures`
+    /// in `_diag_var_lifecycle.py`.
+    fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
+        use std::collections::HashMap;
+        // Group user procs by (namespace, leading-param-tuple stopping at `args`).
+        let mut groups: HashMap<(String, Vec<String>), usize> = HashMap::new();
+        for (qname, pdef) in &self.result.all_procs {
+            let leading: Vec<String> = pdef
+                .params
+                .iter()
+                .take_while(|p| p.name != "args")
+                .map(|p| p.name.clone())
+                .collect();
+            if leading.is_empty() {
+                continue;
+            }
+            *groups.entry((namespace_of(qname), leading)).or_insert(0) += 1;
+        }
+        let peer_protos: HashSet<(String, Vec<String>)> = groups
+            .into_iter()
+            .filter(|(_, n)| *n >= 3)
+            .map(|(k, _)| k)
+            .collect();
+        if peer_protos.is_empty() {
+            return HashSet::new();
+        }
+        // Dispatcher evidence: map each dispatcher namespace → the argument
+        // counts observed at its variable-command sites.
+        let mut dispatcher_ns_argc: HashMap<String, HashSet<usize>> = HashMap::new();
+        for site in &self.var_command_sites {
+            let off = site.cmd_span.start();
+            let dns = self
+                .result
+                .all_procs
+                .iter()
+                .find(|(_, p)| p.body_span.start() <= off && off <= p.body_span.end())
+                .map_or_else(|| "::".to_string(), |(q, _)| namespace_of(q));
+            dispatcher_ns_argc.entry(dns).or_default().insert(site.argc);
+        }
+        peer_protos
+            .into_iter()
+            .filter(|(ns_key, params)| {
+                let min_argc = params.len();
+                dispatcher_ns_argc.iter().any(|(dns, argcs)| {
+                    (dns == ns_key || dns.starts_with(&format!("{ns_key}::")))
+                        && argcs.iter().any(|&a| a >= min_argc)
+                })
+            })
+            .collect()
     }
 
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
@@ -4238,6 +5126,7 @@ file; this call falls through to the 'unknown' handler."
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
         extra_known_defined: &HashSet<String>,
+        supp: &UndefSuppression,
     ) {
         use crate::def_use::{DefKind, UseKind};
         use crate::ir::Statement;
@@ -4273,6 +5162,16 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             if extra_known_defined.contains(var) {
+                continue;
+            }
+            // `dict with`/`dict update` unpacking + qualified-`variable`
+            // alias tails suppress version-0 reads of the unpacked / aliased
+            // names (the `puts $a` inside `dict with d {…}` is not RBS).
+            // Interproc constant propagation resolves an empty caller dict to
+            // CONST("") (keys = ∅, not unknown), so the blanket variant fires
+            // on a genuine missing-key read while still suppressing an
+            // unknown-shape (mixed-caller / no-caller) dict.
+            if supp.suppresses(var) {
                 continue;
             }
             for use_site in &chain.uses {
@@ -4326,18 +5225,11 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                 }
-                // ``safe_on_uninit`` calls that initialise the
-                // variable themselves are not RBS — they handle
-                // the uninitialised case.
-                if let Some(Statement::Call {
-                    safe_on_uninit,
-                    defs,
-                    ..
-                }) = stmt_opt
-                {
-                    if *safe_on_uninit && defs.contains(var) {
-                        continue;
-                    }
+                // A use site that itself safely initialises the variable
+                // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
+                // `incr` of its own target) is not read-before-set.
+                if use_site_safe_initialises(stmt_opt, var) {
+                    continue;
                 }
                 let mut message = format!("Variable '{var}' is read before it is set");
                 if let Some(similar) = find_case_mismatch(var, defined_vars) {
@@ -4350,6 +5242,318 @@ file; this call falls through to the 'unknown' handler."
                     severity: Severity::Warning,
                     fixes: Vec::new(),
                 });
+            }
+        }
+    }
+
+    /// W210 on `return $v` reads where `v`'s reaching version can be
+    /// undefined on some executable path (phi-from-undef / `unset`-killed).
+    /// Companion to [`Self::emit_read_before_set_diagnostics`]; see its
+    /// trailing call site for why the def-use-chain pass cannot catch
+    /// these (return values are terminator reads, not recorded uses).
+    #[allow(clippy::too_many_arguments)]
+    fn emit_return_phi_undef_w210(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        params: &HashSet<&str>,
+        exists_guards: &[(String, String)],
+        scope_aliases: &HashSet<String>,
+        extra_known_defined: &HashSet<String>,
+        defined_vars: &HashSet<String>,
+        considered: &HashSet<String>,
+        supp: &UndefSuppression,
+    ) {
+        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+        use std::fmt::Write as _;
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+
+        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+
+        let mut scanner = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: false,
+            recurse_cmd_substitutions: true,
+        });
+
+        let mut reported: HashSet<String> = HashSet::new();
+        // Deterministic block order for stable diagnostics.
+        let mut block_names: Vec<&String> = considered.iter().collect();
+        block_names.sort();
+
+        for bn in block_names {
+            let Some(cfg_block) = fu.cfg.blocks.get(bn) else {
+                continue;
+            };
+            let Some(crate::cfg::Terminator::Return { value, expr, .. }) = &cfg_block.terminator
+            else {
+                continue;
+            };
+            let Some(span) = cfg_block
+                .terminator
+                .as_ref()
+                .and_then(crate::cfg::Terminator::span)
+            else {
+                continue;
+            };
+            if span.is_empty() {
+                continue;
+            }
+            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+
+            // Collect the variable names read by the return value (word
+            // substitutions + nested `[...]`) and any parsed expr.
+            let mut reads: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            if let Some(v) = value {
+                reads.extend(scanner.scan_script(v, registry));
+            }
+            if let Some(e) = expr {
+                reads.extend(crate::var_refs::vars_in_expr(e));
+            }
+
+            for name in reads {
+                if reported.contains(&name) {
+                    continue;
+                }
+                let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+                // Version-0 return reads are now recorded in def_use, so the
+                // version-0 (`DefKind::Parameter`) emitter handles them with
+                // the full suppression set — this pass only covers the
+                // phi-from-undef / `unset`-killed (version > 0) cases, which
+                // def-use can't express.  Skipping ver 0 avoids double-firing.
+                if ver == 0 {
+                    continue;
+                }
+                let mut seen = HashSet::new();
+                if !phi_can_undef(
+                    &name,
+                    ver,
+                    &phi_def,
+                    &killed,
+                    considered,
+                    exists_guards,
+                    &fu.ssa,
+                    &mut seen,
+                ) {
+                    continue;
+                }
+                if params.contains(name.as_str())
+                    || scope_aliases.contains(&name)
+                    || extra_known_defined.contains(&name)
+                    || is_implicit_var(&name)
+                    || name.contains("::")
+                    || supp.suppresses(&name)
+                {
+                    continue;
+                }
+                // A dominating existence guard proves the var exists here.
+                if exists_guards
+                    .iter()
+                    .any(|(gv, gblk)| *gv == name && block_dominated_by(&fu.ssa, bn, gblk))
+                {
+                    continue;
+                }
+                reported.insert(name.clone());
+                let mut message = format!("Variable '{name}' is read before it is set");
+                if let Some(similar) = find_case_mismatch(&name, defined_vars) {
+                    let _ = write!(message, "; did you mean '{similar}'?");
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W210".to_string(),
+                    span,
+                    message,
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// **W210 (provably-unset regexp / scan output).** A `regexp` / `scan`
+    /// with literal pattern + input that can be statically proven not to
+    /// match leaves its output variables unset, so a later read of one is a
+    /// real read-before-set.  Handles both the top-level call form and the
+    /// call embedded in an `if` / `while` condition (firing only on the
+    /// no-match branch).  Mirrors the `provably_unset` post-pass in
+    /// `compiler/core_analyses.py::_read_before_set`.
+    fn emit_provably_unset_w210(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        considered: &HashSet<String>,
+        defined_vars: &HashSet<String>,
+    ) {
+        use crate::ir::Statement;
+        use std::fmt::Write as _;
+
+        // var name -> (def_block, def_stmt_idx); idx == -1 means "from the
+        // start of the block" (the embedded-condition no-match target).
+        let mut provably_unset: std::collections::HashMap<String, (String, i32)> =
+            std::collections::HashMap::new();
+
+        for bn in considered {
+            let Some(block) = fu.cfg.blocks.get(bn) else {
+                continue;
+            };
+            // Top-level regexp / scan calls.
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                let Statement::Call {
+                    command,
+                    canonical_command,
+                    args,
+                    defs,
+                    ..
+                } = stmt
+                else {
+                    continue;
+                };
+                let canon = canonical_command.as_deref().unwrap_or(command);
+                let is_regexp = canon == "::regexp" || command == "regexp";
+                let is_scan = canon == "::scan" || command == "scan";
+                if (!is_regexp && !is_scan) || defs.is_empty() {
+                    continue;
+                }
+                if let Some(no_match) = regexp_scan_no_match(is_regexp, args) {
+                    if no_match {
+                        for d in defs {
+                            provably_unset.entry(d.clone()).or_insert_with(|| {
+                                (bn.clone(), i32::try_from(idx).unwrap_or(i32::MAX))
+                            });
+                        }
+                    }
+                }
+            }
+            // regexp / scan embedded in the branch condition.
+            if let Some(crate::cfg::Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                ..
+            }) = &block.terminator
+            {
+                Self::collect_embedded_provably_unset(
+                    condition,
+                    true_target,
+                    false_target,
+                    &mut provably_unset,
+                );
+            }
+        }
+
+        if provably_unset.is_empty() {
+            return;
+        }
+
+        // Fire on every executable use after the def (same block) or in a
+        // block dominated by the def block.
+        let mut reported: HashSet<String> = HashSet::new();
+        let mut block_names: Vec<&String> = considered.iter().collect();
+        block_names.sort();
+        for bn in block_names {
+            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+            for (idx, s) in ssa_block.statements.iter().enumerate() {
+                for name in s.uses.keys() {
+                    if reported.contains(name) {
+                        continue;
+                    }
+                    let Some((def_block, def_idx)) = provably_unset.get(name) else {
+                        continue;
+                    };
+                    let in_def_block_after =
+                        bn == def_block && i32::try_from(idx).unwrap_or(i32::MAX) > *def_idx;
+                    let dominated = bn != def_block && block_dominated_by(&fu.ssa, bn, def_block);
+                    if !(in_def_block_after || dominated) {
+                        continue;
+                    }
+                    let span = match fu.cfg.blocks.get(bn).and_then(|b| b.statements.get(idx)) {
+                        Some(st) if !st.span().is_empty() => st.span(),
+                        _ => continue,
+                    };
+                    reported.insert(name.clone());
+                    let mut message = format!("Variable '{name}' is read before it is set");
+                    if let Some(similar) = find_case_mismatch(name, defined_vars) {
+                        let _ = write!(message, "; did you mean '{similar}'?");
+                    }
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W210".to_string(),
+                        span,
+                        message,
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// Walk a branch `condition` for an embedded `[regexp …]` / `[scan …]`
+    /// command substitution that provably can't match, recording its output
+    /// variables as provably-unset on the no-match branch target (only when
+    /// the condition is exactly `[cmd]` → false target, or `![cmd]` → true
+    /// target; more complex shapes are skipped).
+    fn collect_embedded_provably_unset(
+        condition: &ExprNode,
+        true_target: &str,
+        false_target: &str,
+        provably_unset: &mut std::collections::HashMap<String, (String, i32)>,
+    ) {
+        let (cmd_node, no_match_target) = match condition {
+            ExprNode::Command { .. } => (condition, false_target),
+            ExprNode::Unary {
+                op: UnaryOp::Not | UnaryOp::WordNot,
+                operand,
+            } if matches!(operand.as_ref(), ExprNode::Command { .. }) => {
+                (operand.as_ref(), true_target)
+            }
+            _ => return,
+        };
+        let ExprNode::Command { text, .. } = cmd_node else {
+            return;
+        };
+        // Strip the surrounding `[` … `]` and segment the interior.
+        let inner = text
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .unwrap_or(text);
+        let segs = crate::segmenter::segment_commands(inner);
+        let Some(seg) = segs.first() else {
+            return;
+        };
+        let Some(cmd) = seg.texts.first() else {
+            return;
+        };
+        let bare = cmd
+            .trim_start_matches(':')
+            .rsplit("::")
+            .next()
+            .unwrap_or(cmd);
+        let is_regexp = bare == "regexp";
+        let is_scan = bare == "scan";
+        if !is_regexp && !is_scan {
+            return;
+        }
+        let args: Vec<String> = seg.texts[1..].to_vec();
+        let pos = skip_options(&args, if is_regexp { &["-start"] } else { &[] });
+        if pos + 2 > args.len() {
+            return;
+        }
+        let out_vars = &args[(pos + 2).min(args.len())..];
+        if out_vars.is_empty() {
+            return;
+        }
+        if regexp_scan_no_match(is_regexp, &args) != Some(true) {
+            return;
+        }
+        for v in out_vars {
+            let name = crate::naming::normalise_var_name(v);
+            if !name.is_empty() {
+                provably_unset
+                    .entry(name.to_string())
+                    .or_insert_with(|| (no_match_target.to_string(), -1));
             }
         }
     }
@@ -4637,6 +5841,89 @@ file; this call falls through to the 'unknown' handler."
     /// Diagnostic anchors at the SSA def site (the assignment
     /// statement's span); seen-offsets dedup avoids duplicate
     /// emissions when multiple SSA versions share a def.
+    /// **W233.** Division / modulo by a provably-zero divisor — raises
+    /// "divide by zero" at runtime.  Walks every `[expr …]` AST reachable in
+    /// the function (`AssignExpr` statements, `if`/`while` branch conditions,
+    /// and `return [expr …]` values) over SCCP-executable blocks; a literal
+    /// `0` divisor or a variable whose SCCP value is a constant zero fires.
+    /// Mirrors the `find_divide_by_zero` arm of
+    /// `analyser/_analyser/_diag_interval_bounds.py`.
+    fn emit_w233_divide_by_zero(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        use crate::cfg::Terminator;
+        use crate::ir::Statement;
+
+        let considered: HashSet<&str> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().map(String::as_str).collect()
+        } else {
+            fu.sccp
+                .executable_blocks
+                .iter()
+                .map(String::as_str)
+                .collect()
+        };
+        let mut hits: Vec<(tcl_lexer::Span, BinOp)> = Vec::new();
+        for bn in &considered {
+            let Some(block) = fu.cfg.blocks.get(*bn) else {
+                continue;
+            };
+            let ssa_block = fu.ssa.blocks.get(*bn);
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                if let Statement::AssignExpr { expr, span, .. } = stmt {
+                    let versions = ssa_block
+                        .and_then(|sb| sb.statements.get(idx))
+                        .map(|s| &s.uses);
+                    if let Some(versions) = versions {
+                        if let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values) {
+                            hits.push((*span, op));
+                        }
+                    }
+                }
+            }
+            let exit = ssa_block.map(|sb| &sb.exit_versions);
+            let Some(exit) = exit else { continue };
+            match &block.terminator {
+                Some(Terminator::Return {
+                    expr: Some(e),
+                    span: Some(sp),
+                    ..
+                }) => {
+                    if let Some(op) = find_divide_by_zero(e, exit, &fu.sccp.values) {
+                        hits.push((*sp, op));
+                    }
+                }
+                Some(Terminator::Branch {
+                    condition,
+                    span: Some(sp),
+                    ..
+                }) => {
+                    if let Some(op) = find_divide_by_zero(condition, exit, &fu.sccp.values) {
+                        hits.push((*sp, op));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (span, op) in hits {
+            if span.is_empty() {
+                continue;
+            }
+            let verb = if op == BinOp::Div {
+                "Division"
+            } else {
+                "Modulo"
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W233".to_string(),
+                span,
+                message: format!(
+                    "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
     fn emit_invalid_ip_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
         use crate::analyses::{ConstValue, LatticeValue};
         use std::net::Ipv6Addr;
@@ -4653,7 +5940,21 @@ file; this call falls through to the 'unknown' handler."
 
             // ---- IPv4 candidates ----
             for quad in find_dotted_quads(text, 4) {
-                if quad.start > 0 && text.as_bytes()[quad.start - 1] == b'/' {
+                let bytes = text.as_bytes();
+                if quad.start > 0 && bytes[quad.start - 1] == b'/' {
+                    continue;
+                }
+                // Skip OID-like patterns: the matched quad is a slice of a
+                // longer dotted-digit chain (LDAP/SNMP OIDs like
+                // ``1.3.6.1.4.1.4203.1.11.3``).  Detect a ``digit.<quad>``
+                // before or a ``<quad>.digit`` after.
+                let before_dot_digit = quad.start >= 2
+                    && bytes[quad.start - 1] == b'.'
+                    && bytes[quad.start - 2].is_ascii_digit();
+                let after_dot_digit = quad.end + 1 < bytes.len()
+                    && bytes[quad.end] == b'.'
+                    && bytes[quad.end + 1].is_ascii_digit();
+                if before_dot_digit || after_dot_digit {
                     continue;
                 }
                 let octets = quad.octets;
@@ -8089,6 +9390,411 @@ foo
     }
 
     #[test]
+    fn analyse_no_w124_for_oid_chain() {
+        // FP-STY-06: an LDAP PEN OID (`1.3.6.1.4.1.4203.1.11.3`) is a
+        // hierarchical dotted chain, not IPv4 — the embedded `4203.1.11.3`
+        // slice must NOT fire W124.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set oid 1.3.6.1.4.1.4203.1.11.3 }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W124"),
+            "W124 must not fire on an OID dotted chain; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w124_real_ipv4_shaped_still_fires() {
+        // TP control: a genuine four-component dotted quad with an
+        // out-of-range octet (not part of a longer chain) still fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set ip 10.0.0.300 }", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W124"),
+            "W124 must fire on a genuine over-255 IPv4 quad; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_fire_and_forget_bare_close_silent() {
+        // FP-STY-05: `catch {close $fh}` is the documented fire-and-forget
+        // idiom — no W302.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { catch {close $fh} }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must be suppressed on `catch {{close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_fire_and_forget_ensemble_chan_close_silent() {
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { catch {chan close $fh} }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must be suppressed on `catch {{chan close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w304_braced_switch_form_silent() {
+        // FP-NAB-05: the two-arg braced switch form is unambiguous — no W304.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {x} { switch $x { -nocase {puts a} default {puts b} } }",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W304"),
+            "W304 must not fire on a two-arg braced switch; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w304_split_switch_form_still_fires() {
+        // TP control: the split (3+ arg) switch form with a dynamic string
+        // before an explicit option still warrants `--`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {x} { switch $x -nocase {puts a} default {puts b} }",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W304"),
+            "W304 must still fire on the split switch form; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    /// Helper: W210 codes for a snippet.
+    fn w210_codes(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W210")
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    fn w233_codes(src: &str) -> usize {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W233")
+            .count()
+    }
+
+    #[test]
+    fn w233_divide_by_zero_literal_and_const_var() {
+        assert_eq!(w233_codes("proc f {} { return [expr {1 / 0}] }"), 1);
+        assert_eq!(w233_codes("proc f {} { return [expr {10 % 0}] }"), 1);
+        assert_eq!(
+            w233_codes("proc f {} { set d 0\n return [expr {10 / $d}] }"),
+            1
+        );
+    }
+
+    #[test]
+    fn w233_silent_on_nonzero_unknown_and_guarded() {
+        // Non-zero const + unknown divisor never fire.
+        assert_eq!(
+            w233_codes("proc f {} { set d 3\n return [expr {10 / $d}] }"),
+            0
+        );
+        assert_eq!(w233_codes("proc f {n} { return [expr {10 / $n}] }"), 0);
+        // Short-circuit / dead-arm guards make the division unreachable.
+        assert_eq!(w233_codes("proc f {} { return [expr {0 && 1/0}] }"), 0);
+        assert_eq!(w233_codes("proc f {} { return [expr {0 ? 1/0 : 7}] }"), 0);
+        assert_eq!(w233_codes("proc f {c} { return [expr {$c && 1/0}] }"), 0);
+        // Constant-truthy guard forces the arm — fires.
+        assert_eq!(w233_codes("proc f {} { return [expr {1.0 && 1/0}] }"), 1);
+        assert_eq!(w233_codes("proc f {} { return [expr {-1 && 1/0}] }"), 1);
+    }
+
+    #[test]
+    fn w210_phi_undef_if_arm_only_def_return() {
+        // `v` is defined only when `$x > 0`; the unconditional `return $v`
+        // reads it on the no-set path too.
+        let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 }\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "phi-from-undef merge read must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_phi_undef_switch_no_default_return() {
+        let got =
+            w210_codes("proc f {x} { switch $x { a { set v 1 } b { set v 2 } }\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "switch-no-default + return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_interproc_dict_with_caller_literal() {
+        // A caller passing a literal dict propagates to the callee's
+        // `dict with $param` key check (interproc constant propagation).
+        // Key present → silent.
+        assert!(
+            w210_codes("proc f {d} { dict with d { return $missing } }\nf {missing ok}\n")
+                .is_empty()
+        );
+        // Empty dict → no keys → the read fires.
+        assert!(
+            w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\n")
+                .iter()
+                .any(|m| m.contains("'missing'"))
+        );
+        // Mixed callers → unknown shape → conservatively silent.
+        assert!(w210_codes(
+            "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn w210_provably_no_match_regexp_scan() {
+        // Provably-no-match output reads fire.
+        assert!(w210_codes("proc f {} { scan abc %d n\n puts $n }")
+            .iter()
+            .any(|m| m.contains("'n'")));
+        assert!(w210_codes("proc f {} { regexp {x} y -> v\n puts $v }")
+            .iter()
+            .any(|m| m.contains("'v'")));
+        // Embedded in a negated condition fires on the no-match arm.
+        assert!(
+            w210_codes("proc f {} { if {![regexp {x} y -> v]} { puts $v } }")
+                .iter()
+                .any(|m| m.contains("'v'"))
+        );
+    }
+
+    #[test]
+    fn w210_regexp_expanded_whitespace_pattern_silent() {
+        // `-expanded` ignores whitespace, so `{a b}` matches `ab` and writes
+        // v — the no-match proof must bail (no false W210).
+        assert!(w210_codes("proc f {} { regexp -expanded {a b} ab v\n puts $v }").is_empty());
+        // A whitespace-free literal under -expanded is still safe → fires.
+        assert!(
+            w210_codes("proc f {} { regexp -expanded {x} X v\n puts $v }")
+                .iter()
+                .any(|m| m.contains("'v'"))
+        );
+    }
+
+    #[test]
+    fn w210_matchable_regexp_scan_silent() {
+        // A matchable / nocase-matchable regexp output is set — no W210.
+        assert!(w210_codes("proc f {} { regexp -nocase {x} X v\n puts $v }").is_empty());
+        assert!(w210_codes("proc f {} { scan 42 %d n\n puts $n }").is_empty());
+        // The success arm of a positive condition reads a set var.
+        assert!(w210_codes("proc f {} { if {[regexp {x} y -> v]} { puts $v } }").is_empty());
+        // An unknown / unsafe switch can't prove no-match → silent.
+        assert!(w210_codes("proc f {} { regexp -about {x} y v\n puts $v }").is_empty());
+    }
+
+    #[test]
+    fn w210_incr_on_uninit_is_silent() {
+        // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
+        assert!(w210_codes("proc f {} { incr z\n return $z }").is_empty());
+        // A genuine bare read of an unset local still fires.
+        assert!(w210_codes("proc f {} { puts $z }")
+            .iter()
+            .any(|m| m.contains("'z'")));
+    }
+
+    #[test]
+    fn w210_phi_undef_use_after_unset_return() {
+        let got = w210_codes("proc f {} { set v 1\n unset v\n return $v }");
+        assert!(
+            got.iter().any(|m| m.contains("'v'")),
+            "use-after-unset return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_phi_undef_loop_body_only_init_return() {
+        let got = w210_codes("proc f {items} { foreach i $items { lappend r $i }\n return $r }");
+        assert!(
+            got.iter().any(|m| m.contains("'r'")),
+            "loop-body-only init + return must fire W210; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_no_fire_when_both_merge_arms_define() {
+        // Control: every merge predecessor defines `v` — not read-before-set.
+        let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 } else { set v 2 }\n return $v }");
+        assert!(
+            got.is_empty(),
+            "both-arms-defined merge must be silent; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_empty_dict_with_return_fires_but_known_key_silent() {
+        // FP-DS-08: empty dict unpacks nothing — `return $missing` fires.
+        let empty = w210_codes("proc f {} { set d {}\n dict with d {}\n return $missing }");
+        assert!(
+            empty.iter().any(|m| m.contains("'missing'")),
+            "empty dict-with return must fire W210; got {empty:?}"
+        );
+        // Known-key dict unpacks `missing` — silent.
+        let known =
+            w210_codes("proc f {} { set d {missing ok}\n dict with d {}\n return $missing }");
+        assert!(
+            known.is_empty(),
+            "known-key dict-with return must be silent; got {known:?}"
+        );
+        // Unknown-shape dict (param) — conservatively silent.
+        let unknown = w210_codes("proc f {d} { dict with d {}\n return $missing }");
+        assert!(
+            unknown.is_empty(),
+            "unknown dict-with return must be silent; got {unknown:?}"
+        );
+    }
+
+    #[test]
+    fn w210_qualified_variable_alias_tail_return_silent() {
+        // FP-RBS-04: `variable ${name}::graphAttr` declares the local alias
+        // `graphAttr`; the bare tail read is not read-before-set.
+        let got = w210_codes(
+            "proc ::ns::get {name key} { variable ${name}::graphAttr\n return $graphAttr }",
+        );
+        assert!(
+            got.is_empty(),
+            "qualified variable-alias tail read must be silent; got {got:?}"
+        );
+    }
+
+    #[test]
+    fn w210_no_false_fire_on_many_var_scan_return() {
+        // D4-F2: the dynamic scan arg-role resolver marks every trailing
+        // varName as a write, so `return $a19` is not read-before-set.
+        let src = "proc f {} { scan {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19} \
+{%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} \
+a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19\n return $a19 }";
+        assert!(
+            w210_codes(src).is_empty(),
+            "20-var scan must not false-fire W210 on the tail var"
+        );
+    }
+
+    #[test]
+    fn w210_no_false_fire_on_many_var_lassign_return() {
+        let src = "proc f {l} { lassign $l a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 \
+a15 a16 a17 a18 a19 a20\n return $a20 }";
+        assert!(
+            w210_codes(src).is_empty(),
+            "21-var lassign must not false-fire W210 on the tail var"
+        );
+    }
+
+    #[test]
+    fn w214_empty_body_stub_silent() {
+        // FP-STY-08: `proc stub {a b} {}` is a signature placeholder — no
+        // W214 on its necessarily-unused params.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc stub {a b} {}", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W214"),
+            "W214 must be suppressed on an empty-body stub; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_quoted_keyword_marker_silent() {
+        // FP-STY-08: a param named `"as"` is a snit-style keyword marker.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc xyz {\"as\" v} { return $v }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W214"),
+            "W214 must not fire on a quoted-keyword param; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_dispatch_protocol_suppresses_peer_family() {
+        // ≥3 peers sharing `{ctx token}` + an arity-compatible dispatcher
+        // (`$cmd $ctx $token`, 2 args) — `token` is a protocol contract.
+        let src = "namespace eval ::n {\n\
+                   proc a {ctx token} { puts $ctx }\n\
+                   proc b {ctx token} { puts $ctx }\n\
+                   proc c {ctx token} { puts $ctx }\n\
+                   proc dispatch {cmd ctx token} { $cmd $ctx $token }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            "dispatch-protocol family must suppress W214 on protocol params; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_no_dispatcher_still_fires_on_peer_family() {
+        // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
+        // shared shape is coincidence, so `token` still fires.
+        let src = "namespace eval ::n {\n\
+                   proc a {ctx token} { puts $ctx }\n\
+                   proc b {ctx token} { puts $ctx }\n\
+                   proc c {ctx token} { puts $ctx }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            "without a dispatcher, an unused protocol-shaped param still fires; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_genuine_unused_param_still_fires() {
+        // TP control: a normal unused param in a non-empty body still fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {a b} { return $a }", "tcl");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'b'")),
+            "W214 must still fire on a genuine unused param; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_constructive_subcommand_still_fires() {
+        // TP control: `chan configure` is constructive, not fire-and-forget.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {} { catch {chan configure $fh -blocking 0} }",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must still fire on a constructive `chan configure`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
     fn analyse_i230_constant_if_branch() {
         // ``proc foo {} { if {1} { puts hi } }`` — the ``if 1``
         // condition is constant, the false branch is unreachable.
@@ -8603,6 +10309,11 @@ foo
         // Braced body and the `[list …]` idiom are safe.
         assert_eq!(sec_codes("uplevel 1 {set x 1}\n", "W301"), 0);
         assert_eq!(sec_codes("uplevel 1 [list set x $y]\n", "W301"), 0);
+        // A single *pure* variable script is the safe single-substitution
+        // idiom — no W301; a concatenation still fires.
+        assert_eq!(sec_codes("proc f {body} { uplevel 1 $body }\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 $body\n", "W301"), 0);
+        assert_eq!(sec_codes("uplevel 1 pre$body\n", "W301"), 1);
     }
 
     #[test]

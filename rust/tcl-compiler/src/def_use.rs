@@ -245,32 +245,55 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
             }
         }
 
-        // Terminator uses (branch conditions).
+        // Terminator uses: branch conditions and `return` value reads.
         if let Some(cfg) = cfg {
             if let Some(cfg_block) = cfg.blocks.get(bn) {
-                if let Some(Terminator::Branch { condition, .. }) = &cfg_block.terminator {
-                    for var_name in condition.vars() {
-                        let version = block.exit_versions.get(&var_name).copied().unwrap_or(0);
-                        let key = (var_name, version);
-                        add_use(
-                            &mut chains,
-                            &ssa.entry,
-                            key,
-                            UseSite {
-                                block: bn.clone(),
-                                kind: UseKind::Terminator,
-                                statement_index: -1,
-                                variable: String::new(),
-                                phi_version: 0,
-                            },
-                        );
-                    }
+                for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
+                    let version = block.exit_versions.get(&var_name).copied().unwrap_or(0);
+                    let key = (var_name, version);
+                    add_use(
+                        &mut chains,
+                        &ssa.entry,
+                        key,
+                        UseSite {
+                            block: bn.clone(),
+                            kind: UseKind::Terminator,
+                            statement_index: -1,
+                            variable: String::new(),
+                            phi_version: 0,
+                        },
+                    );
                 }
             }
         }
     }
 
     DefUseResult { chains }
+}
+
+/// Variable names a terminator reads: a `Branch` condition's vars, or a
+/// `return $x` value's reads.  Recording the latter (so an earlier
+/// overwritten store is a real dead store, not a "truly unused" var) matches
+/// Python, whose CFG models the return value's reads.
+fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<String> {
+    match terminator {
+        Some(Terminator::Branch { condition, .. }) => condition.vars().into_iter().collect(),
+        Some(Terminator::Return { value, expr, .. }) => {
+            let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            if let Some(v) = value {
+                set.extend(
+                    crate::var_refs::scan_var_ref_forms(v)
+                        .into_iter()
+                        .map(|n| crate::naming::normalise_var_name(&n).to_string()),
+                );
+            }
+            if let Some(e) = expr {
+                set.extend(e.vars());
+            }
+            set.into_iter().collect()
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Append a use to an existing chain, synthesising a parameter/

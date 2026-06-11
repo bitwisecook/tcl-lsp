@@ -371,7 +371,12 @@ impl<'s> Inner<'s> {
             self.i += 1;
         }
         let text = &self.s[start..self.i];
-        let kind = if matches!(text, "true" | "false" | "yes" | "no" | "on" | "off") {
+        // Tcl boolean literals are case-insensitive (`True`, `YES`, `Off`,
+        // …) per `Tcl_GetBoolean`; compare without allocating.
+        let is_bool = ["true", "false", "yes", "no", "on", "off"]
+            .iter()
+            .any(|w| text.eq_ignore_ascii_case(w));
+        let kind = if is_bool {
             ExprTokenType::Bool
         } else if self.dialect == Some("f5-irules") && irops.contains(text) {
             ExprTokenType::Operator
@@ -556,6 +561,14 @@ mod tests {
     #[test]
     fn boolean_literals() {
         assert_eq!(types("true"), vec![ExprTokenType::Bool]);
+        // Tcl booleans are case-insensitive (`Tcl_GetBoolean`).
+        for word in ["True", "FALSE", "Yes", "NO", "On", "Off"] {
+            assert_eq!(
+                types(word),
+                vec![ExprTokenType::Bool],
+                "word `{word}` should tokenise as BOOL",
+            );
+        }
     }
 
     #[test]

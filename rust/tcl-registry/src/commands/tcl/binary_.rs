@@ -98,29 +98,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
-        arg_roles: &[
-            (2, ArgRole::VarWrite),
-            (3, ArgRole::VarWrite),
-            (4, ArgRole::VarWrite),
-            (5, ArgRole::VarWrite),
-            (6, ArgRole::VarWrite),
-            (7, ArgRole::VarWrite),
-            (8, ArgRole::VarWrite),
-            (9, ArgRole::VarWrite),
-            (10, ArgRole::VarWrite),
-            (11, ArgRole::VarWrite),
-            (12, ArgRole::VarWrite),
-            (13, ArgRole::VarWrite),
-            (14, ArgRole::VarWrite),
-            (15, ArgRole::VarWrite),
-            (16, ArgRole::VarWrite),
-            (17, ArgRole::VarWrite),
-            (18, ArgRole::VarWrite),
-            (19, ArgRole::VarWrite),
-        ],
+        arg_role_resolver: Some(binary_scan_arg_roles),
         ..SubCommand::DEFAULT
     },
 ];
+
+/// D4-F2: `binary scan string formatString ?varName ...?` accepts
+/// variable-name args from index 2 onward (the resolver receives the args
+/// *after* the `scan` subcommand word: `string`, `format`, then the vars).
+/// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't
+/// false-fire W210 on the unmodelled tail.  Mirrors the `binary scan`
+/// resolver in `dialects/tcl/binary.py`.
+fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    (2..args.len())
+        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
+        .collect()
+}
 
 pub fn spec() -> CommandSpec {
     CommandSpec {

@@ -49,6 +49,17 @@ pub(crate) struct CfgBuilder {
     /// local`) against the actual call-site argument.  Mirrors Python
     /// `_CFGBuilder._proc_params`.
     proc_params: HashMap<String, Vec<String>>,
+    /// Stack of `(break_target, continue_target)` block names for the
+    /// enclosing loops, so `break` / `continue` in a body lower to a CFG
+    /// edge.  Without this a `while 1 { … break }` exit block is
+    /// unreachable and O107 false-fires on the code after the loop.
+    loop_stack: Vec<(String, String)>,
+    /// `try` body→handler exception edges (analysis builds only).
+    exception_edges: Vec<(String, String)>,
+    /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
+    /// codegen builds so the default bytecode is unchanged (mirrors Python's
+    /// `_faithful_exceptions`).
+    faithful_exceptions: bool,
 }
 
 impl CfgBuilder {
@@ -69,7 +80,16 @@ impl CfgBuilder {
             inline_loops,
             upvar_procs,
             proc_params,
+            loop_stack: Vec::new(),
+            exception_edges: Vec::new(),
+            faithful_exceptions: false,
         }
+    }
+
+    /// Enable `try` exception-edge recording (analysis builds).
+    fn with_faithful_exceptions(mut self) -> Self {
+        self.faithful_exceptions = true;
+        self
     }
 
     /// Augment a statement's effective `defs` with caller-side
@@ -222,6 +242,49 @@ impl CfgBuilder {
         defs
     }
 
+    /// If `stmt` is a `break` / `continue` inside a loop, push it into
+    /// `current` and set a `Goto` terminator to the loop's exit / continue
+    /// target, returning `true`.  Returns `false` (no-op) otherwise.
+    fn lower_loop_jump(&mut self, current: &str, stmt: &Statement) -> bool {
+        let Statement::Call { command, span, .. } = stmt else {
+            return false;
+        };
+        if command != "break" && command != "continue" {
+            return false;
+        }
+        let Some((brk, cont)) = self.loop_stack.last().cloned() else {
+            return false;
+        };
+        let target = if command == "break" { brk } else { cont };
+        self.block_mut(current).statements.push(stmt.clone());
+        self.block_mut(current).terminator = Some(Terminator::Goto {
+            target,
+            span: Some(*span),
+        });
+        true
+    }
+
+    /// Push a non-control-flow statement into `current` (after upvar
+    /// invalidation), promoting `error` / `throw` / `exit` to a `Return`
+    /// terminator so any following statements become dead code (mirrors the
+    /// `TERMINATES_BLOCK` registry trait).
+    fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
+        for s in self.apply_upvar_invalidation(stmt.clone()) {
+            self.block_mut(current).statements.push(s);
+        }
+        if let Statement::Call { command, span, .. } = stmt {
+            if is_block_terminating_command(command) && self.block_mut(current).terminator.is_none()
+            {
+                self.block_mut(current).terminator = Some(Terminator::Return {
+                    value: None,
+                    span: Some(*span),
+                    expr: None,
+                    braced: false,
+                });
+            }
+        }
+    }
+
     /// Allocate a new empty block with a unique name.
     fn new_block(&mut self, prefix: &str) -> String {
         self.counter += 1;
@@ -283,6 +346,7 @@ impl CfgBuilder {
 
         let loop_nodes = std::mem::take(&mut self.loop_nodes);
         let switch_dispatches = std::mem::take(&mut self.switch_dispatches);
+        let exception_edges = std::mem::take(&mut self.exception_edges);
 
         Function {
             name: name.to_owned(),
@@ -290,6 +354,7 @@ impl CfgBuilder {
             blocks: frozen,
             loop_nodes,
             switch_dispatches,
+            exception_edges,
         }
     }
 
@@ -301,12 +366,26 @@ impl CfgBuilder {
     /// the script ends with a `return`).
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
+        // True once the *main* (reachable) path has hit an unconditional
+        // terminator — everything after is dead code captured in orphan
+        // blocks, and the script does not fall through to its caller.
+        let mut main_terminated = false;
 
         for stmt in &script.statements {
             // If the current block is already terminated, subsequent
-            // statements are dead code.
+            // statements are dead code.  Route them into a fresh orphan
+            // block with no incoming edge (rather than dropping them) so
+            // SCCP marks it unreachable and O107 can flag the dead code.
             if self.block_mut(&current).terminator.is_some() {
-                return None;
+                main_terminated = true;
+                current = self.new_block("unreachable");
+            }
+
+            // `break` / `continue` inside a loop body lower to a CFG edge to
+            // the loop's exit / continue target, so the loop-exit block stays
+            // reachable (a `while 1 { … break }` post-loop block is live).
+            if self.lower_loop_jump(&current, stmt) {
+                continue;
             }
 
             match stmt {
@@ -387,7 +466,8 @@ impl CfgBuilder {
                         expr: expr.clone(),
                         braced: *braced,
                     });
-                    return None;
+                    // Don't return early: a following statement is dead code
+                    // and is routed to an orphan block by the loop-top check.
                 }
 
                 // Inline block (C34d): flatten the body's statements
@@ -409,14 +489,19 @@ impl CfgBuilder {
                 // `<upvar-invalidate>` `Statement::Call` when an
                 // `AssignValue` contains `[upvar_proc arg]`.
                 other => {
-                    for s in self.apply_upvar_invalidation(other.clone()) {
-                        self.block_mut(&current).statements.push(s);
-                    }
+                    self.push_plain_statement(&current, other);
                 }
             }
         }
 
-        Some(current)
+        // No fall-through when the main path terminated (a trailing orphan
+        // holding dead code is unreachable, not a fall-through edge) or the
+        // final block is itself terminated.
+        if main_terminated || self.block_mut(&current).terminator.is_some() {
+            None
+        } else {
+            Some(current)
+        }
     }
 
     /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
@@ -634,13 +719,15 @@ pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
     let (upvar_procs, proc_params) = prepare_cfg_context(module);
 
     let mut top_builder =
-        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone());
+        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone())
+            .with_faithful_exceptions();
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
         let mut builder =
-            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone());
+            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone())
+                .with_faithful_exceptions();
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -678,7 +765,8 @@ pub fn build_cfg_function_with_upvars(
     upvar_procs: HashMap<String, UpvarInfo>,
     proc_params: HashMap<String, Vec<String>>,
 ) -> Function {
-    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params);
+    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params)
+        .with_faithful_exceptions();
     builder.build_function(name, script)
 }
 
@@ -686,6 +774,14 @@ pub fn build_cfg_function_with_upvars(
 fn dedup_preserve_order(v: &mut Vec<String>) {
     let mut seen = std::collections::HashSet::new();
     v.retain(|item| seen.insert(item.clone()));
+}
+
+/// Builtin commands that unconditionally terminate the current block (the
+/// `Traits::TERMINATES_BLOCK` set).  The CFG builder has no registry handle,
+/// so the core set is matched by name here; `return` is handled separately
+/// as its own `Statement::Return`.
+fn is_block_terminating_command(command: &str) -> bool {
+    matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
 }
 
 /// Lex *text* into Tcl words, accumulating contiguous tokens between

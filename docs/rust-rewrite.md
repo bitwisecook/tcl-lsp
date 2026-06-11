@@ -4816,6 +4816,216 @@ Remaining 24, by cluster (worst-first, all pre-existing):
 - **irules taint** (1, IRULE3102) and **inlay-hint optional-positional labels**
   (1).
 
+#### SYNC-JUN11-precision — analyser FP-suppression increments (battery 284→290)
+
+Six targeted false-positive / true-positive precision fixes ported from the
+Python reference into the native Rust analyser, each verified against the
+fp/ground-truth battery in **rust mode** with no regression and gated on the
+full workspace (`cargo test --workspace --all-features`, `clippy
+--all-targets`, `fmt`).  All are name-/CFG-local registry-driven suppressions,
+**not** the path-sensitive dataflow core (that remains the dominant open
+cluster — see below).
+
+- **W124 OID-chain skip** (FP-STY-06) — an IPv4-shaped dotted quad that is a
+  slice of a longer dotted-digit chain (LDAP/SNMP OIDs like
+  `1.3.6.1.4.1.4203.1.11.3`) no longer fires; detect a preceding or following
+  `.<digit>`.  `DottedQuad` now carries its end offset.
+- **W302 catch fire-and-forget** (FP-STY-05) — suppress "catch without result
+  variable" on a single-statement catch body whose head is a destructive
+  builtin (`close`/`unset`/`rename`) or a documented destructive ensemble
+  subcommand (`after cancel`, `chan close`, `array`/`dict unset`,
+  `interp`/`namespace`/`file delete`).  Constructive subcommands still fire.
+- **W214 empty-body stub + quoted-keyword marker** (FP-STY-08) — an empty-body
+  proc (`proc stub {a b} {}`) is a signature placeholder (early-return on a
+  zero-statement body); a param whose name is itself a quoted literal
+  (snit `{"as" ""}`) is a positional keyword marker, not a variable read.
+- **W304 two-arg braced switch** (FP-NAB-05 / `_style.py` G12) — the
+  unambiguous `switch $x { pat body … }` form (exactly two args, trailing
+  brace-enclosed `Str`) is exempt; the split (3+ arg) form still fires.  The
+  existing `analyse_w304_constant_propagation_emits_info_with_origin` unit
+  test (which used the now-exempt braced switch as its vehicle) was re-pointed
+  at `exec $var` so it still exercises the INFO-downgrade + origin path.
+
+**Battery (rust mode):** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` =
+**290 passed / 87 failed** (from 284/93), byte-identical families otherwise —
+fp_sty 11→6, fp_nab 5→4, no other family moved, no regression.  `make
+test-lsp-e2e-rust` held at **463 passed / 24 failed / 1 skipped** (unchanged
+baseline).  +14 analyser unit tests.
+
+**Attempted and reverted — phi-from-undef W210 (Stage A1/A2).** A def-use-chain
+extension that fired W210 when a use's SSA version traces (transitively, over
+the phi DAG restricted to SCCP-executable predecessors) to an undefined /
+`unset`-killed origin.  The mechanism worked but is **not** safely landable as
+a chain-based increment: the dominant target reads (`return $v` after a
+partial-def merge) are **`Terminator::Return` reads**, not statement/def-use
+uses, so they were missed; and firing on the phi/killed versions surfaced FPs
+(`incr` on an unset var = `safe_on_uninit`; `dict with` known-key unpacking;
+`unset`-then-return option propagation) that require the **full**
+`_read_before_set` suppression suite. Reverted to hold the no-regression gate.
+The faithful port (walk SSA statement uses **and** `Terminator::Return`/branch
+conditions via `exit_versions`, with the complete dict-with-key / safe-uninit /
+existence-narrowing suppression set — ~core_analyses.py:2788-3450) is the
+correct next Stage-A increment and should land worst-first as its own verified
+series.
+
+#### SYNC-JUN11-precision scoreboard
+
+| increment | family delta | battery total |
+|---|---|---|
+| W124 OID + W302 fire-and-forget | fp_sty 11→8 | 284→287 |
+| W214 empty-body + quoted-keyword | fp_sty 8→6 | 287→289 |
+| W304 braced switch | fp_nab 5→4 | 289→290 |
+
+Remaining 87, by family: ground_truth 31, fp_rbs 14, fp_ds 10, fp_bnd 9,
+fp_sty 6, fp_rch 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1.  The dominant theme
+is still **path-sensitive dataflow precision** (phi-from-undef W210, `unset`
+kill, W220 dead-store flow, `while 1`+`break` reachability) — each a CFG/SSA
+fix, not a switch.
+
+#### SYNC-JUN11-phi-undef — phi-from-undef W210 on return reads (battery 290→302)
+
+The Stage-A core, ported faithfully from `core_analyses.py::_read_before_set`
+(referencing the Python throughout; the `test_fp_*` / `test_ground_truth_*` /
+`FP.md` triples are the correctness oracle).
+
+**Root cause found via the explorer.** The def-use builder records statement +
+branch-condition uses but **not** `Terminator::Return` value reads
+(`def_use.rs:248-270` only walks `Terminator::Branch`).  So a partial-def merge
+read in a `return $v` — the dominant W210 path-merge true-positive shape — was
+never a recorded use, and the existing `DefKind::Parameter` emitter (version-0
+reads only) could not see it.  Confirmed against the SSA: `if {$x>0} {set v 1};
+return $v` builds `phi v#1 <- if_next:v#0, if_then:v#2` and the return reads the
+phi `v#1`, whose `if_next` incoming is undef.
+
+**Two landed pieces:**
+
+1. **Registry — dynamic arg-role resolver (D4-F2, `c54764be`).** `scan` /
+   `lassign` / `binary scan` hard-coded `VarWrite` for a finite slot count
+   (≤19); calls with more varName args left the tail vars unmodelled as
+   writes, so a read of var 19+ looked read-before-set.  Replaced the fixed
+   slot lists with the `arg_role_resolver` hook (already wired through
+   `registry.rs::arg_indices_for_role` and the lowering's VarWrite def walk),
+   classifying every trailing positional as `VarWrite` — `scan` args[2..],
+   `lassign` args[1..], `binary scan` args[2..].  Mirrors
+   `dialects/tcl/{scan,lassign,binary}.py`.  Root-cause fix for the many-var
+   FP-STY-11 / `test_TN_*_many_vars` false positives.
+
+2. **Analyser — `emit_return_phi_undef_w210` (`03f43e6e`).** A new pass over
+   each executable block's `Terminator::Return` value (word substitutions +
+   nested `[...]` via `VarReferenceScanner`, plus a parsed expr), firing W210
+   when the read's exit-version `phi_can_undef`:
+   - **`phi_can_undef`** — transitive trace over the phi DAG restricted to
+     SCCP-executable predecessors; version-0 / `unset`-killed origins are
+     undef, concrete defs are not, cycles (loop-header phis) resolve to
+     not-undef, per-predecessor existence guards prune.  Mirrors `_phi_can_undef`.
+   - **`unset` kill** — a *literal* `unset v` kills `v`'s reaching version; a
+     dynamic `unset $name` does **not** (it targets the named-by-value var,
+     though the IR still records a def for the bare name — the conservative
+     literal-only gate avoids that FP).
+   - **Full suppression suite** (`build_return_undef_suppression`): params,
+     `_IMPLICIT_VARS`, `::`-qualified names, scope aliases, qualified
+     `variable ns::tail` / `variable ${name}::tail` alias tails
+     (`_qualified_variable_alias_tails`), and **key-aware** `dict with` /
+     `dict update` unpacking — an empty/known-keys dict only suppresses the
+     names it unpacks (so `set d {}; dict with d {}; return $missing` still
+     fires) while an unknown-shape dict falls back to a blanket suppression.
+
+**Closed (12, no regression):** the 6 W210 merge TPs (`if`-arm-only-def,
+`switch`-no-default, dead-`if {0}`-body, loop-body-only-init, use-after-unset,
+empty-`dict with`), `test_TP_W210_array_element_read_before_any_set`, FP-DS-08
+empty-dict-fires, the FP-RBS-01/04/08 bare-read TP controls, and FP-STY-11
+scan-fewer-specifiers.  **Battery 290→302 passing / 87→75 failing**; `make
+test-lsp-e2e-rust` 24→22 failing (the W210/clean-dataflow canaries).  +14
+analyser unit tests; workspace `cargo test`/`clippy`/`fmt` clean.
+
+**Method/insight for the next increment.** The faithful approach is: read the
+Python (`_read_before_set` is the spec), verify the IR/SSA shape with the
+`compiler-explorer` skill, and treat every `test_fp_*`/`FP.md` pair as a TP+FP
+tension to satisfy — TP and FP move together, so each suppression
+(`dict`-key, alias-tail, `safe_on_uninit`, scan-resolver) is a separate
+verified piece.  The remaining W210 work is the **statement-use** phi-from-undef
+path (non-return reads — e.g. `puts $v` after a merge), which needs the same
+trace wired through the statement-use loop with the regexp/scan `provably_unset`
+suppression (`_read_before_set:3251+`) to stay sound.
+
+Updated remaining 75, by family: ground_truth 24, fp_rbs 11, fp_bnd 9, fp_ds 9,
+fp_rch 5, fp_sty 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1 (the W210 merge family
+is the bulk of the ground_truth/fp_rbs drop).
+
+#### SYNC-JUN11-precision-2 — continued precision increments (battery 290→316)
+
+A further worst-first sweep, each a faithful Python port verified against the
+fp/ground-truth battery with **no regression** and the full workspace gate
+(`cargo test --workspace`, `clippy --all-targets`, `fmt`; `make
+test-lsp-e2e-rust` held at 22 failing throughout).  Eleven landed increments:
+
+- **W124 OID-chain / W302 fire-and-forget / W214 empty-body+quoted-keyword /
+  W304 braced-switch** (`294d1986`, `0392e5b0`, `2d48079a`) — registry-/CFG-
+  local FP suppressions (fp_sty 11→6, fp_nab 5→4).
+- **phi-from-undef W210 on return reads + D4-F2 scan/lassign/binary-scan
+  resolver** (`c54764be`, `755d0f9c`) — see SYNC-JUN11-phi-undef.
+- **shared dict-with/alias RBS suppression** (`2487d04d`) — thread the
+  `UndefSuppression` (dict-with keys, qualified-`variable` alias tails) through
+  the version-0 statement emitter too; a `dict with` value is resolved via SCCP
+  (interproc-empty literal) then a same-block `set`.  The statement path uses a
+  strict **known-keys-only** variant (an unknown-shape dict still fires so a
+  genuine missing-key read isn't hidden); the return path keeps the blanket
+  variant for the unknown-dict return TN.
+- **W301 single pure-var uplevel body** (`01ed4871`) — `uplevel 1 $body` (one
+  Var token) is the safe single-substitution idiom.
+- **W233 divide/modulo by a provably-zero divisor** (`8a644493`) — new pass
+  over every `[expr …]` AST (AssignExpr / branch condition / `return [expr …]`)
+  on SCCP-executable blocks; literal-`0` or SCCP-const-`0` divisor fires.
+  Reachability-aware: short-circuit `&&`/`||` and ternary arms are only walked
+  when the guard provably selects them (`0 && 1/0` silent, `1.0 && 1/0` fires).
+- **case-insensitive expr boolean lexer** (`d0036739`) — `True`/`YES`/`Off`
+  are booleans per `Tcl_GetBoolean` (was lowercase-only, so `True` lexed as a
+  function name).
+- **dispatch-protocol W214 suppression** (`88fc229b`) — port
+  `_dispatch_protocol_signatures`: ≥3 namespace peers sharing a leading-param
+  signature + an arity-compatible `$cmd` dispatcher (added `argc` to
+  `VarCommandSite`) make those params an external contract, not unused.
+- **`incr` on an uninit var** (`390124d0`) — the version-0 read `incr z`
+  records is a safe self-initialisation (8.5+), not RBS; the `safe_on_uninit`
+  skip now also covers `Statement::Incr`.
+- **CFG post-terminator dead code** (`717ff8ac`) — `lower_script` routes
+  statements after a `return` (and the `error`/`throw`/`exit`
+  `TERMINATES_BLOCK` set, promoted to a `Return` terminator) into an orphan
+  unreachable block instead of dropping them, so SCCP marks them unreachable
+  and **O107** fires; a `main_terminated` flag preserves the no-fall-through
+  contract for nested branch bodies.
+- **CFG break/continue edges** (`bdde0f62`) — a loop-target stack lowers
+  `break`/`continue` to a `Goto` of the loop exit / continue block, so a
+  constant-condition loop's exit (`while 1 { … break }`) stays reachable and
+  O107 no longer false-fires on the post-loop code (fp_rch RCH-01).
+
+**Battery 290→319 passing / 87→58 failing** across the JUN11 sweep (session
+total from the 284 baseline: **284→319**, +35, zero regressions — every
+remaining failure is a strict subset of the original backlog).  +~30
+analyser/lexer unit tests.  Remaining 58, by family: ground_truth 17, fp_rbs
+11, fp_ds 9, fp_nab 4, fp_sh 4, fp_bnd 3, fp_opt 3, fp_sty 4, fp_rch 2,
+fp_inj 1.
+
+**Open clusters (each a feature, not a switch), with the porting path:**
+- **regexp/scan `provably_unset`** (~8: fp_rbs RBS-02/12, fp_sty STY-10,
+  scan_genuine) — needs the `_read_before_set:3251+` post-pass that runs a real
+  regex match / `scan_provably_no_match` on literal pattern+input and marks the
+  output vars undef.  The `regexp` VarWrite resolver is coupled to this: alone
+  it fixes the nocase/with-options TNs but regresses the no-match TPs (output
+  becomes an unconditional def), so the two must land together.
+- **interproc dict const propagation** (~5: fp_ds DS-09, ground_truth interproc)
+  — needs `_collect_call_site_constants` + the SCCP barrier v0-preserve so a
+  callee `dict with $param` sees the caller's literal.
+- **W307 var-as-command** (4) — nested-`[…]`-command diagnostic dispatch +
+  array-element/return-literal command resolution.
+- **bounds W231/W232** — SCCP list-value resolution + nested-command dispatch
+  (`return [string index …]`).
+- **fp_rch break-edge reachability** (5) — model `break`/`continue` as CFG
+  edges so a `while 1 { … break }` post-loop block stays reachable.
+- **fp_ds W220 array-element place-model** (~3), **fp_sh shimmer S10x** (4),
+  **fp_opt O106/O109/O116** (3), and the residual misc (namespace-ensemble
+  resolution, `eval [list set …]` def recognition, S101 intrep-thrash).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

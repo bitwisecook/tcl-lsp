@@ -7,6 +7,35 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regexp ?switches? exp string ?matchVar? ?subMatchVar ...?",
 }];
 
+/// `regexp ?switches? exp string ?matchVar ...?` — after skipping leading
+/// options (`-start` consumes a value; `--` terminates), arg 0 is the
+/// pattern, arg 1 the string, and args 2+ are capture variables.  Resolve
+/// `VarWrite` for every trailing capture var dynamically (the leading-option
+/// shift means a static slot list cannot place them).  Mirrors
+/// `dialects/tcl/regexp_.py::_regexp_arg_role_resolver`.
+fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    let capture_start = i + 2; // skip pattern + string
+    (capture_start..args.len())
+        .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))
+        .collect()
+}
+
 /// Command spec for `regexp`.
 #[allow(clippy::too_many_lines)] // data-heavy: full hover + 11 options
 pub fn spec() -> CommandSpec {
@@ -112,6 +141,7 @@ hover: Some(HoverSnippet {
         // pattern validation. Mirrors `tcl/regexp_.py`.
         pattern_type: Some(PatternType::Regex),
         forms: FORMS,
+        arg_role_resolver: Some(regexp_arg_roles),
         ..CommandSpec::DEFAULT
     }
 }
