@@ -418,7 +418,7 @@ fn continuation_comment_actions(
     source: &str,
     range: LspRange,
     analysis: &AnalysisResult,
-    _line_index: &LineIndex,
+    line_index: &LineIndex,
 ) -> Vec<CodeAction> {
     // Only offer when a W115 diagnostic overlaps the range OR the start line is
     // a backslash-continued comment (the editor may drive this with a
@@ -431,9 +431,27 @@ fn continuation_comment_actions(
     let first = lines[start_line];
     let trimmed = first.trim_start();
     if !trimmed.starts_with('#') || !first.trim_end().ends_with('\\') {
-        // Not a continued comment at the range start — also bail if no W115.
-        let has_w115 = analysis.diagnostics.iter().any(|d| d.code == "W115");
-        if !has_w115 {
+        // Not a continued comment at the range start — only offer the fix when
+        // a W115 diagnostic actually *overlaps* the requested range. A
+        // file-wide "any W115" check would rewrite an unrelated
+        // backslash-continued command on a different line as commented text.
+        let has_overlapping_w115 = analysis.diagnostics.iter().any(|d| {
+            if d.code != "W115" {
+                return false;
+            }
+            let start = line_index.position_at_utf16(d.span.start(), source);
+            let end = line_index.position_at_utf16(d.span.end(), source);
+            ranges_overlap(
+                LspRange {
+                    start_line: start.line,
+                    start_character: start.character,
+                    end_line: end.line,
+                    end_character: end.character,
+                },
+                range,
+            )
+        });
+        if !has_overlapping_w115 {
             return Vec::new();
         }
     }

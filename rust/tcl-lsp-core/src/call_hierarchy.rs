@@ -86,17 +86,32 @@ fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
     format!("{}::{}", class_def.qualified_name, method.name)
 }
 
-/// Find the proc whose declaration matches a call-hierarchy item's *display*
-/// name.  Items carry the short proc name (`helper`), so match it against the
-/// proc's simple name and the qualified key (`::helper`) alike.
+/// Find the proc a call-hierarchy item refers to.
+///
+/// Items carry only the *short* display name (`helper`), which is ambiguous
+/// when a document defines same-named procs in different namespaces
+/// (`::a::helper` / `::b::helper`).  Disambiguate first by the item's
+/// `selection_range` — it is the proc name token's exact location, a stable
+/// identity that round-trips through the LSP incoming/outgoing call requests —
+/// and only fall back to display-name matching when no definition's name span
+/// lines up (e.g. a synthetic or hand-built item).
 fn find_proc_for_item<'a>(
+    source: &str,
     analysis: &'a AnalysisResult,
-    item_name: &str,
+    item: &CallHierarchyItem,
+    line_index: &LineIndex,
 ) -> Option<(&'a String, &'a ProcDef)> {
+    if let Some(hit) = analysis
+        .all_procs
+        .iter()
+        .find(|&(_, p)| span_to_range(source, line_index, p.name_span) == item.selection_range)
+    {
+        return Some(hit);
+    }
     analysis.all_procs.iter().find(|&(qn, p)| {
-        p.name.as_str() == item_name
-            || qn.as_str() == item_name
-            || qn.trim_start_matches("::") == item_name
+        p.name.as_str() == item.name
+            || qn.as_str() == item.name
+            || qn.trim_start_matches("::") == item.name
     })
 }
 
@@ -360,7 +375,7 @@ pub fn unresolved_outgoing_calls(
     analysis: &AnalysisResult,
 ) -> Vec<UnresolvedOutgoingCall> {
     let line_index = LineIndex::new(source);
-    if let Some((_, source_proc)) = find_proc_for_item(analysis, &item.name) {
+    if let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) {
         let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
@@ -454,7 +469,8 @@ pub fn incoming_calls(
     analysis: &AnalysisResult,
 ) -> Vec<IncomingCall> {
     let line_index = LineIndex::new(source);
-    let Some((target_qname, target_proc)) = find_proc_for_item(analysis, &item.name) else {
+    let Some((target_qname, target_proc)) = find_proc_for_item(source, analysis, item, &line_index)
+    else {
         // Not a proc — try a class method.
         return method_incoming_calls(source, dialect, item, analysis, &line_index);
     };
@@ -554,7 +570,7 @@ pub fn outgoing_calls(
     analysis: &AnalysisResult,
 ) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
-    let Some((_, source_proc)) = find_proc_for_item(analysis, &item.name) else {
+    let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) else {
         // Not a proc — try a class method.
         return method_outgoing_calls(source, dialect, item, analysis, &line_index);
     };
@@ -727,6 +743,34 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(prepare(src, 0, 6, &analysis).is_empty());
+    }
+
+    #[test]
+    fn same_named_procs_in_different_namespaces_disambiguate_by_span() {
+        // `::a::helper` and `::b::helper` share the short display name
+        // `helper`; the call-hierarchy item must resolve to the definition at
+        // its own `selectionRange`, not whichever `all_procs` entry hashes
+        // first. Each helper calls a distinct callee so the wrong resolution
+        // is observable.
+        let src = "proc ::a::helper {} { aCallee }\n\
+                   proc ::b::helper {} { bCallee }\n\
+                   proc aCallee {} {}\n\
+                   proc bCallee {} {}\n";
+        let analysis = analyse(src);
+        // Cursor on the `helper` of the second (`::b::helper`) definition —
+        // line 1, inside `helper` (after the `proc ::b::` prefix, 10 chars).
+        let items = prepare(src, 1, 12, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl8.6", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert!(
+            callees.contains(&"bCallee"),
+            "b::helper must resolve to its own body (bCallee); got {callees:?}"
+        );
+        assert!(
+            !callees.contains(&"aCallee"),
+            "b::helper must not pick up a::helper's callee; got {callees:?}"
+        );
     }
 
     // -- S-call-hierarchy-rich: incoming + outgoing calls -----------

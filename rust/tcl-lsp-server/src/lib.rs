@@ -2854,9 +2854,16 @@ impl LanguageServer for Backend {
             .filter(|a| {
                 only.as_ref().map_or(true, |wanted| {
                     let k = a.kind.as_str();
-                    wanted.iter().any(|w| {
-                        k == w || k.starts_with(&format!("{w}.")) || w.starts_with(&format!("{k}."))
-                    })
+                    // Keep an action when its kind exactly matches a requested
+                    // kind, or is a *subtype* of one (`refactor.extract`
+                    // satisfies a `refactor` request). A requested
+                    // `refactor.extract` must NOT pull in a generic `refactor`
+                    // action — the requested kind is not a parent of the
+                    // action's kind in that direction (LSP CodeActionKind
+                    // matching is prefix-on-the-action-side only).
+                    wanted
+                        .iter()
+                        .any(|w| k == w || k.starts_with(&format!("{w}.")))
                 })
             })
             .map(|a| {
