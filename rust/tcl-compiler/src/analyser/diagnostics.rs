@@ -4230,11 +4230,28 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: &crate::ir::Procedure,
     ) {
+        // Empty-body procs (``proc foo {a b} {}``) are signature
+        // placeholders — stubs declaring an API whose implementation
+        // lives elsewhere.  Every parameter is necessarily "unused"
+        // since there is no body to use it, so flagging is pure noise.
+        // Mirrors the `not body.statements` early return in
+        // `_diag_var_lifecycle.py::_emit_unused_param_diagnostics`.
+        if ir_proc.body.statements.is_empty() {
+            return;
+        }
         for param in &ir_proc.params {
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
             // marker).  Skip it from W214.
             if param == "args" {
+                continue;
+            }
+            // Positional keyword markers: a param whose name is itself a
+            // quoted literal (snit-style ``{"as" ""}``) is a syntactic
+            // placeholder consumed by being PRESENT in the call form, not
+            // read as a variable.  Flagging it is noise.  Conservative:
+            // only suppress params whose name starts AND ends with ``"``.
+            if param.len() >= 2 && param.starts_with('"') && param.ends_with('"') {
                 continue;
             }
             let any_live = fu
@@ -8222,6 +8239,45 @@ foo
         assert!(
             !r.diagnostics.iter().any(|d| d.code == "W302"),
             "W302 must be suppressed on `catch {{chan close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_empty_body_stub_silent() {
+        // FP-STY-08: `proc stub {a b} {}` is a signature placeholder — no
+        // W214 on its necessarily-unused params.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc stub {a b} {}", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W214"),
+            "W214 must be suppressed on an empty-body stub; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_quoted_keyword_marker_silent() {
+        // FP-STY-08: a param named `"as"` is a snit-style keyword marker.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc xyz {\"as\" v} { return $v }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W214"),
+            "W214 must not fire on a quoted-keyword param; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_genuine_unused_param_still_fires() {
+        // TP control: a normal unused param in a non-empty body still fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {a b} { return $a }", "tcl");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'b'")),
+            "W214 must still fire on a genuine unused param; got {:?}",
             r.diagnostics,
         );
     }
