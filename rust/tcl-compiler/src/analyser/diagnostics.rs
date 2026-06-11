@@ -5312,6 +5312,14 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 }
                 let ver = ssa_block.exit_versions.get(&name).copied().unwrap_or(0);
+                // Version-0 return reads are now recorded in def_use, so the
+                // version-0 (`DefKind::Parameter`) emitter handles them with
+                // the full suppression set — this pass only covers the
+                // phi-from-undef / `unset`-killed (version > 0) cases, which
+                // def-use can't express.  Skipping ver 0 avoids double-firing.
+                if ver == 0 {
+                    continue;
+                }
                 let mut seen = HashSet::new();
                 if !phi_can_undef(
                     &name,
