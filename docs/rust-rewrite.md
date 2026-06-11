@@ -5091,6 +5091,19 @@ fp_inj 1.
    after its preceding positional. lsp_e2e 469→470 passing; precision battery
    unchanged.
 
+6. **IRULE3102 unnormalised getter nested in a sink argument** (closes
+   `test_irules_e2e::TestIrulesTaintDiagnostics::test_taint_source_in_http_sink_fires_irule3102`).
+   `find_unnormalised_getter_warnings` only inspected top-level `Call`
+   (command *is* the getter) and `AssignValue` RHS (`set u [HTTP::uri]`)
+   statements. In `HTTP::respond 200 content [HTTP::uri]` the `[HTTP::uri]`
+   getter stays a literal `Cmd` *argument* of the outer sink call rather than
+   a separate statement, so it was never flagged. The `Call` arm now also
+   walks each argument: a command-substitution arg (`[…]`) is parsed via
+   `parse_command_substitution` and checked with `is_unnormalised_getter`,
+   anchoring the diagnostic on the argument token's own span. Stays silent on
+   a constant (`"static body"`) and on the `-normalized` form. lsp_e2e
+   470→471 passing; precision battery unchanged.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
