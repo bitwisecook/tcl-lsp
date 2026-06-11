@@ -218,6 +218,8 @@ fn is_word_byte(b: u8) -> bool {
 struct DottedQuad<'a> {
     octets: [&'a str; 4],
     start: usize,
+    /// Byte offset just past the final octet (the regex `m.end()`).
+    end: usize,
 }
 
 /// Find every `\b\d{1,N}.\d{1,N}.\d{1,N}.\d{1,N}\b` dotted quad in
@@ -234,7 +236,11 @@ fn find_dotted_quads(text: &str, max_digits: usize) -> Vec<DottedQuad<'_>> {
         let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
         if boundary_before {
             if let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
-                out.push(DottedQuad { octets, start: i });
+                out.push(DottedQuad {
+                    octets,
+                    start: i,
+                    end,
+                });
                 i = end;
                 continue;
             }
@@ -366,6 +372,63 @@ fn has_redos_shape(pattern: &str) -> bool {
         i += 1;
     }
     false
+}
+
+/// Destructive builtins whose bare `catch {<cmd> ...}` form is the
+/// documented "fire-and-forget" idiom — failure when the target is
+/// already gone is expected and intentionally ignored.  Mirrors
+/// `analyser/compiler_checks.py::_FIRE_AND_FORGET_BARE`.
+fn fire_and_forget_bare(bare: &str) -> bool {
+    matches!(bare, "close" | "unset" | "rename")
+}
+
+/// Ensemble commands where only certain destructive subcommands are
+/// fire-and-forget (`chan close` is, `chan configure` is not).  Mirrors
+/// `_FIRE_AND_FORGET_SUBCOMMANDS`.
+fn fire_and_forget_subcommand(bare: &str, sub: &str) -> bool {
+    match bare {
+        "after" => sub == "cancel",
+        "chan" => sub == "close",
+        "array" | "dict" => sub == "unset",
+        "interp" | "file" => sub == "delete",
+        "namespace" => sub == "delete" || sub == "forget",
+        _ => false,
+    }
+}
+
+/// True when the body of a `catch` matches the documented
+/// "fire-and-forget" idiom: a single command whose head is a
+/// destructive builtin (`close $h`, `unset var`, `rename foo ""`) or a
+/// documented destructive ensemble subcommand (`after cancel`, `chan
+/// close`, `array unset`, …).  Conservative: only single-statement
+/// bodies match, and ensemble heads are subcommand-checked.  Mirrors
+/// `analyser/compiler_checks.py::_catch_body_is_fire_and_forget`.
+fn catch_body_is_fire_and_forget(body: &str) -> bool {
+    let segs: Vec<_> = crate::segmenter::segment_commands(body)
+        .into_iter()
+        .filter(|c| !c.texts.is_empty())
+        .collect();
+    if segs.len() != 1 {
+        return false;
+    }
+    let Some(head) = segs[0].texts.first() else {
+        return false;
+    };
+    if head.is_empty() {
+        return false;
+    }
+    let bare = head
+        .trim_start_matches(':')
+        .rsplit("::")
+        .next()
+        .unwrap_or(head);
+    if fire_and_forget_bare(bare) {
+        return true;
+    }
+    match segs[0].texts.get(1) {
+        Some(first_arg) => fire_and_forget_subcommand(bare, first_arg),
+        None => false,
+    }
 }
 
 /// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
@@ -1979,6 +2042,16 @@ numeric/string coercion."
         }
         if arg_tokens.is_empty() {
             return;
+        }
+        // Suppress the hint on the documented "fire-and-forget" idiom:
+        // ``catch {close $h}`` / ``catch {after cancel $h}`` etc.  These
+        // commands error when the target is already gone, and a bare
+        // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
+        // possible, ignore if not".
+        if let Some(body) = args.first() {
+            if catch_body_is_fire_and_forget(body) {
+                return;
+            }
         }
         let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
@@ -4653,7 +4726,21 @@ file; this call falls through to the 'unknown' handler."
 
             // ---- IPv4 candidates ----
             for quad in find_dotted_quads(text, 4) {
-                if quad.start > 0 && text.as_bytes()[quad.start - 1] == b'/' {
+                let bytes = text.as_bytes();
+                if quad.start > 0 && bytes[quad.start - 1] == b'/' {
+                    continue;
+                }
+                // Skip OID-like patterns: the matched quad is a slice of a
+                // longer dotted-digit chain (LDAP/SNMP OIDs like
+                // ``1.3.6.1.4.1.4203.1.11.3``).  Detect a ``digit.<quad>``
+                // before or a ``<quad>.digit`` after.
+                let before_dot_digit = quad.start >= 2
+                    && bytes[quad.start - 1] == b'.'
+                    && bytes[quad.start - 2].is_ascii_digit();
+                let after_dot_digit = quad.end + 1 < bytes.len()
+                    && bytes[quad.end] == b'.'
+                    && bytes[quad.end + 1].is_ascii_digit();
+                if before_dot_digit || after_dot_digit {
                     continue;
                 }
                 let octets = quad.octets;
@@ -8086,6 +8173,72 @@ foo
         );
         assert_eq!(w124s[0].severity, Severity::Warning);
         assert!(w124s[0].message.contains("leading zero"));
+    }
+
+    #[test]
+    fn analyse_no_w124_for_oid_chain() {
+        // FP-STY-06: an LDAP PEN OID (`1.3.6.1.4.1.4203.1.11.3`) is a
+        // hierarchical dotted chain, not IPv4 — the embedded `4203.1.11.3`
+        // slice must NOT fire W124.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set oid 1.3.6.1.4.1.4203.1.11.3 }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W124"),
+            "W124 must not fire on an OID dotted chain; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w124_real_ipv4_shaped_still_fires() {
+        // TP control: a genuine four-component dotted quad with an
+        // out-of-range octet (not part of a longer chain) still fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set ip 10.0.0.300 }", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W124"),
+            "W124 must fire on a genuine over-255 IPv4 quad; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_fire_and_forget_bare_close_silent() {
+        // FP-STY-05: `catch {close $fh}` is the documented fire-and-forget
+        // idiom — no W302.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { catch {close $fh} }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must be suppressed on `catch {{close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_fire_and_forget_ensemble_chan_close_silent() {
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {} { catch {chan close $fh} }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must be suppressed on `catch {{chan close ...}}`; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w302_constructive_subcommand_still_fires() {
+        // TP control: `chan configure` is constructive, not fire-and-forget.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc f {} { catch {chan configure $fh -blocking 0} }",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W302"),
+            "W302 must still fire on a constructive `chan configure`; got {:?}",
+            r.diagnostics,
+        );
     }
 
     #[test]
