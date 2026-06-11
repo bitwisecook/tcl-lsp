@@ -5104,6 +5104,35 @@ fp_inj 1.
    a constant (`"static body"`) and on the `-normalized` form. lsp_e2e
    470→471 passing; precision battery unchanged.
 
+7. **Bracket-recovery brace-word bail** (#560; closes 2/3 of
+   `test_recovery_e2e::TestInertBracketVeto` —
+   `test_brace_word_break_still_flags_and_recovers` and
+   `test_brace_word_break_no_duplicate_diagnostics`). For
+   `set x [foo {bar\nproc …}` the command-break heuristic's after-`bar`
+   boundary is inert (inside the `{bar …}` brace word), so it was vetoed and
+   the analyser fell through to the `e201_at_brace` fallback, which inserted a
+   ghost `]` *before* the `{` — folding the swallowed `proc` / `puts` into a
+   brace-word argument (hidden from analysis, spurious E003/W123 on a 3-arg
+   `set`). `e201_at_command` now reports when a *known* command was swallowed
+   into an inert span; `detect_e201` then suppresses the brace-break fallback
+   and bails to the fix-less fallback, so no ghost is inserted, the
+   scan-to-next recovery's partial command stands (generic E200), and the tail
+   `proc` / trailing `set` are analysed as real code (symbol recovered; E002
+   on the bare `set`). Matches the Python analyser + C Tcl 9.0.3
+   (`info complete {set x [foo {bar]}` == 0). lsp_e2e 471→473; precision
+   battery held at 284/93; workspace tests + clippy green.
+
+   **Remaining (3rd test, `test_midword_delimiter_still_recovers`):** the
+   mid-word-`"` case `set x [foo abc"\nproc …` needs the *bracket interior*
+   re-lex to treat a mid-word `"` as a literal (C Tcl completes
+   `set x [foo abc"]`). The lexer's command-substitution scanner
+   (`scan_cmd_sub` / `Lexer::scan_command_substitution`) toggles quote on any
+   `"` at `blevel == 0` regardless of word-start, so a ghost `]` inserted
+   after `abc"` lands "inside the quote" and never closes the bracket. Closing
+   this needs the command-sub quote handling aligned to the word-start rule
+   `scan_top` already uses — a core-lexer change deferred to its own strip to
+   keep this batch's regression surface small.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
