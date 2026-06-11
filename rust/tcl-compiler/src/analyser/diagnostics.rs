@@ -5160,9 +5160,11 @@ file; this call falls through to the 'unknown' handler."
             // `dict with`/`dict update` unpacking + qualified-`variable`
             // alias tails suppress version-0 reads of the unpacked / aliased
             // names (the `puts $a` inside `dict with d {…}` is not RBS).
-            // Strict (known-keys-only): an unknown-shape dict still fires so a
-            // genuine missing-key read inside the body is not hidden.
-            if supp.suppresses_strict(var) {
+            // Interproc constant propagation resolves an empty caller dict to
+            // CONST("") (keys = ∅, not unknown), so the blanket variant fires
+            // on a genuine missing-key read while still suppressing an
+            // unknown-shape (mixed-caller / no-caller) dict.
+            if supp.suppresses(var) {
                 continue;
             }
             for use_site in &chain.uses {
@@ -9520,6 +9522,28 @@ foo
             got.iter().any(|m| m.contains("'v'")),
             "switch-no-default + return must fire W210; got {got:?}"
         );
+    }
+
+    #[test]
+    fn w210_interproc_dict_with_caller_literal() {
+        // A caller passing a literal dict propagates to the callee's
+        // `dict with $param` key check (interproc constant propagation).
+        // Key present → silent.
+        assert!(
+            w210_codes("proc f {d} { dict with d { return $missing } }\nf {missing ok}\n")
+                .is_empty()
+        );
+        // Empty dict → no keys → the read fires.
+        assert!(
+            w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\n")
+                .iter()
+                .any(|m| m.contains("'missing'"))
+        );
+        // Mixed callers → unknown shape → conservatively silent.
+        assert!(w210_codes(
+            "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n"
+        )
+        .is_empty());
     }
 
     #[test]

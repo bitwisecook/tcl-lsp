@@ -90,9 +90,25 @@ impl FunctionUnit {
         params: &[String],
         registry: &CommandRegistry,
     ) -> Self {
+        Self::build_with_param_constants(name, cfg, params, registry, None)
+    }
+
+    /// Like [`Self::build`] but seeds SCCP with interprocedurally-collected
+    /// caller-side parameter constants (`param_constants`), so a callee that
+    /// reads a param every caller passes the same literal for folds it.
+    #[must_use]
+    pub fn build_with_param_constants(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        registry: &CommandRegistry,
+        param_constants: Option<
+            &std::collections::HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>,
+        >,
+    ) -> Self {
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
-        let mut sccp = sccp(&cfg, &ssa, None);
+        let mut sccp = sccp(&cfg, &ssa, param_constants);
         // SYNC-MAY31-3: surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
         // as constant branches so the optimiser's O101 fold / DCE sees
@@ -220,6 +236,10 @@ impl CompilationUnit {
         // that splices the body inline.
         crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
+        // D3-P2: collect call-site literal arg values per user proc so each
+        // callee's SCCP can fold a param every caller passes the same literal
+        // for (interprocedural constant propagation).
+        let call_site_constants = collect_call_site_constants(&cfg_module, &ir_module.procedures);
         let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), &[], registry);
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
@@ -227,9 +247,17 @@ impl CompilationUnit {
                 .procedures
                 .get(qname)
                 .map_or(&[][..], |p| p.params.as_slice());
+            let param_constants =
+                params_constants_from_call_sites(params, &call_site_constants, qname);
             procedures.insert(
                 qname.clone(),
-                FunctionUnit::build(qname, cfg.clone(), params, registry),
+                FunctionUnit::build_with_param_constants(
+                    qname,
+                    cfg.clone(),
+                    params,
+                    registry,
+                    param_constants.as_ref(),
+                ),
             );
         }
         // SF-2: lower TclOO method bodies (populated in
@@ -365,6 +393,102 @@ impl CompilationUnit {
     /// first, then procedures in insertion order).
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         std::iter::once(&self.top_level).chain(self.procedures.values())
+    }
+}
+
+/// Per-arg-position call-site literal evidence for one callee.
+#[derive(Default)]
+struct ArgConsts {
+    /// At least one call passed a non-literal (`$`/`[`) value here.
+    unknown: bool,
+    /// Distinct literal values seen at this position.
+    values: std::collections::HashSet<String>,
+}
+
+/// Collect literal arg values per user-proc call site across the whole
+/// module's CFGs (top-level + every proc body, statements already flattened).
+/// Mirrors `_collect_call_site_constants`.  Returns
+/// `{callee_qname -> {arg_index -> ArgConsts}}`.
+fn collect_call_site_constants(
+    cfg_module: &CfgModule,
+    procedures: &HashMap<String, crate::ir::Procedure>,
+) -> HashMap<String, HashMap<usize, ArgConsts>> {
+    use crate::ir::Statement;
+    let mut out: HashMap<String, HashMap<usize, ArgConsts>> = HashMap::new();
+    // Resolve a call command word to a user-proc qualified name.
+    let resolve = |cmd: &str| -> Option<String> {
+        for cand in [
+            cmd.to_string(),
+            format!("::{cmd}"),
+            format!("::{}", cmd.trim_start_matches(':')),
+        ] {
+            let qn = if cand.starts_with("::") {
+                cand
+            } else {
+                format!("::{cand}")
+            };
+            if procedures.contains_key(&qn) {
+                return Some(qn);
+            }
+        }
+        None
+    };
+    let funcs = std::iter::once(&cfg_module.top_level).chain(cfg_module.procedures.values());
+    for func in funcs {
+        for block in func.blocks.values() {
+            for stmt in &block.statements {
+                let Statement::Call { command, args, .. } = stmt else {
+                    continue;
+                };
+                let Some(target) = resolve(command.as_str()) else {
+                    continue;
+                };
+                let by_idx = out.entry(target).or_default();
+                for (i, arg) in args.iter().enumerate() {
+                    let slot = by_idx.entry(i).or_default();
+                    if arg.contains(['$', '[']) {
+                        slot.unknown = true;
+                    } else {
+                        slot.values.insert(arg.clone());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Build the SCCP `param_constants` seed for `qname` from collected call-site
+/// literals: bind `(param, 0)` only when every caller passes the same single
+/// literal at that position.  Mirrors `_params_constants_from_call_sites`.
+fn params_constants_from_call_sites(
+    params: &[String],
+    call_site_constants: &HashMap<String, HashMap<usize, ArgConsts>>,
+    qname: &str,
+) -> Option<HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    let by_idx = call_site_constants.get(qname)?;
+    let mut consts: HashMap<crate::ssa::ValueKey, LatticeValue> = HashMap::new();
+    for (i, pname) in params.iter().enumerate() {
+        if pname == "args" {
+            break;
+        }
+        let Some(slot) = by_idx.get(&i) else {
+            continue;
+        };
+        if slot.unknown || slot.values.len() != 1 {
+            continue;
+        }
+        let val = slot.values.iter().next().unwrap().clone();
+        consts.insert(
+            (pname.clone(), 0),
+            LatticeValue::Const(ConstValue::String(val)),
+        );
+    }
+    if consts.is_empty() {
+        None
+    } else {
+        Some(consts)
     }
 }
 

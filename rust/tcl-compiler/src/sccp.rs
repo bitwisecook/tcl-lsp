@@ -288,9 +288,17 @@ pub fn sccp(
             // Statements.
             for stmt_ssa in &ssa_block.statements {
                 if matches!(stmt_ssa.statement, Statement::Barrier { .. }) {
-                    // Barriers widen all currently-tracked values.
+                    // Barriers widen all currently-tracked values — EXCEPT
+                    // version-0 (parameter) seeds, which hold the caller's
+                    // literal and are immutable across the barrier (a barrier
+                    // that mutates the var produces a fresh version).  Mirrors
+                    // Python's SCCP barrier v0-preserve refinement so a callee
+                    // `dict with $param` still sees the interproc literal.
                     let keys: Vec<ValueKey> = values.keys().cloned().collect();
                     for k in keys {
+                        if k.1 == 0 {
+                            continue;
+                        }
                         if set_value(&mut values, k, &LatticeValue::Overdefined) {
                             changed = true;
                         }
