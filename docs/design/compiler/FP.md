@@ -3897,17 +3897,18 @@ proc f {} { return ok }
 
 A `proc Helper {a} { … }` declared inside a `snit::type` body is a **type-private proc** (callable only from the type's methods).  Pre-fix worry: the snit body wrapping might cause the analyser to drop the inner proc and miss genuine diagnostics in its body.
 
-The verdict on audit: the analyser DOES descend into the body — proven here by `info exists ${a}($a)` firing W216 (scalar-vs-array smell) inside the proc.  This locks in the depth contract.
+The verdict on audit: the analyser DOES descend into the body — proven here by the **value-position** `return ${a}($a)` firing W216 (scalar-vs-array smell) inside the proc.  This locks in the depth contract.  (A *varname*-position `${a}($a)` would be the legitimate indirect-array idiom and stay silent — see FP-STY-12 — so the marker is deliberately a value position.)
 
 #### tclsh ground truth
 
 ```
-% snit::type T { proc Helper {a} { return [info exists ${a}($a)] }
+% snit::type T { proc Helper {a} { return ${a}($a) }
  method m {a} { return [Helper $a] }
 }
 % T create t
 % t m foo
-0  # exists test is well-formed; W216 is a *static-analysis* smell about the form
+foo(foo)  # ${a} substitutes to the value of a, then literal "(foo)" is appended;
+          # W216 is a *static-analysis* smell — the form is rarely what's meant
 ```
 
 #### Compiler evidence
@@ -7462,6 +7463,378 @@ Each is wired through `CommandSpec.arg_role_resolver`, which the registry consul
 - `tests/test_ground_truth_tn_fn.py::test_TN_scan_with_more_than_18_vars_no_false_w210`
 - `tests/test_ground_truth_tn_fn.py::test_TN_lassign_with_many_vars_no_false_w210`
 - `tests/test_ground_truth_tn_fn.py::test_TN_binary_scan_with_many_vars_no_false_w210`
+
+---
+
+### FP-STY-12 — W216 / W212 braced indirect-array-element idiom `${var}(idx)`
+
+- **Verdict:** FALSE POSITIVE (now fixed; double-fire W216 + W212 cleared)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_12_*`
+- **Codes:** W216 (broken brace-form array ref), W212 (substitution where
+  var-name expected)
+- **Corpus:** Tcl 9.0 stdlib `http.tcl` — `set ${token}(status) eof`,
+  `set ${token3}(-pipeline)`, `info exists ${tokenVal}(after)`,
+  `unset ${tok}(socketcoro)`, `vwait ${token}(status)` — 25 firings in one
+  file, every one a `token`/`tok` scalar holding an array name.
+
+#### Reproducer
+
+```tcl
+# `token` is a scalar holding an ARRAY NAME (e.g. ::http::1) — the canonical
+# Tcl "array kept in a variable" pattern (http, snit, many state machines).
+set token ::http::1
+set ${token}(status) eof        ;# write element: <value-of-token>(status)
+info exists ${token}(-pipeline)  ;# read element via indirection
+unset ${token}(socketcoro)       ;# unset element via indirection
+```
+
+#### Per-line reasoning
+
+1. Tcl parses `${token}(status)` as the brace-form substitution `${token}`
+   (the lexer ends the variable name at the `}`) concatenated with the
+   **literal** text `(status)`.  The resulting string is
+   `<value-of-token>(status)` — e.g. `::http::1(status)`.
+2. In a **variable-name argument position** (`set`/`incr`/`append`/`lappend`/
+   `unset` target, `info exists`, `vwait`) the command interprets that string
+   as a variable name → element `status` of the array named `::http::1`.
+   This is the *only* way to reach an element of an array whose name lives in
+   a scalar (short of `upvar`), and it is a heavily-used idiom (Tcl's own
+   `http` package).
+3. W216's suggested rewrite `$token(status)` is **actively wrong** here: it
+   would access element `status` of an array literally named `token`, not the
+   array named *by* `token`'s value.  W212's suggestion `token(status)` is
+   wrong for the same reason.  Both must stay silent.
+4. The braces are the discriminator.  The **bare** `$token(status)` is a
+   *direct* array reference (array literally named `token`) — a different
+   construct — so it is left to W212's genuine dynamic-name foot-gun check.
+5. In a **value position** (`puts ${arr}(x)`, `set y ${arr}(x)`) the same
+   `${arr}(x)` is almost always a typo for `$arr(x)` element access, so W216
+   **still fires** there.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% array set ::http::1 {status pending -pipeline yes}
+% set token ::http::1
+% set ${token}(status) eof
+eof
+% set ${token}(status)
+eof
+% info exists ${token}(-pipeline)
+1
+```
+
+The value-position broken case errors, proving W216 is a true positive there:
+
+```
+% array set arr {x 1}
+% puts ${arr}(x)
+can't read "arr": variable is array
+```
+
+#### Why the analyser reaches that verdict
+
+- `shared/naming.py::is_braced_indirect_array_ref` recognises the
+  `${name}(idx)` shape (brace-form var name + parenthesised index).
+- W216: `analyser/_analyser/_diag_brace_then_paren.py` — `_varname_word_indices`
+  computes which command words are variable-name positions; Pattern (1) is
+  suppressed when the `${name}(idx)` word starts at one of those offsets.
+  Value-position matches still fire.
+- W212: `analyser/checks/_style.py::check_name_vs_value` skips the arg when
+  `is_braced_indirect_array_ref(written)` holds; bare `$x` / `$arr(idx)` /
+  index-less `${x}` foot-guns still fire.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_12_set_indirect_array_no_w216_w212` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_info_exists_indirect_no_w216_w212` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_unset_indirect_no_w216` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_vwait_incr_append_lappend_indirect_no_w216` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_12_value_position_still_fires_w216` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_12_bare_dollar_name_still_fires_w212` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_12_index_less_brace_still_fires_w212` (TP)
+
+---
+
+### FP-STY-13 — W113 redefining an overridable Tcl library procedure
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_13_*`
+- **Codes:** W113 (procedure shadows built-in command)
+- **Corpus:** Tcl 9.0 stdlib itself — `init.tcl` (`proc unknown`,
+  `proc auto_execok`, `proc auto_load`, `proc tcl_findLibrary`),
+  `history.tcl` (`proc history`), `package.tcl` (`proc pkg_mkIndex`),
+  `word.tcl` (`proc tcl_wordBreakAfter` …).  The files that *define* these
+  procs were being told they "shadow a built-in".
+
+#### Reproducer
+
+```tcl
+proc unknown args { return }          ;# the documented Tcl extension point
+proc history {args} { return }        ;# a Tcl library proc, not a C built-in
+proc tcl_findLibrary {a b c d e f} { return }
+```
+
+#### Per-line reasoning
+
+1. `unknown`, `history`, `auto_execok`, `auto_load`, `auto_mkindex`,
+   `auto_qualify`, `auto_reset`, `parray`, `pkg_mkIndex`, `tcl_findLibrary`,
+   and the `tcl_*WordBreak*` / `tcl_*OfWord` helpers are written **in Tcl** and
+   shipped in the standard library (`init.tcl` / `auto.tcl` / `history.tcl` /
+   `package.tcl` / `word.tcl`).  They are *not* C-level built-in commands.
+2. They are documented as user-replaceable — Tcl(n) `unknown` states that
+   applications "can replace it"; the `auto_*` and word-break helpers are
+   overlay/extension points.  Redefining one is the supported idiom, and Tcl's
+   own library is exactly the code that `proc`s them, so the W113 message
+   "shadows built-in command" is factually wrong for these names.
+3. Genuine C commands that are *not* byte-compiled but still dangerous to
+   redefine (`clock`, `after`, `socket`, `glob`) are **not** in the exempt
+   set — they keep firing W113.  Byte-compiled core built-ins (`set`, `puts`,
+   `expr`, `if`) also keep firing.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc unknown args { return "caught: $args" }
+% frobnicate 1 2 3
+caught: frobnicate 1 2 3
+```
+
+Overriding `unknown` is not only legal — it is the intended extension hook.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_proc.py` defines `_OVERRIDABLE_LIBRARY_PROCS`; the W113
+shadow check clears `shadow_name` when the proc name is in that set, after the
+existing namespace-qualified exemption.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_13_unknown_override_no_w113` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_13_library_procs_no_w113` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_13_c_builtin_still_fires_w113` (TP, `set`/`puts`)
+- `tests/test_fp_sty.py::test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113` (TP, `clock`/`after`/`socket`/`glob`)
+
+---
+
+### FP-STY-14 — W105 single bare-variable body is a script reference, not an inline block
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_14_*`
+- **Codes:** W105 (unbraced code-block argument) — fired at **Error** severity
+- **Corpus:** Tcl 9.0 stdlib + tcllib — `eval $cmd` (auto.tcl, package.tcl),
+  `proc $fakeName $arglist $body` (auto.tcl dynamic proc), `namespace eval ::
+  $state(-command) $token` (http.tcl callback dispatch — 6+ firings),
+  `after 0 $coroName` (http.tcl), `interp eval $child $contents` (safe.tcl),
+  `foreach name $nameList $_sub_load_cmd` (init.tcl).
+
+#### Reproducer
+
+```tcl
+# Each body argument below is a single bare variable that HOLDS the script —
+# a script-valued reference, not an inline code block.
+eval $cmd
+proc $fakeName $arglist $body
+namespace eval :: $state(-command) $token
+after 0 $coroName
+```
+
+#### Per-line reasoning
+
+1. W105 warns that an *inline* code-block argument containing `$`/`[` should
+   be braced to avoid double substitution.  But when the body word is a
+   **single bare variable substitution** (`$cmd`, `${cmd}`, `$state(-command)`,
+   `$ns::var`) there is no inline block — the variable already holds the
+   script.  Bracing it (`eval {$cmd}`) evaluates the *literal text* `$cmd`,
+   which is a different program (and usually an error).
+2. The W105 quick-fix ("wrap code block in braces") is therefore **actively
+   wrong** for this shape.  The genuine risks are covered elsewhere: the
+   eval-injection / double-substitution risk of `eval $cmd` is W101's, and the
+   dynamic command-name risk of a callback (`$state(-command)`) is W307's
+   (which already *accepts* the registered-callback dispatch form — so W105
+   was double-flagging a pattern the analyser elsewhere recognises as
+   legitimate).
+3. `uplevel $script` was already silent (its arg is not BODY-role); this fix
+   makes `eval` and the callback-dispatch forms consistent with it.
+4. The exemption is narrow: a body that is a **composite** word — `${t}--Coro`
+   (var + literal), `"do $script"` (quoted with interpolation), `$cmd$args`
+   (concatenation) — has more than one content token and **still fires** W105,
+   because there the substitution really is being woven into an inline script.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set cmd {set y 42}
+% eval $cmd          ;# runs the script held in cmd
+% puts $y
+42
+% eval {$cmd}        ;# braces it -> evaluates the literal text "$cmd"
+invalid command name "set y 42"
+```
+
+The brace-fix W105 suggested turns working code into an error — proof the
+single-bare-var body must not be flagged.
+
+#### Why the analyser reaches that verdict
+
+`analyser/checks/_style.py::check_unbraced_body` calls the new
+`_word_is_single_var` helper: it counts the content tokens spanned by the body
+word and skips W105 when the word is exactly one `VAR` token.  Composite /
+quoted bodies keep their existing `Error`-severity W105.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_14_eval_single_var_body_no_w105` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_14_callback_dispatch_body_no_w105` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_14_dynamic_proc_and_after_no_w105` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_14_quoted_interpolated_body_still_fires` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_14_composite_body_still_fires` (TP)
+
+---
+
+### FP-STY-15 — lexer: `$` before a closing `"` merged the quoted word with the next (E002 / E205 / W306)
+
+- **Verdict:** FALSE POSITIVE (lexer correctness bug; now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_15_*`
+- **Codes:** E002 (too few arguments), E205 (extra characters after
+  close-quote), W306 (substitution-in-literal regex pattern) — E002/E205 fired
+  at **Error** severity on valid Tcl
+- **Corpus:** Tcl 9.0 stdlib `tcltest.tcl` (`regsub "\n$" [string tolower
+  $msg] "" msg`), tcllib `csv.tcl` (`regsub "\0$" $line {} line`,
+  `regsub -- "^${delRE}${delRE}$sepRE" $line \0${delChar}$ ...`) — anywhere a
+  quoted word ends with the regex end-of-line anchor `$"`.
+
+#### Reproducer
+
+```tcl
+# `"\n$"` is a literal regexp end-of-line anchor — the `$` sits immediately
+# before the closing `"`, which is NOT a variable-name character, so the `$`
+# is literal (tclsh substitutes nothing).
+regsub "\n$" $msg "" out
+string match "abc$" $x
+```
+
+#### Per-line reasoning
+
+1. In Tcl a `$` is a substitution only when followed by a valid variable-name
+   character.  `$"` is not — so `"abc$"` is the literal four-char string
+   `abc$`, and `"^foo$"` is the regex `^foo$` (end-anchor).  tclsh executes
+   `regsub "\n$" $msg "" out` and `regexp -- "^foo$" "foo"` without error.
+2. The lexer parsed the trailing bare `$` as a `STR` token *inside* the quoted
+   word, then re-entered the string scanner with the cursor on the **closing**
+   `"`.  Because the preceding token was `STR`, the "start of a new word" path
+   misread that closing `"` as a *new opening* quote and kept scanning —
+   swallowing the following words into one token.
+3. The downstream damage: the merged word reduced the visible argument count
+   (`string match "abc$" $x` looked like one argument → **E002** "too few
+   arguments"), the eventual real closing quote tripped **E205** "extra
+   characters after close-quote", and the smeared pattern made the literal
+   `$` look like a live substitution → spurious **W306**.
+4. Fix: the new-word `"`-opens-a-quote branch is guarded by
+   `not self.insidequote`.  When the scanner is already inside a quote, a `"`
+   is the **closing** delimiter, handled by the existing close-quote branch.
+5. The genuine cases still fire: a live `$bar` / `$pat` / `${b}` inside a
+   quoted regex pattern is a real substitution and still raises W306.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set msg "Hello\n"
+% regsub "\n$" $msg "" out      ;# end-anchor strips the trailing newline
+1
+% string length $out
+5
+% regexp -- "^foo$" "foo"        ;# `$` is the end-anchor, not a variable
+1
+% set s "^foo$"                  ;# literal value — no substitution
+^foo$
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/parsing/lexer.py::_parse_string` — the `newword` branch that opens a
+new quoted string now requires `not self.insidequote`, so the closing `"` after
+a tail `$` is no longer misread as an opening quote.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_15_regsub_dollar_anchor_no_errors` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_string_match_dollar_anchor_no_arity` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_dollar_quote_word_boundary_lexes` (FP, token-level)
+- `tests/test_fp_sty.py::test_FP_STY_15_regex_end_anchor_no_w306` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_live_var_in_quoted_pattern_still_w306` (TP)
+- `tests/test_tcl_corner_cases.py::TestDollarBeforeCloseQuote` (token-level FP/variants)
+
+---
+
+### FP-STY-16 — W201 manual-path-concat fires on prose / protocol / display strings
+
+- **Verdict:** FALSE POSITIVE (now fixed for the literal-whitespace class)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_16_*`
+- **Codes:** W201 (manual path concatenation — use `[file join]`)
+- **Corpus:** Tcl 9.0 stdlib `http.tcl` (`set …(bypass) "CONNECT $host:$port
+  HTTP/1.1"`), `tcltest.tcl` (`set msg "Usage: [file tail …] script "`) — any
+  `set` of a multi-word quoted string that merely *contains* a `/`.
+
+#### Reproducer
+
+```tcl
+# An HTTP request line — the `/` is in the protocol version, not a path.
+set bypass "CONNECT $host:$port HTTP/1.1"
+# A usage message — `/` would be incidental; this is display text.
+set msg "Usage: [file tail $exe] script "
+```
+
+#### Per-line reasoning
+
+1. W201 fires on a `set` whose rendered value has a path separator (`/` / `\`)
+   *and* interpolation, suggesting `[file join]`.  But a value that contains a
+   **literal space** (outside any `[…]` command substitution) is a multi-word
+   string — prose, a protocol line, an HTML/usage fragment — not a single
+   filesystem path token.
+2. `[file join]` is nonsensical there.  tclsh:
+   `file join CONNECT $host:$port HTTP/1.1` → `CONNECT/h:8080/HTTP/1.1` —
+   it shreds the request line on the spaces.
+3. The discriminator is precise: the rendered-properties pass now sets
+   `HAS_LITERAL_SPACE` when lexing the value yields a top-level `SEP` token (a
+   word boundary).  A command substitution `[file tail $path]` stays a single
+   `CMD` token, so its *internal* spaces do **not** set the bit — a genuine
+   path concat `set f "$dir/[file tail $path]"` still fires W201.
+4. Known residual (still fires; no clean literal signal): bracketless
+   single-token concatenations such as CIDR `set x "$ip/$mask"` or an HTML
+   attribute `set img src=$a/$b` — there is no literal whitespace to key on,
+   and `$a/$b` is structurally identical to a real `$dir/$file`.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set host h; set port 8080
+% file join CONNECT $host:$port HTTP/1.1
+CONNECT/h:8080/HTTP/1.1
+```
+
+The "portable" rewrite changes the string's meaning entirely — proof the `/`
+is not a path separator.
+
+#### Why the analyser reaches that verdict
+
+`compiler/rendered_properties.py` sets `RenderedProperties.HAS_LITERAL_SPACE`
+on a top-level `SEP` token; `compiler/taint/_path_concat.py` skips W201 when
+the assigned value carries that bit.
+
+#### Tests
+
+W201 is produced by the **taint pass**, which is an in-process analyser
+diagnostic that the packaged server does *not* surface through
+`publishDiagnostics` (verified: no taint code — W201/T100/T101 — reaches the
+lsp_e2e / VS Code server path).  The authoritative W201 surface is therefore
+the in-process analyser, exercised here:
+
+- `tests/test_fp_sty.py::test_FP_STY_16_http_request_line_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_usage_message_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_prose_with_path_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_genuine_path_concat_still_fires` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_16_path_with_command_sub_still_fires` (TP, internal spaces don't suppress)
 
 ---
 

@@ -2047,22 +2047,27 @@ class TestUnbracedBody:
         assert len(diags) == 1
         assert diags[0].severity == Severity.ERROR
 
-    def test_eval_var_quickfix_preserves_dollar(self):
-        # Regression for #438 — the quick-fix used to wrap ``args[idx]``
-        # (the *post-substitution* value, ``script``) and produced
-        # ``{script}``, silently dropping the ``$``.  It must wrap the
-        # raw source slice so ``$script`` round-trips intact.
-        diags = _diag_with_code("eval $script", "W105")
-        assert len(diags) == 1
-        assert diags[0].fixes
-        assert diags[0].fixes[0].new_text == "{$script}"
+    def test_eval_single_var_body_not_flagged(self):
+        # FP-STY-14: ``eval $script`` is a *script-valued reference* — the
+        # variable already holds the script — not an inline code block.
+        # Bracing it (``{$script}``) would evaluate the literal text
+        # ``$script``, so W105 must NOT fire (the eval-injection risk is
+        # W101's to flag).  Consistent with ``uplevel $script`` (long silent).
+        assert _diag_with_code("eval $script", "W105") == []
 
-    def test_while_var_quickfix_preserves_dollar(self):
-        # Same shape as above for ``while`` body argument.
-        diags = _diag_with_code("while 1 $body", "W105")
+    def test_while_single_var_body_not_flagged(self):
+        # FP-STY-14: same for a ``while`` body that is a single bare variable.
+        assert _diag_with_code("while 1 $body", "W105") == []
+
+    def test_quoted_var_body_quickfix_preserves_dollar(self):
+        # Regression for #438 — when W105 DOES fire (a quoted body with
+        # interpolation, ``eval "do $script"``), the quick-fix must wrap the
+        # raw source slice so ``$script`` round-trips intact (it must not wrap
+        # the post-substitution value and drop the ``$``).
+        diags = _diag_with_code('eval "do $script"', "W105")
         assert len(diags) == 1
         assert diags[0].fixes
-        assert diags[0].fixes[0].new_text == "{$body}"
+        assert diags[0].fixes[0].new_text == "{do $script}"
 
 
 # W106: Dangerous unbraced switch body
@@ -2187,10 +2192,19 @@ class TestLiteralExpected:
         assert len(diags) == 1
         assert "quotes" in diags[0].message.lower()
 
-    def test_regexp_quoted_pattern_with_dollar_anchor(self):
-        # The classic foot-gun: ``$"`` is unintended substitution where
-        # the user likely meant the regex end-of-line anchor.
-        diags = _diag_with_code('regexp -- "^foo$" $text', "W306")
+    def test_regexp_quoted_dollar_anchor_clean(self):
+        # FP-STY-15: ``$`` immediately before the closing ``"`` (``"^foo$"``)
+        # is a *literal* ``$`` — the regex end-of-line anchor — not a Tcl
+        # substitution (``"`` is not a variable-name character), so W306 must
+        # NOT fire.  tclsh: ``regexp -- "^foo$" "foo"`` → 1.  (Pre-fix a lexer
+        # bug merged the closing quote with the following word, making the
+        # ``$`` look like a live substitution.)
+        assert _diag_with_code('regexp -- "^foo$" $text', "W306") == []
+
+    def test_regexp_quoted_live_dollar_var_still_fires(self):
+        # TP control: ``$bar`` (a real substitution — ``b`` is a name char)
+        # in a quoted regex pattern IS the foot-gun and still fires W306.
+        diags = _diag_with_code('regexp -- "^foo$bar" $text', "W306")
         assert len(diags) == 1
 
     def test_class_match_literal_name_clean(self):
@@ -2313,10 +2327,10 @@ $obj greet world
     def test_snit_type_private_proc_still_analysed(self):
         """A ``proc`` inside a snit body is a type-private proc — its body must
         still be analysed (not silently dropped)."""
-        src = (
-            "snit::type T {\n    proc Helper {a} {\n        return [info exists ${a}($a)]\n    }\n}"
-        )
-        # The ${a}($a) scalar-vs-array smell must still fire from the proc body.
+        src = "snit::type T {\n    proc Helper {a} {\n        return ${a}($a)\n    }\n}"
+        # The ${a}($a) scalar-vs-array smell (in a *value* position — a varname
+        # position would be the legitimate indirect-array idiom) must still fire
+        # from the proc body.
         diags = _diag_with_code(src, "W216")
         assert len(diags) == 1
         assert "${a}($a)" in diags[0].message

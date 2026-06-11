@@ -34,6 +34,43 @@ from ._utils import parse_param_list
 log = logging.getLogger(__name__)
 
 
+# Tcl *library* procedures — written in Tcl and shipped in the standard
+# library (init.tcl / auto.tcl / history.tcl / package.tcl / word.tcl …),
+# **not** C-level built-in commands.  They are documented as user-replaceable
+# (Tcl(n) ``unknown``: "applications can replace it"; the ``auto_*`` / ``tcl_*``
+# word-break / ``pkg_mkIndex`` helpers are overlay points), and Tcl's own
+# library sources are exactly the files that ``proc`` them.  Redefining one is
+# the supported overlay idiom, not shadowing a built-in, so W113 must not fire.
+# Genuine C commands that are *not* byte-compiled but still dangerous to
+# redefine (``clock``, ``after``, ``socket``, ``glob`` …) are deliberately
+# excluded — they keep firing W113.
+_OVERRIDABLE_LIBRARY_PROCS = frozenset(
+    {
+        "unknown",
+        "auto_execok",
+        "auto_import",
+        "auto_load",
+        "auto_load_index",
+        "auto_mkindex",
+        "auto_mkindex_old",
+        "auto_qualify",
+        "auto_reset",
+        "history",
+        "parray",
+        "pkg_mkIndex",
+        "tclLog",
+        "tclPkgSetup",
+        "tclPkgUnknown",
+        "tcl_findLibrary",
+        "tcl_endOfWord",
+        "tcl_startOfNextWord",
+        "tcl_startOfPreviousWord",
+        "tcl_wordBreakAfter",
+        "tcl_wordBreakBefore",
+    }
+)
+
+
 class _AnalyserProcMixin(_Base):
     """Proc definition, resolution, call-arity checks, and low-level handlers."""
 
@@ -97,6 +134,12 @@ class _AnalyserProcMixin(_Base):
         # shadowing a built-in — so don't flag it (avoids ~namespaced-command
         # false positives, esp. in tcllib package sources).
         if shadow_name is not None and "::" in shadow_name:
+            shadow_name = None
+        # Overridable Tcl *library* procedures (``unknown``, ``history``,
+        # ``auto_*`` …) are script-defined and documented as user-replaceable,
+        # not C built-ins — redefining one is the supported overlay idiom (and
+        # Tcl's own library is what defines them), so don't flag it as a shadow.
+        if shadow_name is not None and shadow_name in _OVERRIDABLE_LIBRARY_PROCS:
             shadow_name = None
         if shadow_name is not None:
             dialect_label = f" ({self._builtin_dialect})" if self._builtin_dialect else ""

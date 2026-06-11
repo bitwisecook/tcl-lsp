@@ -254,6 +254,43 @@ class TestArrayElementForms:
         assert toks[1].text == "(idx)"
 
 
+class TestDollarBeforeCloseQuote:
+    """FP-STY-15: a bare ``$`` immediately before a closing ``"`` (the regex
+    end-of-line anchor ``"^foo$"``) is literal — the closing quote must still
+    terminate the word and not swallow the following words."""
+
+    def _names(self, src):
+        # Use tokenise_all (keeps SEP) so the word boundary is observable.
+        return [
+            (t.type.name, t.text)
+            for t in TclLexer(src).tokenise_all()
+            if t.type not in (TokenType.EOF, TokenType.EOL)
+        ]
+
+    def test_dollar_quote_terminates_word(self):
+        # ``"abc$" $x`` is two words: the closing ``"`` must end the first.
+        toks = self._names('"abc$" $x')
+        assert ("SEP", " ") in toks, toks
+        assert ("VAR", "x") in toks, toks
+
+    def test_dollar_quote_standalone(self):
+        # ``"abc$"`` alone is the literal word ``abc$``.
+        toks = self._names('"abc$"')
+        assert ("STR", "$") in toks, toks
+        # No VAR token — the ``$`` is literal.
+        assert not any(ty == "VAR" for ty, _ in toks), toks
+
+    def test_live_var_in_quote_still_var_token(self):
+        # ``"a$b"`` — ``$b`` is a real substitution (b is a name char).
+        toks = self._names('"a$b"')
+        assert ("VAR", "b") in toks, toks
+
+    def test_regsub_end_anchor_no_arity_error(self):
+        # The end-to-end smell: the merged word used to drop an argument.
+        a = analyse('regsub "\\n$" $msg "" out')
+        assert not any(d.code in ("E002", "E205") for d in a.diagnostics)
+
+
 # =============================================================
 # §F. Globals & namespaces (analyser-level)
 # =============================================================
@@ -481,6 +518,36 @@ class TestW216:
         a = analyse('set "funny name" 1\nputs ${funny name($foo)}')
         w216 = next(d for d in a.diagnostics if d.code == "W216")
         assert w216.fixes[0].new_text == '[set "funny name($foo)"]'
+
+    def test_w216_indirect_array_silent_in_varname_position(self):
+        # ``set ${token}(status) eof`` -- token holds an array name; the
+        # ``${token}(status)`` word is the indirect-array-element idiom in a
+        # varname position, so W216 must stay silent (FP-STY-12).
+        a = analyse("set token ::http::1\nset ${token}(status) eof")
+        assert not any(d.code == "W216" for d in a.diagnostics)
+
+
+class TestBracedIndirectArrayRef:
+    """Unit tests for the FP-STY-12 discriminator ``${name}(idx)``."""
+
+    def test_recognises_indirect_idiom(self):
+        from shared.naming import is_braced_indirect_array_ref
+
+        assert is_braced_indirect_array_ref("${token}(status)")
+        assert is_braced_indirect_array_ref("${arr}(x)")
+        assert is_braced_indirect_array_ref("${arr}($k)")  # substituted index
+        assert is_braced_indirect_array_ref("${a::b}(k)")  # qualified name
+
+    def test_rejects_non_idiom_shapes(self):
+        from shared.naming import is_braced_indirect_array_ref
+
+        assert not is_braced_indirect_array_ref("$x")  # bare scalar
+        assert not is_braced_indirect_array_ref("$arr(idx)")  # bare array ref
+        assert not is_braced_indirect_array_ref("${x}")  # no index suffix
+        assert not is_braced_indirect_array_ref("${}(x)")  # empty name
+        assert not is_braced_indirect_array_ref("${arr(idx)}")  # paren inside braces
+        assert not is_braced_indirect_array_ref("${arr}(x)y")  # trailing text
+        assert not is_braced_indirect_array_ref("")
 
 
 # =============================================================

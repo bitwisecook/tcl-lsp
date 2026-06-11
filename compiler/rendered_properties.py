@@ -58,6 +58,7 @@ class RenderedProperties(Flag):
     HAS_INTERPOLATION = auto()  # value contains $var or [cmd]
     HAS_DOUBLE_ESCAPE = auto()  # rendered text contains already-escaped sequences
     HAS_NULL = auto()  # rendered text contains \\x00 / \\0
+    HAS_LITERAL_SPACE = auto()  # value has a top-level word break (prose/protocol, not a path)
     WAS_UNESCAPED = auto()  # value passed through subst / URI::decode / b64decode etc.
     DOUBLE_UNESCAPED = auto()  # value was already WAS_UNESCAPED then unescaped again
     FULLY_NORMALISED = auto()  # value fully canonical — no residual encoding (e.g. -normalized)
@@ -75,6 +76,7 @@ _MAY_MASK = (
     | RenderedProperties.HAS_INTERPOLATION
     | RenderedProperties.HAS_DOUBLE_ESCAPE
     | RenderedProperties.HAS_NULL
+    | RenderedProperties.HAS_LITERAL_SPACE
 )
 # Provenance bits are NOT in _MAY_MASK — they are only set explicitly
 # by unescape commands and propagated through copies/phis.
@@ -220,6 +222,12 @@ def _evaluate_rendered_props_for_value(value: str) -> RenderedValueProps:
             break
 
         if tok.type is TokenType.SEP:
+            # A top-level word separator in the (unquoted) value means the
+            # original source was a multi-word quoted string — prose, a
+            # protocol line, display text — not a single path token.  (A
+            # command substitution ``[cmd a b]`` stays one CMD token, so its
+            # internal spaces do NOT set this.)
+            may |= RenderedProperties.HAS_LITERAL_SPACE
             continue
 
         if tok.type is TokenType.VAR:
@@ -285,6 +293,8 @@ def _evaluate_rendered_props_for_const(value: str) -> RenderedValueProps:
         may |= RenderedProperties.HAS_CRLF
     if "\x00" in value:
         may |= RenderedProperties.HAS_NULL
+    if " " in value or "\t" in value:
+        may |= RenderedProperties.HAS_LITERAL_SPACE
 
     if value:
         if value[0] == "/":
