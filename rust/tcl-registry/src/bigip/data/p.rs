@@ -3685,30 +3685,4 @@ pub static SPECS: &[BigipObjectSpec] = &[
             },
         ],
     },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "profile",
-            table_name: Some("profiles"),
-            resolver_name: Some("resolve_profile"),
-            module: None,
-            object_types: &[],
-        },
-        header_types: &[("ltm", "profile client-ssl")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "profile",
-            table_name: Some("profiles"),
-            resolver_name: Some("resolve_profile"),
-            module: None,
-            object_types: &[],
-        },
-        header_types: &[("ltm", "profile server-ssl")],
-        properties: &[
-
-        ],
-    },
 ];
