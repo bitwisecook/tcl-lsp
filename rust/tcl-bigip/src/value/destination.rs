@@ -398,6 +398,29 @@ mod tests {
             ("2001:db8::1", Some("2001:db8::1")),
             ("[2001:db8::]", Some("[2001:db8::]")),
             ("::", Some("::")),
+            ("/Common/1.2.3.4", Some("/Common/1.2.3.4")),
+            (
+                "/Common/Application_X/Sub_Y/10.0.0.1:443",
+                Some("/Common/Application_X/Sub_Y/10.0.0.1:443"),
+            ),
+            ("/Common/0.0.0.0:any", Some("/Common/0.0.0.0:any")),
+            (
+                "/Common/[2001:db8::1%9]:443",
+                Some("/Common/[2001:db8::1%9]:443"),
+            ),
+            // Route-domain 0 is the default and is dropped on render.
+            ("10.0.0.1%0:80", Some("10.0.0.1:80")),
+            ("10.0.0.1:0", Some("10.0.0.1:0")),
+            ("[::]:0", Some("[::]:0")),
+            (
+                "/Partition_2/host.example.com",
+                Some("/Partition_2/host.example.com"),
+            ),
+            ("/Common/2001:db8::5.443", Some("/Common/2001:db8::5.443")),
+            ("255.255.255.255:65535", Some("255.255.255.255:65535")),
+            // ``/Common/just_a_folder`` — the trailing segment is treated as
+            // an FQDN host and rejected (no dot), matching Python.
+            ("/Common/just_a_folder", None),
             // Non-numeric route-domain inside brackets — Python rejects.
             ("/Common/[fe80::1]%3.80", None),
         ];
