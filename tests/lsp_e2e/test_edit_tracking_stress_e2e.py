@@ -21,8 +21,39 @@ import random
 
 import pytest
 
-from ._lsp_helpers import decode_semantic_tokens
+from ._lsp_helpers import decode_semantic_tokens, semantic_token_violations
 from ._textmirror import Edit, TextMirror, random_edit
+
+
+def _legend(lsp_server):
+    prov = lsp_server.initialize_result["capabilities"]["semanticTokensProvider"]["legend"]
+    return prov["tokenTypes"], prov["tokenModifiers"]
+
+
+def _assert_tokens_aligned(lsp_server, uri, text):
+    """The server's semantic tokens for *uri* must satisfy every invariant.
+
+    Stronger than the edited-vs-fresh oracle: it pins that the *absolute* token
+    geometry is internally consistent and within ``text``'s bounds (ordered,
+    non-overlapping, UTF-16-correct, legend-valid) — the "tokens never end up
+    out of alignment" guarantee, checked against the buffer the edits produced.
+    """
+    types_, mods = _legend(lsp_server)
+    raw = lsp_server.semantic_tokens(uri)
+    violations = semantic_token_violations(raw, text, token_types=types_, token_modifiers=mods)
+    assert not violations, "semantic-token alignment broke:\n" + "\n".join(violations)
+
+
+def _find_occurrences(text: str, needle: str) -> list[tuple[int, int]]:
+    """Every ``(line, utf16_col)`` where *needle* starts in *text*."""
+    out: list[tuple[int, int]] = []
+    for line_no, line in enumerate(text.split("\n")):
+        col = line.find(needle)
+        while col != -1:
+            # Columns in the seed docs here are ASCII, so char index == utf16 col.
+            out.append((line_no, col))
+            col = line.find(needle, col + 1)
+    return out
 
 
 def _norm_symbols(symbols) -> list:
@@ -280,4 +311,119 @@ class TestReopenLifecycle:
             # Fire a request that reads the buffer; we only require it not to error.
             lsp_server.document_symbols(uri)
             lsp_server.semantic_tokens(uri)
+        _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)
+
+
+# --------------------------------------------------------------------------- #
+# Token alignment: semantic tokens must never go out of alignment under edits.
+# --------------------------------------------------------------------------- #
+
+_ALIGN_DOC = (
+    "proc tally {items} {\n"
+    "    set count 0\n"
+    "    foreach item $items {\n"
+    "        set count [expr {$count + 1}]\n"
+    '        puts "item $item count $count"\n'
+    "    }\n"
+    "    return $count\n"
+    "}\n"
+)
+
+
+class TestTokenAlignmentUnderEdits:
+    """Semantic tokens stay internally consistent through punishing edits.
+
+    The edited-vs-fresh oracle is blind to a defect present in *both* (e.g. a
+    systematic overlap).  These assert the absolute invariants — order,
+    non-overlap, in-bounds, UTF-16 columns, legend-valid — against the buffer
+    the edits produced, settling each checkpoint so the snapshot can't trail.
+    """
+
+    def test_multicursor_rename_keeps_tokens_aligned(self, lsp_server, uri_factory):
+        # A multi-cursor rename arrives as ONE didChange carrying an edit per
+        # site.  Editors send them bottom-up so earlier edits don't shift later
+        # offsets; the mirror applies them in the same order.  After the rename,
+        # every ``$count`` token must still land exactly on its (now longer)
+        # variable — no stale lengths, no overlaps.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, _ALIGN_DOC)
+        mirror = TextMirror(_ALIGN_DOC)
+        _assert_tokens_aligned(lsp_server, uri, mirror.text)
+
+        sites = _find_occurrences(mirror.text, "count")
+        assert len(sites) >= 5, sites
+        # Replace the identifier `count` with a longer `counterValue` at every
+        # site, bottom-up (descending position) so offsets stay valid.
+        edits = [
+            Edit((line, col), (line, col + len("count")), "counterValue")
+            for line, col in sorted(sites, reverse=True)
+        ]
+        for e in edits:
+            mirror.apply(e)
+        lsp_server.change_document(uri, 2, [e.as_content_change() for e in edits])
+        lsp_server.settle_analysis(uri, 3, mirror.text)
+
+        _assert_tokens_aligned(lsp_server, uri, mirror.text)
+        _assert_buffer_equiv(lsp_server, uri, 3, uri_factory(), mirror.text)
+
+    def test_multicursor_insert_prefix_at_each_line(self, lsp_server, uri_factory):
+        # Insert a 4-space indent at the start of every body line in a single
+        # didChange (a column/multi-cursor block edit).  Token columns on each
+        # line must shift by exactly the inserted width and stay aligned.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, _ALIGN_DOC)
+        mirror = TextMirror(_ALIGN_DOC)
+        n_lines = mirror.text.count("\n")
+        edits = [Edit((ln, 0), (ln, 0), "  ") for ln in range(n_lines - 1, -1, -1)]
+        for e in edits:
+            mirror.apply(e)
+        lsp_server.change_document(uri, 2, [e.as_content_change() for e in edits])
+        lsp_server.settle_analysis(uri, 3, mirror.text)
+        _assert_tokens_aligned(lsp_server, uri, mirror.text)
+        _assert_buffer_equiv(lsp_server, uri, 3, uri_factory(), mirror.text)
+
+    @pytest.mark.parametrize("seed", [11, 29, 51])
+    def test_invariants_hold_throughout_random_storm(self, lsp_server, uri_factory, seed):
+        # Drive batched multi-edit changes and, at each checkpoint, settle and
+        # assert the tokens satisfy every invariant against the mirror text — so
+        # alignment is pinned *throughout* the storm, not only at the end.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, _ALIGN_DOC)
+        mirror = TextMirror(_ALIGN_DOC)
+        rng = random.Random(seed)
+        version = 1
+        for _ in range(8):
+            changes = []
+            for _ in range(rng.randint(1, 3)):
+                edit = random_edit(mirror, rng)
+                mirror.apply(edit)
+                changes.append(edit.as_content_change())
+            version += 1
+            lsp_server.change_document(uri, version, changes)
+            version = lsp_server.settle_analysis(uri, version + 1, mirror.text)
+            _assert_tokens_aligned(lsp_server, uri, mirror.text)
+        _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)
+
+    def test_multibyte_edits_keep_utf16_columns_aligned(self, lsp_server, uri_factory):
+        # Interleave emoji/accented inserts with edits after them; the tokens'
+        # UTF-16 columns must track the astral widths exactly.
+        uri = uri_factory()
+        start = 'set label "tag"\nputs $label\n'
+        lsp_server.open_ready(uri, start)
+        mirror = TextMirror(start)
+        version = 1
+
+        def edit(start_pos, end_pos, text):
+            nonlocal version
+            e = Edit(start_pos, end_pos, text)
+            mirror.apply(e)
+            version += 1
+            lsp_server.change_document(uri, version, [e.as_content_change()])
+
+        # Insert an emoji inside the string, then edit after it on the same line.
+        edit((0, 14), (0, 14), "\U0001f600\U0001f680")
+        eol0 = mirror.position_at(mirror.text.index("\n"))
+        edit(eol0, eol0, " ;# 日本語")
+        version = lsp_server.settle_analysis(uri, version + 1, mirror.text)
+        _assert_tokens_aligned(lsp_server, uri, mirror.text)
         _assert_buffer_equiv(lsp_server, uri, version, uri_factory(), mirror.text)

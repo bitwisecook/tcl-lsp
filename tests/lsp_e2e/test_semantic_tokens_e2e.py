@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from ._lsp_helpers import decode_semantic_tokens
+from ._lsp_helpers import decode_semantic_tokens, semantic_token_violations
 
 
 @pytest.fixture
@@ -49,6 +49,66 @@ def _open(lsp_server, uri_factory, source):
     uri = uri_factory()
     lsp_server.open_ready(uri, source)
     return uri
+
+
+# Representative + adversarial documents the encoder must keep coherent.  The
+# point is not what tokens come back but that they always satisfy the universal
+# invariants (ordered, non-overlapping, in-bounds, UTF-16-correct, legend-valid)
+# — the "Overlapping semantic tokens detected" class of client warning.
+_INVARIANT_CORPUS = {
+    "empty": "",
+    "simple": "puts hello\n",
+    "vars_and_numbers": "set x 42\nset y $x\nputs $y\n",
+    "proc_with_body": 'proc greet {name} {\n    puts "Hello $name"\n}\ngreet World\n',
+    "nested_blocks": "proc p {} {\n  if {1} {\n    foreach x {a b c} {\n      puts $x\n    }\n  }\n}\n",
+    "string_interp": 'set s "a $b [llength $c] d"\n',
+    "comments": "# leading comment\nputs hi ;# trailing comment\n",
+    "crlf": "proc p {} {\r\n    set x 1\r\n}\r\n",
+    # Multibyte / emoji: every column the encoder emits must be UTF-16 units.
+    "multibyte_string": 'set greeting "héllo wörld café"\nputs $greeting\n',
+    "emoji_string": 'set e "😀 tcl 🚀 rocks 🐫"\nputs $e\n',
+    "emoji_then_code": 'puts "🚀"\nset after 1\n',
+    "unicode_after_var": 'set x 1\nputs "$x — résumé — 日本語"\n',
+    # Recovery paths must still emit coherent tokens.
+    "unterminated_bracket": "set x [foo bar\nputs hi\n",
+    "unterminated_brace": "proc p {} {\n  set y [foo\n}\nset\n",
+    "deep_nesting": "set x [a [b [c [d [e\nputs tail\n",
+    "regexp_subtokens": "regexp {(\\d+)-(\\w+)} $s -> a b\n",
+    "switch_braced": "switch $x {\n  {a b} { puts one }\n  default { puts def }\n}\n",
+}
+
+
+class TestTokenInvariants:
+    """Universal semantic-token invariants over a representative/adversarial corpus.
+
+    ``edit_tracking_stress`` proves the *edited* buffer matches a fresh open, but
+    if both are equally wrong (e.g. overlapping tokens) that oracle is blind.
+    These pin the absolute contract a client depends on for every document.
+    """
+
+    @pytest.mark.parametrize("name", sorted(_INVARIANT_CORPUS))
+    def test_tokens_satisfy_invariants(self, name, lsp_server, uri_factory, legend, modifiers):
+        source = _INVARIANT_CORPUS[name]
+        uri = _open(lsp_server, uri_factory, source)
+        raw = lsp_server.semantic_tokens(uri)
+        violations = semantic_token_violations(
+            raw, source, token_types=legend, token_modifiers=modifiers
+        )
+        assert not violations, f"[{name}] semantic-token invariant violations:\n" + "\n".join(
+            violations
+        )
+
+    def test_tokens_strictly_non_overlapping_dense_line(
+        self, lsp_server, uri_factory, legend, modifiers
+    ):
+        # A single dense line with many adjacent tokens is the worst case for the
+        # overlap/ordering invariant.
+        source = 'set a 1;set b 2;puts "$a [expr {$a+$b}] $b";# tail\n'
+        uri = _open(lsp_server, uri_factory, source)
+        raw = lsp_server.semantic_tokens(uri)
+        assert not semantic_token_violations(
+            raw, source, token_types=legend, token_modifiers=modifiers
+        )
 
 
 class TestCoreTokens:

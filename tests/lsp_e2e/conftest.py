@@ -10,14 +10,20 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
 import pytest
 
-from .harness import ROOT, LspServerClient, ensure_build_info
+from .harness import (
+    ROOT,
+    LspServerClient,
+    ensure_build_info,
+    native_server_bin,
+    server_kind,
+    server_launch_argv,
+)
 
 
 class _Build(NamedTuple):
@@ -27,13 +33,18 @@ class _Build(NamedTuple):
 
 @pytest.fixture(scope="session")
 def _lsp_build() -> _Build:
-    """Bring the packaged LSP server zipapp up to date once, via ``make``.
+    """Bring the selected LSP server up to date once.
 
-    ``make zipapp-lsp`` regenerates ``shared/_build_info.py`` (a ``.FORCE``
-    prerequisite) and rebuilds ``build/tcl-lsp-server-<version>.pyz`` from
-    current sources.  Both the file name and the bundled build-info carry the
-    same ``git describe`` version, so we read it back and address the artifact
-    by its exact path rather than guessing from a glob.
+    ``TCL_LSP_SERVER_KIND=rust`` drives the native ``tcl-lsp-server`` binary
+    (located via :func:`native_server_bin`); the default ``python`` mode runs
+    ``make zipapp-lsp`` and drives the packaged zipapp.
+
+    For the python backend: ``make zipapp-lsp`` regenerates
+    ``shared/_build_info.py`` (a ``.FORCE`` prerequisite) and rebuilds
+    ``build/tcl-lsp-server-<version>.pyz`` from current sources.  Both the file
+    name and the bundled build-info carry the same ``git describe`` version, so
+    we read it back and address the artifact by its exact path rather than
+    guessing from a glob.
 
     When ``TCL_LSP_SERVER_PYZ`` points at an already-built zipapp (the runner
     builds it once before launching parallel pytest workers — see
@@ -41,6 +52,18 @@ def _lsp_build() -> _Build:
     re-running ``make zipapp-lsp`` concurrently against the same output path,
     and keeps the ci-fast gate fast.
     """
+    if server_kind() == "rust":
+        native = native_server_bin()
+        if native is None or not native.exists():
+            pytest.fail(
+                "TCL_LSP_SERVER_KIND=rust but no native tcl-lsp-server binary was "
+                "found — set TCL_LSP_SERVER_BIN or run `make rust-server` "
+                "(`cargo build -p tcl-lsp-server`)."
+            )
+        # The native server reports its own serverInfo.version; reuse the repo's
+        # build-info string for the version fixture (the strict version-match
+        # assertion is python-pyz-specific — see test_server_version).
+        return _Build(native, ensure_build_info())
     prebuilt = os.environ.get("TCL_LSP_SERVER_PYZ")
     if prebuilt:
         # Resolve to absolute: the server subprocess runs with cwd set to a
@@ -90,7 +113,7 @@ def lsp_server(
 ) -> Iterator[LspServerClient]:
     """Start and initialise one server from the pyz; tear it down at the end."""
     workspace = tmp_path_factory.mktemp("lsp-workspace")
-    client = LspServerClient([sys.executable, str(lsp_pyz)], cwd=workspace)
+    client = LspServerClient(server_launch_argv(lsp_pyz), cwd=workspace)
     client.start()
     client.initialize(root_uri=workspace.as_uri())
     try:
@@ -112,13 +135,81 @@ def lsp_server_irules(
     tests run against their own server so the main ``lsp_server`` stays Tcl.
     """
     workspace = tmp_path_factory.mktemp("lsp-irules-workspace")
-    client = LspServerClient([sys.executable, str(lsp_pyz)], cwd=workspace)
+    client = LspServerClient(server_launch_argv(lsp_pyz), cwd=workspace)
     client.start()
     client.initialize(root_uri=workspace.as_uri())
     try:
         yield client
     finally:
         client.shutdown()
+
+
+@pytest.fixture(scope="session")
+def lsp_server_inlay(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A server with inlay hints enabled via ``workspace/configuration``.
+
+    Inlay hints are gated off by default (``inlay_hints_enabled``), and the
+    main ``lsp_server`` deliberately pins that default-off contract.  The inlay
+    *content* regressions (optional-positional labelling, issue #510) need the
+    provider switched on, so they run against this dedicated server whose
+    ``tclLsp`` config reply opts into ``features.inlayHints`` (keeping linked
+    editing on too, matching the default fixture).
+    """
+    workspace = tmp_path_factory.mktemp("lsp-inlay-workspace")
+    client = LspServerClient(
+        server_launch_argv(lsp_pyz),
+        cwd=workspace,
+        tcllsp_config={"features": {"linkedEditingRange": True, "inlayHints": True}},
+    )
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
+@pytest.fixture(scope="session")
+def lsp_server_bigip(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A server dedicated to F5 BIG-IP ``*.conf`` documents.
+
+    Opening a ``bigip.conf`` as a server's first document auto-switches the
+    whole process into the ``f5-bigip`` signature pack (and the BIG-IP
+    diagnostics/outline paths are URI-keyed on the canonical basename), so —
+    exactly like ``lsp_server_irules`` — these dialect-sensitive tests run on
+    their own server rather than contaminating the plain-Tcl ``lsp_server``.
+    """
+    workspace = tmp_path_factory.mktemp("lsp-bigip-workspace")
+    client = LspServerClient(server_launch_argv(lsp_pyz), cwd=workspace)
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
+@pytest.fixture
+def bigip_uri_factory(request: pytest.FixtureRequest):
+    """Fresh unique ``file://`` URIs whose basename is a canonical BIG-IP name.
+
+    The server routes BIG-IP handling on the basename (``bigip.conf``,
+    ``bigip_base.conf``, …), so the basename is fixed while the *directory* is
+    made unique per call — keeping the long-lived shared server from serving
+    one test a buffer another test left open.
+    """
+    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.nodeid)
+    counter = {"n": 0}
+
+    def make(basename: str = "bigip.conf") -> str:
+        counter["n"] += 1
+        return f"file:///bigip/{safe}_{counter['n']}/{basename}"
+
+    return make
 
 
 @pytest.fixture
