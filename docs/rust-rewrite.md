@@ -5077,6 +5077,20 @@ fp_inj 1.
    server change); full Python-backend e2e suite still green (488 passed),
    native lsp_e2e 467→469 passing.
 
+5. **inlay-hint optional-positional labels for `?option ...?` synopses**
+   (closes `test_editor_features_e2e::TestInlayHintOptionalPositionals::test_no_documentation_placeholder_labels`).
+   `lsearch`'s registry hover synopsis is `lsearch ?option ...? list pattern`.
+   `param_names_from_synopsis` checked the bare-varargs stop (`if
+   group.contains("...") { break; }`) *before* the optional-group handling, so
+   the `?option ...?` flag-group placeholder was mistaken for a hard varargs
+   terminator and the parse aborted — dropping the real `list` / `pattern`
+   positionals (zero hints emitted). The optional `?...?` branch now runs
+   first, so an optional flag/repeat placeholder carrying `...` is skipped
+   (multi-word inner → not a plain name) while the trailing positionals are
+   still labelled; a *non-optional* `...` repeat marker still stops the parse
+   after its preceding positional. lsp_e2e 469→470 passing; precision battery
+   unchanged.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
