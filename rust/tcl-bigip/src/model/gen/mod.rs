@@ -3,6 +3,7 @@
 
 mod apm;
 mod auth;
+pub mod canon;
 mod cm;
 pub mod dispatch;
 mod gtm;

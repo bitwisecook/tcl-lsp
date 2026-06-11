@@ -195,7 +195,6 @@ fn split_inline_keys(value: &str, known: &[String]) -> HashMap<String, String> {
         return HashMap::new();
     };
     out.insert(k.to_owned(), current_value.join(" "));
-    let _ = saw_first;
     if let Some(h) = head {
         out.insert("__head__".to_owned(), h);
     }

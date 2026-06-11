@@ -11,6 +11,7 @@ authors.workspace = true
 [dependencies]
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
+serde_json = "1"
 
 [lints]
 workspace = true
