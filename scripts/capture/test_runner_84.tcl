@@ -1,13 +1,13 @@
 #!/usr/bin/env tclsh
-# reference_test_runner_84.tcl — Run a single .test file in Tcl 8.4.
+# test_runner_84.tcl — Run a single .test file in Tcl 8.4.
 #
 # Tcl 8.4 has tcltest (2.2) but lacks reflected channels (chan create),
 # dict, ni, and {*}, so this helper uses temp files instead of a
 # reflected channel and arrays instead of dict.
 #
-# Usage: tclsh8.4 reference_test_runner_84.tcl <tests_dir> <test_file>
+# Usage: tclsh8.4 test_runner_84.tcl <tests_dir> <test_file>
 #
-# Output format matches reference_test_runner.tcl:
+# Output format matches test_runner.tcl:
 #
 #   TCLSH    /path/to/tclsh8.4
 #   VERSION  8.4.20
@@ -27,7 +27,7 @@ proc main {} {
     global argv argc
 
     if {$argc < 2} {
-        puts stderr "Usage: tclsh reference_test_runner_84.tcl <tests_dir> <test_file>"
+        puts stderr "Usage: tclsh test_runner_84.tcl <tests_dir> <test_file>"
         exit 1
     }
 

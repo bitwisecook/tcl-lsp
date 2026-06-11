@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
-# reference_disasm.tcl — Generate reference bytecode disassembly from tclsh.
+# disasm.tcl — Generate reference bytecode disassembly from tclsh.
 #
-# Usage: tclsh reference_disasm.tcl <snippets_dir>
+# Usage: tclsh disasm.tcl <snippets_dir>
 #
 # Reads every .tcl file in <snippets_dir>.  Each file contains a single
 # Tcl script snippet.  For each, it outputs:
@@ -41,7 +41,7 @@ proc emit_disasm {filename source} {
 }
 
 if {$argc != 1} {
-    puts stderr "Usage: tclsh reference_disasm.tcl <snippets_dir>"
+    puts stderr "Usage: tclsh disasm.tcl <snippets_dir>"
     exit 1
 }
 
