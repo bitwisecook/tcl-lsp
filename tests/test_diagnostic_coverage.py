@@ -552,9 +552,12 @@ FIXTURES: dict[str, Case] = {
         contains=True,
     ),
     "W216": Case(
-        "set ${arr}(x) 1\n",
+        # Value position: ``${arr}(x)`` is a broken read for ``$arr(x)``.
+        "puts ${arr}(x)\n",
         "${arr}(x)",
-        "set arr(x) 1\n",
+        # Varname position: ``set ${arr}(x) 1`` is the legitimate indirect-
+        # array-element idiom (``arr`` holds the array name), so no W216.
+        "set ${arr}(x) 1\n",
     ),
     "W304": Case(
         "switch $x a b\n",

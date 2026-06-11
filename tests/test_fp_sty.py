@@ -389,3 +389,109 @@ def test_FP_STY_11_scan_fewer_specifiers_than_vars_still_fires():
     assert _codes(src, "W210"), (
         "scan with one %s but a ``return $v2`` must fire W210 on v2 (never written)"
     )
+
+
+# FP-STY-12 — W216 / W212 braced indirect-array-element idiom ${var}(idx)
+
+
+def test_FP_STY_12_set_indirect_array_no_w216_w212():
+    """FP: ``set ${token}(status) eof`` where ``token`` holds an array name
+    is the canonical indirect-array-element write — ``${token}`` substitutes
+    the array name and ``(status)`` is the appended literal index.  Both the
+    W216 ``did you mean $token(status)`` suggestion and the W212
+    ``did you mean token(status)`` suggestion are wrong, so neither fires."""
+    src = "set token ::http::1\nset ${token}(status) eof\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_info_exists_indirect_no_w216_w212():
+    """FP: ``info exists ${token}(-pipeline)`` indirect-array read."""
+    src = "info exists ${token}(-pipeline)\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_unset_indirect_no_w216():
+    """FP: ``unset ${tok}(socketcoro)`` — unset takes a varname, so the
+    indirect-array form is the intended element unset."""
+    src = "unset ${tok}(socketcoro)\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_vwait_incr_append_lappend_indirect_no_w216():
+    """FP variants: every varname-taking command honours the indirect idiom."""
+    for src in (
+        "vwait ${token}(status)\n",
+        "incr ${arr}(n)\n",
+        "append ${arr}(buf) x\n",
+        "lappend ${arr}(list) item\n",
+    ):
+        assert _codes(src, "W216") == [], f"W216 should be silent on {src!r}"
+        assert _codes(src, "W212") == [], f"W212 should be silent on {src!r}"
+
+
+def test_FP_STY_12_value_position_still_fires_w216():
+    """TP control: in a *value* position ``${arr}(x)`` is a broken read for
+    ``$arr(x)`` (Tcl errors ``variable is array``), so W216 still fires."""
+    assert _codes("puts ${arr}(x)\n", "W216"), "value-position ${arr}(x) must fire W216"
+    assert _codes("set y ${arr}(x)\n", "W216"), "value-position ${arr}(x) must fire W216"
+
+
+def test_FP_STY_12_bare_dollar_name_still_fires_w212():
+    """TP control: bare ``set $x`` and ``set $arr(idx)`` are genuine
+    dynamic-name foot-guns (no braces → not the indirect-array idiom)."""
+    assert _codes("set $x v\n", "W212"), "set $x must still fire W212"
+    assert _codes("set $arr(idx) v\n", "W212"), "set $arr(idx) must still fire W212"
+
+
+def test_FP_STY_12_index_less_brace_still_fires_w212():
+    """TP control: ``set ${x} v`` (no ``(idx)`` suffix) is the dynamic-name
+    foot-gun, not the indirect-array idiom, so W212 still fires."""
+    assert _codes("set ${x} v\n", "W212"), "set ${x} must still fire W212"
+
+
+# FP-STY-13 — W113 redefining an overridable Tcl library procedure
+
+
+def test_FP_STY_13_unknown_override_no_w113():
+    """FP: ``proc unknown`` is the documented Tcl extension hook (a Tcl
+    library proc, not a C built-in) — redefining it is supported, so no W113."""
+    assert _codes("proc unknown args { return }\n", "W113") == []
+
+
+def test_FP_STY_13_library_procs_no_w113():
+    """FP variants: the overridable Tcl *library* procedures (defined in
+    init.tcl / auto.tcl / history.tcl / package.tcl / word.tcl) are not C
+    built-ins and must not fire W113 when redefined."""
+    for name, params in (
+        ("history", "{args}"),
+        ("auto_execok", "name"),
+        ("auto_load", "{cmd {ns {}}}"),
+        ("auto_mkindex", "{dir args}"),
+        ("auto_qualify", "{cmd ns}"),
+        ("auto_reset", "{}"),
+        ("parray", "{a {pattern *}}"),
+        ("pkg_mkIndex", "args"),
+        ("tcl_findLibrary", "{a b c d e f}"),
+        ("tcl_wordBreakAfter", "{str start}"),
+        ("tcl_endOfWord", "{str start}"),
+    ):
+        src = f"proc {name} {params} {{ return }}\n"
+        assert _codes(src, "W113") == [], f"W113 should be silent on {name!r}"
+
+
+def test_FP_STY_13_c_builtin_still_fires_w113():
+    """TP control: redefining a genuine C built-in (byte-compiled) still fires."""
+    assert _codes("proc set {a b} { return }\n", "W113"), "proc set must fire W113"
+    assert _codes("proc puts {a} { return }\n", "W113"), "proc puts must fire W113"
+
+
+def test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113():
+    """TP control: C commands that are *not* byte-compiled but dangerous to
+    redefine (clock/after/socket/glob) must NOT be swept up by the
+    library-proc exemption — they keep firing W113."""
+    for name in ("clock", "after", "socket", "glob"):
+        src = f"proc {name} {{a}} {{ return }}\n"
+        assert _codes(src, "W113"), f"proc {name} must still fire W113"

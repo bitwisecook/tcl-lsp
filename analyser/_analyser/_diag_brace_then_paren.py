@@ -103,6 +103,37 @@ def _index_has_substitution(inner: str) -> bool:
     return False
 
 
+def _varname_word_indices(cmd_name: str, args: list[str]) -> list[int]:
+    """Indices into *args* (0-based, so word index ``i+1``) that a command
+    interprets as a **variable name** — the positions where the braced
+    indirect-array idiom ``${name}(idx)`` is the correct, intended access
+    rather than a typo for ``$name(idx)``.
+
+    Kept deliberately local (not shared with the W212 ``_NAME_ARG_INDICES``
+    table) so this AST-walk pass does not reach across into
+    ``analyser.checks``; the shapes are simple and stable.
+    """
+    if cmd_name in ("set", "incr", "append", "lappend", "vwait"):
+        return [0] if args else []
+    if cmd_name == "unset":
+        # unset ?-nocomplain? ?--? varName ?varName ...?
+        start = 0
+        for i, a in enumerate(args):
+            if a == "--":
+                start = i + 1
+                break
+            if a.startswith("-"):
+                start = i + 1
+                continue
+            start = i
+            break
+        return list(range(start, len(args)))
+    if cmd_name == "info":
+        # info exists varName
+        return [1] if len(args) >= 2 and args[0] == "exists" else []
+    return []
+
+
 def _is_brace_form(tok: Token) -> bool:
     """Return True when ``tok`` is a ``${name}`` (brace-form) VAR token.
 
@@ -122,6 +153,8 @@ class _AnalyserDiagBraceThenParenMixin(_Base):
     def _emit_w216_for_command(
         self,
         all_tokens: list[Token],
+        argv: list[Token],
+        argv_texts: list[str],
         source: str,  # accepted for the call-site but unused
     ) -> None:
         """Walk command tokens looking for the two W216 patterns.
@@ -130,9 +163,24 @@ class _AnalyserDiagBraceThenParenMixin(_Base):
         source, so we always index into ``self._source`` rather than
         the inner-body ``source`` argument (which would be e.g. just
         the CMD-substitution body for nested commands and would
-        out-of-bounds at the absolute token offsets)."""
+        out-of-bounds at the absolute token offsets).
+
+        ``argv`` / ``argv_texts`` describe the command's word structure so
+        Pattern (1) can recognise a ``${name}(idx)`` word sitting in a
+        *variable-name* position (``set``/``unset``/… target).  There the
+        construct is the legitimate indirect-array-element idiom, not a typo —
+        see :func:`_varname_word_indices`."""
         del source  # see docstring -- always use ``self._source``.
         source = self._source
+        # Word-start offsets that the command reads as a variable name; a
+        # ``${name}(idx)`` Pattern-(1) match starting there is the indirect
+        # idiom and must not fire W216.
+        varname_word_starts: set[int] = set()
+        if argv_texts:
+            for ai in _varname_word_indices(argv_texts[0], argv_texts[1:]):
+                wi = ai + 1
+                if wi < len(argv):
+                    varname_word_starts.add(argv[wi].start.offset)
         for t1 in all_tokens:
             if not _is_brace_form(t1):
                 continue
@@ -190,6 +238,12 @@ class _AnalyserDiagBraceThenParenMixin(_Base):
                 continue
             paren_end = _find_matching_close_paren(source, paren_start)
             if paren_end is None:
+                continue
+            # In a variable-name position ``set ${token}(idx) …`` is the
+            # indirect-array-element idiom (``token`` holds the array name),
+            # not a broken ``$token(idx)``; suppress W216 there.  A
+            # value-position ``puts ${arr}(x)`` still fires.
+            if t1.start.offset in varname_word_starts:
                 continue
             inner = source[paren_start + 1 : paren_end]
             corrected = _build_replacement(t1.text, inner)

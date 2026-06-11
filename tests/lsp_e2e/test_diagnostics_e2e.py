@@ -185,6 +185,68 @@ class TestDiagnosticCanaries:
         assert lsp_server.open_ready(uri, src) == []
 
 
+class TestIndirectArrayIdiom:
+    """FP-STY-12: ``${var}(idx)`` in a varname position is the indirect-array-
+    element idiom (``var`` holds the array name), not a broken ``$var(idx)`` —
+    so neither W216 nor W212 fire through the server pipeline.  A value-position
+    ``${arr}(x)`` still fires W216."""
+
+    def test_set_indirect_array_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "set token ::http::1\nset ${token}(status) eof\n")
+        assert "W216" not in _codes(diags), _codes(diags)
+        assert "W212" not in _codes(diags), _codes(diags)
+
+    def test_info_exists_indirect_array_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "info exists ${token}(-pipeline)\n")
+        assert "W216" not in _codes(diags)
+        assert "W212" not in _codes(diags)
+
+    def test_unset_and_vwait_indirect_array_silent(self, lsp_server, uri_factory):
+        for src in ("unset ${tok}(socketcoro)\n", "vwait ${token}(status)\n"):
+            uri = uri_factory()
+            assert "W216" not in _codes(lsp_server.open_ready(uri, src)), src
+
+    def test_value_position_still_fires_w216(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "puts ${arr}(x)\n")
+        assert "W216" in _codes(diags), _codes(diags)
+        assert 0 in _on_line(diags, "W216")
+
+    def test_bare_dollar_name_still_fires_w212(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W212" in _codes(lsp_server.open_ready(uri, "set $x v\n"))
+
+
+class TestOverridableLibraryProcs:
+    """FP-STY-13: redefining an overridable Tcl *library* proc (``unknown``,
+    ``history``, ``auto_*`` …) is not shadowing a C built-in — no W113.
+    Redefining a genuine built-in (``set``/``clock``) still fires."""
+
+    def test_unknown_override_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W113" not in _codes(lsp_server.open_ready(uri, "proc unknown args { return }\n"))
+
+    def test_library_procs_silent(self, lsp_server, uri_factory):
+        for name in ("history", "auto_execok", "tcl_findLibrary", "pkg_mkIndex"):
+            uri = uri_factory()
+            src = f"proc {name} {{args}} {{ return }}\n"
+            assert "W113" not in _codes(lsp_server.open_ready(uri, src)), name
+
+    def test_c_builtin_override_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W113" in _codes(lsp_server.open_ready(uri, "proc set {a b} { return }\n"))
+
+    def test_non_bytecompiled_c_command_still_fires(self, lsp_server, uri_factory):
+        # clock/after/socket/glob are C commands (not byte-compiled) but must
+        # still fire — the library-proc exemption must not over-reach.
+        for name in ("clock", "after", "socket", "glob"):
+            uri = uri_factory()
+            src = f"proc {name} {{a}} {{ return }}\n"
+            assert "W113" in _codes(lsp_server.open_ready(uri, src)), name
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()

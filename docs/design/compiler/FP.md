@@ -3897,17 +3897,18 @@ proc f {} { return ok }
 
 A `proc Helper {a} { … }` declared inside a `snit::type` body is a **type-private proc** (callable only from the type's methods).  Pre-fix worry: the snit body wrapping might cause the analyser to drop the inner proc and miss genuine diagnostics in its body.
 
-The verdict on audit: the analyser DOES descend into the body — proven here by `info exists ${a}($a)` firing W216 (scalar-vs-array smell) inside the proc.  This locks in the depth contract.
+The verdict on audit: the analyser DOES descend into the body — proven here by the **value-position** `return ${a}($a)` firing W216 (scalar-vs-array smell) inside the proc.  This locks in the depth contract.  (A *varname*-position `${a}($a)` would be the legitimate indirect-array idiom and stay silent — see FP-STY-12 — so the marker is deliberately a value position.)
 
 #### tclsh ground truth
 
 ```
-% snit::type T { proc Helper {a} { return [info exists ${a}($a)] }
+% snit::type T { proc Helper {a} { return ${a}($a) }
  method m {a} { return [Helper $a] }
 }
 % T create t
 % t m foo
-0  # exists test is well-formed; W216 is a *static-analysis* smell about the form
+foo(foo)  # ${a} substitutes to the value of a, then literal "(foo)" is appended;
+          # W216 is a *static-analysis* smell — the form is rarely what's meant
 ```
 
 #### Compiler evidence
@@ -7462,6 +7463,157 @@ Each is wired through `CommandSpec.arg_role_resolver`, which the registry consul
 - `tests/test_ground_truth_tn_fn.py::test_TN_scan_with_more_than_18_vars_no_false_w210`
 - `tests/test_ground_truth_tn_fn.py::test_TN_lassign_with_many_vars_no_false_w210`
 - `tests/test_ground_truth_tn_fn.py::test_TN_binary_scan_with_many_vars_no_false_w210`
+
+---
+
+### FP-STY-12 — W216 / W212 braced indirect-array-element idiom `${var}(idx)`
+
+- **Verdict:** FALSE POSITIVE (now fixed; double-fire W216 + W212 cleared)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_12_*`
+- **Codes:** W216 (broken brace-form array ref), W212 (substitution where
+  var-name expected)
+- **Corpus:** Tcl 9.0 stdlib `http.tcl` — `set ${token}(status) eof`,
+  `set ${token3}(-pipeline)`, `info exists ${tokenVal}(after)`,
+  `unset ${tok}(socketcoro)`, `vwait ${token}(status)` — 25 firings in one
+  file, every one a `token`/`tok` scalar holding an array name.
+
+#### Reproducer
+
+```tcl
+# `token` is a scalar holding an ARRAY NAME (e.g. ::http::1) — the canonical
+# Tcl "array kept in a variable" pattern (http, snit, many state machines).
+set token ::http::1
+set ${token}(status) eof        ;# write element: <value-of-token>(status)
+info exists ${token}(-pipeline)  ;# read element via indirection
+unset ${token}(socketcoro)       ;# unset element via indirection
+```
+
+#### Per-line reasoning
+
+1. Tcl parses `${token}(status)` as the brace-form substitution `${token}`
+   (the lexer ends the variable name at the `}`) concatenated with the
+   **literal** text `(status)`.  The resulting string is
+   `<value-of-token>(status)` — e.g. `::http::1(status)`.
+2. In a **variable-name argument position** (`set`/`incr`/`append`/`lappend`/
+   `unset` target, `info exists`, `vwait`) the command interprets that string
+   as a variable name → element `status` of the array named `::http::1`.
+   This is the *only* way to reach an element of an array whose name lives in
+   a scalar (short of `upvar`), and it is a heavily-used idiom (Tcl's own
+   `http` package).
+3. W216's suggested rewrite `$token(status)` is **actively wrong** here: it
+   would access element `status` of an array literally named `token`, not the
+   array named *by* `token`'s value.  W212's suggestion `token(status)` is
+   wrong for the same reason.  Both must stay silent.
+4. The braces are the discriminator.  The **bare** `$token(status)` is a
+   *direct* array reference (array literally named `token`) — a different
+   construct — so it is left to W212's genuine dynamic-name foot-gun check.
+5. In a **value position** (`puts ${arr}(x)`, `set y ${arr}(x)`) the same
+   `${arr}(x)` is almost always a typo for `$arr(x)` element access, so W216
+   **still fires** there.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% array set ::http::1 {status pending -pipeline yes}
+% set token ::http::1
+% set ${token}(status) eof
+eof
+% set ${token}(status)
+eof
+% info exists ${token}(-pipeline)
+1
+```
+
+The value-position broken case errors, proving W216 is a true positive there:
+
+```
+% array set arr {x 1}
+% puts ${arr}(x)
+can't read "arr": variable is array
+```
+
+#### Why the analyser reaches that verdict
+
+- `shared/naming.py::is_braced_indirect_array_ref` recognises the
+  `${name}(idx)` shape (brace-form var name + parenthesised index).
+- W216: `analyser/_analyser/_diag_brace_then_paren.py` — `_varname_word_indices`
+  computes which command words are variable-name positions; Pattern (1) is
+  suppressed when the `${name}(idx)` word starts at one of those offsets.
+  Value-position matches still fire.
+- W212: `analyser/checks/_style.py::check_name_vs_value` skips the arg when
+  `is_braced_indirect_array_ref(written)` holds; bare `$x` / `$arr(idx)` /
+  index-less `${x}` foot-guns still fire.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_12_set_indirect_array_no_w216_w212` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_info_exists_indirect_no_w216_w212` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_unset_indirect_no_w216` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_12_vwait_incr_append_lappend_indirect_no_w216` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_12_value_position_still_fires_w216` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_12_bare_dollar_name_still_fires_w212` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_12_index_less_brace_still_fires_w212` (TP)
+
+---
+
+### FP-STY-13 — W113 redefining an overridable Tcl library procedure
+
+- **Verdict:** FALSE POSITIVE (now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_13_*`
+- **Codes:** W113 (procedure shadows built-in command)
+- **Corpus:** Tcl 9.0 stdlib itself — `init.tcl` (`proc unknown`,
+  `proc auto_execok`, `proc auto_load`, `proc tcl_findLibrary`),
+  `history.tcl` (`proc history`), `package.tcl` (`proc pkg_mkIndex`),
+  `word.tcl` (`proc tcl_wordBreakAfter` …).  The files that *define* these
+  procs were being told they "shadow a built-in".
+
+#### Reproducer
+
+```tcl
+proc unknown args { return }          ;# the documented Tcl extension point
+proc history {args} { return }        ;# a Tcl library proc, not a C built-in
+proc tcl_findLibrary {a b c d e f} { return }
+```
+
+#### Per-line reasoning
+
+1. `unknown`, `history`, `auto_execok`, `auto_load`, `auto_mkindex`,
+   `auto_qualify`, `auto_reset`, `parray`, `pkg_mkIndex`, `tcl_findLibrary`,
+   and the `tcl_*WordBreak*` / `tcl_*OfWord` helpers are written **in Tcl** and
+   shipped in the standard library (`init.tcl` / `auto.tcl` / `history.tcl` /
+   `package.tcl` / `word.tcl`).  They are *not* C-level built-in commands.
+2. They are documented as user-replaceable — Tcl(n) `unknown` states that
+   applications "can replace it"; the `auto_*` and word-break helpers are
+   overlay/extension points.  Redefining one is the supported idiom, and Tcl's
+   own library is exactly the code that `proc`s them, so the W113 message
+   "shadows built-in command" is factually wrong for these names.
+3. Genuine C commands that are *not* byte-compiled but still dangerous to
+   redefine (`clock`, `after`, `socket`, `glob`) are **not** in the exempt
+   set — they keep firing W113.  Byte-compiled core built-ins (`set`, `puts`,
+   `expr`, `if`) also keep firing.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc unknown args { return "caught: $args" }
+% frobnicate 1 2 3
+caught: frobnicate 1 2 3
+```
+
+Overriding `unknown` is not only legal — it is the intended extension hook.
+
+#### Why the analyser reaches that verdict
+
+`analyser/_analyser/_proc.py` defines `_OVERRIDABLE_LIBRARY_PROCS`; the W113
+shadow check clears `shadow_name` when the proc name is in that set, after the
+existing namespace-qualified exemption.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_13_unknown_override_no_w113` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_13_library_procs_no_w113` (FP variants)
+- `tests/test_fp_sty.py::test_FP_STY_13_c_builtin_still_fires_w113` (TP, `set`/`puts`)
+- `tests/test_fp_sty.py::test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113` (TP, `clock`/`after`/`socket`/`glob`)
 
 ---
 

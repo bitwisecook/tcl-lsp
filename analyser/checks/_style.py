@@ -25,6 +25,7 @@ from compiler.registry.runtime import (
     arg_indices_for_role,
 )
 from shared.codes import diag
+from shared.naming import is_braced_indirect_array_ref
 from shared.ranges import (
     position_from_relative,
     range_from_token,
@@ -1108,6 +1109,14 @@ def check_name_vs_value(
         # #527 convention), so pull in the closing brace too.
         if written.startswith("${") and e + 1 < len(source) and source[e + 1] == "}":
             written = source[s : e + 2]
+        # ``set ${token}(status) …`` is the braced indirect-array-element
+        # idiom, not a name-vs-value foot-gun: ``${token}`` substitutes the
+        # array *name* and ``(status)`` is the literal index appended, so the
+        # element written is ``<value-of-token>(status)``.  There is no safer
+        # rewrite (``token(status)`` would target a literally-named array), so
+        # this is not a W212 — only a value-position ``$arr(x)`` typo is.
+        if is_braced_indirect_array_ref(written):
+            continue
         # The literal name to suggest: strip only the *outer* substitution syntax
         # — the leading ``$`` and a ``${…}`` wrapping the reference — which is the
         # indirection W212 flags, while keeping a legitimate inner substitution

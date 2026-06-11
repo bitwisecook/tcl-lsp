@@ -482,6 +482,36 @@ class TestW216:
         w216 = next(d for d in a.diagnostics if d.code == "W216")
         assert w216.fixes[0].new_text == '[set "funny name($foo)"]'
 
+    def test_w216_indirect_array_silent_in_varname_position(self):
+        # ``set ${token}(status) eof`` -- token holds an array name; the
+        # ``${token}(status)`` word is the indirect-array-element idiom in a
+        # varname position, so W216 must stay silent (FP-STY-12).
+        a = analyse("set token ::http::1\nset ${token}(status) eof")
+        assert not any(d.code == "W216" for d in a.diagnostics)
+
+
+class TestBracedIndirectArrayRef:
+    """Unit tests for the FP-STY-12 discriminator ``${name}(idx)``."""
+
+    def test_recognises_indirect_idiom(self):
+        from shared.naming import is_braced_indirect_array_ref
+
+        assert is_braced_indirect_array_ref("${token}(status)")
+        assert is_braced_indirect_array_ref("${arr}(x)")
+        assert is_braced_indirect_array_ref("${arr}($k)")  # substituted index
+        assert is_braced_indirect_array_ref("${a::b}(k)")  # qualified name
+
+    def test_rejects_non_idiom_shapes(self):
+        from shared.naming import is_braced_indirect_array_ref
+
+        assert not is_braced_indirect_array_ref("$x")  # bare scalar
+        assert not is_braced_indirect_array_ref("$arr(idx)")  # bare array ref
+        assert not is_braced_indirect_array_ref("${x}")  # no index suffix
+        assert not is_braced_indirect_array_ref("${}(x)")  # empty name
+        assert not is_braced_indirect_array_ref("${arr(idx)}")  # paren inside braces
+        assert not is_braced_indirect_array_ref("${arr}(x)y")  # trailing text
+        assert not is_braced_indirect_array_ref("")
+
 
 # =============================================================
 # §L. The W215 trap (var names unreachable via $-substitution)

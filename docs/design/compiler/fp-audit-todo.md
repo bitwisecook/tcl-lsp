@@ -250,7 +250,10 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
   with an explicit access mode. TP. (398)
 - [x] **W212** substitution where var-name expected — `set $x` / `incr $x` /
   `lappend $x` are genuine dynamic-name foot-guns; `upvar`/`dict`/`trace`/
-  `namespace which` correctly exempt. TP. (390)
+  `namespace which` correctly exempt. TP. (390)  **One FP class fixed
+  (FP-STY-12):** the braced indirect-array form `set ${var}(idx)` (where `var`
+  holds an array name) is now exempt — it is the deliberate indirect-element
+  idiom, not a foot-gun.  Bare `$x` / `$arr(idx)` / index-less `${x}` still fire.
 - [x] **W301** uplevel multi-arg concatenation — TP (logger.tcl idioms). (291)
 - [x] **W313** destructive op with variable path — TP. (95)
 - [x] **W110 / O120** `==`/`!=` on strings → `eq`/`ne` — TP (near-duplicate pair;
@@ -342,7 +345,13 @@ can simplify this" suggestion. None swept yet.
   re-sweep the non-eval shapes.
 - [ ] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
 - [ ] **W108** non-ASCII in token (1)
-- [ ] **W113** proc shadows builtin (95) — verify namespace-qualified shadowing.
+- [x] **W113** proc shadows builtin (95) — RESOLVED (FP-STY-13): redefining an
+  overridable Tcl *library* proc (`unknown`, `history`, `auto_*`,
+  `tcl_findLibrary`, `pkg_mkIndex`, `tcl_*WordBreak*` …) is not shadowing a C
+  built-in — these are script-defined and documented as user-replaceable, and
+  Tcl's own library is what `proc`s them.  Added `_OVERRIDABLE_LIBRARY_PROCS`
+  exempt set; genuine C commands (`set`/`clock`/`after`/`socket`/`glob`) still
+  fire.  Namespace-qualified shadowing was already exempt.
 - [ ] **W114** redundant nested `[expr]` (0) — synthetic verify.
 - [ ] **W115** backslash-newline in comment (0) — synthetic verify.
 - [ ] **W116 / W117** stub shadows builtin command/function (0) — synthetic.
@@ -361,8 +370,13 @@ can simplify this" suggestion. None swept yet.
 
 - [ ] **W213** unset on possibly-unset var (1) — RBS-derived; re-check.
 - [ ] **W215** unreachable variable name (12)
-- [ ] **W216** broken brace-form array ref `${arr}(x)` (count low) — verify the
-  depth-lock from OBJ family holds.
+- [x] **W216** broken brace-form array ref `${arr}(x)` — RESOLVED (FP-STY-12):
+  in a *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/
+  `info exists`/`vwait` target) `${var}(idx)` is the legitimate indirect-array-
+  element idiom (`var` holds the array name — Tcl's `http` package, 25 firings
+  in `http.tcl`), not a broken `$var(idx)`.  Suppressed there; value-position
+  `puts ${arr}(x)` still fires.  Same idiom also cleared a paired **W212**
+  false positive (`check_name_vs_value` skips the braced indirect form).
 - [ ] **W240** constant-false loop condition (0) — synthetic verify.
 - [ ] **W241** provably-infinite loop (0) — synthetic; intentional `while 1`
   must NOT fire (known idiom).

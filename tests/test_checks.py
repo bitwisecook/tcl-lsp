@@ -2313,10 +2313,10 @@ $obj greet world
     def test_snit_type_private_proc_still_analysed(self):
         """A ``proc`` inside a snit body is a type-private proc — its body must
         still be analysed (not silently dropped)."""
-        src = (
-            "snit::type T {\n    proc Helper {a} {\n        return [info exists ${a}($a)]\n    }\n}"
-        )
-        # The ${a}($a) scalar-vs-array smell must still fire from the proc body.
+        src = "snit::type T {\n    proc Helper {a} {\n        return ${a}($a)\n    }\n}"
+        # The ${a}($a) scalar-vs-array smell (in a *value* position — a varname
+        # position would be the legitimate indirect-array idiom) must still fire
+        # from the proc body.
         diags = _diag_with_code(src, "W216")
         assert len(diags) == 1
         assert "${a}($a)" in diags[0].message
