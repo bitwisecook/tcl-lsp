@@ -6977,7 +6977,7 @@ The categorical tables A-F track *features* (a hook variant, an
 option flag, a trait); the per-command checklist below tracks
 *coverage* — what each individual `CommandSpec` /
 `SubCommand` should carry. The
-[`scripts/check_command_spec_coverage.py`](../scripts/check_command_spec_coverage.py)
+`scripts/check_command_spec_coverage.py`
 audit runs this checklist over every spec under
 `rust/tcl-registry/src/commands/` and writes
 [`docs/generated/command-spec-coverage.md`](generated/command-spec-coverage.md)

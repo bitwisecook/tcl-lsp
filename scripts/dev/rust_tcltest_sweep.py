@@ -42,9 +42,7 @@ RUN_SCRIPT = REPO / "runtime" / "rust" / "target" / "release" / "examples" / "ru
 
 # tcltest's end-of-file summary, e.g.
 #   incr.test:	Total	69	Passed	61	Skipped	0	Failed	8
-SUMMARY_RE = re.compile(
-    r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)"
-)
+SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)")
 
 
 def run_one(test: Path, timeout_s: float) -> dict:
@@ -79,9 +77,7 @@ def run_one(test: Path, timeout_s: float) -> dict:
             "failed": failed,
         }
     # No summary: errored/crashed before cleanupTests. Capture the last line.
-    last = next(
-        (ln for ln in reversed(out.splitlines()) if ln.strip()), ""
-    )
+    last = next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")
     return {"file": test.name, "status": "error", "reason": last[:120]}
 
 
@@ -100,11 +96,7 @@ def main() -> int:
         )
         return 2
 
-    files = (
-        [TESTS_DIR / f for f in args.files]
-        if args.files
-        else sorted(TESTS_DIR.glob("*.test"))
-    )
+    files = [TESTS_DIR / f for f in args.files] if args.files else sorted(TESTS_DIR.glob("*.test"))
 
     results = []
     agg_total = agg_passed = agg_failed = agg_skipped = 0

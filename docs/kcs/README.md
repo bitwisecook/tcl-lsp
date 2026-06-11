@@ -66,6 +66,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
   — the nine INI sections (seven shared plus the location-specific
   `[global]` and `[project]`), their keys, and which values are valid.
+- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — what the
+  `TCL_LSP_RUST_*` environment variables do and when to set them as the
+  Python-to-Rust rewrite lands in chunks.
 
 ## How-Tos
 
