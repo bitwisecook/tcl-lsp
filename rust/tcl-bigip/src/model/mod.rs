@@ -5,6 +5,26 @@
 //! node, monitor, profile, rule, …) land in their per-module submodules
 //! as they are ported.
 
+pub mod enums;
+pub mod gen;
 pub mod minimal;
 
+pub use enums::{DataGroupType, ProfileType};
+pub use gen::*;
 pub use minimal::{BigipGenericObject, BigipMinimalObject};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_structs_carry_python_defaults() {
+        // Non-empty Python string defaults survive into the Rust Default.
+        let pool = BigipPool::default();
+        assert_eq!(pool.module, "ltm");
+        assert!(pool.full_path.is_empty());
+        // Enum field defaults resolve.
+        assert_eq!(BigipProfile::default().profile_type, ProfileType::Other);
+        assert_eq!(BigipDataGroup::default().kind, DataGroupType::Internal);
+    }
+}
