@@ -4882,6 +4882,76 @@ is still **path-sensitive dataflow precision** (phi-from-undef W210, `unset`
 kill, W220 dead-store flow, `while 1`+`break` reachability) — each a CFG/SSA
 fix, not a switch.
 
+#### SYNC-JUN11-phi-undef — phi-from-undef W210 on return reads (battery 290→302)
+
+The Stage-A core, ported faithfully from `core_analyses.py::_read_before_set`
+(referencing the Python throughout; the `test_fp_*` / `test_ground_truth_*` /
+`FP.md` triples are the correctness oracle).
+
+**Root cause found via the explorer.** The def-use builder records statement +
+branch-condition uses but **not** `Terminator::Return` value reads
+(`def_use.rs:248-270` only walks `Terminator::Branch`).  So a partial-def merge
+read in a `return $v` — the dominant W210 path-merge true-positive shape — was
+never a recorded use, and the existing `DefKind::Parameter` emitter (version-0
+reads only) could not see it.  Confirmed against the SSA: `if {$x>0} {set v 1};
+return $v` builds `phi v#1 <- if_next:v#0, if_then:v#2` and the return reads the
+phi `v#1`, whose `if_next` incoming is undef.
+
+**Two landed pieces:**
+
+1. **Registry — dynamic arg-role resolver (D4-F2, `c54764be`).** `scan` /
+   `lassign` / `binary scan` hard-coded `VarWrite` for a finite slot count
+   (≤19); calls with more varName args left the tail vars unmodelled as
+   writes, so a read of var 19+ looked read-before-set.  Replaced the fixed
+   slot lists with the `arg_role_resolver` hook (already wired through
+   `registry.rs::arg_indices_for_role` and the lowering's VarWrite def walk),
+   classifying every trailing positional as `VarWrite` — `scan` args[2..],
+   `lassign` args[1..], `binary scan` args[2..].  Mirrors
+   `dialects/tcl/{scan,lassign,binary}.py`.  Root-cause fix for the many-var
+   FP-STY-11 / `test_TN_*_many_vars` false positives.
+
+2. **Analyser — `emit_return_phi_undef_w210` (`03f43e6e`).** A new pass over
+   each executable block's `Terminator::Return` value (word substitutions +
+   nested `[...]` via `VarReferenceScanner`, plus a parsed expr), firing W210
+   when the read's exit-version `phi_can_undef`:
+   - **`phi_can_undef`** — transitive trace over the phi DAG restricted to
+     SCCP-executable predecessors; version-0 / `unset`-killed origins are
+     undef, concrete defs are not, cycles (loop-header phis) resolve to
+     not-undef, per-predecessor existence guards prune.  Mirrors `_phi_can_undef`.
+   - **`unset` kill** — a *literal* `unset v` kills `v`'s reaching version; a
+     dynamic `unset $name` does **not** (it targets the named-by-value var,
+     though the IR still records a def for the bare name — the conservative
+     literal-only gate avoids that FP).
+   - **Full suppression suite** (`build_return_undef_suppression`): params,
+     `_IMPLICIT_VARS`, `::`-qualified names, scope aliases, qualified
+     `variable ns::tail` / `variable ${name}::tail` alias tails
+     (`_qualified_variable_alias_tails`), and **key-aware** `dict with` /
+     `dict update` unpacking — an empty/known-keys dict only suppresses the
+     names it unpacks (so `set d {}; dict with d {}; return $missing` still
+     fires) while an unknown-shape dict falls back to a blanket suppression.
+
+**Closed (12, no regression):** the 6 W210 merge TPs (`if`-arm-only-def,
+`switch`-no-default, dead-`if {0}`-body, loop-body-only-init, use-after-unset,
+empty-`dict with`), `test_TP_W210_array_element_read_before_any_set`, FP-DS-08
+empty-dict-fires, the FP-RBS-01/04/08 bare-read TP controls, and FP-STY-11
+scan-fewer-specifiers.  **Battery 290→302 passing / 87→75 failing**; `make
+test-lsp-e2e-rust` 24→22 failing (the W210/clean-dataflow canaries).  +14
+analyser unit tests; workspace `cargo test`/`clippy`/`fmt` clean.
+
+**Method/insight for the next increment.** The faithful approach is: read the
+Python (`_read_before_set` is the spec), verify the IR/SSA shape with the
+`compiler-explorer` skill, and treat every `test_fp_*`/`FP.md` pair as a TP+FP
+tension to satisfy — TP and FP move together, so each suppression
+(`dict`-key, alias-tail, `safe_on_uninit`, scan-resolver) is a separate
+verified piece.  The remaining W210 work is the **statement-use** phi-from-undef
+path (non-return reads — e.g. `puts $v` after a merge), which needs the same
+trace wired through the statement-use loop with the regexp/scan `provably_unset`
+suppression (`_read_before_set:3251+`) to stay sound.
+
+Updated remaining 75, by family: ground_truth 24, fp_rbs 11, fp_bnd 9, fp_ds 9,
+fp_rch 5, fp_sty 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1 (the W210 merge family
+is the bulk of the ground_truth/fp_rbs drop).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
