@@ -18493,20 +18493,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("auth", "remote-role")],
         properties: &[
             BigipPropertySpec {
-                name: "firewall-manager",
-                value_type: ValueKind::Reference,
-                in_sections: &["role-info"],
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "no-access",
-                value_type: ValueKind::Reference,
-                in_sections: &["role-info"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "attribute",
                 value_type: ValueKind::Reference,
                 in_sections: &["dc1"],
@@ -18677,12 +18663,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "default-partition",
                 value_type: ValueKind::Reference,
                 references: &["auth_partition"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "operator",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

@@ -14278,12 +14278,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("security", "firewall global-rules")],
         properties: &[
             BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "enforced-policy-rules",
                 value_type: ValueKind::Reference,
                 repeated: true,
@@ -14294,12 +14288,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "staged-policy-rules",
                 value_type: ValueKind::Reference,
                 repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "security",
-                value_type: ValueKind::Reference,
                 references: &["ltm_rule"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -14398,12 +14386,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 in_sections: &["source"],
                 enum_values: &["add", "default", "delete", "replace-all-with"],
                 references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "security",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -15727,12 +15709,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "service-policy",
                 value_type: ValueKind::Reference,
                 references: &["security_firewall_policy", "ltm_policy"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "security",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -18349,24 +18325,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["end-inbound-session"],
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "field-list",
                 value_type: ValueKind::Reference,
                 in_sections: &["end-outbound-session"],
                 allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["end-outbound-session"],
                 references: &["net_route_domain"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18388,13 +18350,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["errors"],
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Reference,
                 allow_none: true,
@@ -18411,13 +18366,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["quota-exceeded"],
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "field-list",
                 value_type: ValueKind::Reference,
                 in_sections: &["start-inbound-session"],
@@ -18426,24 +18374,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["start-inbound-session"],
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "field-list",
                 value_type: ValueKind::Reference,
                 in_sections: &["start-outbound-session"],
                 allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "timestamp",
-                value_type: ValueKind::Reference,
-                in_sections: &["start-outbound-session"],
                 references: &["net_route_domain"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -21881,12 +21815,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "packet-filter default-rules")],
         properties: &[
-            BigipPropertySpec {
-                name: "security",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "policy",
                 value_type: ValueKind::Reference,
@@ -25327,12 +25255,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("sys", "application template")],
         properties: &[
             BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "actions",
                 value_type: ValueKind::List,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
@@ -25655,14 +25577,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "config")],
         properties: &[
-            BigipPropertySpec {
-                name: "gateway",
-                value_type: ValueKind::Reference,
-                in_sections: &["sys"],
-                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                references: &["net_self", "net_route", "ltm_virtual_address"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "base",
                 value_type: ValueKind::Unknown,
@@ -29814,18 +29728,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "log-config filter")],
         properties: &[
-            BigipPropertySpec {
-                name: "icrd",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "rewrite",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,

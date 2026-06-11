@@ -49,6 +49,7 @@ use pyo3::prelude::*;
 // from forcing per-`#[pyfunction]` doc comments that only the
 // PyO3 macro reads.
 pub(crate) mod analyser;
+pub(crate) mod bigip;
 pub(crate) mod compilation_unit;
 pub(crate) mod compiler_checks;
 pub(crate) mod expr_lexer;
@@ -125,6 +126,7 @@ pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     compilation_unit::register_with(m)?;
     signature_scan::register_with(m)?;
     analyser::register_with(m)?;
+    bigip::register_with(m)?;
     features::register_with(m)?;
     Ok(())
 }

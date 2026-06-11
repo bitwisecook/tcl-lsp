@@ -14,6 +14,12 @@
 #                        diagnostics projection). No pyo3 dependency.
 #                        The eventual native LSP server links against this.
 #
+#   rust/tcl-bigip/      Faithful port of the F5 BIG-IP object model + config
+#                        parser (dialects/f5/bigip). Value types, 169 model
+#                        structs, the parse_bigip_conf driver + dispatch, and
+#                        a canonical-JSON bridge the f5 command consumes via
+#                        PyO3. No pyo3 dependency itself.
+#
 #   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp.
 #                        Links tcl-lsp-core / tcl-compiler / tcl-registry.
 #                        No pyo3 dependency.
@@ -39,6 +45,7 @@ members = [
     "rust/tcl-syntax",
     "rust/tcl-registry",
     "rust/tcl-compiler",
+    "rust/tcl-bigip",
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-server",
     "rust/tcl-lsp-py",
