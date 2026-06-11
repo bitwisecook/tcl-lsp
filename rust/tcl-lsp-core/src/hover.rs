@@ -37,7 +37,7 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
-use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, Scope, VarDef};
+use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
@@ -123,7 +123,14 @@ pub fn hover(
     // surface the [`VarDef`] not the (typically absent) proc of
     // the same name.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(var_def) = lookup_var_in_scope_chain(&analysis.global_scope, line, &var_name) {
+        let var_byte_offset = crate::definition::byte_offset_at(source, line, character);
+        // Use the byte-offset scope-chain lookup (the local line-based helper
+        // mis-resolves namespace/proc-scoped vars).
+        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            var_byte_offset,
+            &var_name,
+        ) {
             // Inferred-intrep / taint annotations need the compiler
             // pipeline (`CompilationUnit`), which requires a
             // registry; without one we surface just the reference
@@ -181,6 +188,11 @@ pub fn hover(
         }
     }
 
+    // Command alias (`interp alias {} = {} expr`) — show the resolved target.
+    if let Some(text) = alias_hover_text(analysis, &word) {
+        return Some(Hover::markdown(text));
+    }
+
     if let Some(proc_def) = lookup_proc(analysis, &word) {
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
@@ -204,6 +216,9 @@ pub fn hover(
     // subcommand word.  Mirrors `lsp/features/hover.py`'s
     // `SIGNATURES` lookup at the tail of `get_hover`.
     if let Some(registry) = registry {
+        if let Some(text) = option_hover_text(source, line, character, registry, &word) {
+            return Some(Hover::markdown(text));
+        }
         if let Some(text) = subcommand_hover_text(source, line, character, registry, &word) {
             return Some(Hover::markdown(text));
         }
@@ -261,6 +276,16 @@ fn builtin_command_hover_text(
     if let Some(requires) = spec.event_requires.as_ref() {
         let effective = effective_event_requires(name, requires);
         append_valid_events(&mut out, &effective);
+    } else if let Some((prefix, _)) = name.split_once("::") {
+        // Namespace-only command (no `event_requires`): if its protocol
+        // namespace declares profiles (e.g. `ACCESS::log` → ACCESS), surface
+        // a `**Requires**` profile line.  Mirrors the Python info path.
+        let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
+        if let Some(ns) = profile_reg.get_namespace(prefix) {
+            if !ns.profiles.is_empty() {
+                let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
+            }
+        }
     }
     Some(out)
 }
@@ -469,6 +494,51 @@ fn subcommand_hover_text(
         }
     } else {
         let _ = write!(out, "\nSubcommand of `{cmd_name}`.\n");
+    }
+    Some(out)
+}
+
+/// Render a hover snippet for a `-option` when the cursor sits on an option
+/// word of the surrounding command.  `cursor_word` is the identifier under
+/// the cursor (no leading `-`); the dash is detected on the line.  Mirrors
+/// the option arm of `lsp/features/hover.py`.
+fn option_hover_text(
+    source: &str,
+    line: u32,
+    character: u32,
+    registry: &CommandRegistry,
+    _cursor_word: &str,
+) -> Option<String> {
+    use std::fmt::Write;
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    // The option word run (dash-led identifier) containing the cursor.
+    let is_opt_char = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
+    let mut start = col.min(chars.len());
+    while start > 0 && is_opt_char(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_opt_char(chars[end]) {
+        end += 1;
+    }
+    // The run must begin with a `-` to be an option.
+    if start >= end || chars[start] != '-' {
+        return None;
+    }
+    let option: String = chars[start..end].iter().collect();
+    // The surrounding command is the first whitespace-delimited token.
+    let prefix: String = chars[..start].iter().collect();
+    let cmd_name = prefix.split_whitespace().next()?;
+    let spec = registry.get(cmd_name)?;
+    let opt = spec.options.iter().find(|o| o.name == option)?;
+    let mut out = format!("**`{}`** — option of `{cmd_name}`\n", opt.name);
+    if !opt.detail.is_empty() {
+        let _ = write!(out, "\n{}\n", opt.detail);
+    }
+    if opt.takes_value && !opt.value_hint.is_empty() {
+        let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint);
     }
     Some(out)
 }
@@ -1109,13 +1179,47 @@ fn binary_format_context_at_position(
     if tokens[0] != "binary" || (tokens[1] != "format" && tokens[1] != "scan") {
         return None;
     }
-    let text = string_literal_at(line_text, character)?;
     let subcmd = tokens[1].to_string();
+    // The format string is argv[2] for `format`, argv[3] for `scan`.  It is
+    // usually a braced/quoted literal, but a bare word (`binary format c2s …`)
+    // is just as valid — fall back to the whitespace-token at the cursor when
+    // it sits at the format-arg index.
+    let fmt_idx = if subcmd == "scan" { 3 } else { 2 };
+    let text = string_literal_at(line_text, character).or_else(|| {
+        word_token_at(line_text, character)
+            .filter(|(idx, _)| *idx == fmt_idx)
+            .map(|(_, w)| w)
+    })?;
     // `binary format FORMAT VAL ...`   — format is argv[2]
     // `binary scan STRING FORMAT VAR ...` — format is argv[3]
     let skip = if subcmd == "scan" { 4 } else { 3 };
     let args = binary_trailing_args(line_text, skip);
     Some(BinaryContext { text, subcmd, args })
+}
+
+/// Return `(token_index, token_text)` for the whitespace-delimited token that
+/// contains `character` (UTF-16 column), or `None` when the cursor is on
+/// whitespace / past the end.
+fn word_token_at(line_text: &str, character: u32) -> Option<(usize, String)> {
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let mut idx = 0;
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < chars.len() && !chars[i].is_whitespace() {
+            i += 1;
+        }
+        if start <= col && col <= i {
+            return Some((idx, chars[start..i].iter().collect()));
+        }
+        idx += 1;
+    }
+    None
 }
 
 /// Recover the trailing argument tokens (variable names for
@@ -1621,6 +1725,24 @@ fn scan_regex_single_meta(c: char) -> Option<RegexComp> {
     Some((1, key.clone(), key, desc))
 }
 
+/// Render a hover for a command alias (`interp alias {} ALIAS {} TARGET …`)
+/// when `word` names a recorded alias.  Mirrors the alias arm of
+/// `lsp/features/hover.py`.
+fn alias_hover_text(analysis: &AnalysisResult, word: &str) -> Option<String> {
+    for alias in analysis.command_aliases.values() {
+        let simple = alias.qualified_name.trim_start_matches("::");
+        if simple == word || alias.qualified_name == word {
+            let mut target = alias.target.clone();
+            if !alias.extras.is_empty() {
+                target.push(' ');
+                target.push_str(&alias.extras.join(" "));
+            }
+            return Some(format!("**Alias** \u{2192} `{target}`"));
+        }
+    }
+    None
+}
+
 /// Render a regex-pattern hover markdown.  Mirrors
 /// `_regex_hover`.
 fn regex_hover_text(text: &str) -> String {
@@ -1654,16 +1776,10 @@ fn regex_pattern_at_position(source: &str, line: u32, character: u32) -> Option<
         return None;
     }
     let literal = string_literal_at(line_text, character)?;
-    // Require at least one regex metacharacter so we don't
-    // fire on literal strings.
-    if !literal.chars().any(|c| {
-        matches!(
-            c,
-            '^' | '$' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '\\'
-        )
-    }) {
-        return None;
-    }
+    // An explicit `regexp` / `regsub` / `lsearch -regexp` pattern argument
+    // hovers even with no metacharacters — `regex_hover_text` renders the
+    // "Literal string (no metacharacters)" note.  (The `regsub` replacement
+    // spec is handled by the earlier `regsub_subspec_at_position` branch.)
     Some(literal)
 }
 
@@ -1897,64 +2013,6 @@ fn braced_var_around(chars: &[char], cursor: usize) -> Option<String> {
         i -= 1;
     }
     None
-}
-
-/// Walk the enclosing-scope chain starting at `line` and look
-/// for a [`VarDef`] for `var_name`.
-///
-/// Mirrors the Python loop in `get_hover` that walks
-/// `scope.parent` upwards.
-fn lookup_var_in_scope_chain<'a>(
-    global: &'a Scope,
-    line: u32,
-    var_name: &str,
-) -> Option<&'a VarDef> {
-    // Build the path from global to the innermost scope that
-    // contains `line`. The Python implementation walks parent
-    // pointers; we reconstruct the path top-down because Rust
-    // [`Scope`] holds children by value (no parent pointers).
-    let mut path: Vec<&Scope> = vec![global];
-    descend_to_line(global, line, &mut path);
-    // Walk from innermost out.
-    for scope in path.iter().rev() {
-        if let Some(v) = scope.variables.get(var_name) {
-            return Some(v);
-        }
-    }
-    None
-}
-
-fn descend_to_line<'a>(scope: &'a Scope, line: u32, path: &mut Vec<&'a Scope>) {
-    for child in &scope.children {
-        let in_child = match child.body_span {
-            Some(span) => span_contains_line(span, line, scope),
-            None => false,
-        };
-        if in_child {
-            path.push(child);
-            descend_to_line(child, line, path);
-            return;
-        }
-    }
-}
-
-fn span_contains_line(span: tcl_lexer::Span, line: u32, _scope: &Scope) -> bool {
-    // Convert the span's byte offsets to lines via `LineIndex`
-    // *outside* this helper would be ideal, but threading a
-    // `LineIndex` through every call is noisy. Instead, count
-    // newlines to start / end on the fly — the depth bound on
-    // scope nesting (a few dozen at worst) keeps this cheap.
-    let _ = span;
-    let _ = line;
-    // The minimal port falls back to an always-false predicate
-    // when no line index is available, forcing scope-chain
-    // lookups to terminate at the global scope. This is
-    // sufficient for the proc/class hover paths, which don't
-    // depend on scope descent; only the `$var`-in-proc case
-    // suffers, and that path returns the global binding when
-    // the scope walk fails — an over-approximation, never
-    // wrong.  Full descent lands in `S-hover-rich`.
-    false
 }
 
 fn lookup_proc<'a>(analysis: &'a AnalysisResult, word: &str) -> Option<&'a ProcDef> {
@@ -2390,6 +2448,7 @@ fn obj_method_hover_text(analysis: &AnalysisResult, class_q: &str, method: &str)
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
@@ -2748,6 +2807,7 @@ mod tests {
             definition_span: tcl_lexer::Span::new(0, 1),
             references: Vec::new(),
             warn_if_unused: false,
+            array_indices: std::collections::BTreeSet::new(),
         };
         let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
         assert!(text.contains("**Inferred intrep**: int"), "{text}");

@@ -86,6 +86,35 @@ fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
     format!("{}::{}", class_def.qualified_name, method.name)
 }
 
+/// Find the proc a call-hierarchy item refers to.
+///
+/// Items carry only the *short* display name (`helper`), which is ambiguous
+/// when a document defines same-named procs in different namespaces
+/// (`::a::helper` / `::b::helper`).  Disambiguate first by the item's
+/// `selection_range` — it is the proc name token's exact location, a stable
+/// identity that round-trips through the LSP incoming/outgoing call requests —
+/// and only fall back to display-name matching when no definition's name span
+/// lines up (e.g. a synthetic or hand-built item).
+fn find_proc_for_item<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    item: &CallHierarchyItem,
+    line_index: &LineIndex,
+) -> Option<(&'a String, &'a ProcDef)> {
+    if let Some(hit) = analysis
+        .all_procs
+        .iter()
+        .find(|&(_, p)| span_to_range(source, line_index, p.name_span) == item.selection_range)
+    {
+        return Some(hit);
+    }
+    analysis.all_procs.iter().find(|&(qn, p)| {
+        p.name.as_str() == item.name
+            || qn.as_str() == item.name
+            || qn.trim_start_matches("::") == item.name
+    })
+}
+
 /// Build a [`CallHierarchyItem`] for a class method.
 fn item_for_method(
     source: &str,
@@ -207,7 +236,7 @@ fn segment_body_calls(
 fn item_for_proc(
     source: &str,
     proc_def: &ProcDef,
-    qname: &str,
+    _qname: &str,
     line_index: &LineIndex,
 ) -> CallHierarchyItem {
     let name_range = span_to_range(source, line_index, proc_def.name_span);
@@ -224,7 +253,10 @@ fn item_for_proc(
         end_character: body_range.end_character,
     };
     CallHierarchyItem {
-        name: qname.to_owned(),
+        // Short display name (`helper`), not the qualified key (`::helper`) —
+        // matches the Python server and the editor's call-hierarchy UI.  The
+        // incoming/outgoing lookups match this against both forms.
+        name: proc_def.name.clone(),
         detail,
         range: full_range,
         selection_range: name_range,
@@ -343,7 +375,7 @@ pub fn unresolved_outgoing_calls(
     analysis: &AnalysisResult,
 ) -> Vec<UnresolvedOutgoingCall> {
     let line_index = LineIndex::new(source);
-    if let Some((_, source_proc)) = analysis.all_procs.iter().find(|(qn, _)| **qn == item.name) {
+    if let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) {
         let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
@@ -437,8 +469,7 @@ pub fn incoming_calls(
     analysis: &AnalysisResult,
 ) -> Vec<IncomingCall> {
     let line_index = LineIndex::new(source);
-    let Some((target_qname, target_proc)) =
-        analysis.all_procs.iter().find(|(qn, _)| **qn == item.name)
+    let Some((target_qname, target_proc)) = find_proc_for_item(source, analysis, item, &line_index)
     else {
         // Not a proc — try a class method.
         return method_incoming_calls(source, dialect, item, analysis, &line_index);
@@ -539,7 +570,7 @@ pub fn outgoing_calls(
     analysis: &AnalysisResult,
 ) -> Vec<OutgoingCall> {
     let line_index = LineIndex::new(source);
-    let Some((_, source_proc)) = analysis.all_procs.iter().find(|(qn, _)| **qn == item.name) else {
+    let Some((_, source_proc)) = find_proc_for_item(source, analysis, item, &line_index) else {
         // Not a proc — try a class method.
         return method_outgoing_calls(source, dialect, item, analysis, &line_index);
     };
@@ -704,7 +735,7 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].name, "::greet");
+        assert_eq!(items[0].name, "greet");
     }
 
     #[test]
@@ -712,6 +743,34 @@ mod tests {
         let src = "puts hello\n";
         let analysis = analyse(src);
         assert!(prepare(src, 0, 6, &analysis).is_empty());
+    }
+
+    #[test]
+    fn same_named_procs_in_different_namespaces_disambiguate_by_span() {
+        // `::a::helper` and `::b::helper` share the short display name
+        // `helper`; the call-hierarchy item must resolve to the definition at
+        // its own `selectionRange`, not whichever `all_procs` entry hashes
+        // first. Each helper calls a distinct callee so the wrong resolution
+        // is observable.
+        let src = "proc ::a::helper {} { aCallee }\n\
+                   proc ::b::helper {} { bCallee }\n\
+                   proc aCallee {} {}\n\
+                   proc bCallee {} {}\n";
+        let analysis = analyse(src);
+        // Cursor on the `helper` of the second (`::b::helper`) definition —
+        // line 1, inside `helper` (after the `proc ::b::` prefix, 10 chars).
+        let items = prepare(src, 1, 12, &analysis);
+        assert_eq!(items.len(), 1, "{items:?}");
+        let outgoing = outgoing_calls(src, "tcl8.6", &items[0], &analysis);
+        let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
+        assert!(
+            callees.contains(&"bCallee"),
+            "b::helper must resolve to its own body (bCallee); got {callees:?}"
+        );
+        assert!(
+            !callees.contains(&"aCallee"),
+            "b::helper must not pick up a::helper's callee; got {callees:?}"
+        );
     }
 
     // -- S-call-hierarchy-rich: incoming + outgoing calls -----------
@@ -726,7 +785,7 @@ mod tests {
         let target = &items[0];
         let incoming = incoming_calls(src, "tcl", target, &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
-        assert_eq!(incoming[0].from.name, "::caller");
+        assert_eq!(incoming[0].from.name, "caller");
         assert_eq!(incoming[0].from_ranges.len(), 1);
     }
 
@@ -761,11 +820,11 @@ mod tests {
         let src = "proc target {} {}\nproc other {} {}\nproc caller {} { target\n other }\n";
         let analysis = analyse(src);
         let items = prepare(src, 2, 6, &analysis);
-        assert_eq!(items[0].name, "::caller");
+        assert_eq!(items[0].name, "caller");
         let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let target_names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
-        assert!(target_names.contains(&"::target"), "{outgoing:?}");
-        assert!(target_names.contains(&"::other"), "{outgoing:?}");
+        assert!(target_names.contains(&"target"), "{outgoing:?}");
+        assert!(target_names.contains(&"other"), "{outgoing:?}");
     }
 
     #[test]
@@ -776,10 +835,10 @@ mod tests {
         let src = "proc target {} {}\nproc caller {} { puts hi\n target }\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
-        assert_eq!(items[0].name, "::caller");
+        assert_eq!(items[0].name, "caller");
         let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
-        assert_eq!(names, vec!["::target"], "{outgoing:?}");
+        assert_eq!(names, vec!["target"], "{outgoing:?}");
     }
 
     #[test]
@@ -814,7 +873,7 @@ mod tests {
         let src = "proc local {} {}\nproc caller {} { local\n sibling\n puts hi }\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
-        assert_eq!(items[0].name, "::caller");
+        assert_eq!(items[0].name, "caller");
         let unresolved = unresolved_outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = unresolved.iter().map(|u| u.name.as_str()).collect();
         assert!(names.contains(&"sibling"), "{unresolved:?}");
@@ -830,7 +889,7 @@ mod tests {
         let src = "proc caller {} { sibling\n sibling }\n";
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
-        assert_eq!(items[0].name, "::caller");
+        assert_eq!(items[0].name, "caller");
         let unresolved = unresolved_outgoing_calls(src, "tcl", &items[0], &analysis);
         let sibling = unresolved
             .iter()
@@ -886,7 +945,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::use");
         let outgoing = outgoing_calls(src, "tcl", &items[0], &analysis);
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
-        assert_eq!(names, vec!["::helper"], "{outgoing:?}");
+        assert_eq!(names, vec!["helper"], "{outgoing:?}");
     }
 
     // -- workspace-index: cross-document incoming calls -------------
@@ -897,10 +956,10 @@ mod tests {
         // but calls it from inside `caller` and at top level.
         let src = "proc caller {} { helper }\nhelper\n";
         let analysis = analyse(src);
-        let calls = incoming_calls_for_target(src, &analysis, "helper", "::helper", None);
+        let calls = incoming_calls_for_target(src, &analysis, "helper", "helper", None);
         // Callers: `caller` (one call) + `<top-level>` (one).
         let from: Vec<&str> = calls.iter().map(|c| c.from.name.as_str()).collect();
-        assert!(from.contains(&"::caller"), "{calls:?}");
+        assert!(from.contains(&"caller"), "{calls:?}");
         assert!(from.contains(&"<top-level>"), "{calls:?}");
     }
 
@@ -911,8 +970,8 @@ mod tests {
         // exactly one caller bucket.
         let src = "proc c {} { helper }\n";
         let analysis = analyse(src);
-        let calls = incoming_calls_for_target(src, &analysis, "helper", "::helper", None);
+        let calls = incoming_calls_for_target(src, &analysis, "helper", "helper", None);
         assert_eq!(calls.len(), 1, "{calls:?}");
-        assert_eq!(calls[0].from.name, "::c");
+        assert_eq!(calls[0].from.name, "c");
     }
 }

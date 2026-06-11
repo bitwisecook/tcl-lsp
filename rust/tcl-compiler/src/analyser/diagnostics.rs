@@ -2695,6 +2695,13 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         }
         let first = arg_tokens[0];
+        // Quick-fix the common single-line `eval "cmd $a …"` shape: rewrite
+        // the quoted string to `eval [list cmd $a …]`.  `[list]` builds a
+        // properly-quoted list so each substituted word is passed as exactly
+        // one argument and never re-parsed.  Skip when the string spans
+        // lines or carries backslash escapes (list re-quoting could differ).
+        // Mirrors `checks/_security.py::check_eval_string_concat`.
+        let fixes = self.eval_list_fix(first);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W101".to_string(),
             span: first.span,
@@ -2702,8 +2709,35 @@ Consider capturing the result: catch {\u{2026}} result"
 Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
                 .to_string(),
             severity: Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
+    }
+
+    /// Build the `eval [list …]` rewrite fix for a W101 diagnostic whose
+    /// `eval` argument is a single-line double-quoted string
+    /// (`eval "cmd $a"` → `eval [list cmd $a]`).  Returns an empty vec for
+    /// any other shape (braced, multi-line, backslash-escaped).
+    fn eval_list_fix(&self, first: tcl_lexer::Token) -> Vec<super::types::CodeFix> {
+        let bytes = self.source.as_bytes();
+        let open = first.span.start() as usize;
+        if bytes.get(open) != Some(&b'"') {
+            return Vec::new();
+        }
+        let Some(rel_close) = self.source[open + 1..].find('"') else {
+            return Vec::new();
+        };
+        let close = open + 1 + rel_close;
+        let inner = &self.source[open + 1..close];
+        if inner.is_empty() || inner.contains('\n') || inner.contains('\\') {
+            return Vec::new();
+        }
+        vec![super::types::CodeFix {
+            span: tcl_lexer::Span::new(first.span.start(), u32::try_from(close + 1).unwrap_or(0)),
+            new_text: format!("[list {inner}]"),
+            description: "Rewrite to `eval [list …]` (passes each substituted \
+word as one argument; no re-parsing)"
+                .to_string(),
+        }]
     }
 
     /// Scan the source bytes covered by `span` for an unescaped

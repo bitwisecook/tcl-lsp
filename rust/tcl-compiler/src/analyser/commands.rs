@@ -110,6 +110,18 @@ impl Analyser {
                 self.registry.as_ref(),
             );
             self.result.diagnostics.extend(stray);
+            // E201 (unterminated `[`) inside a body — `proc p {} { set y
+            // [foo }`.  The CST auto-closes the bracket so the command isn't
+            // flagged `is_partial`, but the source carries no real `]`, so
+            // it would otherwise go unreported.  Mirror the top-level
+            // `emit_syntax_recovery_diagnostics` E201 detector (the
+            // top-level ghost-recovery doesn't reach into body scripts).
+            let e201 = super::syntax_checks::unterminated_bracket_diagnostics(
+                cmd_ref,
+                &self.source,
+                self.registry.as_ref(),
+            );
+            self.result.diagnostics.extend(e201);
             let mut cmd = cmd_ref.clone();
             // **C41e4.** Repair stray ``]`` (missing ``[``) so
             // downstream handlers see the intended argv shape
@@ -174,6 +186,7 @@ impl Analyser {
     /// [`Self::emit_arity_diagnostics`] (SYNC-MAY21-3); the
     /// candidates are flushed post-walk by
     /// [`Self::flush_arity_diagnostics`].
+    #[allow(clippy::too_many_lines)]
     pub fn process_command(
         &mut self,
         argv_texts: &[String],
@@ -319,6 +332,14 @@ impl Analyser {
             return;
         }
 
+        // uplevel #0 { body } — opens a global-frame child scope so the
+        // body's locals don't leak into the enclosing proc's variable
+        // set.  Only the `#0` form is handled here; other levels fall
+        // through to the generic body recursion below.
+        if self.handle_uplevel_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // foreach / for / switch / catch / try — entry shims;
         // body recursion lands in C41f1.
         if self.handle_foreach_command(cmd_name, args, arg_tokens, scope_path) {
@@ -343,6 +364,11 @@ impl Analyser {
         self.handle_set_command(cmd_name, args, arg_tokens, arg_single, scope_path);
         self.handle_var_declaration_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_incr_command(cmd_name, args, arg_tokens, scope_path);
+        // Local-alias / loop-var bindings: `upvar`, `namespace upvar`, and
+        // `dict for/update/with` introduce names visible to completion / hover.
+        self.handle_upvar_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_namespace_upvar_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_dict_var_command(cmd_name, args, arg_tokens, scope_path);
 
         // Side-effect-only handlers. Same idempotent pattern.
         self.handle_namespace_ensemble(cmd_name, args, scope_path);

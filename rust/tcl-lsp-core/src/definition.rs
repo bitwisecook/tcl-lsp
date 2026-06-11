@@ -351,6 +351,136 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     None
 }
 
+/// Resolve the *name* of a variable whose declaration occupies
+/// `byte_offset` — i.e. the cursor sits on the name token of a
+/// `set` / `variable` / `global` / param declaration rather than
+/// a `$ref`.  Walks the scope chain innermost-first and returns
+/// the first variable whose `definition_span` covers the offset.
+/// Lets the variable-rename / reference paths work from the
+/// definition site, not just `$var` use sites.
+pub(crate) fn var_name_at_definition_offset(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Option<String> {
+    for sc in scope_chain_at(scope, byte_offset).iter().rev() {
+        for v in sc.variables.values() {
+            let span = v.definition_span;
+            if span.start() <= byte_offset && byte_offset < span.end() {
+                return Some(v.name.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Collect every variable name visible at `byte_offset` — the union
+/// of `variables` across the scope chain (innermost first, then
+/// enclosing scopes up to the global root).  Used by variable
+/// completion so a `$`-trigger inside a proc / namespace body offers
+/// that scope's locals + params alongside the globals.
+///
+/// Inside an `uplevel #0 { … }` body the script runs in the global
+/// frame, so the enclosing proc's locals are *not* visible — only the
+/// global / namespace frame's variables plus the uplevel body's own
+/// locals.  When the chain contains an [`ScopeKind::Uplevel`] scope,
+/// proc-scope variables are dropped from the visible set.
+pub(crate) fn visible_variable_names(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> Vec<String> {
+    use tcl_compiler::analyser::ScopeKind;
+    let chain = scope_chain_at(scope, byte_offset);
+    let in_uplevel = chain.iter().any(|sc| sc.kind == ScopeKind::Uplevel);
+    let mut names: Vec<String> = Vec::new();
+    for sc in chain.iter().rev() {
+        // In a global frame (`uplevel #0`), skip the enclosing proc's
+        // locals — they are not reachable from the global frame.
+        if in_uplevel && sc.kind == ScopeKind::Proc {
+            continue;
+        }
+        for k in sc.variables.keys() {
+            if !names.iter().any(|n| n == k) {
+                names.push(k.clone());
+            }
+        }
+    }
+    names
+}
+
+/// Names of every namespace / global scope in the cursor's lexical chain.
+/// Used by completion to skip cross-namespace candidates already offered as
+/// bare names.  Mirrors `_lexical_namespace_chain`.
+pub(crate) fn lexical_namespace_chain(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> std::collections::HashSet<String> {
+    use tcl_compiler::analyser::ScopeKind;
+    let mut chain = std::collections::HashSet::new();
+    for sc in scope_chain_at(scope, byte_offset) {
+        if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
+            chain.insert(sc.name.clone());
+        }
+    }
+    chain
+}
+
+/// Name of the innermost `namespace eval` scope whose body contains
+/// `byte_offset` (without the leading `::`), or `""` at global scope.  Used to
+/// attribute an unqualified call to the proc in its own namespace when the
+/// analyser's resolution falls back to the global guess.
+pub(crate) fn innermost_namespace_at(
+    scope: &tcl_compiler::analyser::Scope,
+    byte_offset: u32,
+) -> String {
+    use tcl_compiler::analyser::ScopeKind;
+    let mut ns = String::new();
+    for sc in scope_chain_at(scope, byte_offset) {
+        if sc.kind == ScopeKind::Namespace {
+            ns = sc.name.trim_start_matches("::").to_string();
+        }
+    }
+    ns
+}
+
+/// Fully-qualified `::ns::var` form for a var stored in a namespace / global
+/// scope.  Mirrors `_qualified_var_name`.
+fn qualified_var_name(scope: &tcl_compiler::analyser::Scope, var: &str) -> String {
+    use tcl_compiler::analyser::ScopeKind;
+    if var.starts_with("::") {
+        var.to_string()
+    } else if scope.kind == ScopeKind::Global {
+        format!("::{var}")
+    } else {
+        format!("{}::{var}", scope.name)
+    }
+}
+
+/// Walk the scope tree and return the fully-qualified names of every
+/// namespace / global variable whose enclosing namespace is not in the
+/// cursor's lexical `chain` (proc locals excluded).  Mirrors
+/// `_collect_cross_namespace_vars`.
+pub(crate) fn cross_namespace_qualified_vars(
+    global: &tcl_compiler::analyser::Scope,
+    chain: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    use tcl_compiler::analyser::{Scope, ScopeKind};
+    fn visit(scope: &Scope, chain: &std::collections::HashSet<String>, out: &mut Vec<String>) {
+        if matches!(scope.kind, ScopeKind::Namespace | ScopeKind::Global)
+            && !chain.contains(&scope.name)
+        {
+            for vname in scope.variables.keys() {
+                out.push(qualified_var_name(scope, vname));
+            }
+        }
+        for child in &scope.children {
+            visit(child, chain, out);
+        }
+    }
+    let mut out = Vec::new();
+    visit(global, chain, &mut out);
+    out
+}
+
 /// Return the chain of scopes from `root` down to the
 /// innermost child whose `body_span` contains `byte_offset`.
 /// The chain is ordered outermost (`root`) to innermost.

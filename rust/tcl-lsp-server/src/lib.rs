@@ -737,6 +737,15 @@ impl Backend {
         }
         // Otherwise the symbol may be defined in a sibling
         // document — resolve its qualified name from the index.
+        // Gate this on the cursor actually sitting on a command
+        // invocation head in *this* document: without it, a
+        // coincidental bareword argument (`puts hello`) would resolve
+        // against any sibling document that happens to define a proc /
+        // class of the same name, producing spurious cross-document
+        // references / rename edits.
+        if !position_is_command_head(source, pos, analysis) {
+            return None;
+        }
         let index = self.workspace_index.lock().await;
         if let Some(p) = index.proc_definitions(&word, uri.as_str()).first() {
             return Some((p.name.clone(), p.qualified_name.clone()));
@@ -1080,6 +1089,79 @@ impl Backend {
         Ok(Some(value))
     }
 
+    /// Handle the `tcl-lsp.optimiseDocument` workspace command.
+    ///
+    /// Arguments: `[uri, profile?]`.  Runs the optimiser over the document
+    /// (multi-pass for the `"full"` profile, single-pass otherwise),
+    /// applies the rewrites, and returns `{source, optimisations}` — the
+    /// optimised text plus the list of applied optimisation suggestions.
+    /// Mirrors the Python `tcl-lsp.optimiseDocument` command.
+    async fn optimise_document_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        // The `"full"` profile iterates to a fixpoint; anything else is a
+        // single pass.  Default to `"full"`.
+        let profile = args
+            .get(1)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("full")
+            .to_owned();
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            let dialect_opt = Some(dialect.as_str());
+            let (source, opts) = if profile == "full" {
+                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
+            } else {
+                let opts =
+                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
+                let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
+                (applied, opts)
+            };
+            let line_index = tcl_lexer::LineIndex::new(&text);
+            let items: Vec<serde_json::Value> = opts
+                .iter()
+                .map(|o| {
+                    let start = line_index.position_at_utf16(o.span.start(), &text);
+                    let end = line_index.position_at_utf16(o.span.end(), &text);
+                    serde_json::json!({
+                        "code": o.code,
+                        "message": o.message,
+                        "startLine": start.line,
+                        "startCharacter": start.character,
+                        "endLine": end.line,
+                        "endCharacter": end.character,
+                        "replacement": o.replacement,
+                        "group": o.group,
+                        "hintOnly": o.hint_only,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "source": source,
+                "optimisations": items,
+            })
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("optimise worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(Some(value))
+    }
+
     /// Handle the `tcl-lsp.unminifyError` workspace command.
     ///
     /// Arguments: `[errorMessage, symbolMapText, minifiedSource?,
@@ -1110,6 +1192,218 @@ impl Backend {
             "translatedError": translated,
             "changed": translated != error_message,
         }))
+    }
+
+    /// Handle `tcl-lsp.describeIruleEvent`: deterministic registry metadata
+    /// for an iRules event.  Mirrors `server/commands.py::on_describe_irule_event`.
+    /// `validCommandCount` counts the iRules commands (those carrying
+    /// `event_requires`) not excluded from the event.
+    async fn describe_irule_event_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let event = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        let events = tcl_registry::events::EventRegistry::build();
+        let known = !event.is_empty() && events.is_known(&event);
+        let (count, sample, deprecated) = if known {
+            let registry = self.registry_for_dialect("f5-irules").await;
+            let mut names: Vec<&str> = registry
+                .command_names()
+                .filter(|&n| {
+                    registry.get(n).is_some_and(|s| {
+                        s.event_requires.is_some() && !s.excluded_events.iter().any(|&e| event == e)
+                    })
+                })
+                .collect();
+            names.sort_unstable();
+            let count = names.len();
+            let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
+            let deprecated = events.get_props(&event).is_some_and(|p| p.deprecated);
+            (count, sample, deprecated)
+        } else {
+            (0, Vec::new(), false)
+        };
+        Ok(Some(serde_json::json!({
+            "event": event,
+            "known": known,
+            "deprecated": deprecated,
+            "validCommandCount": count,
+            "sampleCommands": sample,
+        })))
+    }
+
+    /// Handle `tcl-lsp.describeIruleCommand`: registry metadata for an iRules
+    /// command (exact match, then case-insensitive).  Mirrors
+    /// `server/commands.py::on_describe_irule_command`.
+    async fn describe_irule_command_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let name = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        let registry = self.registry_for_dialect("f5-irules").await;
+        let resolved = if !name.is_empty() && registry.get(&name).is_some() {
+            Some(name.clone())
+        } else if name.is_empty() {
+            None
+        } else {
+            let lowered = name.to_lowercase();
+            registry
+                .command_names()
+                .find(|c| c.to_lowercase() == lowered)
+                .map(str::to_owned)
+        };
+        let value = match resolved {
+            Some(canonical) => {
+                let summary = registry
+                    .get(&canonical)
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned());
+                serde_json::json!({
+                    "found": true,
+                    "command": canonical,
+                    "summary": summary,
+                })
+            }
+            None => serde_json::json!({ "found": false, "command": name }),
+        };
+        Ok(Some(value))
+    }
+
+    /// Handle `tcl-lsp.listIruleEvents`: all known iRules event names (sorted).
+    /// Mirrors `server/commands.py::on_list_irule_events`.
+    fn list_irule_events_command() -> serde_json::Value {
+        let events = tcl_registry::events::EventRegistry::build();
+        let mut names: Vec<&str> = events.all_event_names();
+        names.sort_unstable();
+        serde_json::json!({ "events": names })
+    }
+
+    /// Handle `tcl-lsp.diagramData`: extract the `when EVENT` event names from
+    /// a source string.  Mirrors `server/commands.py::on_diagram_data`'s event
+    /// extraction (the events slice the e2e test asserts).
+    fn diagram_data_command(args: &[serde_json::Value]) -> Option<serde_json::Value> {
+        let source = args.first().and_then(serde_json::Value::as_str)?;
+        let events: Vec<serde_json::Value> =
+            tcl_lsp_core::irules_context::scan_file_events(source, "f5-irules")
+                .into_iter()
+                .map(|name| serde_json::json!({ "name": name }))
+                .collect();
+        Some(serde_json::json!({ "events": events }))
+    }
+
+    /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping safe
+    /// diagnostic fix iteratively until the source stabilises.  Mirrors
+    /// `server/commands.py::on_fix_all_safe_issues` (the `_SAFE_FIX_CODES`
+    /// whitelist + multi-pass apply).
+    async fn fix_all_safe_issues_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let (disabled, na_mode) = self.analyser_config().await;
+        let dialect = doc.dialect.clone();
+        let mut source = doc.text.clone();
+        let value = tokio::task::spawn_blocking(move || {
+            const SAFE: &[&str] = &["W100", "W105", "W108", "W110", "W201", "W304", "IRULE2001"];
+            let mut applied: Vec<serde_json::Value> = Vec::new();
+            for _ in 0..4 {
+                let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
+                let analysis = analyser.analyse(&source, &dialect).clone();
+                // First fix per safe diagnostic, sorted by start offset.
+                let mut fixes: Vec<(u32, u32, String, String, String)> = Vec::new();
+                for d in &analysis.diagnostics {
+                    if !SAFE.contains(&d.code.as_str()) {
+                        continue;
+                    }
+                    if let Some(f) = d.fixes.first() {
+                        fixes.push((
+                            f.span.start(),
+                            f.span.end(),
+                            f.new_text.clone(),
+                            d.code.clone(),
+                            f.description.clone(),
+                        ));
+                    }
+                }
+                fixes.sort_by_key(|f| f.0);
+                // Keep non-overlapping fixes in order.
+                let mut chosen: Vec<(u32, u32, String, String, String)> = Vec::new();
+                let mut last_end = 0u32;
+                for f in fixes {
+                    if f.0 >= last_end {
+                        last_end = f.1;
+                        chosen.push(f);
+                    }
+                }
+                if chosen.is_empty() {
+                    break;
+                }
+                // Apply from the end so earlier byte offsets stay valid.
+                let mut new_source = source.clone();
+                for f in chosen.iter().rev() {
+                    let (s, e) = (f.0 as usize, f.1 as usize);
+                    if s <= e && e <= new_source.len() {
+                        new_source.replace_range(s..e, &f.2);
+                    }
+                }
+                if new_source == source {
+                    break;
+                }
+                for f in &chosen {
+                    applied.push(serde_json::json!({ "code": f.3, "description": f.4 }));
+                }
+                source = new_source;
+            }
+            serde_json::json!({ "source": source, "applied": applied })
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("fix-all worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(Some(value))
+    }
+
+    /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config
+    /// (at minimum the active dialect).  Mirrors
+    /// `server/commands.py::on_get_effective_config`.
+    async fn get_effective_config_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Url::parse(uri_str) else {
+            return Ok(None);
+        };
+        let dialect = self
+            .read_document(&uri)
+            .await
+            .map_or_else(|| "tcl".to_owned(), |d| d.dialect);
+        Ok(Some(serde_json::json!({
+            "uri": uri_str,
+            "dialect": dialect,
+        })))
     }
 
     /// Snapshot the user-configured analyser settings (disabled
@@ -1375,7 +1669,9 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: build_server_capabilities(),
             server_info: Some(ServerInfo {
-                name: "tcl-lsp-server".to_owned(),
+                // Protocol identity must match the Python server / editor
+                // expectations ("tcl-lsp"), not the crate/binary name.
+                name: "tcl-lsp".to_owned(),
                 version: Some(env!("CARGO_PKG_VERSION").to_owned()),
             }),
         })
@@ -1607,7 +1903,10 @@ impl LanguageServer for Backend {
             message: format!("completion worker panicked: {err}").into(),
             data: None,
         })?;
-        let lifted: Vec<CompletionItem> = items.into_iter().map(lift_completion_item).collect();
+        let lifted: Vec<CompletionItem> = items
+            .into_iter()
+            .map(|item| lift_completion_item(item, pos.line))
+            .collect();
         Ok(Some(CompletionResponse::Array(lifted)))
     }
 
@@ -2350,7 +2649,7 @@ impl LanguageServer for Backend {
                     },
                 },
                 target: Url::parse(&l.target).ok(),
-                tooltip: None,
+                tooltip: l.tooltip,
                 data: None,
             })
             .collect();
@@ -2453,17 +2752,18 @@ impl LanguageServer for Backend {
             .into_iter()
             .map(|l| CodeLens {
                 range: lift_lsp_range(l.range),
+                data: (!l.qname.is_empty()).then(|| serde_json::json!({ "qname": l.qname })),
                 command: Some(tower_lsp::lsp_types::Command {
                     title: l.command_title,
                     command: l.command,
                     arguments: None,
                 }),
-                data: None,
             })
             .collect();
         Ok(Some(lifted))
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn code_action(
         &self,
         params: CodeActionParams,
@@ -2486,11 +2786,48 @@ impl LanguageServer for Backend {
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        // Lift the request-context diagnostics (the editor sends the ones it
+        // currently shows) so context-driven quick-fixes — e.g. the iRules
+        // taint encode-wrap fixes — can act on them even when the analyser
+        // didn't re-emit them.
+        let context_diags: Vec<core_code_actions::ContextDiagnostic> = params
+            .context
+            .diagnostics
+            .iter()
+            .filter_map(|d| {
+                let code = match d.code.as_ref()? {
+                    tower_lsp::lsp_types::NumberOrString::String(s) => s.clone(),
+                    tower_lsp::lsp_types::NumberOrString::Number(n) => n.to_string(),
+                };
+                Some(core_code_actions::ContextDiagnostic {
+                    code,
+                    message: d.message.clone(),
+                    range: CoreLspRange {
+                        start_line: d.range.start.line,
+                        start_character: d.range.start.character,
+                        end_line: d.range.end.line,
+                        end_character: d.range.end.character,
+                    },
+                })
+            })
+            .collect();
+        let dialect = doc.dialect.clone();
         let actions = tokio::task::spawn_blocking(move || {
             let mut actions = core_code_actions::code_actions(&doc.text, range, Some(&analysis));
             actions.extend(core_code_actions::package_require_actions(
                 &doc.text, range, &registry,
             ));
+            actions.extend(core_code_actions::context_diagnostic_actions(
+                &doc.text,
+                &context_diags,
+            ));
+            // iRules-only: the `# Profiles:` header source action.
+            if dialect == "f5-irules" {
+                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+                {
+                    actions.push(a);
+                }
+            }
             actions
         })
         .await
@@ -2502,12 +2839,34 @@ impl LanguageServer for Backend {
         if actions.is_empty() {
             return Ok(None);
         }
-        let lifted = actions
+        // Honour the client's `only` filter (e.g. `["refactor.extract"]`): an
+        // action is kept when its kind prefix-matches a requested kind in
+        // either direction (`refactor` matches `refactor.extract` and vice
+        // versa).
+        let only: Option<Vec<String>> = params.context.only.as_ref().map(|kinds| {
+            kinds
+                .iter()
+                .map(|k| k.as_str().to_owned())
+                .collect::<Vec<_>>()
+        });
+        let lifted: Vec<CodeActionOrCommand> = actions
             .into_iter()
+            .filter(|a| {
+                only.as_ref().map_or(true, |wanted| {
+                    let k = a.kind.as_str();
+                    // Keep an action when its kind exactly matches a requested
+                    // kind, or is a *subtype* of one (`refactor.extract`
+                    // satisfies a `refactor` request). A requested
+                    // `refactor.extract` must NOT pull in a generic `refactor`
+                    // action — the requested kind is not a parent of the
+                    // action's kind in that direction (LSP CodeActionKind
+                    // matching is prefix-on-the-action-side only).
+                    wanted
+                        .iter()
+                        .any(|w| k == w || k.starts_with(&format!("{w}.")))
+                })
+            })
             .map(|a| {
-                // Build a WorkspaceEdit from the action's
-                // edits so accepting the action actually
-                // applies the fix.
                 let mut changes = std::collections::HashMap::new();
                 let lifted_edits: Vec<TextEdit> = a
                     .edits
@@ -2518,22 +2877,30 @@ impl LanguageServer for Backend {
                     })
                     .collect();
                 changes.insert(uri.clone(), lifted_edits);
+                let command = a.command.map(|c| tower_lsp::lsp_types::Command {
+                    title: a.title.clone(),
+                    command: c.command,
+                    arguments: Some(c.args.into_iter().map(serde_json::Value::from).collect()),
+                });
                 CodeActionOrCommand::CodeAction(CodeAction {
                     title: a.title,
-                    kind: Some(tower_lsp::lsp_types::CodeActionKind::QUICKFIX),
+                    kind: Some(tower_lsp::lsp_types::CodeActionKind::new(a.kind.as_str())),
                     diagnostics: None,
                     edit: Some(WorkspaceEdit {
                         changes: Some(changes),
                         document_changes: None,
                         change_annotations: None,
                     }),
-                    command: None,
+                    command,
                     is_preferred: None,
                     disabled: None,
                     data: None,
                 })
             })
             .collect();
+        if lifted.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(lifted))
     }
 
@@ -2543,7 +2910,20 @@ impl LanguageServer for Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         match params.command.as_str() {
             "tcl-lsp.minifyDocument" => self.minify_document_command(&params.arguments).await,
+            "tcl-lsp.optimiseDocument" => self.optimise_document_command(&params.arguments).await,
             "tcl-lsp.unminifyError" => Ok(Self::unminify_error_command(&params.arguments)),
+            "tcl-lsp.describeIruleEvent" => {
+                self.describe_irule_event_command(&params.arguments).await
+            }
+            "tcl-lsp.describeIruleCommand" => {
+                self.describe_irule_command_command(&params.arguments).await
+            }
+            "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
+            "tcl-lsp.diagramData" => Ok(Self::diagram_data_command(&params.arguments)),
+            "tcl-lsp.getEffectiveConfig" => {
+                self.get_effective_config_command(&params.arguments).await
+            }
+            "tcl-lsp.fixAllSafeIssues" => self.fix_all_safe_issues_command(&params.arguments).await,
             _ => Ok(None),
         }
     }
@@ -2712,6 +3092,13 @@ impl LanguageServer for Backend {
         })?;
         let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
             std::collections::HashMap::new();
+        // An empty in-document result means the rename was *rejected*
+        // (collision with an existing symbol, an unsafe / built-in target
+        // name) or the cursor isn't on a renameable symbol.  In every one
+        // of those cases the rename must abort wholesale — adding
+        // cross-document edits for a locally-rejected rename would leak a
+        // partial, inconsistent edit set into sibling documents.
+        let local_rejected = edits.is_empty();
         if !edits.is_empty() {
             let lifted: Vec<TextEdit> = edits
                 .into_iter()
@@ -2726,8 +3113,10 @@ impl LanguageServer for Backend {
         // definition sites in sibling documents.  Gated on the
         // same safety checks as the in-document path
         // (`is_safe_symbol_name`, no built-in shadow) so a
-        // cross-doc rename can't produce an unsafe edit set.
-        if core_rename::is_safe_symbol_name(&new_name)
+        // cross-doc rename can't produce an unsafe edit set — and
+        // skipped entirely when the in-document rename was rejected.
+        if !local_rejected
+            && core_rename::is_safe_symbol_name(&new_name)
             && !core_rename::is_builtin_command_name(&new_name, &registry)
         {
             self.add_cross_document_rename_edits(
@@ -2938,12 +3327,27 @@ fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
     }
 }
 
-fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
+fn lift_completion_item(item: CoreCompletionItem, line: u32) -> CompletionItem {
+    // An explicit single-line replacement edit (var / switch / array) — the
+    // editor applies it verbatim so the `$`/`-` prefix isn't dropped/duplicated.
+    let text_edit = item.text_edit.map(|e| {
+        tower_lsp::lsp_types::CompletionTextEdit::Edit(tower_lsp::lsp_types::TextEdit {
+            range: tower_lsp::lsp_types::Range {
+                start: tower_lsp::lsp_types::Position::new(line, e.start_char),
+                end: tower_lsp::lsp_types::Position::new(line, e.end_char),
+            },
+            new_text: e.new_text,
+        })
+    });
+    let documentation = item
+        .documentation
+        .map(tower_lsp::lsp_types::Documentation::String);
     CompletionItem {
         label: item.label,
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
         detail: item.detail,
+        documentation,
         sort_text: item.sort_text,
         // GAP-A9: snippet items carry VS Code tabstop syntax and
         // filter on their `tcl-…` prefix.
@@ -2951,6 +3355,7 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
             .is_snippet
             .then_some(tower_lsp::lsp_types::InsertTextFormat::SNIPPET),
         filter_text: item.filter_text,
+        text_edit,
         ..CompletionItem::default()
     }
 }
@@ -3533,7 +3938,14 @@ fn build_server_capabilities() -> ServerCapabilities {
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: vec![
                 "tcl-lsp.minifyDocument".to_owned(),
+                "tcl-lsp.optimiseDocument".to_owned(),
                 "tcl-lsp.unminifyError".to_owned(),
+                "tcl-lsp.describeIruleEvent".to_owned(),
+                "tcl-lsp.describeIruleCommand".to_owned(),
+                "tcl-lsp.listIruleEvents".to_owned(),
+                "tcl-lsp.diagramData".to_owned(),
+                "tcl-lsp.getEffectiveConfig".to_owned(),
+                "tcl-lsp.fixAllSafeIssues".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -5087,14 +5499,15 @@ mod tests {
             core_call_hierarchy::prepare("proc helper {} {}\n", 0, 5, &analysis)
         };
         let core_item = prep.into_iter().next().expect("prepared item");
-        assert_eq!(core_item.name, "::helper");
+        // Call-hierarchy items now carry the short display name.
+        assert_eq!(core_item.name, "helper");
         let cross = backend
             .cross_document_incoming_calls(&lib, &core_item.name)
             .await;
         // The only caller is `caller` in consumer.tcl.
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].0, consumer);
-        assert_eq!(cross[0].1.from.name, "::caller");
+        assert_eq!(cross[0].1.from.name, "caller");
     }
 
     #[tokio::test]

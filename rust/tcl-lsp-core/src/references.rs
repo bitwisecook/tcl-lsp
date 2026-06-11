@@ -66,6 +66,7 @@ use crate::hover::{find_var_at_position, find_word_span_at_position};
 /// flag — when `true`, the symbol's defining span is the first
 /// element of the returned vector.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn references(
     source: &str,
     dialect: &str,
@@ -106,13 +107,27 @@ pub fn references(
             || class_def.qualified_name == word
             || class_def.qualified_name == format!("::{word}")
         {
+            let simple = class_def.name.clone();
+            let qualified = class_def.qualified_name.clone();
             let mut out = Vec::new();
             if include_declaration {
                 out.push(span_to_range(source, &line_index, class_def.name_span));
             }
             for inv in &analysis.command_invocations {
-                if inv.name == class_def.name || inv.name == class_def.qualified_name {
+                if inv.name == simple || inv.name == qualified {
                     out.push(span_to_range(source, &line_index, inv.range));
+                }
+            }
+            // `superclass <C>` / `mixin <C>` usages across every class body
+            // are references to the class too.
+            let matches_name = |n: &str| {
+                n == simple || n == qualified || format!("::{n}") == qualified || n == word
+            };
+            for other in analysis.all_classes.values() {
+                for (name, span) in other.superclass_refs.iter().chain(other.mixin_refs.iter()) {
+                    if matches_name(name) {
+                        out.push(span_to_range(source, &line_index, *span));
+                    }
                 }
             }
             dedup_ranges(&mut out);
@@ -120,29 +135,57 @@ pub fn references(
         }
     }
 
-    // Proc references.
-    for (qname, proc_def) in &analysis.all_procs {
-        if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
-            let mut out = Vec::new();
-            if include_declaration {
-                out.push(span_to_range(source, &line_index, proc_def.name_span));
-            }
-            let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
-            for inv in &analysis.command_invocations {
-                if inv.name == proc_def.name
-                    || inv.name == proc_def.qualified_name
-                    || inv.name == qname_no_prefix
-                    || inv
-                        .resolved_qualified_name
-                        .as_deref()
-                        .is_some_and(|r| r == proc_def.qualified_name)
-                {
-                    out.push(span_to_range(source, &line_index, inv.range));
-                }
-            }
-            dedup_ranges(&mut out);
-            return out;
+    // Proc references.  Prefer the proc whose declaration the cursor sits on
+    // (so `helper` at the `a::helper` decl resolves to *that* namespace's
+    // proc, not a same-named one in another namespace); else the first proc
+    // matching the word.
+    let cursor_off = crate::definition::byte_offset_at(source, line, character);
+    let proc_match = analysis
+        .all_procs
+        .iter()
+        .find(|(_, p)| p.name_span.start() <= cursor_off && cursor_off < p.name_span.end())
+        .or_else(|| {
+            analysis
+                .all_procs
+                .iter()
+                .find(|(qn, p)| p.name == word || *qn == &word || *qn == &format!("::{word}"))
+        });
+    if let Some((qname, proc_def)) = proc_match {
+        let mut out = Vec::new();
+        if include_declaration {
+            out.push(span_to_range(source, &line_index, proc_def.name_span));
         }
+        let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
+        let target_q = proc_def.qualified_name.trim_start_matches("::");
+        // The proc's own namespace (`a::helper` → `a`; top-level → ``).
+        let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
+        for inv in &analysis.command_invocations {
+            let resolved_norm = inv
+                .resolved_qualified_name
+                .as_deref()
+                .map(|r| r.trim_start_matches("::"));
+            // An *unqualified* call counts when it resolves to this proc, or —
+            // since the analyser resolves a namespace-internal call to the
+            // global guess (`::helper`) — when it sits in this proc's own
+            // namespace.  Keeps `helper` inside `namespace eval b` from
+            // referencing `a::helper`.  Comparisons ignore the leading `::`.
+            let call_ns = crate::definition::innermost_namespace_at(
+                &analysis.global_scope,
+                inv.range.start(),
+            );
+            let simple_ok = inv.name == proc_def.name
+                && resolved_norm.map_or(true, |r| r == target_q || r == proc_def.name)
+                && call_ns == target_ns;
+            if simple_ok
+                || inv.name == proc_def.qualified_name
+                || inv.name == qname_no_prefix
+                || resolved_norm == Some(target_q)
+            {
+                out.push(span_to_range(source, &line_index, inv.range));
+            }
+        }
+        dedup_ranges(&mut out);
+        return out;
     }
 
     // `$obj method` external call site — when the cursor sits
@@ -650,9 +693,12 @@ pub fn document_highlights(
             || class_def.qualified_name == format!("::{word}")
         {
             let mut out = Vec::new();
+            // Non-variable symbols (procs / classes / methods) highlight as
+            // `Text` for both declaration and uses — only variables carry the
+            // Write/Read distinction (matches the Python server).
             out.push((
                 span_to_range(source, &line_index, class_def.name_span),
-                HighlightKind::Write,
+                HighlightKind::Text,
             ));
             for inv in &analysis.command_invocations {
                 if inv.name == class_def.name || inv.name == class_def.qualified_name {
@@ -671,7 +717,7 @@ pub fn document_highlights(
             let mut out = Vec::new();
             out.push((
                 span_to_range(source, &line_index, proc_def.name_span),
-                HighlightKind::Write,
+                HighlightKind::Text,
             ));
             let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
             for inv in &analysis.command_invocations {
@@ -703,7 +749,7 @@ pub fn document_highlights(
         let mut out = Vec::new();
         out.push((
             span_to_range(source, &line_index, decl_span),
-            HighlightKind::Write,
+            HighlightKind::Text,
         ));
         for s in call_spans {
             out.push((span_to_range(source, &line_index, s), HighlightKind::Text));
@@ -881,6 +927,7 @@ mod tests {
                 definition_span: Span::new(4, 5),
                 references: vec![Span::new(13, 14)],
                 warn_if_unused: false,
+                array_indices: std::collections::BTreeSet::new(),
             },
         );
         let a = Result {
@@ -908,17 +955,18 @@ mod tests {
     }
 
     #[test]
-    fn document_highlights_proc_decl_is_write() {
+    fn document_highlights_proc_decl_is_text() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
-        // Declaration on line 0 should be Write.
-        let line0_write = highlights
+        // Declaration on line 0 should be Text — procs carry no Write/Read
+        // distinction (only variables do), matching the Python server.
+        let line0 = highlights
             .iter()
-            .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write);
+            .find(|(r, k)| r.start_line == 0 && *k == HighlightKind::Text);
         assert!(
-            line0_write.is_some(),
-            "expected Write on line 0 (declaration); got {highlights:?}",
+            line0.is_some(),
+            "expected Text on line 0 (declaration); got {highlights:?}",
         );
         // Call site on line 1 should be Text (no read/write
         // semantics on command-invocation heads).
@@ -1025,20 +1073,16 @@ mod tests {
     }
 
     #[test]
-    fn document_highlights_for_method_marks_decl_write_calls_text() {
+    fn document_highlights_for_method_marks_decl_and_calls_text() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         let h = document_highlights(src, "tcl", 1, 11, &analysis);
-        let writes: Vec<_> = h
-            .iter()
-            .filter(|(_, k)| *k == HighlightKind::Write)
-            .collect();
-        let texts: Vec<_> = h
-            .iter()
-            .filter(|(_, k)| *k == HighlightKind::Text)
-            .collect();
-        assert_eq!(writes.len(), 1, "{h:?}");
-        assert_eq!(texts.len(), 2, "{h:?}");
+        // Methods carry no Write/Read distinction — declaration + both call
+        // sites are all Text (only variables are Write/Read).
+        let writes = h.iter().filter(|(_, k)| *k == HighlightKind::Write).count();
+        let texts = h.iter().filter(|(_, k)| *k == HighlightKind::Text).count();
+        assert_eq!(writes, 0, "{h:?}");
+        assert_eq!(texts, 3, "{h:?}");
     }
 
     // -- S-references-rich: external $obj method sites --------------

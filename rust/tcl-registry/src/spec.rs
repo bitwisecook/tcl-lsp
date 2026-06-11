@@ -143,6 +143,16 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
+    /// Enumerable positional-argument values, keyed by 0-based
+    /// argument index *after* the command name.  Drives command-level
+    /// value completion — e.g. iRules `when EVENT timing enable|disable`
+    /// declares `(2, &[enable, disable])`, and `HTTP::respond <status>
+    /// content|noserver|version` declares `(1, &[…])`.  Mirrors the
+    /// form-level `arg_values` dict in the Python registry
+    /// (`FormSpec.arg_values`), flattened to the command level since the
+    /// completion consumer keys purely on positional index.
+    pub arg_values: &'static [(u8, &'static [ArgValue])],
+
     /// Whether `ArgRole::Body` arguments of this command run in the
     /// caller's frame ([`BodyKind::Plain`]) or in a separate
     /// definition / dispatch context ([`BodyKind::Structural`]).
@@ -313,6 +323,7 @@ impl CommandSpec {
         excluded_events: &[],
         event_requires: None,
         options: &[],
+        arg_values: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
         taint_output_sink: None,
@@ -365,6 +376,18 @@ impl CommandSpec {
             .iter()
             .find(|(i, _)| *i == index)
             .map(|(_, r)| *r)
+    }
+
+    /// Look up enumerable argument values for the 0-based `index`
+    /// *after* the command name.  Returns an empty slice when this
+    /// argument has no fixed value set.  Mirrors
+    /// [`SubCommand::arg_values_at`].
+    #[must_use]
+    pub fn arg_values_at(&self, index: u8) -> &'static [ArgValue] {
+        self.arg_values
+            .iter()
+            .find(|(i, _)| *i == index)
+            .map_or(&[], |(_, vs)| vs)
     }
 
     /// Check if this command is available in a given dialect.

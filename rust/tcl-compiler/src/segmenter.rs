@@ -540,39 +540,74 @@ pub fn segment_with_recovery(
     Vec<SegmentedCommand>,
     Vec<crate::analyser::types::Diagnostic>,
 ) {
+    // Cap the re-lex iterations to bound work on pathological input.
+    const MAX_GHOST_RECOVERY_PASSES: usize = 32;
+
     let commands = segment_commands_local(source, config);
     if commands.is_empty() {
         return (commands, Vec::new());
     }
+    // Accumulated zero-width ghost `]` insertions (keyed by original-source
+    // offset — ghosts don't shift later offsets, so the map stays valid
+    // across re-lexes).  `diag_by_bracket` keeps one E201 per *bracket*
+    // (keyed on its `[` offset), preferring a fix-bearing diagnostic over a
+    // fix-less fallback so a bracket recovered by a ghost reports its
+    // insertion fix, not the bare fallback the re-lexed stream would yield.
     let mut ghosts: std::collections::BTreeMap<u32, u8> = std::collections::BTreeMap::new();
-    let mut diagnostics = Vec::new();
-    for cmd in &commands {
-        for diag in
-            crate::analyser::syntax_checks::unterminated_bracket_diagnostics(cmd, source, registry)
-        {
-            // A heuristic case carries a `]`-insertion fix whose offset
-            // is the ghost offset; a bare fallback has no fix and stays
-            // unterminated after the re-lex.  Collect *every* E201 here
-            // (with its original-source span) so the caller can skip its
-            // own detector entirely once recovery applies — a
-            // ghost-terminated command would otherwise look unterminated
-            // against the original bytes and double-report.
-            if let Some(fix) = diag.fixes.first() {
-                ghosts.insert(fix.span.start(), b']');
+    let mut diag_by_bracket: std::collections::BTreeMap<u32, crate::analyser::types::Diagnostic> =
+        std::collections::BTreeMap::new();
+    let sm = SourceMap::new(source);
+    let mut current = commands;
+    // Iterate: a single re-lex can expose a *further* unterminated `[` that
+    // the previous parse had swallowed (`set a [foo` / `set c [bar` /
+    // `proc …`).  Re-derive ghosts from the re-lexed stream and re-lex
+    // again until a pass adds no new ghost.
+    for _ in 0..MAX_GHOST_RECOVERY_PASSES {
+        let mut new_ghost = false;
+        for cmd in &current {
+            for diag in crate::analyser::syntax_checks::unterminated_bracket_diagnostics(
+                cmd, source, registry,
+            ) {
+                let bracket_off = diag.span.start();
+                // A heuristic case carries a `]`-insertion fix whose offset
+                // is the ghost offset; a bare fallback has no fix and stays
+                // unterminated after the re-lex.
+                if let Some(fix) = diag.fixes.first() {
+                    if let std::collections::btree_map::Entry::Vacant(e) =
+                        ghosts.entry(fix.span.start())
+                    {
+                        e.insert(b']');
+                        new_ghost = true;
+                    }
+                }
+                // Keep a fix-bearing diagnostic once recorded; otherwise take
+                // whatever (fix-bearing or fallback) we see first.
+                let keep_existing = diag_by_bracket
+                    .get(&bracket_off)
+                    .is_some_and(|d| !d.fixes.is_empty());
+                if !keep_existing {
+                    diag_by_bracket.insert(bracket_off, diag);
+                }
             }
-            diagnostics.push(diag);
         }
+        if !new_ghost {
+            break;
+        }
+        let (document, _warnings) = crate::parsing::syntax::build::build_document_with_ghosts(
+            source,
+            config,
+            ghosts.clone(),
+        );
+        current = crate::parsing::syntax::segment::segments_from_document(document, &sm);
     }
     if ghosts.is_empty() {
         // No heuristic insertion → no re-lex.  The caller keeps its
         // scan-to-next stream and its own (fallback) E201 detector.
-        return (commands, Vec::new());
+        return (current, Vec::new());
     }
-    let sm = SourceMap::new(source);
-    let (document, _warnings) =
-        crate::parsing::syntax::build::build_document_with_ghosts(source, config, ghosts);
-    let clean = crate::parsing::syntax::segment::segments_from_document(document, &sm);
-    (clean, diagnostics)
+    let diagnostics: Vec<crate::analyser::types::Diagnostic> =
+        diag_by_bracket.into_values().collect();
+    (current, diagnostics)
 }
 
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {

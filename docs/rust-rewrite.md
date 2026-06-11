@@ -4395,6 +4395,223 @@ backlog — each should be triaged into the relevant `tcl-lsp-core` provider and
 turned into a tracked row as it's picked up.  The harness is no longer the
 blocker; this is genuine provider parity work.
 
+### SYNC-JUN10-runtests — both suites re-verified end-to-end on the Rust backend
+
+Re-ran both test batteries against a fresh `make rust-server` build to confirm
+they execute to completion against the native server (the prerequisite for the
+parity work below).  Both run clean — no collection abort, no indefinite hang:
+
+| suite | rust-backend result |
+|---|---|
+| `tests/lsp_e2e` (`make test-lsp-e2e-rust`) | **220 passed / 135 failed / 1 skipped** |
+| VS Code integration (`make test-ext-rust`) | **325 passed / 50 failed** (runner exit-timeout cleanup handles electron's headless non-exit; `make` exits 0) |
+
+**Infra landed this run:**
+- Two opt-in Makefile targets — `test-lsp-e2e-rust` and `test-ext-rust` — build
+  the native server (`PROFILE=release`) and export `TCL_LSP_SERVER_KIND=rust` +
+  `TCL_LSP_SERVER_BIN` so the existing backend-neutral harnesses drive the Rust
+  binary.  Default `make test-py` / `test-ext` / CI stay on Python until the
+  default-flip milestone.
+- `tests/lsp_e2e/test_server_version.py::test_initialize_reports_packaged_build_version`
+  now `skipif(server_kind()=="rust")` — the banner is pyz-specific (the native
+  server reports `CARGO_PKG_VERSION`), so it would otherwise be a known red.
+- **Server-identity fix:** the native server reported `serverInfo.name =
+  "tcl-lsp-server"`; corrected to `"tcl-lsp"` to match the Python server / editor
+  expectations (`rust/tcl-lsp-server/src/lib.rs`).  Fixes
+  `test_server_version.py::test_server_info_name`.
+
+**Refreshed per-feature lsp_e2e failure tally (worst-first — the Phase-1
+worklist):** completion 34, irules 24, code_actions 17, semantic_tokens 14,
+hover 10, rename 9, commands (executeCommand) 8, signature_help 5, references 4,
+recovery 3, navigation_extras 3, editor_features 3, document_highlight 1.
+
+### SYNC-JUN10-phase1 — provider parity increments (lsp_e2e 220→280 passing)
+
+Worst-first provider fixes against the above baseline (each landed with crate
+unit tests + clippy/fmt clean, no regressions):
+
+- **semantic_tokens 14→3.** Bareword argument words now classify as `string`
+  (`classify_arg_token` ESC fallback, mirroring Python `_classify_token`).
+  **Recursive tokenisation** ported (`collect_script` / `collect_expr`):
+  `ArgRole::Body` braced bodies are re-segmented, `ArgRole::Expr` braced
+  exprs go through the expression sub-lexer (variable/number/operator/
+  function/bool, math fns carry `defaultLibrary`), and `[…]` command
+  substitutions recurse — driven by the registry's `arg_indices_for_role`
+  (incl. the dynamic `if`/`dict`/`foreach` resolvers). BigIP object-ref
+  overlay now wins over the generic bareword `string`. Operator command
+  heads (`+ 3 4`) classify as `operator`. Recognised `-option` switches →
+  `decorator`; known subcommand words → `keyword`+`defaultLibrary`;
+  namespace-qualified heads (`oo::class`, `::set`) split into a `namespace`
+  prefix + command token. *Remaining (3): proc-name `definition` modifier,
+  `switch -regexp` arm patterns, bareword backslash-escape sub-tokens.*
+- **completion 34→14.** Added the `textEdit` architecture (`CompletionEdit` →
+  LSP `CompletionTextEdit`): variable completion computes the `$`→token-end
+  replace range (brace/`\X`-aware), switch completion the dash→cursor range;
+  scope-aware variable enumeration (`visible_variable_names`); option/builtin
+  `documentation`; unsubstitutable-name filtering. *Remaining (14): array
+  element completion (needs `VarDef.array_indices`), cross/same-namespace
+  qualification, scope-binding aliases (dict for/with/update, upvar, namespace
+  upvar, try on-error, uplevel) — all analyser-depth.*
+- **signature_help 5→0.** Line-end cursor clamp, arg-position guard, Python-
+  faithful proc label (short name, `?name?` optionals), unknown-subcommand →
+  none, summary+snippet documentation.
+- **rename 9→2.** Definition-site variable rename, var/proc collision gates,
+  namespace-qualifier preservation. *Remaining (2): namespaced-proc decl
+  short-form; one shared-server flaky.*
+- **executeCommand 8→2.** Wired `describeIruleEvent` / `describeIruleCommand`
+  / `listIruleEvents` / `diagramData` / `getEffectiveConfig`. *Remaining (2):
+  `fixAllSafeIssues`, `optimiseDocument` (code-action fix-all + optimiser-
+  applied source).*
+- **editor_features 3→0.** Code-lens `data.qname`; document-link tooltips +
+  `package require` links.
+- **hover 10→7.** Hover on command `-option` tokens. *Remaining (7):
+  namespace-var, binary-spec, regexp-literal, alias hover — provider depth.*
+- **navigation_extras 3→0** (short call-hierarchy names);
+  **document_highlight 1→0** (proc/class/method use `Text`); **server
+  identity** `serverInfo.name` → `tcl-lsp`.
+
+**Second wave (the remaining-75 push): 280 → 321 passed** (40 more closed).
+Landed: completion array-element + scope-binding (upvar / namespace upvar /
+dict for/with/update / try on-error via new analyser handlers + `array_indices`
++ multi-assignment var refs); code-action `kind`/`command` infra + `only`
+filter; refactor/source families (W115 continuation, IPv4↔IPv6, De Morgan,
+invert, generate-docstring); iRules taint encode-wrap quick-fixes (IRULE3001 /
+IRULE3002 / T103 / T106 + helper-proc insertion); iRules `# Profiles:` header
+source action; class superclass/mixin reference spans; semantic-token
+proc-name `definition` modifier; hover var scope-offset bug-fix; one UTF-16
+column bug-fix in the continuation edit.
+
+**Current native-server e2e: 321 passed / 34 failed / 1 skipped** (from
+220/135 — **+101**). The remaining 34 map to subsystems the plan scopes as
+distinct large efforts (Phase 1's gate defers genuinely-unported domain
+features):
+
+- **iRules 7** — IRULE1005/1006 collect-bootstrap actions + dialect-data
+  completion (timing keywords / `HTTP::respond` options / arg-value docs) +
+  profile-requirement hover. The remaining `tcl-bigip` / dialect-data depth.
+- **code_actions 5** — extract-proc / inline-proc (the `tcl-refactor`
+  variable-extraction + body-substitution engine) and `eval`→`[list …]`
+  (needs the GAP-A2 W101 security check).
+- **completion 5** — cross-namespace qualified enumeration, `global`
+  both-forms, `uplevel #0` scope semantics, read-only array index.
+- **hover 7** — namespace-var, `binary` spec table, regexp-literal,
+  command-alias hover (provider sub-language depth).
+- **recovery 2** (nested ghost-token recovery — parser depth),
+  **semantic_tokens 2** (`switch -regexp` arm patterns, bareword
+  backslash-escape sub-tokens), **rename 2** (namespaced-proc decl form + one
+  shared-server flaky), **references 2** (namespace-scoped unqualified-call
+  resolution + a flaky), **commands 2** (`fixAllSafeIssues` /
+  `optimiseDocument`).
+
+### SYNC-JUN10-phase1-complete — native-server lsp_e2e parity reached (355/355)
+
+The native Rust server now passes the **entire** `tests/lsp_e2e` battery:
+**355 passed, 1 skipped** (the skip is the pyz-only version-banner assertion),
+**0 failed** — up from the 220 baseline.  `cargo test --workspace
+--all-features` is **3726 passed, 0 failed**; workspace clippy (`--all-targets`)
+and fmt are clean.
+
+Final increments closing the tail (each with crate unit tests + clippy/fmt
+clean, no regressions):
+
+- **iRules completion** — command-level positional arg-value completion.
+  Added `CommandSpec::arg_values` (mirroring `SubCommand.arg_values`,
+  flattening the Python `FormSpec.arg_values` to positional indices);
+  populated `when EVENT timing enable|disable` (gated on the preceding
+  `timing` keyword so `priority N` isn't offered timing values) and
+  `HTTP::respond <status> content|noserver|version`.
+- **semantic_tokens** — `switch -regexp { pat body … }` braced case lists now
+  sub-tokenise the patterns as regexes and recurse the bodies
+  (`ArgOverride::SwitchRegexpCaseList`, flattening words across the
+  possibly-multiline list, even=pattern / odd=body).
+- **completion** — `uplevel #0 { … }` modelled as an `ScopeKind::Uplevel`
+  global-frame scope; `visible_variable_names` drops the enclosing proc's
+  locals inside it, `command_resolution_namespace` resets to `::`.
+- **cross-document correctness** — rename aborts wholesale when the
+  in-document result is empty (collision / unsafe target) instead of leaking
+  partial sibling edits; `resolve_workspace_symbol`'s index fallback is gated
+  on the cursor sitting on a command-invocation head (`position_is_command_head`)
+  so a coincidental bareword (`puts hello`) no longer resolves against a
+  sibling proc.  These were the two "shared-server flaky" rows — now genuine
+  fixes, not isolation artifacts.
+- **recovery (E201)** — `segment_with_recovery` iterates the ghost-`]`
+  insertion to a fixpoint (multi-break: `set a [foo` … `set c [bar` … `proc`
+  now recovers the tail proc), and `analyse_body` runs the
+  unterminated-bracket detector so an unterminated `[` inside a braced body is
+  flagged.
+- **code_actions (W101)** — the `eval "cmd $a"` → `eval [list cmd $a]` rewrite
+  CodeFix is attached to the W101 diagnostic.
+- **commands (`optimiseDocument`)** — added `apply_optimisations` +
+  `optimise_source_multipass` to the optimiser manager and wired the
+  `tcl-lsp.optimiseDocument` workspace command; O129 now folds nested constant
+  command substitutions (`puts [llength [list a b c]]` → `puts 3`).
+
+### SYNC-JUN10-phase2 — analyser precision parity (fp / ground-truth battery)
+
+**Measurement harness landed.** `tests/rust_diag_bridge.py` drives the native
+server over a single reused document and shapes its published diagnostics into
+the `.code`/`.message`/`.range` objects the `test_fp_*` /
+`test_ground_truth_tn_fn` battery reads; `server.features.diagnostics.get_diagnostics`
+routes through it when `TCL_LSP_DIAG_BACKEND=rust` (no-op otherwise). This lets
+the existing 377-test precision battery certify the **Rust** analyser unchanged.
+Run it with:
+
+```
+TCL_LSP_DIAG_BACKEND=rust TCL_LSP_SERVER_KIND=rust \
+  TCL_LSP_SERVER_BIN=$(pwd)/target/release/tcl-lsp-server \
+  uv run --extra dev pytest tests/test_fp_*.py tests/test_ground_truth_tn_fn.py
+```
+
+**Baseline (the 11 `get_diagnostics`-based files, 316 tests): 216 → 223
+passing** after this strip. The two `analyse()`-based object files
+(`test_fp_obj*`, 61 tests) aren't yet routed (they read `analyse().diagnostics`
+directly, the analyser-only path).
+
+**Closed this strip:**
+- **taint (TNT) family — 18/18.** Position-aware sink filtering: T101 only the
+  `puts` content arg (not a channel id); T104 only the
+  `taint_network_sink_args` network-address positional slots (a tainted
+  `-headers $hdr` option value no longer fires); T100/T105 suppress
+  `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]` (literal command word).
+- **W210 condition-substitution out-vars (fp_rbs 17 → 14).** `catch`/`regexp`/
+  `scan` substitutions in `if`/`while` conditions now record their result
+  variables as CFG defs (`condition_command_out_vars`), so a read in the
+  guarded body isn't a false read-before-set.
+
+**Remaining precision backlog (≈93 failing, itemised by family):**
+
+| family | failing | nature |
+|---|---|---|
+| ground_truth | 31 | W210 path-merge **true-positives** (Rust under-fires: def-on-one-path, switch-no-default, use-after-unset), W307 var-as-command resolution (snit/TclOO), interproc dict/mixed-caller |
+| fp_rbs | 14 | remaining W210 RBS (regexp switch shapes, qualified `foreach`/`for`, `namespace eval`, frozen-while) + TP controls |
+| fp_sty | 11 | source-style knobs (W111/W112/W115/W118 thresholds) |
+| fp_ds | 10 | dead-store (O109/W220) flow precision |
+| fp_bnd | 9 | bounds checks |
+| fp_nab | 5 | not-a-bug suppression |
+| fp_rch | 5 | reachability |
+| fp_sh | 4 | shimmer (S10x) |
+| fp_opt | 3 | O116 empty-list fold replacement, O106 LICM purity, O109 dead-store |
+| fp_inj | 1 | T102 (needs iRules dialect taint source — harness-dialect artifact) |
+
+The dominant remaining theme is **path-sensitive dataflow precision** (W210
+must fire on a merge where a def reaches on only one path, while *not* firing
+on the catch/regexp-guarded reads above) — TP and FP requirements are in direct
+tension, so each is a careful CFG/SSA flow fix verified against tclsh 9.0.3
+ground truth, not a single switch. These are tracked here as the Phase-2
+worklist; the harness is the regression gate.
+
+### SYNC-JUN10-phase5 — gating note (default-flip + Python retirement)
+
+Phase 5 (make `rust` the default backend; delete the named Python LSP/analysis
+stack) is **gated on Phase-2 parity** — the plan's own "*Once Phases 1-2 close
+parity*" precondition and the explicit project decision to *flip default-on
+after parity*. With ≈93 analyser-precision deltas still open (mostly
+user-facing false-positive/false-negative diagnostics vs the tclsh-locked
+ground truth), flipping the default now would ship those as regressions, and
+deleting `server/`/`analyser/` would remove the reference implementation **and**
+the harness that measures parity. Phase 5 therefore stays gated until the
+fp/ground-truth battery is green against the Rust backend.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

@@ -158,7 +158,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust rust-server test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-lsp-e2e-rust test-emacs test-zig test-rust rust-server test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -548,6 +548,41 @@ rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
 	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+
+# Opt-in: drive the JSON-RPC end-to-end battery against the NATIVE Rust server
+# (TCL_LSP_SERVER_KIND=rust) instead of the packaged Python pyz.  Builds the
+# binary first, then runs the same tests/lsp_e2e/ suite the Python path uses.
+# Failures are expected while parity work is in flight — this target only
+# certifies the suite runs to completion against the Rust backend.  The default
+# `make test-py` / CI gates stay on Python until the default-flip milestone.
+test-lsp-e2e-rust: rust-server $(UV_STAMP) ## Run tests/lsp_e2e against the native Rust server (TCL_LSP_SERVER_KIND=rust)
+	@echo "==> Running lsp_e2e against the native Rust server"
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=rust \
+		TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server" \
+		$(UV) run --extra dev pytest tests/lsp_e2e/ -q
+
+# Opt-in: run the VS Code extension integration tests against the NATIVE Rust
+# server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary
+# path so the extension launches the native server (extension.ts
+# resolveRustServer()).  Failures are expected during parity work; the bar is
+# that the suite terminates with a pass/fail report (no indefinite hang).
+test-ext-rust: rust-server ## Run VS Code extension tests against the native Rust server (TCL_LSP_SERVER_KIND=rust)
+	@set -eu; \
+	"$(MAKE)" compile ensure-vscode-test-deps; \
+	echo "==> Running VS Code extension tests against the native Rust server"; \
+	export TCL_LSP_SERVER_KIND=rust; \
+	export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			echo "==> No DISPLAY detected; running under xvfb-run"; \
+			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" test; \
+		else \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; \
+			exit 1; \
+		fi; \
+	else \
+		cd "$(EXT_DIR)" && "$(NPM)" test; \
+	fi
 
 ## Pre-push gate: full lint + typecheck across every language (Python, TS,
 ## Zig, Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.

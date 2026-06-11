@@ -50,6 +50,9 @@ pub struct CodeLens {
     pub command_title: String,
     /// Command identifier sent on click.
     pub command: String,
+    /// Qualified name of the symbol the lens annotates (`::greet`),
+    /// surfaced in the LSP lens `data` for the references-jump command.
+    pub qname: String,
 }
 
 /// Compute code lenses for the document.
@@ -97,6 +100,7 @@ pub fn code_lenses(
             // no-op until the references-jump command is wired
             // up in a follow-up.
             command: String::new(),
+            qname: proc_def.qualified_name.clone(),
         });
     }
 
@@ -125,6 +129,7 @@ pub fn code_lenses(
             },
             command_title: title,
             command: String::new(),
+            qname: class_def.qualified_name.clone(),
         });
         // Per-method / classmethod / property lenses inside
         // the class body.  Counts call sites discovered by re-
@@ -174,6 +179,9 @@ fn emit_class_member_lenses(
             },
             command_title: title,
             command: String::new(),
+            // Method lenses are informational; the references-jump `data`
+            // is populated for proc / class lenses (where it's exercised).
+            qname: String::new(),
         });
     };
     for m in class_def.methods.values() {

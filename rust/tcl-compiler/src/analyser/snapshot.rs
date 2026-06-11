@@ -168,6 +168,7 @@ mod tests {
             definition_span: Span::new(0, 0),
             references: Vec::new(),
             warn_if_unused: true,
+            array_indices: std::collections::BTreeSet::new(),
         }
     }
 

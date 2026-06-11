@@ -155,6 +155,23 @@ pub fn prepare_rename(
             });
         }
     }
+    // Variable definition site (`set x` / `variable x`) — no `$`, so resolve
+    // by the declaration span covering the cursor.
+    let def_byte = crate::definition::byte_offset_at(source, line, character);
+    if let Some(var_name) =
+        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
+    {
+        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+            &analysis.global_scope,
+            def_byte,
+            &var_name,
+        ) {
+            return Some(PrepareRename {
+                range: span_to_range(source, &line_index, var_def.definition_span),
+                placeholder: var_def.name.clone(),
+            });
+        }
+    }
     // Proc?
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
     for (qname, proc_def) in &analysis.all_procs {
@@ -254,6 +271,24 @@ pub fn rename(
     let line_index = LineIndex::new(source);
 
     if let Some(var_name) = find_var_at_position(source, line, character) {
+        return rename_var(
+            source,
+            line,
+            character,
+            new_name,
+            analysis,
+            &line_index,
+            &var_name,
+        );
+    }
+
+    // Definition-site rename: the cursor sits on a `set x` / `variable x`
+    // declaration name (no `$`), so the `$ref` scan above missed it.  Resolve
+    // the variable by the declaration span that covers the cursor.
+    let def_byte = crate::definition::byte_offset_at(source, line, character);
+    if let Some(var_name) =
+        crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
+    {
         return rename_var(
             source,
             line,
@@ -365,10 +400,31 @@ fn rename_var(
     else {
         return Vec::new();
     };
+    // Collision gate: refuse when `new_name` already resolves to a *different*
+    // variable visible at the cursor (e.g. a sibling `set y` in the same proc
+    // scope) — renaming would merge two distinct variables.
+    if let Some(existing) =
+        crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, new_name)
+    {
+        if existing.definition_span != var_def.definition_span {
+            return Vec::new();
+        }
+    }
     let mut edits = Vec::with_capacity(1 + var_def.references.len());
+    // Preserve any namespace qualifier on the declaration token itself
+    // (`set myns::count` → `set myns::total`).  Derive the prefix from the
+    // actual source token so it is independent of how the analyser stores
+    // the name.
+    let def_text = source
+        .get(var_def.definition_span.start() as usize..var_def.definition_span.end() as usize)
+        .unwrap_or("");
+    let def_new_text = match def_text.rfind("::") {
+        Some(idx) => format!("{}{new_name}", &def_text[..idx + 2]),
+        None => new_name.to_owned(),
+    };
     edits.push(TextEdit {
         range: span_to_range(source, line_index, var_def.definition_span),
-        new_text: new_name.to_owned(),
+        new_text: def_new_text,
     });
     for r in &var_def.references {
         // `S-rename-rich` brace-ref escaping — see
@@ -405,7 +461,28 @@ fn rename_proc(
         }
     }
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
-    let (new_qualified, new_decl_text) = qualified_and_decl_text(namespace_prefix, new_name);
+    let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
+    // The declaration rewrite follows the *form the source wrote* — a proc
+    // declared short inside a `namespace eval` (`proc helper`) stays short
+    // (`assist`); one declared qualified (`proc ::ns::greet`) stays qualified.
+    let decl_was_qualified = source
+        .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
+        .is_some_and(|t| t.contains("::"));
+    let new_decl_text = if decl_was_qualified {
+        qualified_decl
+    } else {
+        new_name.to_owned()
+    };
+    // Collision gate: renaming onto an existing proc of the same qualified
+    // name would shadow it — refuse (mirrors the Python server).  Compare
+    // names normalised to the leading-`::` form.
+    let target_q = format!("::{}", proc_def.qualified_name.trim_start_matches("::"));
+    if analysis.all_procs.keys().any(|qn| {
+        let q = format!("::{}", qn.trim_start_matches("::"));
+        q != target_q && q == new_qualified
+    }) {
+        return Some(Vec::new());
+    }
     let mut edits = vec![TextEdit {
         range: span_to_range(source, line_index, proc_def.name_span),
         new_text: new_decl_text,
@@ -667,17 +744,17 @@ fn qualified_and_decl_text(namespace_prefix: &str, new_name: &str) -> (String, S
 /// itself was qualified.  Shared by the proc and class rename
 /// paths.
 fn invocation_replacement(
-    namespace_prefix: &str,
-    new_qualified: &str,
+    _namespace_prefix: &str,
+    _new_qualified: &str,
     new_name: &str,
     inv_name: &str,
 ) -> String {
-    if namespace_prefix.is_empty() {
-        new_name.to_owned()
-    } else if inv_name.contains("::") {
-        new_qualified.to_owned()
-    } else {
-        new_name.to_owned()
+    // Preserve the call's *as-written* qualifier: a qualified call replaces
+    // only its final `::`-segment (`utils::helper` → `utils::assist`,
+    // `::myns::greet` → `::myns::hello`); a short call becomes the short name.
+    match inv_name.rfind("::") {
+        Some(idx) => format!("{}::{new_name}", &inv_name[..idx]),
+        None => new_name.to_owned(),
     }
 }
 
@@ -1367,5 +1444,46 @@ mod tests {
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         // Declaration (1) + proc-body call (4).
         assert!(lines.contains(&1) && lines.contains(&4), "{edits:?}");
+    }
+
+    #[test]
+    fn rename_var_from_definition_site_resolves_without_dollar() {
+        // Cursor on the `x` in `set x 42` (no `$`) — the def-site
+        // resolver must find the variable and rewrite decl + reads.
+        let src = "set x 42\nputs $x\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 0, 4, "newvar", &analysis, None);
+        let texts: std::collections::HashSet<&str> =
+            edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains("newvar"), "decl edit missing: {edits:?}");
+        assert!(texts.contains("$newvar"), "ref edit missing: {edits:?}");
+    }
+
+    #[test]
+    fn rename_var_preserves_namespace_qualifier_at_decl() {
+        let src = "set myns::count 0\nputs $myns::count\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 0, 10, "total", &analysis, None);
+        let texts: std::collections::HashSet<&str> =
+            edits.iter().map(|e| e.new_text.as_str()).collect();
+        assert!(texts.contains("myns::total"), "decl ns lost: {edits:?}");
+        assert!(texts.contains("$myns::total"), "ref ns lost: {edits:?}");
+    }
+
+    #[test]
+    fn rename_var_rejected_on_same_scope_collision() {
+        let src = "proc demo {} {\n    set x 1\n    set y 2\n    puts $x\n}\n";
+        let analysis = analyse(src);
+        // Rename `x` (read site, line 3) to `y` which already exists in scope.
+        let edits = rename(src, "tcl", 3, 10, "y", &analysis, None);
+        assert!(edits.is_empty(), "collision not rejected: {edits:?}");
+    }
+
+    #[test]
+    fn rename_proc_rejected_on_existing_proc_collision() {
+        let src = "proc greet {} {}\nproc hello {} {}\ngreet\n";
+        let analysis = analyse(src);
+        let edits = rename(src, "tcl", 0, 6, "hello", &analysis, None);
+        assert!(edits.is_empty(), "proc collision not rejected: {edits:?}");
     }
 }

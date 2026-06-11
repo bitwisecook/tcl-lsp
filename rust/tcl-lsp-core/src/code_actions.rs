@@ -44,6 +44,48 @@ use tcl_lexer::LineIndex;
 
 use crate::definition::{utf16_col_to_char_col, LspRange};
 
+/// LSP code-action kind.  Maps to the dotted strings the editor / e2e
+/// `only` filter use (`quickfix`, `refactor.extract`, …).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionKind {
+    /// `quickfix` — a diagnostic fix.
+    QuickFix,
+    /// `refactor.extract` — extract proc.
+    RefactorExtract,
+    /// `refactor.inline` — inline proc.
+    RefactorInline,
+    /// `refactor.rewrite` — expression rewrites (De Morgan, invert).
+    RefactorRewrite,
+    /// `refactor` — generic refactor (IP conversion).
+    Refactor,
+    /// `source` — source action (generate docstring).
+    Source,
+}
+
+impl ActionKind {
+    /// The dotted LSP kind string.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::QuickFix => "quickfix",
+            Self::RefactorExtract => "refactor.extract",
+            Self::RefactorInline => "refactor.inline",
+            Self::RefactorRewrite => "refactor.rewrite",
+            Self::Refactor => "refactor",
+            Self::Source => "source",
+        }
+    }
+}
+
+/// A command attached to a code action (e.g. the post-extract rename).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionCommand {
+    /// Command identifier (e.g. `tclLsp.renameSymbolAtPosition`).
+    pub command: String,
+    /// Integer arguments (line / start / end for the rename command).
+    pub args: Vec<u32>,
+}
+
 /// One code-action entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeAction {
@@ -51,6 +93,10 @@ pub struct CodeAction {
     pub title: String,
     /// Edits the action would apply.
     pub edits: Vec<crate::rename::TextEdit>,
+    /// LSP kind (drives the editor's `only` filter).
+    pub kind: ActionKind,
+    /// Optional command run after the edit (e.g. trigger a rename).
+    pub command: Option<ActionCommand>,
 }
 
 /// Compute code actions for `range` in `source`.
@@ -108,6 +154,8 @@ pub fn code_actions(
                         range: insertion,
                         new_text: suffix.to_string(),
                     }],
+                    kind: ActionKind::QuickFix,
+                    command: None,
                 });
             }
         }
@@ -145,9 +193,23 @@ pub fn code_actions(
                     },
                     new_text: fix.new_text.clone(),
                 }],
+                kind: ActionKind::QuickFix,
+                command: None,
             });
         }
     }
+
+    // Range-based refactors / source actions that don't depend on a diagnostic.
+    actions.extend(continuation_comment_actions(
+        source,
+        range,
+        analysis,
+        &line_index,
+    ));
+    actions.extend(ip_conversion_actions(source, range, &line_index));
+    actions.extend(expr_rewrite_actions(source, range, &line_index));
+    actions.extend(docstring_actions(source, range, analysis, &line_index));
+    actions.extend(extract_inline_actions(source, range, analysis, &line_index));
 
     actions
 }
@@ -180,6 +242,8 @@ fn build_unset_nocomplain_action(
             range: insertion,
             new_text: " -nocomplain".to_string(),
         }],
+        kind: ActionKind::QuickFix,
+        command: None,
     })
 }
 
@@ -232,6 +296,8 @@ pub fn package_require_actions(
                 },
                 new_text: format!("package require {pkg}\n"),
             }],
+            kind: ActionKind::QuickFix,
+            command: None,
         })
         .collect()
 }
@@ -344,6 +410,1008 @@ fn word_at_position(source: &str, line: u32, character: u32) -> String {
     chars[start..end].iter().collect()
 }
 
+// ---------------------------------------------------------------------------
+// W115 — convert a backslash-continued comment to per-line comments.
+// ---------------------------------------------------------------------------
+
+fn continuation_comment_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    // Only offer when a W115 diagnostic overlaps the range OR the start line is
+    // a backslash-continued comment (the editor may drive this with a
+    // fabricated W115 it computed client-side, so detect the shape directly).
+    let lines: Vec<&str> = source.split('\n').collect();
+    let start_line = range.start_line as usize;
+    if start_line >= lines.len() {
+        return Vec::new();
+    }
+    let first = lines[start_line];
+    let trimmed = first.trim_start();
+    if !trimmed.starts_with('#') || !first.trim_end().ends_with('\\') {
+        // Not a continued comment at the range start — only offer the fix when
+        // a W115 diagnostic actually *overlaps* the requested range. A
+        // file-wide "any W115" check would rewrite an unrelated
+        // backslash-continued command on a different line as commented text.
+        let has_overlapping_w115 = analysis.diagnostics.iter().any(|d| {
+            if d.code != "W115" {
+                return false;
+            }
+            let start = line_index.position_at_utf16(d.span.start(), source);
+            let end = line_index.position_at_utf16(d.span.end(), source);
+            ranges_overlap(
+                LspRange {
+                    start_line: start.line,
+                    start_character: start.character,
+                    end_line: end.line,
+                    end_character: end.character,
+                },
+                range,
+            )
+        });
+        if !has_overlapping_w115 {
+            return Vec::new();
+        }
+    }
+    // Gather the continuation run starting at `start_line`.
+    let mut idx = start_line;
+    let mut block: Vec<String> = Vec::new();
+    loop {
+        if idx >= lines.len() {
+            break;
+        }
+        let line = lines[idx];
+        let stripped = line.trim_end();
+        let continues = stripped.ends_with('\\');
+        // Strip the trailing backslash; preserve leading indentation.
+        let body = if continues {
+            stripped[..stripped.len() - 1].trim_end()
+        } else {
+            line.trim_end()
+        };
+        let indent: String = line
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .collect();
+        let content = body.trim_start();
+        if content.starts_with('#') {
+            block.push(format!("{indent}{content}"));
+        } else if content.is_empty() {
+            block.push(indent);
+        } else {
+            block.push(format!("{indent}# {content}"));
+        }
+        if !continues {
+            break;
+        }
+        idx += 1;
+    }
+    if idx <= start_line {
+        return Vec::new();
+    }
+    let new_text = block.join("\n");
+    vec![CodeAction {
+        title: "Convert to per-line comments".to_string(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: range.start_line,
+                start_character: 0,
+                end_line: u32::try_from(idx).unwrap_or(range.start_line),
+                // LSP columns are UTF-16 code units — use the line's UTF-16
+                // length, not its codepoint count.
+                end_character: char_col_to_utf16_local(lines[idx], lines[idx].chars().count()),
+            },
+            new_text,
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+    }]
+}
+
+// ---------------------------------------------------------------------------
+// IPv4 ↔ IPv6-mapped conversion.
+// ---------------------------------------------------------------------------
+
+/// `true` when `s` is a dotted-quad IPv4 literal (each octet 0-255).
+fn is_ipv4(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('.').collect();
+    parts.len() == 4
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 3 && p.parse::<u8>().is_ok())
+}
+
+fn ip_conversion_actions(
+    source: &str,
+    range: LspRange,
+    _line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, range.start_character).min(chars.len());
+    // IP-literal characters include hex, `.`, `:`, and `/` for the CIDR suffix.
+    let is_ip_char = |c: char| c.is_ascii_hexdigit() || matches!(c, '.' | ':' | '/');
+    let mut start = col;
+    while start > 0 && is_ip_char(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_ip_char(chars[end]) {
+        end += 1;
+    }
+    if start >= end {
+        return Vec::new();
+    }
+    let word: String = chars[start..end].iter().collect();
+    let (addr, suffix) = match word.split_once('/') {
+        Some((a, s)) => (a.to_string(), format!("/{s}")),
+        None => (word.clone(), String::new()),
+    };
+    let edit_range = LspRange {
+        start_line: range.start_line,
+        start_character: char_col_to_utf16_local(line_text, start),
+        end_line: range.start_line,
+        end_character: char_col_to_utf16_local(line_text, end),
+    };
+    let make = |title: String, new_addr: String| CodeAction {
+        title,
+        edits: vec![crate::rename::TextEdit {
+            range: edit_range,
+            new_text: format!("{new_addr}{suffix}"),
+        }],
+        kind: ActionKind::Refactor,
+        command: None,
+    };
+    if is_ipv4(&addr) {
+        return vec![make(
+            "Convert to IPv6-mapped address".to_string(),
+            format!("::ffff:{addr}"),
+        )];
+    }
+    if let Some(rest) = addr
+        .strip_prefix("::ffff:")
+        .or_else(|| addr.strip_prefix("::FFFF:"))
+    {
+        if is_ipv4(rest) {
+            return vec![make(
+                "Convert to IPv4 address".to_string(),
+                rest.to_string(),
+            )];
+        }
+    }
+    Vec::new()
+}
+
+/// Codepoint column → UTF-16 column on `line_text`.
+fn char_col_to_utf16_local(line_text: &str, char_col: usize) -> u32 {
+    line_text
+        .chars()
+        .take(char_col)
+        .map(|c| u32::try_from(c.len_utf16()).unwrap_or(1))
+        .sum()
+}
+
+// ---------------------------------------------------------------------------
+// Expression rewrites: De Morgan + invert comparison.
+// ---------------------------------------------------------------------------
+
+fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) -> Vec<CodeAction> {
+    // Single-line, non-empty selection only.
+    if range.start_line != range.end_line || range.start_character >= range.end_character {
+        return Vec::new();
+    }
+    let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
+        return Vec::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let s = utf16_col_to_char_col(line_text, range.start_character).min(chars.len());
+    let e = utf16_col_to_char_col(line_text, range.end_character).min(chars.len());
+    if s >= e {
+        return Vec::new();
+    }
+    let sel: String = chars[s..e].iter().collect();
+    let mut out = Vec::new();
+    let edit_range = LspRange {
+        start_line: range.start_line,
+        start_character: range.start_character,
+        end_line: range.end_line,
+        end_character: range.end_character,
+    };
+    if let Some(rewritten) = demorgan_transform(&sel) {
+        out.push(CodeAction {
+            title: "Apply De Morgan's law".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: edit_range,
+                new_text: rewritten,
+            }],
+            kind: ActionKind::RefactorRewrite,
+            command: None,
+        });
+    }
+    if let Some(rewritten) = invert_comparison(&sel) {
+        out.push(CodeAction {
+            title: "Invert comparison".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: edit_range,
+                new_text: rewritten,
+            }],
+            kind: ActionKind::RefactorRewrite,
+            command: None,
+        });
+    }
+    out
+}
+
+/// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y`.
+fn demorgan_transform(sel: &str) -> Option<String> {
+    let t = sel.trim();
+    // Forward: `!( X <op> Y )`.
+    if let Some(inner) = t.strip_prefix("!(").and_then(|s| s.strip_suffix(')')) {
+        if let Some((l, r)) = split_top_logical(inner, "&&") {
+            return Some(format!("{} || {}", negate(l.trim()), negate(r.trim())));
+        }
+        if let Some((l, r)) = split_top_logical(inner, "||") {
+            return Some(format!("{} && {}", negate(l.trim()), negate(r.trim())));
+        }
+        return None;
+    }
+    // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)`.
+    if let Some((l, r)) = split_top_logical(t, "||") {
+        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
+            return Some(format!("!({} && {})", li.trim(), ri.trim()));
+        }
+    }
+    if let Some((l, r)) = split_top_logical(t, "&&") {
+        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
+            return Some(format!("!({} || {})", li.trim(), ri.trim()));
+        }
+    }
+    None
+}
+
+/// Negate an operand: `$a` → `!$a`, `!$a` → `$a`, `($a && $b)` → `!($a && $b)`.
+fn negate(operand: &str) -> String {
+    let o = operand.trim();
+    if let Some(rest) = o.strip_prefix('!') {
+        rest.trim().to_string()
+    } else {
+        format!("!{o}")
+    }
+}
+
+/// Split `expr` on the top-level (brace/paren-depth 0) occurrence of `op`.
+fn split_top_logical<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
+    let bytes = expr.as_bytes();
+    let opb = op.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i + opb.len() <= bytes.len() {
+        match bytes[i] {
+            b'(' | b'{' | b'[' => depth += 1,
+            b')' | b'}' | b']' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && &bytes[i..i + opb.len()] == opb {
+            return Some((&expr[..i], &expr[i + opb.len()..]));
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Invert the (single) top-level comparison operator in `sel`.
+fn invert_comparison(sel: &str) -> Option<String> {
+    // Operator inversions, longest-first so `==` wins over `=`.
+    const OPS: &[(&str, &str)] = &[
+        ("==", "!="),
+        ("!=", "=="),
+        ("<=", ">"),
+        (">=", "<"),
+        ("eq", "ne"),
+        ("ne", "eq"),
+        ("ni", "in"),
+        ("in", "ni"),
+        ("<", ">="),
+        (">", "<="),
+    ];
+    let t = sel.trim();
+    for (from, to) in OPS {
+        // Require the operator to be surrounded by spaces so `$a == $b` matches
+        // but a bare `<` inside a name doesn't; word ops need word boundaries.
+        let needle = format!(" {from} ");
+        if let Some(pos) = find_top_level(t, &needle) {
+            let mut result = String::with_capacity(t.len());
+            result.push_str(&t[..pos]);
+            result.push(' ');
+            result.push_str(to);
+            result.push(' ');
+            result.push_str(&t[pos + needle.len()..]);
+            return Some(result);
+        }
+    }
+    None
+}
+
+/// Find ` needle ` at brace/paren depth 0.
+fn find_top_level(expr: &str, needle: &str) -> Option<usize> {
+    let bytes = expr.as_bytes();
+    let nb = needle.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i + nb.len() <= bytes.len() {
+        match bytes[i] {
+            b'(' | b'{' | b'[' => depth += 1,
+            b')' | b'}' | b']' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && &bytes[i..i + nb.len()] == nb {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Generate docstring (source action).
+// ---------------------------------------------------------------------------
+
+fn docstring_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let mut out = Vec::new();
+    for proc_def in analysis.all_procs.values() {
+        let decl = line_index.position_at_utf16(proc_def.name_span.start(), source);
+        if decl.line != range.start_line {
+            continue;
+        }
+        // Skip procs that already carry a doc-comment.
+        if !proc_def.doc.is_empty() {
+            continue;
+        }
+        let mut doc = String::from("# \n");
+        for p in &proc_def.params {
+            doc.push_str("# @param ");
+            doc.push_str(&p.name);
+            doc.push('\n');
+        }
+        out.push(CodeAction {
+            title: format!("Generate docstring for '{}'", proc_def.name),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: decl.line,
+                    start_character: 0,
+                    end_line: decl.line,
+                    end_character: 0,
+                },
+                new_text: doc,
+            }],
+            kind: ActionKind::Source,
+            command: None,
+        });
+    }
+    out
+}
+
+fn extract_inline_actions(
+    source: &str,
+    range: LspRange,
+    analysis: &AnalysisResult,
+    _line_index: &LineIndex,
+) -> Vec<CodeAction> {
+    let mut out = Vec::new();
+    out.extend(extract_proc_action(source, range));
+    out.extend(inline_proc_action(source, range, analysis));
+    out
+}
+
+/// Distinct `$var` / `${var}` names referenced in `text`, in first-seen order.
+fn referenced_vars(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '$' {
+            let braced = chars.get(i + 1) == Some(&'{');
+            let mut j = i + 1 + usize::from(braced);
+            let start = j;
+            while j < chars.len()
+                && (chars[j].is_alphanumeric() || chars[j] == '_' || chars[j] == ':')
+            {
+                j += 1;
+            }
+            if j > start {
+                let name: String = chars[start..j].iter().collect();
+                if !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `refactor.extract` — extract the selected lines into a new proc and replace
+/// the selection with a call.  Mirrors `_extract_proc_action`.
+fn extract_proc_action(source: &str, range: LspRange) -> Vec<CodeAction> {
+    // Need a non-empty selection.
+    if range.start_line == range.end_line && range.start_character >= range.end_character {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = source.split('\n').collect();
+    // The selected line span — a selection ending at column 0 doesn't include
+    // its end line.
+    let last = if range.end_character == 0 {
+        range.end_line.saturating_sub(1)
+    } else {
+        range.end_line
+    };
+    let (s, e) = (range.start_line as usize, last as usize);
+    if s > e || e >= lines.len() {
+        return Vec::new();
+    }
+    let block: Vec<&str> = lines[s..=e].to_vec();
+    let body_text = block.join("\n");
+    if body_text.trim().is_empty() {
+        return Vec::new();
+    }
+    let params = referenced_vars(&body_text);
+    let name = "extracted_proc";
+    let body_indented = block
+        .iter()
+        .map(|l| format!("    {}", l.trim_end()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let proc_text = format!(
+        "proc {name} {{{}}} {{\n{body_indented}\n}}\n\n",
+        params.join(" ")
+    );
+    let call = if params.is_empty() {
+        name.to_string()
+    } else {
+        format!(
+            "{name} {}",
+            params
+                .iter()
+                .map(|p| format!("${p}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+    };
+    // Replace the selected lines with the call.
+    let replace = LspRange {
+        start_line: range.start_line,
+        start_character: 0,
+        end_line: u32::try_from(e + 1).unwrap_or(range.end_line),
+        end_character: 0,
+    };
+    let name_start = u32::try_from("proc ".len()).unwrap_or(5);
+    vec![CodeAction {
+        title: "Extract selection into proc".to_string(),
+        edits: vec![
+            crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: 0,
+                },
+                new_text: proc_text,
+            },
+            crate::rename::TextEdit {
+                range: replace,
+                new_text: format!("{call}\n"),
+            },
+        ],
+        kind: ActionKind::RefactorExtract,
+        // Trigger a rename of the generated proc name (line 0).
+        command: Some(ActionCommand {
+            command: "tclLsp.renameSymbolAtPosition".to_string(),
+            args: vec![
+                0,
+                name_start,
+                name_start + u32::try_from(name.len()).unwrap_or(0),
+            ],
+        }),
+    }]
+}
+
+/// `refactor.inline` — inline a single-command proc at the call cursor.
+/// Mirrors `_inline_proc_action`; declines branchy / control-flow bodies.
+fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) -> Vec<CodeAction> {
+    // Control-flow / scope keywords whose bodies can't be safely inlined.
+    const UNSAFE: &[&str] = &[
+        "return", "break", "continue", "tailcall", "yield", "uplevel", "upvar", "global",
+        "variable",
+    ];
+    let line = source
+        .split('\n')
+        .nth(range.start_line as usize)
+        .unwrap_or("");
+    let toks: Vec<&str> = line.split_whitespace().collect();
+    let Some(&head) = toks.first() else {
+        return Vec::new();
+    };
+    let Some(proc_def) = analysis
+        .all_procs
+        .values()
+        .find(|p| p.name == head || p.qualified_name == head)
+    else {
+        return Vec::new();
+    };
+    // Body text (strip the outer braces).
+    let bspan = proc_def.body_span;
+    let body_raw = source
+        .get(bspan.start() as usize..bspan.end() as usize)
+        .unwrap_or("")
+        .trim()
+        .trim_start_matches('{')
+        .trim_end_matches('}')
+        .trim();
+    // Decline control-flow / multi-command bodies.
+    if body_raw.is_empty()
+        || body_raw.contains('\n')
+        || body_raw.contains(';')
+        || UNSAFE.iter().any(|kw| {
+            body_raw == *kw
+                || body_raw.starts_with(&format!("{kw} "))
+                || body_raw.contains(&format!("[{kw} "))
+        })
+    {
+        return Vec::new();
+    }
+    // Map call args onto params.
+    let call_args: Vec<&str> = toks[1..].to_vec();
+    let mut inlined = body_raw.to_string();
+    for (i, p) in proc_def.params.iter().enumerate() {
+        let Some(arg) = call_args.get(i) else { break };
+        inlined = inlined
+            .replace(&format!("${{{}}}", p.name), arg)
+            .replace(&format!("${}", p.name), arg);
+    }
+    // Replace the whole call line.
+    vec![CodeAction {
+        title: format!("Inline proc '{}'", proc_def.name),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: range.start_line,
+                start_character: 0,
+                end_line: range.start_line,
+                end_character: char_col_to_utf16_local(line, line.chars().count()),
+            },
+            new_text: inlined,
+        }],
+        kind: ActionKind::RefactorInline,
+        command: None,
+    }]
+}
+
+// ---------------------------------------------------------------------------
+// iRules `# Profiles:` header source action.
+// ---------------------------------------------------------------------------
+
+/// Transport / TLS-shared profiles implied by the stack rather than selected
+/// by the operator — filtered out of the `# Profiles:` header.  Mirrors the
+/// `transport` / `tls_shared` layers of `_PROFILE_LAYERS`.
+const INFRA_PROFILES: &[&str] = &["TCP", "UDP", "FASTL4", "SCTP", "SSL_PERSISTENCE", "PERSIST"];
+
+/// Compute the sorted required virtual-server profiles from the file's events
+/// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
+/// Mirrors `_compute_required_profiles`.
+fn compute_required_profiles(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<String> {
+    use std::collections::BTreeSet;
+    let mut profiles: BTreeSet<String> = BTreeSet::new();
+    let events = tcl_registry::events::EventRegistry::build();
+    for ev in crate::irules_context::scan_file_events(source, "f5-irules") {
+        if let Some(props) = events.get_props(&ev) {
+            for p in props.implied_profiles {
+                profiles.insert((*p).to_string());
+            }
+        }
+    }
+    for inv in &analysis.command_invocations {
+        if let Some(spec) = registry.get(&inv.name) {
+            if let Some(req) = spec.event_requires.as_ref() {
+                for p in req.profiles {
+                    profiles.insert((*p).to_string());
+                }
+            }
+        }
+    }
+    // FASTHTTP is an alternative to HTTP; keep only HTTP when both appear.
+    if profiles.contains("HTTP") {
+        profiles.remove("FASTHTTP");
+    }
+    profiles.retain(|p| !INFRA_PROFILES.contains(&p.as_str()));
+    profiles.into_iter().collect()
+}
+
+/// Scan leading comment lines for a `# Profiles: HTTP, CLIENTSSL` directive,
+/// returning `(uppercased profile set, line index)`.
+fn scan_profile_directive(source: &str) -> Option<(std::collections::BTreeSet<String>, u32)> {
+    for (i, line) in source.split('\n').enumerate() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if !t.starts_with('#') {
+            break; // first non-comment content — stop scanning
+        }
+        let body = t.trim_start_matches('#').trim();
+        let lower = body.to_ascii_lowercase();
+        if lower.starts_with("profile") {
+            if let Some(colon) = body.find(':') {
+                let set: std::collections::BTreeSet<String> = body[colon + 1..]
+                    .split(|c: char| c == ',' || c.is_whitespace())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_ascii_uppercase)
+                    .collect();
+                return Some((set, u32::try_from(i).unwrap_or(0)));
+            }
+        }
+    }
+    None
+}
+
+/// Build the `# Profiles:` source action (insert or update) for an iRules
+/// document.  Returns `None` when no profiles are required or the existing
+/// directive already matches.  The caller gates on the iRules dialect.
+#[must_use]
+pub fn profiles_action(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<CodeAction> {
+    let required = compute_required_profiles(source, analysis, registry);
+    if required.is_empty() {
+        return None;
+    }
+    let new_text = format!("# Profiles: {}\n", required.join(", "));
+    if let Some((existing, line_no)) = scan_profile_directive(source) {
+        let required_set: std::collections::BTreeSet<String> = required.iter().cloned().collect();
+        if existing == required_set {
+            return None;
+        }
+        return Some(CodeAction {
+            title: format!(
+                "Update profile requirements \u{2192} {}",
+                required.join(", ")
+            ),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: line_no,
+                    start_character: 0,
+                    end_line: line_no + 1,
+                    end_character: 0,
+                },
+                new_text,
+            }],
+            kind: ActionKind::Source,
+            command: None,
+        });
+    }
+    Some(CodeAction {
+        title: format!(
+            "Generate profile requirements header ({})",
+            required.join(", ")
+        ),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 0,
+                end_character: 0,
+            },
+            new_text,
+        }],
+        kind: ActionKind::Source,
+        command: None,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// iRules taint quick-fixes — driven by the *context* diagnostics the editor
+// sends (the analyser may not have re-emitted them), so they take a separate
+// entry point.
+// ---------------------------------------------------------------------------
+
+/// A diagnostic supplied in the code-action request context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextDiagnostic {
+    /// Diagnostic code (e.g. `IRULE3001`).
+    pub code: String,
+    /// Human-readable message (carries the tainted `$var`).
+    pub message: String,
+    /// The diagnostic's range.
+    pub range: LspRange,
+}
+
+const HTML_ENCODE_PROC: &str =
+    "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
+const REGEX_QUOTE_PROC: &str =
+    "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+
+/// Quick-fixes for context-supplied diagnostics (iRules taint encode-wrap +
+/// double-encode removal).  Mirrors the taint arm of
+/// `server/features/code_actions.py`.
+#[must_use]
+pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> Vec<CodeAction> {
+    let mut out = Vec::new();
+    for d in diags {
+        out.extend(taint_quickfix(source, d));
+        out.extend(collect_bootstrap_actions(source, d));
+    }
+    // De-duplicate (two IRULE1006 diags for the same buffer command yield the
+    // same bootstrap action).  Key on the title + edit replacement texts.
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|a| {
+        let key = (
+            a.title.clone(),
+            a.edits
+                .iter()
+                .map(|e| e.new_text.clone())
+                .collect::<Vec<_>>(),
+        );
+        seen.insert(key)
+    });
+    out
+}
+
+/// Protocol names `X` for which `X::<suffix>` appears in `message`.
+fn protocols_before(message: &str, suffix: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = message.as_bytes();
+    let mut search = 0;
+    while let Some(rel) = message[search..].find(suffix) {
+        let end = search + rel;
+        let mut start = end;
+        while start > 0 && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_') {
+            start -= 1;
+        }
+        if start < end {
+            out.push(message[start..end].to_ascii_uppercase());
+        }
+        search = end + suffix.len();
+    }
+    out
+}
+
+/// The `when`-event setup event a `protocol::collect` bootstrap belongs in.
+fn setup_event_for(protocol: &str, event: &str) -> String {
+    let ev = event.to_ascii_uppercase();
+    match protocol {
+        "HTTP" if ev.starts_with("HTTP_RESPONSE") => "HTTP_RESPONSE".to_string(),
+        "HTTP" => "HTTP_REQUEST".to_string(),
+        "SSL" if ev.starts_with("SERVERSSL") => "SERVERSSL_HANDSHAKE".to_string(),
+        "SSL" => "CLIENTSSL_HANDSHAKE".to_string(),
+        _ if ev.starts_with("SERVER") => "SERVER_CONNECTED".to_string(),
+        _ => "CLIENT_ACCEPTED".to_string(),
+    }
+}
+
+/// Line index of the `when` block enclosing `line` (scanning upward), or 0.
+fn enclosing_when_line(source: &str, line: u32) -> u32 {
+    let lines: Vec<&str> = source.split('\n').collect();
+    let start = (line as usize).min(lines.len().saturating_sub(1));
+    for i in (0..=start).rev() {
+        if lines[i].trim_start().starts_with("when ") {
+            return u32::try_from(i).unwrap_or(0);
+        }
+    }
+    0
+}
+
+/// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
+/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.  Mirrors
+/// `_irules_collect_bootstrap_actions`.
+fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
+    if d.code != "IRULE1005" && d.code != "IRULE1006" {
+        return Vec::new();
+    }
+    let anchor = enclosing_when_line(source, d.range.start_line);
+    let event =
+        crate::irules_context::find_enclosing_when_event(source, d.range.start_line, "f5-irules")
+            .unwrap_or_default();
+
+    let (protocols, setup_event) = if d.code == "IRULE1005" {
+        // The data event is the word in the diag range; collect protocols from
+        // the "X::collect" mentions in the message.
+        let data_event = {
+            let line = source
+                .split('\n')
+                .nth(d.range.start_line as usize)
+                .unwrap_or("");
+            let chars: Vec<char> = line.chars().collect();
+            let s = (d.range.start_character as usize).min(chars.len());
+            let e = (d.range.end_character as usize).min(chars.len());
+            chars[s..e].iter().collect::<String>().to_ascii_uppercase()
+        };
+        (protocols_before(&d.message, "::collect"), data_event)
+    } else {
+        // IRULE1006 — the buffer command is `X::payload`.
+        (protocols_before(&d.message, "::payload"), event)
+    };
+
+    let mut unique: Vec<String> = Vec::new();
+    for p in protocols {
+        if !unique.contains(&p) {
+            unique.push(p);
+        }
+    }
+    unique
+        .into_iter()
+        .map(|proto| {
+            let setup = setup_event_for(&proto, &setup_event);
+            CodeAction {
+                title: format!("Add '{proto}::collect' bootstrap in '{setup}'"),
+                edits: vec![crate::rename::TextEdit {
+                    range: LspRange {
+                        start_line: anchor,
+                        start_character: 0,
+                        end_line: anchor,
+                        end_character: 0,
+                    },
+                    new_text: format!("when {setup} priority 500 {{\n    {proto}::collect\n}}\n\n"),
+                }],
+                kind: ActionKind::QuickFix,
+                command: None,
+            }
+        })
+        .collect()
+}
+
+/// Extract the variable name (no `$`/braces) named in a taint message.
+fn taint_var_name(message: &str) -> Option<String> {
+    let bytes = message.as_bytes();
+    let dollar = message.find('$')?;
+    let mut i = dollar + 1;
+    let braced = bytes.get(i) == Some(&b'{');
+    if braced {
+        i += 1;
+    }
+    let start = i;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_alphanumeric() || c == b'_' || c == b':' {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if i == start {
+        return None;
+    }
+    Some(message[start..i].to_string())
+}
+
+/// Find the `$name` / `${name}` reference for `var` on the diagnostic's start
+/// line, returning `(char_start, char_end, matched_text)`.
+fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
+    let braced = format!("${{{var}}}");
+    let bare = format!("${var}");
+    if let Some(b) = line.find(&braced) {
+        let cstart = line[..b].chars().count();
+        return Some((cstart, cstart + braced.chars().count(), braced));
+    }
+    // Bare form — require the next char not to be a var-continuation so `$ab`
+    // doesn't match for `$a`.
+    let mut search_from = 0;
+    while let Some(rel) = line[search_from..].find(&bare) {
+        let b = search_from + rel;
+        let after = line[b + bare.len()..].chars().next();
+        if after.map_or(true, |c| !(c.is_alphanumeric() || c == '_' || c == ':')) {
+            let cstart = line[..b].chars().count();
+            return Some((cstart, cstart + bare.chars().count(), bare));
+        }
+        search_from = b + bare.len();
+    }
+    None
+}
+
+fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
+    let line_no = d.range.start_line as usize;
+    let Some(line) = source.split('\n').nth(line_no) else {
+        return Vec::new();
+    };
+    let Some(var) = taint_var_name(&d.message) else {
+        return Vec::new();
+    };
+
+    // T106: remove a redundant `[ENCODER $var]` wrapper → `$var`.
+    if d.code == "T106" {
+        let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
+            return Vec::new();
+        };
+        let chars: Vec<char> = line.chars().collect();
+        // Scan left for the enclosing `[`, right for `]`.
+        let mut lb = vstart;
+        while lb > 0 && chars[lb - 1] != '[' {
+            lb -= 1;
+        }
+        let mut rb = vend;
+        while rb < chars.len() && chars[rb] != ']' {
+            rb += 1;
+        }
+        if lb == 0 || rb >= chars.len() {
+            return Vec::new();
+        }
+        let start = char_col_to_utf16_local(line, lb - 1);
+        let end = char_col_to_utf16_local(line, rb + 1);
+        return vec![CodeAction {
+            title: "Remove redundant encoder".to_string(),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: d.range.start_line,
+                    start_character: start,
+                    end_line: d.range.start_line,
+                    end_character: end,
+                },
+                new_text: matched,
+            }],
+            kind: ActionKind::QuickFix,
+            command: None,
+        }];
+    }
+
+    let (encoder, proc_template): (&str, Option<&str>) = match d.code.as_str() {
+        "IRULE3001" => ("html_encode", Some(HTML_ENCODE_PROC)),
+        "IRULE3002" => ("URI::encode", None),
+        "T103" => ("regex::quote", Some(REGEX_QUOTE_PROC)),
+        _ => return Vec::new(),
+    };
+    let Some((vstart, vend, matched)) = find_var_ref(line, &var) else {
+        return Vec::new();
+    };
+    let start = char_col_to_utf16_local(line, vstart);
+    let end = char_col_to_utf16_local(line, vend);
+    let mut edits = vec![crate::rename::TextEdit {
+        range: LspRange {
+            start_line: d.range.start_line,
+            start_character: start,
+            end_line: d.range.start_line,
+            end_character: end,
+        },
+        new_text: format!("[{encoder} {matched}]"),
+    }];
+    // Insert the helper proc at the top of the file when it isn't defined and
+    // the encoder is a user proc (html_encode / regex::quote; URI::encode is
+    // a built-in F5 command).
+    if let Some(template) = proc_template {
+        let proc_name = encoder;
+        if !source.contains(&format!("proc {proc_name}")) {
+            edits.push(crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: 0,
+                    start_character: 0,
+                    end_line: 0,
+                    end_character: 0,
+                },
+                new_text: format!("{template}\n"),
+            });
+        }
+    }
+    vec![CodeAction {
+        title: format!("Wrap ${var} with [{encoder}]"),
+        edits,
+        kind: ActionKind::QuickFix,
+        command: None,
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,10 +1451,14 @@ mod tests {
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 1, "{actions:?}");
-        assert_eq!(actions[0].title, "Initialise `var`");
-        assert_eq!(actions[0].edits.len(), 1);
-        assert_eq!(actions[0].edits[0].new_text, "set var 0");
+        let qf: Vec<&CodeAction> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .collect();
+        assert_eq!(qf.len(), 1, "{actions:?}");
+        assert_eq!(qf[0].title, "Initialise `var`");
+        assert_eq!(qf[0].edits.len(), 1);
+        assert_eq!(qf[0].edits[0].new_text, "set var 0");
     }
 
     #[test]
@@ -429,8 +1501,12 @@ mod tests {
             }],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 1);
-        assert!(actions[0].title.contains("Variable read before set"));
+        let qf: Vec<&CodeAction> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .collect();
+        assert_eq!(qf.len(), 1);
+        assert!(qf[0].title.contains("Variable read before set"));
     }
 
     #[test]
@@ -444,7 +1520,12 @@ mod tests {
             whole_document_range("set x 1\nputs $x\n"),
             Some(&analysis),
         );
-        assert!(actions.is_empty(), "{actions:?}");
+        // No diagnostic fixes → no quick-fix actions (range-based refactors
+        // like extract-proc may still be offered for the selection).
+        assert!(
+            !actions.iter().any(|a| a.kind == ActionKind::QuickFix),
+            "{actions:?}",
+        );
     }
 
     #[test]
@@ -469,8 +1550,12 @@ mod tests {
             ],
         });
         let actions = code_actions("set x 1\n", whole_document_range("set x 1\n"), Some(&r));
-        assert_eq!(actions.len(), 2);
-        let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
+        let titles: Vec<&str> = actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .map(|a| a.title.as_str())
+            .collect();
+        assert_eq!(titles.len(), 2);
         assert!(titles.contains(&"A") && titles.contains(&"B"));
     }
 

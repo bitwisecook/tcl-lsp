@@ -1,5 +1,28 @@
 //! `HTTP::respond` iRules command.
 use crate::prelude::*;
+
+/// Bareword option tokens that follow the `<status>` positional
+/// argument (`HTTP::respond 302 content|noserver|reset|version`).
+/// Mirrors the form-level `arg_values[1]` in `irules/http__respond.py`.
+const RESPOND_OPTION_VALUES: &[ArgValue] = &[
+    ArgValue {
+        value: "content",
+        detail: "Inline response body.",
+    },
+    ArgValue {
+        value: "noserver",
+        detail: "Suppress Server header.",
+    },
+    ArgValue {
+        value: "reset",
+        detail: "Reset server-side connection.",
+    },
+    ArgValue {
+        value: "version",
+        detail: "Response HTTP version.",
+    },
+];
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::respond",
@@ -77,6 +100,11 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
+        // Command-level arg-value completion: the bareword option
+        // tokens that follow the `<status>` positional argument
+        // (`HTTP::respond 302 content|noserver|reset|version`).  Mirrors
+        // the form-level `arg_values[1]` in `irules/http__respond.py`.
+        arg_values: &[(1, RESPOND_OPTION_VALUES)],
         forms: &[
             FormSpec { kind: FormKind::Default, synopsis: "HTTP::respond <status> ?option value ...?" },
         ],

@@ -44,8 +44,13 @@ pub struct DocumentLink {
     pub end_line: u32,
     /// Source-range end character.
     pub end_character: u32,
-    /// Target URI string.
+    /// Target URI string.  Empty when the link has no navigable target
+    /// (e.g. a `package require` whose package isn't on disk) — the
+    /// `tooltip` still surfaces.
     pub target: String,
+    /// Hover tooltip (the raw path / package name).  `None` for links
+    /// with no extra text.
+    pub tooltip: Option<String>,
 }
 
 /// Compute document links for a document.
@@ -88,6 +93,26 @@ pub fn document_links_with_home(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     ) {
         if seg.texts.is_empty() {
+            continue;
+        }
+        // `package require <pkg> ?version?` — surface a link on the package
+        // name (no on-disk target; the tooltip carries the package).
+        if seg.texts[0] == "package"
+            && seg.texts.get(1).is_some_and(|s| s == "require")
+            && seg.texts.len() >= 3
+        {
+            if let Some(tok) = seg.argv.get(2) {
+                let start = line_index.position_at_utf16(tok.span.start(), source);
+                let end = line_index.position_at_utf16(tok.span.end(), source);
+                links.push(DocumentLink {
+                    start_line: start.line,
+                    start_character: start.character,
+                    end_line: end.line,
+                    end_character: end.character,
+                    target: String::new(),
+                    tooltip: Some(format!("package require {}", seg.texts[2])),
+                });
+            }
             continue;
         }
         if seg.texts[0] != "source" {
@@ -152,6 +177,7 @@ pub fn document_links_with_home(
             end_line: end.line,
             end_character: end.character,
             target,
+            tooltip: Some(path_owned),
         });
     }
 

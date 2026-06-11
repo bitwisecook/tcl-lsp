@@ -1089,7 +1089,7 @@ fn fold_builtin_cmd_subst_raw(
     inner: &str,
     dialect: Option<&str>,
 ) -> Option<String> {
-    let words = literal_words(inner, constants)?;
+    let words = literal_words(inner, constants, registry, mutations, dialect)?;
     let (head, rest) = words.split_first()?;
     if !mutations.trusts(head) {
         return None;
@@ -1109,14 +1109,21 @@ fn fold_builtin_cmd_subst_raw(
 
 /// Re-lex a command-substitution interior into its literal words for the
 /// O129 const-fold. Returns `None` (bail — do not fold) if any word is
-/// not a single clean literal token: a `$var` / `[cmd]` substitution
-/// (`Var` / `Cmd`), a multi-token word (`foo$bar`), or a word whose text
-/// carries a backslash escape (decoding is out of scope here). A braced
-/// literal (`{a b}`, `{a$b}`) yields its interior text — the contents
-/// are literal, so they fold soundly.
+/// not a single clean literal token: a `$var` substitution (`Var`), a
+/// multi-token word (`foo$bar`), or a word whose text carries a backslash
+/// escape (decoding is out of scope here). A braced literal (`{a b}`,
+/// `{a$b}`) yields its interior text — the contents are literal, so they
+/// fold soundly. A nested `[cmd …]` substitution (`Cmd`) is folded
+/// recursively via [`fold_builtin_cmd_subst_raw`]: `[llength [list a b c]]`
+/// folds its inner `[list a b c]` to `a b c` first, so `llength` then sees
+/// a constant argument and folds to `3`. A nested sub that doesn't fold to
+/// a constant bails the whole fold.
 fn literal_words(
     inner: &str,
     constants: &std::collections::HashMap<String, String>,
+    registry: &tcl_registry::CommandRegistry,
+    mutations: &crate::command_binding::ModuleCommandMutations,
+    dialect: Option<&str>,
 ) -> Option<Vec<String>> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
@@ -1159,8 +1166,24 @@ fn literal_words(
                 words.push(value.clone());
                 prev_is_sep = false;
             }
-            // Cmd (and any future kind) → substitution-bearing.
-            _ => return None,
+            TokenType::Cmd => {
+                // Nested command substitution: fold it recursively.  Only a
+                // const-foldable nested builtin (`[list a b c]` → `a b c`)
+                // yields a literal word the outer fold can use; anything
+                // else (a `$var`-bearing sub, a non-foldable head) bails.
+                if !prev_is_sep {
+                    return None;
+                }
+                // A `Cmd` token's text is already the bracket *interior*
+                // (`list a b c`, not `[list a b c]`), so fold it directly.
+                let nested = sm.token_text(*tok);
+                let folded =
+                    fold_builtin_cmd_subst_raw(registry, mutations, constants, nested, dialect)?;
+                words.push(folded);
+                prev_is_sep = false;
+            }
+            // `{*}$x`-style expansion is substitution-bearing → bail.
+            TokenType::Expand => return None,
         }
     }
     Some(words)

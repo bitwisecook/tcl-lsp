@@ -1536,6 +1536,7 @@ fn emit_statement_warnings(
     let sink_call = SinkCall {
         command,
         args: call_args,
+        registry,
     };
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
         emit_sink_warnings(
@@ -1612,6 +1613,119 @@ struct SinkCall<'a> {
     command: &'a str,
     /// Argument vector as seen by the sink.
     args: &'a [String],
+    /// Command registry — drives the position-aware sink filters
+    /// (network-address slots, `[list]`-head recognition).
+    registry: &'a CommandRegistry,
+}
+
+/// Positional argument strings of `args` under `spec`, skipping option
+/// flags (`-foo`) and the value of any option whose [`OptionSpec`] declares
+/// `takes_value`. `--` ends option processing; everything after is
+/// positional. Mirrors the option-skipping arity walk in the analyser.
+fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a.len() > 1 && a.starts_with('-') {
+            if a == "--" {
+                out.extend(args[i + 1..].iter().cloned());
+                break;
+            }
+            let takes_value = spec
+                .options
+                .iter()
+                .any(|o| o.name == a.as_str() && o.takes_value);
+            i += usize::from(takes_value) + 1;
+            continue;
+        }
+        out.push(a.clone());
+        i += 1;
+    }
+    out
+}
+
+/// Position-aware sink filter: `true` when a tainted variable `name`
+/// occupies a *non-dangerous* argument slot for `code` and so must not trip
+/// the sink. Mirrors the positional filters in
+/// `core/compiler/taint/_sinks.py`.
+fn sink_var_position_safe(
+    registry: &CommandRegistry,
+    code: &str,
+    command: &str,
+    args: &[String],
+    name: &str,
+) -> bool {
+    match code {
+        // `puts ?-nonewline? ?channelId? string` — only the trailing
+        // content arg is an output sink; a tainted channel id is a handle.
+        "T101" if command == "puts" => args
+            .last()
+            .map_or(true, |content| !arg_var_names(content).contains(name)),
+        // T104 SSRF — only the network-address positional slots named by
+        // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
+        // imposes no filter.
+        "T104" => {
+            let Some(spec) = registry.get(command) else {
+                return false;
+            };
+            let Some(positions) = spec.taint_network_sink_args else {
+                return false;
+            };
+            if positions.is_empty() {
+                return false;
+            }
+            let positionals = positional_arg_strings(spec, args);
+            let in_network_slot = positions.iter().any(|&p| {
+                positionals
+                    .get(p as usize)
+                    .is_some_and(|s| arg_var_names(s).contains(name))
+            });
+            !in_network_slot
+        }
+        _ => false,
+    }
+}
+
+/// `true` when one of `args` is a `[list <head> …]` command substitution
+/// whose constructed-list command word (`<head>`) is a literal known
+/// registry command and `name` is referenced in that argument. The tainted
+/// variable is then a *quoted argument* of the list, never the command
+/// word, so `eval`/`uplevel`/`interp eval` of the list runs no injected
+/// command. `[list $x …]` (variable head) and `[list]`-free args return
+/// `false`.
+fn list_wrapped_arg_command_is_literal(
+    registry: &CommandRegistry,
+    args: &[String],
+    name: &str,
+) -> bool {
+    for arg in args {
+        let trimmed = arg.trim();
+        let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+            continue;
+        };
+        let mut words = inner.split_whitespace();
+        if words.next() != Some("list") {
+            continue;
+        }
+        // First element of the constructed list = the command word.
+        let Some(head) = words.next() else {
+            continue;
+        };
+        // The head must be a literal known command, not a substitution.
+        if head.starts_with('$') || head.contains(['[', '$', '{']) {
+            continue;
+        }
+        if registry.get(head).is_none() {
+            continue;
+        }
+        // `name` must actually flow through this list arg (and, since the
+        // head is a literal, only at an argument position ≥ 1).
+        if arg_var_names(arg).contains(name) {
+            return true;
+        }
+    }
+    false
 }
 
 fn emit_sink_warnings(
@@ -1640,6 +1754,22 @@ fn emit_sink_warnings(
             continue;
         }
         if code == "IRULE3002" && irule3002_name_position_safe(call.command, call.args, name, t) {
+            continue;
+        }
+        // Position-aware sink filter: a tainted variable only trips the
+        // sink when it occupies a *dangerous* argument slot (the `puts`
+        // content arg, a `taint_network_sink_args` network-address slot).
+        if sink_var_position_safe(call.registry, code, call.command, call.args, name) {
+            continue;
+        }
+        // `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]`: the
+        // command word of the constructed list is a literal known command,
+        // so the tainted `$v` is a quoted argument, not the command word —
+        // no code-injection vector (mirrors `_sinks.py` LIST_CANONICAL
+        // head-literal filter).
+        if matches!(code, "T100" | "T105")
+            && list_wrapped_arg_command_is_literal(call.registry, call.args, name)
+        {
             continue;
         }
         // T104 / T105 mitigations (mirror `_sinks.py:287-296`): a
