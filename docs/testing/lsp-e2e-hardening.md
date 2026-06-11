@@ -77,6 +77,15 @@ divergence to close in the native server, not test noise.
 - A clean dict/flow proc emits a native optimiser hint (`O129`) where Python is
   silent.
 
+### Server identity — `test_server_version.py`
+- `serverInfo.name` is `tcl-lsp-server` natively vs `tcl-lsp` on the Python
+  server (`test_server_info_name` fails in rust mode). Left strict — a genuine
+  identity divergence to harmonise in the native server, not a test artifact.
+- The packaged-version assertion is pyz-build plumbing (it checks the exact
+  Python zipapp build string), so it is relaxed for the native backend, which
+  reports its own Cargo version — only the dev-fallback regression is still
+  guarded there.
+
 `test_invariants_e2e.py` (range well-formedness + robustness) and the
 token-alignment edit-storm tests otherwise **pass** in rust mode — the native
 server's ranges are well-formed and it survives the adversarial corpus.
