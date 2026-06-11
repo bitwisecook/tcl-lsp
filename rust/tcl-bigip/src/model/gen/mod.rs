@@ -7,6 +7,8 @@ mod cm;
 mod gtm;
 mod ltm;
 mod net;
+pub mod object;
+pub mod parsers;
 mod pem;
 mod security;
 mod sys;
@@ -49,6 +51,7 @@ pub use net::{
     BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute, BigipNetRouteDomain,
     BigipNetSelf, BigipNetStp, BigipNetTunnel, BigipNetVlan,
 };
+pub use object::ModelObject;
 pub use pem::{
     BigipPemForwardingEndpoint, BigipPemInterceptionEndpoint, BigipPemListener, BigipPemPolicy,
     BigipPemProfile, BigipPemRatingGroup, BigipPemRule, BigipPemServiceChainEndpoint,

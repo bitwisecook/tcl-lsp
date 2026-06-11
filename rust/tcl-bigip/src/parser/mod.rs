@@ -2,6 +2,7 @@
 
 pub mod header;
 pub mod helpers;
+pub mod scalar;
 
 pub use header::{parse_generic_header, ObjectTypeIndex};
 pub use helpers::{
