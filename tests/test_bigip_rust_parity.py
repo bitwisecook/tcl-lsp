@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from dialects.f5.bigip.parser import _rust_bridge as bridge
 from dialects.f5.bigip.parser import parse_bigip_conf
-from tests import _bigip_parity as bridge
 
 _CORPUS = sorted((Path(__file__).parent.parent / "samples" / "bigip").glob("*.conf"))
 
