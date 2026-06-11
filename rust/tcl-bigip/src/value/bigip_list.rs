@@ -81,6 +81,10 @@ pub enum ListItemValue {
     FirewallRule(FirewallRule),
     /// A monitor expression.
     MonitorExpression(MonitorExpression),
+    /// A typed pool member (`ltm pool`/`snatpool` members). Mirrors the
+    /// Python `BigipList` item holding a `BigipPoolMember` — an intra-crate
+    /// reference to the model struct (Rust allows the module cycle).
+    PoolMember(crate::model::BigipPoolMember),
 }
 
 impl ListItemValue {
@@ -99,6 +103,7 @@ impl ListItemValue {
             | ListItemValue::DataGroupRecord(_)
             | ListItemValue::GtmRegionMember(_)
             | ListItemValue::MonitorExpression(_)
+            | ListItemValue::PoolMember(_)
             | ListItemValue::Profile(_)
             | ListItemValue::Persistence(_) => None,
         }

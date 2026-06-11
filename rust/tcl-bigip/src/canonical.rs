@@ -134,6 +134,7 @@ fn list_value(v: &ListItemValue) -> Value {
         ListItemValue::GtmRegionMember(g) => tagged(g),
         ListItemValue::FirewallRule(f) => tagged(f),
         ListItemValue::MonitorExpression(m) => tagged(m),
+        ListItemValue::PoolMember(p) => tagged(p),
     }
 }
 
