@@ -21,7 +21,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNIPPETS_DIR="$REPO_ROOT/tests/bytecode_snippets"
 
 # Save original DYLD_LIBRARY_PATH so we can restore on exit
