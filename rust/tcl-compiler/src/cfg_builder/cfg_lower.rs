@@ -511,14 +511,44 @@ impl CfgBuilder {
             self.new_block("try_ok")
         };
 
-        if let Some(tail) = self.lower_script(body, &body_block) {
-            self.ensure_goto(&tail, &post_body, Some(*body_span));
+        let body_tail = self.lower_script(body, &body_block);
+        if let Some(tail) = &body_tail {
+            self.ensure_goto(tail, &post_body, Some(*body_span));
         }
 
         // Each handler reachable from body failure.
         for handler in handlers {
             let handler_block = self.new_block("try_handler");
             self.ensure_goto(block_name, &handler_block, Some(*span));
+
+            // `block_name` already gotos `try_body` (single successor), so a
+            // real terminator edge can't reach the handler.  Record a throw
+            // edge instead — SSA uses it as an extra phi predecessor and SCCP
+            // as a reachability edge (analysis builds only).  `on ok` runs
+            // only after the body completes normally, so it observes the
+            // body's *exit* versions (source = body tail).  Every other
+            // handler runs on an abnormal completion that can occur at any
+            // point, so a body-set var is *maybe* defined: merge the
+            // pre-`try` state (version-0) with the body-exit state.  Mirrors
+            // Python `_lower_try`.
+            if self.faithful_exceptions {
+                let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
+                if is_on_ok {
+                    if let Some(tail) = &body_tail {
+                        self.exception_edges
+                            .push((tail.clone(), handler_block.clone()));
+                    }
+                } else {
+                    self.exception_edges
+                        .push((block_name.to_owned(), handler_block.clone()));
+                    if let Some(tail) = &body_tail {
+                        if tail != block_name {
+                            self.exception_edges
+                                .push((tail.clone(), handler_block.clone()));
+                        }
+                    }
+                }
+            }
 
             let mut var_defs = Vec::new();
             if let Some(vn) = &handler.var_name {

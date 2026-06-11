@@ -182,6 +182,14 @@ pub struct Function {
     /// Glob/regexp `switch` dispatch metadata: entry dispatch block →
     /// generic-invoke fallback info (see [`SwitchDispatch`]).
     pub switch_dispatches: HashMap<String, SwitchDispatch>,
+    /// `try` body→handler exception edges for control flow the single-
+    /// successor terminator can't express.  Consumed by SSA (as extra phi
+    /// predecessors so a handler sees the body's versions) and SCCP (as
+    /// extra reachability edges so handler bodies aren't false-unreachable
+    /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
+    /// builds so the default bytecode is unchanged.  Mirrors Python's
+    /// `CFGFunction.exception_edges`.
+    pub exception_edges: Vec<(String, String)>,
 }
 
 impl Function {
@@ -197,7 +205,25 @@ impl Function {
             blocks,
             loop_nodes: HashMap::new(),
             switch_dispatches: HashMap::new(),
+            exception_edges: Vec::new(),
         }
+    }
+
+    /// All successor block names of `name`: the terminator's successors plus
+    /// any `try` exception-edge handler targets sourced at `name`.
+    #[must_use]
+    pub fn block_successors(&self, name: &str) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .blocks
+            .get(name)
+            .map(|b| b.successors().into_iter().map(str::to_owned).collect())
+            .unwrap_or_default();
+        for (from, to) in &self.exception_edges {
+            if from == name && !out.contains(to) {
+                out.push(to.clone());
+            }
+        }
+        out
     }
 
     /// Compute the predecessor map: block name → set of predecessor block names.
@@ -207,12 +233,9 @@ impl Function {
         for name in self.blocks.keys() {
             preds.entry(name.clone()).or_default();
         }
-        for (name, block) in &self.blocks {
-            for succ in block.successors() {
-                preds
-                    .entry(succ.to_owned())
-                    .or_default()
-                    .insert(name.clone());
+        for name in self.blocks.keys() {
+            for succ in self.block_successors(name) {
+                preds.entry(succ).or_default().insert(name.clone());
             }
         }
         preds
@@ -228,10 +251,10 @@ impl Function {
             if !visited.insert(name.clone()) {
                 continue;
             }
-            if let Some(block) = self.blocks.get(&name) {
-                for succ in block.successors() {
-                    if !visited.contains(succ) {
-                        queue.push_back(succ.to_owned());
+            if self.blocks.contains_key(&name) {
+                for succ in self.block_successors(&name) {
+                    if !visited.contains(&succ) {
+                        queue.push_back(succ);
                     }
                 }
             }
@@ -269,12 +292,7 @@ impl Function {
             succs: Vec<String>,
             idx: usize,
         }
-        let succs_of = |name: &str| -> Vec<String> {
-            self.blocks
-                .get(name)
-                .map(|b| b.successors().into_iter().map(str::to_owned).collect())
-                .unwrap_or_default()
-        };
+        let succs_of = |name: &str| -> Vec<String> { self.block_successors(name) };
 
         let mut visited: HashSet<String> = HashSet::new();
         let mut postorder: Vec<String> = Vec::new();

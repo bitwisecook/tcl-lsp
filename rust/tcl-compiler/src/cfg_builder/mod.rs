@@ -54,6 +54,12 @@ pub(crate) struct CfgBuilder {
     /// edge.  Without this a `while 1 { … break }` exit block is
     /// unreachable and O107 false-fires on the code after the loop.
     loop_stack: Vec<(String, String)>,
+    /// `try` body→handler exception edges (analysis builds only).
+    exception_edges: Vec<(String, String)>,
+    /// When `true`, record [`Self::exception_edges`] in `lower_try`.  Off for
+    /// codegen builds so the default bytecode is unchanged (mirrors Python's
+    /// `_faithful_exceptions`).
+    faithful_exceptions: bool,
 }
 
 impl CfgBuilder {
@@ -75,7 +81,15 @@ impl CfgBuilder {
             upvar_procs,
             proc_params,
             loop_stack: Vec::new(),
+            exception_edges: Vec::new(),
+            faithful_exceptions: false,
         }
+    }
+
+    /// Enable `try` exception-edge recording (analysis builds).
+    fn with_faithful_exceptions(mut self) -> Self {
+        self.faithful_exceptions = true;
+        self
     }
 
     /// Augment a statement's effective `defs` with caller-side
@@ -332,6 +346,7 @@ impl CfgBuilder {
 
         let loop_nodes = std::mem::take(&mut self.loop_nodes);
         let switch_dispatches = std::mem::take(&mut self.switch_dispatches);
+        let exception_edges = std::mem::take(&mut self.exception_edges);
 
         Function {
             name: name.to_owned(),
@@ -339,6 +354,7 @@ impl CfgBuilder {
             blocks: frozen,
             loop_nodes,
             switch_dispatches,
+            exception_edges,
         }
     }
 
@@ -703,13 +719,15 @@ pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
     let (upvar_procs, proc_params) = prepare_cfg_context(module);
 
     let mut top_builder =
-        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone());
+        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone())
+            .with_faithful_exceptions();
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
         let mut builder =
-            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone());
+            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone())
+                .with_faithful_exceptions();
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -747,7 +765,8 @@ pub fn build_cfg_function_with_upvars(
     upvar_procs: HashMap<String, UpvarInfo>,
     proc_params: HashMap<String, Vec<String>>,
 ) -> Function {
-    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params);
+    let mut builder = CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params)
+        .with_faithful_exceptions();
     builder.build_function(name, script)
 }
 

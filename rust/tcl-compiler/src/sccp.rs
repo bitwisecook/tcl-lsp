@@ -387,6 +387,20 @@ fn sccp_process_terminator(
         }
         Terminator::Return { .. } => {}
     }
+    // `try` exception edges sourced at `bn`: when `bn` is executable the
+    // handler is reachable (a throw can occur in the body).
+    for (from, to) in &cfg.exception_edges {
+        if from != bn {
+            continue;
+        }
+        let edge = (bn.to_owned(), to.clone());
+        if executable_edges.insert(edge) {
+            changed = true;
+        }
+        if cfg.blocks.contains_key(to) && executable_blocks.insert(to.clone()) {
+            changed = true;
+        }
+    }
     changed
 }
 
