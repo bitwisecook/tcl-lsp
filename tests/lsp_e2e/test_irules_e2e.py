@@ -574,3 +574,36 @@ class TestIrulesSemanticTokens:
         uri = _open(lsp_server_irules, uri_factory, source)
         tokens = _irules_typed(lsp_server_irules, uri)
         assert all(t["type"] == "comment" for t in tokens)
+
+
+def _irules_codes(diags) -> set[str]:
+    return {str(d.get("code")) for d in (diags or [])}
+
+
+class TestIrulesTaintDiagnostics:
+    """Taint diagnostics must actually *fire* on the wire (positive + negative).
+
+    ``TestIrulesTaintQuickFixes`` synthesises a diagnostic to test the quick-fix
+    geometry; nothing asserted that the server *publishes* a taint diagnostic at
+    all.  These pin the taint analysis end-to-end: a taint source flowing into an
+    HTTP sink raises ``IRULE3102``, and the same sink fed a constant stays
+    silent — the must-fire / must-stay-silent contract for the taint family.
+    """
+
+    def test_taint_source_in_http_sink_fires_irule3102(self, lsp_server_irules, uri_factory):
+        uri = uri_factory("irule")
+        diags = lsp_server_irules.open_ready(
+            uri,
+            "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri]\n}\n",
+            language_id="tcl-irule",
+        )
+        assert "IRULE3102" in _irules_codes(diags), _irules_codes(diags)
+
+    def test_constant_in_http_sink_is_silent(self, lsp_server_irules, uri_factory):
+        uri = uri_factory("irule")
+        diags = lsp_server_irules.open_ready(
+            uri,
+            'when HTTP_REQUEST {\n    HTTP::respond 200 content "static body"\n}\n',
+            language_id="tcl-irule",
+        )
+        assert "IRULE3102" not in _irules_codes(diags), _irules_codes(diags)

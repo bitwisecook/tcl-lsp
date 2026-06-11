@@ -134,8 +134,8 @@ suite. This is tracked here as a living matrix; the homes are:
 | Warnings `W1xx/W2xx/W3xx` | W100, W110, W128, W210, W211, W220, W302, W307 | the rest: add `_MATRIX` rows |
 | Info `I2xx` | I230 | |
 | Optimiser `O1xx` | const-fold (llength/expr) fire + no-fold negative | surfaced via `optimiseDocument`, not default diagnostics |
-| Shimmer `S1xx` | — TODO | needs specific shimmer patterns; ground-truth then add rows |
-| Taint `T1xx` | — TODO | needs iRules dialect + source/sink pairs; author against `lsp_server_irules` |
+| Shimmer `S1xx` | — TODO | S100–S102 exist but are gated off by default (`shimmer_enabled`); enable via `config_session` then ground-truth fire/silent |
+| Taint `IRULE3xxx` | IRULE3102 fire + silent (`test_irules_e2e.py::TestIrulesTaintDiagnostics`) | the deep-pass codes IRULE3001/3002 need a deep-diagnostics barrier; quick-fix geometry already covered by `TestIrulesTaintQuickFixes` |
 | Feature on/off | hover, completion, documentSymbols, definition, references, signatureHelp, folding, selectionRange, documentLinks | semanticTokens/codeActions/codeLens/inlayHints/rename/highlight: add to `_TOGGLEABLE_FEATURES` / probes |
 
 **To finish the matrix:** enumerate every code (the registry's
