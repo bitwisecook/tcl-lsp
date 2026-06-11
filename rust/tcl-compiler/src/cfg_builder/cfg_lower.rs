@@ -133,7 +133,12 @@ impl CfgBuilder {
             span: Some(*condition_span),
         });
 
-        if let Some(tail) = self.lower_script(body, &body_block) {
+        // `break` exits to `end_block`; `continue` runs the step at `step_block`.
+        self.loop_stack
+            .push((end_block.clone(), step_block.clone()));
+        let body_tail = self.lower_script(body, &body_block);
+        self.loop_stack.pop();
+        if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &step_block, Some(*body_span));
         }
 
@@ -215,7 +220,11 @@ impl CfgBuilder {
             span: Some(*condition_span),
         });
 
-        if let Some(tail) = self.lower_script(body, &body_block) {
+        // `break` exits to `end_block`; `continue` re-tests at `header`.
+        self.loop_stack.push((end_block.clone(), header.clone()));
+        let body_tail = self.lower_script(body, &body_block);
+        self.loop_stack.pop();
+        if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 
@@ -287,7 +296,11 @@ impl CfgBuilder {
             span: Some(*span),
         });
 
-        if let Some(tail) = self.lower_script(body, &body_block) {
+        // `break` exits to `end_block`; `continue` advances at `header`.
+        self.loop_stack.push((end_block.clone(), header.clone()));
+        let body_tail = self.lower_script(body, &body_block);
+        self.loop_stack.pop();
+        if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 

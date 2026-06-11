@@ -49,6 +49,11 @@ pub(crate) struct CfgBuilder {
     /// local`) against the actual call-site argument.  Mirrors Python
     /// `_CFGBuilder._proc_params`.
     proc_params: HashMap<String, Vec<String>>,
+    /// Stack of `(break_target, continue_target)` block names for the
+    /// enclosing loops, so `break` / `continue` in a body lower to a CFG
+    /// edge.  Without this a `while 1 { … break }` exit block is
+    /// unreachable and O107 false-fires on the code after the loop.
+    loop_stack: Vec<(String, String)>,
 }
 
 impl CfgBuilder {
@@ -69,6 +74,7 @@ impl CfgBuilder {
             inline_loops,
             upvar_procs,
             proc_params,
+            loop_stack: Vec::new(),
         }
     }
 
@@ -222,6 +228,28 @@ impl CfgBuilder {
         defs
     }
 
+    /// If `stmt` is a `break` / `continue` inside a loop, push it into
+    /// `current` and set a `Goto` terminator to the loop's exit / continue
+    /// target, returning `true`.  Returns `false` (no-op) otherwise.
+    fn lower_loop_jump(&mut self, current: &str, stmt: &Statement) -> bool {
+        let Statement::Call { command, span, .. } = stmt else {
+            return false;
+        };
+        if command != "break" && command != "continue" {
+            return false;
+        }
+        let Some((brk, cont)) = self.loop_stack.last().cloned() else {
+            return false;
+        };
+        let target = if command == "break" { brk } else { cont };
+        self.block_mut(current).statements.push(stmt.clone());
+        self.block_mut(current).terminator = Some(Terminator::Goto {
+            target,
+            span: Some(*span),
+        });
+        true
+    }
+
     /// Push a non-control-flow statement into `current` (after upvar
     /// invalidation), promoting `error` / `throw` / `exit` to a `Return`
     /// terminator so any following statements become dead code (mirrors the
@@ -335,6 +363,13 @@ impl CfgBuilder {
             if self.block_mut(&current).terminator.is_some() {
                 main_terminated = true;
                 current = self.new_block("unreachable");
+            }
+
+            // `break` / `continue` inside a loop body lower to a CFG edge to
+            // the loop's exit / continue target, so the loop-exit block stays
+            // reachable (a `while 1 { … break }` post-loop block is live).
+            if self.lower_loop_jump(&current, stmt) {
+                continue;
             }
 
             match stmt {
