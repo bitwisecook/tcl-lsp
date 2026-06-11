@@ -152,6 +152,10 @@ fn is_benign_unicode(ch: char) -> bool {
 /// `_BINARY_INT_SPECIFIERS`.
 const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
 
+/// Sentinel scope key for the W307 dispatcher-suppression maps covering
+/// statements outside any proc body (mirrors Python's `_TOP_SCOPE`).
+const W307_TOP_SCOPE: &str = "::top";
+
 /// Mask-octet values that can appear in a contiguous subnet mask.
 /// Mirrors `_VALID_MASK_OCTETS`.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
@@ -5219,6 +5223,78 @@ file; this call falls through to the 'unknown' handler."
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);
         let objdefined_vars = self.objdefined_vars.clone();
+
+        // **Proc-parameter / multi-dispatch object-dispatch suppression**
+        // (mirrors `_diag_var_command.py:807-859`).  A dispatch on a proc
+        // *parameter* — `proc walk {tree} { $tree visit }` — is object
+        // dispatch the user has documented as the proc's API contract, not a
+        // static error.  A non-parameter local dispatched ≥2 times in the same
+        // scope is likewise evidenced object usage (a single dispatch could be
+        // a typo; repeated use is clearly designed).  Build, per enclosing
+        // proc body, its parameter set and the per-var dispatch count, plus a
+        // taint carve-out: a *tainted* var is never suppressed (dispatching a
+        // user-controlled command name is an injection risk regardless of how
+        // many times it appears).  `::top` is the sentinel for statements
+        // outside any proc body.
+        let mut proc_body_ranges: Vec<(u32, u32, String, HashSet<String>)> = self
+            .result
+            .all_procs
+            .iter()
+            .map(|(qname, pdef)| {
+                let params: HashSet<String> = pdef.params.iter().map(|p| p.name.clone()).collect();
+                (
+                    pdef.body_span.start(),
+                    pdef.body_span.end(),
+                    qname.clone(),
+                    params,
+                )
+            })
+            .collect();
+        // Innermost-enclosing wins: scan largest-start-first for a range that
+        // contains the offset (procs don't nest, but `namespace eval` bodies
+        // can wrap several, so this stays robust).  Returns the index into
+        // `proc_body_ranges`, or `None` for the `::top` sentinel scope.
+        proc_body_ranges.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+        let enclosing_idx = |off: u32| -> Option<usize> {
+            proc_body_ranges
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, (s, e, _, _))| *s <= off && off <= *e)
+                .map(|(i, _)| i)
+        };
+        let scope_qname = |idx: Option<usize>| -> &str {
+            idx.map_or(W307_TOP_SCOPE, |i| proc_body_ranges[i].2.as_str())
+        };
+        let mut dispatch_counts: HashMap<(String, String), usize> = HashMap::new();
+        for site in &sites {
+            let qname = scope_qname(enclosing_idx(site.cmd_span.start()));
+            *dispatch_counts
+                .entry((qname.to_owned(), site.var_name.clone()))
+                .or_insert(0) += 1;
+        }
+        // Per-scope tainted var names — any tainted SSA version of a name
+        // disqualifies it from dispatcher-suppression.  Keyed by qname, with
+        // `::top` for the top-level scope.
+        let tainted_names_of = |fu: &crate::compilation_unit::FunctionUnit| -> HashSet<String> {
+            fu.taints
+                .iter()
+                .filter(|(_, tl)| tl.is_tainted())
+                .map(|((var, _ver), _)| var.clone())
+                .collect()
+        };
+        let mut tainted_by_scope: HashMap<String, HashSet<String>> = HashMap::new();
+        let top_tainted = tainted_names_of(&cu.top_level);
+        if !top_tainted.is_empty() {
+            tainted_by_scope.insert(W307_TOP_SCOPE.to_owned(), top_tainted);
+        }
+        for (qname, fu) in &cu.procedures {
+            let names = tainted_names_of(fu);
+            if !names.is_empty() {
+                tainted_by_scope.insert(qname.clone(), names);
+            }
+        }
+
         for site in &sites {
             // **W308 path.**  Variable known to hold an Object
             // — validate the method name against the class
@@ -5330,6 +5406,24 @@ file; this call falls through to the 'unknown' handler."
                 if !values.is_empty() && values.iter().all(|v| is_known_command(v)) {
                     continue;
                 }
+            }
+            // Proc-parameter / multi-dispatch object-dispatch suppression: a
+            // dispatch on a parameter of the enclosing proc (any count), or on
+            // a non-parameter local dispatched ≥2 times in the same scope, is
+            // evidenced object usage — suppress unless the var is tainted.
+            let idx = enclosing_idx(site.cmd_span.start());
+            let encl_qname = scope_qname(idx);
+            let is_param = idx.is_some_and(|i| proc_body_ranges[i].3.contains(&site.var_name));
+            let dispatch_count = dispatch_counts
+                .get(&(encl_qname.to_owned(), site.var_name.clone()))
+                .copied()
+                .unwrap_or(0);
+            let dispatcher_suppressed = is_param || dispatch_count >= 2;
+            let tainted = tainted_by_scope
+                .get(encl_qname)
+                .is_some_and(|s| s.contains(&site.var_name));
+            if dispatcher_suppressed && !tainted {
+                continue;
             }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),
@@ -8127,22 +8221,64 @@ foo
 
     #[test]
     fn analyse_w307_var_as_command() {
-        // ``proc foo {x} { $x arg1 }`` — ``$x`` used as command
-        // head; we have no static knowledge of what it holds, so
-        // W307 fires.  Must go through ``analyse`` (not raw
-        // ``emit_cfg_ssa_diagnostics``) because ``var_command_sites``
-        // is populated by the analyser's walk dispatch, not the
-        // emitter pipeline.
+        // ``proc foo {} { $cmd arg1 }`` — ``$cmd`` (a non-parameter local
+        // dispatched once) is used as command head with no static knowledge
+        // of what it holds, so W307 fires.  Must go through ``analyse`` (not
+        // raw ``emit_cfg_ssa_diagnostics``) because ``var_command_sites`` is
+        // populated by the analyser's walk dispatch, not the emitter pipeline.
         let mut a = Analyser::new();
-        let r = a.analyse("proc foo {x} { $x arg1 }", "tcl");
+        let r = a.analyse("proc foo {} { $cmd arg1 }", "tcl");
         let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
         assert!(
             !w307s.is_empty(),
-            "W307 expected for ``$x arg1``; got {:?}",
+            "W307 expected for ``$cmd arg1``; got {:?}",
             r.diagnostics,
         );
         assert_eq!(w307s[0].severity, Severity::Warning);
         assert!(w307s[0].message.contains("Non-literal command name"));
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_proc_param_dispatch() {
+        // A dispatch on a *parameter* of the enclosing proc is object dispatch
+        // the user documented as the proc's API contract — W307 must stay
+        // silent (mirrors `_diag_var_command.py`'s proc-parameter
+        // suppression).  `$self configure` is the canonical method-dispatch
+        // idiom on an opaque handle.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc p {self} { $self configure -x 1 }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must be suppressed for a dispatch on proc parameter; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_multi_dispatch_local() {
+        // A non-parameter local dispatched ≥2 times demonstrates intent
+        // (object usage), so W307 is suppressed even without a known value.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc p {} { $tree visit\n$tree leaves }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must be suppressed for a local dispatched ≥2 times; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_fires_for_tainted_dispatch_despite_multi_use() {
+        // Taint carve-out: a user-controlled command name dispatched multiple
+        // times is still a command-injection risk — the dispatcher-suppression
+        // must NOT apply, so W307 fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc p {} { set c [gets stdin]\n$c one\n$c two }", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must fire for a tainted dispatched command name; got {:?}",
+            r.diagnostics,
+        );
     }
 
     #[test]

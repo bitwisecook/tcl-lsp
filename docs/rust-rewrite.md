@@ -4684,6 +4684,138 @@ today — no `tclLsp.features.*` state). The fp/ground-truth precision battery i
 unaffected by the rebase (no analyser source changed); its `223/316` baseline
 stands.
 
+#### SYNC-JUN11-config — `getEffectiveConfig` + per-feature toggles (lsp_e2e 46→32 failing)
+
+Closed the whole `test_config_e2e` cluster (14 tests). The native server now
+pulls the resolved `tclLsp` section via `workspace/configuration`:
+
+- `Backend` gained `feature_toggles` (a default-on `FeatureToggles` map mirroring
+  Python's `_FEATURE_TOGGLE_KEYS`), `optimiser_enabled`, and `line_length` state.
+- A new `pull_and_apply_config` issues a `workspace/configuration` request for the
+  `tclLsp` section and applies `features.*` / `optimiser.enabled` /
+  `formatting.lineLength` / dialect / W108 mode / disabled codes — *merging* only
+  the keys the reply carries (absent → unchanged, matching the config-pull
+  restore contract). It runs on `initialized` and on every
+  `didChangeConfiguration` (the editor/harness push an empty payload as the
+  re-pull signal; the inline `params.settings` path still covers the flat
+  MCP-bridge shape).
+- `get_effective_config_command` now returns the resolved `features` map +
+  `optimiser_enabled` + `line_length` + `non_ascii_mode` + `disabled_diagnostics`
+  alongside `dialect`.
+- The nine toggleable providers (hover, completion, documentSymbols, definition,
+  references, signatureHelp, folding, selectionRange, documentLinks) consult
+  `feature_enabled(...)` and return empty/None when disabled.
+- `formatting` honours the request's `tabSize` / `insertSpaces`
+  (`formatter_config_from_options` → `core_formatting::formatting_with`).
+
+Result: **lsp_e2e against the Rust server 441→455 passed, 46→32 failed, 1
+skipped**; no regressions. 7 new server unit tests + the
+`core_formatting::formatting_with` split; `cargo test`/`clippy`/`fmt` clean. The
+remaining 32 are the diagnostic-precision clusters (W210/W220/W307/taint —
+shared with the Phase-2 battery), command-surface shapes (`test_commands_e2e`),
+BigIP outline/suppression, bracket-recovery veto, and token/range invariants.
+
+#### SYNC-JUN11-w307 — proc-parameter / multi-dispatch W307 suppression (lsp_e2e 32→31 failing)
+
+Ported the proc-parameter object-dispatch W307 suppression from
+`analyser/_analyser/_diag_var_command.py:807-859`, which the Rust
+`emit_var_command_diagnostics` had not yet implemented (the analyser fired W307
+on *every* non-literal command head, including opaque dispatch idioms). The rule
+suppresses W307 when the dispatched variable is **a parameter of the enclosing
+proc** (any dispatch count — `proc walk {tree} { $tree visit }` documents the
+contract) or **a non-parameter local dispatched ≥2 times** in the same scope —
+with a **taint carve-out** (a tainted command name is an injection risk and
+still fires regardless of count). `::top` is the sentinel scope for top-level
+statements.
+
+Closes `test_w307_silent_for_opaque_dispatch_target` (`$self configure` in a
+vanilla proc). The previously-passing `test_w307_known_literal_non_command_fires`
+(`set cmd foo; $cmd bar` — a non-param local, single dispatch, value not a
+command) still fires. The old `analyse_w307_var_as_command` unit test asserted
+the un-ported behaviour (W307 on a *param* dispatch) and was corrected to a
+non-param case; +3 new unit tests (param suppression, multi-dispatch
+suppression, taint-still-fires).
+
+**Precision-battery gate:** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` in
+rust mode = **284 passed / 93 failed**, the 93 failures byte-identical to the
+documented `SYNC-JUN10-phase2` backlog (ground_truth 31, fp_rbs 14, fp_sty 11,
+fp_ds 10, fp_bnd 9, fp_nab 5, fp_rch 5, fp_sh 4, fp_opt 3, fp_inj 1) — **no
+regression**. The ground_truth W307 residue is the snit/TclOO
+instance-variable/component resolution, a distinct path from proc-parameter
+dispatch. `cargo test -p tcl-compiler`/`clippy`/`fmt` clean.
+
+#### SYNC-JUN11-commands — command-surface parity (lsp_e2e 31→25 failing)
+
+Wired four missing `executeCommand` handlers in `tcl-lsp-server`, mirroring
+`server/commands.py`, and added them to the advertised `executeCommandProvider`
+list:
+- `tcl-lsp.listSubcommands` — registry-driven subcommand metadata
+  (`{name, detail, synopsis, pure, mutator, deprecated}`, sorted; empty list for
+  an unknown command). This was the only missing **core** command, so it also
+  closes `test_core_commands_are_advertised`.
+- `tcl-lsp.listKnownPackages` / `tcl-lsp.suggestPackagesForSymbol` — shape-correct
+  (`{packages: []}` / `{symbol, suggestions: []}`); the native server has no
+  on-disk `package require` resolver yet (a documented follow-up), so they report
+  the empty set rather than fabricating data.
+- `tcl-lsp.exportConfig` — writes the resolved feature / optimiser / style /
+  disabled-diagnostic state to `$XDG_CONFIG_HOME/tcl-lsp/config.ini`
+  (INI, the format the server reads) and returns `{success, path}`.
+
+Closes the `test_commands_e2e::TestCommandSurface` cluster (6 tests:
+core-advertised, listSubcommands shape + unknown-empty, listKnownPackages shape,
+suggestPackagesForSymbol shape, exportConfig writes a file). +3 server unit
+tests; `cargo test`/`clippy`/`fmt` clean.
+
+Also fixed the minifier switch-pattern bug (#540) that was the last
+`test_commands_e2e` failure: `minify_switch_case_list` reconstructed each
+pattern word per-token via `reconstruct_raw`, which re-wraps a braced `{a b}`
+`Str` token but strips the delimiters off a quoted `"c d"` word (the lexer lexes
+quoted content as bare `Esc`/`Var`/`Cmd` tokens) — so `"c d"` collapsed to two
+bare words and unbalanced the case list. The word builder now records whether a
+word opened on a `"` and re-quotes it (and any quoted body) on re-emission. +1
+minify unit test. **lsp_e2e 31→24 failing; the whole `test_commands_e2e` file
+(17 tests) is green.**
+
+#### SYNC-JUN11 scoreboard — cumulative
+
+Across the JUN11 increments the native server moved **lsp_e2e 46→24 failing
+(441→463 passing, 1 skipped)** with **no regressions** and the precision battery
+held at its documented baseline (284 passed / 93 failed, byte-identical
+families). Workspace gate green throughout: `cargo test --workspace
+--all-features` (30 groups, 0 fail), `cargo clippy --workspace --all-targets`
+(0 warnings), `cargo fmt`.
+
+| increment | closed | running total failing |
+|---|---|---|
+| `config` (`getEffectiveConfig` + toggles) | 14 | 46→32 |
+| `w307` (proc-param / multi-dispatch suppression) | 1 | 32→31 |
+| `commands` (listSubcommands/listKnownPackages/suggestPackages/exportConfig) | 6 | 31→25 |
+| `minify` (#540 quoted switch-pattern) | 1 | 25→24 |
+
+Remaining 24, by cluster (worst-first, all pre-existing):
+- **path-sensitive dataflow precision** (`test_diagnostics_e2e` 6 +
+  `test_diagnostic_matrix_e2e` 5 = 11) — W210 path-merge TP (read on a
+  partial-def merge currently mis-folds to O100/O102; `unset` doesn't kill the
+  reaching def), W220 dead-store flow precision (misses the real dead store,
+  false-fires the live one), E003 **subcommand** arity (needs per-subcommand
+  option-aware skipping — the `SubCommand.options` set is in the registry but
+  the arity path is still `Simple`-only), and the clean-dataflow no-FP control.
+  This is the documented `SYNC-JUN10-phase2` core and is **battery-locked** —
+  each is a careful CFG/SSA/optimiser-interaction fix, not a switch.
+- **BigIP `.conf`** (4) — needs canonical-basename detection
+  (`bigip.conf`/`bigip_base.conf`/…) routing to a BigIP-config parse/outline
+  path that suppresses general Tcl diagnostics (W123/E002 currently leak); a
+  sizeable feature port, not yet started on the native server.
+- **recovery** (3) — the bracket-recovery inert-offset veto (#560): the ghost-`]`
+  insertion must veto offsets inside a balanced brace word (the brace path
+  already does).
+- **semantic tokens** (2) — token-invariant edge cases (non-overlap on a dense
+  line, `unicode_after_var`).
+- **invariants** (2) — `[clean]` malformed-range; **order-dependent** (passes in
+  isolation), a shared-server state-leak artifact rather than a provider bug.
+- **irules taint** (1, IRULE3102) and **inlay-hint optional-positional labels**
+  (1).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

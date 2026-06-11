@@ -32,7 +32,7 @@
 pub mod config;
 pub mod engine;
 
-pub use config::FormatterConfig;
+pub use config::{FormatterConfig, IndentStyle};
 pub use engine::format_tcl;
 
 use crate::definition::LspRange;
@@ -48,7 +48,24 @@ use tcl_registry::CommandRegistry;
 /// empty `Vec` when the document is already normalised.
 #[must_use]
 pub fn formatting(source: &str, registry: &CommandRegistry) -> Vec<TextEdit> {
-    let formatted = engine::format_tcl(source, &FormatterConfig::default(), registry);
+    formatting_with(source, &FormatterConfig::default(), registry)
+}
+
+/// Compute whole-document formatting edits with an explicit
+/// [`FormatterConfig`].
+///
+/// Identical to [`formatting`] but honours a caller-supplied
+/// config so the server can map an LSP request's `tabSize` /
+/// `insertSpaces` onto the formatter's indentation (an explicit
+/// client `FormattingOptions` overrides the server default by LSP
+/// contract).
+#[must_use]
+pub fn formatting_with(
+    source: &str,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+) -> Vec<TextEdit> {
+    let formatted = engine::format_tcl(source, config, registry);
     if formatted == source {
         return Vec::new();
     }
