@@ -98,8 +98,14 @@ suite("Single bare-variable body (FP-STY-14)", () => {
       predicate: (d) => d.some((x) => codeOf(x) === "W105"),
     });
     const w105Lines = linesWithCode(diags, "W105");
-    assert.ok(w105Lines.includes(8), `expected W105 on 'eval "do $script"' (line 8); got [${w105Lines}]`);
-    assert.ok(w105Lines.includes(9), `expected W105 on 'eval $cmd$args' (line 9); got [${w105Lines}]`);
+    assert.ok(
+      w105Lines.includes(8),
+      `expected W105 on 'eval "do $script"' (line 8); got [${w105Lines}]`,
+    );
+    assert.ok(
+      w105Lines.includes(9),
+      `expected W105 on 'eval $cmd$args' (line 9); got [${w105Lines}]`,
+    );
   });
 
   test("single bare-variable body stays silent for W105 (false case)", async () => {
@@ -142,6 +148,10 @@ suite("Dollar-before-close-quote (FP-STY-15)", () => {
     }
     // The lexer-merge symptoms (arity / extra-chars) must be absent entirely.
     assert.strictEqual(linesWithCode(diags, "E002").length, 0, "no spurious E002 arity errors");
-    assert.strictEqual(linesWithCode(diags, "E205").length, 0, "no spurious E205 close-quote errors");
+    assert.strictEqual(
+      linesWithCode(diags, "E205").length,
+      0,
+      "no spurious E205 close-quote errors",
+    );
   });
 });
