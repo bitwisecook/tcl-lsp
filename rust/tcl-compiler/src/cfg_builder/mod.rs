@@ -222,6 +222,27 @@ impl CfgBuilder {
         defs
     }
 
+    /// Push a non-control-flow statement into `current` (after upvar
+    /// invalidation), promoting `error` / `throw` / `exit` to a `Return`
+    /// terminator so any following statements become dead code (mirrors the
+    /// `TERMINATES_BLOCK` registry trait).
+    fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
+        for s in self.apply_upvar_invalidation(stmt.clone()) {
+            self.block_mut(current).statements.push(s);
+        }
+        if let Statement::Call { command, span, .. } = stmt {
+            if is_block_terminating_command(command) && self.block_mut(current).terminator.is_none()
+            {
+                self.block_mut(current).terminator = Some(Terminator::Return {
+                    value: None,
+                    span: Some(*span),
+                    expr: None,
+                    braced: false,
+                });
+            }
+        }
+    }
+
     /// Allocate a new empty block with a unique name.
     fn new_block(&mut self, prefix: &str) -> String {
         self.counter += 1;
@@ -301,12 +322,19 @@ impl CfgBuilder {
     /// the script ends with a `return`).
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
+        // True once the *main* (reachable) path has hit an unconditional
+        // terminator — everything after is dead code captured in orphan
+        // blocks, and the script does not fall through to its caller.
+        let mut main_terminated = false;
 
         for stmt in &script.statements {
             // If the current block is already terminated, subsequent
-            // statements are dead code.
+            // statements are dead code.  Route them into a fresh orphan
+            // block with no incoming edge (rather than dropping them) so
+            // SCCP marks it unreachable and O107 can flag the dead code.
             if self.block_mut(&current).terminator.is_some() {
-                return None;
+                main_terminated = true;
+                current = self.new_block("unreachable");
             }
 
             match stmt {
@@ -387,7 +415,8 @@ impl CfgBuilder {
                         expr: expr.clone(),
                         braced: *braced,
                     });
-                    return None;
+                    // Don't return early: a following statement is dead code
+                    // and is routed to an orphan block by the loop-top check.
                 }
 
                 // Inline block (C34d): flatten the body's statements
@@ -409,14 +438,19 @@ impl CfgBuilder {
                 // `<upvar-invalidate>` `Statement::Call` when an
                 // `AssignValue` contains `[upvar_proc arg]`.
                 other => {
-                    for s in self.apply_upvar_invalidation(other.clone()) {
-                        self.block_mut(&current).statements.push(s);
-                    }
+                    self.push_plain_statement(&current, other);
                 }
             }
         }
 
-        Some(current)
+        // No fall-through when the main path terminated (a trailing orphan
+        // holding dead code is unreachable, not a fall-through edge) or the
+        // final block is itself terminated.
+        if main_terminated || self.block_mut(&current).terminator.is_some() {
+            None
+        } else {
+            Some(current)
+        }
     }
 
     /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
@@ -686,6 +720,14 @@ pub fn build_cfg_function_with_upvars(
 fn dedup_preserve_order(v: &mut Vec<String>) {
     let mut seen = std::collections::HashSet::new();
     v.retain(|item| seen.insert(item.clone()));
+}
+
+/// Builtin commands that unconditionally terminate the current block (the
+/// `Traits::TERMINATES_BLOCK` set).  The CFG builder has no registry handle,
+/// so the core set is matched by name here; `return` is handled separately
+/// as its own `Statement::Return`.
+fn is_block_terminating_command(command: &str) -> bool {
+    matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
 }
 
 /// Lex *text* into Tcl words, accumulating contiguous tokens between
