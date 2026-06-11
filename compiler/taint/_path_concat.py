@@ -111,6 +111,7 @@ def _find_path_concat_warnings(
             # Look up rendered properties for the defined SSA value.
             has_path_sep = False
             has_interpolation = False
+            has_literal_space = False
             path_normalised = False
 
             for def_name, def_ver in ssa_stmt.defs.items():
@@ -127,6 +128,8 @@ def _find_path_concat_warnings(
                             has_path_sep = True
                         if rp.may & RenderedProperties.HAS_INTERPOLATION:
                             has_interpolation = True
+                        if rp.may & RenderedProperties.HAS_LITERAL_SPACE:
+                            has_literal_space = True
 
                 # Check taint lattice for PATH_NORMALISED / PATH_JOINED suppression.
                 if taints is not None:
@@ -137,6 +140,15 @@ def _find_path_concat_warnings(
                         path_normalised = True
 
             if not has_path_sep or not has_interpolation:
+                continue
+            # A literal space (or tab) in the rendered value marks prose,
+            # protocol, or display text — an HTTP request line
+            # (``"CONNECT $host:$port HTTP/1.1"``), a usage message
+            # (``"Usage: [file tail …] script "``), an HTML fragment — not a
+            # filesystem path being constructed.  ``[file join]`` is nonsensical
+            # there, so the ``/`` is not a path separator.  Genuine path concat
+            # (``set f "$dir/$name"``) carries no literal whitespace.
+            if has_literal_space:
                 continue
             if path_normalised:
                 continue

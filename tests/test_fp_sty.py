@@ -590,3 +590,40 @@ def test_FP_STY_15_live_var_in_quoted_pattern_still_w306():
     """TP control: a genuine live ``$bar`` (b is a name char) in a quoted regex
     pattern is the foot-gun and still fires W306."""
     assert "W306" in _all('regexp -- "^foo$bar" $text')
+
+
+# FP-STY-16 — W201 manual-path-concat on prose / protocol / display strings
+
+
+def test_FP_STY_16_http_request_line_no_w201():
+    """FP: ``"CONNECT $host:$port HTTP/1.1"`` is an HTTP request line — the
+    ``/`` is the protocol version, not a path separator.  ``[file join]`` would
+    shred it on the spaces, so W201 must not fire."""
+    assert _codes('set bypass "CONNECT $host:$port HTTP/1.1"', "W201") == []
+
+
+def test_FP_STY_16_usage_message_no_w201():
+    """FP: a usage / display message is not a filesystem path."""
+    assert _codes('set msg "Usage: [file tail $exe] script "', "W201") == []
+
+
+def test_FP_STY_16_prose_with_path_no_w201():
+    """FP: prose that merely mentions a path (``"see $dir/readme for help"``)
+    is display text, not path construction."""
+    assert _codes('set x "see $dir/readme for help"', "W201") == []
+
+
+def test_FP_STY_16_genuine_path_concat_still_fires():
+    """TP control: a real path-building concat with no literal whitespace
+    still fires W201."""
+    assert _codes('set f "$dir/$name"', "W201"), "genuine path concat must fire W201"
+    assert _codes("set p $root/sub/$file", "W201"), "genuine path concat must fire W201"
+
+
+def test_FP_STY_16_path_with_command_sub_still_fires():
+    """TP control: ``set f "$dir/[file tail $path]"`` — the command sub's
+    *internal* spaces are inside one CMD token and must NOT suppress; this is a
+    genuine path concat and still fires W201."""
+    assert _codes('set f "$dir/[file tail $path]"', "W201"), (
+        "path concat with command-sub segment must still fire W201"
+    )

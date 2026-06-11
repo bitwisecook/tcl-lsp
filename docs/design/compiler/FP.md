@@ -7767,6 +7767,77 @@ a tail `$` is no longer misread as an opening quote.
 
 ---
 
+### FP-STY-16 — W201 manual-path-concat fires on prose / protocol / display strings
+
+- **Verdict:** FALSE POSITIVE (now fixed for the literal-whitespace class)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_16_*`
+- **Codes:** W201 (manual path concatenation — use `[file join]`)
+- **Corpus:** Tcl 9.0 stdlib `http.tcl` (`set …(bypass) "CONNECT $host:$port
+  HTTP/1.1"`), `tcltest.tcl` (`set msg "Usage: [file tail …] script "`) — any
+  `set` of a multi-word quoted string that merely *contains* a `/`.
+
+#### Reproducer
+
+```tcl
+# An HTTP request line — the `/` is in the protocol version, not a path.
+set bypass "CONNECT $host:$port HTTP/1.1"
+# A usage message — `/` would be incidental; this is display text.
+set msg "Usage: [file tail $exe] script "
+```
+
+#### Per-line reasoning
+
+1. W201 fires on a `set` whose rendered value has a path separator (`/` / `\`)
+   *and* interpolation, suggesting `[file join]`.  But a value that contains a
+   **literal space** (outside any `[…]` command substitution) is a multi-word
+   string — prose, a protocol line, an HTML/usage fragment — not a single
+   filesystem path token.
+2. `[file join]` is nonsensical there.  tclsh:
+   `file join CONNECT $host:$port HTTP/1.1` → `CONNECT/h:8080/HTTP/1.1` —
+   it shreds the request line on the spaces.
+3. The discriminator is precise: the rendered-properties pass now sets
+   `HAS_LITERAL_SPACE` when lexing the value yields a top-level `SEP` token (a
+   word boundary).  A command substitution `[file tail $path]` stays a single
+   `CMD` token, so its *internal* spaces do **not** set the bit — a genuine
+   path concat `set f "$dir/[file tail $path]"` still fires W201.
+4. Known residual (still fires; no clean literal signal): bracketless
+   single-token concatenations such as CIDR `set x "$ip/$mask"` or an HTML
+   attribute `set img src=$a/$b` — there is no literal whitespace to key on,
+   and `$a/$b` is structurally identical to a real `$dir/$file`.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set host h; set port 8080
+% file join CONNECT $host:$port HTTP/1.1
+CONNECT/h:8080/HTTP/1.1
+```
+
+The "portable" rewrite changes the string's meaning entirely — proof the `/`
+is not a path separator.
+
+#### Why the analyser reaches that verdict
+
+`compiler/rendered_properties.py` sets `RenderedProperties.HAS_LITERAL_SPACE`
+on a top-level `SEP` token; `compiler/taint/_path_concat.py` skips W201 when
+the assigned value carries that bit.
+
+#### Tests
+
+W201 is produced by the **taint pass**, which is an in-process analyser
+diagnostic that the packaged server does *not* surface through
+`publishDiagnostics` (verified: no taint code — W201/T100/T101 — reaches the
+lsp_e2e / VS Code server path).  The authoritative W201 surface is therefore
+the in-process analyser, exercised here:
+
+- `tests/test_fp_sty.py::test_FP_STY_16_http_request_line_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_usage_message_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_prose_with_path_no_w201` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_16_genuine_path_concat_still_fires` (TP)
+- `tests/test_fp_sty.py::test_FP_STY_16_path_with_command_sub_still_fires` (TP, internal spaces don't suppress)
+
+---
+
 
 ## Precision gaps (PR #498 deep-review) — ALL CLOSED
 

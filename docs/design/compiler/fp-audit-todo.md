@@ -392,6 +392,15 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — security warnings (W3xx) + taint (Txx)
 
+- [x] **W201** manual path concatenation → `[file join]` — RESOLVED for the
+  literal-whitespace class (FP-STY-16): every multi-word quoted string that
+  merely contains a `/` (HTTP request line `"CONNECT $host:$port HTTP/1.1"`,
+  usage message `"Usage: … script "`) was flagged.  Rendered-props pass now
+  sets `HAS_LITERAL_SPACE` on a top-level `SEP` token and W201 skips it; genuine
+  path concat (`"$dir/$name"`, `"$dir/[file tail $path]"`) still fires.  Known
+  residual: bracketless CIDR `"$ip/$mask"` / HTML `src=$a/$b` (no literal
+  whitespace to key on).  (W201 is a taint-pass diagnostic — not surfaced
+  through the server push path — so it is pytest-covered only.)
 - [x] **W302** catch without result var — RESOLVED (see top): exempted
   the documented fire-and-forget idiom (`catch {after cancel}`, `catch
   {file delete}`, `catch {close}`, etc.).
