@@ -136,6 +136,119 @@ def decode_semantic_tokens(result: Any) -> list[dict]:
     return out
 
 
+def _looks_like_range(obj: Any) -> bool:
+    """True for an LSP ``Range`` dict: ``{start:{line,character}, end:{...}}``."""
+    if not isinstance(obj, dict):
+        return False
+    start, end = obj.get("start"), obj.get("end")
+    return (
+        isinstance(start, dict)
+        and isinstance(end, dict)
+        and "line" in start
+        and "character" in start
+        and "line" in end
+        and "character" in end
+    )
+
+
+def iter_ranges(obj: Any):
+    """Recursively yield every LSP ``Range`` dict nested anywhere in *obj*.
+
+    Walks arbitrary response shapes (Location, LocationLink, DocumentSymbol
+    trees, WorkspaceEdit, CodeAction, CompletionItem textEdits, …) so a single
+    invariant pass can validate every span a provider returns.
+    """
+    if _looks_like_range(obj):
+        yield obj
+        # A Range's children are leaf positions; no need to recurse into them.
+        return
+    if isinstance(obj, dict):
+        for value in obj.values():
+            yield from iter_ranges(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from iter_ranges(item)
+
+
+def range_violations(
+    result: Any,
+    text: str,
+    *,
+    label: str = "",
+    strict_end_column: bool = False,
+) -> list[str]:
+    """Return well-formedness violations for every ``Range`` in *result* (empty == ok).
+
+    Universal across providers: a span a client acts on must have non-negative
+    coordinates, ``start <= end``, sit on real lines, and a ``start`` column
+    within its line (measured in **UTF-16** units, so a multibyte/emoji column
+    slip surfaces).
+
+    ``strict_end_column`` additionally requires the ``end`` column to be within
+    its line.  It defaults off because Tcl statement / selection-range / symbol
+    spans legitimately extend to the line terminator (``end`` = line length, or
+    +1 for a CRLF ``\\r``), which clients clamp; semantic tokens, which must
+    never over-run, are checked strictly via :func:`semantic_token_violations`.
+    """
+    out: list[str] = []
+    line_u16 = _doc_lines_utf16(text)
+    n_lines = len(line_u16)
+    pre = f"{label}: " if label else ""
+    for rng in iter_ranges(result):
+        s, e = rng["start"], rng["end"]
+        sl, sc, el, ec = s["line"], s["character"], e["line"], e["character"]
+        if min(sl, sc, el, ec) < 0:
+            out.append(f"{pre}negative coordinate in range {rng}")
+            continue
+        if (el, ec) < (sl, sc):
+            out.append(f"{pre}end before start in range {rng}")
+        # ``end`` may sit at (n_lines, 0) for a whole-document span; ``start``
+        # must be on a real line.
+        if sl >= n_lines:
+            out.append(f"{pre}start line {sl} past end of document ({n_lines} lines)")
+            continue
+        if el > n_lines:
+            out.append(f"{pre}end line {el} past end of document ({n_lines} lines)")
+        if sc > line_u16[sl]:
+            out.append(f"{pre}start col {sc} past line {sl} length {line_u16[sl]} (UTF-16)")
+        if strict_end_column and el < n_lines and ec > line_u16[el]:
+            out.append(f"{pre}end col {ec} past line {el} length {line_u16[el]} (UTF-16)")
+    return out
+
+
+def workspace_edit_violations(result: Any, *, label: str = "") -> list[str]:
+    """Return overlap/duplicate violations in a ``WorkspaceEdit`` (empty == ok).
+
+    A client applies the per-file ``TextEdit`` array as a batch; the LSP spec
+    forbids overlapping edits (the result is undefined) and a duplicate edit at
+    the same range is a sign of double-counting.  This pins both for rename and
+    code-action results.
+    """
+    out: list[str] = []
+    pre = f"{label}: " if label else ""
+    for uri, edits in rename_edits(result).items():
+        spans: list[tuple[tuple[int, int], tuple[int, int], str]] = []
+        for ed in edits:
+            rng = ed.get("range") or {}
+            s, e = rng.get("start") or {}, rng.get("end") or {}
+            spans.append(
+                (
+                    (s.get("line", 0), s.get("character", 0)),
+                    (e.get("line", 0), e.get("character", 0)),
+                    ed.get("newText", ""),
+                )
+            )
+        spans.sort()
+        for i in range(1, len(spans)):
+            prev_s, prev_e, prev_t = spans[i - 1]
+            cur_s, cur_e, cur_t = spans[i]
+            if cur_s == prev_s and cur_e == prev_e and cur_t == prev_t:
+                out.append(f"{pre}{uri}: duplicate edit at {cur_s}->{cur_e}")
+            elif cur_s < prev_e:
+                out.append(f"{pre}{uri}: overlapping edits {prev_s}->{prev_e} and {cur_s}->{cur_e}")
+    return out
+
+
 def _utf16_len(s: str) -> int:
     """Length of *s* in UTF-16 code units — the unit LSP positions are measured in.
 
