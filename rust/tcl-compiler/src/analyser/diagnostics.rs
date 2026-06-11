@@ -789,6 +789,105 @@ fn whole_unset_names(args: &[String]) -> HashSet<String> {
     out
 }
 
+/// Tcl ARE metacharacters: a pattern free of these reduces to a literal
+/// substring search.  Mirrors `_TCL_REGEX_METACHARS`.
+const TCL_REGEX_METACHARS: &str = r"\^$.|?*+()[]{}";
+
+/// `regexp` switches that don't change match-vs-no-match for a pure-literal
+/// pattern.  Mirrors `_REGEXP_LITERAL_SAFE_SWITCHES`.
+fn is_regexp_literal_safe_switch(opt: &str) -> bool {
+    matches!(
+        opt,
+        "-indices"
+            | "-inline"
+            | "-all"
+            | "-line"
+            | "-lineanchor"
+            | "-linestop"
+            | "-expanded"
+            | "-start"
+            | "--"
+    )
+}
+
+/// True iff `regexp PATTERN INPUT` provably returns 0.  Sound only when
+/// `pat` is a pure-literal pattern (no ARE metacharacters), reducing the
+/// match to substring search.  Unknown / unsafe switches bail (return
+/// `false` = cannot prove no-match).  Mirrors `_regexp_literal_no_match`.
+fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
+    if pat.chars().any(|c| TCL_REGEX_METACHARS.contains(c)) {
+        return false;
+    }
+    let mut nocase = false;
+    for opt in options {
+        if !opt.starts_with('-') {
+            continue; // an option value (e.g. after `-start`)
+        }
+        if opt == "-nocase" {
+            nocase = true;
+            continue;
+        }
+        if is_regexp_literal_safe_switch(opt) {
+            continue;
+        }
+        return false; // unknown / unsafe switch
+    }
+    if nocase {
+        !inp.to_lowercase().contains(&pat.to_lowercase())
+    } else {
+        !inp.contains(pat)
+    }
+}
+
+/// `Some(true)` when a `regexp` / `scan` call (`is_regexp` selects the arg
+/// order) with literal pattern + input provably can't match; `Some(false)`
+/// when it might match; `None` when the args can't be statically resolved
+/// (dynamic substitution, too few args).  Mirrors the per-call arm of the
+/// `provably_unset` setup in `_read_before_set`.
+fn regexp_scan_no_match(is_regexp: bool, args: &[String]) -> Option<bool> {
+    let value_opts: &[&str] = if is_regexp { &["-start"] } else { &[] };
+    let pos = skip_options(args, value_opts);
+    if pos + 1 >= args.len() {
+        return None;
+    }
+    let a = &args[pos];
+    let b = &args[pos + 1];
+    // `regexp ?opts? PATTERN STRING …`; `scan STRING FORMAT …`.
+    let (pat, inp) = if is_regexp { (a, b) } else { (b, a) };
+    // Dynamic substitution markers — runtime value unknown.
+    if pat.contains(['$', '[']) || inp.contains(['$', '[']) {
+        return None;
+    }
+    if is_regexp {
+        let opts: Vec<String> = args[..pos].to_vec();
+        Some(regexp_literal_no_match(pat, inp, &opts))
+    } else {
+        Some(crate::scan_predicate::scan_provably_no_match(pat, inp))
+    }
+}
+
+/// Index of the first non-option argument in `args`, skipping `-option`
+/// flags and the values of options in `value_opts`.  Mirrors `skip_options`.
+fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if value_opts.contains(&a.as_str()) && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    i
+}
+
 /// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
 /// definition reached it, but a phi result whose reachable incomings
 /// include an undefined (version-0) or `unset`-killed origin only reaches
@@ -4465,6 +4564,8 @@ file; this call falls through to the 'unknown' handler."
             &considered,
             &supp,
         );
+        // W210 on reads of a provably-no-match regexp / scan output var.
+        self.emit_provably_unset_w210(function_unit, &considered, &defined);
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
@@ -5250,6 +5351,192 @@ file; this call falls through to the 'unknown' handler."
                     severity: Severity::Warning,
                     fixes: Vec::new(),
                 });
+            }
+        }
+    }
+
+    /// **W210 (provably-unset regexp / scan output).** A `regexp` / `scan`
+    /// with literal pattern + input that can be statically proven not to
+    /// match leaves its output variables unset, so a later read of one is a
+    /// real read-before-set.  Handles both the top-level call form and the
+    /// call embedded in an `if` / `while` condition (firing only on the
+    /// no-match branch).  Mirrors the `provably_unset` post-pass in
+    /// `compiler/core_analyses.py::_read_before_set`.
+    fn emit_provably_unset_w210(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        considered: &HashSet<String>,
+        defined_vars: &HashSet<String>,
+    ) {
+        use crate::ir::Statement;
+        use std::fmt::Write as _;
+
+        // var name -> (def_block, def_stmt_idx); idx == -1 means "from the
+        // start of the block" (the embedded-condition no-match target).
+        let mut provably_unset: std::collections::HashMap<String, (String, i32)> =
+            std::collections::HashMap::new();
+
+        for bn in considered {
+            let Some(block) = fu.cfg.blocks.get(bn) else {
+                continue;
+            };
+            // Top-level regexp / scan calls.
+            for (idx, stmt) in block.statements.iter().enumerate() {
+                let Statement::Call {
+                    command,
+                    canonical_command,
+                    args,
+                    defs,
+                    ..
+                } = stmt
+                else {
+                    continue;
+                };
+                let canon = canonical_command.as_deref().unwrap_or(command);
+                let is_regexp = canon == "::regexp" || command == "regexp";
+                let is_scan = canon == "::scan" || command == "scan";
+                if (!is_regexp && !is_scan) || defs.is_empty() {
+                    continue;
+                }
+                if let Some(no_match) = regexp_scan_no_match(is_regexp, args) {
+                    if no_match {
+                        for d in defs {
+                            provably_unset.entry(d.clone()).or_insert_with(|| {
+                                (bn.clone(), i32::try_from(idx).unwrap_or(i32::MAX))
+                            });
+                        }
+                    }
+                }
+            }
+            // regexp / scan embedded in the branch condition.
+            if let Some(crate::cfg::Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                ..
+            }) = &block.terminator
+            {
+                Self::collect_embedded_provably_unset(
+                    condition,
+                    true_target,
+                    false_target,
+                    &mut provably_unset,
+                );
+            }
+        }
+
+        if provably_unset.is_empty() {
+            return;
+        }
+
+        // Fire on every executable use after the def (same block) or in a
+        // block dominated by the def block.
+        let mut reported: HashSet<String> = HashSet::new();
+        let mut block_names: Vec<&String> = considered.iter().collect();
+        block_names.sort();
+        for bn in block_names {
+            let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
+                continue;
+            };
+            for (idx, s) in ssa_block.statements.iter().enumerate() {
+                for name in s.uses.keys() {
+                    if reported.contains(name) {
+                        continue;
+                    }
+                    let Some((def_block, def_idx)) = provably_unset.get(name) else {
+                        continue;
+                    };
+                    let in_def_block_after =
+                        bn == def_block && i32::try_from(idx).unwrap_or(i32::MAX) > *def_idx;
+                    let dominated = bn != def_block && block_dominated_by(&fu.ssa, bn, def_block);
+                    if !(in_def_block_after || dominated) {
+                        continue;
+                    }
+                    let span = match fu.cfg.blocks.get(bn).and_then(|b| b.statements.get(idx)) {
+                        Some(st) if !st.span().is_empty() => st.span(),
+                        _ => continue,
+                    };
+                    reported.insert(name.clone());
+                    let mut message = format!("Variable '{name}' is read before it is set");
+                    if let Some(similar) = find_case_mismatch(name, defined_vars) {
+                        let _ = write!(message, "; did you mean '{similar}'?");
+                    }
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W210".to_string(),
+                        span,
+                        message,
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// Walk a branch `condition` for an embedded `[regexp …]` / `[scan …]`
+    /// command substitution that provably can't match, recording its output
+    /// variables as provably-unset on the no-match branch target (only when
+    /// the condition is exactly `[cmd]` → false target, or `![cmd]` → true
+    /// target; more complex shapes are skipped).
+    fn collect_embedded_provably_unset(
+        condition: &ExprNode,
+        true_target: &str,
+        false_target: &str,
+        provably_unset: &mut std::collections::HashMap<String, (String, i32)>,
+    ) {
+        let (cmd_node, no_match_target) = match condition {
+            ExprNode::Command { .. } => (condition, false_target),
+            ExprNode::Unary {
+                op: UnaryOp::Not | UnaryOp::WordNot,
+                operand,
+            } if matches!(operand.as_ref(), ExprNode::Command { .. }) => {
+                (operand.as_ref(), true_target)
+            }
+            _ => return,
+        };
+        let ExprNode::Command { text, .. } = cmd_node else {
+            return;
+        };
+        // Strip the surrounding `[` … `]` and segment the interior.
+        let inner = text
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .unwrap_or(text);
+        let segs = crate::segmenter::segment_commands(inner);
+        let Some(seg) = segs.first() else {
+            return;
+        };
+        let Some(cmd) = seg.texts.first() else {
+            return;
+        };
+        let bare = cmd
+            .trim_start_matches(':')
+            .rsplit("::")
+            .next()
+            .unwrap_or(cmd);
+        let is_regexp = bare == "regexp";
+        let is_scan = bare == "scan";
+        if !is_regexp && !is_scan {
+            return;
+        }
+        let args: Vec<String> = seg.texts[1..].to_vec();
+        let pos = skip_options(&args, if is_regexp { &["-start"] } else { &[] });
+        if pos + 2 > args.len() {
+            return;
+        }
+        let out_vars = &args[(pos + 2).min(args.len())..];
+        if out_vars.is_empty() {
+            return;
+        }
+        if regexp_scan_no_match(is_regexp, &args) != Some(true) {
+            return;
+        }
+        for v in out_vars {
+            let name = crate::naming::normalise_var_name(v);
+            if !name.is_empty() {
+                provably_unset
+                    .entry(name.to_string())
+                    .or_insert_with(|| (no_match_target.to_string(), -1));
             }
         }
     }
@@ -9233,6 +9520,34 @@ foo
             got.iter().any(|m| m.contains("'v'")),
             "switch-no-default + return must fire W210; got {got:?}"
         );
+    }
+
+    #[test]
+    fn w210_provably_no_match_regexp_scan() {
+        // Provably-no-match output reads fire.
+        assert!(w210_codes("proc f {} { scan abc %d n\n puts $n }")
+            .iter()
+            .any(|m| m.contains("'n'")));
+        assert!(w210_codes("proc f {} { regexp {x} y -> v\n puts $v }")
+            .iter()
+            .any(|m| m.contains("'v'")));
+        // Embedded in a negated condition fires on the no-match arm.
+        assert!(
+            w210_codes("proc f {} { if {![regexp {x} y -> v]} { puts $v } }")
+                .iter()
+                .any(|m| m.contains("'v'"))
+        );
+    }
+
+    #[test]
+    fn w210_matchable_regexp_scan_silent() {
+        // A matchable / nocase-matchable regexp output is set — no W210.
+        assert!(w210_codes("proc f {} { regexp -nocase {x} X v\n puts $v }").is_empty());
+        assert!(w210_codes("proc f {} { scan 42 %d n\n puts $n }").is_empty());
+        // The success arm of a positive condition reads a set var.
+        assert!(w210_codes("proc f {} { if {[regexp {x} y -> v]} { puts $v } }").is_empty());
+        // An unknown / unsafe switch can't prove no-match → silent.
+        assert!(w210_codes("proc f {} { regexp -about {x} y v\n puts $v }").is_empty());
     }
 
     #[test]
