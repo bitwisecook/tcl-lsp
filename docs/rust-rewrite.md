@@ -4994,11 +4994,17 @@ test-lsp-e2e-rust` held at 22 failing throughout).  Eleven landed increments:
   unreachable block instead of dropping them, so SCCP marks them unreachable
   and **O107** fires; a `main_terminated` flag preserves the no-fall-through
   contract for nested branch bodies.
+- **CFG break/continue edges** (`bdde0f62`) — a loop-target stack lowers
+  `break`/`continue` to a `Goto` of the loop exit / continue block, so a
+  constant-condition loop's exit (`while 1 { … break }`) stays reachable and
+  O107 no longer false-fires on the post-loop code (fp_rch RCH-01).
 
-**Battery 290→316 passing / 87→61 failing** across the JUN11 sweep (session
-total from the 284 baseline: **284→316**, +32, zero regressions).  +~30
-analyser/lexer unit tests.  Remaining 61, by family: ground_truth 17, fp_rbs
-11, fp_ds 9, fp_rch 5, fp_nab 4, fp_sh 4, fp_bnd 3, fp_opt 3, fp_sty 4, fp_inj 1.
+**Battery 290→319 passing / 87→58 failing** across the JUN11 sweep (session
+total from the 284 baseline: **284→319**, +35, zero regressions — every
+remaining failure is a strict subset of the original backlog).  +~30
+analyser/lexer unit tests.  Remaining 58, by family: ground_truth 17, fp_rbs
+11, fp_ds 9, fp_nab 4, fp_sh 4, fp_bnd 3, fp_opt 3, fp_sty 4, fp_rch 2,
+fp_inj 1.
 
 **Open clusters (each a feature, not a switch), with the porting path:**
 - **regexp/scan `provably_unset`** (~8: fp_rbs RBS-02/12, fp_sty STY-10,
