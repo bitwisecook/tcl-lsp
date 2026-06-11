@@ -112,6 +112,40 @@ thin canaries rather than wholesale duplication:
   `TestTokenInvariants` certifies the wire output satisfies the universal
   invariants on both backends.
 
+## Coverage requirement: positive + negative for every feature and every code
+
+The standing requirement is solid true/false (must-fire / must-stay-silent)
+coverage for **every** LSP server feature and **every** diagnostic / warning /
+info / optimisation / shimmer / taint code, in **both** `lsp_e2e` and the VS Code
+suite. This is tracked here as a living matrix; the homes are:
+
+- **Per code** — `test_diagnostic_matrix_e2e.py` holds the data-driven matrix
+  (`_MATRIX`): each `_Case(code, fire, silent)` row yields a positive and a
+  negative test automatically. Add a row per code.
+- **Per feature** — `test_config_e2e.py` pins each provider's positive
+  (enabled → result) and negative (disabled → empty) behaviour; the per-feature
+  *content* positives live in the feature-specific `test_*_e2e.py` files.
+
+### Status
+
+| Family | Positive+negative (lsp_e2e) | Notes |
+|--------|------------------------------|-------|
+| Errors `E0xx` | E002, E003 | extend `_MATRIX` per code |
+| Warnings `W1xx/W2xx/W3xx` | W100, W110, W128, W210, W211, W220, W302, W307 | the rest: add `_MATRIX` rows |
+| Info `I2xx` | I230 | |
+| Optimiser `O1xx` | const-fold (llength/expr) fire + no-fold negative | surfaced via `optimiseDocument`, not default diagnostics |
+| Shimmer `S1xx` | — TODO | needs specific shimmer patterns; ground-truth then add rows |
+| Taint `T1xx` | — TODO | needs iRules dialect + source/sink pairs; author against `lsp_server_irules` |
+| Feature on/off | hover, completion, documentSymbols, definition, references, signatureHelp, folding, selectionRange, documentLinks | semanticTokens/codeActions/codeLens/inlayHints/rename/highlight: add to `_TOGGLEABLE_FEATURES` / probes |
+
+**To finish the matrix:** enumerate every code (the registry's
+`diagnostic_codes()` is currently partial — many codes register lazily, so the
+authoritative list is the KCS catalogue under `docs/kcs/`), ground-truth a
+minimal fire/silent pair per code against the Python server, and add a `_MATRIX`
+row. Mirror the same fire/silent pairs in the VS Code suite for the
+client-integration path. Taint/shimmer rows need dialect setup and belong on the
+iRules fixture.
+
 ### Follow-ups
 
 - Route the full FP / ground-truth battery through the server under an env flag
