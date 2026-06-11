@@ -546,10 +546,17 @@ class LspServerClient:
         }
         return self.request("textDocument/selectionRange", params, timeout=timeout)
 
-    def formatting(self, uri: str, *, timeout: float = 30.0) -> Any:
+    def formatting(
+        self,
+        uri: str,
+        *,
+        tab_size: int = 4,
+        insert_spaces: bool = True,
+        timeout: float = 30.0,
+    ) -> Any:
         params = {
             "textDocument": {"uri": uri},
-            "options": {"tabSize": 4, "insertSpaces": True},
+            "options": {"tabSize": tab_size, "insertSpaces": insert_spaces},
         }
         return self.request("textDocument/formatting", params, timeout=timeout)
 
@@ -624,25 +631,52 @@ class LspServerClient:
     ):
         """Apply *config* for the duration of the ``with`` block, then restore.
 
-        Snapshots the current ``tclLsp`` reply, applies *config* (settling as
-        :meth:`apply_configuration` does), and on exit restores the prior reply
-        and re-pulls — so a feature-toggle test on the *shared* server cannot
-        leak its override into the next test.  The restore runs even if the
-        body raises.
+        Snapshots the prior ``tclLsp`` reply *and* the resolved feature/scalar
+        state, applies *config* (settling as :meth:`apply_configuration` does),
+        and on exit restores the prior reply and re-pulls — blocking until the
+        resolved config matches the pre-block snapshot again.  The settled
+        restore is what makes this safe on the *shared* server: a feature
+        toggled off here is provably back on before the next test queries it.
+        The restore runs even if the body raises.
         """
-        previous = self._tcllsp_config
+        before = self.effective_config(settle_uri, timeout=timeout)
+        before_features = before.get("features")
+        before_optimiser = before.get("optimiser_enabled")
         self.apply_configuration(config, settle=settle, settle_uri=settle_uri, timeout=timeout)
         try:
             yield self
         finally:
-            self._tcllsp_config = previous
-            self.notify("workspace/didChangeConfiguration", {"settings": {}})
-            # Best-effort settle back: give the re-pull a moment to land so the
-            # next test starts from the restored defaults.
-            try:
-                self.effective_config(settle_uri, timeout=timeout)
-            except Exception:  # pragma: no cover - best effort
-                pass
+            # A pulled config only *sets* the keys it carries — omitted keys keep
+            # their last-applied value (the server treats absent as "unchanged").
+            # So restoring the prior *reply* would leave a disabled toggle stuck
+            # off.  Re-assert the full prior resolved feature map (and optimiser
+            # switch) explicitly, then block until the resolved state matches the
+            # pre-block snapshot — the settled restore is what keeps the shared
+            # server clean for the next test.
+            undo: dict[str, Any] = {}
+            if isinstance(before_features, dict):
+                undo["features"] = dict(before_features)
+            if "optimiser" in config and isinstance(before_optimiser, bool):
+                undo["optimiser"] = {"enabled": before_optimiser}
+
+            def _restored(c: dict) -> bool:
+                if isinstance(before_features, dict) and c.get("features") != before_features:
+                    return False
+                if "optimiser" in config and c.get("optimiser_enabled") != before_optimiser:
+                    return False
+                return True
+
+            restored = self.apply_configuration(
+                undo, settle=_restored, settle_uri=settle_uri, timeout=timeout
+            )
+            # Surface a botched restore loudly rather than leaking into the
+            # next test on the shared server.
+            assert _restored(restored), (
+                "config_session failed to restore prior config: "
+                f"features={restored.get('features')!r} (want {before_features!r}), "
+                f"optimiser_enabled={restored.get('optimiser_enabled')!r} "
+                f"(want {before_optimiser!r})"
+            )
 
     # -- push diagnostics --------------------------------------------------
 
