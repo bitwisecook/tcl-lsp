@@ -88,3 +88,43 @@ def test_rust_parse_matches_python(conf: Path) -> None:
             pytest.fail("Rust dump_canonical unavailable but TCL_LSP_REQUIRE_RUST set")
         pytest.skip("native Rust BIG-IP parser unavailable")
     assert bridge.rebuild(doc) == parse_bigip_conf(conf.read_text())
+
+
+_APL_CORPUS = sorted((_ROOT / "samples").rglob("*.apl"))
+
+
+def _rust_apl(path: Path) -> dict | None:
+    """Run the native Rust APL parser via the `dump_apl` example."""
+    if shutil.which("cargo") is None:
+        return None
+    build = subprocess.run(
+        ["cargo", "build", "-p", "tcl-bigip", "--example", "dump_apl", "-q"],
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    binary = _ROOT / "target" / "debug" / "examples" / "dump_apl"
+    if build.returncode != 0 or not binary.exists():
+        return None
+    out = subprocess.run([str(binary), str(path)], capture_output=True, text=True)
+    return json.loads(out.stdout) if out.returncode == 0 else None
+
+
+@pytest.mark.parametrize("apl", _APL_CORPUS, ids=lambda p: p.name)
+def test_rust_apl_matches_python(apl: Path) -> None:
+    """Fidelity gate for the iApp APL parser: the native Rust `parse_apl`,
+    reconstructed through the bridge, equals the Python parse."""
+    from dialects.f5.bigip.apl_model import parse_apl
+
+    doc = _rust_apl(apl)
+    if doc is None:
+        if os.environ.get("TCL_LSP_REQUIRE_RUST"):
+            pytest.fail("Rust dump_apl unavailable but TCL_LSP_REQUIRE_RUST set")
+        pytest.skip("native Rust APL parser unavailable")
+    # Compare against the *pure-Python* parse (disable the Rust delegation).
+    os.environ["TCL_LSP_BIGIP_RUST"] = "0"
+    try:
+        expected = parse_apl(apl.read_text())
+    finally:
+        os.environ.pop("TCL_LSP_BIGIP_RUST", None)
+    assert bridge.rebuild_apl(doc) == expected

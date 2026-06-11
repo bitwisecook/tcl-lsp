@@ -272,3 +272,57 @@ def rebuild(doc: dict[str, Any]) -> BigipConfig:
         cls = tables[obj["table"]]
         getattr(config, obj["table"])[obj["full_path"]] = _build_dataclass(cls, obj["fields"])
     return config
+
+
+# APL (iApp presentation language) reconstruction --------------------------
+
+
+def _apl_range(v: Any) -> Any:
+    if v is None:
+        return None
+    sl, sc, so, el, ec, eo = v["r"]
+    return Range(
+        start=SourcePosition(line=sl, character=sc, offset=so),
+        end=SourcePosition(line=el, character=ec, offset=eo),
+    )
+
+
+def _apl_field(d: dict[str, Any]):
+    from dialects.f5.bigip.apl_model import AplField
+
+    return AplField(
+        name=d["name"],
+        qualified_name=d["qualified_name"],
+        field_type=d["field_type"],
+        is_required=d["is_required"],
+        range=_apl_range(d["range"]),
+    )
+
+
+def rebuild_apl(doc: dict[str, Any]):
+    """Reconstruct a Python ``AplModel`` from a canonical APL document."""
+    from dialects.f5.bigip.apl_model import AplInclude, AplModel, AplSection, AplTable
+
+    model = AplModel()
+    for name, sec in doc["sections"]:
+        s = AplSection(
+            name=sec["name"],
+            qualified_name=sec["qualified_name"],
+            fields={k: _apl_field(f) for k, f in sec["fields"]},
+            range=_apl_range(sec["range"]),
+        )
+        model.sections[name] = s
+    for name, tbl in doc["tables"]:
+        t = AplTable(
+            name=tbl["name"],
+            qualified_name=tbl["qualified_name"],
+            columns={k: _apl_field(f) for k, f in tbl["columns"]},
+            range=_apl_range(tbl["range"]),
+        )
+        model.tables[name] = t
+    model.defines = {k: v for k, v in doc["defines"]}
+    model.includes = [
+        AplInclude(path=i["path"], line=i["line"], resolved=i["resolved"]) for i in doc["includes"]
+    ]
+    model.all_fields = {k: _apl_field(f) for k, f in doc["all_fields"]}
+    return model

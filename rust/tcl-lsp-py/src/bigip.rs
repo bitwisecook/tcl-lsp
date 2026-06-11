@@ -21,8 +21,22 @@ pub fn bigip_parse_conf_json(source: &str, default_partition: &str) -> String {
     serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned())
 }
 
+/// Parse `source` as F5 iApp APL (presentation language) and return its
+/// canonical JSON document, which the Python
+/// `dialects.f5.bigip.parser._rust_bridge.rebuild_apl` reconstructs the
+/// `AplModel` dataclasses from.
+#[pyfunction]
+#[pyo3(signature = (source))]
+#[must_use]
+pub fn apl_parse_json(source: &str) -> String {
+    let model = tcl_bigip::apl::parse_apl(source);
+    let json = tcl_bigip::apl::model_to_canonical(&model);
+    serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned())
+}
+
 /// Register the BIG-IP bindings on the module.
 pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bigip_parse_conf_json, m)?)?;
+    m.add_function(wrap_pyfunction!(apl_parse_json, m)?)?;
     Ok(())
 }

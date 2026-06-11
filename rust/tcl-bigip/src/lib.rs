@@ -15,6 +15,7 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod apl;
 pub mod canonical;
 pub mod model;
 pub mod parser;
