@@ -13,6 +13,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "scan string format ?varName varName ...?",
 }];
 
+/// D4-F2: `scan string format ?varName ...?` accepts variable-name args from
+/// index 2 onward to the end of the call.  Resolve `VarWrite` dynamically for
+/// every trailing arg rather than hard-coding a finite slot count, so calls
+/// with 20 / 50 / 100 vars don't false-fire W210 on the unmodelled tail.
+/// Mirrors `dialects/tcl/scan.py::_scan_arg_roles`.
+fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    (2..args.len())
+        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
+        .collect()
+}
+
 /// SYNC-JUN03 follow-up: constant-fold the *inline* `scan string format` form
 /// (no `varName` — that form writes variables and must never fold).
 ///
@@ -194,26 +205,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_roles: &[
-            (2, ArgRole::VarWrite),
-            (3, ArgRole::VarWrite),
-            (4, ArgRole::VarWrite),
-            (5, ArgRole::VarWrite),
-            (6, ArgRole::VarWrite),
-            (7, ArgRole::VarWrite),
-            (8, ArgRole::VarWrite),
-            (9, ArgRole::VarWrite),
-            (10, ArgRole::VarWrite),
-            (11, ArgRole::VarWrite),
-            (12, ArgRole::VarWrite),
-            (13, ArgRole::VarWrite),
-            (14, ArgRole::VarWrite),
-            (15, ArgRole::VarWrite),
-            (16, ArgRole::VarWrite),
-            (17, ArgRole::VarWrite),
-            (18, ArgRole::VarWrite),
-            (19, ArgRole::VarWrite),
-        ],
+        arg_role_resolver: Some(scan_arg_roles),
         ..CommandSpec::DEFAULT
     }
 }

@@ -13,6 +13,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lassign list ?varName ...?",
 }];
 
+/// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1
+/// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
+/// arbitrarily many vars don't false-fire W210 on the unmodelled tail.
+/// Mirrors `dialects/tcl/lassign.py::_lassign_arg_roles`.
+fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    (1..args.len())
+        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
+        .collect()
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
@@ -31,7 +41,7 @@ hover: Some(HoverSnippet {
         codegen_hook: Some(CodegenHookId::Lassign),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_roles: &[(1, ArgRole::VarWrite), (2, ArgRole::VarWrite), (3, ArgRole::VarWrite), (4, ArgRole::VarWrite), (5, ArgRole::VarWrite), (6, ArgRole::VarWrite), (7, ArgRole::VarWrite), (8, ArgRole::VarWrite), (9, ArgRole::VarWrite), (10, ArgRole::VarWrite), (11, ArgRole::VarWrite), (12, ArgRole::VarWrite), (13, ArgRole::VarWrite), (14, ArgRole::VarWrite), (15, ArgRole::VarWrite), (16, ArgRole::VarWrite), (17, ArgRole::VarWrite), (18, ArgRole::VarWrite), (19, ArgRole::VarWrite)],
+        arg_role_resolver: Some(lassign_arg_roles),
         arg_types: &[(0, ArgTypeHint { expected: Some(TclType::List), shimmers: true })],
         ..CommandSpec::DEFAULT
     }
