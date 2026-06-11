@@ -99,13 +99,14 @@ def _label_text(hint: dict) -> str:
 
 def _param_labels_on_line(hints, line: int) -> list[tuple[int, str]]:
     """``(character, label)`` of every parameter-kind hint on ``line``."""
-    out = []
+    out: list[tuple[int, str]] = []
     for h in hints or []:
         if h.get("kind") != 2:  # InlayHintKind.Parameter
             continue
         pos = h.get("position") or {}
-        if pos.get("line") == line:
-            out.append((pos.get("character"), _label_text(h)))
+        char = pos.get("character")
+        if pos.get("line") == line and char is not None:
+            out.append((char, _label_text(h)))
     return sorted(out)
 
 
