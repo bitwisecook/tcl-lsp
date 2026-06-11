@@ -843,6 +843,7 @@ impl Analyser {
                     method_name,
                     cmd_span: cmd_tok.span,
                     in_method,
+                    argc: args.len(),
                 });
             }
             TokenType::Cmd => {

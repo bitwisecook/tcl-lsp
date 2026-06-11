@@ -36,6 +36,10 @@ pub struct VarCommandSite {
     pub cmd_span: Span,
     /// True when the call site is inside a class method body.
     pub in_method: bool,
+    /// Number of positional arguments passed at the dispatch site
+    /// (`$cmd a b c` → 3).  Used by the dispatch-protocol W214
+    /// suppression to require an arity-compatible dispatcher.
+    pub argc: usize,
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —

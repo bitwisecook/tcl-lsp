@@ -704,6 +704,15 @@ fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> 
     }
 }
 
+/// The namespace of a fully-qualified name: everything up to the last `::`,
+/// or `::` for a top-level name.  Mirrors `qname.rsplit("::", 1)[0] or "::"`.
+fn namespace_of(qualified_name: &str) -> String {
+    match qualified_name.rsplit_once("::") {
+        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
+        _ => "::".to_string(),
+    }
+}
+
 /// Implicit / interpreter-provided variables that are always defined and
 /// must never raise a read-before-set.  Mirrors `_IMPLICIT_VARS` in
 /// `compiler/core_analyses.py`.
@@ -4817,6 +4826,7 @@ file; this call falls through to the 'unknown' handler."
         if ir_proc.body.statements.is_empty() {
             return;
         }
+        let mut unused: Vec<String> = Vec::new();
         for param in &ir_proc.params {
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
@@ -4856,6 +4866,37 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 }
             }
+            unused.push(param.clone());
+        }
+        if unused.is_empty() {
+            return;
+        }
+        // Dispatch-protocol suppression: when ≥3 peer procs in this
+        // namespace share this proc's leading-param signature AND an
+        // arity-compatible variable-command dispatcher exists, the leading
+        // params are an external contract, not genuinely unused.  Mirrors
+        // `_dispatch_protocol_signatures` + its W214 filter.  Computed only
+        // when there is something to report.
+        let ns = namespace_of(&ir_proc.qualified_name);
+        let leading: Vec<String> = ir_proc
+            .params
+            .iter()
+            .take_while(|p| *p != "args")
+            .cloned()
+            .collect();
+        let protocol_params: HashSet<String> = if !leading.is_empty()
+            && self
+                .dispatch_protocol_signatures()
+                .contains(&(ns, leading.clone()))
+        {
+            leading.into_iter().collect()
+        } else {
+            HashSet::new()
+        };
+        for param in unused {
+            if protocol_params.contains(&param) {
+                continue;
+            }
             let message = format!(
                 "Parameter '{param}' of proc '{name}' is unused",
                 name = ir_proc.qualified_name,
@@ -4868,6 +4909,60 @@ file; this call falls through to the 'unknown' handler."
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Identify `(namespace, leading-param-list)` pairs that look like a
+    /// **dispatch protocol** — ≥3 peer procs in the same namespace sharing a
+    /// leading-param signature dictated by an arity-compatible
+    /// variable-command dispatcher.  Mirrors `_dispatch_protocol_signatures`
+    /// in `_diag_var_lifecycle.py`.
+    fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
+        use std::collections::HashMap;
+        // Group user procs by (namespace, leading-param-tuple stopping at `args`).
+        let mut groups: HashMap<(String, Vec<String>), usize> = HashMap::new();
+        for (qname, pdef) in &self.result.all_procs {
+            let leading: Vec<String> = pdef
+                .params
+                .iter()
+                .take_while(|p| p.name != "args")
+                .map(|p| p.name.clone())
+                .collect();
+            if leading.is_empty() {
+                continue;
+            }
+            *groups.entry((namespace_of(qname), leading)).or_insert(0) += 1;
+        }
+        let peer_protos: HashSet<(String, Vec<String>)> = groups
+            .into_iter()
+            .filter(|(_, n)| *n >= 3)
+            .map(|(k, _)| k)
+            .collect();
+        if peer_protos.is_empty() {
+            return HashSet::new();
+        }
+        // Dispatcher evidence: map each dispatcher namespace → the argument
+        // counts observed at its variable-command sites.
+        let mut dispatcher_ns_argc: HashMap<String, HashSet<usize>> = HashMap::new();
+        for site in &self.var_command_sites {
+            let off = site.cmd_span.start();
+            let dns = self
+                .result
+                .all_procs
+                .iter()
+                .find(|(_, p)| p.body_span.start() <= off && off <= p.body_span.end())
+                .map_or_else(|| "::".to_string(), |(q, _)| namespace_of(q));
+            dispatcher_ns_argc.entry(dns).or_default().insert(site.argc);
+        }
+        peer_protos
+            .into_iter()
+            .filter(|(ns_key, params)| {
+                let min_argc = params.len();
+                dispatcher_ns_argc.iter().any(|(dns, argcs)| {
+                    (dns == ns_key || dns.starts_with(&format!("{ns_key}::")))
+                        && argcs.iter().any(|&a| a >= min_argc)
+                })
+            })
+            .collect()
     }
 
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
@@ -9238,6 +9333,47 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         assert!(
             !r.diagnostics.iter().any(|d| d.code == "W214"),
             "W214 must not fire on a quoted-keyword param; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_dispatch_protocol_suppresses_peer_family() {
+        // ≥3 peers sharing `{ctx token}` + an arity-compatible dispatcher
+        // (`$cmd $ctx $token`, 2 args) — `token` is a protocol contract.
+        let src = "namespace eval ::n {\n\
+                   proc a {ctx token} { puts $ctx }\n\
+                   proc b {ctx token} { puts $ctx }\n\
+                   proc c {ctx token} { puts $ctx }\n\
+                   proc dispatch {cmd ctx token} { $cmd $ctx $token }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            "dispatch-protocol family must suppress W214 on protocol params; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w214_no_dispatcher_still_fires_on_peer_family() {
+        // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
+        // shared shape is coincidence, so `token` still fires.
+        let src = "namespace eval ::n {\n\
+                   proc a {ctx token} { puts $ctx }\n\
+                   proc b {ctx token} { puts $ctx }\n\
+                   proc c {ctx token} { puts $ctx }\n\
+                   }\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W214" && d.message.contains("'token'")),
+            "without a dispatcher, an unused protocol-shaped param still fires; got {:?}",
             r.diagnostics,
         );
     }
