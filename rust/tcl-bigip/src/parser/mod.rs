@@ -1,5 +1,6 @@
 //! BIG-IP config parser — Rust port of `dialects/f5/bigip/parser/`.
 
+pub mod bespoke;
 pub mod driver;
 pub mod header;
 pub mod helpers;

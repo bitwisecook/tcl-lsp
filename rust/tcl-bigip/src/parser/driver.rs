@@ -72,10 +72,18 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
 
     for block in extract_blocks(source) {
         // ``gtm topology`` carries a multi-token condition rather than a
-        // full path; the Python driver handles it before generic_objects
-        // and `continue`s, so it never lands a generic_objects row.
-        if let Some(_topo_id) = block.header.strip_prefix("gtm topology ") {
-            // Typed gtm-topology parsing lands with the bespoke parsers.
+        // full path; the Python driver builds the typed object here before
+        // generic_objects and `continue`s, so it never lands a
+        // generic_objects row.
+        if let Some(topo_id) = block.header.strip_prefix("gtm topology ") {
+            let range =
+                Range::from_offsets(source, &line_index, block.start_offset, block.end_offset);
+            let topo = super::bespoke::parse_gtm_topology(topo_id, &block.body, range);
+            config.objects.push(Placed {
+                table_name: "gtm_topologies",
+                full_path: topo_id.to_owned(),
+                object: ModelObject::GtmTopology(topo),
+            });
             continue;
         }
 
@@ -111,6 +119,11 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
         ));
 
         // Typed dispatch — mirrors the strict `_parse_header` path.
+        let ctx = super::bespoke::BespokeCtx {
+            source,
+            line_index: &line_index,
+            block_start: block.start_offset,
+        };
         if let Some(placed) = dispatch_block(
             &block.header,
             &module,
@@ -119,6 +132,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
             &block.body,
             range,
             &partition_prefix,
+            ctx,
         ) {
             config.objects.push(placed);
         }
@@ -143,6 +157,7 @@ fn dispatch_block(
     body: &str,
     range: Range,
     partition_prefix: &str,
+    ctx: super::bespoke::BespokeCtx,
 ) -> Option<Placed> {
     use crate::model::gen::dispatch::{
         dispatch_ltm_tables, dispatch_minimal, dispatch_named, dispatch_singleton,
@@ -169,6 +184,11 @@ fn dispatch_block(
         if !generic_identifier.is_empty() {
             return None;
         }
+        // Bespoke singletons (sys ntp / sys snmp) intercept before the
+        // generated singleton dispatch.
+        if let Some(p) = bespoke_override(generic_module, generic_type, "", body, range) {
+            return Some(p);
+        }
         if let Some((table, object)) =
             dispatch_singleton(generic_module, generic_type, "", body, range)
         {
@@ -183,6 +203,12 @@ fn dispatch_block(
     };
 
     let fp = full_path.as_str();
+
+    // Bespoke named/minimal kinds (net route / net self / security firewall
+    // rule-list) intercept before the generated dispatch tables.
+    if let Some(p) = bespoke_override(&module, &object_type, fp, body, range) {
+        return Some(p);
+    }
 
     // Minimal pre-pass + named + singleton + rich ltm tables (generated).
     if let Some((table, object)) = dispatch_minimal(&module, &object_type, fp, body, range) {
@@ -209,17 +235,24 @@ fn dispatch_block(
         );
     }
     if module == "gtm" && object_type.starts_with("pool ") {
+        let record_type = object_type.strip_prefix("pool ").unwrap_or("");
         return placed(
             "gtm_pools",
             fp,
-            ModelObject::GtmPool(parse_bigip_gtm_pool(fp, body, range)),
+            ModelObject::GtmPool(super::bespoke::parse_gtm_pool(fp, body, record_type, range)),
         );
     }
     if module == "gtm" && object_type.starts_with("wideip ") {
+        let record_type = object_type.strip_prefix("wideip ").unwrap_or("");
         return placed(
             "gtm_wideips",
             fp,
-            ModelObject::GtmWideip(parse_bigip_gtm_wideip(fp, body, range)),
+            ModelObject::GtmWideip(super::bespoke::parse_gtm_wideip(
+                fp,
+                body,
+                record_type,
+                range,
+            )),
         );
     }
     if module == "pem"
@@ -243,21 +276,32 @@ fn dispatch_block(
 
     let object = match object_type.as_str() {
         "data-group internal" | "data-group external" => {
+            let kind = if object_type == "data-group external" {
+                crate::model::DataGroupType::External
+            } else {
+                crate::model::DataGroupType::Internal
+            };
             return placed(
                 "data_groups",
                 fp,
-                ModelObject::DataGroup(parse_bigip_data_group(fp, body, range)),
-            )
+                ModelObject::DataGroup(super::bespoke::parse_data_group(fp, body, kind, range)),
+            );
         }
-        "pool" if module == "ltm" => ModelObject::Pool(parse_bigip_pool(fp, body, range)),
-        "virtual" => ModelObject::VirtualServer(parse_bigip_virtual_server(fp, body, range)),
+        "pool" if module == "ltm" => {
+            ModelObject::Pool(super::bespoke::parse_pool(fp, body, range, ctx))
+        }
+        "virtual" => {
+            ModelObject::VirtualServer(super::bespoke::parse_virtual(fp, body, range, ctx))
+        }
         "virtual-address" if module == "ltm" => {
-            ModelObject::VirtualAddress(parse_bigip_virtual_address(fp, body, range))
+            ModelObject::VirtualAddress(super::bespoke::parse_virtual_address(fp, body, range))
         }
-        "node" => ModelObject::Node(parse_bigip_node(fp, body, range)),
-        "snatpool" => ModelObject::SnatPool(parse_bigip_snat_pool(fp, body, range)),
-        "rule" => ModelObject::Rule(parse_bigip_rule(fp, body, range)),
-        "policy" if module == "ltm" => ModelObject::Policy(parse_bigip_policy(fp, body, range)),
+        "node" => ModelObject::Node(super::bespoke::parse_node(fp, body, range)),
+        "snatpool" => ModelObject::SnatPool(super::bespoke::parse_snatpool(fp, body, range)),
+        "rule" => ModelObject::Rule(super::bespoke::parse_rule(fp, body, range)),
+        "policy" if module == "ltm" => {
+            ModelObject::Policy(super::bespoke::parse_policy(fp, body, range))
+        }
         ot if ot.starts_with("dns cache records ") && module == "ltm" => {
             return placed(
                 "ltm_dns_cache_records",
@@ -266,20 +310,28 @@ fn dispatch_block(
             )
         }
         ot if ot.starts_with("profile ") => {
+            let profile_type = ot.strip_prefix("profile ").unwrap_or("");
             return placed(
                 "profiles",
                 fp,
-                ModelObject::Profile(parse_bigip_profile(fp, body, range)),
-            )
+                ModelObject::Profile(super::bespoke::parse_profile(fp, profile_type, body, range)),
+            );
         }
         ot if ot.starts_with("persistence ") => {
+            let persistence_type = ot.strip_prefix("persistence ").unwrap_or("");
             return placed(
                 "persistence",
                 fp,
-                ModelObject::Persistence(parse_bigip_persistence(fp, body, range)),
-            )
+                ModelObject::Persistence(super::bespoke::parse_persistence(
+                    fp,
+                    persistence_type,
+                    body,
+                    range,
+                )),
+            );
         }
         ot if ot.starts_with("monitor ") => {
+            let monitor_type = ot.strip_prefix("monitor ").unwrap_or("");
             let table = if module == "gtm" {
                 "gtm_monitors"
             } else {
@@ -288,7 +340,7 @@ fn dispatch_block(
             return placed(
                 table,
                 fp,
-                ModelObject::Monitor(parse_bigip_monitor(fp, body, range)),
+                ModelObject::Monitor(super::bespoke::parse_monitor(fp, body, monitor_type, range)),
             );
         }
         _ => return None,
@@ -314,6 +366,49 @@ fn placed(table: &'static str, full_path: &str, object: ModelObject) -> Option<P
         full_path: full_path.to_owned(),
         object,
     })
+}
+
+/// Intercept the `(module, object_type)` keys whose generated dispatch
+/// routes through the scalar named/singleton tables but which carry
+/// structured fields handled by [`super::bespoke`]. Returns `None` for any
+/// other key so the generated dispatch proceeds unchanged.
+fn bespoke_override(
+    module: &str,
+    object_type: &str,
+    full_path: &str,
+    body: &str,
+    range: Range,
+) -> Option<Placed> {
+    match (module, object_type) {
+        ("sys", "ntp") => placed(
+            "sys_ntp",
+            full_path,
+            ModelObject::SysNtp(super::bespoke::parse_sys_ntp(full_path, body, range)),
+        ),
+        ("sys", "snmp") => placed(
+            "sys_snmp",
+            full_path,
+            ModelObject::SysSnmp(super::bespoke::parse_sys_snmp(full_path, body, range)),
+        ),
+        ("net", "route") => placed(
+            "net_routes",
+            full_path,
+            ModelObject::NetRoute(super::bespoke::parse_net_route(full_path, body, range)),
+        ),
+        ("net", "self") => placed(
+            "net_selves",
+            full_path,
+            ModelObject::NetSelf(super::bespoke::parse_net_self(full_path, body, range)),
+        ),
+        ("security", "firewall rule-list") => placed(
+            "security_firewall_rule_lists",
+            full_path,
+            ModelObject::SecurityFirewallRuleList(
+                super::bespoke::parse_security_firewall_rule_list(full_path, body, range),
+            ),
+        ),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
