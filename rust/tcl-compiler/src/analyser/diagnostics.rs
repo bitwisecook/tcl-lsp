@@ -798,16 +798,10 @@ const TCL_REGEX_METACHARS: &str = r"\^$.|?*+()[]{}";
 fn is_regexp_literal_safe_switch(opt: &str) -> bool {
     matches!(
         opt,
-        "-indices"
-            | "-inline"
-            | "-all"
-            | "-line"
-            | "-lineanchor"
-            | "-linestop"
-            | "-expanded"
-            | "-start"
-            | "--"
+        "-indices" | "-inline" | "-all" | "-line" | "-lineanchor" | "-linestop" | "-start" | "--"
     )
+    // `-expanded` is handled separately (whitespace/comment-gated) by the
+    // caller, so it is intentionally not listed here.
 }
 
 /// True iff `regexp PATTERN INPUT` provably returns 0.  Sound only when
@@ -819,6 +813,7 @@ fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
         return false;
     }
     let mut nocase = false;
+    let mut expanded = false;
     for opt in options {
         if !opt.starts_with('-') {
             continue; // an option value (e.g. after `-start`)
@@ -827,10 +822,22 @@ fn regexp_literal_no_match(pat: &str, inp: &str, options: &[String]) -> bool {
             nocase = true;
             continue;
         }
+        if opt == "-expanded" {
+            expanded = true;
+            continue;
+        }
         if is_regexp_literal_safe_switch(opt) {
             continue;
         }
         return false; // unknown / unsafe switch
+    }
+    // `-expanded` makes Tcl ignore unescaped whitespace and `#`-comments in
+    // the pattern, so a pattern containing either is NOT a plain substring
+    // (`regexp -expanded {a b} {ab}` matches).  Bail in that case so the
+    // no-match proof stays sound — a whitespace/comment-free literal is
+    // still safe.
+    if expanded && pat.chars().any(|c| c.is_whitespace() || c == '#') {
+        return false;
     }
     if nocase {
         !inp.to_lowercase().contains(&pat.to_lowercase())
@@ -9566,6 +9573,19 @@ foo
         // Embedded in a negated condition fires on the no-match arm.
         assert!(
             w210_codes("proc f {} { if {![regexp {x} y -> v]} { puts $v } }")
+                .iter()
+                .any(|m| m.contains("'v'"))
+        );
+    }
+
+    #[test]
+    fn w210_regexp_expanded_whitespace_pattern_silent() {
+        // `-expanded` ignores whitespace, so `{a b}` matches `ab` and writes
+        // v — the no-match proof must bail (no false W210).
+        assert!(w210_codes("proc f {} { regexp -expanded {a b} ab v\n puts $v }").is_empty());
+        // A whitespace-free literal under -expanded is still safe → fires.
+        assert!(
+            w210_codes("proc f {} { regexp -expanded {x} X v\n puts $v }")
                 .iter()
                 .any(|m| m.contains("'v'"))
         );

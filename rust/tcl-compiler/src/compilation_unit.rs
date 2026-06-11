@@ -443,6 +443,12 @@ fn collect_call_site_constants(
                 let Some(target) = resolve(command.as_str()) else {
                     continue;
                 };
+                // A call that omits a (defaulted) parameter uses its default,
+                // an unknown value at that slot — poison every param position
+                // this call doesn't provide so a single literal at another
+                // call site can't bind it.  Mirrors the intent of treating
+                // omitted args as `_UNKNOWN_ARG`.
+                let nparams = procedures.get(&target).map_or(0, |p| p.params.len());
                 let by_idx = out.entry(target).or_default();
                 for (i, arg) in args.iter().enumerate() {
                     let slot = by_idx.entry(i).or_default();
@@ -451,6 +457,9 @@ fn collect_call_site_constants(
                     } else {
                         slot.values.insert(arg.clone());
                     }
+                }
+                for i in args.len()..nparams {
+                    by_idx.entry(i).or_default().unknown = true;
                 }
             }
         }
