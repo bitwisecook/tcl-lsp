@@ -122,6 +122,48 @@ ownership matrices.
   current ``trace add variable`` no-op gap, the design sketch
   (per-Var TraceList + fire hooks on every mutator), and an
   effort estimate for closing it.
+- [runtime/proc-call-and-stack-traces.md](runtime/proc-call-and-stack-traces.md)
+  — the proc call protocol: argument binding, exception propagation,
+  and ``-errorinfo`` / ``-errorcode`` stack-trace assembly across the
+  call stack.
+- [runtime/c-api-ownership-contract.md](runtime/c-api-ownership-contract.md)
+  — the C Tcl API the runtime ships (``tcl.h`` / ``tclOO.h`` /
+  ``tclTomMath.h``) and the refcount-ownership / error-return contract
+  every exported C entry point must honour.
+- [runtime/c-extension-abi.md](runtime/c-extension-abi.md) — the
+  C-Tcl-extension → WASM ABI: how an unmodified C extension is compiled
+  and linked against the runtime, with the spike that validated the
+  mechanism end-to-end.
+- [runtime/tcltest-bringup.md](runtime/tcltest-bringup.md) — the plan for
+  running the real Tcl library and ``tcltest`` harness (the
+  ``pkgIndex.tcl`` / ``tm`` machinery) against real C Tcl 9 under the
+  runtime.
+- [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
+  phases 4 (residual), 5, and 6 of the Zig WASM runtime, companion to
+  the master plan: remaining P4 work and P5/P6 sequencing.
+
+## Rust runtime port
+
+The Python pipeline's port to a native Rust workspace — current state,
+where it is headed, and whether the gap is bridgeable. The companion
+chunk-by-chunk dispatch story lives in
+[`docs/rust-rewrite.md`](../rust-rewrite.md).
+
+- [rust/current-architecture.md](rust/current-architecture.md) — snapshot
+  of the Rust workspace as it stands today: crate layout and data flow
+  through the native pipeline.
+- [rust/target-architecture.md](rust/target-architecture.md) — the target
+  design (zero-copy, single-parse, incremental-reuse, MVCC) and how the
+  competing goals are reconciled.
+- [rust/feasibility.md](rust/feasibility.md) — feasibility analysis:
+  whether the target is reachable from the current architecture across
+  all six design goals.
+- [rust/review-findings.md](rust/review-findings.md) — workspace review
+  findings on correctness, performance, and memory, including the
+  ``unsafe``-forbidden discipline and where it costs.
+- [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
+  productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
+  status, bootstrapping plan, and the end-to-end build mechanism.
 
 ## Optional WASM extensions
 
@@ -173,6 +215,11 @@ are its rules, and what are the failure modes". One contract per file.
   — command and event registry ownership rules.
 - [shared-utility-contracts.md](contracts/shared-utility-contracts.md) —
   shared helper ownership across core and LSP.
+- [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) — the
+  single home for logic that otherwise drifts between features/passes
+  (offset mapping, proc lookup, package ranking, event context,
+  word-shape parsing) and the rules that keep it from being
+  reimplemented.
 - [formatter-engine.md](contracts/formatter-engine.md) — formatter
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
@@ -263,6 +310,12 @@ Distilled from the trickiest scars in the WASM runtime history
   import`/`export`/`forget`/`path`, ensembles, and `::tcl::mathop` /
   `::tcl::mathfunc`; the binding lattice that gates compile-time
   resolution (the command-layer parallel of the variable-frame model).
+
+## Knowledge base coverage
+
+- [kcs-completeness-plan.md](kcs-completeness-plan.md) — audit of the
+  current KCS coverage (features and top-level notes) and the plan to
+  close the gaps toward completeness.
 
 ## Templates
 

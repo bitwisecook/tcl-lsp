@@ -161,7 +161,14 @@ class LspClient:
         #: argv used to spawn the server.  Defaults to the Python server via
         #: ``uv``; ``launch_cmd`` overrides it (e.g. the native Rust binary).
         self._launch_cmd = launch_cmd or [
-            "uv", "run", "--directory", server_dir, "--no-dev", "python", "-m", "lsp",
+            "uv",
+            "run",
+            "--directory",
+            server_dir,
+            "--no-dev",
+            "python",
+            "-m",
+            "lsp",
         ]
         self.process: subprocess.Popen | None = None
         self._request_id = 0

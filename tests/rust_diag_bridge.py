@@ -5,10 +5,12 @@ Activated by ``TCL_LSP_DIAG_BACKEND=rust`` (plus ``TCL_LSP_SERVER_BIN`` /
 ``TCL_LSP_SERVER_KIND=rust`` so the e2e harness client spawns the native
 binary).  When active, ``server.features.diagnostics.get_diagnostics`` and
 ``analyser.analyse(...).diagnostics`` return the diagnostics the native
-server publishes for the source, shaped as light objects exposing ``.code``,
-``.message``, ``.severity`` and ``.range`` (with ``.start``/``.end`` →
-``.line``/``.character``) — the attributes the ``test_fp_*`` /
-``test_ground_truth_tn_fn`` battery reads.
+server publishes for the source, rebuilt as real
+``lsprotocol.types.Diagnostic`` objects — exposing ``.code``, ``.message``,
+``.severity`` and ``.range`` (with ``.start``/``.end`` →
+``.line``/``.character``), the attributes the ``test_fp_*`` /
+``test_ground_truth_tn_fn`` battery reads — so the value matches the
+``list[types.Diagnostic]`` contract its caller declares.
 
 The server is started once (module singleton) and driven with a single,
 reused document URI (full-document ``didChange`` per call, version-bumped) so
@@ -20,8 +22,9 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
+
+from lsprotocol import types
 
 _REPO = Path(__file__).resolve().parent.parent
 _LOCK = threading.Lock()
@@ -56,24 +59,23 @@ def _client():
     return client
 
 
-def _to_obj(d: dict) -> SimpleNamespace:
+def _to_diagnostic(d: dict) -> types.Diagnostic:
     rng = d.get("range") or {}
     start = rng.get("start") or {}
     end = rng.get("end") or {}
-    return SimpleNamespace(
-        code=d.get("code"),
-        message=d.get("message"),
-        severity=d.get("severity"),
-        range=SimpleNamespace(
-            start=SimpleNamespace(
-                line=start.get("line", 0), character=start.get("character", 0)
-            ),
-            end=SimpleNamespace(line=end.get("line", 0), character=end.get("character", 0)),
+    severity = d.get("severity")
+    return types.Diagnostic(
+        range=types.Range(
+            start=types.Position(line=start.get("line", 0), character=start.get("character", 0)),
+            end=types.Position(line=end.get("line", 0), character=end.get("character", 0)),
         ),
+        message=d.get("message") or "",
+        severity=types.DiagnosticSeverity(severity) if severity is not None else None,
+        code=d.get("code"),
     )
 
 
-def rust_diagnostics(source: str, language_id: str = "tcl") -> list[SimpleNamespace]:
+def rust_diagnostics(source: str, language_id: str = "tcl") -> list[types.Diagnostic]:
     global _VERSION
     with _LOCK:
         client = _client()
@@ -85,4 +87,4 @@ def rust_diagnostics(source: str, language_id: str = "tcl") -> list[SimpleNamesp
             client.replace_document(_URI, version, source)
             diags = client.await_diagnostics(_URI, version=version, timeout=30.0)
             client.await_log("workspace_state.update", _URI, timeout=30.0)
-        return [_to_obj(d) for d in diags]
+        return [_to_diagnostic(d) for d in diags]
